@@ -62,7 +62,7 @@ import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.MultiSelect as MultiSelect
 import Klar.Rule as Rule exposing (Condition, Field, FieldKind(..), Operands(..), Operator(..), Rule(..))
-import Klar.RuleBuilder.Support exposing (findCondition, replaceCondition, stub)
+import Klar.RuleBuilder.Support as Support exposing (Info, findCondition, replaceCondition, stub)
 import Klar.Select as Select
 import Klar.TextInput as TextInput
 import Set exposing (Set)
@@ -79,8 +79,8 @@ by node id, date pickers by `( node id, operand index )`.
 type Controls
     = Controls
         { prefix : String
-        , selects : Dict ( Int, String ) Select.State
-        , multis : Dict Int MultiSelect.State
+        , selects : Dict ( Int, String ) (Select.State String)
+        , multis : Dict Int (MultiSelect.State String)
         , dates : Dict ( Int, Int ) DatePicker.State
         }
 
@@ -131,12 +131,12 @@ dropValues node (Controls c) =
         }
 
 
-selectState : Controls -> Int -> String -> String -> Select.State
+selectState : Controls -> Int -> String -> String -> Select.State String
 selectState (Controls c) node role domId =
     Dict.get ( node, role ) c.selects |> Maybe.withDefault (Select.init domId)
 
 
-syncSelect : String -> Select.State -> Select.State
+syncSelect : String -> Select.State String -> Select.State String
 syncSelect wanted state =
     if wanted == "" then
         if Select.value state == Nothing then
@@ -152,7 +152,7 @@ syncSelect wanted state =
         Select.setValue wanted state
 
 
-syncMany : List String -> MultiSelect.State -> MultiSelect.State
+syncMany : List String -> MultiSelect.State String -> MultiSelect.State String
 syncMany wanted state =
     if MultiSelect.values state == wanted then
         state
@@ -212,7 +212,7 @@ focusDomId prefix fields condition =
             fieldDomId prefix condition.id
 
         Just field ->
-            if shapeOf field.kind condition.operator == NoValue then
+            if shapeOf (Rule.fieldKind field) condition.operator == NoValue then
                 operatorDomId prefix condition.id
 
             else
@@ -224,10 +224,10 @@ focusDomId prefix fields condition =
 
 
 type Msg
-    = FieldMsg Int (List ( String, FieldKind )) Select.Msg
-    | OperatorMsg Int FieldKind Select.Msg
-    | ChoiceMsg Int Int Select.Msg
-    | ManyMsg Int MultiSelect.Msg
+    = FieldMsg Int (List ( String, Info )) (Select.Msg String)
+    | OperatorMsg Int FieldKind (Select.Msg String)
+    | ChoiceMsg Int Int (Select.Msg String)
+    | ManyMsg Int (MultiSelect.Msg String)
     | ValueTyped Int Int String
     | ValueLeft Int
     | DateMsg Int Int DatePicker.Msg
@@ -272,13 +272,13 @@ update msg rule ((Controls c) as controls) =
                     if picked /= current then
                         { rule =
                             case lookup picked kinds of
-                                Just kind ->
+                                Just info ->
                                     let
                                         withField =
-                                            Rule.setField [ stub picked kind ] node picked rule
+                                            Rule.setField [ stub picked info ] node picked rule
                                     in
-                                    -- the first field of a new condition gets that kind's usual operator
-                                    case ( current, List.head (Rule.operatorsFor kind) ) of
+                                    -- the first field of a new condition gets the field's usual operator
+                                    case ( current, List.head info.operators ) of
                                         ( "", Just usual ) ->
                                             Rule.setOperator node usual withField
 
@@ -522,7 +522,7 @@ blame fields condition =
             BlameField
 
         Just field ->
-            if List.member condition.operator (Rule.operatorsFor field.kind) then
+            if List.member condition.operator (Rule.fieldOperators field) then
                 BlameValues
 
             else
@@ -560,12 +560,12 @@ viewField settings condition =
             unknown
                 ++ List.map
                     (\field ->
-                        case field.group of
+                        case Rule.fieldGroup field of
                             Just group ->
-                                Select.option field.id field.label |> Select.withGroup group
+                                Select.option (Rule.fieldId field) (Rule.fieldLabel field) |> Select.withGroup group
 
                             Nothing ->
-                                Select.option field.id field.label
+                                Select.option (Rule.fieldId field) (Rule.fieldLabel field)
                     )
                     settings.fields
 
@@ -574,7 +574,7 @@ viewField settings condition =
                 |> syncSelect condition.field
 
         kinds =
-            List.map (\field -> ( field.id, field.kind )) settings.fields
+            List.map (\field -> ( Rule.fieldId field, Support.infoOf field )) settings.fields
     in
     Html.div [ Internal.cls [ "klar-rule-editor__field" ] ]
         [ Select.view (\inner -> settings.toMsg (FieldMsg condition.id kinds inner))
@@ -617,14 +617,14 @@ viewOperator settings condition =
             Just field ->
                 let
                     operators =
-                        Rule.operatorsFor field.kind
+                        Rule.fieldOperators field
 
                     stray =
                         if List.member condition.operator operators then
                             []
 
                         else
-                            [ Select.option (operatorKey condition.operator) (Rule.operatorLabel settings.locale field.kind condition.operator)
+                            [ Select.option (operatorKey condition.operator) (Rule.operatorLabel settings.locale (Rule.fieldKind field) condition.operator)
                                 |> Select.disabledOption
                             ]
 
@@ -632,14 +632,14 @@ viewOperator settings condition =
                         selectState settings.controls condition.id "op" domId
                             |> syncSelect (operatorKey condition.operator)
                 in
-                Select.view (\inner -> settings.toMsg (OperatorMsg condition.id field.kind inner))
+                Select.view (\inner -> settings.toMsg (OperatorMsg condition.id (Rule.fieldKind field) inner))
                     [ Select.label t.operator
                     , Select.labelHidden
                     , Select.options
                         (stray
                             ++ List.map
                                 (\operator ->
-                                    Select.option (operatorKey operator) (Rule.operatorLabel settings.locale field.kind operator)
+                                    Select.option (operatorKey operator) (Rule.operatorLabel settings.locale (Rule.fieldKind field) operator)
                                         |> Select.withKeywords (operatorWords settings.locale operator)
                                 )
                                 operators
@@ -660,7 +660,7 @@ hasValueEditor : List (Field row) -> Condition -> Bool
 hasValueEditor fields condition =
     case Rule.fieldById fields condition.field of
         Just field ->
-            shapeOf field.kind condition.operator /= NoValue
+            shapeOf (Rule.fieldKind field) condition.operator /= NoValue
 
         Nothing ->
             False
@@ -685,7 +685,7 @@ viewValues settings condition =
                 t =
                     texts settings.locale
             in
-            case shapeOf field.kind condition.operator of
+            case shapeOf (Rule.fieldKind field) condition.operator of
                 NoValue ->
                     Html.text ""
 
@@ -1129,7 +1129,7 @@ chipParts locale fields condition =
                     condition.operator == InLastDays || condition.operator == InNextDays
 
                 labelOf value =
-                    case field.kind of
+                    case Rule.fieldKind field of
                         ChoiceKind choices ->
                             choices
                                 |> List.filter (\choice -> choice.value == value)
@@ -1180,7 +1180,7 @@ chipParts locale fields condition =
                             labels =
                                 List.map labelOf values
                         in
-                        ( Rule.operatorLabel locale field.kind condition.operator
+                        ( Rule.operatorLabel locale (Rule.fieldKind field) condition.operator
                         , case Rule.operandsOf condition.operator of
                             NoOperand ->
                                 ""
@@ -1213,13 +1213,13 @@ chipParts locale fields condition =
                                 ""
                         )
             in
-            { field = field.label
+            { field = Rule.fieldLabel field
             , operator = operatorText
             , value = short
             , title =
                 String.join " "
                     (List.filter (\part -> part /= "")
-                        [ field.label
+                        [ Rule.fieldLabel field
                         , operatorText
                         , if long /= "" then
                             long
@@ -1276,10 +1276,10 @@ extraIssues locale fields rule =
         ConditionRule condition ->
             case Rule.fieldById fields condition.field of
                 Just field ->
-                    if not (List.member condition.operator (Rule.operatorsFor field.kind)) then
+                    if not (List.member condition.operator (Rule.fieldOperators field)) then
                         [ { nodeId = condition.id, message = (texts locale).invalidOperator } ]
 
-                    else if shapeOf field.kind condition.operator == Single DaysIn && not (Rule.isComplete field condition) then
+                    else if shapeOf (Rule.fieldKind field) condition.operator == Single DaysIn && not (Rule.isComplete field condition) then
                         [ { nodeId = condition.id, message = (texts locale).invalidDays } ]
 
                     else

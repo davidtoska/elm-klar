@@ -14,9 +14,10 @@ several values [Klar.MultiSelect](Klar-MultiSelect).
 
     import Klar.Select as Select
 
-    -- model: one State per select; the String is a DOM id, unique on the page
+    -- model: one State per select, of your own id type; the String is a DOM id,
+    -- unique on the page
     type alias Model =
-        { country : Select.State }
+        { country : Select.State CountryCode }
 
     init =
         { country = Select.init "country" }
@@ -38,13 +39,15 @@ several values [Klar.MultiSelect](Klar-MultiSelect).
         model.country
 
     -- reading the value
-    Select.value model.country --> Maybe String
+    Select.value model.country --> Maybe CountryCode
 
 The state holds the chosen value, the search text and whether the list is open,
 and there are no out-messages: react to a change by comparing the state before
 and after in your `update`, for example `Select.value new /= Select.value old`.
-The value is the `value` string of the chosen option; turn it into your own type
-when you read it.
+The value is the `value` of the chosen option, of whatever type you gave it (a
+`CustomerId`, a code, an `Int`): there is nothing to convert, and the chosen
+value comes back as the same id. Values are compared with `==`, so keep them
+plain data.
 
 Typing filters the list the way [Klar.Search](Klar-Search) scores text: best
 match first, ignoring case and diacritics, several words that must all match,
@@ -122,6 +125,7 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Select.Match as Match
 import Klar.Select.Option as Option
 import Klar.Select.Popup as Popup
 import Klar.Theme as Theme exposing (Size(..))
@@ -209,7 +213,7 @@ them. Handy for a simulated backend or for showing a count elsewhere.
 -}
 filter : String -> List (Option id) -> List (Option id)
 filter =
-    Option.filter
+    Match.filter
 
 
 

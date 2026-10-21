@@ -1318,10 +1318,10 @@ tableTests =
             , test "the sort button names the column and says what a click does" <|
                 \_ -> inTable (Orders.sortButton "Customer") [ Selector.attribute (Attr.title "Click to sort"), Selector.attribute (Attr.type_ "button") ] (table [])
             , test "a header that is sorted says in which direction" <|
-                \_ -> inTable (header "Customer") [ attr "aria-sort" "descending" ] (Orders.render [] (Table.setSort [ ( "customer", Table.Descending ) ] start))
+                \_ -> inTable (header "Customer") [ attr "aria-sort" "descending" ] (Orders.render [] (Table.setSort [ ( Table.columnId "customer", Table.Descending ) ] start))
             , test "a header cell of a column that cannot be sorted has no aria-sort" <|
                 \_ ->
-                    Orders.render [ Table.columns [ Table.text "number" "Order" .number [ Table.unsortable ] ] ] start
+                    Orders.render [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.unsortable ] ] ] start
                         |> noneInTable [ Selector.tag "th", Selector.attribute (Attr.attribute "aria-sort" "none") ]
             , test "one row for each item" <|
                 \_ -> countInTable 8 [ Selector.class "klar-table__row" ] (table [])

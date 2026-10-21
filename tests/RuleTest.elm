@@ -15,6 +15,7 @@ suite : Test
 suite =
     describe "Klar.Rule"
         [ fieldTests
+        , operatorLimitTests
         , operatorTests
         , numberParsingTests
         , orderTests
@@ -307,28 +308,108 @@ sampleRule =
 fieldTests : Test
 fieldTests =
     describe "fields"
-        [ check "textField has the text kind" Rule.TextKind (Rule.textField "a" "A" identity).kind
-        , check "numberField has the number kind" Rule.NumberKind (Rule.numberField "a" "A" (always Nothing)).kind
-        , check "dateField has the date kind" Rule.DateKind (Rule.dateField "a" "A" (always Nothing)).kind
-        , check "boolField has the boolean kind" Rule.BooleanKind (Rule.boolField "a" "A" (always True)).kind
-        , check "choiceField carries its choices" (Rule.ChoiceKind statuses) (Rule.choiceField "a" "A" statuses identity).kind
-        , check "a field starts without a group" Nothing (Rule.textField "a" "A" identity).group
-        , check "inGroup sets the heading" (Just "Delivery") (Rule.textField "a" "A" identity |> Rule.inGroup "Delivery").group
+        [ check "textField has the text kind" Rule.TextKind (Rule.fieldKind (Rule.textField "a" "A" identity))
+        , check "numberField has the number kind" Rule.NumberKind (Rule.fieldKind (Rule.numberField "a" "A" (always Nothing)))
+        , check "dateField has the date kind" Rule.DateKind (Rule.fieldKind (Rule.dateField "a" "A" (always Nothing)))
+        , check "boolField has the boolean kind" Rule.BooleanKind (Rule.fieldKind (Rule.boolField "a" "A" (always True)))
+        , check "choiceField carries its choices" (Rule.ChoiceKind statuses) (Rule.fieldKind (Rule.choiceField "a" "A" statuses identity))
+        , check "a field starts without a group" Nothing (Rule.fieldGroup (Rule.textField "a" "A" identity))
+        , check "inGroup sets the heading" (Just "Delivery") (Rule.fieldGroup (Rule.textField "a" "A" identity |> Rule.inGroup "Delivery"))
         , check "inGroup keeps the id and the label"
             ( "a", "A" )
             (let
                 f =
                     Rule.textField "a" "A" identity |> Rule.inGroup "Delivery"
              in
-             ( f.id, f.label )
+             ( Rule.fieldId f, Rule.fieldLabel f )
             )
-        , check "fieldById finds a field" (Just "Total") (Rule.fieldById fields "total" |> Maybe.map .label)
-        , check "fieldById is Nothing for an unknown id" Nothing (Rule.fieldById fields "nope" |> Maybe.map .label)
-        , check "fieldById is case sensitive" Nothing (Rule.fieldById fields "Total" |> Maybe.map .label)
-        , check "fieldById of nothing is Nothing" Nothing (Rule.fieldById [] "total" |> Maybe.map .label)
+        , check "fieldById finds a field" (Just "Total") (Rule.fieldById fields "total" |> Maybe.map Rule.fieldLabel)
+        , check "fieldById is Nothing for an unknown id" Nothing (Rule.fieldById fields "nope" |> Maybe.map Rule.fieldLabel)
+        , check "fieldById is case sensitive" Nothing (Rule.fieldById fields "Total" |> Maybe.map Rule.fieldLabel)
+        , check "fieldById of nothing is Nothing" Nothing (Rule.fieldById [] "total" |> Maybe.map Rule.fieldLabel)
         , check "fieldById returns the first field when ids repeat"
             (Just "First")
-            (Rule.fieldById [ Rule.textField "x" "First" identity, Rule.textField "x" "Second" identity ] "x" |> Maybe.map .label)
+            (Rule.fieldById [ Rule.textField "x" "First" identity, Rule.textField "x" "Second" identity ] "x" |> Maybe.map Rule.fieldLabel)
+        ]
+
+
+
+-- OPERATORS A FIELD OFFERS
+
+
+operatorLimitTests : Test
+operatorLimitTests =
+    let
+        owner =
+            Rule.choiceField "owner" "Owner" statuses .status
+                |> Rule.withOperators [ IsAnyOf, Contains, Is, IsAnyOf ]
+
+        limited =
+            [ owner ]
+    in
+    describe "withOperators"
+        [ check "a field offers every operator of its kind by default"
+            (Rule.operatorsFor Rule.TextKind)
+            (Rule.fieldOperators (Rule.textField "a" "A" identity))
+        , check "withOperators limits the operators, in the order given, without repeats and without the ones that do not fit the kind"
+            [ IsAnyOf, Is ]
+            (Rule.fieldOperators owner)
+        , check "when none of the operators fit the kind, the field keeps all of them"
+            (Rule.operatorsFor (Rule.ChoiceKind statuses))
+            (Rule.fieldOperators (Rule.choiceField "s" "S" statuses .status |> Rule.withOperators [ Contains, GreaterThan ]))
+        , check "withOperators with an empty list keeps all of them"
+            (Rule.operatorsFor Rule.TextKind)
+            (Rule.fieldOperators (Rule.textField "a" "A" identity |> Rule.withOperators []))
+        , check "withOperators does not change the kind, the label or the group"
+            ( Rule.ChoiceKind statuses, "Owner", Just "People" )
+            (let
+                f =
+                    Rule.choiceField "owner" "Owner" statuses .status |> Rule.inGroup "People" |> Rule.withOperators [ Is ]
+             in
+             ( Rule.fieldKind f, Rule.fieldLabel f, Rule.fieldGroup f )
+            )
+        , check "a new condition starts with the first operator the field offers"
+            (Just IsAnyOf)
+            (case Rule.addCondition limited 0 Rule.emptyGroup of
+                GroupRule g ->
+                    case g.children of
+                        [ ConditionRule c ] ->
+                            Just c.operator
+
+                        _ ->
+                            Nothing
+
+                ConditionRule _ ->
+                    Nothing
+            )
+        , check "changing to a field that offers fewer operators replaces the operator that does not fit"
+            (Just IsAnyOf)
+            (case Rule.setField (fields ++ limited) 1 "owner" (group 0 All [ cond 1 "customer" Contains [ "x" ] ]) of
+                GroupRule g ->
+                    case g.children of
+                        [ ConditionRule c ] ->
+                            Just c.operator
+
+                        _ ->
+                            Nothing
+
+                ConditionRule _ ->
+                    Nothing
+            )
+        , check "validate reports an operator the field does not offer, even when it fits the kind"
+            [ "The operator does not fit the field" ]
+            (Rule.validate Locale.en limited (group 0 All [ cond 1 "owner" IsNot [ "open" ] ]) |> List.map .message)
+        , check "validate accepts an operator the field offers"
+            []
+            (Rule.validate Locale.en limited (group 0 All [ cond 1 "owner" Is [ "open" ] ]) |> List.map .message)
+        , check "a bare field has an id, a label and a kind and reads nothing from a row"
+            { id = "k", label = "K", kind = Rule.NumberKind, matched = False }
+            (let
+                f =
+                    Rule.bareField "k" "K" Rule.NumberKind
+             in
+             { id = Rule.fieldId f, label = Rule.fieldLabel f, kind = Rule.fieldKind f, matched = Rule.matches today [ f ] (cond 1 "k" Equals [ "1" ]) () }
+            )
         ]
 
 

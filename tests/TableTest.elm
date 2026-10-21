@@ -158,7 +158,7 @@ initTests =
         , check "nothing is selected, counted" 0 (Table.selectedCount 100 start)
         , check "nothing is expanded" [] (Table.expandedIds start)
         , check "the density is normal" Normal (Table.density start)
-        , check "no column has been shown or hidden by the user" Nothing (Table.isColumnVisible "city" start)
+        , check "no column has been shown or hidden by the user" Nothing (Table.isColumnVisible (Table.columnId "city") start)
         , check "the accessors agree with the query"
             { search = "", sort = [], filters = [], page = 1, pageSize = 25 }
             { search = Table.search start, sort = Table.sort start, filters = Table.filters start, page = Table.page start, pageSize = Table.pageSize start }
@@ -180,12 +180,12 @@ pageTests =
         , check "page 0 counts as the first page" 1 (Table.page (Table.setPage 0 start))
         , check "a negative page counts as the first page" 1 (Table.page (Table.setPage -7 start))
         , check "setPage leaves the rest of the query alone"
-            { search = "a", sort = [ ( "total", Descending ) ], filters = [ ( "city", OneOf [ "Oslo" ] ) ], page = 4, pageSize = 10 }
+            { search = "a", sort = [ ( Table.columnId "total", Table.Descending ) ], filters = [ ( Table.columnId "city", Table.OneOf [ "Oslo" ] ) ], page = 4, pageSize = 10 }
             (start
                 |> Table.setPageSize 10
                 |> Table.setSearch "a"
-                |> Table.setSort [ ( "total", Descending ) ]
-                |> Table.setFilter "city" (Just (OneOf [ "Oslo" ]))
+                |> Table.setSort [ ( Table.columnId "total", Table.Descending ) ]
+                |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ]))
                 |> Table.setPage 4
                 |> Table.query
             )
@@ -210,10 +210,10 @@ searchStateTests =
         , test "the search box shows what was set, without trimming" <|
             \_ -> element [ Table.searchable ] (byId "orders-search") [ Selector.attribute (Attr.value "  acme ") ] (Table.setSearch "  acme " start)
         , check "the search does not touch the filters or the sort"
-            ( [ ( "city", OneOf [ "Oslo" ] ) ], [ ( "total", Ascending ) ] )
+            ( [ ( Table.columnId "city", Table.OneOf [ "Oslo" ] ) ], [ ( Table.columnId "total", Table.Ascending ) ] )
             (let
                 s =
-                    start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setSort [ ( "total", Ascending ) ] |> Table.setSearch "x"
+                    start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setSort [ ( Table.columnId "total", Table.Ascending ) ] |> Table.setSearch "x"
              in
              ( Table.filters s, Table.sort s )
             )
@@ -223,49 +223,49 @@ searchStateTests =
 sortStateTests : Test
 sortStateTests =
     describe "setSort"
-        [ check "sets the levels, primary first" [ ( "city", Ascending ), ( "total", Descending ) ] (Table.sort (Table.setSort [ ( "city", Ascending ), ( "total", Descending ) ] start))
-        , check "goes back to page 1" 1 (start |> Table.setPage 3 |> Table.setSort [ ( "city", Ascending ) ] |> Table.page)
-        , check "an empty list removes the sort" [] (start |> Table.setSort [ ( "city", Ascending ) ] |> Table.setSort [] |> Table.sort)
-        , check "is shown in the query" [ ( "total", Descending ) ] (Table.query (Table.setSort [ ( "total", Descending ) ] start)).sort
-        , check "ids that are not columns are stored as they are" [ ( "nope", Ascending ) ] (Table.sort (Table.setSort [ ( "nope", Ascending ) ] start))
+        [ check "sets the levels, primary first" [ ( Table.columnId "city", Table.Ascending ), ( Table.columnId "total", Table.Descending ) ] (Table.sort (Table.setSort [ ( Table.columnId "city", Table.Ascending ), ( Table.columnId "total", Table.Descending ) ] start))
+        , check "goes back to page 1" 1 (start |> Table.setPage 3 |> Table.setSort [ ( Table.columnId "city", Table.Ascending ) ] |> Table.page)
+        , check "an empty list removes the sort" [] (start |> Table.setSort [ ( Table.columnId "city", Table.Ascending ) ] |> Table.setSort [] |> Table.sort)
+        , check "is shown in the query" [ ( Table.columnId "total", Table.Descending ) ] (Table.query (Table.setSort [ ( Table.columnId "total", Table.Descending ) ] start)).sort
+        , check "ids that are not columns are stored as they are" [ ( Table.columnId "nope", Table.Ascending ) ] (Table.sort (Table.setSort [ ( Table.columnId "nope", Table.Ascending ) ] start))
         ]
 
 
 filterStateTests : Test
 filterStateTests =
     describe "setFilter and clearFilters"
-        [ check "sets a filter" [ ( "city", OneOf [ "Oslo" ] ) ] (Table.filters (Table.setFilter "city" (Just (OneOf [ "Oslo" ])) start))
-        , check "goes back to page 1" 1 (start |> Table.setPage 3 |> Table.setFilter "city" (Just (Contains "o")) |> Table.page)
+        [ check "sets a filter" [ ( Table.columnId "city", Table.OneOf [ "Oslo" ] ) ] (Table.filters (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start))
+        , check "goes back to page 1" 1 (start |> Table.setPage 3 |> Table.setFilter (Table.columnId "city") (Just (Contains "o")) |> Table.page)
         , check "the filters are ordered by column id"
-            [ ( "city", Contains "o" ), ( "customer", Contains "a" ), ( "total", Between (Just 1) Nothing ) ]
+            [ ( Table.columnId "city", Table.Contains "o" ), ( Table.columnId "customer", Table.Contains "a" ), ( Table.columnId "total", Table.Between (Just 1) Nothing ) ]
             (start
-                |> Table.setFilter "total" (Just (Between (Just 1) Nothing))
-                |> Table.setFilter "city" (Just (Contains "o"))
-                |> Table.setFilter "customer" (Just (Contains "a"))
+                |> Table.setFilter (Table.columnId "total") (Just (Between (Just 1) Nothing))
+                |> Table.setFilter (Table.columnId "city") (Just (Contains "o"))
+                |> Table.setFilter (Table.columnId "customer") (Just (Contains "a"))
                 |> Table.filters
             )
-        , check "a second filter on the same column replaces the first" [ ( "city", Contains "b" ) ] (start |> Table.setFilter "city" (Just (Contains "a")) |> Table.setFilter "city" (Just (Contains "b")) |> Table.filters)
-        , check "Nothing removes the filter" [ ( "total", Contains "x" ) ] (start |> Table.setFilter "city" (Just (Contains "a")) |> Table.setFilter "total" (Just (Contains "x")) |> Table.setFilter "city" Nothing |> Table.filters)
-        , check "removing a filter that is not there changes nothing" [] (Table.filters (Table.setFilter "city" Nothing start))
-        , check "removing a filter also goes back to page 1" 1 (start |> Table.setFilter "city" (Just (Contains "a")) |> Table.setPage 4 |> Table.setFilter "city" Nothing |> Table.page)
-        , check "a filter for a column that does not exist is stored" [ ( "nope", Contains "a" ) ] (Table.filters (Table.setFilter "nope" (Just (Contains "a")) start))
+        , check "a second filter on the same column replaces the first" [ ( Table.columnId "city", Table.Contains "b" ) ] (start |> Table.setFilter (Table.columnId "city") (Just (Contains "a")) |> Table.setFilter (Table.columnId "city") (Just (Contains "b")) |> Table.filters)
+        , check "Nothing removes the filter" [ ( Table.columnId "total", Table.Contains "x" ) ] (start |> Table.setFilter (Table.columnId "city") (Just (Contains "a")) |> Table.setFilter (Table.columnId "total") (Just (Contains "x")) |> Table.setFilter (Table.columnId "city") Nothing |> Table.filters)
+        , check "removing a filter that is not there changes nothing" [] (Table.filters (Table.setFilter (Table.columnId "city") Nothing start))
+        , check "removing a filter also goes back to page 1" 1 (start |> Table.setFilter (Table.columnId "city") (Just (Contains "a")) |> Table.setPage 4 |> Table.setFilter (Table.columnId "city") Nothing |> Table.page)
+        , check "a filter for a column that does not exist is stored" [ ( Table.columnId "nope", Table.Contains "a" ) ] (Table.filters (Table.setFilter (Table.columnId "nope") (Just (Contains "a")) start))
         , check "clearFilters removes the search and all filters"
             ( "", [] )
             (start
                 |> Table.setSearch "acme"
-                |> Table.setFilter "city" (Just (Contains "a"))
-                |> Table.setFilter "total" (Just (Between Nothing (Just 3)))
+                |> Table.setFilter (Table.columnId "city") (Just (Contains "a"))
+                |> Table.setFilter (Table.columnId "total") (Just (Between Nothing (Just 3)))
                 |> Table.clearFilters
                 |> (\s -> ( Table.search s, Table.filters s ))
             )
         , check "clearFilters goes back to page 1" 1 (start |> Table.setSearch "a" |> Table.setPage 3 |> Table.clearFilters |> Table.page)
         , check "clearFilters leaves the sort, the page size and the selection"
-            ( [ ( "total", Ascending ) ], 10, [ "ORD-2001" ] )
+            ( [ ( Table.columnId "total", Table.Ascending ) ], 10, [ "ORD-2001" ] )
             (start
-                |> Table.setSort [ ( "total", Ascending ) ]
+                |> Table.setSort [ ( Table.columnId "total", Table.Ascending ) ]
                 |> Table.setPageSize 10
                 |> Table.setSelected [ "ORD-2001" ] True
-                |> Table.setFilter "city" (Just (Contains "a"))
+                |> Table.setFilter (Table.columnId "city") (Just (Contains "a"))
                 |> Table.clearFilters
                 |> (\s -> ( Table.sort s, Table.pageSize s, Table.selectedIds s ))
             )
@@ -274,19 +274,19 @@ filterStateTests =
                 element []
                     (byId "orders-trigger-filter-city")
                     [ label "Filter City (filter active)" ]
-                    (Table.setFilter "city" (Just (OneOf [ "Oslo" ])) start)
+                    (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start)
         , test "and that it is not, after the filter was removed" <|
             \_ ->
                 element []
                     (byId "orders-trigger-filter-city")
                     [ label "Filter City" ]
-                    (start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setFilter "city" Nothing)
+                    (start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setFilter (Table.columnId "city") Nothing)
         , test "a count of the active filters is shown" <|
             \_ ->
                 element []
                     (byId "orders-trigger-filters")
                     [ Selector.text "2 filters active" ]
-                    (start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setFilter "customer" (Just (Contains "a")))
+                    (start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setFilter (Table.columnId "customer") (Just (Contains "a")))
         ]
 
 
@@ -297,8 +297,8 @@ filterStateTests =
 savedQuery : Table.Query
 savedQuery =
     { search = "acme"
-    , sort = [ ( "total", Descending ), ( "city", Ascending ) ]
-    , filters = [ ( "city", OneOf [ "Oslo", "Bergen" ] ), ( "total", Between (Just 10) Nothing ) ]
+    , sort = [ ( Table.columnId "total", Table.Descending ), ( Table.columnId "city", Table.Ascending ) ]
+    , filters = [ ( Table.columnId "city", Table.OneOf [ "Oslo", "Bergen" ] ), ( Table.columnId "total", Table.Between (Just 10) Nothing ) ]
     , page = 3
     , pageSize = 10
     }
@@ -312,8 +312,8 @@ queryTests =
             savedQuery
             (start
                 |> Table.setSearch "other"
-                |> Table.setSort [ ( "items", Ascending ) ]
-                |> Table.setFilter "customer" (Just (Contains "x"))
+                |> Table.setSort [ ( Table.columnId "items", Table.Ascending ) ]
+                |> Table.setFilter (Table.columnId "customer") (Just (Contains "x"))
                 |> Table.setPageSize 100
                 |> Table.setQuery savedQuery
                 |> Table.query
@@ -323,11 +323,11 @@ queryTests =
         , check "a page size below 1 becomes 1" 1 (Table.query (Table.setQuery { savedQuery | pageSize = 0 } start)).pageSize
         , check "the search in the query is trimmed" "acme" (Table.query (Table.setQuery { savedQuery | search = "  acme  " } start)).search
         , check "the filters come back ordered by column id"
-            [ ( "a", Contains "1" ), ( "b", Contains "2" ), ( "c", Contains "3" ) ]
-            (Table.query (Table.setQuery { savedQuery | filters = [ ( "c", Contains "3" ), ( "a", Contains "1" ), ( "b", Contains "2" ) ] } start)).filters
+            [ ( Table.columnId "a", Table.Contains "1" ), ( Table.columnId "b", Table.Contains "2" ), ( Table.columnId "c", Table.Contains "3" ) ]
+            (Table.query (Table.setQuery { savedQuery | filters = [ ( Table.columnId "c", Table.Contains "3" ), ( Table.columnId "a", Table.Contains "1" ), ( Table.columnId "b", Table.Contains "2" ) ] } start)).filters
         , check "when a column is given twice the last filter wins"
-            [ ( "a", Contains "2" ) ]
-            (Table.query (Table.setQuery { savedQuery | filters = [ ( "a", Contains "1" ), ( "a", Contains "2" ) ] } start)).filters
+            [ ( Table.columnId "a", Table.Contains "2" ) ]
+            (Table.query (Table.setQuery { savedQuery | filters = [ ( Table.columnId "a", Table.Contains "1" ), ( Table.columnId "a", Table.Contains "2" ) ] } start)).filters
         , test "the search box shows the restored search, untrimmed" <|
             \_ -> element [ Table.searchable ] (byId "orders-search") [ Selector.attribute (Attr.value " acme") ] (Table.setQuery { savedQuery | search = " acme" } start)
         , test "the headers show the restored filters" <|
@@ -335,7 +335,7 @@ queryTests =
         , check "selected rows stay selected" [ "ORD-2002" ] (start |> Table.setSelected [ "ORD-2002" ] True |> Table.setQuery savedQuery |> Table.selectedIds)
         , check "selection, expansion, columns and density are not part of the query"
             True
-            (Table.query (start |> Table.setSelected [ "a" ] True |> Table.setExpanded "a" True |> Table.setDensity Compact |> Table.setColumnVisible "city" False)
+            (Table.query (start |> Table.setSelected [ "a" ] True |> Table.setExpanded "a" True |> Table.setDensity Compact |> Table.setColumnVisible (Table.columnId "city") False)
                 == Table.query start
             )
         , -- Was a bug: a range filter with its bounds the wrong way round matched nothing when
@@ -346,7 +346,7 @@ queryTests =
             \_ ->
                 -- the totals 52, 75 and 75 are the ones between 50 and 80
                 Orders.expectRows [ "ORD-2002", "ORD-2005", "ORD-2008" ]
-                    (render [] (start |> Table.setFilter "total" (Just (Between (Just 80) (Just 50)))))
+                    (render [] (start |> Table.setFilter (Table.columnId "total") (Just (Between (Just 80) (Just 50)))))
         , check "the query reads from the state: two tables with the same settings have equal queries"
             True
             (Table.query (start |> Table.setSearch "a" |> Table.setPage 2) == Table.query (start |> Table.setPage 2 |> Table.setSearch "a" |> Table.setPage 2))
@@ -388,7 +388,7 @@ selectionTests =
         , check "an id that looks like a number is a text, sorted as one" [ "10", "9" ] (Table.selectedIds (Table.setSelected [ "9", "10" ] True start))
         , check "a selection does not change the query" (Table.query start) (Table.query (Table.setSelected [ "a" ] True start))
         , check "paging does not change the selection" [ "a" ] (start |> Table.setSelected [ "a" ] True |> Table.setPage 4 |> Table.setPageSize 10 |> Table.selectedIds)
-        , check "sorting does not change the selection" [ "a" ] (start |> Table.setSelected [ "a" ] True |> Table.setSort [ ( "city", Ascending ) ] |> Table.selectedIds)
+        , check "sorting does not change the selection" [ "a" ] (start |> Table.setSelected [ "a" ] True |> Table.setSort [ ( Table.columnId "city", Table.Ascending ) ] |> Table.selectedIds)
         , check "a new search keeps the rows that were picked one by one" [ "a" ] (start |> Table.setSelected [ "a" ] True |> Table.setSearch "x" |> Table.selectedIds)
         ]
 
@@ -457,15 +457,15 @@ allMatchingTests =
         , check "a changed search ends it" ended (selectionAfter identity (Table.setSearch "new"))
         , check "the same search keeps it" everything (selectionAfter (Table.setSearch "abc") (Table.setSearch "abc"))
         , check "the same search with other spaces keeps it" everything (selectionAfter (Table.setSearch "abc") (Table.setSearch "  abc "))
-        , check "a changed filter ends it" ended (selectionAfter identity (Table.setFilter "city" (Just (Contains "o"))))
-        , check "the same filter keeps it" everything (selectionAfter (Table.setFilter "city" (Just (Contains "o"))) (Table.setFilter "city" (Just (Contains "o"))))
-        , check "removing a filter ends it" ended (selectionAfter (Table.setFilter "city" (Just (Contains "o"))) (Table.setFilter "city" Nothing))
+        , check "a changed filter ends it" ended (selectionAfter identity (Table.setFilter (Table.columnId "city") (Just (Contains "o"))))
+        , check "the same filter keeps it" everything (selectionAfter (Table.setFilter (Table.columnId "city") (Just (Contains "o"))) (Table.setFilter (Table.columnId "city") (Just (Contains "o"))))
+        , check "removing a filter ends it" ended (selectionAfter (Table.setFilter (Table.columnId "city") (Just (Contains "o"))) (Table.setFilter (Table.columnId "city") Nothing))
         , check "clearFilters keeps it when there was nothing to clear" everything (selectionAfter identity Table.clearFilters)
         , check "clearFilters ends it when there was a search" ended (selectionAfter (Table.setSearch "x") Table.clearFilters)
-        , check "paging, the page size and the sort keep it" everything (selectionAfter identity (Table.setPage 3 >> Table.setPageSize 50 >> Table.setSort [ ( "total", Ascending ) ]))
+        , check "paging, the page size and the sort keep it" everything (selectionAfter identity (Table.setPage 3 >> Table.setPageSize 50 >> Table.setSort [ ( Table.columnId "total", Table.Ascending ) ]))
         , check "setQuery with another search ends it" ended (selectionAfter identity (Table.setQuery { search = "x", sort = [], filters = [], page = 1, pageSize = 25 }))
-        , check "setQuery with another filter ends it" ended (selectionAfter identity (Table.setQuery { search = "", sort = [], filters = [ ( "city", Contains "o" ) ], page = 1, pageSize = 25 }))
-        , check "setQuery with the same search and filters keeps it" everything (selectionAfter identity (Table.setQuery { search = "", sort = [ ( "city", Ascending ) ], filters = [], page = 2, pageSize = 10 }))
+        , check "setQuery with another filter ends it" ended (selectionAfter identity (Table.setQuery { search = "", sort = [], filters = [ ( Table.columnId "city", Table.Contains "o" ) ], page = 1, pageSize = 25 }))
+        , check "setQuery with the same search and filters keeps it" everything (selectionAfter identity (Table.setQuery { search = "", sort = [ ( Table.columnId "city", Table.Ascending ) ], filters = [], page = 2, pageSize = 10 }))
         , test "the bar says that all matching rows are selected" <|
             \_ ->
                 selectAllMatching start
@@ -500,11 +500,11 @@ expandedColumnAndDensityStateTests =
             ( Just False, Just True, Nothing )
             (let
                 s =
-                    start |> Table.setColumnVisible "city" False |> Table.setColumnVisible "items" True
+                    start |> Table.setColumnVisible (Table.columnId "city") False |> Table.setColumnVisible (Table.columnId "items") True
              in
-             ( Table.isColumnVisible "city" s, Table.isColumnVisible "items" s, Table.isColumnVisible "total" s )
+             ( Table.isColumnVisible (Table.columnId "city") s, Table.isColumnVisible (Table.columnId "items") s, Table.isColumnVisible (Table.columnId "total") s )
             )
-        , check "the last choice wins" (Just True) (start |> Table.setColumnVisible "city" False |> Table.setColumnVisible "city" True |> Table.isColumnVisible "city")
+        , check "the last choice wins" (Just True) (start |> Table.setColumnVisible (Table.columnId "city") False |> Table.setColumnVisible (Table.columnId "city") True |> Table.isColumnVisible (Table.columnId "city"))
         , check "setDensity" Compact (Table.density (Table.setDensity Compact start))
         , check "setDensity Comfortable" Comfortable (Table.density (Table.setDensity Comfortable start))
         , test "the density is a class on the table" <|
@@ -516,7 +516,7 @@ expandedColumnAndDensityStateTests =
 -- CLICKING HEADERS
 
 
-sortOf : Result String Table.State -> Result String (List ( String, Direction ))
+sortOf : Result String Table.State -> Result String (List ( Table.ColumnId, Direction ))
 sortOf =
     Result.map Table.sort
 
@@ -539,21 +539,21 @@ sortingByClickTests =
             press [ Table.multiSort ] (sortButton title) (sortClick False)
     in
     describe "clicking a column header"
-        [ check "the first click sorts ascending" (Ok [ ( "total", Ascending ) ]) (sortOf (after [ click "Total" ] start))
-        , check "the second click sorts descending" (Ok [ ( "total", Descending ) ]) (sortOf (after [ click "Total", click "Total" ] start))
+        [ check "the first click sorts ascending" (Ok [ ( Table.columnId "total", Table.Ascending ) ]) (sortOf (after [ click "Total" ] start))
+        , check "the second click sorts descending" (Ok [ ( Table.columnId "total", Table.Descending ) ]) (sortOf (after [ click "Total", click "Total" ] start))
         , check "the third click takes the sort away" (Ok []) (sortOf (after [ click "Total", click "Total", click "Total" ] start))
-        , check "the fourth click starts again" (Ok [ ( "total", Ascending ) ]) (sortOf (after [ click "Total", click "Total", click "Total", click "Total" ] start))
-        , check "another column replaces the first" (Ok [ ( "customer", Ascending ) ]) (sortOf (after [ click "Total", click "Customer" ] start))
+        , check "the fourth click starts again" (Ok [ ( Table.columnId "total", Table.Ascending ) ]) (sortOf (after [ click "Total", click "Total", click "Total", click "Total" ] start))
+        , check "another column replaces the first" (Ok [ ( Table.columnId "customer", Table.Ascending ) ]) (sortOf (after [ click "Total", click "Customer" ] start))
         , check "a click goes back to page 1" (Ok 1) (after [ click "Total" ] (Table.setPage 3 start) |> Result.map Table.page)
-        , check "without multiSort the Shift key changes nothing" (Ok [ ( "total", Ascending ) ]) (sortOf (after [ press [] (sortButton "Total") (sortClick True) ] start))
-        , check "with multiSort a Shift click adds a level" (Ok [ ( "total", Ascending ), ( "customer", Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer" ] start))
-        , check "a second Shift click on a level turns it round" (Ok [ ( "total", Ascending ), ( "customer", Descending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", shiftClick "Customer" ] start))
-        , check "a third Shift click takes the level away" (Ok [ ( "total", Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", shiftClick "Customer", shiftClick "Customer" ] start))
-        , check "a Shift click on the first level turns it round and keeps the others" (Ok [ ( "total", Descending ), ( "customer", Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", shiftClick "Total" ] start))
+        , check "without multiSort the Shift key changes nothing" (Ok [ ( Table.columnId "total", Table.Ascending ) ]) (sortOf (after [ press [] (sortButton "Total") (sortClick True) ] start))
+        , check "with multiSort a Shift click adds a level" (Ok [ ( Table.columnId "total", Table.Ascending ), ( Table.columnId "customer", Table.Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer" ] start))
+        , check "a second Shift click on a level turns it round" (Ok [ ( Table.columnId "total", Table.Ascending ), ( Table.columnId "customer", Table.Descending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", shiftClick "Customer" ] start))
+        , check "a third Shift click takes the level away" (Ok [ ( Table.columnId "total", Table.Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", shiftClick "Customer", shiftClick "Customer" ] start))
+        , check "a Shift click on the first level turns it round and keeps the others" (Ok [ ( Table.columnId "total", Table.Descending ), ( Table.columnId "customer", Table.Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", shiftClick "Total" ] start))
         , check "a Shift click on the only level takes it away when it comes to that" (Ok []) (sortOf (after [ shiftClick "Total", shiftClick "Total", shiftClick "Total" ] start))
-        , check "a plain click when several levels are set starts a new sort" (Ok [ ( "items", Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", plainClick "Items" ] start))
-        , check "a plain click on a column of a multi-column sort gives a one-column sort" (Ok [ ( "customer", Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", plainClick "Customer" ] start))
-        , check "a plain click after a Shift click on one column cycles it" (Ok [ ( "total", Descending ) ]) (sortOf (after [ shiftClick "Total", plainClick "Total" ] start))
+        , check "a plain click when several levels are set starts a new sort" (Ok [ ( Table.columnId "items", Table.Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", plainClick "Items" ] start))
+        , check "a plain click on a column of a multi-column sort gives a one-column sort" (Ok [ ( Table.columnId "customer", Table.Ascending ) ]) (sortOf (after [ shiftClick "Total", shiftClick "Customer", plainClick "Customer" ] start))
+        , check "a plain click after a Shift click on one column cycles it" (Ok [ ( Table.columnId "total", Table.Descending ) ]) (sortOf (after [ shiftClick "Total", plainClick "Total" ] start))
         , test "a header is announced as sorted ascending" <|
             \_ -> click "Total" start |> expectOk (ariaSort "Total" "ascending")
         , test "a header is announced as sorted descending" <|
@@ -573,8 +573,8 @@ sortingByClickTests =
         , test "a column that cannot be sorted has no button and no aria-sort" <|
             \_ ->
                 allOf
-                    [ noElement [ Table.columns [ Table.text "number" "Order" .number [ Table.unsortable ] ] ] (sortButton "Order") start
-                    , noElement [ Table.columns [ Table.text "number" "Order" .number [ Table.unsortable ] ] ] [ Selector.tag "th", Selector.attribute (Attr.attribute "aria-sort" "none") ] start
+                    [ noElement [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.unsortable ] ] ] (sortButton "Order") start
+                    , noElement [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.unsortable ] ] ] [ Selector.tag "th", Selector.attribute (Attr.attribute "aria-sort" "none") ] start
                     ]
         ]
 
@@ -624,7 +624,7 @@ pagingByClickTests =
             \_ -> cannotUse pagingAttributes (ariaLabelled "Next page") Event.click (Table.setPage 5 start)
         , test "'last' on the last page does nothing" <|
             \_ -> cannotUse pagingAttributes (ariaLabelled "Last page") Event.click (Table.setPage 5 start)
-        , check "a new page keeps the sort" (Ok ( [ ( "total", Descending ) ], 2 )) (after [ page 2 ] (Table.setSort [ ( "total", Descending ) ] start) |> Result.map (\s -> ( Table.sort s, Table.page s )))
+        , check "a new page keeps the sort" (Ok ( [ ( Table.columnId "total", Table.Descending ) ], 2 )) (after [ page 2 ] (Table.setSort [ ( Table.columnId "total", Table.Descending ) ] start) |> Result.map (\s -> ( Table.sort s, Table.page s )))
         , describe "rows per page"
             [ check "50 per page from page 3 of 25 keeps the first row in view: page 2" (Ok ( 50, 2 )) (after [ sizeSelect "50" ] (Table.setPage 3 start) |> Result.map (\s -> ( Table.pageSize s, Table.page s )))
             , check "10 per page from page 3 of 25 is page 6" (Ok ( 10, 6 )) (after [ sizeSelect "10" ] (Table.setPage 3 start) |> Result.map (\s -> ( Table.pageSize s, Table.page s )))
@@ -805,8 +805,8 @@ filterPopupTests =
                 after [ openFilter "customer", press [] (byId "orders-filter-customer-text") (keyDown "orders-filter-customer-text" "Enter") ] start
                     |> expectOk (noElement [] dialog)
         , describe "text"
-            [ check "typing sets a filter that contains the text" (Ok [ ( "customer", Contains "ac" ) ]) (filtersOf (after [ openFilter "customer", typeIn "orders-filter-customer-text" "ac" ] start))
-            , check "the text is trimmed" (Ok [ ( "customer", Contains "ac" ) ]) (filtersOf (after [ openFilter "customer", typeIn "orders-filter-customer-text" "  ac " ] start))
+            [ check "typing sets a filter that contains the text" (Ok [ ( Table.columnId "customer", Table.Contains "ac" ) ]) (filtersOf (after [ openFilter "customer", typeIn "orders-filter-customer-text" "ac" ] start))
+            , check "the text is trimmed" (Ok [ ( Table.columnId "customer", Table.Contains "ac" ) ]) (filtersOf (after [ openFilter "customer", typeIn "orders-filter-customer-text" "  ac " ] start))
             , check "emptying the box removes the filter" (Ok []) (filtersOf (after [ openFilter "customer", typeIn "orders-filter-customer-text" "ac", typeIn "orders-filter-customer-text" "" ] start))
             , check "spaces only is no filter" (Ok []) (filtersOf (after [ openFilter "customer", typeIn "orders-filter-customer-text" "   " ] start))
             , check "a new filter goes back to page 1" (Ok 1) (after [ openFilter "customer", typeIn "orders-filter-customer-text" "ac" ] (Table.setPage 3 start) |> Result.map Table.page)
@@ -843,14 +843,14 @@ filterPopupTests =
             ]
         , describe "choices"
             [ -- the English order of the cities: Ålesund, Bergen, Oslo, Tromsø, Zürich
-              check "ticking a value sets a filter" (Ok [ ( "city", OneOf [ "Oslo" ] ) ]) (filtersOf (after [ openFilter "city", tick "orders-filter-city-option-2" True ] start))
-            , check "ticking two values lists them in order" (Ok [ ( "city", OneOf [ "Bergen", "Oslo" ] ) ]) (filtersOf (after [ openFilter "city", tick "orders-filter-city-option-2" True, tick "orders-filter-city-option-1" True ] start))
-            , check "unticking a value removes it" (Ok [ ( "city", OneOf [ "Bergen" ] ) ]) (filtersOf (after [ openFilter "city", tick "orders-filter-city-option-2" True, tick "orders-filter-city-option-1" True, tick "orders-filter-city-option-2" False ] start))
+              check "ticking a value sets a filter" (Ok [ ( Table.columnId "city", Table.OneOf [ "Oslo" ] ) ]) (filtersOf (after [ openFilter "city", tick "orders-filter-city-option-2" True ] start))
+            , check "ticking two values lists them in order" (Ok [ ( Table.columnId "city", Table.OneOf [ "Bergen", "Oslo" ] ) ]) (filtersOf (after [ openFilter "city", tick "orders-filter-city-option-2" True, tick "orders-filter-city-option-1" True ] start))
+            , check "unticking a value removes it" (Ok [ ( Table.columnId "city", Table.OneOf [ "Bergen" ] ) ]) (filtersOf (after [ openFilter "city", tick "orders-filter-city-option-2" True, tick "orders-filter-city-option-1" True, tick "orders-filter-city-option-2" False ] start))
             , check "unticking the last value removes the filter" (Ok []) (filtersOf (after [ openFilter "city", tick "orders-filter-city-option-2" True, tick "orders-filter-city-option-2" False ] start))
             , check "a choice goes back to page 1" (Ok 1) (after [ openFilter "city", tick "orders-filter-city-option-2" True ] (Table.setPage 3 start) |> Result.map Table.page)
             , -- Oslo, Bergen and Trondheim are the cities of the rows of the page in server mode
               check "a choice applies at once, also in server mode"
-                (Ok [ ( "city", OneOf [ "Oslo" ] ) ])
+                (Ok [ ( Table.columnId "city", Table.OneOf [ "Oslo" ] ) ])
                 (press server (byId "orders-trigger-filter-city") Event.click start
                     |> Result.andThen (press server (byId "orders-filter-city-option-1") (checkedBox True))
                     |> Result.map Table.filters
@@ -879,7 +879,7 @@ filterPopupTests =
                                         ]
                             )
             , check "Select all ticks every value"
-                (Ok [ ( "city", OneOf [ "Bergen", "Oslo", "Tromsø", "Zürich", "Ålesund" ] ) ])
+                (Ok [ ( Table.columnId "city", Table.OneOf [ "Bergen", "Oslo", "Tromsø", "Zürich", "Ålesund" ] ) ])
                 (filtersOf (after [ openFilter "city", press [] (buttonWithText "Select all") Event.click ] start))
             , check "Clear unticks them again"
                 (Ok [])
@@ -893,7 +893,7 @@ filterPopupTests =
             , test "the counts follow the other filters" <|
                 \_ ->
                     -- the open orders are in Bergen, Ålesund, Zürich and Tromsø, none in Oslo
-                    openFilter "city" (Table.setFilter "status" (Just (OneOf [ "Open" ])) start)
+                    openFilter "city" (Table.setFilter (Table.columnId "status") (Just (OneOf [ "Open" ])) start)
                         |> expectOk
                             (\s ->
                                 view [] s
@@ -908,7 +908,7 @@ filterPopupTests =
                 \_ ->
                     let
                         many =
-                            [ Table.rows (Success (generated 20)), Table.columns [ Table.text "number" "Order" .number [ Table.filterSelect ] ] ]
+                            [ Table.rows (Success (generated 20)), Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.filterSelect ] ] ]
                     in
                     press many (byId "orders-trigger-filter-number") Event.click start
                         |> expectOk (\s -> element many (byId "orders-filter-number-search") [ Selector.attribute (Attr.type_ "text") ] s)
@@ -918,7 +918,7 @@ filterPopupTests =
                 \_ ->
                     let
                         withOptions =
-                            [ Table.columns [ Table.text "status" "Status" .status [ Table.filterOptions [ "Open", "Shipped", "Cancelled", "Returned" ] ] ] ]
+                            [ Table.columns [ Table.text (Table.columnId "status") "Status" .status [ Table.filterOptions [ "Open", "Shipped", "Cancelled", "Returned" ] ] ] ]
                     in
                     press withOptions (byId "orders-trigger-filter-status") Event.click start
                         |> expectOk
@@ -931,19 +931,19 @@ filterPopupTests =
             , test "a yes and no column offers the words of the language" <|
                 \_ -> openFilter "express" start |> expectOk (\s -> element [] (byId "orders-popup-filter-express") [ Selector.text "Yes", Selector.text "No" ] s)
             , check "and the filter keeps words that belong to no language"
-                (Ok [ ( "express", OneOf [ "true" ] ) ])
+                (Ok [ ( Table.columnId "express", Table.OneOf [ "true" ] ) ])
                 (filtersOf (after [ openFilter "express", tick "orders-filter-express-option-1" True ] start))
             ]
         , describe "ranges"
-            [ check "a lower bound" (Ok [ ( "total", Between (Just 50) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "50" ] start))
-            , check "an upper bound" (Ok [ ( "total", Between Nothing (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-to" "80" ] start))
-            , check "both bounds" (Ok [ ( "total", Between (Just 50) (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "50", typeIn "orders-filter-total-to" "80" ] start))
-            , check "a decimal comma" (Ok [ ( "total", Between (Just 50.5) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "50,5" ] start))
-            , check "spaces as thousand separators" (Ok [ ( "total", Between (Just 1250) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "1 250" ] start))
-            , check "a real minus sign" (Ok [ ( "total", Between (Just -5) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "−5" ] start))
-            , check "bounds the wrong way round are swapped, as in a rule" (Ok [ ( "total", Between (Just 50) (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "80", typeIn "orders-filter-total-to" "50" ] start))
+            [ check "a lower bound" (Ok [ ( Table.columnId "total", Table.Between (Just 50) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "50" ] start))
+            , check "an upper bound" (Ok [ ( Table.columnId "total", Table.Between Nothing (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-to" "80" ] start))
+            , check "both bounds" (Ok [ ( Table.columnId "total", Table.Between (Just 50) (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "50", typeIn "orders-filter-total-to" "80" ] start))
+            , check "a decimal comma" (Ok [ ( Table.columnId "total", Table.Between (Just 50.5) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "50,5" ] start))
+            , check "spaces as thousand separators" (Ok [ ( Table.columnId "total", Table.Between (Just 1250) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "1 250" ] start))
+            , check "a real minus sign" (Ok [ ( Table.columnId "total", Table.Between (Just -5) Nothing ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "−5" ] start))
+            , check "bounds the wrong way round are swapped, as in a rule" (Ok [ ( Table.columnId "total", Table.Between (Just 50) (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "80", typeIn "orders-filter-total-to" "50" ] start))
             , check "text is no filter" (Ok []) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "abc" ] start))
-            , check "a bound that is text is left out when the other one is a number" (Ok [ ( "total", Between Nothing (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "abc", typeIn "orders-filter-total-to" "80" ] start))
+            , check "a bound that is text is left out when the other one is a number" (Ok [ ( Table.columnId "total", Table.Between Nothing (Just 80) ) ]) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "abc", typeIn "orders-filter-total-to" "80" ] start))
             , check "emptying the box removes the filter" (Ok []) (filtersOf (after [ openFilter "total", typeIn "orders-filter-total-from" "50", typeIn "orders-filter-total-from" "" ] start))
             , test "text in a box is called out" <|
                 \_ ->
@@ -963,32 +963,32 @@ filterPopupTests =
                         |> expectOk (\s -> element [] (byId "orders-popup-filter-total") [ Selector.text "Values from 0.00 to 1,250.00" ] s)
             , test "a range filter on a column without numbers has no button" <|
                 \_ ->
-                    noElement [ Table.columns [ Table.text "number" "Order" .number [ Table.filterRange ] ] ] [ Selector.class "klar-table__filter-button" ] start
+                    noElement [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.filterRange ] ] ] [ Selector.class "klar-table__filter-button" ] start
             ]
         , describe "resetting"
             [ check "the Reset button of a popover removes that filter only"
-                (Ok [ ( "city", Contains "o" ) ])
+                (Ok [ ( Table.columnId "city", Table.Contains "o" ) ])
                 (filtersOf
                     (after
                         [ openFilter "customer"
                         , typeIn "orders-filter-customer-text" "ac"
                         , press [] (buttonWithText "Reset") Event.click
                         ]
-                        (Table.setFilter "city" (Just (Contains "o")) start)
+                        (Table.setFilter (Table.columnId "city") (Just (Contains "o")) start)
                     )
                 )
             , check "the reset button of the summary removes all the filters but keeps the search"
                 (Ok ( "x", [] ))
-                (after [ press [] (ariaLabelled "Reset filters") Event.click ] (start |> Table.setSearch "x" |> Table.setFilter "city" (Just (Contains "o")) |> Table.setFilter "total" (Just (Between (Just 1) Nothing)))
+                (after [ press [] (ariaLabelled "Reset filters") Event.click ] (start |> Table.setSearch "x" |> Table.setFilter (Table.columnId "city") (Just (Contains "o")) |> Table.setFilter (Table.columnId "total") (Just (Between (Just 1) Nothing)))
                     |> Result.map (\s -> ( Table.search s, Table.filters s ))
                 )
             , test "the reset also sends the message of the application" <|
                 \_ ->
-                    send [ Table.onResetFilters FiltersReset ] [ Selector.class "klar-table__reset" ] Event.click (Table.setFilter "city" (Just (Contains "o")) start)
+                    send [ Table.onResetFilters FiltersReset ] [ Selector.class "klar-table__reset" ] Event.click (Table.setFilter (Table.columnId "city") (Just (Contains "o")) start)
                         |> Expect.equal (Ok FiltersReset)
             , test "'No matches' offers to reset the search too" <|
                 \_ ->
-                    press [] (buttonWithText "Clear search and filters") Event.click (start |> Table.setSearch "nowhere" |> Table.setFilter "city" (Just (Contains "o")))
+                    press [] (buttonWithText "Clear search and filters") Event.click (start |> Table.setSearch "nowhere" |> Table.setFilter (Table.columnId "city") (Just (Contains "o")))
                         |> Result.map (\s -> ( Table.search s, Table.filters s ))
                         |> Expect.equal (Ok ( "", [] ))
             , test "'No matches' resets the filters that are outside the table too" <|
@@ -999,7 +999,7 @@ filterPopupTests =
                 \_ ->
                     let
                         two =
-                            start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setFilter "customer" (Just (Contains "ac"))
+                            start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setFilter (Table.columnId "customer") (Just (Contains "ac"))
                     in
                     press [] (byId "orders-trigger-filters") Event.click two
                         |> expectOk
@@ -1013,11 +1013,11 @@ filterPopupTests =
                 \_ ->
                     let
                         two =
-                            start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setFilter "customer" (Just (Contains "ac"))
+                            start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setFilter (Table.columnId "customer") (Just (Contains "ac"))
                     in
                     after [ press [] (byId "orders-trigger-filters") Event.click, press [] (ariaLabelled "Remove City: Oslo") Event.click ] two
                         |> Result.map Table.filters
-                        |> Expect.equal (Ok [ ( "customer", Contains "ac" ) ])
+                        |> Expect.equal (Ok [ ( Table.columnId "customer", Table.Contains "ac" ) ])
             ]
         ]
 
@@ -1381,10 +1381,10 @@ densityAndColumnChooserTests =
                 |> List.filter (\id -> id /= kept)
 
         hide ids state =
-            List.foldl (\id s -> Table.setColumnVisible id False s) state ids
+            List.foldl (\id s -> Table.setColumnVisible (Table.columnId id) False s) state ids
 
         twoColumns =
-            [ Table.columns [ Table.text "number" "Order" .number [ Table.alwaysVisible ], Table.text "city" "City" .city [] ] ]
+            [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.alwaysVisible ], Table.text (Table.columnId "city") "City" .city [] ] ]
     in
     describe "density and the column chooser"
         [ describe "density"
@@ -1414,35 +1414,35 @@ densityAndColumnChooserTests =
                 \_ ->
                     openChooser chooser start
                         |> expectOk (\s -> view chooser s |> Query.find (byId "orders-popup-columns") |> Query.findAll [ Selector.attribute (Attr.type_ "checkbox") ] |> Query.count (Expect.equal 8))
-            , check "unticking a column hides it" (Ok (Just False)) (after [ openChooser chooser, toggle 2 False ] start |> Result.map (Table.isColumnVisible "city"))
+            , check "unticking a column hides it" (Ok (Just False)) (after [ openChooser chooser, toggle 2 False ] start |> Result.map (Table.isColumnVisible (Table.columnId "city")))
             , test "its header is gone" <|
                 \_ -> after [ openChooser chooser, toggle 2 False ] start |> expectOk (\s -> Expect.equal False (headerHas "City" chooser s))
             , test "and the other headers are still there" <|
                 \_ -> after [ openChooser chooser, toggle 2 False ] start |> expectOk (\s -> Expect.equal True (headerHas "Customer" chooser s))
             , test "the cells of the column are gone too" <|
                 \_ -> after [ openChooser chooser, toggle 2 False ] start |> expectOk (noElement chooser [ Selector.tag "tbody", Selector.containing [ Selector.text "Bergen" ] ])
-            , check "ticking it again shows it" (Ok (Just True)) (after [ openChooser chooser, toggle 2 False, toggle 2 True ] start |> Result.map (Table.isColumnVisible "city"))
+            , check "ticking it again shows it" (Ok (Just True)) (after [ openChooser chooser, toggle 2 False, toggle 2 True ] start |> Result.map (Table.isColumnVisible (Table.columnId "city")))
             , check "Reset forgets all choices"
                 (Ok Nothing)
-                (after [ openChooser chooser, toggle 2 False, press chooser (buttonWithText "Reset") Event.click ] start |> Result.map (Table.isColumnVisible "city"))
+                (after [ openChooser chooser, toggle 2 False, press chooser (buttonWithText "Reset") Event.click ] start |> Result.map (Table.isColumnVisible (Table.columnId "city")))
             , test "Done closes the dialog" <|
                 \_ -> after [ openChooser chooser, press chooser (buttonWithText "Done") Event.click ] start |> expectOk (noElement chooser [ Selector.attribute (Attr.attribute "role" "dialog") ])
             , test "a column that is hidden by default is not drawn until it is shown" <|
                 \_ ->
                     let
                         hiddenShipped =
-                            [ Table.columns [ Table.text "number" "Order" .number [], Table.maybeDate "shipped" "Shipped" .shipped [ Table.hiddenByDefault ] ] ]
+                            [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.maybeDate (Table.columnId "shipped") "Shipped" .shipped [ Table.hiddenByDefault ] ] ]
                     in
                     allOf
                         [ Expect.equal False (headerHas "Shipped" hiddenShipped start)
-                        , Expect.equal True (headerHas "Shipped" hiddenShipped (Table.setColumnVisible "shipped" True start))
+                        , Expect.equal True (headerHas "Shipped" hiddenShipped (Table.setColumnVisible (Table.columnId "shipped") True start))
                         ]
             , test "a column that is always visible cannot be hidden, not even from the application" <|
-                \_ -> Expect.equal True (headerHas "Order" twoColumns (Table.setColumnVisible "number" False start))
+                \_ -> Expect.equal True (headerHas "Order" twoColumns (Table.setColumnVisible (Table.columnId "number") False start))
             , test "alwaysVisible cancels hiddenByDefault" <|
                 \_ ->
                     Expect.equal True
-                        (headerHas "Order" [ Table.columns [ Table.text "number" "Order" .number [ Table.hiddenByDefault, Table.alwaysVisible ], Table.text "city" "City" .city [] ] ] start)
+                        (headerHas "Order" [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.hiddenByDefault, Table.alwaysVisible ], Table.text (Table.columnId "city") "City" .city [] ] ] start)
             , test "the checkbox of a column that is always visible is disabled" <|
                 \_ ->
                     openChooser (Table.columnChooser :: twoColumns) start
@@ -1512,7 +1512,7 @@ expandByClickTests =
         , test "an open row stays open when the table is sorted, because it follows its id" <|
             \_ ->
                 press expandable (ariaLabelled "Show details for ORD-2001") Event.click start
-                    |> Result.map (Table.setSort [ ( "total", Descending ) ])
+                    |> Result.map (Table.setSort [ ( Table.columnId "total", Table.Descending ) ])
                     |> expectOk (element expandable [ Selector.class "klar-table__detail" ] [ Selector.text "Details of ORD-2001" ])
         ]
 
@@ -1583,10 +1583,10 @@ applyChange change state =
             Table.setSearch text state
 
         SetSort levels ->
-            Table.setSort levels state
+            Table.setSort (List.map (Tuple.mapFirst Table.columnId) levels) state
 
         SetFilter columnId filter ->
-            Table.setFilter columnId filter state
+            Table.setFilter (Table.columnId columnId) filter state
 
         ClearFilters ->
             Table.clearFilters state
@@ -1624,7 +1624,7 @@ propertyTests =
             \changes ->
                 let
                     ids =
-                        List.map Tuple.first (Table.filters (built changes))
+                        List.map (Tuple.first >> Table.columnName) (Table.filters (built changes))
                 in
                 Expect.equal (List.sort ids |> dedupe) ids
         , fuzz changesFuzzer "the selected ids are sorted, and each one is there once" <|

@@ -5,9 +5,8 @@ module RulesFixTest exposing (suite)
   - `Rule.parseNumber` reads "1,234.5" (English), "1.234,5" and "1 234,5"
     (Norwegian and German) as well as "12,5" and "12.5", negative numbers
     included, and still says `Nothing` to anything that is not a number.
-  - `Rule.Value`, the result of the `get` function of a `Rule.Field`, can be
-    named by a user. `Rule.operatorLabel` keeps its signature and does not
-    depend on the kind of field.
+  - `Rule.operatorLabel` keeps its signature and does not depend on the kind
+    of field.
   - A shortcut for the plus key (`"+"`, `"mod++"`) fires, and `Shortcut.keycaps`
     shows the plus.
   - Shortcuts do not fire while the user types in a field, a text area, a
@@ -45,7 +44,6 @@ suite =
         [ parseNumberTests
         , parseNumberPropertyTests
         , rulesWithSeparatorsTests
-        , valueTests
         , operatorLabelTests
         , exactLabelTests
         , describeDaysTests
@@ -307,56 +305,7 @@ rulesWithSeparatorsTests =
 
 
 
--- Rule.Value and Rule.operatorLabel
-
-
-type alias Customer =
-    { name : String
-    , orders : Float
-    }
-
-
-readValue : Rule.Field Customer -> Customer -> Rule.Value
-readValue field customer =
-    field.get customer
-
-
-ada : Customer
-ada =
-    { name = "Ada Lovelace", orders = 12 }
-
-
-grace : Customer
-grace =
-    { name = "Grace Hopper", orders = 7 }
-
-
-valueTests : Test
-valueTests =
-    let
-        name =
-            Rule.textField "name" "Name" .name
-
-        orders =
-            Rule.numberField "orders" "Orders" (.orders >> Just)
-    in
-    describe "Rule.Value"
-        [ test "the value a field reads can be named in a type annotation" <|
-            \_ -> Expect.equal (readValue name ada) (readValue name ada)
-        , test "rows with different texts give different values" <|
-            \_ -> Expect.notEqual (readValue name ada) (readValue name grace)
-        , test "rows with different numbers give different values" <|
-            \_ -> Expect.notEqual (readValue orders ada) (readValue orders grace)
-        , test "a text and a number are different kinds of values" <|
-            \_ -> Expect.notEqual (readValue name ada) (readValue orders ada)
-        , test "a number field reads a row without a number as nothing" <|
-            \_ ->
-                let
-                    field =
-                        Rule.numberField "orders" "Orders" (\_ -> Nothing)
-                in
-                Expect.notEqual (readValue field ada) (readValue orders ada)
-        ]
+-- Rule.operatorLabel
 
 
 allOperators : List Operator

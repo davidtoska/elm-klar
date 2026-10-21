@@ -625,7 +625,7 @@ unpairedSurrogateTests =
             \_ ->
                 render
                     [ Table.rows (Success [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
-                    (Table.setSort [ ( "customer", Ascending ) ] (Table.init "orders"))
+                    (Table.setSort [ ( Table.columnId "customer", Table.Ascending ) ] (Table.init "orders"))
                     |> expectRows [ "ORD-2", "ORD-1" ]
         , -- And through the search of a table (Table.fold used Url.percentEncode too).
           test "a table searched for a word, with such a value in a row" <|

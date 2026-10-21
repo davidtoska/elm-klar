@@ -103,7 +103,7 @@ type alias Model =
     , nestedPopover : Popover.State
     , nestedName : String
     , nestedShow : Bool
-    , country : Select.State
+    , country : Select.State String
     , menuPicked : String
 
     -- confirmations
@@ -188,7 +188,7 @@ type Msg
     | NestedPopoverMsg Popover.Msg
     | NestedNameChanged String
     | NestedShowChanged Bool
-    | CountryMsg Select.Msg
+    | CountryMsg (Select.Msg String)
     | MenuPicked String
       -- confirmations
     | NeutralMsg ConfirmDialog.Msg
@@ -332,7 +332,7 @@ remaining model samples =
     List.filter (\order -> not (List.member order.id model.deleted)) samples
 
 
-countryOptions : List Select.Option
+countryOptions : List (Select.Option String)
 countryOptions =
     List.map
         (\country -> Select.option country.code country.name |> Select.withGroup country.region)

@@ -58,7 +58,7 @@ state holds the value too; read it with a function and compare before and after
 that are not changes of the state are plain messages of your own:
 
     -- model
-    { country : Select.State } -- Select.init "country"
+    { country : Select.State CountryCode } -- Select.init "country"
 
     -- update
     CountryMsg m ->
@@ -74,10 +74,27 @@ that are not changes of the state are plain messages of your own:
         model.country
 
     -- reading the value
-    Select.value model.country -- Maybe String
+    Select.value model.country -- Maybe CountryCode, the id of the chosen option
 
-The `String` given to `init` is the DOM id of the component and must be unique on
-the page; labels, error messages and focus management are built on it.
+**Ids.** The `String` given to `init` is the DOM id of the component and must be
+unique on the page: labels, error messages and focus management are built on it,
+and the ids inside the component are derived from it (`country-search`,
+`country-listbox`). Two components with the same id on one page silently point at
+each other's elements, and Elm cannot check that for you. Keep the ids in one
+place, as values with a name, so that a page cannot use one twice by accident:
+
+    -- Ids.elm (or a record at the top of the page module)
+    country : String
+    country =
+        "order-country"
+
+    Select.init Ids.country
+
+A page that can be on screen twice (two drawers with the same form) needs a
+different prefix for each. A text field that is given no `id` takes one from its
+`label` (`Customer` becomes `klar-input-customer`), so two fields with the same
+label on one page need an `id` each. A column of a [Klar.Table](Klar-Table) is
+named with `Table.columnId`, and the same advice holds: name it once.
 
 **Data from a backend.** Components that show data take a [Klar.Remote](Klar-Remote)
 (`NotAsked | Loading | Failure | Success`) and draw the loading skeleton, the failure

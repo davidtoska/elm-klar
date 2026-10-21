@@ -313,10 +313,10 @@ orderFields =
     , Rule.dateField "created" "Created" (.created >> Just) |> Rule.inGroup "Dates"
     , Rule.dateField "due" "Due date" (.due >> Just) |> Rule.inGroup "Dates"
     , Rule.dateField "delivered" "Delivered on" .delivered |> Rule.inGroup "Dates"
-    , Rule.choiceField "owner" "Owner" ownerChoices (.owner >> Maybe.withDefault "") |> Rule.inGroup "Handling"
-    , Rule.choiceField "warehouse" "Warehouse" warehouseChoices .warehouse |> Rule.inGroup "Handling"
-    , Rule.choiceField "country" "Country" countryChoices .country |> Rule.inGroup "Delivery"
-    , Rule.choiceField "city" "City" cityChoices .city |> Rule.inGroup "Delivery"
+    , Rule.choiceField "owner" "Owner" ownerChoices (.owner >> Maybe.withDefault "") |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Handling"
+    , Rule.choiceField "warehouse" "Warehouse" warehouseChoices .warehouse |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Handling"
+    , Rule.choiceField "country" "Country" countryChoices .country |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Delivery"
+    , Rule.choiceField "city" "City" cityChoices .city |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Delivery"
     ]
 
 
@@ -331,7 +331,7 @@ norwegianFields =
     , Rule.numberField "total" "Totalsum" (.total >> Just) |> Rule.inGroup "Ordre"
     , Rule.boolField "overdue" "Forsinket" isOverdue |> Rule.inGroup "Ordre"
     , Rule.dateField "created" "Opprettet" (.created >> Just) |> Rule.inGroup "Ordre"
-    , Rule.choiceField "city" "By" cityChoices .city |> Rule.inGroup "Levering"
+    , Rule.choiceField "city" "By" cityChoices .city |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Levering"
     ]
 
 
@@ -963,15 +963,15 @@ viewTable locale applied counting table =
 
 orderColumns : List (Table.Column Types.Order Msg)
 orderColumns =
-    [ Table.text "id" "Order" .id [ Table.width 100 ]
-    , Table.text "customer" "Customer" .customer [ Table.minWidth 180 ]
-    , Table.badge "status" "Status" (\order -> ( Labels.statusTone order.status, orderStatusLabel order.status )) [ Table.width 124 ]
-    , Table.status "priority" "Priority" (\order -> ( Labels.priorityTone order.priority, priorityLabel order.priority )) [ Table.width 100 ]
-    , Table.text "owner" "Owner" (.owner >> Maybe.withDefault "") [ Table.width 130 ]
-    , Table.int "lines" "Lines" .lines [ Table.width 80 ]
-    , Table.float "total" "Total" 2 .total [ Table.width 112 ]
-    , Table.date "created" "Created" .created [ Table.width 112 ]
-    , Table.date "due" "Due" .due [ Table.width 112 ]
+    [ Table.text (Table.columnId "id") "Order" .id [ Table.width 100 ]
+    , Table.text (Table.columnId "customer") "Customer" .customer [ Table.minWidth 180 ]
+    , Table.badge (Table.columnId "status") "Status" (\order -> ( Labels.statusTone order.status, orderStatusLabel order.status )) [ Table.width 124 ]
+    , Table.status (Table.columnId "priority") "Priority" (\order -> ( Labels.priorityTone order.priority, priorityLabel order.priority )) [ Table.width 100 ]
+    , Table.text (Table.columnId "owner") "Owner" (.owner >> Maybe.withDefault "") [ Table.width 130 ]
+    , Table.int (Table.columnId "lines") "Lines" .lines [ Table.width 80 ]
+    , Table.float (Table.columnId "total") "Total" 2 .total [ Table.width 112 ]
+    , Table.date (Table.columnId "created") "Created" .created [ Table.width 112 ]
+    , Table.date (Table.columnId "due") "Due" .due [ Table.width 112 ]
     ]
 
 

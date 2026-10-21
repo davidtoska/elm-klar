@@ -322,8 +322,8 @@ type Msg
     | CombinatorPicked Int Combinator
     | NegationToggled Int
     | CollapseToggled Int
-    | ConditionAdded Int (Maybe ( String, FieldKind ))
-    | GroupAdded Int (Maybe ( String, FieldKind ))
+    | ConditionAdded Int (Maybe ( String, Support.Info ))
+    | GroupAdded Int (Maybe ( String, Support.Info ))
     | Removed Int
     | Duplicated Int
     | Moved Int Int
@@ -561,11 +561,11 @@ update msg (State s) =
             ( State s, Cmd.none )
 
 
-stubs : Maybe ( String, FieldKind ) -> List (Field ())
+stubs : Maybe ( String, Support.Info ) -> List (Field ())
 stubs first =
     case first of
-        Just ( fieldId, kind ) ->
-            [ Support.stub fieldId kind ]
+        Just ( id, info ) ->
+            [ Support.stub id info ]
 
         Nothing ->
             []
@@ -1417,7 +1417,7 @@ viewAddLine ctx depth group =
             ctx.state.id
 
         first =
-            ctx.config.fields |> List.head |> Maybe.map (\field -> ( field.id, field.kind ))
+            ctx.config.fields |> List.head |> Maybe.map (\field -> ( Rule.fieldId field, Support.infoOf field ))
 
         isEmpty =
             List.isEmpty group.children

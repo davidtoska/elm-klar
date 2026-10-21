@@ -1,6 +1,7 @@
 module Klar.Table exposing
     ( view
     , State, init, Msg, update, focus
+    , ColumnId, columnId, columnName
     , Query, Direction(..), Filter(..), query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
     , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection
     , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
@@ -175,6 +176,8 @@ often, put the table in a function of the rows and the `State` and call it with
 Read these after `update` to see what the user asked for, or set them to restore
 a saved view.
 
+@docs ColumnId, columnId, columnName
+
 @docs Query, Direction, Filter, query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
 
 
@@ -313,6 +316,44 @@ type Filter
     | Between (Maybe Float) (Maybe Float)
 
 
+{-| The id of a column, which sort, filters, column choices and a `Query` refer to.
+Make it once with `columnId`, keep it as a value of your own, and give it to the
+column and to the functions that talk about the column, so that a misspelled id
+cannot happen:
+
+    customer : Table.ColumnId
+    customer =
+        Table.columnId "customer"
+
+    Table.text customer "Customer" .customer []
+
+    Table.setSort [ ( customer, Table.Ascending ) ] state
+
+-}
+type ColumnId
+    = ColumnId String
+
+
+{-| Names a column. The text has to be unique in the table and has to stay the
+same: a saved sort, a saved filter and a hidden column refer to it. It is also
+what you send to a backend for the column (see `columnName`).
+-}
+columnId : String -> ColumnId
+columnId =
+    ColumnId
+
+
+{-| The text a column id was made from, for a backend that sorts or filters by a
+name, or for a URL.
+
+    Table.query state |> .sort |> List.map (Tuple.first >> Table.columnName)
+
+-}
+columnName : ColumnId -> String
+columnName (ColumnId text_) =
+    text_
+
+
 {-| Everything a backend needs to produce the rows the user asked for: the
 search text, the sort levels (primary first), the column filters (ordered by
 column id), the page (the first is 1) and the page size. It is plain data, so
@@ -321,8 +362,8 @@ one in the URL or in a saved view (see `setQuery`).
 -}
 type alias Query =
     { search : String
-    , sort : List ( String, Direction )
-    , filters : List ( String, Filter )
+    , sort : List ( ColumnId, Direction )
+    , filters : List ( ColumnId, Filter )
     , page : Int
     , pageSize : Int
     }
@@ -436,8 +477,8 @@ the ones in effect, so text still waiting for the debounce is not in it.
 query : State -> Query
 query (State model) =
     { search = model.search
-    , sort = model.sort
-    , filters = Dict.toList model.filters
+    , sort = List.map (\( id, direction ) -> ( ColumnId id, direction )) model.sort
+    , filters = List.map (\( id, f ) -> ( ColumnId id, f )) (Dict.toList model.filters)
     , page = model.page
     , pageSize = model.pageSize
     }
@@ -456,9 +497,9 @@ setQuery q (State model) =
             { model
                 | search = String.trim q.search
                 , searchInput = q.search
-                , sort = q.sort
-                , filters = Dict.fromList q.filters
-                , inputs = q.filters |> List.map (\( columnId, f ) -> ( columnId, toDraft f )) |> Dict.fromList
+                , sort = List.map (\( ColumnId id, direction ) -> ( id, direction )) q.sort
+                , filters = Dict.fromList (List.map (\( ColumnId id, f ) -> ( id, f )) q.filters)
+                , inputs = q.filters |> List.map (\( ColumnId id, f ) -> ( id, toDraft f )) |> Dict.fromList
                 , page = max 1 q.page
                 , pageSize = max 1 q.pageSize
             }
@@ -491,18 +532,18 @@ dropAllMatching picked =
 {-| The columns the table is sorted by, primary first, as column ids with a
 direction. Empty when nothing is sorted.
 -}
-sort : State -> List ( String, Direction )
+sort : State -> List ( ColumnId, Direction )
 sort (State model) =
-    model.sort
+    List.map (\( id, direction ) -> ( ColumnId id, direction )) model.sort
 
 
 {-| Sorts by these columns (ids and directions), primary first, and goes back to
 page 1. In client mode, ids that match no column, or a column that is
 `unsortable`, are ignored.
 -}
-setSort : List ( String, Direction ) -> State -> State
+setSort : List ( ColumnId, Direction ) -> State -> State
 setSort value (State model) =
-    State { model | sort = value, page = 1 }
+    State { model | sort = List.map (\( ColumnId id, direction ) -> ( id, direction )) value, page = 1 }
 
 
 {-| The page the user asked for, counted from 1. A page past the last one is
@@ -557,22 +598,22 @@ setSearch value (State model) =
 {-| The column filters in effect, as column ids with their filter, ordered by
 column id. Typed text still waiting for the debounce is not included.
 -}
-filters : State -> List ( String, Filter )
+filters : State -> List ( ColumnId, Filter )
 filters (State model) =
-    Dict.toList model.filters
+    List.map (\( id, f ) -> ( ColumnId id, f )) (Dict.toList model.filters)
 
 
 {-| Sets (`Just`) or removes (`Nothing`) the filter of the column with this id,
 and goes back to page 1. The column's filter popover shows the new value.
 -}
-setFilter : String -> Maybe Filter -> State -> State
-setFilter columnId maybeFilter (State model) =
+setFilter : ColumnId -> Maybe Filter -> State -> State
+setFilter (ColumnId colId) maybeFilter (State model) =
     case maybeFilter of
         Just f ->
-            State (settled model { model | filters = Dict.insert columnId f model.filters, inputs = Dict.insert columnId (toDraft f) model.inputs, page = 1 })
+            State (settled model { model | filters = Dict.insert colId f model.filters, inputs = Dict.insert colId (toDraft f) model.inputs, page = 1 })
 
         Nothing ->
-            State (settled model { model | filters = Dict.remove columnId model.filters, inputs = Dict.remove columnId model.inputs, page = 1 })
+            State (settled model { model | filters = Dict.remove colId model.filters, inputs = Dict.remove colId model.inputs, page = 1 })
 
 
 {-| Removes the search and every column filter, and goes back to page 1. Filters
@@ -720,9 +761,9 @@ column with this id. `Nothing` means no choice yet: the column follows its
 default, shown unless it is `hiddenByDefault`. With `setColumnVisible` this lets
 you remember the user's column choices.
 -}
-isColumnVisible : String -> State -> Maybe Bool
-isColumnVisible columnId (State model) =
-    Dict.get columnId model.visibility
+isColumnVisible : ColumnId -> State -> Maybe Bool
+isColumnVisible (ColumnId colId) (State model) =
+    Dict.get colId model.visibility
 
 
 {-| Records that the column with this id is shown (`True`) or hidden (`False`),
@@ -730,9 +771,9 @@ as if the user had ticked it in the column chooser. Columns that are
 `alwaysVisible` ignore it, and the table always keeps at least one column on
 screen.
 -}
-setColumnVisible : String -> Bool -> State -> State
-setColumnVisible columnId value (State model) =
-    State { model | visibility = Dict.insert columnId value model.visibility }
+setColumnVisible : ColumnId -> Bool -> State -> State
+setColumnVisible (ColumnId colId) value (State model) =
+    State { model | visibility = Dict.insert colId value model.visibility }
 
 
 
@@ -793,8 +834,8 @@ step msg model =
         NoOp ->
             ( model, Cmd.none )
 
-        SortClicked columnId multi ->
-            ( { model | sort = nextSort multi columnId model.sort, page = 1, activeRow = 0 }, Cmd.none )
+        SortClicked colId multi ->
+            ( { model | sort = nextSort multi colId model.sort, page = 1, activeRow = 0 }, Cmd.none )
 
         PageChanged n ->
             ( { model | page = max 1 n, activeRow = 0, rowMenu = Nothing }, Cmd.none )
@@ -812,13 +853,13 @@ step msg model =
         SearchChanged value delay ->
             schedule delay { model | searchInput = value }
 
-        FilterTextChanged columnId value delay ->
-            schedule delay { model | inputs = Dict.insert columnId (TextDraft value) model.inputs }
+        FilterTextChanged colId value delay ->
+            schedule delay { model | inputs = Dict.insert colId (TextDraft value) model.inputs }
 
-        FilterRangeChanged columnId isFrom value delay ->
+        FilterRangeChanged colId isFrom value delay ->
             let
                 ( from, to ) =
-                    case Dict.get columnId model.inputs of
+                    case Dict.get colId model.inputs of
                         Just (RangeDraft a b) ->
                             ( a, b )
 
@@ -832,12 +873,12 @@ step msg model =
                     else
                         RangeDraft from value
             in
-            schedule delay { model | inputs = Dict.insert columnId next model.inputs }
+            schedule delay { model | inputs = Dict.insert colId next model.inputs }
 
-        FilterChoiceToggled columnId value checked ->
+        FilterChoiceToggled colId value checked ->
             let
                 current =
-                    choicesOf columnId model.inputs
+                    choicesOf colId model.inputs
 
                 next =
                     if checked then
@@ -846,19 +887,19 @@ step msg model =
                     else
                         Set.remove value current
             in
-            ( commit { model | inputs = Dict.insert columnId (ChoiceDraft next) model.inputs }, Cmd.none )
+            ( commit { model | inputs = Dict.insert colId (ChoiceDraft next) model.inputs }, Cmd.none )
 
-        FilterChoicesSet columnId values ->
+        FilterChoicesSet colId values ->
             -- "Select all" and "Clear" disable themselves: focus moves into the list
-            ( commit { model | inputs = Dict.insert columnId (ChoiceDraft (Set.fromList values)) model.inputs }
-            , focusFirst [ filterInputId model.id columnId "search", filterInputId model.id columnId "option-0" ]
+            ( commit { model | inputs = Dict.insert colId (ChoiceDraft (Set.fromList values)) model.inputs }
+            , focusFirst [ filterInputId model.id colId "search", filterInputId model.id colId "option-0" ]
             )
 
         OptionQueryChanged value ->
             ( { model | optionQuery = value }, Cmd.none )
 
-        FilterCleared columnId ->
-            afterClear (Just columnId) model (commit { model | inputs = Dict.remove columnId model.inputs })
+        FilterCleared colId ->
+            afterClear (Just colId) model (commit { model | inputs = Dict.remove colId model.inputs })
 
         FiltersCleared ->
             afterClear Nothing model (commit { model | inputs = Dict.empty })
@@ -974,8 +1015,8 @@ step msg model =
         DensityChanged value ->
             ( { model | density = value }, Cmd.none )
 
-        ColumnToggled columnId visible ->
-            ( { model | visibility = Dict.insert columnId visible model.visibility }, Cmd.none )
+        ColumnToggled colId visible ->
+            ( { model | visibility = Dict.insert colId visible model.visibility }, Cmd.none )
 
         ColumnsReset ->
             ( { model | visibility = Dict.empty }, Cmd.none )
@@ -1017,11 +1058,11 @@ afterClear removed before after =
             activeDrafts before |> List.reverse |> List.head |> Maybe.map Tuple.first
     in
     case after.popup of
-        FilterPopup columnId ->
+        FilterPopup colId ->
             ( after
             , focusFirst
                 ([ "text", "from", "search", "option-0" ]
-                    |> List.map (filterInputId after.id columnId)
+                    |> List.map (filterInputId after.id colId)
                     |> (\inputs -> inputs ++ [ popupDomId after.id after.popup ])
                 )
             )
@@ -1054,10 +1095,10 @@ focusFirst ids =
 unsorted. Shift-click (multi-sort): add the column, or cycle it in place.
 -}
 nextSort : Bool -> String -> List ( String, Direction ) -> List ( String, Direction )
-nextSort multi columnId current =
+nextSort multi colId current =
     let
         existing =
-            lookup columnId current
+            lookup colId current
 
         cycled =
             case existing of
@@ -1073,12 +1114,12 @@ nextSort multi columnId current =
     if multi then
         case ( existing, cycled ) of
             ( Nothing, Just direction ) ->
-                current ++ [ ( columnId, direction ) ]
+                current ++ [ ( colId, direction ) ]
 
             ( Just _, Just direction ) ->
                 List.map
                     (\( other, d ) ->
-                        if other == columnId then
+                        if other == colId then
                             ( other, direction )
 
                         else
@@ -1087,18 +1128,18 @@ nextSort multi columnId current =
                     current
 
             ( _, Nothing ) ->
-                List.filter (\( other, _ ) -> other /= columnId) current
+                List.filter (\( other, _ ) -> other /= colId) current
 
     else if List.length current == 1 && existing /= Nothing then
         case cycled of
             Just direction ->
-                [ ( columnId, direction ) ]
+                [ ( colId, direction ) ]
 
             Nothing ->
                 []
 
     else
-        [ ( columnId, Ascending ) ]
+        [ ( colId, Ascending ) ]
 
 
 {-| Typing is committed at once (`delay` 0) or after a pause; a newer key
@@ -1129,7 +1170,7 @@ commit model =
         newFilters =
             model.inputs
                 |> Dict.toList
-                |> List.filterMap (\( columnId, draft ) -> Maybe.map (Tuple.pair columnId) (toFilter draft))
+                |> List.filterMap (\( colId, draft ) -> Maybe.map (Tuple.pair colId) (toFilter draft))
                 |> Dict.fromList
 
         newSearch =
@@ -1259,8 +1300,8 @@ toDraft f =
 
 
 choicesOf : String -> Dict String Draft -> Set String
-choicesOf columnId inputs =
-    case Dict.get columnId inputs of
+choicesOf colId inputs =
+    case Dict.get colId inputs of
         Just (ChoiceDraft values) ->
             values
 
@@ -1527,8 +1568,8 @@ type Footer row
 
 
 baseColumn : String -> String -> (Locale -> row -> String) -> ColumnConfig row msg
-baseColumn columnId title value =
-    { id = columnId
+baseColumn colId title value =
+    { id = colId
     , title = title
     , value = value
     , cell = Nothing
@@ -1571,9 +1612,9 @@ text is cut with an ellipsis and a tooltip, a blank one is shown as a dash and
 sorts last, and the column is at least 120 pixels wide (see `minWidth`).
 
 -}
-text : String -> String -> (row -> String) -> List (ColumnAttribute row msg) -> Column row msg
-text columnId title toText attributes =
-    build (baseColumn columnId title (\_ row -> toText row)) attributes
+text : ColumnId -> String -> (row -> String) -> List (ColumnAttribute row msg) -> Column row msg
+text (ColumnId colId) title toText attributes =
+    build (baseColumn colId title (\_ row -> toText row)) attributes
 
 
 {-| A whole number: `Table.int "items" "Items" .items []`. It is right-aligned
@@ -1582,11 +1623,11 @@ numerically, exported as a plain number and 104 pixels wide (see `width`). It
 supports `filterRange`, `footerSum` and `footerAverage`, and the search box
 skips it unless you add `includeInSearch`.
 -}
-int : String -> String -> (row -> Int) -> List (ColumnAttribute row msg) -> Column row msg
-int columnId title toInt attributes =
+int : ColumnId -> String -> (row -> Int) -> List (ColumnAttribute row msg) -> Column row msg
+int (ColumnId colId) title toInt attributes =
     let
         base =
-            baseColumn columnId title (\loc row -> Format.int loc (toInt row))
+            baseColumn colId title (\loc row -> Format.int loc (toInt row))
 
         toNumber row =
             Just (toFloat (toInt row))
@@ -1611,11 +1652,11 @@ decimals shown (also in filter hints and footers). It is like `int` otherwise,
 but 112 pixels wide, and the CSV export keeps the decimals with the locale's
 decimal separator and no thousands separator, so a spreadsheet reads a number.
 -}
-float : String -> String -> Int -> (row -> Float) -> List (ColumnAttribute row msg) -> Column row msg
-float columnId title decimals toNumber attributes =
+float : ColumnId -> String -> Int -> (row -> Float) -> List (ColumnAttribute row msg) -> Column row msg
+float (ColumnId colId) title decimals toNumber attributes =
     let
         base =
-            baseColumn columnId title (\loc row -> Format.decimal loc decimals (toNumber row))
+            baseColumn colId title (\loc row -> Format.decimal loc decimals (toNumber row))
     in
     build
         { base
@@ -1639,19 +1680,19 @@ missing use `maybeDate`.
     Table.date "shipped" "Shipped" .shippedOn []
 
 -}
-date : String -> String -> (row -> Date) -> List (ColumnAttribute row msg) -> Column row msg
-date columnId title toDate attributes =
-    maybeDate columnId title (toDate >> Just) attributes
+date : ColumnId -> String -> (row -> Date) -> List (ColumnAttribute row msg) -> Column row msg
+date (ColumnId colId) title toDate attributes =
+    maybeDate (ColumnId colId) title (toDate >> Just) attributes
 
 
 {-| Like `date`, for a date that may be missing: `Nothing` is shown as a dash
 and sorts last, whichever way the column is sorted.
 -}
-maybeDate : String -> String -> (row -> Maybe Date) -> List (ColumnAttribute row msg) -> Column row msg
-maybeDate columnId title toDate attributes =
+maybeDate : ColumnId -> String -> (row -> Maybe Date) -> List (ColumnAttribute row msg) -> Column row msg
+maybeDate (ColumnId colId) title toDate attributes =
     let
         base =
-            baseColumn columnId title (\loc row -> toDate row |> Maybe.map (Format.date loc) |> Maybe.withDefault "")
+            baseColumn colId title (\loc row -> toDate row |> Maybe.map (Format.date loc) |> Maybe.withDefault "")
     in
     build
         { base
@@ -1673,11 +1714,11 @@ and `filterSelect`; the column is 124 pixels wide.
         [ Table.filterSelect ]
 
 -}
-badge : String -> String -> (row -> ( Tone, String )) -> List (ColumnAttribute row msg) -> Column row msg
-badge columnId title toBadge attributes =
+badge : ColumnId -> String -> (row -> ( Tone, String )) -> List (ColumnAttribute row msg) -> Column row msg
+badge (ColumnId colId) title toBadge attributes =
     let
         base =
-            baseColumn columnId title (\_ row -> Tuple.second (toBadge row))
+            baseColumn colId title (\_ row -> Tuple.second (toBadge row))
     in
     build
         { base
@@ -1699,11 +1740,11 @@ badge columnId title toBadge attributes =
 {-| Like `badge`, but drawn as a colored dot and text (`Badge.status` in
 [Klar.Badge](Klar-Badge)), which is quieter in dense tables.
 -}
-status : String -> String -> (row -> ( Tone, String )) -> List (ColumnAttribute row msg) -> Column row msg
-status columnId title toStatus attributes =
+status : ColumnId -> String -> (row -> ( Tone, String )) -> List (ColumnAttribute row msg) -> Column row msg
+status (ColumnId colId) title toStatus attributes =
     let
         base =
-            baseColumn columnId title (\_ row -> Tuple.second (toStatus row))
+            baseColumn colId title (\_ row -> Tuple.second (toStatus row))
     in
     build
         { base
@@ -1734,8 +1775,8 @@ read a server-mode `Query` without knowing the language. A `Filter` you read fro
 the words of either language ("Yes", "Ja").
 
 -}
-bool : String -> String -> (row -> Bool) -> List (ColumnAttribute row msg) -> Column row msg
-bool columnId title toBool attributes =
+bool : ColumnId -> String -> (row -> Bool) -> List (ColumnAttribute row msg) -> Column row msg
+bool (ColumnId colId) title toBool attributes =
     let
         yesNo loc row =
             if toBool row then
@@ -1745,7 +1786,7 @@ bool columnId title toBool attributes =
                 (Texts.texts loc).no
 
         base =
-            baseColumn columnId title yesNo
+            baseColumn colId title yesNo
     in
     build
         { base
@@ -1781,11 +1822,11 @@ instead.
     Table.custom "progress" "Progress" viewProgress [ Table.sortNumber .progress ]
 
 -}
-custom : String -> String -> (row -> Html msg) -> List (ColumnAttribute row msg) -> Column row msg
-custom columnId title render attributes =
+custom : ColumnId -> String -> (row -> Html msg) -> List (ColumnAttribute row msg) -> Column row msg
+custom (ColumnId colId) title render attributes =
     let
         base =
-            baseColumn columnId title (\_ _ -> "")
+            baseColumn colId title (\_ _ -> "")
     in
     build
         { base
@@ -1816,11 +1857,11 @@ here are a tab stop in every row (keep them few).
         []
 
 -}
-actions : String -> String -> (row -> List (Html msg)) -> List (ColumnAttribute row msg) -> Column row msg
-actions columnId title render attributes =
+actions : ColumnId -> String -> (row -> List (Html msg)) -> List (ColumnAttribute row msg) -> Column row msg
+actions (ColumnId colId) title render attributes =
     let
         base =
-            baseColumn columnId title (\_ _ -> "")
+            baseColumn colId title (\_ _ -> "")
     in
     build
         { base
@@ -2680,8 +2721,8 @@ keepMatching config model allColumns visible excluded allRows =
         columnTests =
             model.filters
                 |> Dict.toList
-                |> List.filter (\( columnId, _ ) -> Just columnId /= excluded)
-                |> List.filterMap (\( columnId, f ) -> findColumn columnId allColumns |> Maybe.map (\col -> filterTest loc col f))
+                |> List.filter (\( colId, _ ) -> Just colId /= excluded)
+                |> List.filterMap (\( colId, f ) -> findColumn colId allColumns |> Maybe.map (\col -> filterTest loc col f))
 
         tests =
             List.concat
@@ -2700,7 +2741,7 @@ keepMatching config model allColumns visible excluded allRows =
 
 sortRows : Config row msg -> Model -> List (ColumnConfig row msg) -> List row -> List row
 sortRows config model allColumns allRows =
-    case List.filterMap (\( columnId, direction ) -> findColumn columnId allColumns |> Maybe.andThen (sortLevel config.locale direction)) model.sort of
+    case List.filterMap (\( colId, direction ) -> findColumn colId allColumns |> Maybe.andThen (sortLevel config.locale direction)) model.sort of
         [] ->
             allRows
 
@@ -2752,17 +2793,17 @@ hasFooter col =
 
 
 findColumn : String -> List (ColumnConfig row msg) -> Maybe (ColumnConfig row msg)
-findColumn columnId allColumns =
+findColumn colId allColumns =
     case allColumns of
         [] ->
             Nothing
 
         col :: rest ->
-            if col.id == columnId then
+            if col.id == colId then
                 Just col
 
             else
-                findColumn columnId rest
+                findColumn colId rest
 
 
 visibleColumns : Model -> List (ColumnConfig row msg) -> List (ColumnConfig row msg)
@@ -3056,8 +3097,8 @@ liveSummary ctx =
 
                     sorted =
                         case ctx.model.sort of
-                            ( columnId, direction ) :: _ ->
-                                case findColumn columnId ctx.allColumns of
+                            ( colId, direction ) :: _ ->
+                                case findColumn colId ctx.allColumns of
                                     Just col ->
                                         " " ++ ctx.t.sortedBy col.title (direction == Descending)
 
@@ -3249,15 +3290,15 @@ viewFilterSummary ctx activeCount =
                         [ Html.ul [ Internal.cls [ "klar-table__chips" ] ]
                             (drafts
                                 |> List.filterMap
-                                    (\( columnId, draft ) ->
-                                        findColumn columnId ctx.allColumns
+                                    (\( colId, draft ) ->
+                                        findColumn colId ctx.allColumns
                                             |> Maybe.map
                                                 (\col ->
                                                     Html.li []
                                                         [ Tag.view
                                                             [ Tag.tone Theme.Primary
                                                             , Tag.locale ctx.loc
-                                                            , Tag.onRemove (ctx.toMsg (FilterCleared columnId))
+                                                            , Tag.onRemove (ctx.toMsg (FilterCleared colId))
                                                             ]
                                                             (describeDraft ctx col draft)
                                                         ]
@@ -3816,8 +3857,8 @@ popupSuffix popup =
         NoPopup ->
             "none"
 
-        FilterPopup columnId ->
-            "filter-" ++ Internal.sanitizeId columnId
+        FilterPopup colId ->
+            "filter-" ++ Internal.sanitizeId colId
 
         ColumnsPopup ->
             "columns"
@@ -3866,8 +3907,8 @@ scrollDomId tableId =
 
 
 filterInputId : String -> String -> String -> String
-filterInputId tableId columnId part =
-    tableId ++ "-filter-" ++ Internal.sanitizeId columnId ++ "-" ++ part
+filterInputId tableId colId part =
+    tableId ++ "-filter-" ++ Internal.sanitizeId colId ++ "-" ++ part
 
 
 {-| Fires when focus moves to an element outside the popup (Tab, Shift+Tab).
@@ -4306,7 +4347,7 @@ viewHeaderCell ctx index col =
 
         sortPosition =
             model.sort
-                |> List.indexedMap (\i ( columnId, _ ) -> ( columnId, i + 1 ))
+                |> List.indexedMap (\i ( colId, _ ) -> ( colId, i + 1 ))
                 |> lookup col.id
 
         isPrimary =

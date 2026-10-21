@@ -36,7 +36,8 @@ import Test.Html.Selector as Selector exposing (Selector)
 suite : Test
 suite =
     describe "Klar.Table fixes"
-        [ disabledRowTests
+        [ columnIdTests
+        , disabledRowTests
         , resetButtonTests
         , filterDocumentationTests
         ]
@@ -76,10 +77,10 @@ orders =
 
 columns : List (Table.Column Order Msg)
 columns =
-    [ Table.text "customer" "Customer" .customer [ Table.filterText ]
-    , Table.text "city" "City" .city [ Table.filterSelect ]
-    , Table.int "items" "Items" .items [ Table.filterRange ]
-    , Table.text "weight" "Weight" (\order -> order.weight |> Maybe.map String.fromFloat |> Maybe.withDefault "") [ Table.sortMaybeNumber .weight ]
+    [ Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
+    , Table.text (Table.columnId "city") "City" .city [ Table.filterSelect ]
+    , Table.int (Table.columnId "items") "Items" .items [ Table.filterRange ]
+    , Table.text (Table.columnId "weight") "Weight" (\order -> order.weight |> Maybe.map String.fromFloat |> Maybe.withDefault "") [ Table.sortMaybeNumber .weight ]
     ]
 
 
@@ -531,7 +532,7 @@ selectAllTests =
 filteredAndSearched : Table.State
 filteredAndSearched =
     start
-        |> Table.setFilter "city" (Just (OneOf [ "Oslo" ]))
+        |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ]))
         |> Table.setSearch "e"
 
 
@@ -540,7 +541,7 @@ filteredAndSearched =
 nothingMatches : Table.State
 nothingMatches =
     start
-        |> Table.setFilter "city" (Just (OneOf [ "Oslo" ]))
+        |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ]))
         |> Table.setSearch "zzz"
 
 
@@ -584,7 +585,7 @@ afterClicking attributes state selectors =
 
 expectCleared : { search : String, filters : List ( String, Filter ) } -> Result String Table.State -> Expectation
 expectCleared expected =
-    expectOk (\state -> Expect.equal expected { search = Table.search state, filters = Table.filters state })
+    expectOk (\state -> Expect.equal expected { search = Table.search state, filters = List.map (Tuple.mapFirst Table.columnName) (Table.filters state) })
 
 
 expectWrapperSends : List (Table.Attribute Order Msg) -> Table.State -> List Selector -> Expectation
@@ -674,7 +675,7 @@ resetButtonTests =
                         |> Query.has []
             , test "has the same label when only a filter matches nothing" <|
                 \_ ->
-                    page withReset (Table.setFilter "city" (Just (OneOf [ "Nowhere" ])) start)
+                    page withReset (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Nowhere" ])) start)
                         |> Query.find (buttonSaying "Clear search and filters")
                         |> Query.has []
             , test "is there in server mode too, and clears the search" <|
@@ -728,43 +729,43 @@ filterDocumentationTests =
     describe "Filter, filterSelect and page, as the documentation says"
         [ describe "Contains"
             [ test "looks for the text as one piece" <|
-                \_ -> expectRows 1 [] (Table.setFilter "customer" (Just (Contains "acme supp")) start)
+                \_ -> expectRows 1 [] (Table.setFilter (Table.columnId "customer") (Just (Contains "acme supp")) start)
             , test "does not look for each word separately, as the search box does" <|
                 \_ ->
                     Expect.all
-                        [ \_ -> expectRows 0 [] (Table.setFilter "customer" (Just (Contains "supplies acme")) start)
+                        [ \_ -> expectRows 0 [] (Table.setFilter (Table.columnId "customer") (Just (Contains "supplies acme")) start)
                         , \_ -> expectRows 1 [] (Table.setSearch "supplies acme" start)
                         ]
                         ()
             , test "ignores case and accents" <|
-                \_ -> expectRows 1 [] (Table.setFilter "customer" (Just (Contains "ECLAIR")) start)
+                \_ -> expectRows 1 [] (Table.setFilter (Table.columnId "customer") (Just (Contains "ECLAIR")) start)
             ]
         , describe "OneOf"
             [ test "compares the whole text, case included" <|
                 \_ ->
                     Expect.all
-                        [ \_ -> expectRows 0 [] (Table.setFilter "city" (Just (OneOf [ "oslo" ])) start)
-                        , \_ -> expectRows 0 [] (Table.setFilter "city" (Just (OneOf [ "Osl" ])) start)
-                        , \_ -> expectRows 2 [] (Table.setFilter "city" (Just (OneOf [ "Oslo" ])) start)
-                        , \_ -> expectRows 3 [] (Table.setFilter "city" (Just (OneOf [ "Oslo", "Bergen" ])) start)
+                        [ \_ -> expectRows 0 [] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "oslo" ])) start)
+                        , \_ -> expectRows 0 [] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Osl" ])) start)
+                        , \_ -> expectRows 2 [] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start)
+                        , \_ -> expectRows 3 [] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo", "Bergen" ])) start)
                         ]
                         ()
             ]
         , describe "Between"
             [ test "includes the bounds" <|
-                \_ -> expectRows 2 [] (Table.setFilter "items" (Just (Between (Just 3) (Just 7))) start)
+                \_ -> expectRows 2 [] (Table.setFilter (Table.columnId "items") (Just (Between (Just 3) (Just 7))) start)
             , test "a Nothing bound is open" <|
                 \_ ->
                     Expect.all
-                        [ \_ -> expectRows 3 [] (Table.setFilter "items" (Just (Between (Just 3) Nothing)) start)
-                        , \_ -> expectRows 3 [] (Table.setFilter "items" (Just (Between Nothing (Just 7))) start)
-                        , \_ -> expectRows 4 [] (Table.setFilter "items" (Just (Between Nothing Nothing)) start)
+                        [ \_ -> expectRows 3 [] (Table.setFilter (Table.columnId "items") (Just (Between (Just 3) Nothing)) start)
+                        , \_ -> expectRows 3 [] (Table.setFilter (Table.columnId "items") (Just (Between Nothing (Just 7))) start)
+                        , \_ -> expectRows 4 [] (Table.setFilter (Table.columnId "items") (Just (Between Nothing Nothing)) start)
                         ]
                         ()
             , test "a row without a number does not match" <|
-                \_ -> expectRows 2 [] (Table.setFilter "weight" (Just (Between (Just 0) Nothing)) start)
+                \_ -> expectRows 2 [] (Table.setFilter (Table.columnId "weight") (Just (Between (Just 0) Nothing)) start)
             , test "on a column that has no numbers at all every row matches" <|
-                \_ -> expectRows 4 [] (Table.setFilter "city" (Just (Between (Just 5) (Just 6))) start)
+                \_ -> expectRows 4 [] (Table.setFilter (Table.columnId "city") (Just (Between (Just 5) (Just 6))) start)
             ]
         , choiceListTests
         , pageTests
@@ -827,7 +828,7 @@ choiceListTests =
                 |> Result.map (page attributes)
 
         filterOptionsOf values =
-            Table.columns [ Table.text "city" "City" .city [ Table.filterOptions values ] ]
+            Table.columns [ Table.text (Table.columnId "city") "City" .city [ Table.filterOptions values ] ]
     in
     describe "the values of filterSelect"
         [ test "client mode: the distinct values of all rows in alphabetical order, with the rows each would add" <|
@@ -836,11 +837,11 @@ choiceListTests =
                     |> expectOk (expectOptions [ ( "Bergen", Just "1" ), ( "Oslo", Just "2" ), ( "Trondheim", Just "1" ) ])
         , test "the counts follow the other filters and the search" <|
             \_ ->
-                popover [] (Table.setFilter "customer" (Just (Contains "acme")) start)
+                popover [] (Table.setFilter (Table.columnId "customer") (Just (Contains "acme")) start)
                     |> expectOk (expectOptions [ ( "Bergen", Just "0" ), ( "Oslo", Just "1" ), ( "Trondheim", Just "0" ) ])
         , test "the filter of the column itself does not count" <|
             \_ ->
-                popover [] (Table.setFilter "city" (Just (OneOf [ "Oslo" ])) start)
+                popover [] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start)
                     |> expectOk (expectOptions [ ( "Bergen", Just "1" ), ( "Oslo", Just "2" ), ( "Trondheim", Just "1" ) ])
         , test "blank values are not offered" <|
             \_ ->
@@ -860,7 +861,7 @@ choiceListTests =
                     |> expectOk (expectOptions [ ( "Bergen", Nothing ), ( "Oslo", Nothing ) ])
         , test "filterOptions replaces the values, in its order, and a chosen value that is not in it stays" <|
             \_ ->
-                popover [ filterOptionsOf [ "Trondheim", "Oslo" ] ] (Table.setFilter "city" (Just (OneOf [ "Gone" ])) start)
+                popover [ filterOptionsOf [ "Trondheim", "Oslo" ] ] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Gone" ])) start)
                     |> expectOk (expectOptions [ ( "Trondheim", Just "1" ), ( "Oslo", Just "2" ), ( "Gone", Just "0" ) ])
         , test "filterOptions in server mode: the given values, and no counts" <|
             \_ ->
@@ -928,4 +929,63 @@ pageTests =
                     ()
         , test "Table.page keeps returning the number that was asked for" <|
             \_ -> Expect.equal 99 (Table.page pastTheEnd)
+        ]
+
+
+
+-- COLUMN IDS
+
+
+columnIdTests : Test
+columnIdTests =
+    let
+        customer =
+            Table.columnId "customer"
+
+        total =
+            Table.columnId "total"
+    in
+    describe "column ids"
+        [ test "a column id gives back the text it was made from" <|
+            \_ -> Expect.equal "customer" (Table.columnName customer)
+        , test "two ids made from the same text are equal" <|
+            \_ -> Expect.equal customer (Table.columnId "customer")
+        , test "the sort that was set is read back as the same ids" <|
+            \_ ->
+                Table.init "orders"
+                    |> Table.setSort [ ( total, Table.Descending ), ( customer, Table.Ascending ) ]
+                    |> Table.sort
+                    |> Expect.equal [ ( total, Table.Descending ), ( customer, Table.Ascending ) ]
+        , test "the filter that was set is read back under the same id" <|
+            \_ ->
+                Table.init "orders"
+                    |> Table.setFilter customer (Just (Contains "acme"))
+                    |> Table.filters
+                    |> Expect.equal [ ( customer, Contains "acme" ) ]
+        , test "a query carries ids, and can be put back with setQuery" <|
+            \_ ->
+                let
+                    state =
+                        Table.init "orders"
+                            |> Table.setSort [ ( total, Table.Ascending ) ]
+                            |> Table.setFilter customer (Just (Contains "acme"))
+                in
+                Table.init "orders"
+                    |> Table.setQuery (Table.query state)
+                    |> Table.query
+                    |> Expect.equal (Table.query state)
+        , test "the names for a backend come from the ids of the query" <|
+            \_ ->
+                Table.init "orders"
+                    |> Table.setSort [ ( total, Table.Ascending ), ( customer, Table.Descending ) ]
+                    |> Table.query
+                    |> .sort
+                    |> List.map (Tuple.first >> Table.columnName)
+                    |> Expect.equal [ "total", "customer" ]
+        , test "a column choice is remembered under the id" <|
+            \_ ->
+                Table.init "orders"
+                    |> Table.setColumnVisible customer False
+                    |> (\state -> ( Table.isColumnVisible customer state, Table.isColumnVisible total state ))
+                    |> Expect.equal ( Just False, Nothing )
         ]

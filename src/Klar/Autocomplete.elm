@@ -98,6 +98,7 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Select.Match as Match
 import Klar.Select.Option as Option exposing (Option)
 import Klar.Select.Popup as Popup
 import Klar.Spinner as Spinner
@@ -292,7 +293,7 @@ update msg ((State state) as current) =
 
                     else
                         env.options
-                            |> List.filter (\opt -> not opt.disabled && Option.isExactMatch state.text opt)
+                            |> List.filter (\opt -> not opt.disabled && Match.isExactMatch state.text opt)
                             |> List.head
             in
             ( State

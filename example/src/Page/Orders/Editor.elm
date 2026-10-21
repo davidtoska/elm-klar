@@ -76,10 +76,10 @@ type alias Editor =
     , saved : OrderInput
     , customer : Autocomplete.State
     , email : String
-    , country : Select.State
+    , country : Select.State String
     , city : String
-    , warehouse : Select.State
-    , owner : Select.State
+    , warehouse : Select.State String
+    , owner : Select.State String
     , priority : Priority
     , due : DatePicker.State
     , lines : NumberInput.State
@@ -175,7 +175,7 @@ fromOrder order =
     }
 
 
-selectOf : String -> Maybe String -> Select.State
+selectOf : String -> Maybe String -> Select.State String
 selectOf id maybeValue =
     case maybeValue of
         Just value ->
@@ -355,10 +355,10 @@ numberProblem field message accepts state =
 type Msg
     = CustomerMsg Autocomplete.Msg
     | EmailChanged String
-    | CountryMsg Select.Msg
+    | CountryMsg (Select.Msg String)
     | CityChanged String
-    | WarehouseMsg Select.Msg
-    | OwnerMsg Select.Msg
+    | WarehouseMsg (Select.Msg String)
+    | OwnerMsg (Select.Msg String)
     | PriorityChosen String
     | DueMsg DatePicker.Msg
     | LinesMsg NumberInput.Msg
@@ -708,24 +708,24 @@ viewOrderFacts context editor =
                 ]
 
 
-customerOption : String -> Select.Option
+customerOption : String -> Select.Option String
 customerOption name =
     Select.option name name
 
 
-countryOption : Types.Country -> Select.Option
+countryOption : Types.Country -> Select.Option String
 countryOption country =
     Select.option country.code country.name
         |> Select.withDescription country.code
 
 
-warehouseOption : Types.Warehouse -> Select.Option
+warehouseOption : Types.Warehouse -> Select.Option String
 warehouseOption warehouse =
     Select.option warehouse.id warehouse.name
         |> Select.withDescription warehouse.city
 
 
-ownerOption : String -> Select.Option
+ownerOption : String -> Select.Option String
 ownerOption name =
     Select.option name name
 

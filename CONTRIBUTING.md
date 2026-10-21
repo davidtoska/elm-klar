@@ -83,6 +83,22 @@ its dependencies that `elm.json` allows (check both before a release, see
    `Size`, `Remote`, `Direction` ...) are exposed unions. `npm run check:api` lists the
    exposed unions, so a new one is a decision, not an accident. (`Klar.Rule.Operator`
    is the largest: adding an operator is a major release.)
+
+   The exposed unions, and why each is public. Applications match on these (a
+   server-side translation of a rule, a message for each file problem), so they
+   would lose that with opaque types; each is a vocabulary that is complete, and
+   adding to it is a major release on purpose:
+   `Rule.Rule`, `Rule.Combinator`, `Rule.Operator`, `Rule.Operands` and
+   `Rule.FieldKind` (a rule is data an application translates to its own query),
+   `Table.Filter`, `Table.Direction` and `Table.Selection` (the answer a server-mode
+   table gives), `Remote.Remote` (the four states of a request), `Form.Status`,
+   `FileDrop.Problem`, `Pagination.Item`, `Calendar.Event` and `Avatar.Status`
+   (a result or a state an application reads), and the small design vocabularies
+   `Theme.Tone`, `Theme.Size`, `Theme.Density`, `Icon.Size`, `Modal.Side` and
+   `TextArea.Resize`. Types whose set is open are opaque: `Locale`, `Icon`,
+   `Date`, `Remote.Kind`, `Remote.Problem`, `Table.ColumnId`, `Rule.Field`,
+   `Shortcut`, `Shortcut.Keys`. Values that an application keeps and compares
+   (`Select` values) are of the application's own type.
 9. Code is formatted by `elm-format`; modules have documentation (below).
 
 ## API conventions

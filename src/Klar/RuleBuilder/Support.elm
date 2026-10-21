@@ -1,5 +1,7 @@
 module Klar.RuleBuilder.Support exposing
-    ( findCondition
+    ( Info
+    , findCondition
+    , infoOf
     , nodeIds
     , normalize
     , onFocusLeave
@@ -34,13 +36,24 @@ import Set exposing (Set)
 that need to know the kind of a field (messages carry the kind, so `update`
 does not need the application's fields).
 -}
-stub : String -> FieldKind -> Field ()
-stub id kind =
-    let
-        base =
-            Rule.textField id "" (\_ -> "")
-    in
-    { base | kind = kind }
+stub : String -> Info -> Field ()
+stub id info =
+    Rule.bareField id "" info.kind
+        |> Rule.withOperators info.operators
+
+
+{-| What a message needs to remember about a field: its kind and the operators it
+offers.
+-}
+type alias Info =
+    { kind : FieldKind
+    , operators : List Operator
+    }
+
+
+infoOf : Field row -> Info
+infoOf field =
+    { kind = Rule.fieldKind field, operators = Rule.fieldOperators field }
 
 
 findCondition : Int -> Rule -> Maybe Condition

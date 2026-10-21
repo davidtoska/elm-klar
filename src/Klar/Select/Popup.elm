@@ -74,6 +74,7 @@ import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote
 import Klar.Search as Search
+import Klar.Select.Match as Match
 import Klar.Select.Option as Option exposing (Option)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
@@ -247,14 +248,14 @@ state and pass it back while the options stay the same).
 -}
 type alias Built id =
     { rows : Rows id
-    , index : Maybe (Option.Index id)
+    , index : Maybe (Match.Index id)
     }
 
 
 {-| Filter (or not), rank, group, and add the create row. The search index is
 built only when there is something to search for.
 -}
-build : Maybe (Option.Index id) -> Env id -> String -> Built id
+build : Maybe (Match.Index id) -> Env id -> String -> Built id
 build cachedIndex env query =
     let
         trimmed =
@@ -270,7 +271,7 @@ build cachedIndex env query =
                         Just existing
 
                     Nothing ->
-                        Just (Option.index env.options)
+                        Just (Match.index env.options)
 
             else
                 cachedIndex
@@ -280,10 +281,10 @@ build cachedIndex env query =
                 ( True, Just entries ) ->
                     let
                         matching =
-                            Option.rank trimmed entries
+                            Match.rank trimmed entries
 
                         normalized =
-                            Option.normalize trimmed
+                            Match.normalize trimmed
                     in
                     ( List.map .option matching
                     , env.creatable && List.any (\e -> String.trim e.label == normalized) matching
@@ -291,7 +292,7 @@ build cachedIndex env query =
 
                 _ ->
                     ( env.options
-                    , env.creatable && trimmed /= "" && List.any (Option.isExactMatch trimmed) env.options
+                    , env.creatable && trimmed /= "" && List.any (Match.isExactMatch trimmed) env.options
                     )
 
         createText =
@@ -367,7 +368,7 @@ per list of options.
 -}
 type alias Cache id =
     { env : Env id
-    , index : Maybe (Option.Index id)
+    , index : Maybe (Match.Index id)
     , query : String
     , rows : Rows id
     }
@@ -402,7 +403,7 @@ cachedRows cache env query =
             (build Nothing env query).rows
 
 
-reusableIndex : Env id -> Cache id -> Maybe (Option.Index id)
+reusableIndex : Env id -> Cache id -> Maybe (Match.Index id)
 reusableIndex env cache =
     if cache.env.options == env.options then
         cache.index
@@ -1087,7 +1088,7 @@ viewItem config index ordinal opt =
 
         -- the description is highlighted only when it is why the option matched
         descriptionQuery =
-            if opt.description == Nothing || Option.labelMatches (Option.prepare config.query) opt then
+            if opt.description == Nothing || Match.labelMatches (Match.prepare config.query) opt then
                 ""
 
             else

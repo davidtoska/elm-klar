@@ -1,5 +1,7 @@
 module Klar.Rule exposing
-    ( Field, FieldKind(..), Value, textField, numberField, dateField, boolField, choiceField, Choice, inGroup, fieldById
+    ( Field, bareField, textField, numberField, dateField, boolField, choiceField, inGroup, withOperators, fieldById
+    , fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
+    , FieldKind(..), Choice
     , Operator(..), Operands(..), operatorsFor, operandsOf, operatorLabel
     , Rule(..), Group, Combinator(..), Condition, emptyGroup
     , matches, isComplete, parseNumber
@@ -90,7 +92,11 @@ Make fields with the functions below, one for each kind of value. The getter of
 a number or date field returns a `Maybe`: `Nothing` means that the row has no
 value.
 
-@docs Field, FieldKind, Value, textField, numberField, dateField, boolField, choiceField, Choice, inGroup, fieldById
+@docs Field, bareField, textField, numberField, dateField, boolField, choiceField, inGroup, withOperators, fieldById
+
+@docs fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
+
+@docs FieldKind, Choice
 
 
 # Operators and operands
@@ -218,23 +224,38 @@ type Value
 
 {-| Something rules can talk about, and how to read it from a row of type
 `row`. Make fields with `textField`, `numberField`, `dateField`, `boolField` or
-`choiceField` rather than writing the record by hand.
+`choiceField` (or `field`, when there are no rows to read), adjust them with
+`inGroup` and `withOperators`, and read them with `fieldId`, `fieldLabel`,
+`fieldKind`, `fieldGroup` and `fieldOperators`. The type is opaque, so that a
+field can get more settings in a later version.
+-}
+type Field row
+    = Field
+        { id : String
+        , label : String
+        , kind : FieldKind
+        , group : Maybe String
+        , operators : Maybe (List Operator)
+        , get : row -> Value
+        }
 
-  - `id` is what conditions store to refer to the field. Keep it stable.
-  - `label` is the name the user reads.
-  - `kind` decides which operators are on offer.
-  - `group` is the heading the field is listed under in a field picker, see
-    `inGroup`.
-  - `get` reads the `Value` of the field from a row.
+
+make : String -> String -> FieldKind -> (row -> Value) -> Field row
+make id label kind get =
+    Field { id = id, label = label, kind = kind, group = Nothing, operators = Nothing, get = get }
+
+
+{-| A field that only describes: an id, a label and a kind, with nothing to read
+from a row. It is what you need when the rows are not in the browser (a server
+filters them) and the fields only decide what a rule builder or filter bar
+offers. `matches` finds no value in a row for such a field.
+
+    Rule.bareField "status" "Status" (Rule.ChoiceKind statuses)
 
 -}
-type alias Field row =
-    { id : String
-    , label : String
-    , kind : FieldKind
-    , group : Maybe String
-    , get : row -> Value
-    }
+bareField : String -> String -> FieldKind -> Field row
+bareField id label kind =
+    make id label kind (\_ -> VMissing)
 
 
 {-| A field with text values. The first argument is the id, the second the label,
@@ -248,7 +269,7 @@ Comparisons ignore case and diacritics, and surrounding spaces.
 -}
 textField : String -> String -> (row -> String) -> Field row
 textField id label get =
-    { id = id, label = label, kind = TextKind, group = Nothing, get = \row -> VText (get row) }
+    make id label TextKind (\row -> VText (get row))
 
 
 {-| A field with number values. `Nothing` means that the row has no number; such
@@ -262,12 +283,7 @@ the thousands work.
 -}
 numberField : String -> String -> (row -> Maybe Float) -> Field row
 numberField id label get =
-    { id = id
-    , label = label
-    , kind = NumberKind
-    , group = Nothing
-    , get = \row -> get row |> Maybe.map VNumber |> Maybe.withDefault VMissing
-    }
+    make id label NumberKind (\row -> get row |> Maybe.map VNumber |> Maybe.withDefault VMissing)
 
 
 {-| A field with calendar dates ([Klar.Date](Klar-Date)). `Nothing` means that
@@ -281,12 +297,7 @@ Operands are ISO dates (`2026-10-20`), or a number of days for `InLastDays` and
 -}
 dateField : String -> String -> (row -> Maybe Date) -> Field row
 dateField id label get =
-    { id = id
-    , label = label
-    , kind = DateKind
-    , group = Nothing
-    , get = \row -> get row |> Maybe.map VDate |> Maybe.withDefault VMissing
-    }
+    make id label DateKind (\row -> get row |> Maybe.map VDate |> Maybe.withDefault VMissing)
 
 
 {-| A field with yes or no values. The only operators are `IsTrue` and
@@ -297,7 +308,7 @@ dateField id label get =
 -}
 boolField : String -> String -> (row -> Bool) -> Field row
 boolField id label get =
-    { id = id, label = label, kind = BooleanKind, group = Nothing, get = \row -> VBool (get row) }
+    make id label BooleanKind (\row -> VBool (get row))
 
 
 {-| A field with a fixed set of values. The getter returns the `value` of the
@@ -309,19 +320,17 @@ choice a row has, and the empty text for a row without one (it then satisfies
 -}
 choiceField : String -> String -> List Choice -> (row -> String) -> Field row
 choiceField id label choices get =
-    { id = id
-    , label = label
-    , kind = ChoiceKind choices
-    , group = Nothing
-    , get =
-        \row ->
+    make id
+        label
+        (ChoiceKind choices)
+        (\row ->
             case get row of
                 "" ->
                     VMissing
 
                 value ->
                     VChoice value
-    }
+        )
 
 
 {-| Lists the field under a heading in the field picker of the rule builder and
@@ -332,8 +341,94 @@ the filter bar. Fields with the same heading are listed together.
 
 -}
 inGroup : String -> Field row -> Field row
-inGroup group field =
-    { field | group = Just group }
+inGroup group (Field data) =
+    Field { data | group = Just group }
+
+
+{-| Limits the operators the field offers to these, in this order, taken from the
+ones that fit its kind (the others are ignored). A condition on the field starts
+with the first one. Use it to leave out what makes no sense for a field: an
+entity needs `Is` and `IsAnyOf`, not `Contains`. A saved rule that uses an
+operator the field no longer offers is reported by `validate`.
+
+    Rule.choiceField "owner" "Owner" owners .ownerId
+        |> Rule.withOperators [ Is, IsNot, IsAnyOf ]
+
+If none of the operators fit the kind, the field keeps all of them.
+
+-}
+withOperators : List Operator -> Field row -> Field row
+withOperators operators (Field data) =
+    Field { data | operators = Just operators }
+
+
+readField : Field row -> row -> Value
+readField (Field data) row =
+    data.get row
+
+
+{-| The id of a field: what conditions store to refer to it.
+-}
+fieldId : Field row -> String
+fieldId (Field data) =
+    data.id
+
+
+{-| The label of a field: what the user reads.
+-}
+fieldLabel : Field row -> String
+fieldLabel (Field data) =
+    data.label
+
+
+{-| The kind of a field.
+-}
+fieldKind : Field row -> FieldKind
+fieldKind (Field data) =
+    data.kind
+
+
+{-| The heading a field is listed under in a field picker, set with `inGroup`.
+-}
+fieldGroup : Field row -> Maybe String
+fieldGroup (Field data) =
+    data.group
+
+
+{-| The operators a field offers, in the order a picker lists them: the ones set
+with `withOperators` that fit the kind of the field, or all those that fit it
+(see `operatorsFor`).
+-}
+fieldOperators : Field row -> List Operator
+fieldOperators (Field data) =
+    let
+        fitting =
+            operatorsFor data.kind
+
+        chosen =
+            data.operators
+                |> Maybe.map (List.filter (\operator -> List.member operator fitting))
+                |> Maybe.withDefault []
+    in
+    if List.isEmpty chosen then
+        fitting
+
+    else
+        unique chosen
+
+
+unique : List a -> List a
+unique list =
+    List.foldl
+        (\item kept ->
+            if List.member item kept then
+                kept
+
+            else
+                kept ++ [ item ]
+        )
+        []
+        list
 
 
 {-| Finds the field with this id.
@@ -343,7 +438,7 @@ inGroup group field =
 -}
 fieldById : List (Field row) -> String -> Maybe (Field row)
 fieldById fields id =
-    fields |> List.filter (\field -> field.id == id) |> List.head
+    fields |> List.filter (\candidate -> fieldId candidate == id) |> List.head
 
 
 
@@ -848,7 +943,7 @@ addCondition fields groupId root =
         condition =
             case fields of
                 first :: _ ->
-                    ConditionRule { id = id, field = first.id, operator = defaultOperator first.kind, values = [] }
+                    ConditionRule { id = id, field = fieldId first, operator = defaultOperatorOf first, values = [] }
 
                 [] ->
                     ConditionRule { id = id, field = "", operator = Is, values = [] }
@@ -923,30 +1018,30 @@ id is not one of the fields, only the field of the condition changes.
 
 -}
 setField : List (Field row) -> Int -> String -> Rule -> Rule
-setField fields id fieldId =
+setField fields id newId =
     updateCondition id
         (\condition ->
-            case fieldById fields fieldId of
+            case fieldById fields newId of
                 Nothing ->
-                    { condition | field = fieldId }
+                    { condition | field = newId }
 
                 Just field ->
                     { condition
-                        | field = fieldId
+                        | field = newId
                         , operator =
-                            if List.member condition.operator (operatorsFor field.kind) then
+                            if List.member condition.operator (fieldOperators field) then
                                 condition.operator
 
                             else
-                                defaultOperator field.kind
+                                defaultOperatorOf field
                         , values = []
                     }
         )
 
 
-defaultOperator : FieldKind -> Operator
-defaultOperator kind =
-    operatorsFor kind |> List.head |> Maybe.withDefault Is
+defaultOperatorOf : Field row -> Operator
+defaultOperatorOf field =
+    fieldOperators field |> List.head |> Maybe.withDefault Is
 
 
 {-| Changes the operator of the condition with this id, and trims or pads its
@@ -1394,7 +1489,7 @@ isComplete field condition =
             parseNumber text |> Maybe.map (\n -> n >= 0) |> Maybe.withDefault False
 
         usable text =
-            case field.kind of
+            case fieldKind field of
                 NumberKind ->
                     parseNumber text /= Nothing
 
@@ -1432,7 +1527,7 @@ isComplete field condition =
 -}
 fitsField : Field row -> Condition -> Bool
 fitsField field condition =
-    List.member condition.operator (operatorsFor field.kind)
+    List.member condition.operator (fieldOperators field)
 
 
 {-| Does this row satisfy the rule? The arguments are today's date, the fields,
@@ -1468,7 +1563,7 @@ matches today fields rule row =
 
                 Just field ->
                     if isComplete field condition then
-                        test today condition.operator condition.values (field.get row)
+                        test today condition.operator condition.values (readField field row)
 
                     else
                         True
@@ -1790,7 +1885,7 @@ validate locale fields rule =
                         [ { nodeId = condition.id, message = pick "Betingelsen passer ikke til feltet" "The operator does not fit the field" } ]
 
                     else if isComplete field condition then
-                        case ( condition.operator, field.kind ) of
+                        case ( condition.operator, fieldKind field ) of
                             ( Between, NumberKind ) ->
                                 case List.map parseNumber (List.take 2 condition.values) of
                                     [ Just low, Just high ] ->
@@ -1821,7 +1916,7 @@ validate locale fields rule =
                     else
                         [ { nodeId = condition.id
                           , message =
-                                case ( field.kind, condition.operator ) of
+                                case ( fieldKind field, condition.operator ) of
                                     ( NumberKind, _ ) ->
                                         pick "Skriv inn et gyldig tall" "Enter a valid number"
 
@@ -1933,13 +2028,13 @@ describeCondition locale field condition =
     in
     case condition.operator of
         InLastDays ->
-            field.label ++ " " ++ pick "siste " "in the last " ++ days ++ unit
+            fieldLabel field ++ " " ++ pick "siste " "in the last " ++ days ++ unit
 
         InNextDays ->
-            field.label ++ " " ++ pick "neste " "in the next " ++ days ++ unit
+            fieldLabel field ++ " " ++ pick "neste " "in the next " ++ days ++ unit
 
         _ ->
-            field.label ++ " " ++ operatorLabel locale field.kind condition.operator ++ operandText locale field condition
+            fieldLabel field ++ " " ++ operatorLabel locale (fieldKind field) condition.operator ++ operandText locale field condition
 
 
 {-| Puts a text in the quotation marks of the locale: “Ada” for `Locale.en`, «Ada»
@@ -1954,7 +2049,7 @@ operandText : Locale -> Field row -> Condition -> String
 operandText locale field condition =
     let
         label value =
-            case field.kind of
+            case fieldKind field of
                 ChoiceKind choices ->
                     choices
                         |> List.filter (\choice -> choice.value == value)
@@ -1971,7 +2066,7 @@ operandText locale field condition =
                     value
 
         quoted value =
-            case field.kind of
+            case fieldKind field of
                 TextKind ->
                     " " ++ quote locale value
 

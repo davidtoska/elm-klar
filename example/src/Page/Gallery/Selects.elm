@@ -29,14 +29,14 @@ import Task
 -- DATA
 
 
-countryOptions : List Option
+countryOptions : List (Option String)
 countryOptions =
     Sample.countries
         |> List.sortBy .name
         |> List.map (\country -> Select.option country.code country.name |> Select.withDescription country.code)
 
 
-countryGroupedOptions : List Option
+countryGroupedOptions : List (Option String)
 countryGroupedOptions =
     Sample.countries
         |> List.sortBy (\country -> ( country.region, country.name ))
@@ -48,7 +48,7 @@ countryGroupedOptions =
             )
 
 
-deliveryOptions : List Option
+deliveryOptions : List (Option String)
 deliveryOptions =
     [ Select.option "home" "Home delivery"
         |> Select.withIcon Icon.home
@@ -89,7 +89,7 @@ deliveryOptions =
 
 {-| Top-level, so the list is built once and the selects can compare it cheaply.
 -}
-orderOptions : List Option
+orderOptions : List (Option String)
 orderOptions =
     Sample.orders
         |> List.map
@@ -99,12 +99,12 @@ orderOptions =
             )
 
 
-customerOptions : List Option
+customerOptions : List (Option String)
 customerOptions =
     List.map (\name -> Select.option name name) Sample.customers
 
 
-cityOptions : List Option
+cityOptions : List (Option String)
 cityOptions =
     List.map (\name -> Select.option name name) Sample.cities
 
@@ -127,7 +127,7 @@ knownCategories =
         |> List.sortBy Tuple.first
 
 
-categoryOptions : List String -> List Option
+categoryOptions : List String -> List (Option String)
 categoryOptions created =
     List.map (\( name, parent ) -> Select.option name name |> Select.withDescription parent) knownCategories
         ++ List.map (\name -> Select.option name name) created
@@ -138,7 +138,7 @@ isKnownCategory name =
     List.any (\( known, _ ) -> known == name) knownCategories
 
 
-labelOf : List Option -> String -> String
+labelOf : List (Option String) -> String -> String
 labelOf options value =
     options
         |> List.filter (\opt -> opt.value == value)
@@ -150,7 +150,7 @@ labelOf options value =
 {-| An order as the application would store it: its id, and its label from the
 last time the server returned it.
 -}
-savedOrder : String -> Option
+savedOrder : String -> Option String
 savedOrder id =
     Select.option id (labelOf orderOptions id)
 
@@ -158,7 +158,7 @@ savedOrder id =
 {-| What a failed request looks like in the demos that show a value whose
 options never arrived.
 -}
-unreachable : Remote (List Option)
+unreachable : Remote (List (Option String))
 unreachable =
     Failure (Remote.problem Remote.network)
 
@@ -177,16 +177,18 @@ type Target
 the request it belongs to (older answers are ignored) and the text searched for.
 -}
 type alias Backend =
-    { results : Remote (List Option)
+    { results : Remote (List (Option String))
     , request : Int
     , text : String
     }
 
 
 type alias Model =
-    { selects : Dict String Select.State
-    , multis : Dict String MultiSelect.State
+    { selects : Dict String (Select.State String)
+    , multis : Dict String (MultiSelect.State String)
     , autos : Dict String Autocomplete.State
+    , owner : Select.State OwnerId
+    , assignees : MultiSelect.State OwnerId
     , createdCategories : List String
     , orderSearch : Backend
     , orderMultiSearch : Backend
@@ -198,9 +200,11 @@ type alias Model =
 
 
 type Msg
-    = SelectMsg String Select.Msg
-    | MultiMsg String MultiSelect.Msg
+    = SelectMsg String (Select.Msg String)
+    | MultiMsg String (MultiSelect.Msg String)
     | AutoMsg String Autocomplete.Msg
+    | OwnerMsg (Select.Msg OwnerId)
+    | AssigneesMsg (MultiSelect.Msg OwnerId)
     | Responded Target Int String
     | Retry Target
     | ToggleServerFailure
@@ -260,6 +264,8 @@ init =
                     , ( "auto-large", identity )
                     ]
                 )
+      , owner = Select.init "typed-owner" |> Select.setValue (OwnerId 2)
+      , assignees = MultiSelect.init "typed-assignees" |> MultiSelect.setValues [ OwnerId 1, OwnerId 3 ]
       , createdCategories = []
       , orderSearch = idle
       , orderMultiSearch = idle
@@ -277,12 +283,12 @@ idle =
     { results = NotAsked, request = 0, text = "" }
 
 
-selectState : String -> Model -> Select.State
+selectState : String -> Model -> Select.State String
 selectState id model =
     Dict.get id model.selects |> Maybe.withDefault (Select.init id)
 
 
-multiState : String -> Model -> MultiSelect.State
+multiState : String -> Model -> MultiSelect.State String
 multiState id model =
     Dict.get id model.multis |> Maybe.withDefault (MultiSelect.init id)
 
@@ -299,6 +305,20 @@ autoState id model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        OwnerMsg inner ->
+            let
+                ( owner, cmd ) =
+                    Select.update inner model.owner
+            in
+            ( { model | owner = owner }, Cmd.map OwnerMsg cmd )
+
+        AssigneesMsg inner ->
+            let
+                ( assignees, cmd ) =
+                    MultiSelect.update inner model.assignees
+            in
+            ( { model | assignees = assignees }, Cmd.map AssigneesMsg cmd )
+
         SelectMsg id inner ->
             let
                 old =
@@ -478,7 +498,7 @@ search target text model =
         )
 
 
-respond : Target -> String -> Model -> Remote (List Option)
+respond : Target -> String -> Model -> Remote (List (Option String))
 respond target text model =
     let
         fails =
@@ -519,6 +539,7 @@ view locale model =
         [ basics locale model
         , states locale model
         , creating locale model
+        , typedIds locale model
         , largeLists locale model
         , multiSelects locale model
         , serverSearch locale model
@@ -528,12 +549,12 @@ view locale model =
         ]
 
 
-selectView : String -> Locale -> Model -> List (Select.Attribute Msg) -> Html Msg
+selectView : String -> Locale -> Model -> List (Select.Attribute String Msg) -> Html Msg
 selectView id locale model attributes =
     Select.view (SelectMsg id) (Select.locale locale :: attributes) (selectState id model)
 
 
-multiView : String -> Locale -> Model -> List (MultiSelect.Attribute Msg) -> Html Msg
+multiView : String -> Locale -> Model -> List (MultiSelect.Attribute String Msg) -> Html Msg
 multiView id locale model attributes =
     MultiSelect.view (MultiMsg id) (MultiSelect.locale locale :: attributes) (multiState id model)
 
@@ -543,7 +564,7 @@ autoView id locale model attributes =
     Autocomplete.view (AutoMsg id) (Autocomplete.locale locale :: attributes) (autoState id model)
 
 
-valueCaption : List Option -> Maybe String -> Html msg
+valueCaption : List (Option String) -> Maybe String -> Html msg
 valueCaption options value =
     case value of
         Just v ->
@@ -783,10 +804,99 @@ creating locale model =
                     model
                     [ Select.label "Category"
                     , Select.options (categoryOptions model.createdCategories)
-                    , Select.creatable
+                    , Select.creatable identity
                     , Select.clearable
                     , Select.placeholder "Choose or type a category"
                     ]
+                ]
+            )
+        ]
+
+
+{-| An id that belongs to the application: the options carry `OwnerId`s, and the
+select hands back an `OwnerId`, not a `String` to be parsed.
+-}
+type OwnerId
+    = OwnerId Int
+
+
+type alias Owner =
+    { id : OwnerId
+    , name : String
+    }
+
+
+owners : List Owner
+owners =
+    List.indexedMap (\i name -> { id = OwnerId (i + 1), name = name }) Sample.owners
+
+
+ownerOptions : List (Option OwnerId)
+ownerOptions =
+    List.map (\owner -> Select.option owner.id owner.name) owners
+
+
+ownerName : OwnerId -> String
+ownerName id =
+    owners |> List.filter (\owner -> owner.id == id) |> List.head |> Maybe.map .name |> Maybe.withDefault "unknown"
+
+
+ownerNumber : OwnerId -> String
+ownerNumber (OwnerId n) =
+    String.fromInt n
+
+
+typedIds : Locale -> Model -> Html Msg
+typedIds locale model =
+    Doc.section "Your own id type"
+        "The value of an option can be any plain data: an id type of your own, an Int, a record. The select gives the same value back, so a database id needs no String in between and no parsing on the way out. Values are compared with ==."
+        [ Doc.example
+            { title = "A select of OwnerId"
+            , description =
+                Just
+                    (case Select.value model.owner of
+                        Just id ->
+                            "Select.value is Just (OwnerId " ++ ownerNumber id ++ "), the id of " ++ ownerName id ++ "."
+
+                        Nothing ->
+                            "Select.value is Nothing."
+                    )
+            , code = Just typedIdCode
+            }
+            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+                [ Select.view OwnerMsg
+                    [ Select.label "Owner"
+                    , Select.options ownerOptions
+                    , Select.valueText (\id -> "Owner #" ++ ownerNumber id)
+                    , Select.clearable
+                    , Select.locale locale
+                    ]
+                    model.owner
+                ]
+            )
+        , Doc.example
+            { title = "A multiple choice of OwnerId"
+            , description =
+                Just
+                    ("MultiSelect.values is a List OwnerId: "
+                        ++ (case MultiSelect.values model.assignees of
+                                [] ->
+                                    "empty."
+
+                                ids ->
+                                    String.join ", " (List.map ownerNumber ids) ++ "."
+                           )
+                    )
+            , code = Just typedMultiCode
+            }
+            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+                [ MultiSelect.view AssigneesMsg
+                    [ MultiSelect.label "Assignees"
+                    , MultiSelect.options ownerOptions
+                    , MultiSelect.clearable
+                    , MultiSelect.locale locale
+                    ]
+                    model.assignees
                 ]
             )
         ]
@@ -1240,12 +1350,41 @@ emptyCode =
     model.carrier"""
 
 
+typedIdCode : String
+typedIdCode =
+    """type OwnerId
+    = OwnerId Int
+
+-- model
+{ owner : Select.State OwnerId }
+
+-- the options carry the ids
+Select.options (List.map (\\o -> Select.option o.id o.name) owners)
+
+-- reading it back: Maybe OwnerId, nothing to parse
+Select.value model.owner
+
+-- an id that is in none of the options (a saved value, a server search)
+Select.valueText (\\(OwnerId n) -> "Owner #" ++ String.fromInt n)"""
+
+
+typedMultiCode : String
+typedMultiCode =
+    """-- model
+{ assignees : MultiSelect.State OwnerId }
+
+MultiSelect.options (List.map (\\o -> Select.option o.id o.name) owners)
+
+-- reading it back: List OwnerId
+MultiSelect.values model.assignees"""
+
+
 creatableCode : String
 creatableCode =
     """Select.view CategoryMsg
     [ Select.label "Category"
     , Select.options (categoryOptions model.created)
-    , Select.creatable
+    , Select.creatable identity
     ]
     model.category
 
@@ -1324,7 +1463,7 @@ serverCode =
     """Select.view OrderMsg
     [ Select.label "Order"
     , Select.serverSearch
-    , Select.remote model.found -- Remote (List Option)
+    , Select.remote model.found -- Remote (List (Option String))
     , Select.onRetry RetrySearch
     ]
     model.order
@@ -1366,7 +1505,7 @@ autoServerCode : String
 autoServerCode =
     """Autocomplete.view CustomerMsg
     [ Autocomplete.label "Customer"
-    , Autocomplete.suggestions model.found -- Remote (List Option)
+    , Autocomplete.suggestions model.found -- Remote (List (Option String))
     , Autocomplete.onRetry RetrySuggestions
     ]
     model.customer

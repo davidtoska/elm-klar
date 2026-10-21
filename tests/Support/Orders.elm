@@ -110,14 +110,14 @@ generated count =
 
 columns : List (Table.Column Order Msg)
 columns =
-    [ Table.text "number" "Order" .number []
-    , Table.text "customer" "Customer" .customer [ Table.filterText ]
-    , Table.text "city" "City" .city [ Table.filterSelect ]
-    , Table.int "items" "Items" .items [ Table.filterRange, Table.footerSum ]
-    , Table.float "total" "Total" 2 .total [ Table.filterRange, Table.footerAverage ]
-    , Table.text "status" "Status" .status [ Table.filterSelect ]
-    , Table.maybeDate "shipped" "Shipped" .shipped []
-    , Table.bool "express" "Express" .express [ Table.filterSelect ]
+    [ Table.text (Table.columnId "number") "Order" .number []
+    , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
+    , Table.text (Table.columnId "city") "City" .city [ Table.filterSelect ]
+    , Table.int (Table.columnId "items") "Items" .items [ Table.filterRange, Table.footerSum ]
+    , Table.float (Table.columnId "total") "Total" 2 .total [ Table.filterRange, Table.footerAverage ]
+    , Table.text (Table.columnId "status") "Status" .status [ Table.filterSelect ]
+    , Table.maybeDate (Table.columnId "shipped") "Shipped" .shipped []
+    , Table.bool (Table.columnId "express") "Express" .express [ Table.filterSelect ]
     ]
 
 

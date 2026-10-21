@@ -42,8 +42,8 @@ suite =
 
 
 type Msg
-    = SelectMsg Select.Msg
-    | MultiMsg MultiSelect.Msg
+    = SelectMsg (Select.Msg String)
+    | MultiMsg (MultiSelect.Msg String)
     | AutoMsg Autocomplete.Msg
     | Retry
     | Leave
@@ -90,12 +90,12 @@ problem kind =
     Remote.problem kind
 
 
-failed : Kind -> Remote (List Select.Option)
+failed : Kind -> Remote (List (Select.Option String))
 failed kind =
     Failure (problem kind)
 
 
-orders : List Select.Option
+orders : List (Select.Option String)
 orders =
     [ Select.option "o-1" "Order 1001", Select.option "o-2" "Order 1002" ]
 
@@ -345,7 +345,7 @@ failureViewTests =
 -- SELECT
 
 
-openSelect : Select.State
+openSelect : Select.State String
 openSelect =
     Select.init "country"
         |> Select.open
@@ -515,7 +515,7 @@ boolToInt value =
 -- MULTI SELECT
 
 
-openMulti : MultiSelect.State
+openMulti : MultiSelect.State String
 openMulti =
     MultiSelect.init "countries"
         |> MultiSelect.open

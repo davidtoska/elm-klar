@@ -3,7 +3,7 @@ module Klar.MultiSelect exposing
     , values, setValues, setOptions, clear, query, isOpen, open, close
     , Attribute, options, remote, serverSearch, onRetry
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , placeholder, searchPlaceholder, clearable, creatable, disabled, readOnly, size, visibleRows, locale
+    , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale
     , maxSelected, maxVisibleChips
     )
 
@@ -100,7 +100,7 @@ control.
 
 # Behavior and looks
 
-@docs placeholder, searchPlaceholder, clearable, creatable, disabled, readOnly, size, visibleRows, locale
+@docs placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale
 
 
 # Limits and chips
@@ -198,15 +198,15 @@ search). A value that the loaded options do not contain is shown as it is. The
 setValues : List id -> State id -> State id
 setValues newValues (State state) =
     let
-        known =
-            Dict.fromList (List.map (\sel -> ( sel.value, sel )) state.selected)
+        known v =
+            state.selected |> List.filter (\sel -> sel.value == v) |> List.head
 
         unique =
             dedupe newValues
     in
     State
         { state
-            | selected = List.map (\v -> Dict.get v known |> Maybe.withDefault { value = v, option = Nothing }) unique
+            | selected = List.map (\v -> known v |> Maybe.withDefault { value = v, option = Nothing }) unique
         }
 
 
@@ -359,7 +359,7 @@ type Msg id
     | Hover Int
     | Navigate VirtualList.Geometry Int
     | Toggle (Option id)
-    | CreateValue id
+    | CreateValue (Option id)
     | Remove id
     | RemoveLast
     | SelectMany (List (Option id))
@@ -586,7 +586,8 @@ type alias Config id msg =
     , placeholder : Maybe String
     , searchPlaceholder : Maybe String
     , clearable : Bool
-    , creatable : Bool
+    , creatable : Maybe (String -> id)
+    , valueText : Maybe (id -> String)
     , disabled : Bool
     , readOnly : Bool
     , size : Size
@@ -607,7 +608,8 @@ configure attributes =
         , placeholder = Nothing
         , searchPlaceholder = Nothing
         , clearable = False
-        , creatable = False
+        , creatable = Nothing
+        , valueText = Nothing
         , disabled = False
         , readOnly = False
         , size = Medium
@@ -780,12 +782,17 @@ clearable =
 
 {-| Offers a first row `Create “Acme Ltd”` (for a search text "Acme Ltd") when
 the search text matches no option exactly, ignoring case and diacritics.
-Choosing it adds the typed text as a new value (and label) and keeps the list
-open; add it to your options if it should stay in the list.
+Choosing it adds a new value and keeps the list open: the typed text is the
+label, and the value is what the function you give makes of the text (the text
+itself for a select of `String`s, or a value of your own type). Add it to your
+options if it should stay in the list.
+
+    MultiSelect.creatable identity
+
 -}
-creatable : Attribute id msg
-creatable =
-    Attribute (\config -> { config | creatable = True })
+creatable : (String -> id) -> Attribute id msg
+creatable make =
+    Attribute (\config -> { config | creatable = Just make })
 
 
 {-| While `True` the field is dimmed, cannot be focused or opened, and its chips
@@ -795,6 +802,19 @@ example while a form is saving. The default is `False`.
 disabled : Bool -> Attribute id msg
 disabled value_ =
     Attribute (\config -> { config | disabled = value_ })
+
+
+{-| How to write a value that is in none of the options, for example a saved
+value with a server search whose hits do not contain it. Without it the chip says
+"Unknown value". The label of an option you know about is always its own; use
+`setOptions` to give the select those options.
+
+    MultiSelect.valueText CustomerId.toString
+
+-}
+valueText : (id -> String) -> Attribute id msg
+valueText toText =
+    Attribute (\config -> { config | valueText = Just toText })
 
 
 {-| While `True` the field shows its chips but does not let the user change
@@ -897,7 +917,7 @@ view toMsg attributes ((State state) as current) =
         env =
             { options = Remote.withDefault [] config.options
             , filterLocally = not config.serverSearch
-            , creatable = config.creatable
+            , creatable = config.creatable /= Nothing
             }
 
         interactive =
@@ -934,6 +954,7 @@ chip. A raw value is usually an id and is never shown in its place.
 type Chip id
     = Labelled (Option id)
     | Unresolved Bool
+    | Unlisted
 
 
 {-| The chosen values with labels, looked up in the current options for values
@@ -949,17 +970,22 @@ resolve config available selection =
 
     else
         let
-            lookup =
-                Dict.fromList (List.map (\opt -> ( opt.value, opt )) available)
+            unlisted value =
+                case config.valueText of
+                    Just toText ->
+                        Labelled (Option.option value (toText value))
+
+                    Nothing ->
+                        Unlisted
 
             unknown value =
                 if config.serverSearch then
-                    Labelled (Option.option value value)
+                    unlisted value
 
                 else
                     case config.options of
                         Success _ ->
-                            Labelled (Option.option value value)
+                            unlisted value
 
                         Failure _ ->
                             Unresolved False
@@ -974,7 +1000,7 @@ resolve config available selection =
                         Labelled opt
 
                     Nothing ->
-                        case Dict.get sel.value lookup of
+                        case Popup.findByValue sel.value available of
                             Just opt ->
                                 Labelled opt
 
@@ -996,6 +1022,9 @@ chipText t chip =
         Unresolved False ->
             t.unavailable
 
+        Unlisted ->
+            t.unknownValue
+
 
 {-| The labels for the summary a screen reader hears; values without a label
 are said once ("Loading ...") instead of once each.
@@ -1012,6 +1041,9 @@ spokenNames t chips =
 
                         Unresolved _ ->
                             Nothing
+
+                        Unlisted ->
+                            Nothing
                 )
                 chips
 
@@ -1023,6 +1055,9 @@ spokenNames t chips =
                             False
 
                         Unresolved _ ->
+                            True
+
+                        Unlisted ->
                             True
                 )
                 chips
@@ -1061,6 +1096,19 @@ fromRemoveButton =
                 ]
     in
     Decode.map2 (||) (hasClass [ "target" ]) (hasClass [ "target", "parentElement" ])
+
+
+{-| The message for choosing the "Create" row: the typed text as the label, and
+the value the `creatable` function makes of it.
+-}
+createMsg : Config id msg -> String -> Msg id
+createMsg config text =
+    case config.creatable of
+        Just make ->
+            CreateValue (Option.option (make text) text)
+
+        Nothing ->
+            NoOp
 
 
 viewControl : (Msg id -> msg) -> Config id msg -> Field.Config -> Popup.Texts -> Popup.Env id -> State id -> Html msg
@@ -1140,7 +1188,7 @@ viewControl toMsg config field t env (State state) =
                 Popup.onWindowKeys
                     { typed = \char -> toMsg (Open env char)
                     , backspace = toMsg (Backspace env)
-                    , move = \move -> toMsg (Key env config.visibleRows config.maxSelected move)
+                    , move = \move -> toMsg (Key env config.visibleRows config.maxSelected move config.creatable)
                     , close = toMsg Close
                     , leave = toMsg Dismiss
                     }
@@ -1167,6 +1215,10 @@ viewControl toMsg config field t env (State state) =
                 Unresolved _ ->
                     -- no label to name a remove button after: the chip is only a
                     -- place holder until the options arrive
+                    Html.span [ Internal.cls [ "klar-select__chip", "klar-select__chip--unknown" ] ]
+                        [ Tag.view [ Tag.size tagSize, Tag.outline, Tag.locale config.locale ] (chipText t item) ]
+
+                Unlisted ->
                     Html.span [ Internal.cls [ "klar-select__chip", "klar-select__chip--unknown" ] ]
                         [ Tag.view [ Tag.size tagSize, Tag.outline, Tag.locale config.locale ] (chipText t item) ]
 
@@ -1341,7 +1393,7 @@ viewPopup toMsg config t env (State state) =
                         toMsg NoOp
 
                     else
-                        toMsg (CreateValue text)
+                        toMsg (createMsg config text)
 
                 _ ->
                     toMsg NoOp
@@ -1457,7 +1509,7 @@ viewPopup toMsg config t env (State state) =
                         toMsg NoOp
 
                     else
-                        toMsg (CreateValue text)
+                        toMsg (createMsg config text)
             , onHover = Hover >> toMsg
             , noop = toMsg NoOp
             , texts = t

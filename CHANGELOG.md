@@ -18,3 +18,11 @@ The first release.
 - Pure helpers with unit tests: dates (`Klar.Date`), formatting (`Klar.Format`),
   search (`Klar.Search`), validation (`Klar.Validate`), the rule engine (`Klar.Rule`).
 - A showcase application (`example/`) with a component gallery and a dummy backend.
+- Made for applications with very little code of their own: a select hands back
+  your own id type (`Select.State CustomerId`), a date can never be invalid
+  (`Klar.Date` is opaque), columns, keyboard shortcuts and problems are values and
+  not free text (`Table.columnId`, `Shortcut.mod (Shortcut.char 'k')`,
+  `Remote.problem Remote.timeout`), and a rule field offers only the operators you
+  choose (`Rule.withOperators`).
+- A guide for building an application, also before the package is published
+  ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.

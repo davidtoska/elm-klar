@@ -11,9 +11,9 @@ state the data is in.
 ```elm
 Table.view TableMsg
     [ Table.columns
-        [ Table.text "id" "Order" .id [ Table.pinned ]
-        , Table.text "customer" "Customer" .customer [ Table.filterText ]
-        , Table.float "total" "Total" 2 .total [ Table.footerSum ]
+        [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
+        , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
+        , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
         ]
     , Table.rows model.orders -- a Remote (List Order): loading, failure and empty are drawn for you
     , Table.rowId .id
@@ -47,7 +47,9 @@ Table.view TableMsg
 elm install davidtoska/elm-klar
 ```
 
-Klar works with Elm 0.19.x (developed and tested with 0.19.3).
+Klar works with Elm 0.19.x (developed and tested with 0.19.3). To use it before it
+is published, or to keep an exact, untouched copy in an application, see
+[USING.md](USING.md).
 
 ## A first program
 

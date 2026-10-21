@@ -21,6 +21,7 @@ import Klar.Icon as Icon
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Search as Search
 import Klar.Select as Select
+import Klar.Select.Match as Match
 import Klar.Select.Option as Option exposing (Option)
 import Klar.Select.Popup as Popup exposing (Move(..), Outcome(..), Row(..))
 import Test exposing (Test, describe, fuzz, fuzz2, test)
@@ -70,58 +71,58 @@ check name expected actual =
 
 {-| The suppliers of the documentation of `Klar.Select.Option`, and a few more.
 -}
-acme : Option
+acme : Option String
 acme =
     Option.option "acme" "Acme Supplies"
         |> Option.withDescription "Berlin"
         |> Option.withGroup "Preferred"
 
 
-globex : Option
+globex : Option String
 globex =
     Option.option "globex" "Globex"
         |> Option.withKeywords [ "Globex Corporation" ]
 
 
-initech : Option
+initech : Option String
 initech =
     Option.option "initech" "Initech"
         |> Option.disabledOption
 
 
-umbrella : Option
+umbrella : Option String
 umbrella =
     Option.option "umbrella" "Umbrella Trading"
         |> Option.withDescription "Hamburg"
         |> Option.withGroup "Preferred"
 
 
-hooli : Option
+hooli : Option String
 hooli =
     Option.option "hooli" "Hooli"
         |> Option.withGroup "Other"
 
 
-soylent : Option
+soylent : Option String
 soylent =
     Option.option "soylent" "Soylent Foods"
         |> Option.withDescription "Berlin"
         |> Option.withKeywords [ "vegan", "snacks" ]
 
 
-suppliers : List Option
+suppliers : List (Option String)
 suppliers =
     [ acme, globex, initech, umbrella, hooli, soylent ]
 
 
-values : List Option -> List String
+values : List (Option String) -> List String
 values =
     List.map .value
 
 
 {-| An option that is only a label.
 -}
-labelled : String -> Option
+labelled : String -> Option String
 labelled label =
     Option.option "v" label
 
@@ -213,23 +214,23 @@ folded =
 normalizeTests : Test
 normalizeTests =
     describe "normalize"
-        [ check "lowercases" "acme supplies" (Option.normalize "ACME Supplies")
-        , check "the documented example" "creme" (Option.normalize "Crème")
-        , check "the empty text" "" (Option.normalize "")
-        , check "Norwegian letters" "aro ase ostfold" (Option.normalize "Ærø Åse Østfold")
-        , check "German letters" "zurich muller" (Option.normalize "Zürich Müller")
-        , check "French letters" "cafe creme brulee" (Option.normalize "Café Crème Brûlée")
-        , check "digits, punctuation and spaces stay" "12 - 34/56 (x), y." (Option.normalize "12 - 34/56 (X), Y.")
+        [ check "lowercases" "acme supplies" (Match.normalize "ACME Supplies")
+        , check "the documented example" "creme" (Match.normalize "Crème")
+        , check "the empty text" "" (Match.normalize "")
+        , check "Norwegian letters" "aro ase ostfold" (Match.normalize "Ærø Åse Østfold")
+        , check "German letters" "zurich muller" (Match.normalize "Zürich Müller")
+        , check "French letters" "cafe creme brulee" (Match.normalize "Café Crème Brûlée")
+        , check "digits, punctuation and spaces stay" "12 - 34/56 (x), y." (Match.normalize "12 - 34/56 (X), Y.")
         , check "other scripts are lowercased and otherwise kept"
             "αβγ привет 日本"
-            (Option.normalize "ΑΒΓ Привет 日本")
-        , check "the capital sharp s" "s" (Option.normalize "ẞ")
+            (Match.normalize "ΑΒΓ Привет 日本")
+        , check "the capital sharp s" "s" (Match.normalize "ẞ")
         , describe "folds every letter of the table"
-            (List.map (\( from, to ) -> check (from ++ " comes to " ++ to) to (Option.normalize from)) folded)
+            (List.map (\( from, to ) -> check (from ++ " comes to " ++ to) to (Match.normalize from)) folded)
         , describe "and the capital of it"
             (folded
                 |> List.filter (\( from, _ ) -> from /= "ß")
-                |> List.map (\( from, to ) -> check (String.toUpper from ++ " comes to " ++ to) to (Option.normalize (String.toUpper from)))
+                |> List.map (\( from, to ) -> check (String.toUpper from ++ " comes to " ++ to) to (Match.normalize (String.toUpper from)))
             )
         , -- Was a bug: the documentation says letters with diacritics are replaced by their plain
           -- letters ("Matching ignores case and diacritics"), but the table has only 29 letters
@@ -238,13 +239,13 @@ normalizeTests =
           -- Fixed in `Klar.Internal.normalize`, the one function that Search and Option share.
           check "letters with diacritics outside Latin-1 are folded too"
             "skoda zilina capek dvorak lodz"
-            (Option.normalize "Škoda Žilina Čapek Dvořák Łódź")
+            (Match.normalize "Škoda Žilina Čapek Dvořák Łódź")
         , fuzz Fuzz.string "normalizing twice is normalizing once" <|
-            \text -> Option.normalize (Option.normalize text) |> Expect.equal (Option.normalize text)
+            \text -> Match.normalize (Match.normalize text) |> Expect.equal (Match.normalize text)
         , fuzz asciiFuzzer "ASCII text is only lowercased" <|
-            \text -> Option.normalize text |> Expect.equal (String.toLower text)
+            \text -> Match.normalize text |> Expect.equal (String.toLower text)
         , fuzz Fuzz.string "Search.normalize does the same" <|
-            \text -> Option.normalize text |> Expect.equal (Search.normalize text)
+            \text -> Match.normalize text |> Expect.equal (Search.normalize text)
         ]
 
 
@@ -261,17 +262,17 @@ asciiFuzzer =
 prepareTests : Test
 prepareTests =
     describe "prepare"
-        [ check "splits a query into normalized words" [ "acme", "supplies" ] (Option.prepare "  Acme  Supplies " |> List.map .text)
-        , check "a blank query has no words" [] (Option.prepare "   " |> List.map .text)
-        , check "the empty query has none either" [] (Option.prepare "" |> List.map .text)
-        , check "tabs, line breaks and no-break spaces separate words" [ "a", "b", "c", "d" ] (Option.prepare "a\u{00A0}b\tc\nd" |> List.map .text)
-        , check "the letters of a word are folded" [ "orsted", "zurich" ] (Option.prepare "Ørsted ZÜRICH" |> List.map .text)
-        , check "spaced is the word with a space in front" [ " acme", " sup" ] (Option.prepare "acme sup" |> List.map .spaced)
-        , check "letters are the letters one by one" [ [ "a", "c", "m", "e" ] ] (Option.prepare "ACME" |> List.map .letters)
+        [ check "splits a query into normalized words" [ "acme", "supplies" ] (Match.prepare "  Acme  Supplies " |> List.map .text)
+        , check "a blank query has no words" [] (Match.prepare "   " |> List.map .text)
+        , check "the empty query has none either" [] (Match.prepare "" |> List.map .text)
+        , check "tabs, line breaks and no-break spaces separate words" [ "a", "b", "c", "d" ] (Match.prepare "a\u{00A0}b\tc\nd" |> List.map .text)
+        , check "the letters of a word are folded" [ "orsted", "zurich" ] (Match.prepare "Ørsted ZÜRICH" |> List.map .text)
+        , check "spaced is the word with a space in front" [ " acme", " sup" ] (Match.prepare "acme sup" |> List.map .spaced)
+        , check "letters are the letters one by one" [ [ "a", "c", "m", "e" ] ] (Match.prepare "ACME" |> List.map .letters)
         , check "only words of three letters or more may match by their letters"
             [ False, False, True, True ]
-            (Option.prepare "a ab abc abcd" |> List.map .fuzzy)
-        , check "a word that is an exact option" [ "acme supplies" ] (Option.prepare "acme supplies" |> List.map .text |> String.join " " |> List.singleton)
+            (Match.prepare "a ab abc abcd" |> List.map .fuzzy)
+        , check "a word that is an exact option" [ "acme supplies" ] (Match.prepare "acme supplies" |> List.map .text |> String.join " " |> List.singleton)
         ]
 
 
@@ -279,7 +280,7 @@ prepareTests =
 -- SCORES
 
 
-scores : String -> Option -> Maybe Int -> Test
+scores : String -> Option String -> Maybe Int -> Test
 scores query opt expected =
     check
         ("\""
@@ -294,7 +295,7 @@ scores query opt expected =
                )
         )
         expected
-        (Option.score query opt)
+        (Match.score query opt)
 
 
 scoreTests : Test
@@ -361,8 +362,8 @@ scoreTests =
             , scores "hall market" (labelled "Co-op/Market Hall") (Just 4)
             , scores "hansen" (labelled "Dr.\u{00A0}Hansen") (Just 2)
             , scores "dr. hansen" (labelled "Dr.\u{00A0}Hansen") (Just 3)
-            , check "a tab separates words" (Just 2) (Option.score "b" (labelled "A\tB"))
-            , check "and so does a line break" (Just 2) (Option.score "b" (labelled "A\nB"))
+            , check "a tab separates words" (Just 2) (Match.score "b" (labelled "A\tB"))
+            , check "and so does a line break" (Just 2) (Match.score "b" (labelled "A\nB"))
             ]
         , describe "the description counts three points worse than the label"
             [ scores "berlin" (withDescription "Berlin") (Just 3)
@@ -375,7 +376,7 @@ scoreTests =
             , scores "acme" (withDescription "Berlin") (Just 1)
             , scores "zurich" (Option.option "v" "Hooli" |> Option.withDescription "Zürich") (Just 3)
             , scores "berlin" (withDescription "") Nothing
-            , check "an empty description changes nothing" (Just 1) (Option.score "acme" (withDescription ""))
+            , check "an empty description changes nothing" (Just 1) (Match.score "acme" (withDescription ""))
             ]
         , describe "a better match in the description beats scattered letters in the label"
             [ scores "splis" (withDescription "splis") (Just 3)
@@ -422,32 +423,32 @@ scoreTests =
 labelMatchesTests : Test
 labelMatchesTests =
     describe "labelMatches"
-        [ check "the label has the word" True (Option.labelMatches (Option.prepare "acme") acme)
-        , check "the label has all the words" True (Option.labelMatches (Option.prepare "supplies acme") acme)
-        , check "the description is not the label" False (Option.labelMatches (Option.prepare "berlin") acme)
-        , check "all the words have to be in the label" False (Option.labelMatches (Option.prepare "acme berlin") acme)
-        , check "no words are matched by every label" True (Option.labelMatches (Option.prepare "") acme)
-        , check "letters in order count" True (Option.labelMatches (Option.prepare "splis") acme)
-        , check "keywords are not the label" False (Option.labelMatches (Option.prepare "corp") globex)
-        , check "case and diacritics are ignored" True (Option.labelMatches (Option.prepare "ÅCME") acme)
+        [ check "the label has the word" True (Match.labelMatches (Match.prepare "acme") acme)
+        , check "the label has all the words" True (Match.labelMatches (Match.prepare "supplies acme") acme)
+        , check "the description is not the label" False (Match.labelMatches (Match.prepare "berlin") acme)
+        , check "all the words have to be in the label" False (Match.labelMatches (Match.prepare "acme berlin") acme)
+        , check "no words are matched by every label" True (Match.labelMatches (Match.prepare "") acme)
+        , check "letters in order count" True (Match.labelMatches (Match.prepare "splis") acme)
+        , check "keywords are not the label" False (Match.labelMatches (Match.prepare "corp") globex)
+        , check "case and diacritics are ignored" True (Match.labelMatches (Match.prepare "ÅCME") acme)
         ]
 
 
 exactMatchTests : Test
 exactMatchTests =
     describe "isExactMatch"
-        [ check "the same text" True (Option.isExactMatch "Acme Supplies" acme)
-        , check "another case" True (Option.isExactMatch "acme supplies" acme)
-        , check "spaces around the query" True (Option.isExactMatch "  Acme Supplies  " acme)
-        , check "spaces around the label" True (Option.isExactMatch "Acme" (labelled " Acme "))
-        , check "diacritics are ignored" True (Option.isExactMatch "zurich" (labelled "Zürich"))
-        , check "and in the query" True (Option.isExactMatch "ZÜRICH" (labelled "Zurich"))
-        , check "the start of a label is not the label" False (Option.isExactMatch "Acme" acme)
-        , check "spaces inside count" False (Option.isExactMatch "Acme  Supplies" acme)
-        , check "the description is not the label" False (Option.isExactMatch "Berlin" acme)
-        , check "the value is not the label" False (Option.isExactMatch "acme" acme)
-        , check "an empty query is the empty label" True (Option.isExactMatch "  " (labelled ""))
-        , check "an empty query is not another label" False (Option.isExactMatch "" acme)
+        [ check "the same text" True (Match.isExactMatch "Acme Supplies" acme)
+        , check "another case" True (Match.isExactMatch "acme supplies" acme)
+        , check "spaces around the query" True (Match.isExactMatch "  Acme Supplies  " acme)
+        , check "spaces around the label" True (Match.isExactMatch "Acme" (labelled " Acme "))
+        , check "diacritics are ignored" True (Match.isExactMatch "zurich" (labelled "Zürich"))
+        , check "and in the query" True (Match.isExactMatch "ZÜRICH" (labelled "Zurich"))
+        , check "the start of a label is not the label" False (Match.isExactMatch "Acme" acme)
+        , check "spaces inside count" False (Match.isExactMatch "Acme  Supplies" acme)
+        , check "the description is not the label" False (Match.isExactMatch "Berlin" acme)
+        , check "the value is not the label" False (Match.isExactMatch "acme" acme)
+        , check "an empty query is the empty label" True (Match.isExactMatch "  " (labelled ""))
+        , check "an empty query is not another label" False (Match.isExactMatch "" acme)
         ]
 
 
@@ -455,9 +456,9 @@ exactMatchTests =
 -- RANKING
 
 
-ranked : String -> List Option -> List String
+ranked : String -> List (Option String) -> List String
 ranked query options =
-    Option.filter query options |> values
+    Match.filter query options |> values
 
 
 rankingTests : Test
@@ -470,7 +471,7 @@ rankingTests =
         [ describe "the documented example"
             [ check "berlin finds Acme Supplies"
                 [ "Acme Supplies" ]
-                (Option.filter "berlin" [ Option.option "acme" "Acme Supplies" |> Option.withDescription "Berlin" |> Option.withGroup "Preferred", Option.option "globex" "Globex" |> Option.withKeywords [ "Globex Corporation" ], Option.option "initech" "Initech" |> Option.disabledOption ]
+                (Match.filter "berlin" [ Option.option "acme" "Acme Supplies" |> Option.withDescription "Berlin" |> Option.withGroup "Preferred", Option.option "globex" "Globex" |> Option.withKeywords [ "Globex Corporation" ], Option.option "initech" "Initech" |> Option.disabledOption ]
                     |> List.map .label
                 )
             ]
@@ -524,10 +525,10 @@ rankingTests =
         , describe "rank gives the entries"
             [ check "the options of the entries"
                 [ "acme", "soylent" ]
-                (Option.index suppliers |> Option.rank "berlin" |> List.map (.option >> .value))
-            , check "an empty query keeps all the entries" 6 (Option.index suppliers |> Option.rank "" |> List.length)
-            , check "a query of spaces too" 6 (Option.index suppliers |> Option.rank "   " |> List.length)
-            , check "an empty index has no entries" 0 (Option.index [] |> Option.rank "acme" |> List.length)
+                (Match.index suppliers |> Match.rank "berlin" |> List.map (.option >> .value))
+            , check "an empty query keeps all the entries" 6 (Match.index suppliers |> Match.rank "" |> List.length)
+            , check "a query of spaces too" 6 (Match.index suppliers |> Match.rank "   " |> List.length)
+            , check "an empty index has no entries" 0 (Match.index [] |> Match.rank "acme" |> List.length)
             ]
         ]
 
@@ -535,7 +536,7 @@ rankingTests =
 indexTests : Test
 indexTests =
     describe "index"
-        [ check "no options" [] (Option.index [])
+        [ check "no options" [] (Match.index [])
         , check "the entry of an option"
             [ { option = labelled "Åre-Bo/Ski"
               , label = "are-bo/ski"
@@ -544,7 +545,7 @@ indexTests =
               , extraWords = ""
               }
             ]
-            (Option.index [ labelled "Åre-Bo/Ski" ])
+            (Match.index [ labelled "Åre-Bo/Ski" ])
         , check "the description and the keywords make the extra text"
             [ { option = soylent
               , label = "soylent foods"
@@ -553,7 +554,7 @@ indexTests =
               , extraWords = " berlin vegan snacks"
               }
             ]
-            (Option.index [ soylent ])
+            (Match.index [ soylent ])
         , check "only keywords"
             [ { option = globex
               , label = "globex"
@@ -562,26 +563,26 @@ indexTests =
               , extraWords = " globex corporation"
               }
             ]
-            (Option.index [ globex ])
+            (Match.index [ globex ])
         , check "separators in the extra text become spaces in the word form"
             " co op hall"
-            (Option.index [ Option.option "v" "x" |> Option.withDescription "Co-op/Hall" ] |> List.map .extraWords |> String.join "|")
+            (Match.index [ Option.option "v" "x" |> Option.withDescription "Co-op/Hall" ] |> List.map .extraWords |> String.join "|")
         , check "an empty description is no extra text"
             ( "", "" )
-            (Option.index [ Option.option "v" "x" |> Option.withDescription "" ] |> List.map (\e -> ( e.extra, e.extraWords )) |> List.head |> Maybe.withDefault ( "?", "?" ))
-        , check "the entries are in the order of the options" (values suppliers) (Option.index suppliers |> List.map (.option >> .value))
-        , check "the options are the ones that were given" suppliers (Option.index suppliers |> List.map .option)
+            (Match.index [ Option.option "v" "x" |> Option.withDescription "" ] |> List.map (\e -> ( e.extra, e.extraWords )) |> List.head |> Maybe.withDefault ( "?", "?" ))
+        , check "the entries are in the order of the options" (values suppliers) (Match.index suppliers |> List.map (.option >> .value))
+        , check "the options are the ones that were given" suppliers (Match.index suppliers |> List.map .option)
         , check "a label with the control character that joins the texts does not mix the entries up"
-            (List.concatMap (\o -> Option.index [ o ]) mixed)
-            (Option.index mixed)
-        , check "and the entries are still right" [ "a\u{0001}b", "c", "d" ] (Option.index mixed |> List.map .label)
+            (List.concatMap (\o -> Match.index [ o ]) mixed)
+            (Match.index mixed)
+        , check "and the entries are still right" [ "a\u{0001}b", "c", "d" ] (Match.index mixed |> List.map .label)
         , check "the same for the extra text"
             [ "x\u{0001}y", "", "z" ]
-            (Option.index [ labelled "a" |> Option.withDescription "x\u{0001}y", labelled "b", labelled "c" |> Option.withKeywords [ "z" ] ] |> List.map .extra)
+            (Match.index [ labelled "a" |> Option.withDescription "x\u{0001}y", labelled "b", labelled "c" |> Option.withKeywords [ "z" ] ] |> List.map .extra)
         ]
 
 
-mixed : List Option
+mixed : List (Option String)
 mixed =
     [ Option.option "1" "A\u{0001}b", Option.option "2" "C", Option.option "3" "D" ]
 
@@ -606,7 +607,7 @@ textFuzzer =
         |> Fuzz.map (String.join " ")
 
 
-optionFuzzer : Fuzzer Option
+optionFuzzer : Fuzzer (Option String)
 optionFuzzer =
     Fuzz.map5
         (\label description group keywords disabled ->
@@ -619,7 +620,7 @@ optionFuzzer =
         Fuzz.bool
 
 
-optionsFuzzer : Fuzzer (List Option)
+optionsFuzzer : Fuzzer (List (Option String))
 optionsFuzzer =
     Fuzz.listOfLengthBetween 0 8 optionFuzzer
         |> Fuzz.map (List.indexedMap (\i opt -> { opt | value = "v" ++ String.fromInt i }))
@@ -636,14 +637,14 @@ queryFuzzer =
 
 {-| The options that match, best first, worked out one option at a time.
 -}
-oneByOne : String -> List Option -> List Option
+oneByOne : String -> List (Option String) -> List (Option String)
 oneByOne query options =
     if String.isEmpty (String.trim query) then
         options
 
     else
         options
-            |> List.filterMap (\opt -> Option.score query opt |> Maybe.map (\points -> ( points, opt )))
+            |> List.filterMap (\opt -> Match.score query opt |> Maybe.map (\points -> ( points, opt )))
             |> List.sortBy Tuple.first
             |> List.map Tuple.second
 
@@ -652,18 +653,18 @@ matchingProperties : Test
 matchingProperties =
     describe "matching: properties"
         [ fuzz2 queryFuzzer optionsFuzzer "filter agrees with scoring the options one by one" <|
-            \query options -> Option.filter query options |> Expect.equal (oneByOne query options)
+            \query options -> Match.filter query options |> Expect.equal (oneByOne query options)
         , fuzz2 queryFuzzer optionsFuzzer "rank over an index agrees with filter" <|
             \query options ->
-                Option.index options
-                    |> Option.rank query
+                Match.index options
+                    |> Match.rank query
                     |> List.map .option
-                    |> Expect.equal (Option.filter query options)
+                    |> Expect.equal (Match.filter query options)
         , fuzz2 queryFuzzer optionsFuzzer "the matches are options of the list, each once" <|
             \query options ->
                 let
                     found =
-                        Option.filter query options
+                        Match.filter query options
                 in
                 Expect.all
                     [ \f -> Expect.equal True (List.all (\opt -> List.member opt options) f)
@@ -675,36 +676,36 @@ matchingProperties =
             \query options ->
                 let
                     points =
-                        Option.filter query options
-                            |> List.map (\opt -> Option.score query opt |> Maybe.withDefault -1)
+                        Match.filter query options
+                            |> List.map (\opt -> Match.score query opt |> Maybe.withDefault -1)
                 in
                 Expect.equal points (List.sort points)
         , fuzz2 queryFuzzer optionsFuzzer "a blank query keeps all the options in their order" <|
             \_ options ->
                 Expect.all
-                    [ \_ -> Expect.equal options (Option.filter "" options)
-                    , \_ -> Expect.equal options (Option.filter "  \t " options)
-                    , \_ -> Expect.equal (List.length options) (List.length (Option.rank " " (Option.index options)))
+                    [ \_ -> Expect.equal options (Match.filter "" options)
+                    , \_ -> Expect.equal options (Match.filter "  \t " options)
+                    , \_ -> Expect.equal (List.length options) (List.length (Match.rank " " (Match.index options)))
                     ]
                     ()
         , fuzz2 queryFuzzer optionsFuzzer "an option is a match exactly when its score is something" <|
             \query options ->
                 let
                     found =
-                        Option.filter query options
+                        Match.filter query options
                 in
                 options
                     |> List.filter (\opt -> not (List.member opt found))
-                    |> List.all (\opt -> String.isEmpty (String.trim query) || Option.score query opt == Nothing)
+                    |> List.all (\opt -> String.isEmpty (String.trim query) || Match.score query opt == Nothing)
                     |> Expect.equal True
         , fuzz2 (Fuzz.pair queryFuzzer wordFuzzer) optionsFuzzer "one more word in the query never adds a match" <|
             \( query, word ) options ->
                 let
                     before =
-                        Option.filter query options
+                        Match.filter query options
 
                     after =
-                        Option.filter (query ++ " " ++ word) options
+                        Match.filter (query ++ " " ++ word) options
                 in
                 if String.isEmpty (String.trim query) then
                     Expect.pass
@@ -713,29 +714,29 @@ matchingProperties =
                     Expect.equal True (List.all (\opt -> List.member opt before) after)
         , fuzz2 queryFuzzer optionsFuzzer "the case of the query does not matter" <|
             \query options ->
-                Option.filter (String.toUpper query) options |> Expect.equal (Option.filter (String.toLower query) options)
+                Match.filter (String.toUpper query) options |> Expect.equal (Match.filter (String.toLower query) options)
         , fuzz2 queryFuzzer optionsFuzzer "an index of the options is the same as one index for each option" <|
             \_ options ->
-                Option.index options |> Expect.equal (List.concatMap (\opt -> Option.index [ opt ]) options)
+                Match.index options |> Expect.equal (List.concatMap (\opt -> Match.index [ opt ]) options)
         , fuzz optionFuzzer "an option with a label of one word is found by that word, with a score of 0" <|
             \opt ->
                 let
                     single =
                         { opt | label = "Initech" }
                 in
-                Expect.equal (Just 0) (Option.score "initech" single)
+                Expect.equal (Just 0) (Match.score "initech" single)
         , fuzz2 queryFuzzer optionFuzzer "labelMatches means the score without the description is something" <|
             \query opt ->
                 let
                     plain =
                         { opt | description = Nothing, keywords = [] }
                 in
-                Option.labelMatches (Option.prepare query) opt
-                    |> Expect.equal (Option.score query plain /= Nothing)
+                Match.labelMatches (Match.prepare query) opt
+                    |> Expect.equal (Match.score query plain /= Nothing)
         ]
 
 
-uniqueValues : List Option -> List String
+uniqueValues : List (Option String) -> List String
 uniqueValues options =
     List.foldl
         (\opt seen ->
@@ -759,14 +760,14 @@ searchAgreementTests =
                 |> Query.find [ Selector.tag "mark" ]
                 |> Query.has [ Selector.exactText expected ]
     in
-    describe "Search and Option agree"
+    describe "Search and Option String agree"
         [ fuzz2 queryFuzzer textFuzzer "the score of a label is the score of a text" <|
-            \query label -> Option.score query (labelled label) |> Expect.equal (Search.score query label)
+            \query label -> Match.score query (labelled label) |> Expect.equal (Search.score query label)
         , fuzz2 queryFuzzer Fuzz.string "and of any text" <|
-            \query label -> Option.score query (labelled label) |> Expect.equal (Search.score query label)
+            \query label -> Match.score query (labelled label) |> Expect.equal (Search.score query label)
         , fuzz2 queryFuzzer Fuzz.string "the same words are found in the same places" <|
             \query label ->
-                Expect.equal (List.map .text (Option.prepare query)) (Search.normalize query |> String.words |> List.filter (\w -> w /= ""))
+                Expect.equal (List.map .text (Match.prepare query)) (Search.normalize query |> String.words |> List.filter (\w -> w /= ""))
         , test "a mark shows the part of the text that the query matched" <|
             \_ -> markedPart "ber" "Bergen" "Ber"
         , test "also when the letters have other forms" <|
@@ -839,17 +840,17 @@ groupTests =
 {-| The rows of a list of options and a query: filtered where the user types,
 without a "create" row.
 -}
-rowsOf : List Option -> String -> Popup.Rows
+rowsOf : List (Option String) -> String -> Popup.Rows String
 rowsOf options query =
     (Popup.build Nothing { options = options, filterLocally = True, creatable = False } query).rows
 
 
-creatableRows : List Option -> String -> Popup.Rows
+creatableRows : List (Option String) -> String -> Popup.Rows String
 creatableRows options query =
     (Popup.build Nothing { options = options, filterLocally = True, creatable = True } query).rows
 
 
-rowList : Popup.Rows -> List Row
+rowList : Popup.Rows String -> List (Row String)
 rowList rows =
     Array.toList rows.rows
 
@@ -912,7 +913,7 @@ rowTests =
             , check "without groups the matches are in the order of the ranking"
                 [ Item 1 { umbrella | group = Nothing }, Item 2 { acme | group = Nothing } ]
                 (rowList (rowsOf [ { acme | group = Nothing }, { umbrella | group = Nothing } ] "u"))
-            , check "an index is built for a query, from all the options" (Just (Option.index suppliers)) (Popup.build Nothing { options = suppliers, filterLocally = True, creatable = False } "a").index
+            , check "an index is built for a query, from all the options" (Just (Match.index suppliers)) (Popup.build Nothing { options = suppliers, filterLocally = True, creatable = False } "a").index
             , check "and an index that is given is kept, with or without a query"
                 (Just [])
                 (Popup.build (Just []) { options = suppliers, filterLocally = True, creatable = False } "").index
@@ -1003,7 +1004,7 @@ cacheTests =
         [ check "refresh remembers the env, the query and the rows"
             ( env, "berlin", rowsOf suppliers "berlin" )
             ( cache.env, cache.query, cache.rows )
-        , check "and the index it searched with" (Just (Option.index suppliers)) cache.index
+        , check "and the index it searched with" (Just (Match.index suppliers)) cache.index
         , check "the rows are those of the cache when the query and the options are the same"
             (rowsOf suppliers "berlin")
             (Popup.cachedRows (Just cache) env "berlin")
@@ -1026,7 +1027,7 @@ cacheTests =
             []
             (rowList (Popup.refresh (Just { cache | index = Just [] }) env "hool").rows)
         , check "the search index is made again when the options are not the same"
-            (Just (Option.index [ globex ]))
+            (Just (Match.index [ globex ]))
             (Popup.refresh (Just cache) { env | options = [ globex ] } "glo").index
         , check "and the rows are those of the new options"
             [ Item 1 globex ]
@@ -1050,7 +1051,7 @@ rowProperties =
                         rowsOf options query
 
                     found =
-                        Option.filter query options
+                        Match.filter query options
                 in
                 Expect.all
                     [ \r -> Expect.equal (List.sort (values found)) (List.sort (values r.matched))
@@ -1129,7 +1130,7 @@ rowProperties =
                             [ \_ -> Expect.equal (String.trim query) text
                             , \_ -> Expect.equal (plain.matchCount + 1) rows.optionRows
                             , \_ -> Expect.equal (List.filterMap itemNumber rest) (List.range 2 (plain.matchCount + 1))
-                            , \_ -> Expect.equal False (List.any (\opt -> Option.isExactMatch query opt) options)
+                            , \_ -> Expect.equal False (List.any (\opt -> Match.isExactMatch query opt) options)
                             , \_ -> Expect.equal False (String.isEmpty (String.trim query))
                             ]
                             ()
@@ -1137,13 +1138,13 @@ rowProperties =
                     others ->
                         Expect.all
                             [ \_ -> Expect.equal (rowList plain) others
-                            , \_ -> Expect.equal True (String.isEmpty (String.trim query) || List.any (\opt -> Option.isExactMatch query opt) options)
+                            , \_ -> Expect.equal True (String.isEmpty (String.trim query) || List.any (\opt -> Match.isExactMatch query opt) options)
                             ]
                             ()
         ]
 
 
-itemNumber : Row -> Maybe Int
+itemNumber : Row String -> Maybe Int
 itemNumber row =
     case row of
         Item n _ ->
@@ -1153,7 +1154,7 @@ itemNumber row =
             Nothing
 
 
-itemPair : Row -> Maybe ( Int, Option )
+itemPair : Row String -> Maybe ( Int, Option String )
 itemPair row =
     case row of
         Item n opt ->
@@ -1434,7 +1435,7 @@ type Msg
     | Backspaced
     | Closed
     | Left
-    | Picked Option
+    | Picked (Option String)
     | Created String
     | Hovered Int
     | Noop
@@ -1764,7 +1765,7 @@ geometryTests =
 -- THE VIEW OF A ROW
 
 
-rowConfig : Popup.RowConfig Msg
+rowConfig : Popup.RowConfig String Msg
 rowConfig =
     { idBase = "supplier"
     , query = ""
@@ -1782,7 +1783,7 @@ rowConfig =
     }
 
 
-viewed : Popup.RowConfig Msg -> Int -> Row -> Query.Single Msg
+viewed : Popup.RowConfig String Msg -> Int -> Row String -> Query.Single Msg
 viewed config index row =
     Popup.viewRow config index row |> Query.fromHtml
 

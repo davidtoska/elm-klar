@@ -57,7 +57,7 @@ allCodes =
     [ 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 ]
 
 
-sorted : List ( String, Direction ) -> Table.State
+sorted : List ( Table.ColumnId, Direction ) -> Table.State
 sorted levels =
     Table.setSort levels start
 
@@ -134,7 +134,7 @@ pagingTests =
             element [] [ Selector.attribute (Attr.attribute "role" "status") ] [ Selector.text text ] state
 
         oslo =
-            Table.setFilter "city" (Just (OneOf [ "Oslo" ]))
+            Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ]))
     in
     describe "pages"
         [ test "all eight rows fit on the first page of 25" <|
@@ -154,7 +154,7 @@ pagingTests =
         , test "a page size larger than the rows" <|
             \_ -> shows allCodes [] (pages 1000)
         , test "the pages are cut after sorting, not before" <|
-            \_ -> shows [ 2007, 2003, 2002 ] [] (Table.setPageSize 3 (sorted [ ( "total", Ascending ) ]))
+            \_ -> shows [ 2007, 2003, 2002 ] [] (Table.setPageSize 3 (sorted [ ( Table.columnId "total", Table.Ascending ) ]))
         , test "the pages are cut after filtering" <|
             \_ -> shows [ 2001, 2004 ] [] (oslo (pages 2))
         , test "the second page of a filtered table" <|
@@ -163,7 +163,7 @@ pagingTests =
             \_ ->
                 shows [ 2007 ]
                     []
-                    (Table.setQuery { search = "", sort = [], filters = [ ( "city", OneOf [ "Oslo" ] ) ], page = 4, pageSize = 2 } start)
+                    (Table.setQuery { search = "", sort = [], filters = [ ( Table.columnId "city", Table.OneOf [ "Oslo" ] ) ], page = 4, pageSize = 2 } start)
         , test "unpaged shows every row, whatever the page size" <|
             \_ -> shows allCodes [ Table.unpaged ] (pages 3)
         , test "unpaged has no pagination" <|
@@ -185,7 +185,7 @@ pagingTests =
         , test "the live region tells the range" <|
             \_ -> liveRegion "Showing 4–6 of 8 rows." (Table.setPage 2 (pages 3))
         , test "the live region tells the sort order" <|
-            \_ -> liveRegion "Sorted by Total, descending." (sorted [ ( "total", Descending ) ])
+            \_ -> liveRegion "Sorted by Total, descending." (sorted [ ( Table.columnId "total", Table.Descending ) ])
         , test "the live region tells that there are no rows" <|
             \_ -> liveRegion "No rows." (Table.setSearch "nothing like this" start)
         ]
@@ -199,10 +199,10 @@ sortingTests : Test
 sortingTests =
     let
         by id direction =
-            sorted [ ( id, direction ) ]
+            sorted [ ( Table.columnId id, direction ) ]
 
         cityAndDate =
-            Table.columns [ Table.text "number" "Order" .number [], Table.custom "size" "Size" (\order -> Html.text order.status) [] ]
+            Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.custom (Table.columnId "size") "Size" (\order -> Html.text order.status) [] ]
     in
     describe "sorting"
         [ test "by a number, ascending" <|
@@ -221,7 +221,7 @@ sortingTests =
         , test "by text, descending" <|
             \_ -> shows [ 2006, 2003, 2004, 2002, 2008, 2005, 2001, 2007 ] [] (by "customer" Descending)
         , test "capital letters sort with the small ones: 'acme logistics' before 'Acme Supplies'" <|
-            \_ -> shows [ 2007, 2001 ] [] (by "customer" Ascending |> Table.setFilter "customer" (Just (Contains "acme")))
+            \_ -> shows [ 2007, 2001 ] [] (by "customer" Ascending |> Table.setFilter (Table.columnId "customer") (Just (Contains "acme")))
         , test "by date, ascending: rows without a date go last" <|
             \_ -> shows [ 2008, 2005, 2004, 2001, 2007, 2002, 2003, 2006 ] [] (by "shipped" Ascending)
         , test "by date, descending: rows without a date still go last" <|
@@ -233,21 +233,21 @@ sortingTests =
         , test "by yes and no" <|
             \_ -> shows [ 2002, 2005, 2006, 2008, 2001, 2003, 2004, 2007 ] [] (by "express" Ascending)
         , test "by two columns" <|
-            \_ -> shows [ 2005, 2006, 2008, 2002, 2003, 2004, 2001, 2007 ] [] (sorted [ ( "status", Ascending ), ( "total", Descending ) ])
+            \_ -> shows [ 2005, 2006, 2008, 2002, 2003, 2004, 2001, 2007 ] [] (sorted [ ( Table.columnId "status", Table.Ascending ), ( Table.columnId "total", Table.Descending ) ])
         , test "by two columns, the second one ascending" <|
-            \_ -> shows [ 2005, 2003, 2002, 2008, 2006, 2007, 2001, 2004 ] [] (sorted [ ( "status", Ascending ), ( "total", Ascending ) ])
+            \_ -> shows [ 2005, 2003, 2002, 2008, 2006, 2007, 2001, 2004 ] [] (sorted [ ( Table.columnId "status", Table.Ascending ), ( Table.columnId "total", Table.Ascending ) ])
         , test "by three columns" <|
-            \_ -> shows [ 2002, 2005, 2008, 2006, 2003, 2007, 2001, 2004 ] [] (sorted [ ( "express", Ascending ), ( "city", Ascending ), ( "total", Ascending ) ])
+            \_ -> shows [ 2002, 2005, 2008, 2006, 2003, 2007, 2001, 2004 ] [] (sorted [ ( Table.columnId "express", Table.Ascending ), ( Table.columnId "city", Table.Ascending ), ( Table.columnId "total", Table.Ascending ) ])
         , test "a column that does not exist is skipped" <|
-            \_ -> shows [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ] [] (sorted [ ( "nope", Ascending ), ( "total", Ascending ) ])
+            \_ -> shows [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ] [] (sorted [ ( Table.columnId "nope", Table.Ascending ), ( Table.columnId "total", Table.Ascending ) ])
         , test "only columns that do not exist: the order of the rows" <|
             \_ -> shows allCodes [] (by "nope" Ascending)
         , test "a column that cannot be sorted is skipped" <|
-            \_ -> shows allCodes [ Table.columns [ Table.text "number" "Order" .number [ Table.unsortable ] ] ] (by "number" Descending)
+            \_ -> shows allCodes [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.unsortable ] ] ] (by "number" Descending)
         , test "a custom column is not sorted unless it says how" <|
             \_ -> shows allCodes [ cityAndDate ] (by "size" Descending)
         , test "sorting by a hidden column still works" <|
-            \_ -> shows [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ] [] (by "total" Ascending |> Table.setColumnVisible "total" False)
+            \_ -> shows [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ] [] (by "total" Ascending |> Table.setColumnVisible (Table.columnId "total") False)
         , test "empty text sorts last, both ways" <|
             \_ ->
                 let
@@ -308,10 +308,10 @@ sortingColumnAttributeTests =
                     2
 
         withAttributes attributes =
-            [ Table.columns [ Table.text "number" "Order" .number [], Table.text "customer" "Customer" .customer attributes ] ]
+            [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "customer") "Customer" .customer attributes ] ]
 
         byCustomer direction =
-            sorted [ ( "customer", direction ) ]
+            sorted [ ( Table.columnId "customer", direction ) ]
     in
     describe "columns that sort differently from what they show"
         [ test "sortNumber sorts a text column by a number" <|
@@ -349,13 +349,13 @@ sortingColumnAttributeTests =
         , test "a custom column sorts once it is given a way" <|
             \_ ->
                 shows [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ]
-                    [ Table.columns [ Table.text "number" "Order" .number [], Table.custom "size" "Size" (\order -> Html.text order.status) [ Table.sortNumber .total ] ] ]
-                    (sorted [ ( "size", Ascending ) ])
+                    [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.custom (Table.columnId "size") "Size" (\order -> Html.text order.status) [ Table.sortNumber .total ] ] ]
+                    (sorted [ ( Table.columnId "size", Table.Ascending ) ])
         , test "a custom column that cannot sort has a title and no button" <|
             \_ ->
                 allOf
-                    [ noElement [ Table.columns [ Table.text "number" "Order" .number [], Table.custom "size" "Size" (\order -> Html.text order.status) [] ] ] (sortButton "Size") start
-                    , element [ Table.columns [ Table.text "number" "Order" .number [], Table.custom "size" "Size" (\order -> Html.text order.status) [] ] ] [ Selector.tag "th", Selector.containing [ Selector.text "Size" ] ] [ Selector.text "Size" ] start
+                    [ noElement [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.custom (Table.columnId "size") "Size" (\order -> Html.text order.status) [] ] ] (sortButton "Size") start
+                    , element [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.custom (Table.columnId "size") "Size" (\order -> Html.text order.status) [] ] ] [ Selector.tag "th", Selector.containing [ Selector.text "Size" ] ] [ Selector.text "Size" ] start
                     ]
         ]
 
@@ -410,11 +410,11 @@ searchTests =
         , test "does when the column asks for it" <|
             \_ -> found [ 2004 ] [ Table.columns searchableTotal ] "1,250"
         , test "does not search a column that says it should not be searched" <|
-            \_ -> found [] [ Table.columns [ Table.text "number" "Order" .number [], Table.text "city" "City" .city [ Table.notSearchable ] ] ] "oslo"
+            \_ -> found [] [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "city") "City" .city [ Table.notSearchable ] ] ] "oslo"
         , test "does not search a column that is hidden" <|
-            \_ -> shows [] [] (start |> Table.setSearch "bergen" |> Table.setColumnVisible "city" False)
+            \_ -> shows [] [] (start |> Table.setSearch "bergen" |> Table.setColumnVisible (Table.columnId "city") False)
         , test "searches a column again when it is shown" <|
-            \_ -> shows [ 2002, 2005 ] [] (start |> Table.setSearch "bergen" |> Table.setColumnVisible "city" False |> Table.setColumnVisible "city" True)
+            \_ -> shows [ 2002, 2005 ] [] (start |> Table.setSearch "bergen" |> Table.setColumnVisible (Table.columnId "city") False |> Table.setColumnVisible (Table.columnId "city") True)
         , test "goes back to page 1 and shows the rows of the new search" <|
             \_ -> shows [ 2001 ] [] (start |> Table.setPageSize 1 |> Table.setPage 5 |> Table.setSearch "acme supplies")
         , test "marks the match in the cell" <|
@@ -433,11 +433,11 @@ searchTests =
             \_ -> noElement [] [ Selector.tag "mark" ] start
         , test "does not mark a cell that is drawn by the application" <|
             \_ ->
-                noElement [ Table.columns [ Table.text "customer" "Customer" .customer [ Table.cell (\order -> Html.text order.customer) ] ] ] [ Selector.tag "mark" ] (Table.setSearch "acme" start)
+                noElement [ Table.columns [ Table.text (Table.columnId "customer") "Customer" .customer [ Table.cell (\order -> Html.text order.customer) ] ] ] [ Selector.tag "mark" ] (Table.setSearch "acme" start)
         , test "searches the text of a column that is drawn by the application" <|
             \_ ->
                 shows [ 2001, 2007 ]
-                    [ Table.columns [ Table.text "customer" "Customer" .customer [ Table.cell (\order -> Html.text order.customer) ], Table.text "number" "Order" .number [] ] ]
+                    [ Table.columns [ Table.text (Table.columnId "customer") "Customer" .customer [ Table.cell (\order -> Html.text order.customer) ], Table.text (Table.columnId "number") "Order" .number [] ] ]
                     (Table.setSearch "acme" start)
         , test "the matching rows are paged" <|
             \_ -> shows [ 2007 ] [] (start |> Table.setSearch "acme" |> Table.setPageSize 1 |> Table.setPage 2)
@@ -446,8 +446,8 @@ searchTests =
 
 searchableTotal : List (Table.Column Order Msg)
 searchableTotal =
-    [ Table.text "number" "Order" .number []
-    , Table.float "total" "Total" 2 .total [ Table.includeInSearch ]
+    [ Table.text (Table.columnId "number") "Order" .number []
+    , Table.float (Table.columnId "total") "Total" 2 .total [ Table.includeInSearch ]
     ]
 
 
@@ -458,8 +458,8 @@ searchableTotal =
 filterTests : Test
 filterTests =
     let
-        filtered codes columnId filter =
-            shows codes [] (Table.setFilter columnId (Just filter) start)
+        filtered codes colId filter =
+            shows codes [] (Table.setFilter (Table.columnId colId) (Just filter) start)
     in
     describe "column filters"
         [ test "contains, ignoring case" <|
@@ -503,13 +503,13 @@ filterTests =
         , test "a filter on a column that does not exist is left out" <|
             \_ -> filtered allCodes "nope" (Contains "x")
         , test "a filter on a hidden column still counts" <|
-            \_ -> shows [ 2001, 2004, 2007 ] [] (start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setColumnVisible "city" False)
+            \_ -> shows [ 2001, 2004, 2007 ] [] (start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setColumnVisible (Table.columnId "city") False)
         , test "two filters both have to hold" <|
-            \_ -> shows [ 2004 ] [] (start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setFilter "total" (Just (Between (Just 1000) Nothing)))
+            \_ -> shows [ 2004 ] [] (start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setFilter (Table.columnId "total") (Just (Between (Just 1000) Nothing)))
         , test "a filter and a search both have to hold" <|
-            \_ -> shows [ 2007 ] [] (start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setSearch "logistics")
+            \_ -> shows [ 2007 ] [] (start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setSearch "logistics")
         , test "removing a filter shows the rows again" <|
-            \_ -> shows allCodes [] (start |> Table.setFilter "city" (Just (OneOf [ "Oslo" ])) |> Table.setFilter "city" Nothing)
+            \_ -> shows allCodes [] (start |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) |> Table.setFilter (Table.columnId "city") Nothing)
         , test "a yes and no column: yes" <|
             \_ -> filtered [ 2001, 2003, 2004, 2007 ] "express" (OneOf [ "true" ])
         , test "a yes and no column: no" <|
@@ -523,9 +523,9 @@ filterTests =
         , test "both yes and no" <|
             \_ -> filtered allCodes "express" (OneOf [ "Yes", "No" ])
         , test "in a Norwegian table a saved filter in English still works" <|
-            \_ -> shows [ 2002, 2005, 2006, 2008 ] [ Table.locale Locale.nb ] (Table.setFilter "express" (Just (OneOf [ "No" ])) start)
+            \_ -> shows [ 2002, 2005, 2006, 2008 ] [ Table.locale Locale.nb ] (Table.setFilter (Table.columnId "express") (Just (OneOf [ "No" ])) start)
         , test "and one that holds the words that belong to no language" <|
-            \_ -> shows [ 2001, 2003, 2004, 2007 ] [ Table.locale Locale.nb ] (Table.setFilter "express" (Just (OneOf [ "true" ])) start)
+            \_ -> shows [ 2001, 2003, 2004, 2007 ] [ Table.locale Locale.nb ] (Table.setFilter (Table.columnId "express") (Just (OneOf [ "true" ])) start)
         ]
 
 
@@ -541,11 +541,11 @@ outsideFilterTests =
         , test "it works together with the search" <|
             \_ -> shows [ 2001 ] [ Table.rowFilter large ] (Table.setSearch "supplies" start)
         , test "and with the column filters" <|
-            \_ -> shows [ 2004 ] [ Table.rowFilter large ] (Table.setFilter "city" (Just (OneOf [ "Oslo" ])) start |> Table.setFilter "total" (Just (Between (Just 1000) Nothing)))
+            \_ -> shows [ 2004 ] [ Table.rowFilter large ] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start |> Table.setFilter (Table.columnId "total") (Just (Between (Just 1000) Nothing)))
         , test "activeExternalFilters is counted as a filter" <|
             \_ -> element [ Table.rowFilter large, Table.activeExternalFilters 1 ] (byId "orders-trigger-filters") [ Selector.text "1 filter active" ] start
         , test "and added to the filters of the table" <|
-            \_ -> element [ Table.rowFilter large, Table.activeExternalFilters 2 ] (byId "orders-trigger-filters") [ Selector.text "3 filters active" ] (Table.setFilter "city" (Just (OneOf [ "Oslo" ])) start)
+            \_ -> element [ Table.rowFilter large, Table.activeExternalFilters 2 ] (byId "orders-trigger-filters") [ Selector.text "3 filters active" ] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start)
         , test "without them the table says nothing about filters" <|
             \_ -> noElement [] (byId "orders-trigger-filters") start
         , test "a table whose rows are all filtered out says 'No matches'" <|
@@ -571,10 +571,10 @@ footerTests : Test
 footerTests =
     let
         oslo =
-            Table.setFilter "city" (Just (OneOf [ "Oslo" ]))
+            Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ]))
 
         order =
-            Table.text "number" "Order" .number
+            Table.text (Table.columnId "number") "Order" .number
     in
     describe "footers"
         [ test "a sum adds up every matching row, not only the page" <|
@@ -594,13 +594,13 @@ footerTests =
         , test "there is no footer without matching rows" <|
             \_ -> noElement [] [ Selector.tag "tfoot" ] (Table.setSearch "nothing like this" start)
         , test "there is no footer when no visible column has one" <|
-            \_ -> noElement [ Table.columns [ order [], Table.text "city" "City" .city [] ] ] [ Selector.tag "tfoot" ] start
+            \_ -> noElement [ Table.columns [ order [], Table.text (Table.columnId "city") "City" .city [] ] ] [ Selector.tag "tfoot" ] start
         , test "a column that is hidden has no footer" <|
-            \_ -> noElement [] [ Selector.tag "tfoot", Selector.containing [ Selector.text "Sum" ] ] (Table.setColumnVisible "items" False start)
+            \_ -> noElement [] [ Selector.tag "tfoot", Selector.containing [ Selector.text "Sum" ] ] (Table.setColumnVisible (Table.columnId "items") False start)
         , test "the average of no numbers is a dash" <|
             \_ ->
                 footerCell 1
-                    [ Table.columns [ order [], Table.text "city" "City" .city [ Table.sortMaybeNumber (always Nothing), Table.footerAverage ] ] ]
+                    [ Table.columns [ order [], Table.text (Table.columnId "city") "City" .city [ Table.sortMaybeNumber (always Nothing), Table.footerAverage ] ] ]
                     [ Selector.text "–" ]
                     start
         , test "footer gives the application the matching rows and shows what it returns" <|
@@ -612,7 +612,7 @@ footerTests =
         , test "footer follows the search" <|
             \_ ->
                 footerCell 0
-                    [ Table.columns [ order [ Table.footer (\rows -> String.fromInt (List.length rows) ++ " orders") ], Table.text "customer" "Customer" .customer [] ] ]
+                    [ Table.columns [ order [ Table.footer (\rows -> String.fromInt (List.length rows) ++ " orders") ], Table.text (Table.columnId "customer") "Customer" .customer [] ] ]
                     [ Selector.text "2 orders" ]
                     (Table.setSearch "acme" start)
         , test "in server mode the footer covers the current page" <|
@@ -653,13 +653,13 @@ localeTests =
         , test "the header hint in Norwegian" <|
             \_ -> element norwegian (sortButton "Total") [ Selector.attribute (Attr.title "Klikk for å sortere") ] start
         , test "text sorts in the Norwegian order: æ, ø, å after z" <|
-            \_ -> shows [ 2007, 2001, 2008, 2002, 2004, 2006, 2005, 2003 ] norwegian (sorted [ ( "customer", Ascending ) ])
+            \_ -> shows [ 2007, 2001, 2008, 2002, 2004, 2006, 2005, 2003 ] norwegian (sorted [ ( Table.columnId "customer", Table.Ascending ) ])
         , test "the same text sorts differently in English" <|
-            \_ -> shows [ 2007, 2001, 2005, 2008, 2002, 2004, 2003, 2006 ] [] (sorted [ ( "customer", Ascending ) ])
+            \_ -> shows [ 2007, 2001, 2005, 2008, 2002, 2004, 2003, 2006 ] [] (sorted [ ( Table.columnId "customer", Table.Ascending ) ])
         , test "cities in the Norwegian order: Ålesund last" <|
-            \_ -> shows [ 2002, 2005, 2001, 2004, 2007, 2008, 2006, 2003 ] norwegian (sorted [ ( "city", Ascending ) ])
+            \_ -> shows [ 2002, 2005, 2001, 2004, 2007, 2008, 2006, 2003 ] norwegian (sorted [ ( Table.columnId "city", Table.Ascending ) ])
         , test "cities in English: Ålesund first, as an A" <|
-            \_ -> shows [ 2003, 2002, 2005, 2001, 2004, 2007, 2008, 2006 ] [] (sorted [ ( "city", Ascending ) ])
+            \_ -> shows [ 2003, 2002, 2005, 2001, 2004, 2007, 2008, 2006 ] [] (sorted [ ( Table.columnId "city", Table.Ascending ) ])
         ]
 
 
@@ -685,9 +685,9 @@ serverModeTests =
         , test "does not search them" <|
             \_ -> shows page server (Table.setSearch "nothing like this" start)
         , test "does not filter them" <|
-            \_ -> shows page server (Table.setFilter "city" (Just (OneOf [ "Nowhere" ])) start)
+            \_ -> shows page server (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Nowhere" ])) start)
         , test "does not sort them" <|
-            \_ -> shows page server (sorted [ ( "total", Descending ) ])
+            \_ -> shows page server (sorted [ ( Table.columnId "total", Table.Descending ) ])
         , test "does not cut them to the page, even when the page size is smaller" <|
             \_ -> shows page server (Table.setPageSize 10 start)
         , test "the pagination uses the total" <|
@@ -783,7 +783,7 @@ exportTests =
             [ Selector.attribute (Attr.href (Csv.dataUrl csv)), Selector.attribute (Attr.download name) ]
 
         twoColumns =
-            [ Table.columns [ Table.text "number" "Order" .number [], Table.text "city" "City" .city [ Table.notExported ] ] ]
+            [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "city") "City" .city [ Table.notExported ] ] ]
     in
     describe "CSV export"
         [ test "there is no export button unless the application asks for it" <|
@@ -796,7 +796,7 @@ exportTests =
             \_ -> open exporting start |> expectOk (\s -> option 0 exporting (link (english allCodes) "orders.csv") s)
         , test "the rows are in the order of the table, not of the data" <|
             \_ ->
-                open exporting (sorted [ ( "total", Ascending ) ])
+                open exporting (sorted [ ( Table.columnId "total", Table.Ascending ) ])
                     |> expectOk (\s -> option 0 exporting (link (english [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ]) "orders.csv") s)
         , test "only the rows that match the search" <|
             \_ ->
@@ -824,9 +824,9 @@ exportTests =
             \_ ->
                 let
                     attributes =
-                        Table.exportCsv "orders.csv" :: [ Table.columns [ Table.text "number" "Order" .number [], Table.text "city" "City" .city [] ] ]
+                        Table.exportCsv "orders.csv" :: [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "city") "City" .city [] ] ]
                 in
-                open attributes (Table.setColumnVisible "city" False start)
+                open attributes (Table.setColumnVisible (Table.columnId "city") False start)
                     |> expectOk (\s -> option 0 attributes (link (Csv.encode ',' (List.map (\code -> [ code ]) ("Order" :: numbers allCodes))) "orders.csv") s)
         , test "a custom column is exported when it says what to export" <|
             \_ ->
@@ -834,8 +834,8 @@ exportTests =
                     attributes =
                         [ Table.exportCsv "orders.csv"
                         , Table.columns
-                            [ Table.text "number" "Order" .number []
-                            , Table.custom "size" "Size" (\order -> Html.text order.status) [ Table.exportAs (\order -> "size of " ++ order.number) ]
+                            [ Table.text (Table.columnId "number") "Order" .number []
+                            , Table.custom (Table.columnId "size") "Size" (\order -> Html.text order.status) [ Table.exportAs (\order -> "size of " ++ order.number) ]
                             ]
                         ]
                 in
@@ -854,7 +854,7 @@ exportTests =
                         [ { number = "ORD-1", customer = "=HYPERLINK(\"http://example.com\")", city = "Oslo", items = 1, total = 1, status = "Open", shipped = Nothing, express = False } ]
 
                     attributes =
-                        [ Table.exportCsv "orders.csv", Table.rows (Success hostile), Table.columns [ Table.text "number" "Order" .number [], Table.text "customer" "Customer" .customer [] ] ]
+                        [ Table.exportCsv "orders.csv", Table.rows (Success hostile), Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "customer") "Customer" .customer [] ] ]
                 in
                 open attributes start
                     |> expectOk (\s -> option 0 attributes (link "Order,Customer\u{000D}\nORD-1,\"'=HYPERLINK(\"\"http://example.com\"\")\"" "orders.csv") s)

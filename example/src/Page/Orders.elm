@@ -136,7 +136,7 @@ the start of the list.
 initialTable : Table.State
 initialTable =
     Table.init tableId
-        |> Table.setSort [ ( "created", Table.Descending ) ]
+        |> Table.setSort [ ( Table.columnId "created", Table.Descending ) ]
 
 
 init : Context -> Maybe OrderId -> Backend -> ( Model, Backend, Cmd Msg )
@@ -242,7 +242,7 @@ toOrderQuery query =
     { search = query.search
     , statuses =
         query.filters
-            |> List.filter (\( column, _ ) -> column == "status")
+            |> List.filter (\( column, _ ) -> Table.columnName column == "status")
             |> List.concatMap
                 (\( _, filter ) ->
                     case filter of
@@ -255,7 +255,7 @@ toOrderQuery query =
     , sort =
         query.sort
             |> List.head
-            |> Maybe.map (\( column, direction ) -> ( column, direction == Table.Ascending ))
+            |> Maybe.map (\( column, direction ) -> ( Table.columnName column, direction == Table.Ascending ))
     , page = query.page
     , pageSize = query.pageSize
     }
@@ -1312,9 +1312,9 @@ noLookups =
 columns : Context -> Lookups -> List (Table.Column Order Msg)
 columns context lookups =
     [ -- The ids of the columns are the keys the server sorts by.
-      Table.text "id" "Order id" .id [ Table.pinned, Table.width 112 ]
-    , Table.text "customer" "Customer" .customer [ Table.minWidth 190 ]
-    , Table.badge "status"
+      Table.text (Table.columnId "id") "Order id" .id [ Table.pinned, Table.width 112 ]
+    , Table.text (Table.columnId "customer") "Customer" .customer [ Table.minWidth 190 ]
+    , Table.badge (Table.columnId "status")
         "Status"
         (\order -> ( Labels.statusTone order.status, Types.orderStatusLabel order.status ))
         [ Table.width 120
@@ -1323,23 +1323,23 @@ columns context lookups =
         -- column: it is told them.
         , Table.filterOptions (List.map Types.orderStatusLabel Types.allOrderStatuses)
         ]
-    , Table.status "priority"
+    , Table.status (Table.columnId "priority")
         "Priority"
         (\order -> ( Labels.priorityTone order.priority, Types.priorityLabel order.priority ))
         [ Table.width 104 ]
 
     -- A blank text is shown as a dash.
-    , Table.text "owner" "Owner" (\order -> Maybe.withDefault "" order.owner) [ Table.width 136 ]
-    , Table.text "city" "City" .city [ Table.width 128 ]
-    , Table.text "country" "Country" (.country >> countryName lookups) [ Table.width 148 ]
-    , Table.text "warehouse" "Warehouse" (.warehouse >> warehouseName lookups) [ Table.width 148 ]
-    , Table.date "created" "Created" .created []
-    , Table.date "due" "Due" .due []
-    , Table.int "lines" "Lines" .lines [ Table.width 88 ]
+    , Table.text (Table.columnId "owner") "Owner" (\order -> Maybe.withDefault "" order.owner) [ Table.width 136 ]
+    , Table.text (Table.columnId "city") "City" .city [ Table.width 128 ]
+    , Table.text (Table.columnId "country") "Country" (.country >> countryName lookups) [ Table.width 148 ]
+    , Table.text (Table.columnId "warehouse") "Warehouse" (.warehouse >> warehouseName lookups) [ Table.width 148 ]
+    , Table.date (Table.columnId "created") "Created" .created []
+    , Table.date (Table.columnId "due") "Due" .due []
+    , Table.int (Table.columnId "lines") "Lines" .lines [ Table.width 88 ]
 
     -- The text of the column (used for the CSV export) is the plain number; the
     -- cell shows it as money.
-    , Table.float "total"
+    , Table.float (Table.columnId "total")
         "Total"
         2
         .total

@@ -215,7 +215,7 @@ init =
     in
     ( { client =
             { orders = allOrders
-            , table = Table.init "client-orders" |> Table.setSort [ ( "priority", Table.Descending ), ( "status", Table.Ascending ) ]
+            , table = Table.init "client-orders" |> Table.setSort [ ( columnIds.priority, Table.Descending ), ( columnIds.status, Table.Ascending ) ]
             , urgentOnly = False
             , refreshing = False
             , refreshes = 0
@@ -229,7 +229,7 @@ init =
             }
       , views = { table = applyView AllOrders, applied = "none yet" }
       , simple =
-            { owners = Table.init "owners-summary" |> Table.setSort [ ( "orders", Table.Descending ) ]
+            { owners = Table.init "owners-summary" |> Table.setSort [ ( columnIds.orders, Table.Descending ) ]
             , picking = Table.init "owners-picking"
             , lastEvent = "Select owners and send the summary."
             }
@@ -806,9 +806,9 @@ searchText o =
     Search.normalize (String.join "\n" [ o.id, o.customer, o.city, orderStatusLabel o.status, ownerName o ])
 
 
-matchesFilter : Order -> ( String, Table.Filter ) -> Bool
+matchesFilter : Order -> ( Table.ColumnId, Table.Filter ) -> Bool
 matchesFilter o ( column, filter ) =
-    case ( column, filter ) of
+    case ( Table.columnName column, filter ) of
         ( "id", Table.Contains text ) ->
             contains text o.id
 
@@ -837,7 +837,7 @@ contains needle haystack =
     String.contains (Search.normalize needle) (Search.normalize haystack)
 
 
-compareBy : List ( String, Table.Direction ) -> Order -> Order -> Basics.Order
+compareBy : List ( Table.ColumnId, Table.Direction ) -> Order -> Order -> Basics.Order
 compareBy levels a b =
     case levels of
         [] ->
@@ -846,7 +846,7 @@ compareBy levels a b =
         ( column, direction ) :: rest ->
             let
                 order =
-                    case column of
+                    case Table.columnName column of
                         "id" ->
                             compare a.id b.id
 
@@ -968,6 +968,65 @@ failureKindFromValue value =
 
         _ ->
             Nothing
+
+
+{-| The ids of the columns of the examples on this page, each named once: a sort,
+a filter or a column choice refers to the same value as the column it talks
+about, so a misspelled id is a compile error and not a table that quietly does
+nothing.
+-}
+columnIds :
+    { actions : Table.ColumnId
+    , assigned : Table.ColumnId
+    , averageTotal : Table.ColumnId
+    , city : Table.ColumnId
+    , created : Table.ColumnId
+    , customer : Table.ColumnId
+    , delivered : Table.ColumnId
+    , delivery : Table.ColumnId
+    , due : Table.ColumnId
+    , email : Table.ColumnId
+    , id : Table.ColumnId
+    , lines : Table.ColumnId
+    , name : Table.ColumnId
+    , note : Table.ColumnId
+    , open : Table.ColumnId
+    , orders : Table.ColumnId
+    , overdue : Table.ColumnId
+    , owner : Table.ColumnId
+    , priority : Table.ColumnId
+    , progress : Table.ColumnId
+    , status : Table.ColumnId
+    , total : Table.ColumnId
+    , urgent : Table.ColumnId
+    , warehouse : Table.ColumnId
+    }
+columnIds =
+    { actions = Table.columnId "actions"
+    , assigned = Table.columnId "assigned"
+    , averageTotal = Table.columnId "averageTotal"
+    , city = Table.columnId "city"
+    , created = Table.columnId "created"
+    , customer = Table.columnId "customer"
+    , delivered = Table.columnId "delivered"
+    , delivery = Table.columnId "delivery"
+    , due = Table.columnId "due"
+    , email = Table.columnId "email"
+    , id = Table.columnId "id"
+    , lines = Table.columnId "lines"
+    , name = Table.columnId "name"
+    , note = Table.columnId "note"
+    , open = Table.columnId "open"
+    , orders = Table.columnId "orders"
+    , overdue = Table.columnId "overdue"
+    , owner = Table.columnId "owner"
+    , priority = Table.columnId "priority"
+    , progress = Table.columnId "progress"
+    , status = Table.columnId "status"
+    , total = Table.columnId "total"
+    , urgent = Table.columnId "urgent"
+    , warehouse = Table.columnId "warehouse"
+    }
 
 
 
@@ -1248,30 +1307,30 @@ orderDetail locale o =
 
 clientColumns : List (Table.Column Order Msg)
 clientColumns =
-    [ Table.text "id" "Order" .id [ Table.pinned, Table.width 112, Table.filterText, Table.alwaysVisible ]
-    , Table.text "customer" "Customer" .customer [ Table.minWidth 190, Table.filterText ]
-    , Table.text "email" "Email" .email [ Table.minWidth 240, Table.filterText ]
-    , Table.text "city" "City" .city [ Table.width 132, Table.filterSelect ]
-    , Table.badge "status" "Status" statusEntry [ Table.width 120, Table.filterOptions statusLabels, Table.sortNumber (.status >> statusRank) ]
-    , Table.status "priority" "Priority" priorityEntry [ Table.width 112, Table.filterOptions priorityLabels, Table.sortNumber (.priority >> priorityRank) ]
-    , Table.text "owner" "Owner" ownerName [ Table.minWidth 150, Table.filterSelect ]
-    , Table.date "due" "Due" .due [ Table.width 124, Table.hint "The day the order is due. Click to sort." ]
-    , Table.int "lines" "Lines" .lines [ Table.width 100, Table.filterRange, Table.footerAverage ]
-    , Table.float "total" "Total" 2 .total [ Table.width 124, Table.filterRange, Table.footerSum, Table.hint "The order total in US dollars. Click to sort." ]
-    , Table.text "warehouse" "Warehouse" .warehouse [ Table.width 116, Table.hiddenByDefault, Table.notSearchable ]
-    , Table.text "note" "Note" .note [ Table.minWidth 240, Table.hiddenByDefault ]
+    [ Table.text columnIds.id "Order" .id [ Table.pinned, Table.width 112, Table.filterText, Table.alwaysVisible ]
+    , Table.text columnIds.customer "Customer" .customer [ Table.minWidth 190, Table.filterText ]
+    , Table.text columnIds.email "Email" .email [ Table.minWidth 240, Table.filterText ]
+    , Table.text columnIds.city "City" .city [ Table.width 132, Table.filterSelect ]
+    , Table.badge columnIds.status "Status" statusEntry [ Table.width 120, Table.filterOptions statusLabels, Table.sortNumber (.status >> statusRank) ]
+    , Table.status columnIds.priority "Priority" priorityEntry [ Table.width 112, Table.filterOptions priorityLabels, Table.sortNumber (.priority >> priorityRank) ]
+    , Table.text columnIds.owner "Owner" ownerName [ Table.minWidth 150, Table.filterSelect ]
+    , Table.date columnIds.due "Due" .due [ Table.width 124, Table.hint "The day the order is due. Click to sort." ]
+    , Table.int columnIds.lines "Lines" .lines [ Table.width 100, Table.filterRange, Table.footerAverage ]
+    , Table.float columnIds.total "Total" 2 .total [ Table.width 124, Table.filterRange, Table.footerSum, Table.hint "The order total in US dollars. Click to sort." ]
+    , Table.text columnIds.warehouse "Warehouse" .warehouse [ Table.width 116, Table.hiddenByDefault, Table.notSearchable ]
+    , Table.text columnIds.note "Note" .note [ Table.minWidth 240, Table.hiddenByDefault ]
     ]
 
 
 serverColumns : List (Table.Column Order Msg)
 serverColumns =
-    [ Table.text "id" "Order" .id [ Table.width 112, Table.filterText ]
-    , Table.text "customer" "Customer" .customer [ Table.minWidth 190, Table.filterText ]
-    , Table.text "city" "City" .city [ Table.width 132, Table.filterOptions (List.sort Sample.cities) ]
-    , Table.badge "status" "Status" statusEntry [ Table.width 120, Table.filterOptions statusLabels ]
-    , Table.text "owner" "Owner" ownerName [ Table.minWidth 150, Table.filterOptions Sample.owners ]
-    , Table.date "due" "Due" .due [ Table.width 124 ]
-    , Table.float "total" "Total" 2 .total [ Table.width 124, Table.filterRange ]
+    [ Table.text columnIds.id "Order" .id [ Table.width 112, Table.filterText ]
+    , Table.text columnIds.customer "Customer" .customer [ Table.minWidth 190, Table.filterText ]
+    , Table.text columnIds.city "City" .city [ Table.width 132, Table.filterOptions (List.sort Sample.cities) ]
+    , Table.badge columnIds.status "Status" statusEntry [ Table.width 120, Table.filterOptions statusLabels ]
+    , Table.text columnIds.owner "Owner" ownerName [ Table.minWidth 150, Table.filterOptions Sample.owners ]
+    , Table.date columnIds.due "Due" .due [ Table.width 124 ]
+    , Table.float columnIds.total "Total" 2 .total [ Table.width 124, Table.filterRange ]
     ]
 
 
@@ -1280,16 +1339,16 @@ the cell of the total and the footer of the id write a currency and a count.
 -}
 kindColumns : Locale -> List (Table.Column Order Msg)
 kindColumns locale =
-    [ Table.text "id" "Order" .id [ Table.width 108, Table.cell (.id >> Text.mono), Table.footer (orderCount locale) ]
-    , Table.status "priority" "Priority" priorityEntry [ Table.width 104, Table.sortNumber (.priority >> priorityRank) ]
-    , Table.badge "status" "Status" statusEntry [ Table.width 108, Table.sortNumber (.status >> statusRank) ]
-    , Table.bool "overdue" "Overdue" isOverdue [ Table.filterSelect ]
-    , Table.date "created" "Created" .created [ Table.width 100 ]
-    , Table.maybeDate "delivered" "Delivered" .delivered [ Table.width 112 ]
-    , Table.int "lines" "Lines" .lines [ Table.width 96, Table.footerSum ]
-    , Table.float "total" "Total" 2 .total [ Table.width 108, Table.cell (viewTotal locale), Table.footer (totalFooter locale) ]
-    , Table.custom "progress" "Progress" (viewProgress locale) [ Table.width 112, Table.sortNumber (steps >> toFloat), Table.exportAs progressText ]
-    , Table.actions "actions" "Actions" orderButtons []
+    [ Table.text columnIds.id "Order" .id [ Table.width 108, Table.cell (.id >> Text.mono), Table.footer (orderCount locale) ]
+    , Table.status columnIds.priority "Priority" priorityEntry [ Table.width 104, Table.sortNumber (.priority >> priorityRank) ]
+    , Table.badge columnIds.status "Status" statusEntry [ Table.width 108, Table.sortNumber (.status >> statusRank) ]
+    , Table.bool columnIds.overdue "Overdue" isOverdue [ Table.filterSelect ]
+    , Table.date columnIds.created "Created" .created [ Table.width 100 ]
+    , Table.maybeDate columnIds.delivered "Delivered" .delivered [ Table.width 112 ]
+    , Table.int columnIds.lines "Lines" .lines [ Table.width 96, Table.footerSum ]
+    , Table.float columnIds.total "Total" 2 .total [ Table.width 108, Table.cell (viewTotal locale), Table.footer (totalFooter locale) ]
+    , Table.custom columnIds.progress "Progress" (viewProgress locale) [ Table.width 112, Table.sortNumber (steps >> toFloat), Table.exportAs progressText ]
+    , Table.actions columnIds.actions "Actions" orderButtons []
     ]
 
 
@@ -1346,14 +1405,14 @@ orderButtons o =
 -}
 sortingColumns : Locale -> List (Table.Column Order Msg)
 sortingColumns locale =
-    [ Table.text "id" "Order" .id [ Table.width 112, Table.filterText ]
-    , Table.text "owner" "Owner" ownerName [ Table.minWidth 140, Table.sortText ownerSurname, Table.hint "Sorted by last name" ]
-    , Table.text "due" "Due" (.due >> Format.dateLong locale) [ Table.width 146, Table.sortDate .due, Table.exportAs (.due >> Date.toIso), Table.hint "Shown in full, sorted by date, exported as an ISO date" ]
-    , Table.text "delivery" "Delivery" deliveryText [ Table.width 124, Table.alignRight, Table.sortMaybeNumber (daysLate >> Maybe.map toFloat), Table.hint "Early or late compared with the due date. Orders that are not delivered yet sort last." ]
-    , Table.status "priority" "Priority" priorityEntry [ Table.width 112, Table.sortWith compareByPriority ]
-    , Table.int "lines" "Lines" .lines [ Table.width 100, Table.includeInSearch ]
-    , Table.text "warehouse" "Warehouse" .warehouse [ Table.width 120, Table.alignCenter, Table.notSearchable ]
-    , Table.text "note" "Note" .note [ Table.width 200, Table.wrap, Table.unsortable, Table.notExported ]
+    [ Table.text columnIds.id "Order" .id [ Table.width 112, Table.filterText ]
+    , Table.text columnIds.owner "Owner" ownerName [ Table.minWidth 140, Table.sortText ownerSurname, Table.hint "Sorted by last name" ]
+    , Table.text columnIds.due "Due" (.due >> Format.dateLong locale) [ Table.width 146, Table.sortDate .due, Table.exportAs (.due >> Date.toIso), Table.hint "Shown in full, sorted by date, exported as an ISO date" ]
+    , Table.text columnIds.delivery "Delivery" deliveryText [ Table.width 124, Table.alignRight, Table.sortMaybeNumber (daysLate >> Maybe.map toFloat), Table.hint "Early or late compared with the due date. Orders that are not delivered yet sort last." ]
+    , Table.status columnIds.priority "Priority" priorityEntry [ Table.width 112, Table.sortWith compareByPriority ]
+    , Table.int columnIds.lines "Lines" .lines [ Table.width 100, Table.includeInSearch ]
+    , Table.text columnIds.warehouse "Warehouse" .warehouse [ Table.width 120, Table.alignCenter, Table.notSearchable ]
+    , Table.text columnIds.note "Note" .note [ Table.width 200, Table.wrap, Table.unsortable, Table.notExported ]
     ]
 
 
@@ -1392,11 +1451,11 @@ ownerColumns : List (Table.Column OwnerRow Msg)
 ownerColumns =
     -- as narrow as the headers allow, so the table fits the card without a
     -- scrollbar for a few pixels of overflow
-    [ Table.text "name" "Owner" .name []
-    , Table.int "orders" "Orders" .orders [ Table.footerSum ]
-    , Table.int "open" "Open" .open [ Table.width 90, Table.footerSum ]
-    , Table.int "urgent" "Urgent" .urgent [ Table.footerSum ]
-    , Table.float "averageTotal" "Average total" 2 .averageTotal [ Table.width 140 ]
+    [ Table.text columnIds.name "Owner" .name []
+    , Table.int columnIds.orders "Orders" .orders [ Table.footerSum ]
+    , Table.int columnIds.open "Open" .open [ Table.width 90, Table.footerSum ]
+    , Table.int columnIds.urgent "Urgent" .urgent [ Table.footerSum ]
+    , Table.float columnIds.averageTotal "Average total" 2 .averageTotal [ Table.width 140 ]
     ]
 
 
@@ -1405,26 +1464,26 @@ fit their card, so no scrollbar sits under a message.
 -}
 smallColumns : List (Table.Column Order Msg)
 smallColumns =
-    [ Table.text "id" "Order" .id [ Table.minWidth 110 ]
-    , Table.text "city" "City" .city [ Table.width 110, Table.filterSelect ]
-    , Table.badge "status" "Status" statusEntry [ Table.width 120 ]
-    , Table.float "total" "Total" 2 .total [ Table.width 110 ]
+    [ Table.text columnIds.id "Order" .id [ Table.minWidth 110 ]
+    , Table.text columnIds.city "City" .city [ Table.width 110, Table.filterSelect ]
+    , Table.badge columnIds.status "Status" statusEntry [ Table.width 120 ]
+    , Table.float columnIds.total "Total" 2 .total [ Table.width 110 ]
     ]
 
 
 narrowColumns : List (Table.Column Order Msg)
 narrowColumns =
-    [ Table.text "customer" "Customer" .customer [ Table.pinned, Table.width 200 ]
-    , Table.text "email" "Email" .email [ Table.width 240 ]
-    , Table.text "note" "Note" .note [ Table.width 260 ]
-    , Table.text "city" "City" .city [ Table.width 120 ]
-    , Table.status "status" "Status" statusEntry [ Table.width 112 ]
-    , Table.status "priority" "Priority" priorityEntry [ Table.width 104 ]
-    , Table.text "owner" "Owner" ownerName [ Table.width 150 ]
-    , Table.date "due" "Due" .due [ Table.width 120 ]
-    , Table.float "total" "Total" 2 .total [ Table.width 100 ]
-    , Table.bool "assigned" "Assigned" (\o -> o.owner /= Nothing) [ Table.width 100, Table.filterSelect ]
-    , Table.text "warehouse" "Warehouse" .warehouse [ Table.width 116 ]
+    [ Table.text columnIds.customer "Customer" .customer [ Table.pinned, Table.width 200 ]
+    , Table.text columnIds.email "Email" .email [ Table.width 240 ]
+    , Table.text columnIds.note "Note" .note [ Table.width 260 ]
+    , Table.text columnIds.city "City" .city [ Table.width 120 ]
+    , Table.status columnIds.status "Status" statusEntry [ Table.width 112 ]
+    , Table.status columnIds.priority "Priority" priorityEntry [ Table.width 104 ]
+    , Table.text columnIds.owner "Owner" ownerName [ Table.width 150 ]
+    , Table.date columnIds.due "Due" .due [ Table.width 120 ]
+    , Table.float columnIds.total "Total" 2 .total [ Table.width 100 ]
+    , Table.bool columnIds.assigned "Assigned" (\o -> o.owner /= Nothing) [ Table.width 100, Table.filterSelect ]
+    , Table.text columnIds.warehouse "Warehouse" .warehouse [ Table.width 116 ]
     ]
 
 
@@ -1450,11 +1509,11 @@ narrowOrders =
 
 norwegianColumns : List (Table.Column Order Msg)
 norwegianColumns =
-    [ Table.text "id" "Order" .id [ Table.width 112 ]
-    , Table.text "customer" "Customer" .customer [ Table.minWidth 190, Table.filterText ]
-    , Table.date "due" "Due" .due [ Table.width 124 ]
-    , Table.int "lines" "Lines" .lines [ Table.width 100, Table.filterRange, Table.footerAverage ]
-    , Table.float "total" "Total" 2 .total [ Table.width 150, Table.cell (viewTotal Locale.nb), Table.filterRange, Table.footerSum ]
+    [ Table.text columnIds.id "Order" .id [ Table.width 112 ]
+    , Table.text columnIds.customer "Customer" .customer [ Table.minWidth 190, Table.filterText ]
+    , Table.date columnIds.due "Due" .due [ Table.width 124 ]
+    , Table.int columnIds.lines "Lines" .lines [ Table.width 100, Table.filterRange, Table.footerAverage ]
+    , Table.float columnIds.total "Total" 2 .total [ Table.width 150, Table.cell (viewTotal Locale.nb), Table.filterRange, Table.footerSum ]
     ]
 
 
@@ -1502,10 +1561,10 @@ applyView saved =
         OpenAndUrgent ->
             Table.setQuery
                 { search = ""
-                , sort = [ ( "due", Table.Ascending ) ]
+                , sort = [ ( columnIds.due, Table.Ascending ) ]
                 , filters =
-                    [ ( "priority", Table.OneOf [ "Urgent", "High" ] )
-                    , ( "status", Table.OneOf [ "Draft", "Confirmed", "Picking" ] )
+                    [ ( columnIds.priority, Table.OneOf [ "Urgent", "High" ] )
+                    , ( columnIds.status, Table.OneOf [ "Draft", "Confirmed", "Picking" ] )
                     ]
                 , page = 1
                 , pageSize = 10
@@ -1514,17 +1573,17 @@ applyView saved =
 
         LargeOrders ->
             fresh
-                |> Table.setSort [ ( "total", Table.Descending ) ]
-                |> Table.setFilter "total" (Just (Table.Between (Just 6000) Nothing))
+                |> Table.setSort [ ( columnIds.total, Table.Descending ) ]
+                |> Table.setFilter columnIds.total (Just (Table.Between (Just 6000) Nothing))
                 |> Table.setPage 2
-                |> Table.setColumnVisible "note" True
+                |> Table.setColumnVisible columnIds.note True
                 |> Table.setDensity Theme.Compact
 
         DeliveredInRotterdam ->
             fresh
                 |> Table.setSearch "rotterdam"
-                |> Table.setFilter "status" (Just (Table.OneOf [ "Delivered" ]))
-                |> Table.setSort [ ( "due", Table.Descending ) ]
+                |> Table.setFilter columnIds.status (Just (Table.OneOf [ "Delivered" ]))
+                |> Table.setSort [ ( columnIds.due, Table.Descending ) ]
 
         ReviewOrders ->
             fresh
@@ -1545,9 +1604,9 @@ densityText density =
             "Comfortable"
 
 
-columnText : String -> Table.State -> String
-columnText columnId table =
-    case Table.isColumnVisible columnId table of
+columnText : Table.ColumnId -> Table.State -> String
+columnText id table =
+    case Table.isColumnVisible id table of
         Just True ->
             "shown"
 
@@ -1567,7 +1626,7 @@ stateBlock table =
         , "selectedIds = " ++ stringList (Table.selectedIds table)
         , "expandedIds = " ++ stringList (Table.expandedIds table)
         , "density = " ++ densityText (Table.density table)
-        , "note column = " ++ columnText "note" table
+        , "note column = " ++ columnText columnIds.note table
         ]
 
 
@@ -1699,12 +1758,12 @@ clientCode : String
 clientCode =
     """Table.view TableMsg
     [ Table.columns
-        [ Table.text "id" "Order" .id [ Table.pinned, Table.filterText, Table.alwaysVisible ]
-        , Table.text "city" "City" .city [ Table.width 132, Table.filterSelect ]
-        , Table.badge "status" "Status" statusEntry [ Table.filterOptions statusLabels ]
-        , Table.date "due" "Due" .due []
-        , Table.float "total" "Total" 2 .total [ Table.filterRange, Table.footerSum ]
-        , Table.text "warehouse" "Warehouse" .warehouse [ Table.hiddenByDefault ]
+        [ Table.text (columnIds.id) "Order" .id [ Table.pinned, Table.filterText, Table.alwaysVisible ]
+        , Table.text (columnIds.city) "City" .city [ Table.width 132, Table.filterSelect ]
+        , Table.badge (columnIds.status) "Status" statusEntry [ Table.filterOptions statusLabels ]
+        , Table.date (columnIds.due) "Due" .due []
+        , Table.float (columnIds.total) "Total" 2 .total [ Table.filterRange, Table.footerSum ]
+        , Table.text (columnIds.warehouse) "Warehouse" .warehouse [ Table.hiddenByDefault ]
         ]
     , Table.rows model.orders -- Remote (List Order), kept in the model
     , Table.rowId .id
@@ -1926,17 +1985,17 @@ kindsCode : String
 kindsCode =
     """Table.view TableMsg
     [ Table.columns
-        [ Table.text "id" "Order" .id [ Table.cell viewOrderNumber, Table.footer orderCount ]
-        , Table.status "priority" "Priority" priorityEntry []
-        , Table.badge "status" "Status" statusEntry []
-        , Table.bool "overdue" "Overdue" isOverdue [ Table.filterSelect ]
-        , Table.date "created" "Created" .created []
-        , Table.maybeDate "delivered" "Delivered" .delivered []
-        , Table.int "lines" "Lines" .lines [ Table.footerSum ]
-        , Table.float "total" "Total" 2 .total [ Table.cell viewMoney, Table.footer moneyFooter ]
-        , Table.custom "progress" "Progress" viewProgress
+        [ Table.text (columnIds.id) "Order" .id [ Table.cell viewOrderNumber, Table.footer orderCount ]
+        , Table.status (columnIds.priority) "Priority" priorityEntry []
+        , Table.badge (columnIds.status) "Status" statusEntry []
+        , Table.bool (columnIds.overdue) "Overdue" isOverdue [ Table.filterSelect ]
+        , Table.date (columnIds.created) "Created" .created []
+        , Table.maybeDate (columnIds.delivered) "Delivered" .delivered []
+        , Table.int (columnIds.lines) "Lines" .lines [ Table.footerSum ]
+        , Table.float (columnIds.total) "Total" 2 .total [ Table.cell viewMoney, Table.footer moneyFooter ]
+        , Table.custom (columnIds.progress) "Progress" viewProgress
             [ Table.width 130, Table.sortNumber progressSteps, Table.exportAs progressText ]
-        , Table.actions "actions" "Actions" orderButtons []
+        , Table.actions (columnIds.actions) "Actions" orderButtons []
         ]
     , Table.rows model.orders
     , Table.exportCsv "orders.csv"
@@ -1955,17 +2014,17 @@ sortingCode : String
 sortingCode =
     """Table.view TableMsg
     [ Table.columns
-        [ Table.text "owner" "Owner" ownerName [ Table.sortText ownerSurname ]
-        , Table.text "due" "Due" dueLong
+        [ Table.text (columnIds.owner) "Owner" ownerName [ Table.sortText ownerSurname ]
+        , Table.text (columnIds.due) "Due" dueLong
             [ Table.sortDate .due, Table.exportAs dueIso ]
-        , Table.text "delivery" "Delivery" deliveryText
+        , Table.text (columnIds.delivery) "Delivery" deliveryText
             [ Table.alignRight, Table.sortMaybeNumber daysLate ]
-        , Table.status "priority" "Priority" priorityEntry
+        , Table.status (columnIds.priority) "Priority" priorityEntry
             [ Table.sortWith compareByPriority ]
-        , Table.int "lines" "Lines" .lines [ Table.includeInSearch ]
-        , Table.text "warehouse" "Warehouse" .warehouse
+        , Table.int (columnIds.lines) "Lines" .lines [ Table.includeInSearch ]
+        , Table.text (columnIds.warehouse) "Warehouse" .warehouse
             [ Table.alignCenter, Table.notSearchable ]
-        , Table.text "note" "Note" .note
+        , Table.text (columnIds.note) "Note" .note
             [ Table.wrap, Table.unsortable, Table.notExported ]
         ]
     , Table.rows model.orders
@@ -2032,10 +2091,10 @@ viewsCode =
 largeOrders : Table.State
 largeOrders =
     Table.init "orders"
-        |> Table.setSort [ ( "total", Table.Descending ) ]
-        |> Table.setFilter "total" (Just (Table.Between (Just 6000) Nothing))
+        |> Table.setSort [ ( columnIds.total, Table.Descending ) ]
+        |> Table.setFilter (columnIds.total) (Just (Table.Between (Just 6000) Nothing))
         |> Table.setPage 2
-        |> Table.setColumnVisible "note" True
+        |> Table.setColumnVisible (columnIds.note) True
         |> Table.setDensity Theme.Compact
 
 -- or all at once, from a saved query or the URL
@@ -2043,8 +2102,8 @@ openAndUrgent : Table.State
 openAndUrgent =
     Table.setQuery
         { search = ""
-        , sort = [ ( "due", Table.Ascending ) ]
-        , filters = [ ( "priority", Table.OneOf [ "Urgent", "High" ] ) ]
+        , sort = [ ( columnIds.due, Table.Ascending ) ]
+        , filters = [ ( columnIds.priority, Table.OneOf [ "Urgent", "High" ] ) ]
         , page = 1
         , pageSize = 10
         }
@@ -2067,7 +2126,7 @@ Table.selectedIds model.table
 Table.isSelected "ORD-10002" model.table
 Table.expandedIds model.table
 Table.isExpanded "ORD-10001" model.table
-Table.isColumnVisible "note" model.table -- Maybe Bool
+Table.isColumnVisible (columnIds.note) model.table -- Maybe Bool
 Table.density model.table"""
 
 
@@ -2121,9 +2180,9 @@ ownersCode : String
 ownersCode =
     """Table.view TableMsg
     [ Table.columns
-        [ Table.text "name" "Owner" .name []
-        , Table.int "orders" "Orders" .orders [ Table.footerSum ]
-        , Table.float "averageTotal" "Average total" 2 .averageTotal []
+        [ Table.text (columnIds.name) "Owner" .name []
+        , Table.int (columnIds.orders) "Orders" .orders [ Table.footerSum ]
+        , Table.float (columnIds.averageTotal) "Average total" 2 .averageTotal []
         ]
     , Table.rows model.rows
     , Table.rowId .name
@@ -2335,10 +2394,10 @@ narrowCode : String
 narrowCode =
     """Table.view TableMsg
     [ Table.columns
-        [ Table.text "customer" "Customer" .customer [ Table.pinned, Table.width 200 ]
-        , Table.text "email" "Email" .email [ Table.width 240 ]
-        , Table.text "note" "Note" .note [ Table.width 260 ]
-        , Table.date "due" "Due" .due [ Table.width 120 ]
+        [ Table.text (columnIds.customer) "Customer" .customer [ Table.pinned, Table.width 200 ]
+        , Table.text (columnIds.email) "Email" .email [ Table.width 240 ]
+        , Table.text (columnIds.note) "Note" .note [ Table.width 260 ]
+        , Table.date (columnIds.due) "Due" .due [ Table.width 120 ]
         -- ... more columns, each with a width
         ]
     , Table.rows model.orders
@@ -2594,7 +2653,7 @@ queryBlock q =
     in
     String.join "\n"
         [ "{ search = \"" ++ q.search ++ "\""
-        , ", sort = " ++ list (List.map (\( column, direction ) -> "( \"" ++ column ++ "\", " ++ directionText direction ++ " )") q.sort)
+        , ", sort = " ++ list (List.map (\( column, direction ) -> "( \"" ++ Table.columnName column ++ "\", " ++ directionText direction ++ " )") q.sort)
         , ", filters = " ++ list (List.map filterEntryText q.filters)
         , ", page = " ++ String.fromInt q.page
         , ", pageSize = " ++ String.fromInt q.pageSize
@@ -2602,9 +2661,9 @@ queryBlock q =
         ]
 
 
-sortLevelText : ( String, Table.Direction ) -> String
+sortLevelText : ( Table.ColumnId, Table.Direction ) -> String
 sortLevelText ( column, direction ) =
-    column
+    Table.columnName column
         ++ (case direction of
                 Table.Ascending ->
                     " ↑"
@@ -2624,10 +2683,10 @@ directionText direction =
             "Descending"
 
 
-filterEntryText : ( String, Table.Filter ) -> String
+filterEntryText : ( Table.ColumnId, Table.Filter ) -> String
 filterEntryText ( column, filter ) =
     "( \""
-        ++ column
+        ++ Table.columnName column
         ++ "\", "
         ++ (case filter of
                 Table.Contains text ->

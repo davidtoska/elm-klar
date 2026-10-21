@@ -512,18 +512,18 @@ sideways under the pinned SKU.
 -}
 columns : Locale -> List (Table.Column Product Msg)
 columns locale =
-    [ Table.text "sku" "SKU" .sku [ Table.pinned, Table.width 116, Table.filterText ]
-    , Table.text "name" "Name" .name [ Table.minWidth 200, Table.filterText ]
-    , Table.text "category" "Category" leafOf [ Table.width 130, Table.filterSelect, Table.exportAs (.category >> Category.pathLabel) ]
-    , Table.text "supplier" "Supplier" .supplier [ Table.width 170, Table.filterSelect ]
-    , Table.float "price" "Price" 2 .price [ Table.filterRange, Table.cell (priceCell locale) ]
-    , Table.int "stock" "Stock" .stock [ Table.width 130, Table.filterRange, Table.cell (stockCell locale) ]
-    , Table.int "reorder" "Reorder level" .reorderLevel [ Table.filterRange ]
+    [ Table.text (Table.columnId "sku") "SKU" .sku [ Table.pinned, Table.width 116, Table.filterText ]
+    , Table.text (Table.columnId "name") "Name" .name [ Table.minWidth 200, Table.filterText ]
+    , Table.text (Table.columnId "category") "Category" leafOf [ Table.width 130, Table.filterSelect, Table.exportAs (.category >> Category.pathLabel) ]
+    , Table.text (Table.columnId "supplier") "Supplier" .supplier [ Table.width 170, Table.filterSelect ]
+    , Table.float (Table.columnId "price") "Price" 2 .price [ Table.filterRange, Table.cell (priceCell locale) ]
+    , Table.int (Table.columnId "stock") "Stock" .stock [ Table.width 130, Table.filterRange, Table.cell (stockCell locale) ]
+    , Table.int (Table.columnId "reorder") "Reorder level" .reorderLevel [ Table.filterRange ]
 
     -- "Yes" and "No" are the text of this column, and the search looks in the
     -- text: without `notSearchable`, "no" would find every inactive product and
     -- "yes" nearly all of them.
-    , Table.bool "active" "Active" .active [ Table.filterSelect, Table.notSearchable ]
+    , Table.bool (Table.columnId "active") "Active" .active [ Table.filterSelect, Table.notSearchable ]
     ]
 
 
