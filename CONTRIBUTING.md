@@ -1,0 +1,321 @@
+# Working on Klar
+
+Klar is a UI toolkit for data-intensive applications, written in plain Elm and
+plain CSS. This file is for people who change the library. If you only want to
+use it, read the [README](README.md).
+
+Design language: **calm, precise, dense**. Gray, white and blue, thin 1px lines,
+small radii (2-5px), the system font at 13px, tabular numbers, muted status
+colors. Nothing decorative.
+
+## Layout of the repository
+
+```
+elm.json                 the package (exposed modules, dependencies, version)
+src/Klar.elm             the entry point: stylesheet, conventions, module index
+src/Klar/*.elm           one module per component (Klar.Button, Klar.Select, Klar.Table ...)
+src/Klar/<Name>/         modules that belong to one component and are not exposed
+src/Klar/Internal/       the generated stylesheet module (do not edit)
+css/src/*.css            the stylesheet sources (tokens, base, icons, one file per group)
+css/klar.css             the generated bundle (do not edit, see "Stylesheet")
+scripts/                 development tools (Node, no dependencies)
+tests/                   unit tests of the pure logic (elm-test)
+example/                 the showcase application (its own elm.json)
+```
+
+## Commands
+
+```bash
+npm install              # elm, elm-test and elm-format, pinned; nothing else
+npm run build:css        # css/src/*.css -> css/klar.css + src/Klar/Internal/Css.elm
+npm run check            # everything below
+npm run check:text       # UTF-8, LF line endings, no byte order mark (npm run format repairs them)
+npm run check:css        # the generated stylesheet files are up to date
+npm run check:classes    # every CSS class the Elm code uses has a rule
+npm run check:icons      # every icon value has its rule, and the other way round
+npm run check:docs       # every exposed name is documented; elm make --docs passes
+npm run check:api        # no public signature mentions a type a user cannot name
+npm run check:format     # elm-format --validate
+npm test                 # elm-test
+npm run build:example    # compiles the showcase application (optimized)
+npm run check:compat     # Elm 0.19.1 and the oldest allowed dependencies (needs the network; not part of check)
+npm start                # builds the showcase and serves it on http://localhost:8000
+```
+
+Elm 0.19.3 is the reference compiler. The package declares
+`0.19.0 <= v < 0.20.0`, as every package should, and uses no language feature
+newer than 0.19.0. It also compiles with Elm 0.19.1 and with the oldest versions of
+its dependencies that `elm.json` allows (check both before a release, see
+[RELEASING.md](RELEASING.md)).
+
+## The rules
+
+1. **Official packages only**: `elm/core`, `elm/html`, `elm/browser`, `elm/json`,
+   `elm/time`. No `elm/url` (its `percentEncode` throws on half of an emoji; use
+   `Klar.Internal.percentEncode`), no `elm/svg`, no `elm/http`, no `elm/file`. No ports, no
+   kernel code, no `Debug`. If you think you need JavaScript, you do not: see
+   "Tricks" below. (Elm tuples have at most three elements: use records.)
+2. **The library never imports from an application.** The `example/` application
+   imports only exposed `Klar.*` modules; `npm run check:example-imports` checks it.
+3. **CSS uses tokens** (`var(--klar-...)`), never hard-coded colors, radii, spacing or
+   z-indexes. Class names are BEM with the `klar-` prefix: `klar-select`,
+   `klar-select__option`, `klar-select--open`. State is a modifier class
+   (`--open`, `--disabled`, `--invalid`), never a bare `.is-open`.
+4. **Every component is keyboard-usable and has sensible ARIA** (role,
+   `aria-expanded`, `aria-selected`, `aria-sort`, `aria-live` for async changes,
+   `aria-label` on icon-only buttons). ARIA references (`aria-controls`,
+   `aria-labelledby`, `aria-describedby`) always name ids that exist.
+5. **Every component that shows remote data has all four states**: loading,
+   failed (with retry), empty, and data. Use `Klar.Remote`, `Klar.Skeleton`,
+   `Klar.Spinner`, `Klar.EmptyState`, `Klar.ErrorState`.
+6. **Text**: no English or Norwegian text is hard-wired into a component except
+   through `Klar.Locale` (see "Locale"). Application text always comes from the
+   application.
+7. **Never change what the user typed behind their back.** `NumberInput` keeps a
+   number outside `min` and `max` (55 does not quietly become 50), shows the
+   built-in error and reports `isValid` as `False`. Only an explicit action (the
+   steppers, the arrow keys) moves a value into range. New components follow the
+   same rule: show the problem, never "fix" it.
+8. **Keep the public API small and stable.** An exposed custom type with exposed
+   constructors can never get a new constructor without a major version (Elm's
+   semantic versioning check treats it as a breaking change). Open-ended sets (icons,
+   languages) are values of an opaque type; only small closed vocabularies (`Tone`,
+   `Size`, `Remote`, `Direction` ...) are exposed unions. `npm run check:api` lists the
+   exposed unions, so a new one is a decision, not an accident. (`Klar.Rule.Operator`
+   is the largest: adding an operator is a major release.)
+9. Code is formatted by `elm-format`; modules have documentation (below).
+
+## API conventions
+
+### Stateless components
+
+`view` takes a list of attributes, like `Html`. Required content is positional.
+
+```elm
+Button.view [ Button.primary, Button.icon Icon.save, Button.onClick Save ] "Save"
+Badge.view [ Badge.tone Success ] "Active"
+Card.view [ Card.title "Activity" ] [ content ]
+```
+
+An attribute is an opaque function over a config record:
+
+```elm
+type Attribute msg
+    = Attribute (Config msg -> Config msg)
+
+configure : List (Attribute msg) -> Config msg
+configure attributes =
+    List.foldl (\(Attribute change) config -> change config) defaults attributes
+```
+
+Components that never emit messages use `Attribute` without a `msg` parameter
+(`Badge`). Later attributes win over earlier ones. Name attributes after what they
+set (`placeholder`, `onInput`), use bare names for flags (`required`, `clearable`) and
+`Bool` arguments where the value usually comes from the model (`disabled`,
+`loading`).
+
+### Form controls
+
+Every control accepts the common field attributes `label`, `hint`, `error` (and
+`errorMaybe`), `required`, `optionalText`, `labelHidden` and `id`, by embedding
+`Field.Config` (see `TextInput.elm`) and wrapping the control with `Field.view`.
+
+### Stateful components
+
+A component with its own UI state (open/closed, query, highlighted row, sort ...)
+exposes:
+
+```elm
+type State                      -- opaque
+init : String -> State          -- the String is a DOM id, unique on the page
+type Msg                        -- opaque
+update : Msg -> State -> ( State, Cmd Msg )
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
+subscriptions : State -> Sub Msg    -- only if truly needed; prefer not to
+```
+
+plus accessors (`isOpen`, `value`, `query` ...) and setters (`setValue`, `open`,
+`close` ...). The application wires it like any Elm architecture child:
+
+```elm
+SelectMsg m ->
+    let
+        ( s, cmd ) =
+            Select.update m model.select
+    in
+    ( { model | select = s }, Cmd.map SelectMsg cmd )
+```
+
+**State holds the value too** for the select family, pickers and tables
+(selection, sort, page ...): the application reads it through accessors and
+compares before and after to react (`Select.value new /= Select.value old`). There
+are no out-messages. Row clicks, row actions and other things that are not state
+changes are plain `msg` callbacks given as attributes.
+
+### Remote data
+
+Components that show data from a backend take it as a `Remote`:
+`Table.rows (Remote (List row))`, `Select.remote (Remote (List Option))`. They render
+the loading skeleton, the failure state with a retry callback (`onRetry : msg`) and
+the empty state themselves.
+
+### Locale
+
+Built-in text (placeholders, "Rows per page", aria-labels) lives in the component,
+in a small record, picked with `Locale.pick`. Every component with built-in text has
+a `locale : Locale -> Attribute msg` (default `Locale.default`, which is `Locale.en`)
+and, where it makes sense, an attribute to override single strings. Write both `nb`
+and `en`. `Locale` is an opaque type (`Locale.en`, `Locale.nb`), so that a language
+can be added in a minor version: never `case` on a locale, choose with `Locale.pick`.
+
+## Popups: the recipe
+
+Dropdowns, menus, date pickers and popovers share one mechanism (`css/src/base.css`):
+
+```html
+<div class="klar-anchor">                      <!-- wrapper: trigger + popup, also the CSS anchor -->
+  <button ...>trigger</button>
+  <div class="klar-layer" onClick=close>       <!-- transparent full-viewport click-away layer -->
+    <div class="klar-popup" ...>content</div>  <!-- fixed, anchored below the wrapper, flips when no room -->
+  </div>
+</div>
+```
+
+- `.klar-popup` is `position: fixed` and anchored with CSS anchor positioning, so it
+  is never clipped by `overflow` on tables, cards or modal bodies and flips above
+  when there is no room. Browsers without anchor positioning get an absolute
+  fallback. **Never use percentage widths on a popup** (they resolve against the
+  viewport); use `min-width: anchor-size(width)` inside the `@supports (position-anchor: ...)`
+  block, as `.klar-menu__popup` does.
+- **Closing** needs no subscriptions: a click on the layer closes. A click on
+  something *inside* the popup bubbles up to the layer too, so a menu item can send
+  its own message and the menu closes in the same event (see `Menu.elm`). Popup
+  content that must stay open (a search box, a calendar, checkboxes) is better
+  protected by deciding on the layer: decode the click target and ignore clicks that
+  started inside the popup (`outsideClick` in `Klar.Table`, `insidePopup` in
+  `Klar.Modal` and `Klar.Popover`). `Internal.onClickStop` around form controls is
+  risky: stopping the click makes Elm re-render in the middle of it, which can undo a
+  checkbox under the pointer.
+- Escape and Tab are handled on the layer with `Internal.onKeysPassive`; the popup
+  (or its search input) is focused on open with `Internal.focus`, and focus returns
+  to the trigger on close.
+- Do not put `transform`, `filter` or `will-change` on a component that contains a
+  popup: it turns the fixed popup into a box relative to that element. Animate with
+  `animation` and no `fill-mode` (the transform is gone when the animation ends).
+- Lists inside popups have a fixed row height (`--klar-option-h`) so keyboard
+  navigation can use `Internal.ensureVisible`. For thousands of rows, window them
+  (`Klar.VirtualList`).
+
+## Tricks you need
+
+- **Custom properties and inline styles**: `Html.Attributes.style` cannot set
+  `--vars`. Use `Internal.styleVars [ ( "--klar-w", "120px" ), ( "width", "30%" ) ]`:
+  one `style` attribute per element, never mixed with `Html.Attributes.style`.
+- **Conditional attributes**: `Internal.attrIf cond attr`, `Internal.attrMaybe f maybe`.
+- **preventDefault and a message**: `Html.Events.preventDefaultOn`; `Internal.onKeys`
+  does it for keys.
+- **Focus**: `Internal.focus id NoOp` (Elm waits one frame, so it works right after
+  the element is created in the same update).
+- **Download without JavaScript**: `<a href="data:text/csv;charset=utf-8,<percent-encoded>" download="file.csv">`
+  (`Url.percentEncode`).
+- **Mounted and timers**: `Process.sleep ms |> Task.perform (always Tick)`; compare a
+  counter in the message to the model to ignore stale timers.
+- **Reading browser measurements** without ports: `Browser.Dom.getElement`,
+  `getViewportOf`.
+- **Graphics without an SVG package**: do not try `Html.Attributes.property "innerHTML"`.
+  Icons are CSS masks over a `data:` SVG in the stylesheet; charts are positioned HTML
+  elements, with lines drawn by an SVG written as a `data:` URI and used as a CSS mask
+  (see `Klar.Chart`).
+- **Integer math**: Elm's `//` cuts numbers to 32 bits, so do not use it on
+  milliseconds or large amounts (`Format` splits big numbers as text and uses `floor`
+  on Floats).
+- **Links in a `Browser.application`**: every `<a href>` click is reported as
+  `UrlRequested`, even with `preventDefault`. Anything that is not a navigation (an
+  error-summary link, a skip link) must be a button, or the application must ignore
+  fragments it does not own.
+- **Page-level keyboard**: use `Klar.Shortcut`; do not add document listeners of your
+  own.
+- **Focus must survive a re-render.** When an element that has focus is replaced or
+  moved in the DOM (a control that moves into the `Field` wrapper when its first error
+  appears, a keyed child that Elm moves instead of inserting around), the browser drops
+  focus to the page. A control that makes messages of its own while the user types uses
+  `Field.viewStable`; a list of chips in front of an input lives in its own wrapper
+  (`TagInput`); a button that is replaced by "Saving ..." hands focus to a region that
+  stays (`Form.focusStatus`). Test with real key presses and look at
+  `document.activeElement` afterwards: `BODY` is the bug.
+- **Keys right after a list opens.** Focus reaches the search box one frame after
+  `Open`, and a fast typist gets keys in between. The trigger of `Select` and
+  `MultiSelect` handles those keys itself and works out the effect in `update` from the
+  latest state, never from the state the view had when it sent the message.
+- **Notices that appear while the user types** (an "unsaved changes" mark) must not
+  interrupt a screen reader (`Alert.polite`) and must not push the form around.
+- **A file dropped outside a drop zone** is opened by the browser and replaces the
+  application: `AppShell.onStrayDrop` cancels such drops.
+- **`<html lang>` cannot change without JavaScript**, so `AppShell` puts `lang` on its
+  own root (from `AppShell.locale`). Screen readers use the nearest `lang`.
+- Tabular numbers: class `klar-tabular`; ellipsis: `klar-truncate`; screen-reader
+  only: `klar-sr-only`.
+
+## Stylesheet
+
+The sources are `css/src/*.css`, imported in order by `css/src/index.css`. Run
+`npm run build:css` after changing them. It writes
+
+- `css/klar.css`: the readable bundle, for applications that link a file, and
+- `src/Klar/Internal/Css.elm`: the same CSS (comments and blank lines removed) as an Elm
+  string, which `Klar.stylesheet` renders. This is what makes the package usable
+  without any build step on the application side.
+
+Both are committed. `npm run check:css` fails when they are out of date.
+
+## Documentation
+
+Elm packages are documented by their source. `elm make --docs` (and `elm publish`)
+refuse a module unless every exposed name appears in the module documentation in a
+`@docs` line, and has a documentation comment. `npm run check:docs` runs the same
+check for all modules (or just some: `node scripts/check-docs.mjs Klar.Button`).
+
+**Module documentation** (`{-| ... -}` straight after the `module` line):
+
+1. One sentence that says what the module is for.
+2. One or two short paragraphs: when to use it (and when to use its neighbor
+   instead), the behavior a reader would otherwise have to discover: keyboard
+   support, accessibility, what the state remembers, how remote data and the locale
+   are handled.
+3. A small, realistic example, indented by four spaces. Show the pieces an
+   application needs to write: for a stateful component the model field, the message
+   handling and the `view` call.
+4. Sections with `# Heading` lines, each followed by `@docs name, name, name`.
+   Group by what a reader does: *State*, *Value and popup*, *Options*, *Attributes*,
+   *Texts*. Put the `view` first. Lists can be long; keep each `@docs` on one line.
+
+**Every exposed name** has a comment that says what it does for the *user of the
+library*, in one to three sentences, and mentions the default when there is one.
+Show an example when the use is not obvious. Say what the `String` of an `init` is,
+what a `msg` callback receives, what is sent when. Opaque types (`State`, `Msg`,
+`Attribute`) get one sentence on how to obtain and use them.
+
+**Examples** use English and a neutral business domain: orders, customers,
+products, invoices, shipments, warehouses. No people records beyond names such as
+"Ada Lovelace", nothing medical or personal. Keep the examples short enough to read
+at a glance and make sure they would compile with the imports shown or implied.
+
+Link to other modules with `[Klar.Button](Klar-Button)`.
+
+## Adding a component
+
+1. `src/Klar/<Name>.elm`: module doc with a usage example, opaque `Attribute`/`Config`,
+   built-in text through `Locale.pick`, ARIA and keyboard from the start. Stateful?
+   Follow "Stateful components". Add it to `exposed-modules` in `elm.json`.
+2. Styles in the matching group file under `css/src/` (tokens only, `klar-<name>` BEM),
+   then `npm run build:css`.
+3. A section on the showcase page of its group in `example/`.
+4. Pure logic (parsing, filtering, evaluation) gets tests in `tests/`.
+5. `npm run check`, then look at it in a browser: every interaction must work with the
+   mouse **and** the keyboard, popups must open in the right place (also near the
+   bottom edge and inside a scrolling container), nothing may overflow, the layout
+   must hold at 1024px width, and the console must have no errors.
+
+## Releasing
+
+See [RELEASING.md](RELEASING.md).

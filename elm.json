@@ -1,0 +1,131 @@
+{
+    "type": "package",
+    "name": "davidtoska/elm-klar",
+    "summary": "Precise, data-dense UI components for data-intensive Elm applications",
+    "license": "BSD-3-Clause",
+    "version": "1.0.0",
+    "exposed-modules": {
+        "Start here": [
+            "Klar"
+        ],
+        "Foundations": [
+            "Klar.Theme",
+            "Klar.Locale",
+            "Klar.Layout",
+            "Klar.Card",
+            "Klar.Text",
+            "Klar.Icon"
+        ],
+        "Actions": [
+            "Klar.Button",
+            "Klar.Menu"
+        ],
+        "Status and feedback": [
+            "Klar.Badge",
+            "Klar.Tag",
+            "Klar.Alert",
+            "Klar.Spinner",
+            "Klar.Skeleton",
+            "Klar.Progress",
+            "Klar.EmptyState",
+            "Klar.ErrorState"
+        ],
+        "Forms": [
+            "Klar.Form",
+            "Klar.Field",
+            "Klar.Validate"
+        ],
+        "Inputs": [
+            "Klar.TextInput",
+            "Klar.TextArea",
+            "Klar.NumberInput",
+            "Klar.PasswordInput",
+            "Klar.SearchInput",
+            "Klar.TagInput",
+            "Klar.FileDrop",
+            "Klar.InlineEdit",
+            "Klar.Checkbox",
+            "Klar.CheckboxGroup",
+            "Klar.Radio",
+            "Klar.Switch",
+            "Klar.Slider",
+            "Klar.SegmentedControl"
+        ],
+        "Choosing": [
+            "Klar.Select",
+            "Klar.Select.Option",
+            "Klar.MultiSelect",
+            "Klar.Autocomplete",
+            "Klar.VirtualList"
+        ],
+        "Date and time": [
+            "Klar.Date",
+            "Klar.DatePicker",
+            "Klar.DateRangePicker",
+            "Klar.TimePicker",
+            "Klar.DateTimePicker",
+            "Klar.Calendar"
+        ],
+        "Tables and lists": [
+            "Klar.Table",
+            "Klar.Pagination",
+            "Klar.ListItem",
+            "Klar.Tree"
+        ],
+        "Overlays": [
+            "Klar.Modal",
+            "Klar.ConfirmDialog",
+            "Klar.Drawer",
+            "Klar.Toast",
+            "Klar.Popover",
+            "Klar.Tooltip",
+            "Klar.ContextMenu",
+            "Klar.CommandPalette",
+            "Klar.ShortcutHelp"
+        ],
+        "Navigation": [
+            "Klar.AppShell",
+            "Klar.SideNav",
+            "Klar.PageHeader",
+            "Klar.Breadcrumbs",
+            "Klar.Tabs",
+            "Klar.Stepper"
+        ],
+        "Structure": [
+            "Klar.Accordion",
+            "Klar.Toolbar",
+            "Klar.DescriptionList"
+        ],
+        "Data display": [
+            "Klar.Stat",
+            "Klar.Chart",
+            "Klar.Timeline",
+            "Klar.Avatar",
+            "Klar.JsonViewer"
+        ],
+        "Rules and filters": [
+            "Klar.Rule",
+            "Klar.RuleBuilder",
+            "Klar.FilterBar",
+            "Klar.SavedViews"
+        ],
+        "Data and utilities": [
+            "Klar.Remote",
+            "Klar.Search",
+            "Klar.Format",
+            "Klar.Shortcut"
+        ]
+    },
+    "elm-version": "0.19.0 <= v < 0.20.0",
+    "dependencies": {
+        "elm/browser": "1.0.2 <= v < 2.0.0",
+        "elm/core": "1.0.0 <= v < 2.0.0",
+        "elm/html": "1.0.0 <= v < 2.0.0",
+        "elm/json": "1.0.0 <= v < 2.0.0",
+        "elm/time": "1.0.0 <= v < 2.0.0"
+    },
+    "test-dependencies": {
+        "elm-explorations/test": "2.2.1 <= v < 3.0.0",
+        "elm/url": "1.0.0 <= v < 2.0.0"
+    }
+}

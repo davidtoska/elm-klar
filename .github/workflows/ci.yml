@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # elm, elm-test and elm-format are pinned in package.json
+      - run: npm ci
+
+      - name: Cache Elm packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.elm
+          key: elm-${{ hashFiles('elm.json', 'example/elm.json') }}
+
+      # stylesheet, icons, docs, API, formatting, tests, the showcase
+      - run: npm run check
+
+  # the previous compiler (0.19.1) and the oldest versions of the dependencies that
+  # elm.json allows: a package must build with everything it claims to support
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run check:compat

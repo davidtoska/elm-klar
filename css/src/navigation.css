@@ -1,0 +1,1595 @@
+/* ==========================================================================
+   Navigation and page structure
+   app shell, side nav, page header, breadcrumbs, tabs, accordion, toolbar,
+   description list, stepper
+   ========================================================================== */
+
+/* ---- App shell -------------------------------------------------------------
+   The shell is a size container: its layout reacts to its own width, not to the
+   window. In the real application the two are the same; in a framed demo the
+   narrow layout can be shown without resizing the window.
+   Below 900px the sidebar is an off-canvas drawer.
+   ------------------------------------------------------------------------- */
+
+.klar-app-shell {
+  container: klar-app-shell / inline-size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  /* Not a scroll container at all: focusing or scrolling something that sticks
+     out of the shell (a popup, a wide table) must never scroll the frame itself
+     and push the top bar out of sight. */
+  overflow: clip;
+  background: var(--klar-bg);
+  color: var(--klar-text);
+}
+
+.klar-app-shell--framed {
+  height: var(--klar-app-shell-h);
+  max-width: var(--klar-app-shell-w, none);
+  border: 1px solid var(--klar-border-strong);
+  border-radius: var(--klar-radius-lg);
+}
+
+.klar-app-shell__chrome {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.klar-app-shell__overlays { display: contents; }
+
+.klar-app-shell__banner { flex: none; }
+
+/* skip link: invisible until it gets keyboard focus */
+.klar-app-shell__skip {
+  position: absolute;
+  top: var(--klar-space-2);
+  left: var(--klar-space-3);
+  z-index: calc(var(--klar-z-header) + 10);
+  display: inline-flex;
+  align-items: center;
+  height: var(--klar-control);
+  padding: 0 var(--klar-space-3);
+  background: var(--klar-surface);
+  color: var(--klar-text-link);
+  border: 1px solid var(--klar-primary);
+  border-radius: var(--klar-radius);
+  box-shadow: var(--klar-shadow-md);
+  font: inherit;
+  font-weight: var(--klar-weight-medium);
+  text-decoration: none;
+  cursor: pointer;
+  transform: translateY(-300%);
+}
+
+.klar-app-shell__skip:focus {
+  transform: none;
+  outline: none;
+  box-shadow: var(--klar-focus-ring), var(--klar-shadow-md);
+}
+
+/* ---- top bar ---- */
+
+.klar-app-shell__bar {
+  position: relative;
+  z-index: var(--klar-z-header);
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr minmax(160px, 400px) 1fr;
+  align-items: center;
+  column-gap: var(--klar-space-4);
+  height: var(--klar-header-h);
+  padding: 0 var(--klar-space-3);
+  background: var(--klar-surface);
+  border-bottom: 1px solid var(--klar-border);
+}
+
+/* The two outer cells never get narrower than their content (no min-width: 0),
+   so the user name is not cut off while the search field gives way. */
+.klar-app-shell__bar-start,
+.klar-app-shell__bar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+}
+
+.klar-app-shell__bar-end { justify-content: flex-end; }
+.klar-app-shell__bar-middle { min-width: 0; }
+
+.klar-app-shell__toggle--narrow { display: none; }
+/* Only the menu button shows that it is on (the drawer is open). The sidebar toggle is
+   expanded most of the time (aria-expanded="true" while the sidebar is not collapsed),
+   so it keeps the look of the other quiet buttons. */
+.klar-app-shell__toggle[aria-expanded="true"]:not(.klar-app-shell__toggle--wide) { background: var(--klar-gray-100); color: var(--klar-text); }
+
+.klar-app-shell__brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: var(--klar-space-1);
+}
+
+.klar-app-shell__brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+  min-width: 0;
+  color: var(--klar-text);
+  text-decoration: none;
+}
+
+.klar-app-shell__brand-link:hover { text-decoration: none; }
+
+.klar-app-shell__logo { display: inline-flex; flex: none; color: var(--klar-primary); }
+
+.klar-app-shell__brand-name {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--klar-text-lg);
+  font-weight: var(--klar-weight-bold);
+  letter-spacing: -0.005em;
+}
+
+/* the global search: a button that looks like a field */
+.klar-app-shell__search {
+  display: flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+  width: 100%;
+  height: var(--klar-control);
+  padding: 0 var(--klar-control-px);
+  background: var(--klar-gray-50);
+  border: 1px solid var(--klar-border-strong);
+  border-radius: var(--klar-radius);
+  color: var(--klar-text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: text;
+  transition: border-color var(--klar-dur-fast) var(--klar-ease), background-color var(--klar-dur-fast) var(--klar-ease);
+}
+
+.klar-app-shell__search:hover {
+  background: var(--klar-surface);
+  border-color: var(--klar-gray-400);
+}
+
+.klar-app-shell__search:focus-visible {
+  outline: none;
+  background: var(--klar-surface);
+  border-color: var(--klar-focus-color);
+  box-shadow: var(--klar-focus-ring);
+}
+
+.klar-app-shell__search-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.klar-app-shell__search-keys { display: flex; flex: none; }
+.klar-app-shell__search-keys .klar-kbd { min-width: 18px; height: 18px; font-size: 10.5px; background: var(--klar-surface); }
+
+.klar-app-shell__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--klar-space-1);
+}
+
+.klar-app-shell__user {
+  display: flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+  min-width: 0;
+  margin-left: var(--klar-space-1);
+  padding-left: var(--klar-space-3);
+  border-left: 1px solid var(--klar-border);
+}
+
+.klar-app-shell__avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--klar-blue-100);
+  color: var(--klar-blue-800);
+  font-size: var(--klar-text-xs);
+  font-weight: var(--klar-weight-bold);
+  letter-spacing: 0.02em;
+}
+
+.klar-app-shell__avatar-slot { display: inline-flex; flex: none; }
+
+.klar-app-shell__user-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 240px;
+  line-height: 1.2;
+}
+
+.klar-app-shell__user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: var(--klar-weight-bold);
+  color: var(--klar-text);
+}
+
+.klar-app-shell__user-role {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--klar-text-xs);
+  color: var(--klar-text-secondary);
+}
+
+/* ---- body: sidebar + content ---- */
+
+.klar-app-shell__body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.klar-app-shell__sidebar {
+  flex: none;
+  width: var(--klar-sidebar-w);
+  padding: var(--klar-space-2);
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--klar-surface);
+  border-right: 1px solid var(--klar-border);
+  transition: width var(--klar-dur) var(--klar-ease);
+}
+
+/* --klar-content-pad-wide is what the application asked for (contentPadding);
+   --klar-content-pad is what is used, and what a PageHeader band cancels out. */
+.klar-app-shell__content {
+  --klar-content-pad: var(--klar-content-pad-wide, var(--klar-space-6));
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--klar-content-pad);
+  overflow: auto;
+}
+
+.klar-app-shell__content:focus { outline: none; }
+
+.klar-app-shell__page {
+  width: 100%;
+  margin-inline: auto;
+}
+
+.klar-app-shell__backdrop { display: none; }
+
+/* wide: the sidebar can collapse to icons */
+@container klar-app-shell (min-width: 900px) {
+  .klar-app-shell--collapsed .klar-app-shell__sidebar { width: var(--klar-sidebar-w-collapsed); }
+}
+
+/* narrow: the sidebar is a drawer */
+@container klar-app-shell (max-width: 899px) {
+  /* the start cell gives way first: the brand name is cut with an ellipsis, then
+     disappears, but nothing ever overlaps */
+  .klar-app-shell__bar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: var(--klar-space-2);
+    padding: 0 var(--klar-space-2);
+  }
+
+  .klar-app-shell__bar-start { min-width: 0; }
+  .klar-app-shell__brand { min-width: 0; }
+
+  .klar-app-shell__toggle--wide { display: none; }
+  .klar-app-shell__toggle--narrow { display: inline-flex; }
+
+  .klar-app-shell__bar-middle { display: flex; justify-content: flex-end; }
+
+  .klar-app-shell__search {
+    width: var(--klar-control);
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .klar-app-shell__search-text,
+  .klar-app-shell__search-keys { display: none; }
+
+  .klar-app-shell__sidebar {
+    position: absolute;
+    z-index: calc(var(--klar-z-header) + 5);
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(280px, 86%);
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform var(--klar-dur) var(--klar-ease), visibility 0s linear var(--klar-dur);
+  }
+
+  .klar-app-shell--drawer-open .klar-app-shell__sidebar {
+    visibility: visible;
+    transform: none;
+    transition-delay: 0s;
+    box-shadow: var(--klar-shadow-lg);
+  }
+
+  .klar-app-shell__backdrop {
+    display: block;
+    position: absolute;
+    z-index: calc(var(--klar-z-header) + 4);
+    inset: 0;
+    background: var(--klar-overlay);
+    animation: klar-fade-in var(--klar-dur) var(--klar-ease);
+  }
+
+  .klar-app-shell__content { --klar-content-pad: min(var(--klar-content-pad-wide, var(--klar-space-6)), var(--klar-space-4)); }
+
+  /* An open drawer has a backdrop over the page, so the page behind it is out of
+     reach for the keyboard and for screen readers too (where the browser knows the
+     property). The top bar stays: it holds the button that closes the drawer. */
+  .klar-app-shell--drawer-open .klar-app-shell__content { interactivity: inert; }
+}
+
+@container klar-app-shell (max-width: 640px) {
+  .klar-app-shell__user-text { display: none; }
+  .klar-app-shell__user { padding-left: var(--klar-space-2); }
+  .klar-app-shell__brand-name { max-width: 14ch; }
+}
+
+/* On a phone there is no room for the name ("Ac..." looks broken). When the brand
+   has a logo (brandLink adds --logo), the logo stands for the name, which stays in
+   the link for screen readers. A brand without a logo keeps its name: it is all
+   there is to show, and the rule above cuts it with an ellipsis. */
+@container klar-app-shell (max-width: 429px) {
+  .klar-app-shell__brand-link--logo .klar-app-shell__brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  /* the logo alone is a small target: give it the size of the buttons next to it */
+  .klar-app-shell__brand-link--logo {
+    justify-content: center;
+    min-width: var(--klar-control);
+    min-height: var(--klar-control);
+  }
+}
+
+/* ---- Side navigation ------------------------------------------------------- */
+
+.klar-side-nav {
+  display: block;
+  font-size: var(--klar-text-md);
+}
+
+/* Stand-alone (not stretched by a sidebar column) an open menu is never narrower
+   than a link with a label and a count needs. */
+.klar-side-nav:not(.klar-side-nav--collapsed) { min-width: 200px; }
+
+.klar-side-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.klar-side-nav__section + .klar-side-nav__section { margin-top: var(--klar-space-3); }
+
+.klar-side-nav__heading {
+  padding: 6px 10px 6px;
+  font-size: var(--klar-text-xs);
+  line-height: 1;
+  font-weight: var(--klar-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--klar-text-secondary);
+}
+
+.klar-side-nav__rule {
+  height: 1px;
+  margin: var(--klar-space-2) 6px;
+  background: var(--klar-border);
+}
+
+.klar-side-nav__item { position: relative; }
+
+.klar-side-nav__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--klar-control);
+  padding: 0 10px 0 calc(10px + 26px * var(--klar-depth, 0));
+  border: 0;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-gray-700);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--klar-dur-fast) var(--klar-ease), color var(--klar-dur-fast) var(--klar-ease);
+}
+
+.klar-side-nav__link:hover {
+  background: var(--klar-gray-100);
+  color: var(--klar-text);
+  text-decoration: none;
+}
+
+.klar-side-nav__link:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+.klar-side-nav__link--current,
+.klar-side-nav__link--current:hover {
+  background: var(--klar-blue-50);
+  color: var(--klar-blue-700);
+  font-weight: var(--klar-weight-bold);
+}
+
+.klar-side-nav__link--current::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--klar-primary);
+}
+
+.klar-side-nav__link--disabled,
+.klar-side-nav__link--disabled:hover {
+  background: transparent;
+  color: var(--klar-text-disabled);
+  cursor: not-allowed;
+}
+
+.klar-side-nav__icon {
+  display: flex;
+  flex: none;
+  color: var(--klar-gray-500);
+}
+
+.klar-side-nav__link:hover .klar-side-nav__icon { color: var(--klar-gray-700); }
+.klar-side-nav__link--current .klar-side-nav__icon,
+.klar-side-nav__link--current:hover .klar-side-nav__icon { color: var(--klar-primary); }
+.klar-side-nav__link--disabled .klar-side-nav__icon { color: var(--klar-text-disabled); }
+
+.klar-side-nav__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.klar-side-nav__aside {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.klar-side-nav__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--klar-radius-full);
+  background: var(--klar-gray-150);
+  color: var(--klar-gray-700);
+  font-size: var(--klar-text-xs);
+  font-weight: var(--klar-weight-bold);
+  line-height: 1;
+}
+
+.klar-side-nav__link--current .klar-side-nav__count {
+  background: var(--klar-blue-100);
+  color: var(--klar-blue-800);
+}
+
+.klar-side-nav__badge { display: flex; }
+
+.klar-side-nav__chevron {
+  display: flex;
+  flex: none;
+  color: var(--klar-gray-400);
+  transition: transform var(--klar-dur) var(--klar-ease);
+}
+
+.klar-side-nav__group--open > .klar-side-nav__link > .klar-side-nav__chevron { transform: rotate(90deg); }
+
+/* a closed group that holds the current page */
+.klar-side-nav__group--active:not(.klar-side-nav__group--open) > .klar-side-nav__link--group {
+  color: var(--klar-blue-700);
+  font-weight: var(--klar-weight-bold);
+}
+
+.klar-side-nav__group--active:not(.klar-side-nav__group--open) > .klar-side-nav__link--group .klar-side-nav__icon { color: var(--klar-primary); }
+
+.klar-side-nav__children {
+  position: relative;
+  margin: 2px 0;
+}
+
+/* the thin guide line under the icon of the parent; a group inside a group steps
+   one level further in */
+.klar-side-nav__children::before {
+  content: "";
+  position: absolute;
+  left: calc(17px + 26px * (var(--klar-depth, 1) - 1));
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--klar-border);
+}
+
+.klar-side-nav__link--nested { font-size: var(--klar-text-md); }
+
+.klar-side-nav__group:not(.klar-side-nav__group--open) > .klar-side-nav__children { display: none; }
+
+.klar-side-nav__flyout-title { display: none; }
+
+/* ---- collapsed (icons only) ----
+   The same rules apply in two places: a menu anywhere but in the sidebar of an
+   AppShell applies them always, in the sidebar of an AppShell only while the shell
+   is wide (below 900px the sidebar is a drawer and shows labels). A menu in the
+   content of a page that sits inside an AppShell is "anywhere" too. */
+
+.klar-side-nav--collapsed:not(.klar-app-shell__sidebar *) {
+  & .klar-side-nav__heading {
+    height: 1px;
+    margin: var(--klar-space-2) 6px;
+    padding: 0;
+    overflow: hidden;
+    background: var(--klar-border);
+    color: transparent;
+    font-size: 0;
+  }
+
+  & .klar-side-nav__section + .klar-side-nav__section { margin-top: 0; }
+  & .klar-side-nav__section:first-child > .klar-side-nav__heading { display: none; }
+
+  & .klar-side-nav__link--root {
+    justify-content: center;
+    min-width: 32px;
+    padding: 0;
+  }
+
+  /* the label stays in the page for screen readers */
+  & .klar-side-nav__link--root > .klar-side-nav__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  & .klar-side-nav__link--root > .klar-side-nav__chevron,
+  & .klar-side-nav__link--root .klar-side-nav__badge { display: none; }
+
+  & .klar-side-nav__link--root > .klar-side-nav__aside {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    margin: 0;
+  }
+
+  & .klar-side-nav__link--root .klar-side-nav__count {
+    min-width: 0;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    overflow: hidden;
+    background: var(--klar-primary);
+    box-shadow: 0 0 0 1.5px var(--klar-surface);
+    color: transparent;
+    font-size: 0;
+  }
+
+  & .klar-side-nav__children {
+    display: none;
+    position: absolute;
+    top: -4px;
+    left: calc(100% + 8px);
+    z-index: var(--klar-z-popup);
+    flex-direction: column;
+    gap: 1px;
+    min-width: 220px;
+    margin: 0;
+    padding: 4px;
+    background: var(--klar-surface);
+    border: 1px solid var(--klar-border-strong);
+    border-radius: var(--klar-radius-lg);
+    box-shadow: var(--klar-shadow-md);
+  }
+
+  /* invisible bridge so the mouse can cross the gap to the flyout */
+  & .klar-side-nav__children::before {
+    left: -10px;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    background: transparent;
+  }
+
+  & .klar-side-nav__group:hover > .klar-side-nav__children,
+  & .klar-side-nav__group:focus-within > .klar-side-nav__children { display: flex; }
+
+  & .klar-side-nav__flyout-title {
+    display: block;
+    padding: 6px 8px 4px;
+    font-size: var(--klar-text-xs);
+    font-weight: var(--klar-weight-bold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--klar-text-secondary);
+  }
+
+  & .klar-side-nav__children .klar-side-nav__link--nested { padding-left: 8px; }
+}
+
+@supports (anchor-name: --klar-a) and (position-anchor: --klar-a) {
+  .klar-side-nav--collapsed:not(.klar-app-shell__sidebar *) .klar-side-nav__children {
+    position: fixed;
+    position-anchor: --klar-anchor;
+    top: calc(anchor(top) - 4px);
+    left: calc(anchor(right) + 8px);
+    margin: 0;
+    position-try-fallbacks: flip-block;
+  }
+}
+
+@container klar-app-shell (min-width: 900px) {
+  .klar-app-shell__sidebar .klar-side-nav--collapsed {
+    & .klar-side-nav__heading {
+      height: 1px;
+      margin: var(--klar-space-2) 6px;
+      padding: 0;
+      overflow: hidden;
+      background: var(--klar-border);
+      color: transparent;
+      font-size: 0;
+    }
+
+    & .klar-side-nav__section + .klar-side-nav__section { margin-top: 0; }
+    & .klar-side-nav__section:first-child > .klar-side-nav__heading { display: none; }
+
+    & .klar-side-nav__link--root {
+      justify-content: center;
+      min-width: 32px;
+      padding: 0;
+    }
+
+    & .klar-side-nav__link--root > .klar-side-nav__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    & .klar-side-nav__link--root > .klar-side-nav__chevron,
+    & .klar-side-nav__link--root .klar-side-nav__badge { display: none; }
+
+    & .klar-side-nav__link--root > .klar-side-nav__aside {
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      margin: 0;
+    }
+
+    & .klar-side-nav__link--root .klar-side-nav__count {
+      min-width: 0;
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      overflow: hidden;
+      background: var(--klar-primary);
+      box-shadow: 0 0 0 1.5px var(--klar-surface);
+      color: transparent;
+      font-size: 0;
+    }
+
+    & .klar-side-nav__children {
+      display: none;
+      position: absolute;
+      top: -4px;
+      left: calc(100% + 8px);
+      z-index: var(--klar-z-popup);
+      flex-direction: column;
+      gap: 1px;
+      min-width: 220px;
+      margin: 0;
+      padding: 4px;
+      background: var(--klar-surface);
+      border: 1px solid var(--klar-border-strong);
+      border-radius: var(--klar-radius-lg);
+      box-shadow: var(--klar-shadow-md);
+    }
+
+    /* invisible bridge so the mouse can cross the gap to the flyout */
+    & .klar-side-nav__children::before {
+      left: -10px;
+      top: 0;
+      bottom: 0;
+      width: 10px;
+      background: transparent;
+    }
+
+    & .klar-side-nav__group:hover > .klar-side-nav__children,
+    & .klar-side-nav__group:focus-within > .klar-side-nav__children { display: flex; }
+
+    & .klar-side-nav__flyout-title {
+      display: block;
+      padding: 6px 8px 4px;
+      font-size: var(--klar-text-xs);
+      font-weight: var(--klar-weight-bold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--klar-text-secondary);
+    }
+
+    & .klar-side-nav__children .klar-side-nav__link--nested { padding-left: 8px; }
+  }
+
+  @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) {
+    .klar-app-shell__sidebar .klar-side-nav--collapsed .klar-side-nav__children {
+      position: fixed;
+      position-anchor: --klar-anchor;
+      top: calc(anchor(top) - 4px);
+      left: calc(anchor(right) + 8px);
+      margin: 0;
+      position-try-fallbacks: flip-block;
+    }
+  }
+}
+
+/* ---- Page header ----------------------------------------------------------- */
+
+.klar-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--klar-space-2);
+  min-width: 0;
+  padding-bottom: var(--klar-space-4);
+}
+
+.klar-page-header__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-1) var(--klar-space-4);
+  min-height: 22px;
+}
+
+.klar-page-header__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--klar-text-link);
+  font-size: var(--klar-text-sm);
+}
+
+.klar-page-header__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--klar-space-3) var(--klar-space-6);
+}
+
+.klar-page-header__titles {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.klar-page-header__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-1) var(--klar-space-3);
+}
+
+.klar-page-header__title {
+  min-width: 0;
+  font-size: var(--klar-text-2xl);
+  line-height: var(--klar-leading-tight);
+  font-weight: var(--klar-weight-bold);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.klar-page-header__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-2);
+}
+
+.klar-page-header__subtitle {
+  max-width: 80ch;
+  color: var(--klar-text-secondary);
+}
+
+.klar-page-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--klar-space-5);
+  margin-top: 2px;
+  font-size: var(--klar-text-sm);
+}
+
+.klar-page-header__meta-item {
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.klar-page-header__meta-label { color: var(--klar-text-secondary); }
+.klar-page-header__meta-value { color: var(--klar-text); font-weight: var(--klar-weight-medium); }
+
+.klar-page-header__actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-2);
+}
+
+.klar-page-header__tabs { margin-top: var(--klar-space-1); }
+
+.klar-page-header--has-tabs { padding-bottom: 0; }
+
+/* a full-width band: cancels the padding of the shell content area */
+.klar-page-header--band {
+  padding: var(--klar-space-4) var(--klar-content-pad, var(--klar-space-6)) var(--klar-space-4);
+  margin: calc(var(--klar-content-pad, 0px) * -1) calc(var(--klar-content-pad, 0px) * -1) var(--klar-space-5);
+  background: var(--klar-surface);
+  border-bottom: 1px solid var(--klar-border);
+}
+
+.klar-page-header--band.klar-page-header--has-tabs { padding-bottom: 0; }
+
+.klar-page-header--band .klar-page-header__tabs .klar-tabs__list { box-shadow: none; }
+
+.klar-page-header--band .klar-page-header__tabs {
+  margin-bottom: -1px;
+  margin-top: var(--klar-space-2);
+}
+
+.klar-page-header--sticky {
+  position: sticky;
+  top: calc(var(--klar-content-pad, 0px) * -1);
+  z-index: var(--klar-z-sticky);
+}
+
+/* ---- Breadcrumbs ----------------------------------------------------------- */
+
+.klar-breadcrumbs { min-width: 0; }
+
+.klar-breadcrumbs__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+  font-size: var(--klar-text-sm);
+  line-height: 1.4;
+}
+
+.klar-breadcrumbs__item {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.klar-breadcrumbs__link,
+.klar-breadcrumbs__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 28ch;
+  padding: 2px 4px;
+  border-radius: var(--klar-radius-sm);
+}
+
+.klar-breadcrumbs__link {
+  color: var(--klar-text-secondary);
+  text-decoration: none;
+}
+
+.klar-breadcrumbs__link:hover {
+  background: var(--klar-gray-100);
+  color: var(--klar-primary);
+  text-decoration: none;
+}
+
+.klar-breadcrumbs__text { color: var(--klar-text-secondary); }
+
+.klar-breadcrumbs__text--current {
+  max-width: 44ch;
+  color: var(--klar-text);
+  font-weight: var(--klar-weight-medium);
+}
+
+.klar-breadcrumbs__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.klar-breadcrumbs__separator {
+  display: inline-flex;
+  flex: none;
+  margin: 0 2px;
+  color: var(--klar-gray-400);
+}
+
+.klar-breadcrumbs__item--more .klar-button--icon-only {
+  width: 24px;
+  height: 20px;
+  color: var(--klar-text-secondary);
+}
+
+.klar-breadcrumbs__popup {
+  min-width: 220px;
+  max-height: min(360px, 60vh);
+  padding: 4px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.klar-breadcrumbs__hidden {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.klar-breadcrumbs__hidden-item {
+  display: flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+  height: 30px;
+  padding: 0 var(--klar-space-2);
+  border-radius: var(--klar-radius);
+  color: var(--klar-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.klar-breadcrumbs__hidden-item:hover,
+.klar-breadcrumbs__hidden-item:focus-visible {
+  outline: none;
+  background: var(--klar-gray-100);
+  text-decoration: none;
+}
+
+.klar-breadcrumbs__hidden-item--text { color: var(--klar-text-secondary); }
+
+/* ---- Tabs ------------------------------------------------------------------ */
+
+.klar-tabs { min-width: 0; }
+
+.klar-tabs__scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.klar-tabs__list {
+  display: flex;
+  align-items: flex-end;
+  min-width: 100%;
+  width: max-content;
+}
+
+.klar-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 var(--klar-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--klar-text-secondary);
+  font: inherit;
+  font-weight: var(--klar-weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--klar-dur-fast) var(--klar-ease), background-color var(--klar-dur-fast) var(--klar-ease);
+}
+
+.klar-tabs__tab:hover { color: var(--klar-text); }
+
+.klar-tabs__tab:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+  border-radius: var(--klar-radius);
+}
+
+.klar-tabs__tab--disabled,
+.klar-tabs__tab--disabled:hover {
+  color: var(--klar-text-disabled);
+  cursor: not-allowed;
+}
+
+.klar-tabs__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--klar-radius-full);
+  background: var(--klar-gray-150);
+  color: var(--klar-gray-700);
+  font-size: var(--klar-text-xs);
+  font-weight: var(--klar-weight-bold);
+}
+
+.klar-tabs__tab--active .klar-tabs__count {
+  background: var(--klar-blue-100);
+  color: var(--klar-blue-800);
+}
+
+.klar-tabs__tab--disabled .klar-tabs__count { background: var(--klar-gray-100); color: var(--klar-text-disabled); }
+
+.klar-tabs--sm .klar-tabs__tab { height: 30px; padding: 0 10px; font-size: var(--klar-text-sm); }
+.klar-tabs--fill .klar-tabs__list { width: 100%; }
+.klar-tabs--fill .klar-tabs__tab { flex: 1 1 0; justify-content: center; }
+
+/* line */
+.klar-tabs--line .klar-tabs__list { box-shadow: inset 0 -1px 0 var(--klar-border); }
+
+.klar-tabs--line .klar-tabs__tab { border-bottom: 2px solid transparent; }
+.klar-tabs--line .klar-tabs__tab:not(.klar-tabs__tab--disabled):hover { border-bottom-color: var(--klar-gray-300); }
+
+.klar-tabs--line .klar-tabs__tab--active,
+.klar-tabs--line .klar-tabs__tab--active:hover {
+  color: var(--klar-blue-700);
+  border-bottom-color: var(--klar-primary);
+}
+
+.klar-tabs--line ~ .klar-tabs__panel { padding-top: var(--klar-space-4); }
+
+/* boxed */
+.klar-tabs--boxed .klar-tabs__list {
+  gap: 2px;
+  padding: 4px 0 1px;
+  box-shadow: inset 0 -1px 0 var(--klar-border);
+}
+
+.klar-tabs--boxed .klar-tabs__tab {
+  height: 34px;
+  background: var(--klar-gray-50);
+  border: 1px solid var(--klar-border);
+  border-bottom: 0;
+  border-radius: var(--klar-radius-lg) var(--klar-radius-lg) 0 0;
+}
+
+.klar-tabs--boxed.klar-tabs--sm .klar-tabs__tab { height: 28px; }
+
+.klar-tabs--boxed .klar-tabs__tab:not(.klar-tabs__tab--disabled):hover { background: var(--klar-gray-100); }
+
+.klar-tabs--boxed .klar-tabs__tab--active,
+.klar-tabs--boxed .klar-tabs__tab--active:hover {
+  background: var(--klar-surface);
+  color: var(--klar-text);
+  box-shadow: 0 1px 0 var(--klar-surface);
+}
+
+.klar-tabs--boxed ~ .klar-tabs__panel {
+  padding: var(--klar-space-4);
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border);
+  border-top: 0;
+  border-radius: 0 0 var(--klar-radius-lg) var(--klar-radius-lg);
+}
+
+.klar-tabs__panel:focus-visible { outline-offset: 2px; }
+
+/* ---- Accordion ------------------------------------------------------------- */
+
+.klar-accordion {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.klar-accordion--bordered {
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+}
+
+.klar-accordion--bordered .klar-accordion__section + .klar-accordion__section { border-top: 1px solid var(--klar-border); }
+.klar-accordion--bordered .klar-accordion__section:first-child > .klar-accordion__heading > .klar-accordion__header { border-radius: var(--klar-radius-lg) var(--klar-radius-lg) 0 0; }
+.klar-accordion--bordered .klar-accordion__section:last-child:not(.klar-accordion__section--open) > .klar-accordion__heading > .klar-accordion__header { border-radius: 0 0 var(--klar-radius-lg) var(--klar-radius-lg); }
+.klar-accordion--bordered .klar-accordion__section:only-child:not(.klar-accordion__section--open) > .klar-accordion__heading > .klar-accordion__header { border-radius: var(--klar-radius-lg); }
+
+.klar-accordion--flush .klar-accordion__section { border-bottom: 1px solid var(--klar-border); }
+.klar-accordion--flush .klar-accordion__section:first-child { border-top: 1px solid var(--klar-border); }
+
+.klar-accordion__heading {
+  margin: 0;
+  font: inherit;
+}
+
+.klar-accordion__header {
+  display: flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--klar-space-2) var(--klar-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--klar-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--klar-dur-fast) var(--klar-ease);
+}
+
+.klar-accordion__header:hover { background: var(--klar-gray-50); }
+
+.klar-accordion__header:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+.klar-accordion--flush .klar-accordion__header { padding-left: var(--klar-space-1); padding-right: var(--klar-space-1); }
+
+.klar-accordion__chevron {
+  display: flex;
+  flex: none;
+  color: var(--klar-gray-500);
+  transition: transform var(--klar-dur) var(--klar-ease);
+}
+
+.klar-accordion__section--open > .klar-accordion__heading > .klar-accordion__header > .klar-accordion__chevron { transform: rotate(90deg); }
+
+.klar-accordion__icon {
+  display: flex;
+  flex: none;
+  color: var(--klar-gray-500);
+}
+
+.klar-accordion__title {
+  min-width: 0;
+  font-weight: var(--klar-weight-bold);
+}
+
+.klar-accordion__subtitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--klar-text-sm);
+  color: var(--klar-text-secondary);
+}
+
+.klar-accordion__aside {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--klar-space-2);
+  margin-left: auto;
+}
+
+.klar-accordion__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--klar-radius-full);
+  background: var(--klar-gray-150);
+  color: var(--klar-gray-700);
+  font-size: var(--klar-text-xs);
+  font-weight: var(--klar-weight-bold);
+}
+
+.klar-accordion__body {
+  padding: var(--klar-space-1) var(--klar-space-4) var(--klar-space-4) calc(var(--klar-space-3) + 16px + var(--klar-space-2));
+  animation: klar-fade-in var(--klar-dur) var(--klar-ease);
+}
+
+.klar-accordion--flush .klar-accordion__body { padding-left: calc(var(--klar-space-1) + 16px + var(--klar-space-2)); padding-right: var(--klar-space-1); }
+
+.klar-accordion__section--disabled .klar-accordion__header,
+.klar-accordion__section--disabled .klar-accordion__header:hover {
+  background: transparent;
+  color: var(--klar-text-disabled);
+  cursor: not-allowed;
+}
+
+.klar-accordion__section--disabled .klar-accordion__chevron,
+.klar-accordion__section--disabled .klar-accordion__icon { color: var(--klar-text-disabled); }
+
+.klar-accordion--sm .klar-accordion__header { min-height: 32px; padding-top: 4px; padding-bottom: 4px; font-size: var(--klar-text-sm); }
+
+/* ---- Toolbar --------------------------------------------------------------- */
+
+.klar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--klar-space-2);
+  min-width: 0;
+  padding: 6px var(--klar-space-2);
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+}
+
+.klar-toolbar--sm {
+  --klar-control: var(--klar-control-sm);
+  padding: 4px 6px;
+  gap: 4px 6px;
+}
+
+.klar-toolbar--lg {
+  --klar-control: var(--klar-control-lg);
+  padding: var(--klar-space-2) var(--klar-space-3);
+}
+
+.klar-toolbar--plain {
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+}
+
+.klar-toolbar--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.klar-toolbar--scroll > * { flex: none; }
+.klar-toolbar--scroll .klar-toolbar__group { flex-wrap: nowrap; }
+
+/* A group stays together while it fits; in a bar narrower than the group itself
+   its own controls wrap rather than run out of the bar. */
+.klar-toolbar__group {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-1);
+  max-width: 100%;
+}
+
+.klar-toolbar__separator {
+  align-self: stretch;
+  flex: none;
+  width: 1px;
+  min-height: 18px;
+  margin: 3px 2px;
+  background: var(--klar-border);
+}
+
+.klar-toolbar__spacer {
+  flex: 1 1 var(--klar-space-2);
+  min-width: 0;
+}
+
+/* a search field or select placed straight into the bar gets a sensible width */
+.klar-toolbar > .klar-field,
+.klar-toolbar > .klar-input,
+.klar-toolbar__group > .klar-field,
+.klar-toolbar__group > .klar-input {
+  flex: 0 1 240px;
+  min-width: 140px;
+}
+
+.klar-toolbar__label {
+  padding: 0 var(--klar-space-1);
+  color: var(--klar-text-secondary);
+  font-size: var(--klar-text-sm);
+  white-space: nowrap;
+}
+
+/* ---- Description list ------------------------------------------------------ */
+
+.klar-description-list {
+  --_gap: var(--klar-space-6);
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(200px, calc((100% - (var(--klar-dl-cols, 1) - 1) * var(--_gap)) / var(--klar-dl-cols, 1) - 0.5px)), 1fr)
+  );
+  gap: var(--klar-space-4) var(--_gap);
+  margin: 0;
+}
+
+.klar-description-list--compact { row-gap: var(--klar-space-2); }
+
+.klar-description-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.klar-description-list__item--full { grid-column: 1 / -1; }
+
+.klar-description-list__label {
+  font-size: var(--klar-text-sm);
+  font-weight: var(--klar-weight-medium);
+  color: var(--klar-text-secondary);
+}
+
+.klar-description-list__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--klar-text);
+}
+
+.klar-description-list__value--empty { color: var(--klar-text-muted); }
+
+.klar-description-list__values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-1) var(--klar-space-2);
+}
+
+.klar-description-list--beside .klar-description-list__item {
+  display: grid;
+  grid-template-columns: var(--klar-dl-label-w, 160px) minmax(0, 1fr);
+  column-gap: var(--klar-space-4);
+  align-items: baseline;
+}
+
+.klar-description-list--beside .klar-description-list__value { grid-column: 2; }
+
+.klar-description-list--bordered { row-gap: 0; }
+
+.klar-description-list--bordered .klar-description-list__item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--klar-border-subtle);
+}
+
+.klar-description-list--bordered.klar-description-list--compact .klar-description-list__item { padding: 6px 0; }
+
+/* ---- Stepper --------------------------------------------------------------- */
+
+.klar-stepper {
+  --_marker: 26px;
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.klar-stepper--sm { --_marker: 20px; }
+
+.klar-stepper__step {
+  display: flex;
+  min-width: 0;
+}
+
+.klar-stepper__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 6px 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.klar-stepper__head {
+  padding-left: 4px;
+  margin-left: -4px;
+  border-radius: var(--klar-radius);
+  cursor: pointer;
+}
+
+button.klar-stepper__head:hover:not(:disabled) .klar-stepper__label { text-decoration: underline; }
+
+button.klar-stepper__head:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 1px;
+}
+
+button.klar-stepper__head:disabled { cursor: not-allowed; }
+
+.klar-stepper__marker {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--_marker);
+  height: var(--_marker);
+  border: 1.5px solid var(--klar-gray-300);
+  border-radius: 50%;
+  background: var(--klar-surface);
+  color: var(--klar-gray-600);
+  font-size: var(--klar-text-sm);
+  font-weight: var(--klar-weight-bold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.klar-stepper--sm .klar-stepper__marker { font-size: var(--klar-text-xs); }
+
+.klar-stepper__step--complete .klar-stepper__marker {
+  background: var(--klar-primary);
+  border-color: var(--klar-primary);
+  color: var(--klar-on-primary);
+}
+
+.klar-stepper__step--current .klar-stepper__marker {
+  background: var(--klar-blue-50);
+  border-color: var(--klar-primary);
+  color: var(--klar-blue-700);
+  box-shadow: 0 0 0 3px var(--klar-primary-subtle-hover);
+}
+
+.klar-stepper__step--failed .klar-stepper__marker {
+  background: var(--klar-danger-subtle);
+  border-color: var(--klar-danger);
+  color: var(--klar-danger);
+}
+
+.klar-stepper__step--disabled .klar-stepper__marker {
+  background: var(--klar-gray-50);
+  border-color: var(--klar-gray-200);
+  color: var(--klar-gray-400);
+}
+
+.klar-stepper__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.klar-stepper__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--klar-weight-medium);
+  color: var(--klar-text-secondary);
+}
+
+.klar-stepper__step--complete .klar-stepper__label { color: var(--klar-text); }
+
+.klar-stepper__step--current .klar-stepper__label {
+  color: var(--klar-text);
+  font-weight: var(--klar-weight-bold);
+}
+
+.klar-stepper__step--failed .klar-stepper__label { color: var(--klar-danger); }
+.klar-stepper__step--disabled .klar-stepper__label { color: var(--klar-text-disabled); }
+
+.klar-stepper__description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--klar-text-sm);
+  color: var(--klar-text-secondary);
+}
+
+.klar-stepper__line {
+  flex: none;
+  background: var(--klar-gray-300);
+}
+
+.klar-stepper__step--passed > .klar-stepper__line { background: var(--klar-primary); }
+
+/* horizontal: markers in a row, connected by a thin line that takes the room left.
+   With very many steps the row scrolls sideways (the padding keeps the focus ring
+   and the marker glow from being clipped). */
+.klar-stepper--horizontal {
+  flex-direction: row;
+  padding: 4px;
+  margin: -4px;
+  overflow-x: auto;
+}
+
+.klar-stepper--horizontal .klar-stepper__step {
+  flex: 1 1 0;
+  align-items: center;
+  /* a step never gets narrower than its marker, a stretch of line and enough of
+     the label to read it ("Contact", not "C..."): when the steps do not fit the
+     row scrolls sideways instead */
+  min-width: calc(var(--_marker) + 100px);
+}
+
+/* the last step has no line after it: it keeps the width of its label */
+.klar-stepper--horizontal .klar-stepper__step--last {
+  flex: 0 0 auto;
+  min-width: var(--_marker);
+}
+
+.klar-stepper--horizontal .klar-stepper__line {
+  flex: 1 1 24px;
+  min-width: 12px;
+  height: 1px;
+  margin: 0 var(--klar-space-2);
+}
+
+/* vertical: markers in a column, the line runs down from the marker */
+.klar-stepper--vertical { flex-direction: column; }
+
+.klar-stepper--vertical .klar-stepper__step {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* a column has room to wrap: long labels and descriptions are not cut */
+.klar-stepper--vertical .klar-stepper__label,
+.klar-stepper--vertical .klar-stepper__description {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.klar-stepper--vertical .klar-stepper__line {
+  width: 1px;
+  height: 18px;
+  margin: 2px 0 2px calc(var(--_marker) / 2 - 0.5px);
+}
+
+/* "Step 2 of 5" */
+.klar-stepper-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--klar-space-2);
+  margin: 0;
+}
+
+.klar-stepper-progress__count {
+  font-weight: var(--klar-weight-bold);
+  color: var(--klar-text);
+}
+
+.klar-stepper-progress__label { color: var(--klar-text-secondary); }

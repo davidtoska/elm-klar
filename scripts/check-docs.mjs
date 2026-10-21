@@ -1,0 +1,166 @@
+#!/usr/bin/env node
+// Documentation check for the exposed modules of this package.
+//
+//   node scripts/check-docs.mjs                      check every exposed module
+//   node scripts/check-docs.mjs Klar.Button Klar.Tag check just those modules
+//
+// 1. A static audit: every exposed name must be listed in a `@docs` line of the
+//    module documentation and must have a `{-| ... -}` comment right above its
+//    definition.
+// 2. The real thing: `elm make --docs` in a private workspace (in the OS temp
+//    directory) that exposes only the given modules, so several people can run
+//    it at the same time without sharing an `elm-stuff` directory.
+//
+// Exit code 0 means both passed.
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const outline = JSON.parse(fs.readFileSync(path.join(root, 'elm.json'), 'utf8'));
+
+const exposedAll = Array.isArray(outline['exposed-modules'])
+  ? outline['exposed-modules']
+  : Object.values(outline['exposed-modules']).flat();
+
+const requested = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const modules = requested.length > 0 ? requested : exposedAll;
+
+function fileOf(moduleName) {
+  return path.join(root, 'src', ...moduleName.split('.')) + '.elm';
+}
+
+// ---------------------------------------------------------------- static audit
+
+function exportList(src) {
+  const m = /^module\s+([\w.]+)\s+exposing\s*\(/m.exec(src);
+  if (!m) return null;
+  let i = m.index + m[0].length;
+  const start = i;
+  let depth = 1;
+  while (i < src.length && depth > 0) {
+    const c = src[i];
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    i++;
+  }
+  return { body: src.slice(start, i - 1), end: i };
+}
+
+function splitNames(body) {
+  const cleaned = body.replace(/--[^\n]*/g, '').replace(/\{-[\s\S]*?-\}/g, '');
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const c of cleaned) {
+    if (c === '(') depth++;
+    if (c === ')') depth--;
+    if (c === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+    } else current += c;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts.filter(Boolean).map((n) => n.replace(/\(\.\.\)$/, '').trim());
+}
+
+function moduleDoc(src, afterIndex) {
+  const rest = src.slice(afterIndex);
+  const m = /^\s*(\{-\|[\s\S]*?-\})/.exec(rest);
+  return m ? m[1] : null;
+}
+
+function docsNames(doc) {
+  const names = [];
+  for (const line of doc.split('\n')) {
+    const m = /^@docs\s+(.*)$/.exec(line.trim());
+    if (m) for (const n of m[1].split(',')) if (n.trim()) names.push(n.trim());
+  }
+  return names;
+}
+
+function hasDocComment(lines, name) {
+  const isType = /^[A-Z]/.test(name);
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const definition = isType
+    ? new RegExp('^(type alias|type)\\s+' + escaped + '(\\s|$)')
+    : new RegExp('^' + escaped + '\\s*:');
+  for (let i = 0; i < lines.length; i++) {
+    if (!definition.test(lines[i])) continue;
+    if (i === 0 || !/-\}\s*$/.test(lines[i - 1])) return false;
+    let k = i - 1;
+    while (k >= 0 && !/^\{-/.test(lines[k])) k--;
+    return k >= 0 && /^\{-\|/.test(lines[k]);
+  }
+  return null; // no definition found (value without a type annotation, or a re-export)
+}
+
+function audit(moduleName) {
+  const problems = [];
+  const file = fileOf(moduleName);
+  if (!fs.existsSync(file)) return [`${moduleName}: file not found (${path.relative(root, file)})`];
+  const src = fs.readFileSync(file, 'utf8');
+  const ex = exportList(src);
+  if (!ex) return [`${moduleName}: no export list`];
+  const exported = splitNames(ex.body);
+  const doc = moduleDoc(src, ex.end);
+  if (!doc) problems.push(`${moduleName}: no module documentation comment after the module line`);
+  const listed = doc ? docsNames(doc) : [];
+  for (const n of exported) if (!listed.includes(n)) problems.push(`${moduleName}: \`${n}\` is exposed but not in any @docs line`);
+  for (const n of listed) if (!exported.includes(n)) problems.push(`${moduleName}: \`${n}\` is in @docs but not exposed`);
+  const seen = new Set();
+  for (const n of listed) {
+    if (seen.has(n)) problems.push(`${moduleName}: \`${n}\` appears twice in @docs`);
+    seen.add(n);
+  }
+  const lines = src.split('\n');
+  for (const n of exported) {
+    const has = hasDocComment(lines, n);
+    if (has === false) problems.push(`${moduleName}: \`${n}\` has no {-| doc comment -}`);
+    if (has === null) problems.push(`${moduleName}: \`${n}\` definition not found with an annotation (re-export? add a type annotation and doc)`);
+  }
+  return problems;
+}
+
+let failed = false;
+const staticProblems = modules.flatMap(audit);
+if (staticProblems.length > 0) {
+  failed = true;
+  console.log(`Static audit: ${staticProblems.length} problem(s)`);
+  for (const p of staticProblems.slice(0, 400)) console.log('  - ' + p);
+  if (staticProblems.length > 400) console.log(`  ... and ${staticProblems.length - 400} more`);
+} else {
+  console.log(`Static audit: ok (${modules.length} module(s))`);
+}
+
+// ------------------------------------------------------------ compiler check
+
+const key = crypto.createHash('sha1').update(modules.join(',') + root).digest('hex').slice(0, 10);
+const workspace = path.join(os.tmpdir(), 'klar-docs-ws', key);
+fs.mkdirSync(workspace, { recursive: true });
+const srcLink = path.join(workspace, 'src');
+if (!fs.existsSync(srcLink)) fs.symlinkSync(path.join(root, 'src'), srcLink, 'junction');
+const wsOutline = { ...outline, 'exposed-modules': modules };
+fs.writeFileSync(path.join(workspace, 'elm.json'), JSON.stringify(wsOutline, null, 4));
+
+const run = spawnSync('elm', ['make', '--docs=docs.json'], { cwd: workspace, encoding: 'utf8', shell: true });
+const text = ((run.stdout || '') + (run.stderr || ''))
+  .replace(/\u001b\[[0-9;]*m/g, '')
+  .split('\n')
+  .filter((l) => !/^Compiling \(\d+\)/.test(l))
+  .join('\n')
+  .trim();
+if (run.status !== 0) {
+  failed = true;
+  console.log('\nelm make --docs failed:\n');
+  const lines = text.split('\n');
+  console.log(lines.slice(0, 120).join('\n'));
+  if (lines.length > 120) console.log(`\n... ${lines.length - 120} more line(s). Fix these first, then run again.`);
+} else {
+  console.log('elm make --docs: ok');
+}
+process.exit(failed ? 1 : 0);

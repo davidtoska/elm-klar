@@ -1,0 +1,850 @@
+module Klar.Stat exposing
+    ( view, row
+    , Attribute, label, value, int, decimal, compact, unit, caption, icon
+    , delta, deltaText, deltaLabel, lowerIsBetter, deltaTone
+    , trend, trendTone
+    , size, flat, onClick, locale
+    , loading, failed, onRetry, remote
+    )
+
+{-| A KPI tile: one number with its label, the change since last time, a short
+note and optionally a trend line.
+
+    import Klar.Stat as Stat
+
+    Stat.view
+        [ Stat.label "Open orders"
+        , Stat.int 1284
+        , Stat.delta 4.2
+        , Stat.deltaLabel "vs. last week"
+        , Stat.trend [ 12, 14, 13, 17, 16, 19, 21 ]
+        ]
+
+    -- delivery time: down is good
+    Stat.view
+        [ Stat.label "Delivery time"
+        , Stat.value "14"
+        , Stat.unit "days"
+        , Stat.delta -8.5
+        , Stat.lowerIsBetter
+        ]
+
+    -- from the backend: model.shipments is a Remote { count : Int, change : Float }
+    Stat.view
+        [ Stat.label "Shipments"
+        , Stat.onRetry Reload
+        , Stat.remote model.shipments (\s -> [ Stat.int s.count, Stat.delta s.change ])
+        ]
+
+    -- tiles side by side
+    Stat.row
+        [ Stat.view [ Stat.label "Orders", Stat.int 1284 ]
+        , Stat.view [ Stat.label "Revenue", Stat.compact 4200000, Stat.unit "USD" ]
+        ]
+
+Use a tile for a headline number that is read at a glance, on a dashboard or at
+the top of a page. For several label and value pairs use
+[Klar.DescriptionList](Klar-DescriptionList); for one value against a scale use
+`gauge` or `meter` from [Klar.Chart](Klar-Chart).
+
+Give the number as `int`, `decimal` or `compact` and the tile writes it with the
+separators of its `locale` (English by default: `1,284`, `4.2M`), or pass a
+string you have formatted yourself to `value`. A long number is set in a smaller
+type so that it is always written out in full.
+
+The change is a percentage: `4.2` is shown as "+4.2%". Its color follows
+direction and meaning: up is good unless the tile says `lowerIsBetter`. The arrow
+and a visually hidden word ("increase" or "decrease") carry the direction, so
+color is never the only signal.
+
+A tile can be loading (a skeleton in place of the number) or failed (a short
+message with a retry link); both keep the label so the layout does not jump.
+With `onClick` the whole tile is a button, so it can be reached and activated
+from the keyboard (except while it shows a failure: then it is a plain block, and
+only its retry button is a control).
+
+
+# Views
+
+@docs view, row
+
+
+# Content
+
+@docs Attribute, label, value, int, decimal, compact, unit, caption, icon
+
+
+# Change since last time
+
+@docs delta, deltaText, deltaLabel, lowerIsBetter, deltaTone
+
+
+# Trend
+
+@docs trend, trendTone
+
+
+# Look and behavior
+
+@docs size, flat, onClick, locale
+
+
+# Loading and failure
+
+@docs loading, failed, onRetry, remote
+
+-}
+
+import Html exposing (Html)
+import Html.Attributes as Attr
+import Html.Events as Events
+import Klar.Button as Button
+import Klar.Chart as Chart
+import Klar.Format as Format
+import Klar.Icon as Icon exposing (Icon)
+import Klar.Internal as Internal
+import Klar.Locale as Locale exposing (Locale)
+import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Skeleton as Skeleton
+import Klar.Theme as Theme exposing (Size(..), Tone(..))
+
+
+{-| A setting of a tile. Make them with the functions below and pass a list to
+`view`; later attributes win over earlier ones.
+-}
+type Attribute msg
+    = Attribute (Config msg -> Config msg)
+
+
+type Number
+    = Raw String
+    | Whole Int
+    | Fixed Int Float
+    | Compact Float
+
+
+type State
+    = Ready
+    | Busy
+    | Failed Problem
+
+
+type alias Config msg =
+    { label : String
+    , value : Maybe Number
+    , unit : Maybe String
+    , delta : Maybe Float
+    , deltaText : Maybe String
+    , deltaLabel : Maybe String
+    , deltaTone : Maybe Tone
+    , lowerIsBetter : Bool
+    , caption : Maybe String
+    , trend : List Float
+    , trendTone : Tone
+    , icon : Maybe Icon
+    , size : Size
+    , flat : Bool
+    , onClick : Maybe msg
+    , onRetry : Maybe msg
+    , state : State
+    , locale : Locale
+    }
+
+
+configure : List (Attribute msg) -> Config msg
+configure attributes =
+    List.foldl (\(Attribute change) config -> change config)
+        { label = ""
+        , value = Nothing
+        , unit = Nothing
+        , delta = Nothing
+        , deltaText = Nothing
+        , deltaLabel = Nothing
+        , deltaTone = Nothing
+        , lowerIsBetter = False
+        , caption = Nothing
+        , trend = []
+        , trendTone = Primary
+        , icon = Nothing
+        , size = Medium
+        , flat = False
+        , onClick = Nothing
+        , onRetry = Nothing
+        , state = Ready
+        , locale = Locale.default
+        }
+        attributes
+
+
+
+-- ATTRIBUTES
+
+
+{-| What the number is, in sentence case and without a colon: "Open orders". It
+is the heading of the tile and stays on one line; a long label is cut with an
+ellipsis and its full text is the tooltip. Default: empty.
+-}
+label : String -> Attribute msg
+label text =
+    Attribute (\config -> { config | label = text })
+
+
+{-| The number as text that you have formatted yourself: `"1,284"`, `"87%"`,
+`"14.5"`. To let the tile format it with its `locale`, use `int`, `decimal` or
+`compact` instead. Without any of them no number is shown.
+-}
+value : String -> Attribute msg
+value text =
+    Attribute (\config -> { config | value = Just (Raw text) })
+
+
+{-| A whole number, written with the thousands separator of the tile's `locale`:
+`1284` is "1,284" in English.
+-}
+int : Int -> Attribute msg
+int n =
+    Attribute (\config -> { config | value = Just (Whole n) })
+
+
+{-| A number with a fixed count of decimals, in the decimal and thousands
+separators of the tile's `locale`: `decimal 1 14.53` is "14.5" in English. The
+number is rounded, not cut. A number that is not finite (NaN or infinity) is
+shown as an en dash.
+-}
+decimal : Int -> Float -> Attribute msg
+decimal decimals n =
+    Attribute (\config -> { config | value = Just (Fixed decimals n) })
+
+
+{-| A number that shortens itself when it is large: `12900` stays "12,900", but
+`4200000` becomes "4.2M". Millions are written "M", billions "B" and trillions
+"T" (English). Below a million the number is written in full, with at most one
+decimal. A number that is not finite (NaN or infinity) is shown as an en dash.
+-}
+compact : Float -> Attribute msg
+compact n =
+    Attribute (\config -> { config | value = Just (Compact n) })
+
+
+{-| A unit written after the number, smaller and muted: "days", "USD", "%".
+-}
+unit : String -> Attribute msg
+unit text =
+    Attribute (\config -> { config | unit = Just text })
+
+
+{-| The change since last time, as a percentage: `4.2` is shown as "+4.2%" and
+`-8` as "-8%", rounded to one decimal. The sign picks the arrow and, together
+with `lowerIsBetter`, the color. A change smaller than 0.05 counts as unchanged
+and gets a dash. A value that is not a number (NaN or infinity) shows no change.
+-}
+delta : Float -> Attribute msg
+delta percent =
+    Attribute
+        (\config ->
+            { config
+                | delta =
+                    if isNaN percent || isInfinite percent then
+                        Nothing
+
+                    else
+                        Just percent
+            }
+        )
+
+
+{-| The change as text of your own: "+12 orders". Pair it with `delta` to set
+the arrow and the color; on its own the text is shown in neutral gray, without an
+arrow.
+-}
+deltaText : String -> Attribute msg
+deltaText text =
+    Attribute (\config -> { config | deltaText = Just text })
+
+
+{-| What the change is measured against: "vs. last week". It follows the change
+and is only shown when there is one (`delta` or `deltaText`).
+-}
+deltaLabel : String -> Attribute msg
+deltaLabel text =
+    Attribute (\config -> { config | deltaLabel = Just text })
+
+
+{-| Says that a decrease is the good direction, as with delivery times, error
+rates and costs: a falling number is then green and a rising one red.
+-}
+lowerIsBetter : Attribute msg
+lowerIsBetter =
+    Attribute (\config -> { config | lowerIsBetter = True })
+
+
+{-| Overrides the color of the change, whatever its direction. `Neutral` is gray,
+`Success`, `Warning` and `Danger` are green, amber and red. The `Tone` type is
+in [Klar.Theme](Klar-Theme).
+-}
+deltaTone : Tone -> Attribute msg
+deltaTone value_ =
+    Attribute (\config -> { config | deltaTone = Just value_ })
+
+
+{-| A line of explanation under the number and its change: "Excluding returns".
+-}
+caption : String -> Attribute msg
+caption text =
+    Attribute (\config -> { config | caption = Just text })
+
+
+{-| A small trend line under the tile, with the last values oldest first; about
+12 is plenty. Nothing is drawn for fewer than two values. The line is a
+`sparkline` from [Klar.Chart](Klar-Chart), and its accessible name is the label
+followed by "trend".
+-}
+trend : List Float -> Attribute msg
+trend values =
+    Attribute (\config -> { config | trend = values })
+
+
+{-| The color of the trend line. The default is `Primary` (blue).
+-}
+trendTone : Tone -> Attribute msg
+trendTone value_ =
+    Attribute (\config -> { config | trendTone = value_ })
+
+
+{-| A small icon at the right end of the label line.
+-}
+icon : Icon -> Attribute msg
+icon value_ =
+    Attribute (\config -> { config | icon = Just value_ })
+
+
+{-| The size of the number: `Small` (20px), `Medium` (26px, the default) or
+`Large` (34px). The `Size` type is in [Klar.Theme](Klar-Theme).
+-}
+size : Size -> Attribute msg
+size value_ =
+    Attribute (\config -> { config | size = value_ })
+
+
+{-| No border and no background, for a tile that sits inside a card or another
+bordered container. Tiles in a `row` are already drawn without a border of their
+own.
+-}
+flat : Attribute msg
+flat =
+    Attribute (\config -> { config | flat = True })
+
+
+{-| Makes the whole tile a button that sends this message when it is clicked or
+activated with the keyboard: for drilling down into the numbers. Without it the
+tile is a plain block.
+
+A tile that shows a failure is a plain block too, whatever `onClick` says: its
+"Try again" button must not sit inside another button, and there is nothing to
+drill down into. The tile is a button again when the data is back.
+
+-}
+onClick : msg -> Attribute msg
+onClick msg =
+    Attribute (\config -> { config | onClick = Just msg })
+
+
+{-| The message sent by the "Try again" link in the failure state. The link is
+only shown when the problem is worth retrying (see `Klar.Remote.isRetryable` in
+[Klar.Remote](Klar-Remote)).
+-}
+onRetry : msg -> Attribute msg
+onRetry msg =
+    Attribute (\config -> { config | onRetry = Just msg })
+
+
+{-| While `True` the tile shows a skeleton in place of the number, the change and
+the trend, and tells screen readers that it is loading. The label stays, so the
+layout does not jump. Pass a field of your model. Default: `False`.
+-}
+loading : Bool -> Attribute msg
+loading isLoading =
+    Attribute
+        (\config ->
+            { config
+                | state =
+                    if isLoading then
+                        Busy
+
+                    else
+                        Ready
+            }
+        )
+
+
+{-| Shows a failure in place of the number: the title of the problem next to an
+error icon, with its detail as the tooltip. Add `onRetry` for a "Try again" link.
+Make a `Problem` with `Klar.Remote.problem`, or use `remote` to get loading and
+failure from a `Remote`.
+-}
+failed : Problem -> Attribute msg
+failed problem =
+    Attribute (\config -> { config | state = Failed problem })
+
+
+{-| Takes the content of the tile from a `Remote`. While the data is `NotAsked`
+or `Loading` the tile shows a skeleton, on `Failure` it shows the problem, and
+when the data has arrived it applies the attributes that the function returns
+for it.
+
+    Stat.view
+        [ Stat.label "Shipments"
+        , Stat.remote model.shipments (\s -> [ Stat.int s.count, Stat.delta s.change ])
+        ]
+
+Attributes that do not depend on the data, such as `label`, belong next to
+`remote` in the list.
+
+-}
+remote : Remote a -> (a -> List (Attribute msg)) -> Attribute msg
+remote data toAttributes =
+    Attribute
+        (\config ->
+            case data of
+                Remote.Success payload ->
+                    List.foldl (\(Attribute change) c -> change c) { config | state = Ready } (toAttributes payload)
+
+                Remote.Failure problem ->
+                    { config | state = Failed problem }
+
+                Remote.NotAsked ->
+                    { config | state = Busy }
+
+                Remote.Loading ->
+                    { config | state = Busy }
+        )
+
+
+{-| The language of the built-in text ("Loading", "Try again" and the hidden
+"increase" and "decrease") and of the number format. The default is
+`Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
+-}
+locale : Locale -> Attribute msg
+locale value_ =
+    Attribute (\config -> { config | locale = value_ })
+
+
+
+-- VIEW
+
+
+{-| One tile. It is a plain block, or a button when `onClick` is set (a tile that
+shows a failure is always a plain block).
+
+    Stat.view [ Stat.label "Open orders", Stat.int 1284 ]
+
+-}
+view : List (Attribute msg) -> Html msg
+view attributes =
+    let
+        config =
+            configure attributes
+
+        -- A tile that has failed is a plain block, not a button: its retry
+        -- button must not sit inside another button (nested controls are
+        -- invalid, and a click on retry would also send the tile's message),
+        -- and a failure has nothing to drill down into.
+        clickMessage =
+            case config.state of
+                Failed _ ->
+                    Nothing
+
+                _ ->
+                    config.onClick
+
+        classNames =
+            Internal.cls
+                [ "klar-stat"
+                , "klar-stat--" ++ Theme.sizeSuffix config.size
+                , if config.flat then
+                    "klar-stat--flat"
+
+                  else
+                    ""
+                , if clickMessage /= Nothing then
+                    "klar-stat--interactive"
+
+                  else
+                    ""
+                ]
+
+        content =
+            [ Html.span [ Internal.cls [ "klar-stat__head" ] ]
+                [ Html.span [ Internal.cls [ "klar-stat__label" ], Attr.title config.label ] [ Html.text config.label ]
+                , Internal.viewMaybe (\glyph -> Html.span [ Internal.cls [ "klar-stat__icon" ] ] [ Icon.view glyph ]) config.icon
+                ]
+            , case config.state of
+                Busy ->
+                    Html.span [ Internal.cls [ "klar-stat__body" ], Attr.attribute "aria-busy" "true" ]
+                        [ Html.span [ Internal.cls [ "klar-stat__skeleton" ] ] [ Skeleton.block (skeletonHeight config.size) ]
+                        , Html.span [ Internal.cls [ "klar-stat__skeleton", "klar-stat__skeleton--short" ] ] [ Skeleton.line 100 ]
+                        , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+                            [ Html.text (Locale.pick config.locale { nb = "Laster", en = "Loading" }) ]
+                        ]
+
+                Failed problem ->
+                    Html.span [ Internal.cls [ "klar-stat__body" ] ] [ viewFailure config problem ]
+
+                Ready ->
+                    Html.span [ Internal.cls [ "klar-stat__body" ] ]
+                        [ viewValue config
+                        , viewDelta config
+                        , Internal.viewMaybe (\text -> Html.span [ Internal.cls [ "klar-stat__caption" ] ] [ Html.text text ]) config.caption
+                        , viewTrend config
+                        ]
+            ]
+    in
+    case clickMessage of
+        Just msg ->
+            Html.button
+                [ classNames
+                , Attr.type_ "button"
+                , Events.onClick msg
+                ]
+                content
+
+        Nothing ->
+            Html.div [ classNames ] content
+
+
+skeletonHeight : Size -> Int
+skeletonHeight value_ =
+    case value_ of
+        Small ->
+            20
+
+        Medium ->
+            26
+
+        Large ->
+            34
+
+
+viewValue : Config msg -> Html msg
+viewValue config =
+    case config.value of
+        Nothing ->
+            Html.text ""
+
+        Just number ->
+            let
+                shown =
+                    numberText config.locale number
+
+                -- A long number gets a smaller type size, so that it is always
+                -- written out in full: a cut-off number is a wrong number.
+                lengthClass =
+                    if String.length shown > 15 then
+                        "klar-stat__value--xlong"
+
+                    else if String.length shown > 11 then
+                        "klar-stat__value--long"
+
+                    else
+                        ""
+            in
+            Html.span [ Internal.cls [ "klar-stat__figure" ] ]
+                [ Html.span [ Internal.cls [ "klar-stat__value", lengthClass ], Attr.title shown ] [ Html.text shown ]
+                , Internal.viewMaybe (\text -> Html.span [ Internal.cls [ "klar-stat__unit" ] ] [ Html.text text ]) config.unit
+                ]
+
+
+numberText : Locale -> Number -> String
+numberText loc number =
+    case number of
+        Raw text ->
+            text
+
+        Whole n ->
+            Format.int loc n
+
+        Fixed decimals n ->
+            if isFinite n then
+                Format.decimal loc decimals n
+
+            else
+                missingNumber
+
+        Compact n ->
+            if isFinite n then
+                compactText loc n
+
+            else
+                missingNumber
+
+
+{-| An en dash: what a number is shown as when it is not finite (NaN or
+infinity), instead of text such as "NaN.NaN".
+-}
+missingNumber : String
+missingNumber =
+    "–"
+
+
+isFinite : Float -> Bool
+isFinite n =
+    not (isNaN n || isInfinite n)
+
+
+compactText : Locale -> Float -> String
+compactText loc n =
+    let
+        a =
+            abs n
+
+        scaled divisor suffix =
+            trimZeros loc (Format.decimal loc 1 (n / divisor)) ++ suffix
+
+        -- 999 960 000 would be written "1,000M": it rounds up to the next unit.
+        roundsUp divisor =
+            toFloat (round (a / divisor * 10)) / 10 >= 1000
+
+        billions =
+            scaled 1.0e12 (Locale.pick loc { nb = " bill.", en = "T" })
+
+        milliards =
+            scaled 1.0e9 (Locale.pick loc { nb = " mrd.", en = "B" })
+
+        millions =
+            scaled 1.0e6 (Locale.pick loc { nb = " mill.", en = "M" })
+    in
+    if a >= 1.0e15 then
+        -- Beyond what the unit names and the number formatting can carry.
+        String.fromFloat n
+
+    else if a >= 1.0e12 then
+        billions
+
+    else if a >= 1.0e9 then
+        if roundsUp 1.0e9 then
+            billions
+
+        else
+            milliards
+
+    else if a >= 1.0e6 then
+        if roundsUp 1.0e6 then
+            milliards
+
+        else
+            millions
+
+    else if abs (a - toFloat (round a)) < 1.0e-9 then
+        Format.int loc (round n)
+
+    else
+        trimZeros loc (Format.decimal loc 1 n)
+
+
+trimZeros : Locale -> String -> String
+trimZeros loc text =
+    let
+        separator =
+            Locale.decimalSeparator loc
+
+        dropZeros s =
+            if String.endsWith "0" s then
+                dropZeros (String.dropRight 1 s)
+
+            else
+                s
+    in
+    case String.split separator text of
+        [ whole, fraction ] ->
+            let
+                kept =
+                    dropZeros fraction
+            in
+            if kept == "" then
+                whole
+
+            else
+                whole ++ separator ++ kept
+
+        _ ->
+            text
+
+
+type Direction
+    = Up
+    | Down
+    | Level
+
+
+viewDelta : Config msg -> Html msg
+viewDelta config =
+    case ( config.delta, config.deltaText ) of
+        ( Nothing, Nothing ) ->
+            Html.text ""
+
+        ( maybeDelta, maybeText ) ->
+            let
+                direction =
+                    case maybeDelta of
+                        Just d ->
+                            if abs d < 0.05 then
+                                Level
+
+                            else if d > 0 then
+                                Up
+
+                            else
+                                Down
+
+                        Nothing ->
+                            Level
+
+                good =
+                    case direction of
+                        Up ->
+                            not config.lowerIsBetter
+
+                        Down ->
+                            config.lowerIsBetter
+
+                        Level ->
+                            True
+
+                tone =
+                    case config.deltaTone of
+                        Just t ->
+                            t
+
+                        Nothing ->
+                            case direction of
+                                Level ->
+                                    Neutral
+
+                                _ ->
+                                    if good then
+                                        Success
+
+                                    else
+                                        Danger
+
+                text =
+                    case ( maybeText, maybeDelta ) of
+                        ( Just custom, _ ) ->
+                            custom
+
+                        ( Nothing, Just d ) ->
+                            signedPercent config.locale d
+
+                        ( Nothing, Nothing ) ->
+                            ""
+
+                directionWord =
+                    case ( maybeDelta, direction ) of
+                        ( Nothing, _ ) ->
+                            ""
+
+                        ( _, Up ) ->
+                            Locale.pick config.locale { nb = "økning", en = "increase" }
+
+                        ( _, Down ) ->
+                            Locale.pick config.locale { nb = "nedgang", en = "decrease" }
+
+                        ( _, Level ) ->
+                            Locale.pick config.locale { nb = "uendret", en = "unchanged" }
+            in
+            Html.span [ Internal.cls [ "klar-stat__change" ] ]
+                [ Html.span
+                    [ Internal.cls [ "klar-stat__delta", "klar-stat__delta--" ++ Theme.toneSuffix tone ] ]
+                    [ case ( maybeDelta, direction ) of
+                        ( Nothing, _ ) ->
+                            Html.text ""
+
+                        ( _, Up ) ->
+                            Icon.sized Icon.ExtraSmall Icon.arrowUp
+
+                        ( _, Down ) ->
+                            Icon.sized Icon.ExtraSmall Icon.arrowDown
+
+                        ( _, Level ) ->
+                            Icon.sized Icon.ExtraSmall Icon.minus
+                    , Html.span [ Internal.cls [ "klar-tabular" ] ] [ Html.text text ]
+                    , Internal.viewIf (directionWord /= "") (Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (", " ++ directionWord) ])
+                    ]
+                , Internal.viewMaybe (\t -> Html.span [ Internal.cls [ "klar-stat__delta-label" ] ] [ Html.text t ]) config.deltaLabel
+                ]
+
+
+{-| "+4,2 %", "-8 %", "0 %".
+-}
+signedPercent : Locale -> Float -> String
+signedPercent loc d =
+    let
+        rounded =
+            toFloat (round (abs d * 10)) / 10
+
+        body =
+            trimZeros loc (Format.decimal loc 1 rounded) ++ Locale.pick loc { nb = "\u{00A0}%", en = "%" }
+    in
+    if rounded == 0 then
+        body
+
+    else if d > 0 then
+        "+" ++ body
+
+    else
+        "−" ++ body
+
+
+viewTrend : Config msg -> Html msg
+viewTrend config =
+    if List.length config.trend < 2 then
+        Html.text ""
+
+    else
+        Html.span [ Internal.cls [ "klar-stat__trend" ] ]
+            [ Chart.sparkline
+                [ Chart.area
+                , Chart.height 32
+                , Chart.tone config.trendTone
+                , Chart.locale config.locale
+                , Chart.ariaLabel
+                    (config.label ++ ": " ++ Locale.pick config.locale { nb = "utvikling", en = "trend" })
+                ]
+                config.trend
+            ]
+
+
+viewFailure : Config msg -> Problem -> Html msg
+viewFailure config problem =
+    Html.span [ Internal.cls [ "klar-stat__failure" ], Attr.attribute "role" "alert" ]
+        [ Html.span [ Internal.cls [ "klar-stat__failure-text" ] ]
+            [ Icon.view Icon.errorCircle
+            , Html.span [ Attr.title (Maybe.withDefault (Remote.title config.locale problem) (Remote.detail config.locale problem)) ] [ Html.text (Remote.title config.locale problem) ]
+            ]
+        , case ( config.onRetry, Remote.isRetryable problem ) of
+            ( Just msg, True ) ->
+                Button.view
+                    [ Button.link
+                    , Button.small
+                    , Button.onClick msg
+                    , Button.icon Icon.refresh
+                    ]
+                    (Locale.pick config.locale { nb = "Prøv igjen", en = "Try again" })
+
+            _ ->
+                Html.text ""
+        ]
+
+
+{-| Tiles side by side in one bordered strip, divided by hairlines. Each tile is
+at least 200px wide, so they wrap onto new lines in narrow containers.
+
+    Stat.row
+        [ Stat.view [ Stat.label "Orders", Stat.int 1284 ]
+        , Stat.view [ Stat.label "Customers", Stat.int 312 ]
+        ]
+
+-}
+row : List (Html msg) -> Html msg
+row tiles =
+    Html.div [ Internal.cls [ "klar-stat-row" ] ] tiles

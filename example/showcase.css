@@ -1,0 +1,166 @@
+/* ==========================================================================
+   Styles for the showcase only: documentation pages with a live example on a
+   stage and a code snippet under it. They use the design tokens of the library
+   (var(--klar-...)), which `Klar.stylesheet` defines.
+   ========================================================================== */
+
+.showcase-doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--klar-space-8);
+  max-width: 1120px;
+}
+
+.showcase-doc__header { display: flex; flex-direction: column; gap: var(--klar-space-2); }
+
+.showcase-doc__title {
+  font-size: var(--klar-text-3xl);
+  line-height: var(--klar-leading-tight);
+  font-weight: var(--klar-weight-bold);
+  letter-spacing: -0.015em;
+}
+
+.showcase-doc__description {
+  max-width: 76ch;
+  font-size: var(--klar-text-lg);
+  color: var(--klar-text-secondary);
+}
+
+.showcase-doc__section { display: flex; flex-direction: column; gap: var(--klar-space-4); }
+
+.showcase-doc__section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: var(--klar-space-2);
+  border-bottom: 1px solid var(--klar-border);
+}
+
+.showcase-doc__section-title {
+  font-size: var(--klar-text-xl);
+  font-weight: var(--klar-weight-bold);
+}
+
+.showcase-doc__section-description { max-width: 80ch; color: var(--klar-text-secondary); }
+
+.showcase-doc__examples { display: flex; flex-direction: column; gap: var(--klar-space-5); }
+
+.showcase-doc__example { display: flex; flex-direction: column; min-width: 0; }
+
+.showcase-doc__example-head { margin-bottom: var(--klar-space-2); }
+
+.showcase-doc__example-title {
+  font-size: var(--klar-text-md);
+  font-weight: var(--klar-weight-bold);
+  color: var(--klar-gray-800);
+}
+
+.showcase-doc__example-description {
+  margin-top: 2px;
+  font-size: var(--klar-text-sm);
+  color: var(--klar-text-muted);
+  max-width: 80ch;
+}
+
+.showcase-doc__stage {
+  padding: var(--klar-space-5);
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+  min-width: 0;
+}
+
+.showcase-doc__stage:has(+ .showcase-doc__code) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.showcase-doc__code {
+  border: 1px solid var(--klar-border);
+  border-top: 0;
+  border-radius: 0 0 var(--klar-radius-lg) var(--klar-radius-lg);
+  background: var(--klar-gray-50);
+  font-size: var(--klar-text-sm);
+}
+
+.showcase-doc__code > summary {
+  padding: 6px var(--klar-space-4);
+  color: var(--klar-text-secondary);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.showcase-doc__code > summary:hover { color: var(--klar-text); }
+
+.showcase-doc__code pre {
+  margin: 0;
+  padding: var(--klar-space-3) var(--klar-space-4);
+  border-top: 1px solid var(--klar-border);
+  background: var(--klar-gray-900);
+  color: var(--klar-gray-100);
+  font-family: var(--klar-font-mono);
+  font-size: var(--klar-text-sm);
+  line-height: 1.55;
+  overflow: auto;
+  border-radius: 0 0 var(--klar-radius-lg) var(--klar-radius-lg);
+}
+
+.showcase-doc__props {
+  width: 100%;
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--klar-surface);
+  font-size: var(--klar-text-sm);
+}
+
+.showcase-doc__props th {
+  padding: 6px var(--klar-space-3);
+  text-align: left;
+  font-weight: var(--klar-weight-bold);
+  color: var(--klar-text-secondary);
+  background: var(--klar-surface-subtle);
+  border-bottom: 1px solid var(--klar-border);
+}
+
+.showcase-doc__props td {
+  padding: 6px var(--klar-space-3);
+  border-bottom: 1px solid var(--klar-border-subtle);
+  vertical-align: top;
+  /* a long name or type may break rather than push the table wider than a phone */
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .showcase-doc__props th,
+  .showcase-doc__props td { padding-left: var(--klar-space-2); padding-right: var(--klar-space-2); }
+}
+
+.showcase-doc__props tr:last-child td { border-bottom: 0; }
+.showcase-doc__props code { font-family: var(--klar-font-mono); font-size: 0.95em; color: var(--klar-blue-700); }
+
+.showcase-doc__swatch { display: flex; flex-direction: column; gap: 4px; }
+
+.showcase-doc__swatch-color {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 var(--klar-space-3);
+  border: 1px solid var(--klar-tint-border);
+  border-radius: var(--klar-radius);
+  /* large text (bold, 20px), for which WCAG asks 3:1 and not 4.5:1: the mid tones of the
+     palette are not far enough from white to read small text on them */
+  font-size: var(--klar-text-2xl);
+  font-weight: 700;
+}
+
+.showcase-doc__swatch-token { font-family: var(--klar-font-mono); font-size: var(--klar-text-xs); color: var(--klar-gray-700); }
+.showcase-doc__swatch-value { font-family: var(--klar-font-mono); font-size: var(--klar-text-xs); color: var(--klar-text-muted); }
+
+/* The custom icon of the Foundations page: `Icon.custom "invoice"` is only a class
+   name, so the shape lives in the application's own stylesheet, like this. */
+.klar-icon--invoice {
+  --klar-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 2h12v20l-3-2-3 2-3-2-3 2z'/><line x1='9' y1='8' x2='15' y2='8'/><line x1='9' y1='12' x2='15' y2='12'/></svg>");
+}
