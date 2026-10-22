@@ -1,0 +1,82 @@
+module Klar.MaskedInput.Checksum exposing
+    ( mod11
+    , mod97
+    )
+
+{-| The check digits that identifiers carry: they catch a mistyped or transposed
+character, so a wrong number is found before it is sent anywhere.
+
+Both work on text that has been read already: digits only for `mod11`, digits and
+capital letters for `mod97`.
+
+-}
+
+
+{-| The check digit of the Norwegian organisation number and of the Norwegian bank
+account number (modulus 11). The last digit is the check digit; the digits before it
+are multiplied by the weights, one weight each and in order, and added. The check
+digit is 11 minus the remainder of the sum divided by 11, and zero when there is no
+remainder. A remainder of one would need a check digit of 10, so no number has it:
+such a number is wrong.
+
+    -- the organisation number 974 760 673
+    Checksum.mod11 [ 3, 2, 7, 6, 5, 4, 3, 2 ] "974760673" --> True
+
+`False` for a text of another length than the weights plus one, and for text that is
+not made of digits.
+
+-}
+mod11 : List Int -> String -> Bool
+mod11 weights digits =
+    if String.length digits /= List.length weights + 1 || not (String.all Char.isDigit digits) then
+        False
+
+    else
+        let
+            numbers =
+                digits |> String.toList |> List.map (\c -> Char.toCode c - 48)
+
+            sum =
+                List.map2 (*) weights numbers |> List.sum
+
+            check =
+                numbers |> List.drop (List.length weights) |> List.head |> Maybe.withDefault -1
+        in
+        case modBy 11 sum of
+            0 ->
+                check == 0
+
+            1 ->
+                False
+
+            remainder ->
+                check == 11 - remainder
+
+
+{-| The check of an IBAN (ISO 7064, modulus 97-10). The first four characters (the
+country and the two check digits) move to the end, every letter becomes the two
+digits 10 to 35, and the number that comes out must leave the remainder 1 when divided
+by 97. The number is too large for a computer's whole numbers, so the remainder is
+taken as the digits come, which gives the same answer.
+
+`False` for text with anything but capital letters and digits in it.
+
+-}
+mod97 : String -> Bool
+mod97 iban =
+    if String.length iban < 5 || not (String.all (\c -> Char.isDigit c || (Char.isAlpha c && Char.isUpper c)) iban) then
+        False
+
+    else
+        let
+            rearranged =
+                String.dropLeft 4 iban ++ String.left 4 iban
+
+            step c remainder =
+                if Char.isDigit c then
+                    modBy 97 (remainder * 10 + (Char.toCode c - 48))
+
+                else
+                    modBy 97 (remainder * 100 + (Char.toCode c - 55))
+        in
+        String.foldl step 0 rearranged == 1

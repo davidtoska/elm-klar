@@ -760,6 +760,7 @@ arithmeticTests =
         ]
 
 
+
 -- FRACTIONS
 
 
@@ -1027,6 +1028,7 @@ allocated weights minor =
     Money.allocate weights (amount Money.nok minor)
         |> Result.map (List.map Money.toMinor)
         |> Result.mapError (Money.problemText Locale.en)
+
 
 
 -- COMPARING

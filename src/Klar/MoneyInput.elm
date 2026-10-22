@@ -342,6 +342,7 @@ to do.
 
 An empty field counts as valid: for an amount that is required, also check `value`
 for `Nothing`.
+
 -}
 isValid : State -> Bool
 isValid (State state) =

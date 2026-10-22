@@ -1799,4 +1799,10 @@ css =
  .klar-savedviews__action-icon{display: flex;flex: none;width: 16px;color: var(--klar-text-secondary)}
  .klar-savedviews__action-label{flex: 0 1 auto}
  .klar-savedviews__action-hint{flex: 0 1 auto;margin-left: auto;padding-left: 12px;color: var(--klar-text-muted);font-size: var(--klar-text-sm)}
+ .klar-masked__control{font-variant-numeric: tabular-nums;letter-spacing: 0.02em;text-align: start}
+ .klar-masked .klar-input__counter{margin-inline-start: var(--klar-space-1)}
+ .klar-money__control{min-width: 0;font-variant-numeric: tabular-nums}
+ .klar-money__control--end{text-align: right}
+ .klar-money__currency{padding-inline-start: var(--klar-space-1);font-variant-numeric: tabular-nums;font-weight: var(--klar-weight-medium);letter-spacing: 0.04em;white-space: nowrap}
+ .klar-money.klar-input--disabled .klar-money__currency{color: var(--klar-text-disabled)}
 """
