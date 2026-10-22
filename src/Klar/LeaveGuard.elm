@@ -1,6 +1,6 @@
 module Klar.LeaveGuard exposing
-    ( Guard, init, setDirty, isDirty, dirtySources
-    , request, Answer(..), dismiss
+    ( Guard, init, initAt, setDirty, isDirty, dirtySources
+    , request, Answer(..), onUrlChange, dismiss
     , Msg, update, Decision, destination, savesFirst, view, isOpen, pending
     , Attribute, title, message, saveAndLeave, locale
     )
@@ -122,12 +122,12 @@ Back button), so that `Leave` knows which move to make.
 
 # The guard
 
-@docs Guard, init, setDirty, isDirty, dirtySources
+@docs Guard, init, initAt, setDirty, isDirty, dirtySources
 
 
 # Asking
 
-@docs request, Answer, dismiss
+@docs request, Answer, onUrlChange, dismiss
 
 
 # The dialog
@@ -141,14 +141,17 @@ Back button), so that `Leave` knows which move to make.
 
 -}
 
+import Browser.Navigation as Nav
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Leave as Leave
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Modal as Modal
 import Klar.Overlay exposing (Overlay)
+import Url exposing (Url)
 
 
 
@@ -156,29 +159,56 @@ import Klar.Overlay exposing (Overlay)
 
 
 {-| What the application knows about unsaved work: which sources are dirty, the
-request that waits for an answer, and the dialog that asks. `source` is your own
-type for the places that can hold unsaved changes and `target` is your own type for
-where the user wants to go. Sources are compared with `==`, so they must not
-contain functions. Make one with `init` and keep it in your model.
+request that waits for an answer, the address of the page, and the dialog that
+asks. `source` is your own type for the places that can hold unsaved changes and
+`target` is your own type for where the user wants to go. Sources are compared with
+`==`, so they must not contain functions. Make one with `initAt` (or `init`) and keep
+it in your model.
 -}
 type Guard source target
     = Guard
         { id : String
         , modal : Modal.State
-        , dirty : List source
-        , held : Maybe target
+        , key : Maybe Nav.Key
+        , state : Leave.State source target
         }
 
 
-{-| A guard with nothing dirty and no question open. The `String` is the DOM id of
-the dialog and must be unique on the page; the ids of its parts start with it.
+{-| A guard with nothing dirty and no question open, for the navigation you
+do yourself (a wizard, a drawer, a route in your own model). It does not know the
+address bar, so `onUrlChange` has nothing to compare with: use `initAt` for an
+application that has URLs. The `String` is the DOM id of the dialog and must be
+unique on the page; the ids of its parts start with it.
 
     LeaveGuard.init "leave-dialog"
 
 -}
 init : String -> Guard source target
 init id =
-    Guard { id = id, modal = Modal.init id, dirty = [], held = Nothing }
+    Guard { id = id, modal = Modal.init id, key = Nothing, state = Leave.init }
+
+
+{-| The same, for an application with URLs: give it the `Key` and the `Url` that
+`Browser.application` gives your `init`. The guard keeps the address of the page
+that is shown, and uses the key to put the address right after "Stay".
+
+    init _ url key =
+        ( { key = key
+          , route = Route.fromUrl url
+          , guard = LeaveGuard.initAt "leave-dialog" key url
+          }
+        , Cmd.none
+        )
+
+-}
+initAt : String -> Nav.Key -> Url -> Guard source target
+initAt id key url =
+    Guard
+        { id = id
+        , modal = Modal.init id
+        , key = Just key
+        , state = Leave.watch (Url.toString url) Leave.init
+        }
 
 
 {-| Says whether a source holds unsaved changes. Call it whenever that can change,
@@ -188,39 +218,29 @@ with the comparison itself:
 
 Saying the same thing twice is harmless, and a source that was never mentioned is
 clean. The guard keeps a handful of sources in a list: it is meant for forms, not
-for thousands of rows.
+for thousands of rows. A page with many parts (twenty rows of contacts, tags, files)
+is one source: compare its model with the saved one, or combine the flags of the parts
+in one function of yours, and call `setDirty` once.
 
 -}
 setDirty : source -> Bool -> Guard source target -> Guard source target
-setDirty source dirty (Guard state) =
-    Guard
-        { state
-            | dirty =
-                if dirty then
-                    if List.member source state.dirty then
-                        state.dirty
-
-                    else
-                        state.dirty ++ [ source ]
-
-                else
-                    List.filter (\other -> other /= source) state.dirty
-        }
+setDirty source dirty (Guard guard) =
+    Guard { guard | state = Leave.setDirty source dirty guard.state }
 
 
 {-| Is anything dirty? `False` only when every source is clean. Use it for a
 `beforeunload` port (see above) or an "unsaved changes" mark.
 -}
 isDirty : Guard source target -> Bool
-isDirty (Guard state) =
-    not (List.isEmpty state.dirty)
+isDirty (Guard guard) =
+    Leave.isDirty guard.state
 
 
 {-| The sources that are dirty, in the order they became dirty.
 -}
 dirtySources : Guard source target -> List source
-dirtySources (Guard state) =
-    state.dirty
+dirtySources (Guard guard) =
+    Leave.dirtySources guard.state
 
 
 
@@ -254,19 +274,120 @@ dialog stays open (see the top of this page).
 
 -}
 request : target -> Guard source target -> Answer source target
-request target ((Guard state) as guard) =
-    case ( state.dirty, state.held ) of
-        ( [], Nothing ) ->
+request target (Guard guard) =
+    case Leave.request target guard.state of
+        Nothing ->
             Proceed target
 
-        _ ->
+        Just state ->
             let
-                -- "" as the opener: focus goes back to whatever had it when the
-                -- dialog opened, if that element has an id
                 ( modal, cmd ) =
-                    Modal.openWith { opener = "", focus = [ stayId state.id ] } state.modal
+                    perform guard.key [ Leave.Open ] guard.id guard.modal
             in
-            Hold (Guard { state | modal = modal, held = Just target }) (Cmd.map ModalMsg cmd)
+            Hold (Guard { guard | modal = modal, state = state }) cmd
+
+
+{-| Call this from your `onUrlChange`, for every change of the address. It is
+the whole answer to the browser's Back and Forward buttons, to a `Nav.pushUrl` that
+did not ask first, and it takes the place of the code that enters the page.
+
+    UrlChanged url ->
+        case LeaveGuard.onUrlChange Route.fromUrl url model.guard of
+            ( guard, cmd, Just route ) ->
+                enter route { model | guard = guard } |> addCmd (Cmd.map GuardMsg cmd)
+
+            ( guard, cmd, Nothing ) ->
+                ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+`Just route` means: show this page. Nothing is dirty, or the user has just left. The
+first argument says what an address means to you (the same `target` you give to
+`request`); it is called once per change. `Nothing` means: do nothing, the guard has
+dealt with it. That is one of
+
+  - the page you show is already at this address (your own `Nav.pushUrl` came back,
+    or the guard put the address right after "Stay");
+  - something is dirty and the user pressed Back or Forward. The page stays as it
+    is, the question is open, and the address bar is already at the place the user
+    wanted. "Leave" shows that page; "Stay" pushes the address of the page that is
+    shown.
+
+The guard never moves in the history by itself. `Nav.back` and `Nav.forward` call
+`onUrlChange` twice (at once with the address they leave, later with the new one),
+and a program in Elm cannot tell Back from Forward; a guard that moved to undo the
+move looped forever, which is why this one does not. Put together, the history after
+"Stay" has one entry more than before only when the user pressed Forward, and the
+forward entries are gone after Back; "Leave" adds no entry.
+
+A guard made with `init` has no address to compare with and never holds: every
+change of the address is entered.
+
+-}
+onUrlChange : (Url -> target) -> Url -> Guard source target -> ( Guard source target, Cmd Msg, Maybe target )
+onUrlChange toTarget url (Guard guard) =
+    let
+        target =
+            toTarget url
+
+        ( state, effects, entered ) =
+            Leave.changed (Url.toString url) target guard.state
+
+        ( modal, cmd ) =
+            perform guard.key effects guard.id guard.modal
+    in
+    ( Guard { guard | modal = modal, state = state }
+    , cmd
+    , if entered then
+        Just target
+
+      else
+        Nothing
+    )
+
+
+{-| Carries out what the state machine decided, in order: the dialog opens or
+closes (focus goes to "Stay", or back to the opener) and the address is pushed or
+replaced.
+-}
+perform : Maybe Nav.Key -> List Leave.Effect -> String -> Modal.State -> ( Modal.State, Cmd Msg )
+perform key effects id modal =
+    List.foldl
+        (\effect ( current, cmds ) ->
+            case effect of
+                Leave.Open ->
+                    -- "" as the opener: focus goes back to whatever had it when the
+                    -- dialog opened, if that element has an id
+                    let
+                        ( next, cmd ) =
+                            Modal.openWith { opener = "", focus = [ stayId id ] } current
+                    in
+                    ( next, Cmd.map ModalMsg cmd :: cmds )
+
+                Leave.Close ->
+                    let
+                        ( next, cmd ) =
+                            Modal.close current
+                    in
+                    ( next, Cmd.map ModalMsg cmd :: cmds )
+
+                Leave.Push address ->
+                    ( current, moveWith Nav.pushUrl key address :: cmds )
+
+                Leave.Replace address ->
+                    ( current, moveWith Nav.replaceUrl key address :: cmds )
+        )
+        ( modal, [] )
+        effects
+        |> Tuple.mapSecond (List.reverse >> Cmd.batch)
+
+
+moveWith : (Nav.Key -> String -> Cmd Msg) -> Maybe Nav.Key -> String -> Cmd Msg
+moveWith move key address =
+    case key of
+        Just k ->
+            move k address
+
+        Nothing ->
+            Cmd.none
 
 
 {-| Withdraws the question that is open: the held value is forgotten and the dialog
@@ -291,17 +412,15 @@ them there.
 
 -}
 dismiss : Guard source target -> ( Guard source target, Cmd Msg )
-dismiss ((Guard state) as guard) =
-    case state.held of
-        Just _ ->
-            let
-                ( modal, cmd ) =
-                    Modal.close state.modal
-            in
-            ( Guard { state | modal = modal, held = Nothing }, Cmd.map ModalMsg cmd )
+dismiss (Guard guard) =
+    let
+        ( state, effects ) =
+            Leave.dismiss guard.state
 
-        Nothing ->
-            ( guard, Cmd.none )
+        ( modal, cmd ) =
+            perform guard.key effects guard.id guard.modal
+    in
+    ( Guard { guard | modal = modal, state = state }, cmd )
 
 
 
@@ -365,66 +484,50 @@ settled the question. A button that is pressed twice, or after the question was
 answered, settles nothing the second time.
 -}
 update : Msg -> Guard source target -> ( Guard source target, Cmd Msg, Maybe (Decision target) )
-update msg ((Guard state) as guard) =
+update msg (Guard guard) =
+    let
+        settle ( state, effects, target ) wrap =
+            let
+                ( modal, cmd ) =
+                    perform guard.key effects guard.id guard.modal
+            in
+            ( Guard { guard | modal = modal, state = state }, cmd, Maybe.map wrap target )
+    in
     case msg of
         ModalMsg inner ->
             let
                 ( modal, cmd ) =
-                    Modal.update inner state.modal
+                    Modal.update inner guard.modal
             in
-            ( Guard { state | modal = modal }, Cmd.map ModalMsg cmd, Nothing )
+            ( Guard { guard | modal = modal }, Cmd.map ModalMsg cmd, Nothing )
 
         StayPressed ->
             let
-                ( next, cmd ) =
-                    dismiss guard
+                ( state, effects ) =
+                    Leave.stay guard.state
             in
-            ( next, cmd, Nothing )
+            settle ( state, effects, Nothing ) Leave
 
         LeavePressed ->
-            case state.held of
-                Just target ->
-                    let
-                        ( modal, cmd ) =
-                            Modal.close state.modal
-                    in
-                    ( Guard { state | modal = modal, held = Nothing, dirty = [] }
-                    , Cmd.map ModalMsg cmd
-                    , Just (Leave target)
-                    )
-
-                Nothing ->
-                    ( guard, Cmd.none, Nothing )
+            settle (Leave.leave guard.state) Leave
 
         SavePressed ->
-            case state.held of
-                Just target ->
-                    let
-                        ( modal, cmd ) =
-                            Modal.close state.modal
-                    in
-                    ( Guard { state | modal = modal, held = Nothing }
-                    , Cmd.map ModalMsg cmd
-                    , Just (SaveFirst target)
-                    )
-
-                Nothing ->
-                    ( guard, Cmd.none, Nothing )
+            settle (Leave.save guard.state) SaveFirst
 
 
 {-| Is the question open? Pass it to `Modal.host` as `blocked`, or to
 `AppShell.modalOpen`, so that the page behind the dialog is inert.
 -}
 isOpen : Guard source target -> Bool
-isOpen (Guard state) =
-    Modal.isOpen state.modal
+isOpen (Guard guard) =
+    Modal.isOpen guard.modal
 
 
 {-| The value that waits for the answer, while the question is open.
 -}
 pending : Guard source target -> Maybe target
-pending (Guard state) =
-    state.held
+pending (Guard guard) =
+    Leave.held guard.state
 
 
 stayId : String -> String
