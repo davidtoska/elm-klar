@@ -17,6 +17,7 @@ klar-daterange__preset
 klar-description-list__dash
 klar-divider__label
 klar-filedrop__hint
+klar-focus-lost
 klar-form-section__head
 klar-inline-edit--failed
 klar-inline-edit--saving

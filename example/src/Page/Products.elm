@@ -344,7 +344,6 @@ view context model =
                 ]
             ]
     , overlays = []
-    , modalOpen = False
     }
 
 

@@ -51,9 +51,10 @@ The state holds the application's messages, hence `State msg`.
 # View
 
 Render the stack once, always, near the root of the application: it is the live
-region that screen readers listen to. Put it in the `overlays` of
-[`Modal.host`](Klar-Modal#host) so that the toasts stay usable while a dialog is
-open. New toasts are announced politely, without interrupting what the screen
+region that screen readers listen to. Put it in the list of overlays of
+[`Overlay.host`](Klar-Overlay#host), so that the toasts stay usable while a dialog
+is open: they move to the top of the window and `Tab` reaches them after the
+footer of the dialog. New toasts are announced politely, without interrupting what the screen
 reader is saying; a `danger` toast is announced at once (`role="alert"`). Every
 toast has a close button, and one with an action has a button for it; both can
 be reached with `Tab`.
@@ -97,6 +98,7 @@ it, and starts over when the pointer leaves.
 
 -}
 
+import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
@@ -105,6 +107,7 @@ import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Theme as Theme exposing (Tone(..))
 import Process
 import Task
@@ -200,6 +203,8 @@ type Msg
     | Dismiss Int
     | Hover Int Bool
     | Focus Int Bool
+    | FocusChain (List String)
+    | Noop
 
 
 {-| Handles timers, dismissing and the pause while a toast is hovered or focused.
@@ -207,7 +212,19 @@ Map its command into your own message with `Cmd.map`.
 -}
 update : Msg -> State msg -> ( State msg, Cmd Msg )
 update msg state =
-    arm (step msg state)
+    case msg of
+        FocusChain ids ->
+            -- `Tab` went past the last toast: back to the start of the dialog.
+            ( state
+            , List.foldl
+                (\id task -> Task.onError (\_ -> Dom.focus id) task)
+                (Task.fail (Dom.NotFound ""))
+                ids
+                |> Task.attempt (\_ -> Noop)
+            )
+
+        _ ->
+            arm (step msg state)
 
 
 step : Msg -> State msg -> State msg
@@ -233,6 +250,12 @@ step msg ((State state) as current) =
 
         Focus id on ->
             hold id (\item -> { item | focused = on }) current
+
+        FocusChain _ ->
+            current
+
+        Noop ->
+            current
 
 
 {-| Adds a toast built from the attributes. The command starts its timer: map it
@@ -552,11 +575,23 @@ locale value =
 
 
 {-| The stack of toasts, fixed in the bottom right corner above everything else.
-Render it once, always, even when there are no toasts (it is the live region
-screen readers listen to). Of the attributes only `locale` has an effect here.
+Put it in the list of overlays of [`Overlay.host`](Klar-Overlay#host) (or
+`AppShell.overlays`), always, even when there are no toasts: it is the live region
+screen readers listen to. Of the attributes only `locale` has an effect here.
+
+While a dialog or drawer is open the stack moves to the top of the window, so that
+it never covers the footer buttons, and it becomes the last stop of the dialog's
+`Tab` loop: after the footer, `Tab` goes through the toasts (the action and the
+close button of each) and then to the first element of the dialog again.
+
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State msg -> Html msg
-view toMsg attributes (State state) =
+view : (Msg -> msg) -> List (Attribute msg) -> State msg -> Overlay msg
+view toMsg attributes state =
+    Overlay.toasts { render = \around -> viewStack toMsg attributes state around.trap }
+
+
+viewStack : (Msg -> msg) -> List (Attribute msg) -> State msg -> Maybe (List String) -> Html msg
+viewStack toMsg attributes (State state) trap =
     let
         config =
             configure attributes
@@ -564,28 +599,46 @@ view toMsg attributes (State state) =
         waiting =
             List.length state.waiting
     in
-    Html.div
-        [ Internal.cls [ "klar-toasts" ]
-        , Attr.attribute "role" "region"
-        , Attr.attribute "aria-label" (Locale.pick config.locale { nb = "Varsler", en = "Notifications" })
-        , Attr.attribute "aria-live" "polite"
-        , Attr.attribute "aria-relevant" "additions text"
-        ]
-        (List.map (viewItem toMsg config.locale) state.visible
-            ++ [ if waiting > 0 then
-                    Html.div [ Internal.cls [ "klar-toasts__more" ] ]
-                        [ Html.text
-                            (Locale.pick config.locale
-                                { nb = "+ " ++ String.fromInt waiting ++ " til venter"
-                                , en = "+ " ++ String.fromInt waiting ++ " more waiting"
-                                }
-                            )
-                        ]
+    Html.div [ Internal.cls [ "klar-contents" ] ]
+        [ Html.div
+            [ Internal.cls [ "klar-toasts" ]
 
-                 else
-                    Html.text ""
-               ]
-        )
+            -- A log, not a region: a region is a landmark, and an application can
+            -- have two stacks (its own and one of a page) with the same name.
+            , Attr.attribute "role" "log"
+            , Attr.attribute "aria-label" (Locale.pick config.locale { nb = "Varsler", en = "Notifications" })
+            , Attr.attribute "aria-live" "polite"
+            , Attr.attribute "aria-relevant" "additions text"
+            ]
+            (List.map (viewItem toMsg config.locale) state.visible
+                ++ [ if waiting > 0 then
+                        Html.div [ Internal.cls [ "klar-toasts__more" ] ]
+                            [ Html.text
+                                (Locale.pick config.locale
+                                    { nb = "+ " ++ String.fromInt waiting ++ " til venter"
+                                    , en = "+ " ++ String.fromInt waiting ++ " more waiting"
+                                    }
+                                )
+                            ]
+
+                     else
+                        Html.text ""
+                   ]
+            )
+        , case trap of
+            Just ids ->
+                -- A dialog is open and its loop of Tab stops ends here: after the
+                -- last toast, Tab goes back to the first element of the dialog.
+                Html.div
+                    [ Internal.cls [ "klar-modal__sentinel" ]
+                    , Attr.tabindex 0
+                    , Events.onFocus (toMsg (FocusChain ids))
+                    ]
+                    []
+
+            Nothing ->
+                Html.text ""
+        ]
 
 
 viewItem : (Msg -> msg) -> Locale -> Item msg -> Html msg

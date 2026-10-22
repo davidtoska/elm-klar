@@ -112,7 +112,6 @@ view context model =
                     viewSummary context model.summary
             ]
     , overlays = []
-    , modalOpen = False
     }
 
 

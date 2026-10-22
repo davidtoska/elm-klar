@@ -31,6 +31,7 @@ import Klar.ContextMenu as ContextMenu
 import Klar.Locale as Locale
 import Klar.Menu as Menu
 import Klar.Menu.Scroll as Scroll
+import Klar.Overlay as Overlay
 import Klar.Remote as Remote
 import Klar.Toast as Toast
 import Klar.Tooltip as Tooltip
@@ -240,16 +241,22 @@ dialogId =
 -}
 drawDialog : Bool -> ConfirmDialog.State -> Html DialogMsg
 drawDialog withOnCancel state =
-    ConfirmDialog.view Dialog
-        (ConfirmDialog.title "Delete order?"
-            :: (if withOnCancel then
-                    [ ConfirmDialog.onCancel Cancelled ]
+    Overlay.host
+        { attributes = []
+        , page = []
+        , overlays =
+            [ ConfirmDialog.view Dialog
+                (ConfirmDialog.title "Delete order?"
+                    :: (if withOnCancel then
+                            [ ConfirmDialog.onCancel Cancelled ]
 
-                else
-                    []
-               )
-        )
-        state
+                        else
+                            []
+                       )
+                )
+                state
+            ]
+        }
 
 
 {-| What the application does with a message of the dialog: hands the dialog its
@@ -379,7 +386,7 @@ pushed text stack =
 
 drawStack : Stack -> Query.Single Toast.Msg
 drawStack stack =
-    Toast.view identity [] stack
+    Overlay.host { attributes = [], page = [], overlays = [ Toast.view identity [] stack ] }
         |> Query.fromHtml
 
 

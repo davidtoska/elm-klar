@@ -18,6 +18,12 @@
   outline: none;
 }
 
+/* Wrappers that only carry an event listener (the overlay layer listens to the
+   focus on the page through them). They take no part in the layout. */
+.klar-contents {
+  display: contents;
+}
+
 /* ---- Modal & drawer -------------------------------------------------- */
 
 .klar-modal-lock {
@@ -52,6 +58,29 @@ html:has(.klar-modal-lock) {
   inset: 0;
   background: var(--klar-overlay);
   animation: klar-fade-in var(--klar-dur) var(--klar-ease);
+}
+
+/* Focus that falls out of the open dialog (the focused element was removed or
+   disabled, and the page fell back to the body) is the only thing in the DOM that
+   no event reports. This element runs an animation exactly while no overlay
+   contains focus; the dialog on top hears `animationstart` and takes focus back.
+   The animation does nothing visible. The same selector list names every
+   surface that can hold focus: the dialogs, the palette and the toasts. */
+.klar-modal__guard {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+:root:not(:has(.klar-modal__dialog:focus-within, .klar-palette__panel:focus-within, .klar-toasts:focus-within))
+  .klar-modal__guard {
+  animation: klar-focus-lost 1ms;
+}
+
+@keyframes klar-focus-lost {
+  from { opacity: 0.99; }
+  to { opacity: 1; }
 }
 
 /* Invisible tab stops that keep keyboard focus inside the dialog. */
@@ -327,6 +356,16 @@ html:has(.klar-modal-lock) {
   width: 380px;
   max-width: calc(100vw - 2 * var(--klar-space-4));
   pointer-events: none;
+}
+
+/* While a dialog is open the toasts leave the corner, where they would cover the
+   footer buttons, and sit at the top of the window instead. */
+:root:has(.klar-modal-lock) .klar-toasts {
+  top: var(--klar-space-4);
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
 }
 
 .klar-toast {

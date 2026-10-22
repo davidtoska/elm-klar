@@ -58,8 +58,8 @@ For the keyboard, an `area` can take focus (`Tab`, so each one is one more tab
 stop); the context menu key or `Shift+F10` opens the menu for it and focus
 returns to it when the menu closes.
 
-When a menu item opens a dialog, render the dialog through
-[`Modal.host`](Klar-Modal#host): the page behind it is then `inert`, so closing
+When a menu item opens a dialog, give the dialog to
+[`Overlay.host`](Klar-Overlay#host): the page behind it is then `inert`, so closing
 the menu cannot take focus back from the dialog (the same holds for
 [Klar.Menu](Klar-Menu)).
 

@@ -44,6 +44,7 @@ import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Menu as Menu
+import Klar.Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Table as Table
@@ -1270,10 +1271,6 @@ view context model =
         , viewDiscard context model
         , viewConfirm context model
         ]
-    , modalOpen =
-        Drawer.isOpen model.drawer
-            || ConfirmDialog.isOpen model.discard
-            || ConfirmDialog.isOpen model.confirm
     }
 
 
@@ -1445,7 +1442,7 @@ statusItem order status =
 -- EDITOR
 
 
-viewEditor : Context -> Model -> Html Msg
+viewEditor : Context -> Model -> Overlay Msg
 viewEditor context model =
     case model.editing of
         Nothing ->
@@ -1523,7 +1520,7 @@ viewSubmitStatus context editor =
             Form.status [ Form.id Editor.formId, Form.onRetry Retry, Form.locale context.locale ] status
 
 
-viewDiscard : Context -> Model -> Html Msg
+viewDiscard : Context -> Model -> Overlay Msg
 viewDiscard context model =
     ConfirmDialog.view DiscardMsg
         [ ConfirmDialog.warning
@@ -1541,7 +1538,7 @@ viewDiscard context model =
 {-| The question before a delete or a cancel. The dialog shows a failed request
 itself, with the words of the server.
 -}
-viewConfirm : Context -> Model -> Html Msg
+viewConfirm : Context -> Model -> Overlay Msg
 viewConfirm context model =
     let
         question =

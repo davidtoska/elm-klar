@@ -26,6 +26,7 @@ import Klar.Date as Date
 import Klar.FilterBar as FilterBar
 import Klar.Format as Format
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Overlay as Overlay
 import Klar.Rule as Rule exposing (FieldKind(..), Operator(..), Rule(..))
 import Klar.RuleBuilder as RuleBuilder
 import Klar.SavedViews as SavedViews
@@ -1174,6 +1175,8 @@ helpSheet shortcuts =
         |> ShortcutHelp.open ""
         |> Tuple.first
         |> ShortcutHelp.view HelpMsg [] shortcuts
+        |> List.singleton
+        |> (\overlays -> Overlay.host { attributes = [], page = [], overlays = overlays })
 
 
 helpSheetTests : Test

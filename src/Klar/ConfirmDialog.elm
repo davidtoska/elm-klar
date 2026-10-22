@@ -1,10 +1,10 @@
 module Klar.ConfirmDialog exposing
     ( view
     , State, Msg, init, update, isOpen, isBusy, problem
-    , open, setBusy, setFailed, close
+    , open, setBusy, setFailed, clearFailure, close
     , Attribute, title, message, body, consequences
     , tone, neutral, warning, danger, icon
-    , confirmLabel, cancelLabel, typeToConfirm, ignoreCase
+    , confirmLabel, cancelLabel, confirmDisabled, typeToConfirm, ignoreCase
     , onConfirm, onCancel
     , locale
     )
@@ -108,7 +108,7 @@ typed-confirmation field) follow `locale`.
 
 # Opening, confirming and closing
 
-@docs open, setBusy, setFailed, close
+@docs open, setBusy, setFailed, clearFailure, close
 
 
 # Content
@@ -123,7 +123,7 @@ typed-confirmation field) follow `locale`.
 
 # Buttons and typed confirmation
 
-@docs confirmLabel, cancelLabel, typeToConfirm, ignoreCase
+@docs confirmLabel, cancelLabel, confirmDisabled, typeToConfirm, ignoreCase
 
 
 # Messages
@@ -146,6 +146,7 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Modal as Modal
+import Klar.Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem)
 import Klar.Text as Text
 import Klar.TextInput as TextInput
@@ -184,8 +185,8 @@ init id =
     State { id = id, modal = Modal.init id, phase = Idle, typed = "" }
 
 
-{-| Is the dialog open? Use it for the `blocked` flag of
-[`Modal.host`](Klar-Modal#host).
+{-| Is the dialog open? The page behind it is made inert by the
+[`Overlay`](Klar-Overlay#Overlay) the dialog returns, so you rarely need this.
 -}
 isOpen : State -> Bool
 isOpen (State state) =
@@ -295,10 +296,31 @@ setBusy (State state) =
 detail and code) and, if the problem is retryable and you gave an `onConfirm`, a
 "Try again" button that sends your message again. The dialog can be dismissed
 again.
+
+It is for the answer of the server, not for checking the user's input: a missing
+choice or a field that is not valid is a reason to keep the confirm button
+disabled (see `confirmDisabled`), shown beside the field it concerns. If a problem
+that was shown has been dealt with while the dialog stays open, take it away with
+`clearFailure`.
+
 -}
 setFailed : Problem -> State -> State
 setFailed found (State state) =
     State { state | phase = Failed found }
+
+
+{-| Takes the failure away without closing the dialog, for a problem that does not
+apply any more (the user chose another option, say). Nothing happens unless the
+dialog shows a failure; a request that is running (`setBusy`) is not touched.
+-}
+clearFailure : State -> State
+clearFailure (State state) =
+    case state.phase of
+        Failed _ ->
+            State { state | phase = Idle }
+
+        _ ->
+            State state
 
 
 {-| Closes the dialog, forgets any typed text and failure, and gives focus back
@@ -356,6 +378,7 @@ type alias Config msg =
     , cancelLabel : Maybe String
     , phrase : Maybe String
     , ignoreCase : Bool
+    , confirmDisabled : Bool
     , onConfirm : Maybe msg
     , onCancel : Maybe msg
     , locale : Locale
@@ -375,6 +398,7 @@ configure attributes =
         , cancelLabel = Nothing
         , phrase = Nothing
         , ignoreCase = False
+        , confirmDisabled = False
         , onConfirm = Nothing
         , onCancel = Nothing
         , locale = Locale.default
@@ -467,6 +491,17 @@ cancelLabel value =
     Attribute (\config -> { config | cancelLabel = Just value })
 
 
+{-| Disables the confirm button (and `Enter` in the typed-confirmation field) while
+`True`: pass a field of your model that is `False` until the user has made the
+choice the question needs. The dialog stays calm about it: no message is shown,
+so say what is missing beside the control (a `Select.errorMaybe`, say). If the
+confirm button has focus when it becomes disabled, focus moves to the dialog.
+-}
+confirmDisabled : Bool -> Attribute msg
+confirmDisabled value =
+    Attribute (\config -> { config | confirmDisabled = value })
+
+
 {-| The user must type this text before the confirm button is enabled, for
 actions that cannot be undone: a word that makes them stop and read, such as
 `"DELETE"` or the name of the thing they delete. The field is labeled "Type
@@ -521,10 +556,11 @@ locale value =
 
 
 {-| The dialog. `toMsg` wraps the messages of the dialog. Renders nothing while
-closed, so it can stay in your view all the time; put it in the `overlays` of
-[`Modal.host`](Klar-Modal#host) if you use one.
+closed, so it can stay in your view all the time. It returns an
+[`Overlay`](Klar-Overlay#Overlay) for [`Overlay.host`](Klar-Overlay#host) or
+`AppShell.overlays`.
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Overlay msg
 view toMsg attributes (State state) =
     let
         config =
@@ -541,8 +577,11 @@ view toMsg attributes (State state) =
                 Just phrase ->
                     normalize config.ignoreCase (String.trim state.typed) == normalize config.ignoreCase phrase
 
+        confirmEnabled =
+            phraseOk && not config.confirmDisabled
+
         canConfirm =
-            phraseOk && not isBusy_
+            confirmEnabled && not isBusy_
 
         texts =
             { confirm = Locale.pick config.locale { nb = "Bekreft", en = "Confirm" }
@@ -567,7 +606,7 @@ view toMsg attributes (State state) =
                    else
                     Button.primary
                  , Button.loading isBusy_
-                 , Button.disabled (not phraseOk)
+                 , Button.disabled (not confirmEnabled)
                  ]
                     ++ (case ( canConfirm, config.onConfirm ) of
                             ( True, Just msg ) ->
@@ -594,7 +633,7 @@ view toMsg attributes (State state) =
          , Modal.locale config.locale
          , Modal.ariaDescribedBy (messageId state.id)
          , Modal.lastFocus
-            (if phraseOk then
+            (if confirmEnabled then
                 confirmId state.id
 
              else

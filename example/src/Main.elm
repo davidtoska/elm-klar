@@ -28,6 +28,7 @@ import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Radio as Radio
 import Klar.Remote as Remote exposing (Remote)
 import Klar.SegmentedControl as SegmentedControl
@@ -911,12 +912,6 @@ view model =
                    , viewTools model
                    , Toast.view ToastMsg [ Toast.locale model.locale ] model.toasts
                    ]
-
-        modalOpen =
-            page.modalOpen
-                || CommandPalette.isOpen model.palette
-                || ShortcutHelp.isOpen model.help
-                || Drawer.isOpen model.tools
     in
     { title = routeTitle model.route ++ " – Klar showcase"
     , body =
@@ -947,7 +942,6 @@ view model =
              , AppShell.userName "Demo user"
              , AppShell.userRole "Operations"
              , AppShell.userMenu (viewUserMenu model)
-             , AppShell.modalOpen modalOpen
              , AppShell.onSkipToContent SkipToContent
              , AppShell.onStrayDrop NoOp
              , AppShell.shortcuts (Shortcut.listen ShortcutMsg shortcuts model.shortcuts)
@@ -981,12 +975,11 @@ viewPage model =
     let
         mapView toMsg pageView =
             { content = Html.map toMsg pageView.content
-            , overlays = List.map (Html.map toMsg) pageView.overlays
-            , modalOpen = pageView.modalOpen
+            , overlays = List.map (Overlay.map toMsg) pageView.overlays
             }
 
         plain content =
-            { content = content, overlays = [], modalOpen = False }
+            { content = content, overlays = [] }
     in
     case model.route of
         Overview ->
@@ -1085,7 +1078,7 @@ viewUserMenu model =
         model.userMenu
 
 
-viewPalette : Model -> Html Msg
+viewPalette : Model -> Overlay Msg
 viewPalette model =
     let
         go label route icon keys =
@@ -1160,7 +1153,7 @@ viewPalette model =
 -- DEVELOPER TOOLS
 
 
-viewTools : Model -> Html Msg
+viewTools : Model -> Overlay Msg
 viewTools model =
     let
         sim =

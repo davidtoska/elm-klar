@@ -3,7 +3,7 @@ module Klar.AppShell exposing
     , brand, brandLink, onSearch, searchPlaceholder, searchShortcut, actions, userName, userRole, userAvatar, userMenu, banner
     , sidebar, sidebarCollapsed, onToggleSidebar, drawerOpen, onToggleDrawer, onCloseDrawer, focusMenuButton
     , contentMaxWidth, contentPadding, resetScroll
-    , overlays, modalOpen
+    , overlays
     , onSkipToContent, focusContent, shortcuts
     , id, height, width, onStrayDrop
     , locale
@@ -198,11 +198,12 @@ tab order. When it closes, give focus back to the menu button
 (`focusMenuButton`): the links of a closed drawer cannot hold it. After
 navigating from the drawer, `focusContent`.
 
-**Modals.** While `modalOpen` is `True` the banner, top bar, sidebar and content
-are `inert`: focus cannot leave an open dialog and screen readers ignore the page
-behind it. Put the dialogs, drawers and toasts in `overlays`, which is rendered
-outside the inert part. This takes the place of `Modal.host` from
-[Klar.Modal](Klar-Modal) for an application that uses the shell.
+**Modals.** Give the dialogs, drawers, the palette and the toasts to `overlays`,
+which draws them outside the page. While any of them is open the banner, top bar,
+sidebar and content are `inert`: focus cannot leave an open dialog and screen
+readers ignore the page behind it. The shell finds that out from the list itself;
+there is no flag to keep in step. This takes the place of
+[`Overlay.host`](Klar-Overlay#host) for an application that uses the shell.
 
 **Skip link.** The first Tab stop is a skip link, "Skip to main content", which
 is visible only while it has focus. With hash routing a plain `#anchor` link would
@@ -242,7 +243,7 @@ change without JavaScript.
 
 # Overlays and modals
 
-@docs overlays, modalOpen
+@docs overlays
 
 
 # Skip link and shortcuts
@@ -270,6 +271,7 @@ import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Text as Text
 import Task
 
@@ -306,8 +308,7 @@ type alias Config msg =
     , banner : Maybe (Html msg)
     , contentMaxWidth : Maybe Int
     , contentPadding : Int
-    , overlays : List (Html msg)
-    , modalOpen : Bool
+    , overlays : List (Overlay msg)
     , height : Maybe Int
     , width : Maybe Int
     , onSkip : Maybe msg
@@ -340,7 +341,6 @@ configure attributes =
         , contentMaxWidth = Nothing
         , contentPadding = 6
         , overlays = []
-        , modalOpen = False
         , height = Nothing
         , width = Nothing
         , onSkip = Nothing
@@ -542,8 +542,11 @@ contentPadding n =
     Attribute (\config -> { config | contentPadding = n })
 
 
-{-| Content that is rendered after the page, outside the part that `modalOpen`
-makes inert: dialogs, drawers, toasts, the command palette.
+{-| The overlays of the page: dialogs, drawers, the command palette, the shortcut
+sheet and the toasts, each as the [`Overlay`](Klar-Overlay#Overlay) that its `view`
+returns. They are drawn after the page, outside the part that becomes `inert`
+while one of them is open. See [Klar.Overlay](Klar-Overlay) for everything the
+list takes care of.
 
     AppShell.overlays
         [ Modal.view ModalMsg [ Modal.title "Edit order" ] model.modal [ orderForm model ]
@@ -551,21 +554,9 @@ makes inert: dialogs, drawers, toasts, the command palette.
         ]
 
 -}
-overlays : List (Html msg) -> Attribute msg
+overlays : List (Overlay msg) -> Attribute msg
 overlays value =
     Attribute (\config -> { config | overlays = value })
-
-
-{-| Pass `True` while a modal dialog is open (default `False`). The banner, top bar,
-sidebar and content then become `inert`: keyboard focus cannot reach them and
-screen readers ignore them. Put the dialog in `overlays`, which stays active.
-
-    AppShell.modalOpen (Modal.isOpen model.modal)
-
--}
-modalOpen : Bool -> Attribute msg
-modalOpen value =
-    Attribute (\config -> { config | modalOpen = value })
 
 
 {-| Draws the shell as a framed box this many pixels high, with a border and
@@ -784,6 +775,9 @@ view attributes content =
         strings =
             texts config.locale
 
+        layer =
+            Overlay.layer config.overlays
+
         frame =
             List.filterMap identity
                 [ config.height |> Maybe.map (\px -> ( "--klar-app-shell-h", String.fromInt px ++ "px" ))
@@ -808,7 +802,7 @@ view attributes content =
 
               else
                 ""
-            , if config.modalOpen then
+            , if layer.blocked then
                 "klar-app-shell--modal-open"
 
               else
@@ -830,32 +824,34 @@ view attributes content =
          ]
             ++ strayDropGuard config.onStrayDrop
         )
-        [ Html.div
-            ([ Internal.cls [ "klar-app-shell__chrome" ]
-             , Internal.attrIf config.modalOpen (Attr.attribute "inert" "")
-             ]
-                -- Not on the root: a node keeps one keydown handler only, and the
-                -- root already has the application's shortcuts. Here it also
-                -- leaves Escape inside dialogs alone.
-                ++ (case ( config.drawerOpen, config.onCloseDrawer ) of
-                        ( True, Just close ) ->
-                            [ Internal.onKeysPassive [ ( "Escape", close ) ] ]
+        (layer.watch
+            [ Html.div
+                ([ Internal.cls [ "klar-app-shell__chrome" ]
+                 , Internal.attrIf layer.blocked (Attr.attribute "inert" "")
+                 ]
+                    -- Not on the root: a node keeps one keydown handler only, and the
+                    -- root already has the application's shortcuts. Here it also
+                    -- leaves Escape inside dialogs alone.
+                    ++ (case ( config.drawerOpen, config.onCloseDrawer ) of
+                            ( True, Just close ) ->
+                                [ Internal.onKeysPassive [ ( "Escape", close ) ] ]
 
-                        _ ->
-                            []
-                   )
-            )
-            [ viewSkipLink config strings
-            , Internal.viewMaybe (\html -> Html.div [ Internal.cls [ "klar-app-shell__banner" ] ] [ html ]) config.banner
-            , viewBar config strings
-            , Html.div [ Internal.cls [ "klar-app-shell__body" ] ]
-                [ viewSidebar config
-                , viewBackdrop config
-                , viewContent config content
+                            _ ->
+                                []
+                       )
+                )
+                [ viewSkipLink config strings
+                , Internal.viewMaybe (\html -> Html.div [ Internal.cls [ "klar-app-shell__banner" ] ] [ html ]) config.banner
+                , viewBar config strings
+                , Html.div [ Internal.cls [ "klar-app-shell__body" ] ]
+                    [ viewSidebar config
+                    , viewBackdrop config
+                    , viewContent config content
+                    ]
                 ]
+            , Html.div [ Internal.cls [ "klar-app-shell__overlays" ] ] layer.overlays
             ]
-        , Html.div [ Internal.cls [ "klar-app-shell__overlays" ] ] config.overlays
-        ]
+        )
 
 
 {-| The two events that make the page a place where a file can be dropped, and
