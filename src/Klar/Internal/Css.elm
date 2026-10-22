@@ -1878,4 +1878,10 @@ css =
  .klar-leave__message{color: var(--klar-text);overflow-wrap: anywhere}
  .klar-history{position: relative;display: inline-flex;align-items: center;gap: var(--klar-space-1)}
  .klar-history__live{pointer-events: none}
+ .klar-masked__control{font-variant-numeric: tabular-nums;letter-spacing: 0.02em;text-align: start}
+ .klar-masked .klar-input__counter{margin-inline-start: var(--klar-space-1)}
+ .klar-money__control{min-width: 0;font-variant-numeric: tabular-nums}
+ .klar-money__control--end{text-align: right}
+ .klar-money__currency{padding-inline-start: var(--klar-space-1);font-variant-numeric: tabular-nums;font-weight: var(--klar-weight-medium);letter-spacing: 0.04em;white-space: nowrap}
+ .klar-money.klar-input--disabled .klar-money__currency{color: var(--klar-text-disabled)}
 """
