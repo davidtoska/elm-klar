@@ -326,8 +326,8 @@ new ones.
 **Status of density and time zone: done** (see `design/SETTINGS.md`). `Klar.Settings` holds both; the shell
 (`AppShell.settings`) makes everything inside follow the density through the stylesheet, and the components
 that write a time take `settings` (the old `zone` attributes are gone); a time without a zone says "UTC".
-Locale is not in it (decision left open in the design note); a fixed width, `auto-fit` and the sidebar width
-of the A8 row were already there.
+Locale is not in it (decision left open in the design note). The rest of the A8 row (a fixed width, `auto-fit`,
+the sidebar width) is not part of this.
 
 **Status of the stale state and the `Remote`-aware containers: done** (see
 `design/STALE-DATA.md` and the CHANGELOG). `Remote` has a fifth state, `Kept`, made by
