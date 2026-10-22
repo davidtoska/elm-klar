@@ -230,7 +230,13 @@ before is left out. `cell` is called for every pair on every render, so keep it 
         , roleKey = Role.toString
         , permissions = [ PermissionMatrix.permission ViewOrders "View orders" ]
         , permissionKey = Permission.toString
-        , cell = \r p -> if Grants.has r p grants then PermissionMatrix.granted else PermissionMatrix.denied
+        , cell =
+            \r p ->
+                if Grants.has r p grants then
+                    PermissionMatrix.granted
+
+                else
+                    PermissionMatrix.denied
         }
 
 -}
@@ -1230,26 +1236,30 @@ viewNotes env =
             else
                 Nothing
     in
-    Html.div [ Internal.cls [ "klar-permissions__notes" ] ]
-        [ case countNote of
-            Just text ->
-                Html.p [ Internal.cls [ "klar-permissions__note" ] ] [ Html.text text ]
+    if countNote == Nothing && List.isEmpty lockedRoles then
+        Html.text ""
 
-            Nothing ->
-                Html.text ""
-        , Internal.viewIf (not (List.isEmpty lockedRoles))
-            (Html.ul [ Internal.cls [ "klar-permissions__locked-list" ] ]
-                (List.map
-                    (\( r, reason ) ->
-                        Html.li [ Attr.id (reasonId env r.key) ]
-                            [ Icon.sized Icon.ExtraSmall Icon.lock
-                            , Html.text (t.lockedNote r.label reason)
-                            ]
+    else
+        Html.div [ Internal.cls [ "klar-permissions__notes" ] ]
+            [ case countNote of
+                Just text ->
+                    Html.p [ Internal.cls [ "klar-permissions__note" ] ] [ Html.text text ]
+
+                Nothing ->
+                    Html.text ""
+            , Internal.viewIf (not (List.isEmpty lockedRoles))
+                (Html.ul [ Internal.cls [ "klar-permissions__locked-list" ] ]
+                    (List.map
+                        (\( r, reason ) ->
+                            Html.li [ Attr.id (reasonId env r.key) ]
+                                [ Icon.sized Icon.ExtraSmall Icon.lock
+                                , Html.text (t.lockedNote r.label reason)
+                                ]
+                        )
+                        lockedRoles
                     )
-                    lockedRoles
                 )
-            )
-        ]
+            ]
 
 
 isPermissionRow : Grid.Row -> Bool
@@ -1282,8 +1292,8 @@ viewBody env =
 
     else
         Html.div
-            ([ Internal.cls [ "klar-permissions__scroll" ]
-             , Internal.styleVars
+            [ Internal.cls [ "klar-permissions__scroll" ]
+            , Internal.styleVars
                 ([ ( "--klar-pm-cols", String.fromInt (Array.length env.roles) ) ]
                     ++ (case env.config.maxHeight of
                             Just pixels ->
@@ -1293,12 +1303,11 @@ viewBody env =
                                 []
                        )
                 )
-             , Events.on "focusin" (Decode.map env.toMsg (focusinDecoder env))
-             , Events.on "click" (Decode.map env.toMsg (clickDecoder env))
-             , Events.on "change" (Decode.map env.toMsg (changeDecoder env))
-             , Events.preventDefaultOn "keydown" (Decode.map (Tuple.mapFirst env.toMsg) (keyDecoder env))
-             ]
-            )
+            , Events.on "focusin" (Decode.map env.toMsg (focusinDecoder env))
+            , Events.on "click" (Decode.map env.toMsg (clickDecoder env))
+            , Events.on "change" (Decode.map env.toMsg (changeDecoder env))
+            , Events.preventDefaultOn "keydown" (Decode.map (Tuple.mapFirst env.toMsg) (keyDecoder env))
+            ]
             [ viewTable env ]
 
 
