@@ -13,6 +13,7 @@ as they are, so you never write the way back from a key to an id.
     import Klar.Picking as Picking
     import Klar.Remote exposing (Remote(..))
 
+
     -- how a RegionId is written as a key, once for the whole application
     regionIds : Picking.Ids RegionId
     regionIds =
@@ -21,7 +22,8 @@ as they are, so you never write the way back from a key to an id.
     -- a hierarchy: Europe holds Oslo, and the zones of Bergen come from the backend
     regions : Remote (List Zone) -> List (Picking.Node RegionId)
     regions bergenZones =
-        [ Picking.branch regionIds europe
+        [ Picking.branch regionIds
+            europe
             "Europe"
             [ Picking.leaf regionIds oslo "Oslo" |> Picking.withDescription "OSL"
             , Picking.lazy regionIds bergen "Bergen" (Remote.map (List.map zoneNode) bergenZones)

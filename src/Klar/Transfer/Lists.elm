@@ -6,8 +6,8 @@ module Klar.Transfer.Lists exposing
     , Source
     , availableRows
     , buildSource
-    , emptySource
     , chosenRows
+    , emptySource
     , filterWords
     , moveIn
     , normalize

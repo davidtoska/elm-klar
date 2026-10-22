@@ -549,7 +549,6 @@ TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
                     , Text.caption ("Value: " ++ listText identity (TreeSelect.values model.catalogue))
                     ]
                 )
-
             , Doc.example
                 { title = "A top level that fails"
                 , description = Just "The backend is down on purpose: the popup shows the problem with “Try again”, which loads for a moment and fails again."

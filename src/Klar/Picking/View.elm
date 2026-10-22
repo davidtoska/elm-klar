@@ -5,11 +5,11 @@ module Klar.Picking.View exposing
     , atStart
     , holdSearchFocus
     , isJust
-    , plain
     , onKeydown
     , onSearchKeys
     , onTriggerKeys
     , onWindowKeys
+    , plain
     , retryFor
     , viewChevron
     , viewClearButton

@@ -2060,6 +2060,7 @@ viewMultipleControl toMsg config t data controlClasses triggerAttributes openMsg
         ]
 
 
+
 -- POPUP
 
 
@@ -2529,7 +2530,7 @@ viewNodeRow rc index item =
                     entry.label
     in
     Html.div
-        ([ Internal.cls
+        [ Internal.cls
             [ "klar-select__option"
             , "klar-tree-select__row"
             , if isHighlighted then
@@ -2548,12 +2549,12 @@ viewNodeRow rc index item =
               else
                 ""
             ]
-         , Attr.id (rowDomId data.id index)
-         , Attr.attribute "role" "treeitem"
-         , Attr.attribute "aria-level" (String.fromInt (entry.depth + 1))
-         , Attr.attribute "aria-setsize" (String.fromInt item.setSize)
-         , Attr.attribute "aria-posinset" (String.fromInt item.posInSet)
-         , Internal.attrIf item.expandable
+        , Attr.id (rowDomId data.id index)
+        , Attr.attribute "role" "treeitem"
+        , Attr.attribute "aria-level" (String.fromInt (entry.depth + 1))
+        , Attr.attribute "aria-setsize" (String.fromInt item.setSize)
+        , Attr.attribute "aria-posinset" (String.fromInt item.posInSet)
+        , Internal.attrIf item.expandable
             (Attr.attribute "aria-expanded"
                 (if item.open then
                     "true"
@@ -2562,7 +2563,7 @@ viewNodeRow rc index item =
                     "false"
                 )
             )
-         , if data.multiple then
+        , if data.multiple then
             Attr.attribute "aria-checked"
                 (case state of
                     Checked ->
@@ -2575,7 +2576,7 @@ viewNodeRow rc index item =
                         "false"
                 )
 
-           else
+          else
             Attr.attribute "aria-selected"
                 (if isChosen then
                     "true"
@@ -2583,20 +2584,19 @@ viewNodeRow rc index item =
                  else
                     "false"
                 )
-         , Internal.attrIf entry.disabled (Attr.attribute "aria-disabled" "true")
-         , Attr.title tooltip
-         , Internal.styleVars [ ( "--klar-depth", String.fromInt entry.depth ) ]
-         , Internal.onMouseDownPrevent (rc.toMsg NoOp)
-         , Events.on "mousemove"
+        , Internal.attrIf entry.disabled (Attr.attribute "aria-disabled" "true")
+        , Attr.title tooltip
+        , Internal.styleVars [ ( "--klar-depth", String.fromInt entry.depth ) ]
+        , Internal.onMouseDownPrevent (rc.toMsg NoOp)
+        , Events.on "mousemove"
             (if isHighlighted then
                 Decode.fail "already highlighted"
 
              else
                 Decode.succeed (rc.toMsg (Hover (AtNode entry.key)))
             )
-         , Internal.onClickPrevent (rc.toMsg (Choose rc.env entry.key))
-         ]
-        )
+        , Internal.onClickPrevent (rc.toMsg (Choose rc.env entry.key))
+        ]
         [ if item.expandable then
             Html.span
                 [ Internal.cls

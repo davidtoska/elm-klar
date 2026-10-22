@@ -2,8 +2,8 @@ module Klar.Picking.Index exposing
     ( Entry
     , Filter
     , Index
-    , Kids(..)
     , Item
+    , Kids(..)
     , Row(..)
     , Rows
     , View

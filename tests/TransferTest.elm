@@ -275,7 +275,7 @@ optionsFuzzer =
         |> Fuzz.map
             (List.map
                 (\( n, d ) ->
-                    (Option.option n ("Item " ++ String.fromInt n))
+                    Option.option n ("Item " ++ String.fromInt n)
                         |> (if d == 0 then
                                 Option.disabledOption
 
