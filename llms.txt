@@ -1,0 +1,47 @@
+# Klar
+
+> Klar is an Elm package (davidtoska/elm-klar, modules Klar.*): a UI toolkit for precise, data-dense, data-intensive applications. An application is Klar plus its own Elm code: no CSS, no JavaScript, no class names.
+
+Read in this order:
+
+- [AI.md](AI.md): the mental model, the standard application, the ten rules, "I need X, use module Y", the known traps. Start here.
+- [ai/klar-index.json](ai/klar-index.json): every module with its purpose, when to use it, when not, its State / Msg / ids, its main functions, related modules and keywords. Search it before you read a module.
+- [ai/modules/README.md](ai/modules/README.md): the modules by group; one file per module in ai/modules/<Module>.md with every signature and the documentation.
+- [USING.md](USING.md): getting Klar into a project, talking to a backend, a paragraph for the CLAUDE.md of your application.
+- [recipes/](recipes/README.md): complete, compiled programs for the common screens. [template/](template/README.md): a working application to copy.
+
+The mental model in ten lines:
+
+1. A component is `State` + `Msg` + `update` + `view`, wired like any child in the Elm Architecture. A view-only component is one function with a list of attributes.
+2. Attributes are opaque values of the module (`Button.primary`, `Table.rows`); the order does not matter; the last one wins.
+3. The `String` given to `init` is the DOM id of the component and must be unique on the page.
+4. Ids of your own things (rows, nodes, columns, pages) are your own types; Klar asks for a `toKey` function once and never shows a string.
+5. Data from a backend is a `Remote a` (`NotAsked | Loading | Loaded a | Failed Problem`); components draw all four states themselves.
+6. Dialogs, drawers, toasts and the palette go in one overlay list (`Klar.Overlay`); it owns focus, the opener and `modalOpen`.
+7. Dates are `Klar.Date.Date` (no time zone); money is `Klar.Money` (minor units); formatting is `Klar.Format`; text is `Klar.Locale`.
+8. A form is `Klar.Form.Model`: one state for all fields, dirty tracking, server problems per field.
+9. Never write focus, popup, scroll, date or keyboard code, and no CSS: if you feel you need to, a module exists; read the index.
+10. Import only the modules exposed in elm.json (`Klar.*`), never `Klar.Internal.*`.
+
+Modules by group (each is ai/modules/Klar.<Name>.md):
+
+- Start here: Klar
+- Foundations: Theme, Locale, Layout, Card, Text, Icon
+- Actions: Button, Menu, ButtonGroup, ToggleGroup, SplitButton, Link, Kbd
+- Status and feedback: Badge, Tag, Alert, Spinner, Skeleton, Progress, EmptyState, ErrorState
+- Forms: Form, Form.Model, Field, Validate
+- Inputs: TextInput, TextArea, NumberInput, PasswordInput, SearchInput, TagInput, FileDrop, InlineEdit, Checkbox, CheckboxGroup, Radio, Switch, Slider, SegmentedControl, MaskedInput, Money, MoneyInput
+- Choosing: Select, Select.Option, MultiSelect, Autocomplete, VirtualList, Picking, TreeSelect, Cascader, Transfer
+- Date and time: Date, DatePicker, DateRangePicker, TimePicker, DateTimePicker, Calendar, Recurrence, RecurrencePicker
+- Tables and lists: Table, Pagination, ListItem, Tree
+- Overlays: Overlay, Modal, ConfirmDialog, Drawer, Toast, Popover, Tooltip, ContextMenu, CommandPalette, ShortcutHelp
+- Navigation: AppShell, SideNav, PageHeader, Breadcrumbs, Tabs, Stepper
+- Structure: Accordion, Toolbar, DescriptionList
+- Arranging: Sortable, Splitter
+- Pages and flow: StatusPage, BulkBar, LeaveGuard, History
+- Text and change: Markdown, MarkdownEditor, Diff, Compare
+- Access and approval: PermissionMatrix, ApprovalFlow
+- Data display: Stat, Chart, Timeline, Avatar, JsonViewer
+- Rules and filters: Rule, RuleBuilder, FilterBar, SavedViews
+- Data and utilities: Remote, Search, Format, Shortcut
+- Icon library: Icon.Library, Icon.Arrows, Icon.Business, Icon.Calendar, Icon.Communication, Icon.Data, Icon.Developer, Icon.Devices, Icon.Documents, Icon.Editor, Icon.Interface, Icon.Logistics, Icon.Media, Icon.Nature, Icon.People, Icon.Science

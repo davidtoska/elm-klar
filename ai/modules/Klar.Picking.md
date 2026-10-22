@@ -1,0 +1,310 @@
+# Klar.Picking
+
+The vocabulary that Klar.TreeSelect, Klar.Cascader and Klar.Transfer share.
+
+Import: `import Klar.Picking as Picking` | Group: Choosing
+
+Types: `Ids`, `Node`
+
+## Signatures
+
+```elm
+-- Ids
+type Ids id  -- opaque: no constructors are exposed
+ids : (id -> String) -> Ids id
+stringIds : Ids String
+intIds : Ids Int
+toKey : Ids id -> id -> String
+
+-- Nodes
+type Node id  -- opaque: no constructors are exposed
+leaf : Ids id -> id -> String -> Node id
+branch : Ids id -> id -> String -> List (Node id) -> Node id
+lazy : Ids id -> id -> String -> Remote.Remote (List (Node id)) -> Node id
+withDescription : String -> Node id -> Node id
+withIcon : Icon.Icon -> Node id -> Node id
+withKeywords : List String -> Node id -> Node id
+disabled : Node id -> Node id
+
+-- Reading a node
+key : Node id -> String
+id : Node id -> id
+label : Node id -> String
+description : Node id -> Maybe String
+icon : Node id -> Maybe Icon.Icon
+keywords : Node id -> List String
+isDisabled : Node id -> Bool
+children : Node id -> Remote.Remote (List (Node id))
+```
+
+## Documentation
+
+The vocabulary that [Klar.TreeSelect](Klar.TreeSelect.md),
+[Klar.Cascader](Klar.Cascader.md) and [Klar.Transfer](Klar.Transfer.md) share: how your
+own id type (a `RegionId`, a `ProductId`, plain text ...) is written as a key,
+and the nodes of a hierarchy to choose from. The components give your ids back
+as they are, so you never write the way back from a key to an id.
+
+    import Klar.Picking as Picking
+    import Klar.Remote as Remote exposing (Remote(..))
+
+    -- how a RegionId is written as a key, once for the whole application
+    regionIds : Picking.Ids RegionId
+    regionIds =
+        Picking.ids RegionId.toString
+
+    -- a hierarchy: Europe holds Oslo, and the zones of Bergen come from the backend
+    regions : Remote (List Zone) -> List (Picking.Node RegionId)
+    regions bergenZones =
+        [ Picking.branch regionIds
+            europe
+            "Europe"
+            [ Picking.leaf regionIds oslo "Oslo" |> Picking.withDescription "OSL"
+            , Picking.lazy regionIds bergen "Bergen" (Remote.map (List.map zoneNode) bergenZones)
+            ]
+        ]
+
+Nodes are plain data that you build from your own data on every render; the
+components only remember what the user did (which nodes are open, which are
+chosen), by key. A node has the id you gave it, a label that the user sees and
+searches, and optionally a description, an icon and extra search words. Its
+children are a `Remote` list: a `leaf` has none, a `branch` has the list you give
+it, and a `lazy` node has children that come from the backend, shown as loading,
+failed or loaded. Only the nodes of an open branch are drawn.
+
+Every id must be unique in the whole tree, not only among its siblings, and its
+key (what `ids` was told to make of it) must be different for different ids. A node
+whose key was already used by an earlier node is left out of the choice list.
+
+`Picking.ids` takes only the function that writes an id as a key. That differs from
+`Tree.nodeIds` and `Table.rowIds`, which also ask for the way back from a key to an
+id (`fromKey`), and is the same as `SideNav.keys`: the picking components keep the
+ids themselves next to their keys, so nothing is ever read back from a key, and an
+application with an opaque id type does not have to write a parser for it. The
+price is that these components cannot restore a value from keys alone (a saved view
+that stores keys): store your own ids and give them to `TreeSelect.setValues`,
+`Cascader.setValue` or `Transfer.setValues`.
+
+The functions that read a node (`key`, `id`, `label`, `description`, `icon`,
+`keywords`, `isDisabled`, `children`) are for building your own components on these
+nodes, or one tree from another (the components of this package use them for
+exactly that); an application rarely needs them.
+
+## Ids
+
+### `Ids`
+
+```elm
+type Ids id  -- opaque: no constructors are exposed
+```
+
+How the id type of your nodes (a `RegionId`, a `ProductId`, plain text ...) is
+written as a key. Declare one value for each kind of id, once, and pass it to the
+node constructors and to the functions that set ids from your code
+(`TreeSelect.setValues`, `Cascader.setValue`, `Transfer.setValues` ...). The
+components are typed by the id (`TreeSelect.State TreeSelect.Multiple RegionId`),
+so a field for regions cannot be asked about product ids.
+
+    regionIds : Picking.Ids RegionId
+    regionIds =
+        Picking.ids RegionId.toString
+
+The key is what the components use to look an id up quickly, so it must give
+every id its own text. The ids come back as you gave them: nothing is converted
+back from a key.
+
+### `ids`
+
+```elm
+ids : (id -> String) -> Ids id
+```
+
+Makes the `Ids` of an id type from the function that writes an id as a key,
+see there.
+
+### `stringIds`
+
+```elm
+stringIds : Ids String
+```
+
+Ids that are plain text (a code, a SKU), used as they are.
+
+### `intIds`
+
+```elm
+intIds : Ids Int
+```
+
+Ids that are whole numbers (a database id).
+
+### `toKey`
+
+```elm
+toKey : Ids id -> id -> String
+```
+
+The key of an id: what `ids` was told to make of it.
+
+    Picking.toKey Picking.intIds 42 --> "42"
+
+## Nodes
+
+### `Node`
+
+```elm
+type Node id  -- opaque: no constructors are exposed
+```
+
+One node of a hierarchy: a region, a warehouse, a category. Make it with
+`leaf`, `branch` or `lazy`, and add a description, an icon or search words with
+the `with...` functions. A node is plain data and the type is opaque, so that
+it can get more settings without breaking anything.
+
+### `leaf`
+
+```elm
+leaf : Ids id -> id -> String -> Node id
+```
+
+A node without children. The arguments are the ids of your application, the
+id of the node and its label.
+
+    Picking.leaf regionIds oslo "Oslo"
+
+The label is what the user sees and searches. It is written on one line and cut
+with an ellipsis when it does not fit (the whole label is the tooltip).
+
+### `branch`
+
+```elm
+branch : Ids id -> id -> String -> List (Node id) -> Node id
+```
+
+A node with children: the ids, the id and the label of the node, and its
+child nodes. A branch with an empty list of children looks like a leaf.
+
+    Picking.branch regionIds europe "Europe" [ Picking.leaf regionIds oslo "Oslo" ]
+
+### `lazy`
+
+```elm
+lazy : Ids id -> id -> String -> Remote.Remote (List (Node id)) -> Node id
+```
+
+A node whose children come from the backend. Until the user opens it, the
+`Remote` is `NotAsked`; while the request is on its way you pass `Loading`, and
+then `Loaded` with the children or `Failed` with a problem. A lazy node always
+looks like something that can be opened, until its children arrive empty.
+
+    Picking.lazy regionIds bergen "Bergen" model.bergenZones
+
+The component tells you which node was opened first (`TreeSelect.loadRequests`,
+`Cascader.loadRequests`); you set its children to `Loading`, fetch them, and put
+the answer in the node the next time you build the tree.
+
+### `withDescription`
+
+```elm
+withDescription : String -> Node id -> Node id
+```
+
+A short secondary text, shown dimmed after the label and searched too: a
+code, a city, a unit.
+
+    Picking.leaf regionIds oslo "Oslo" |> Picking.withDescription "OSL"
+
+### `withIcon`
+
+```elm
+withIcon : Icon.Icon -> Node id -> Node id
+```
+
+An icon drawn before the label of the node.
+
+### `withKeywords`
+
+```elm
+withKeywords : List String -> Node id -> Node id
+```
+
+Extra words that also match the node when the user searches: synonyms, codes,
+old names. They are searched but never shown. Calling it again adds to the words.
+
+### `disabled`
+
+```elm
+disabled : Node id -> Node id
+```
+
+A node that is shown but cannot be chosen. Its children are not affected: the
+user can still open it and choose what is inside, so a disabled branch works as a
+heading. In a field that lets the user check boxes, checking a parent checks the
+nodes inside it that are not disabled.
+
+## Reading a node
+
+### `key`
+
+```elm
+key : Node id -> String
+```
+
+The key of the node's id (what `toKey` made of it when the node was built).
+
+### `id`
+
+```elm
+id : Node id -> id
+```
+
+The id of the node, as you gave it.
+
+### `label`
+
+```elm
+label : Node id -> String
+```
+
+The label of the node.
+
+### `description`
+
+```elm
+description : Node id -> Maybe String
+```
+
+The description of the node, if it has one.
+
+### `icon`
+
+```elm
+icon : Node id -> Maybe Icon.Icon
+```
+
+The icon of the node, if it has one.
+
+### `keywords`
+
+```elm
+keywords : Node id -> List String
+```
+
+The extra search words of the node.
+
+### `isDisabled`
+
+```elm
+isDisabled : Node id -> Bool
+```
+
+Whether the node was made `disabled`.
+
+### `children`
+
+```elm
+children : Node id -> Remote.Remote (List (Node id))
+```
+
+The children of the node as a `Remote`: `Loaded []` for a leaf, the list for
+a branch, and whatever state the backend request is in for a lazy node.
