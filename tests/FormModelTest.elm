@@ -9,10 +9,15 @@ rendered controls, so the opaque messages are the real ones.
 import Expect
 import Html exposing (Html)
 import Json.Encode as Encode
+import Klar.Date as Date
+import Klar.FileDrop as FileDrop
 import Klar.Form.Model as Fm
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.Remote as Remote
+import Klar.Rule as Rule
 import Klar.Select as Select
+import Klar.TextArea as TextArea
 import Klar.Validate as Validate
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
@@ -28,14 +33,14 @@ type CategoryId
     = CategoryId Int
 
 
-countryIds : Fm.Ids CountryId
+countryIds : Ids CountryId
 countryIds =
-    Fm.ids { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
+    Ids.make { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
 
 
-categoryIds : Fm.Ids CategoryId
+categoryIds : Ids CategoryId
 categoryIds =
-    Fm.ids
+    Ids.make
         { toKey = \(CategoryId n) -> String.fromInt n
         , fromKey = Maybe.map CategoryId << String.toInt
         }
@@ -168,6 +173,8 @@ suite =
         , serverProblems
         , visibility
         , everythingShowing
+        , tagsAndFiles
+        , idsInRules
         , mapOptionTest
         ]
 
@@ -265,7 +272,7 @@ validation =
                 , pick (Fm.fields single) [ CategoryId 1 ]
                 , pick (Fm.fields single) [ CategoryId 1, CategoryId 2 ] |> Result.mapError (List.map .message)
                 )
-                    |> Expect.equal ( Ok Nothing, Ok (Just (CategoryId 1)), Err [ "Choose at most one" ] )
+                    |> Expect.equal ( Ok Nothing, Ok (Just (CategoryId 1)), Err [ "Only one is allowed" ] )
         , test "withMessage replaces the message of the rule added last, per language" <|
             \_ ->
                 let
@@ -377,7 +384,7 @@ roundTrips =
             \_ ->
                 let
                     lossy =
-                        Fm.ids { toKey = \(CategoryId n) -> String.fromInt n, fromKey = \_ -> Nothing }
+                        Ids.make { toKey = \(CategoryId n) -> String.fromInt n, fromKey = \_ -> Nothing }
                 in
                 Fm.lostIds lossy [ CategoryId 1 ] |> Expect.equal [ CategoryId 1 ]
         ]
@@ -626,6 +633,224 @@ everythingShowing =
                     |> Tuple.first
                     |> labelled
                     |> Expect.equal []
+        ]
+
+
+type alias DocFields =
+    { note : Fm.Field String
+    , certifications : Fm.Field (List String)
+    , contract : Fm.Field (List FileDrop.FileInfo)
+    }
+
+
+type alias DocValues =
+    { note : Maybe String
+    , certifications : List String
+    , contract : FileDrop.FileInfo
+    }
+
+
+docForm : Fm.Form () DocFields DocValues
+docForm =
+    Fm.define "doc" DocFields DocValues
+        |> Fm.with
+            (Fm.text "Note"
+                |> Fm.rules [ Validate.custom (String.startsWith "ok") { nb = "Må starte med ok", en = "Must start with ok" } ]
+            )
+        |> Fm.with (Fm.tags "Certifications" |> Fm.atLeast 1)
+        |> Fm.with
+            (Fm.files "Contract"
+                |> Fm.one
+                |> Fm.required
+                |> Fm.withMessage (\_ -> "Attach the contract.")
+            )
+        |> Fm.build
+
+
+d : DocFields
+d =
+    Fm.fields docForm
+
+
+pdf : FileDrop.FileInfo
+pdf =
+    { name = "contract.pdf", size = 1200, mime = "application/pdf" }
+
+
+docsFilled : Fm.State ()
+docsFilled =
+    Fm.init docForm
+        |> Fm.set d.note "ok, signed"
+        |> Fm.set d.certifications [ "ISO 9001", "ISO 14001" ]
+        |> Fm.set d.contract [ pdf ]
+        |> Fm.markClean
+
+
+docView : Fm.State () -> Fm.View Fm.Msg
+docView state =
+    Fm.bind Locale.en identity docForm state
+
+
+tagsAndFiles : Test
+tagsAndFiles =
+    describe "tags, files and long text"
+        [ test "an empty optional text passes every rule, also a custom one" <|
+            \_ ->
+                Fm.problems Locale.en docForm (Fm.init docForm)
+                    |> List.map (\p -> ( p.label, p.message ))
+                    |> Expect.equal [ ( "Certifications", "Add at least 1" ), ( "Contract", "Attach the contract." ) ]
+        , test "a filled text still meets the rule" <|
+            \_ ->
+                Fm.problems Locale.en docForm (Fm.set d.note "not ok" docsFilled)
+                    |> List.map (\p -> ( p.label, p.message ))
+                    |> Expect.equal [ ( "Note", "Must start with ok" ) ]
+        , test "tags and a single file come out as a list and a file" <|
+            \_ ->
+                Fm.toValues Locale.en docForm docsFilled
+                    |> Expect.equal (Ok { note = Just "ok, signed", certifications = [ "ISO 9001", "ISO 14001" ], contract = pdf })
+        , test "the round trip keeps the tags in order and the file" <|
+            \_ ->
+                let
+                    docSample =
+                        { note = Just "ok", certifications = [ "B", "A" ], contract = pdf }
+
+                    fillDoc v =
+                        Fm.set d.note (Maybe.withDefault "" v.note)
+                            >> Fm.set d.certifications v.certifications
+                            >> Fm.set d.contract [ v.contract ]
+                in
+                Fm.roundTrip docForm fillDoc docSample |> Expect.equal (Ok docSample)
+        , test "two files are refused by one" <|
+            \_ ->
+                Fm.problems Locale.en docForm (Fm.set d.contract [ pdf, { pdf | name = "other.pdf" } ] docsFilled)
+                    |> List.map .message
+                    |> Expect.equal [ "Only one is allowed" ]
+        , test "changing the tags or the file makes the form dirty, putting them back makes it clean" <|
+            \_ ->
+                ( Fm.set d.certifications [ "ISO 9001" ] docsFilled |> Fm.isDirty
+                , Fm.set d.contract [] docsFilled |> Fm.isDirty
+                , Fm.set d.certifications [ "ISO 9001", "ISO 14001" ] docsFilled |> Fm.isDirty
+                )
+                    |> Expect.equal ( True, True, False )
+        , test "removing a chip with the mouse edits the field and shows its problem" <|
+            \_ ->
+                let
+                    one =
+                        Fm.set d.certifications [ "ISO 9001" ] docsFilled
+
+                    removed =
+                        Fm.tagInput (docView one) d.certifications []
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.tag "button" ]
+                            |> Event.simulate Event.click
+                            |> Event.toResult
+                            |> Result.map (\msg -> Fm.update msg one |> Tuple.first)
+                            |> Result.withDefault one
+                in
+                Expect.all
+                    [ \_ -> Fm.get d.certifications removed |> Expect.equal []
+                    , \_ -> Fm.isDirty removed |> Expect.equal True
+                    , \_ -> Fm.tagInput (docView removed) d.certifications [] |> showsText "Add at least 1"
+                    ]
+                    ()
+        , test "the problems of tags and files are in the summary once revealed" <|
+            \_ ->
+                let
+                    revealed =
+                        Fm.reveal docForm (Fm.init docForm) |> Tuple.first
+                in
+                Expect.all
+                    [ \_ -> Fm.summary (docView revealed) |> showsText "Certifications: Add at least 1"
+                    , \_ -> Fm.summary (docView revealed) |> showsText "Contract: Attach the contract."
+                    , \_ -> Fm.fileDrop (docView revealed) d.contract [] |> showsText "Attach the contract."
+                    ]
+                    ()
+        , test "a server problem on the file shows at the drop zone" <|
+            \_ ->
+                Fm.rejected [ Fm.problem d.contract "The file is damaged." ] docForm docsFilled
+                    |> Tuple.first
+                    |> (\state -> Fm.fileDrop (docView state) d.contract [])
+                    |> showsText "The file is damaged."
+        , test "a text area is drawn from a text handle, with the label and the error" <|
+            \_ ->
+                let
+                    bad =
+                        Fm.set d.note "no" docsFilled |> Fm.reveal docForm |> Tuple.first
+                in
+                Fm.textArea (docView bad) d.note [ TextArea.rows 4 ]
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.tag "textarea", Selector.id "doc-note" ]
+        , test "a text area reports what is typed" <|
+            \_ ->
+                Fm.textArea (docView docsFilled) d.note []
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.tag "textarea" ]
+                    |> Event.simulate (Event.input "ok, changed")
+                    |> Event.toResult
+                    |> Result.map (\msg -> Fm.update msg docsFilled |> Tuple.first |> Fm.get d.note)
+                    |> Expect.equal (Ok "ok, changed")
+        ]
+
+
+type Category
+    = Perishables
+    | Machinery
+
+
+categoryIdsForRules : Ids Category
+categoryIdsForRules =
+    Ids.make
+        { toKey =
+            \category ->
+                case category of
+                    Perishables ->
+                        "perishables"
+
+                    Machinery ->
+                        "machinery"
+        , fromKey =
+            \key ->
+                case key of
+                    "perishables" ->
+                        Just Perishables
+
+                    "machinery" ->
+                        Just Machinery
+
+                    _ ->
+                        Nothing
+        }
+
+
+idsInRules : Test
+idsInRules =
+    let
+        options =
+            [ Select.option Perishables "Perishables", Select.option Machinery "Machinery" ]
+
+        field =
+            Rule.choiceFieldOf categoryIdsForRules "category" "Category" options .category
+    in
+    describe "one Ids for the form and the rule builder"
+        [ test "the choices of a rule field are the options, written with the same keys" <|
+            \_ ->
+                Rule.fieldKind field
+                    |> Expect.equal (Rule.ChoiceKind [ { value = "perishables", label = "Perishables" }, { value = "machinery", label = "Machinery" } ])
+        , test "a row is matched by its typed id" <|
+            \_ ->
+                let
+                    today =
+                        Date.fromEpochDay 0
+
+                    condition =
+                        Rule.ConditionRule { id = 1, field = "category", operator = Rule.Is, values = [ "machinery" ] }
+                in
+                ( Rule.matches today [ field ] condition { category = Just Machinery }
+                , Rule.matches today [ field ] condition { category = Nothing }
+                )
+                    |> Expect.equal ( True, False )
+        , test "the same Ids pass the check for the form" <|
+            \_ -> Fm.lostIds categoryIdsForRules [ Perishables, Machinery ] |> Expect.equal []
         ]
 
 

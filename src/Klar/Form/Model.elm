@@ -1,11 +1,11 @@
 module Klar.Form.Model exposing
-    ( Form, State, Msg, Field, Ids, Problem, Spec, Builder, View
-    , define, with, build, fields, ids
-    , text, number, choice, choices, toggle
+    ( Form, State, Msg, Field, Problem, Spec, Builder, View
+    , define, with, build, fields
+    , text, number, choice, choices, toggle, tags, files
     , required, atLeast, one, rules, range, whole, hint, withMessage
     , init, set, get, toValues, isDirty, markClean, revert, update
     , problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
-    , bind, textInput, numberInput, select, multiSelect, switch, summary
+    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, summary
     , roundTrip, lostIds
     )
 
@@ -17,8 +17,8 @@ The application keeps one [`State`](#State) in its model and one [`Msg`](#Msg)
 in its messages, instead of one component state and one message per field.
 
 This is a prototype of the form model (`design/FORM-MODEL.md` in the
-repository): it handles text, numbers, one choice, several choices and
-switches. Import it as `Fm`.
+repository): it handles text, numbers, one choice, several choices, switches,
+tags and files. Import it as `Fm`.
 
     import Klar.Form.Model as Fm
     import Klar.Locale as Locale
@@ -80,17 +80,17 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 
 # Types
 
-@docs Form, State, Msg, Field, Ids, Problem, Spec, Builder, View
+@docs Form, State, Msg, Field, Problem, Spec, Builder, View
 
 
 # Declaring a form
 
-@docs define, with, build, fields, ids
+@docs define, with, build, fields
 
 
 # Kinds of field
 
-@docs text, number, choice, choices, toggle
+@docs text, number, choice, choices, toggle, tags, files
 
 
 # Rules
@@ -110,7 +110,7 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 
 # Views
 
-@docs bind, textInput, numberInput, select, multiSelect, switch, summary
+@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, summary
 
 
 # Tests
@@ -122,7 +122,9 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar.FileDrop as FileDrop
 import Klar.Form as Form
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.MultiSelect as MultiSelect
@@ -130,6 +132,8 @@ import Klar.NumberInput as NumberInput
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Select as Select
 import Klar.Switch as Switch
+import Klar.TagInput as TagInput
+import Klar.TextArea as TextArea
 import Klar.TextInput as TextInput
 import Klar.Validate as Validate
 import Set exposing (Set)
@@ -178,6 +182,8 @@ type Msg
     | SelectMsg String (Select.Msg String)
     | MultiMsg String (MultiSelect.Msg String)
     | NumberMsg String NumberInput.Msg
+    | TagsMsg String TagInput.Msg
+    | FilesMsg String FileDrop.Msg
     | Toggled String Bool
     | FocusField String
     | NoOp
@@ -196,18 +202,6 @@ type Field control
         , toRaw : control -> Raw
         , fromRaw : Raw -> Maybe control
         }
-
-
-{-| How the application's id type is written as text, once. Both directions are
-needed: `fromKey` must give back what `toKey` wrote (test it with `lostIds`).
-
-    countryIds : Fm.Ids CountryId
-    countryIds =
-        Fm.ids { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
-
--}
-type Ids id
-    = Ids { toKey : id -> String, fromKey : String -> Maybe id }
 
 
 {-| A message tied to a field: the DOM id of the control (`field`), the label
@@ -250,6 +244,7 @@ type alias SpecData control output =
     , fromRaw : Raw -> Maybe control
     , limits : Limits
     , check : Locale -> control -> Maybe String
+    , few : Locale -> Int -> String
     , finish : Locale -> control -> Result String output
     , reword : Maybe ((Locale -> String) -> Spec control output)
     }
@@ -306,6 +301,8 @@ type Raw
     | RNumber (Maybe Float)
     | RUnreadable
     | RBool Bool
+    | RTags (List String)
+    | RFiles (List FileDrop.FileInfo) Bool
 
 
 type Slot
@@ -313,6 +310,8 @@ type Slot
     | SSelect (Select.State String)
     | SMulti (MultiSelect.State String)
     | SNumber NumberInput.State
+    | STags TagInput.State
+    | SFiles FileDrop.State
     | SToggle Bool
 
 
@@ -434,14 +433,6 @@ fields (Form form) =
     form.fields
 
 
-{-| How an id type is written as text and read back. The same pair of functions
-as `Table.rowIds`.
--}
-ids : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
-ids =
-    Ids
-
-
 uniqueKey : String -> String -> Set String -> String
 uniqueKey prefix label used =
     let
@@ -538,17 +529,17 @@ number label =
 Add `required` to get the id itself.
 -}
 choice : Ids id -> String -> Spec (Maybe id) (Maybe id)
-choice (Ids codec) label =
+choice codec label =
     make label
         Nothing
-        (\value -> RKey (Maybe.map codec.toKey value))
+        (\value -> RKey (Maybe.map (Ids.toKey codec) value))
         (\raw ->
             case raw of
                 RKey Nothing ->
                     Just Nothing
 
                 RKey (Just key) ->
-                    Maybe.map Just (codec.fromKey key)
+                    Maybe.map Just (Ids.fromKey codec key)
 
                 _ ->
                     Nothing
@@ -560,14 +551,14 @@ choice (Ids codec) label =
 they were chosen. Empty is `[]`. Add `atLeast 1` to make it required.
 -}
 choices : Ids id -> String -> Spec (List id) (List id)
-choices (Ids codec) label =
+choices codec label =
     make label
         []
-        (\values -> RKeys (List.map codec.toKey values))
+        (\values -> RKeys (List.map (Ids.toKey codec) values))
         (\raw ->
             case raw of
                 RKeys keys ->
-                    Just (List.filterMap codec.fromKey keys)
+                    Just (List.filterMap (Ids.fromKey codec) keys)
 
                 _ ->
                     Nothing
@@ -593,6 +584,64 @@ toggle label =
         (\_ value -> Ok value)
 
 
+{-| Free-form tags, drawn by `tags`: type a word, press Enter, get a chip. The
+order is the order they were added. Empty is `[]`. Add `atLeast 1` to make it
+required, and give the delimiters, the limit and a rule for a single tag to the
+view (`TagInput.delimiters`, `TagInput.maxTags`, `TagInput.validate`).
+
+    Fm.tags "Certifications" |> Fm.atLeast 1
+
+-}
+tags : String -> Spec (List String) (List String)
+tags label =
+    let
+        (Spec spec) =
+            make label
+                []
+                RTags
+                (\raw ->
+                    case raw of
+                        RTags value ->
+                            Just value
+
+                        _ ->
+                            Nothing
+                )
+                (\_ value -> Ok value)
+    in
+    Spec { spec | few = \locale n -> Locale.pick locale { nb = "Legg til minst " ++ String.fromInt n, en = "Add at least " ++ String.fromInt n } }
+
+
+{-| Files the user chose or dropped, drawn by `files`. Empty is `[]`. Files the
+drop zone refused (wrong type, too large) are not in the value; while one of
+them is still listed the field has the problem "Remove the refused file". Add
+`atLeast 1` to require a file, or `one` for a single file (`one |> required`
+for a file that must be there). The size and type limits belong to the view
+(`FileDrop.accept`, `FileDrop.maxSize`).
+
+    Fm.files "Signed contract" |> Fm.one |> Fm.required
+
+-}
+files : String -> Spec (List FileDrop.FileInfo) (List FileDrop.FileInfo)
+files label =
+    let
+        (Spec spec) =
+            make label
+                []
+                (\value -> RFiles value False)
+                (\raw ->
+                    case raw of
+                        RFiles value _ ->
+                            Just value
+
+                        _ ->
+                            Nothing
+                )
+                (\_ value -> Ok value)
+    in
+    Spec { spec | few = \locale n -> Locale.pick locale { nb = "Legg ved minst " ++ String.fromInt n, en = "Attach at least " ++ String.fromInt n } }
+
+
 make : String -> control -> (control -> Raw) -> (Raw -> Maybe control) -> (Locale -> control -> Result String output) -> Spec control output
 make label empty toRaw fromRaw finish =
     Spec
@@ -604,6 +653,7 @@ make label empty toRaw fromRaw finish =
         , fromRaw = fromRaw
         , limits = { min = Nothing, max = Nothing, decimals = Nothing }
         , check = \_ _ -> Nothing
+        , few = \locale n -> Locale.pick locale { nb = "Velg minst " ++ String.fromInt n, en = "Choose at least " ++ String.fromInt n }
         , finish = finish
         , reword = Nothing
         }
@@ -614,6 +664,9 @@ validate locale spec raw =
     case raw of
         RUnreadable ->
             Err (Locale.pick locale { nb = "Må være et tall", en = "Must be a number" })
+
+        RFiles _ True ->
+            Err (Locale.pick locale { nb = "Fjern filen som ble avvist", en = "Remove the refused file" })
 
         _ ->
             let
@@ -659,6 +712,7 @@ requiredWith message (Spec spec) =
         , fromRaw = spec.fromRaw
         , limits = spec.limits
         , check = spec.check
+        , few = spec.few
         , finish =
             \locale value ->
                 case spec.finish locale value of
@@ -681,14 +735,8 @@ how many.
 
 -}
 atLeast : Int -> Spec c (List a) -> Spec c (List a)
-atLeast n =
-    atLeastWith n
-        (\locale ->
-            Locale.pick locale
-                { nb = "Velg minst " ++ String.fromInt n
-                , en = "Choose at least " ++ String.fromInt n
-                }
-        )
+atLeast n (Spec first) =
+    atLeastWith n (\locale -> first.few locale n) (Spec first)
 
 
 atLeastWith : Int -> (Locale -> String) -> Spec c (List a) -> Spec c (List a)
@@ -716,7 +764,7 @@ atLeastWith n message (Spec spec) =
 -}
 one : Spec c (List a) -> Spec c (Maybe a)
 one =
-    oneWith (\locale -> Locale.pick locale { nb = "Velg høyst én", en = "Choose at most one" })
+    oneWith (\locale -> Locale.pick locale { nb = "Bare én er tillatt", en = "Only one is allowed" })
 
 
 oneWith : (Locale -> String) -> Spec c (List a) -> Spec c (Maybe a)
@@ -730,6 +778,7 @@ oneWith message (Spec spec) =
         , fromRaw = spec.fromRaw
         , limits = spec.limits
         , check = spec.check
+        , few = spec.few
         , finish =
             \locale value ->
                 case spec.finish locale value of
@@ -749,15 +798,24 @@ oneWith message (Spec spec) =
 
 
 {-| The existing validators of [Klar.Validate](Klar-Validate) on a text, run on
-the text as typed. The first problem wins. Like there, an empty text passes
-every validator except `Validate.required`.
+the text as typed. The first problem wins. A blank text passes every rule, also
+`Validate.custom` and `Validate.required`: an optional field that is left empty
+is fine, and a field that must be filled in says so with `required`, not with
+a rule.
 
-    Fm.text "Name" |> Fm.rules [ Validate.maxLength 80 ]
+    Fm.text "Name" |> Fm.required |> Fm.rules [ Validate.maxLength 80 ]
 
 -}
 rules : List Validate.Validator -> Spec String o -> Spec String o
 rules validators =
-    addCheck (\locale value -> Validate.firstError locale validators value)
+    addCheck
+        (\locale value ->
+            if String.trim value == "" then
+                Nothing
+
+            else
+                Validate.firstError locale validators value
+        )
 
 
 addCheck : (Locale -> c -> Maybe String) -> Spec c o -> Spec c o
@@ -885,7 +943,7 @@ init (Form form) =
     in
     State
         { slots = slots
-        , baseline = Dict.map (\_ slot -> rawOf slot) slots
+        , baseline = Dict.map (\_ slot -> stable (rawOf slot)) slots
         , touched = Set.empty
         , server = Dict.empty
         , outside = []
@@ -911,6 +969,12 @@ newSlot def =
         RUnreadable ->
             SNumber (NumberInput.init def.key)
 
+        RTags _ ->
+            STags (TagInput.init def.key)
+
+        RFiles _ _ ->
+            SFiles (FileDrop.init def.key)
+
         RBool value ->
             SToggle value
 
@@ -921,6 +985,19 @@ numberLimits limits =
         [ Maybe.map NumberInput.min limits.min
         , Maybe.map NumberInput.max limits.max
         ]
+
+
+{-| The value without what is only on the screen: a refused file is listed but
+is not part of the value, so adding one does not make the form dirty.
+-}
+stable : Raw -> Raw
+stable raw =
+    case raw of
+        RFiles value _ ->
+            RFiles value False
+
+        _ ->
+            raw
 
 
 rawOf : Slot -> Raw
@@ -943,6 +1020,12 @@ rawOf slot =
             else
                 RUnreadable
 
+        STags state ->
+            RTags (TagInput.tags state)
+
+        SFiles state ->
+            RFiles (FileDrop.files state) (FileDrop.hasProblems state)
+
         SToggle value ->
             RBool value
 
@@ -964,6 +1047,12 @@ putRaw raw slot =
 
         ( RNumber value, SNumber state ) ->
             SNumber (NumberInput.setValue value state)
+
+        ( RTags value, STags state ) ->
+            STags (TagInput.setTags value state)
+
+        ( RFiles value _, SFiles state ) ->
+            SFiles (FileDrop.setFiles value state)
 
         ( RBool value, SToggle _ ) ->
             SToggle value
@@ -1062,14 +1151,14 @@ text or a server problem do not.
 -}
 isDirty : State step -> Bool
 isDirty (State state) =
-    Dict.map (\_ slot -> rawOf slot) state.slots /= state.baseline
+    Dict.map (\_ slot -> stable (rawOf slot)) state.slots /= state.baseline
 
 
 {-| The values now become the baseline, after a load or a successful save.
 -}
 markClean : State step -> State step
 markClean (State state) =
-    State { state | baseline = Dict.map (\_ slot -> rawOf slot) state.slots }
+    State { state | baseline = Dict.map (\_ slot -> stable (rawOf slot)) state.slots }
 
 
 {-| Every field goes back to the baseline. Problems and what was touched are
@@ -1157,6 +1246,34 @@ update msg ((State state) as current) =
                 _ ->
                     ( current, Cmd.none )
 
+        TagsMsg key inner ->
+            case Dict.get key state.slots of
+                Just ((STags before) as old) ->
+                    let
+                        ( after, cmd ) =
+                            TagInput.update inner before
+                    in
+                    ( moved key (Just old) (Just (STags after)) current |> touchIf (TagInput.isTouched after) key
+                    , Cmd.map (TagsMsg key) cmd
+                    )
+
+                _ ->
+                    ( current, Cmd.none )
+
+        FilesMsg key inner ->
+            case Dict.get key state.slots of
+                Just ((SFiles before) as old) ->
+                    let
+                        ( after, cmd ) =
+                            FileDrop.update inner before
+                    in
+                    ( moved key (Just old) (Just (SFiles after)) current |> touchIf (FileDrop.isTouched after) key
+                    , Cmd.map (FilesMsg key) cmd
+                    )
+
+                _ ->
+                    ( current, Cmd.none )
+
         FocusField key ->
             ( current, Form.focusField key NoOp )
 
@@ -1177,7 +1294,7 @@ moved key before after (State state) =
         Just slot ->
             let
                 edited =
-                    Maybe.map rawOf before /= Just (rawOf slot)
+                    Maybe.map (rawOf >> stable) before /= Just (stable (rawOf slot))
 
                 next =
                     State { state | slots = Dict.insert key slot state.slots }
@@ -1452,6 +1569,31 @@ textInput ((View view) as bound) field attributes =
             mismatch bound field "text"
 
 
+{-| A multi-line text area for a `text` field: the same field as `textInput`,
+drawn for a long note. Give the number of rows and the maximum length as
+attributes (`TextArea.rows`, `TextArea.maxLength`).
+-}
+textArea : View msg -> Field String -> List (TextArea.Attribute msg) -> Html msg
+textArea ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, SText value ) ->
+            TextArea.view
+                (attributes
+                    ++ declaredAttributes def TextArea.hint TextArea.required
+                    ++ [ TextArea.locale view.locale
+                       , TextArea.id def.key
+                       , TextArea.label def.label
+                       , TextArea.errorMaybe (problemOf bound def)
+                       , TextArea.value value
+                       , TextArea.onInput (\typed -> view.toMsg (Typed def.key typed))
+                       , TextArea.onBlur (view.toMsg (Left def.key))
+                       ]
+                )
+
+        _ ->
+            mismatch bound field "text"
+
+
 {-| A number input for a `number` field. The limits of `range` and the decimals
 of `whole` are applied for you.
 -}
@@ -1543,6 +1685,50 @@ keyOf toRaw value =
             ""
 
 
+{-| A tag field for a `tags` field. The label, hint, required mark, error and
+messages are set by the form; the delimiters, the limit, the placeholder and
+a rule for a single tag are the application's attributes.
+-}
+tagInput : View msg -> Field (List String) -> List (TagInput.Attribute msg) -> Html msg
+tagInput ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, STags state ) ->
+            TagInput.view (\inner -> view.toMsg (TagsMsg def.key inner))
+                (attributes
+                    ++ declaredAttributes def TagInput.hint TagInput.required
+                    ++ [ TagInput.locale view.locale
+                       , TagInput.label def.label
+                       , TagInput.errorMaybe (problemOf bound def)
+                       ]
+                )
+                state
+
+        _ ->
+            mismatch bound field "tags"
+
+
+{-| A drop zone for a `files` field. The type and size limits and the number of
+files are the application's attributes (`FileDrop.accept`, `FileDrop.maxSize`,
+`FileDrop.maxFiles`); `one` does not limit the zone by itself.
+-}
+fileDrop : View msg -> Field (List FileDrop.FileInfo) -> List (FileDrop.Attribute msg) -> Html msg
+fileDrop ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, SFiles state ) ->
+            FileDrop.view (\inner -> view.toMsg (FilesMsg def.key inner))
+                (attributes
+                    ++ declaredAttributes def FileDrop.hint FileDrop.required
+                    ++ [ FileDrop.locale view.locale
+                       , FileDrop.label def.label
+                       , FileDrop.errorMaybe (problemOf bound def)
+                       ]
+                )
+                state
+
+        _ ->
+            mismatch bound field "files"
+
+
 {-| A switch for a `toggle` field. The hint of the declaration is its
 description.
 -}
@@ -1609,5 +1795,5 @@ list is what you want.
 
 -}
 lostIds : Ids id -> List id -> List id
-lostIds (Ids codec) values =
-    List.filter (\value -> codec.fromKey (codec.toKey value) /= Just value) values
+lostIds codec values =
+    List.filter (\value -> Ids.fromKey codec (Ids.toKey codec value) /= Just value) values

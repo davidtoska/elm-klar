@@ -1,5 +1,5 @@
 module Klar.Rule exposing
-    ( Field, bareField, textField, numberField, dateField, boolField, choiceField, inGroup, withOperators, fieldById
+    ( Field, bareField, textField, numberField, dateField, boolField, choiceField, choiceFieldOf, inGroup, withOperators, fieldById
     , fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
     , FieldKind(..), Choice
     , Operator(..), Operands(..), operatorsFor, operandsOf, operatorLabel
@@ -92,7 +92,7 @@ Make fields with the functions below, one for each kind of value. The getter of
 a number or date field returns a `Maybe`: `Nothing` means that the row has no
 value.
 
-@docs Field, bareField, textField, numberField, dateField, boolField, choiceField, inGroup, withOperators, fieldById
+@docs Field, bareField, textField, numberField, dateField, boolField, choiceField, choiceFieldOf, inGroup, withOperators, fieldById
 
 @docs fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
 
@@ -167,8 +167,10 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Klar.Date as Date exposing (Date)
 import Klar.Format as Format
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Search as Search
+import Klar.Select.Option exposing (Option)
 
 
 
@@ -331,6 +333,25 @@ choiceField id label choices get =
                 value ->
                     VChoice value
         )
+
+
+{-| A choice field over the application's own id type. The choices are the same
+`Select.Option` list the form's select is drawn from, and the `Ids` are the same
+that the form model uses, so the key functions are written once. A saved rule
+still holds the key as text; `Ids.fromKey` reads it back as your type.
+
+    Rule.choiceFieldOf categoryIds "category" "Category" categoryOptions .category
+
+For a field that only describes (the rows are on a server), give a getter that
+returns `Nothing`: `Rule.choiceFieldOf categoryIds "category" "Category" options (always Nothing)`.
+
+-}
+choiceFieldOf : Ids id -> String -> String -> List (Option id) -> (row -> Maybe id) -> Field row
+choiceFieldOf ids id label options get =
+    choiceField id
+        label
+        (List.map (\option -> { value = Ids.toKey ids option.value, label = option.label }) options)
+        (get >> Maybe.map (Ids.toKey ids) >> Maybe.withDefault "")
 
 
 {-| Lists the field under a heading in the field picker of the rule builder and

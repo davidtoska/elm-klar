@@ -63,6 +63,7 @@
         "Choosing": [
             "Klar.Select",
             "Klar.Select.Option",
+            "Klar.Ids",
             "Klar.MultiSelect",
             "Klar.Autocomplete",
             "Klar.VirtualList",

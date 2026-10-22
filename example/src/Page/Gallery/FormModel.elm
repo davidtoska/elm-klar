@@ -14,6 +14,7 @@ import Html exposing (Html)
 import Klar.Button as Button
 import Klar.Form as Form
 import Klar.Form.Model as Fm
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.MultiSelect as MultiSelect
@@ -141,14 +142,14 @@ type alias Values =
     }
 
 
-countryIds : Fm.Ids CountryId
+countryIds : Ids CountryId
 countryIds =
-    Fm.ids { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
+    Ids.make { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
 
 
-segmentIds : Fm.Ids SegmentId
+segmentIds : Ids SegmentId
 segmentIds =
-    Fm.ids { toKey = \(SegmentId n) -> String.fromInt n, fromKey = Maybe.map SegmentId << String.toInt }
+    Ids.make { toKey = \(SegmentId n) -> String.fromInt n, fromKey = Maybe.map SegmentId << String.toInt }
 
 
 form : Fm.Form () Fields Values
