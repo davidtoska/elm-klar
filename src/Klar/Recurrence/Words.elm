@@ -92,7 +92,7 @@ patternText locale every pattern =
                         "Den " ++ phrase ++ " i " ++ monthText ++ " hvert år"
 
                     else
-                        "Hvert " ++ nbCount every ++ " år den " ++ phrase ++ " i " ++ monthText
+                        "Hvert " ++ nbCountNeuter every ++ " år den " ++ phrase ++ " i " ++ monthText
                 , en =
                     if every == 1 then
                         "On the " ++ phrase ++ " of " ++ monthText ++ " every year"
@@ -121,6 +121,9 @@ weekly locale every days =
 
             else if every == 1 && weekdays then
                 "Hver ukedag"
+
+            else if every == 1 && List.length days == 1 then
+                "Hver " ++ String.join "" names
 
             else
                 (if every == 1 then
@@ -173,7 +176,7 @@ monthlyDay locale every day missing =
                     "Siste dag i hver måned"
 
                 else
-                    "Hver " ++ nbCount every ++ " måned på siste dag"
+                    "Hver " ++ nbCount every ++ " måned den siste dagen"
             , en =
                 if every == 1 then
                     "On the last day of every month"
@@ -197,7 +200,7 @@ monthlyDay locale every day missing =
                             ""
 
                         else if missing == UseLastDay then
-                            " (siste dag i kortere måneder)"
+                            " (eller siste dag i kortere måneder)"
 
                         else
                             " (måneder uten denne dagen hoppes over)"
@@ -214,7 +217,7 @@ monthlyDay locale every day missing =
                             ""
 
                         else if missing == UseLastDay then
-                            " (the last day in shorter months)"
+                            " (or the last day of shorter months)"
 
                         else
                             " (months without it are skipped)"
@@ -237,7 +240,7 @@ yearlyDate locale every month day missing =
                 "Årlig "
 
              else
-                "Hvert " ++ nbCount every ++ " år "
+                "Hvert " ++ nbCountNeuter every ++ " år "
             )
                 ++ String.fromInt day
                 ++ ". "
@@ -246,7 +249,7 @@ yearlyDate locale every month day missing =
                         ""
 
                     else if missing == UseLastDay then
-                        " (28. februar andre år)"
+                        " (28. februar i år uten skuddag)"
 
                     else
                         " (bare skuddår)"
@@ -290,8 +293,8 @@ ending locale end =
 
         Until date ->
             Locale.pick locale
-                { nb = " til " ++ Format.dateLong locale date
-                , en = " until " ++ Format.dateLong locale date
+                { nb = " til og med " ++ Format.dateLong locale date
+                , en = " through " ++ Format.dateLong locale date
                 }
 
 
@@ -419,6 +422,17 @@ nbCount n =
             String.fromInt n ++ "."
 
 
+{-| The same for a neuter noun ("hvert annet år"): only 2 differs.
+-}
+nbCountNeuter : Int -> String
+nbCountNeuter n =
+    if n == 2 then
+        "annet"
+
+    else
+        nbCount n
+
+
 {-| 1st, 2nd, 3rd, 4th ... 11th, 12th, 13th ... 21st, 22nd, 23rd.
 -}
 enOrdinalNumber : Int -> String
@@ -471,6 +485,24 @@ problemText locale problem =
             Locale.pick locale
                 { nb = "Hvor ofte den gjentas må være et helt tall på 1 eller mer, ikke " ++ String.fromInt n ++ "."
                 , en = "How often it repeats must be a whole number, 1 or more, not " ++ String.fromInt n ++ "."
+                }
+
+        IntervalTooLarge ->
+            Locale.pick locale
+                { nb = "Hvor ofte den gjentas kan ikke være mer enn 2147483647."
+                , en = "How often it repeats cannot be more than 2147483647."
+                }
+
+        CountTooLarge ->
+            Locale.pick locale
+                { nb = "Antall ganger kan ikke være mer enn 2147483647."
+                , en = "The number of occurrences cannot be more than 2147483647."
+                }
+
+        EndTooLate ->
+            Locale.pick locale
+                { nb = "Sluttdatoen må være i år 9999 eller tidligere."
+                , en = "The end date must be in the year 9999 or earlier."
                 }
 
         CountTooSmall n ->

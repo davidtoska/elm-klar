@@ -353,7 +353,7 @@ endOf found =
 untilDate : String -> Result Problem End
 untilDate raw =
     if String.length raw > 8 && String.all (\c -> Char.isDigit c || c == 'T' || c == 'Z' || c == 't' || c == 'z') raw then
-        Err (Unsupported ("UNTIL=" ++ raw ++ " (only the date form, such as 20271231, is read)"))
+        Err (Unsupported ("UNTIL=" ++ raw ++ " (only a date, such as UNTIL=20271231, is read: give the last day as a date)"))
 
     else if String.length raw == 8 && String.all Char.isDigit raw then
         case
@@ -396,12 +396,12 @@ patternOf freq every found =
             (\_ ->
                 case freq of
                     FDaily ->
-                        noParts "FREQ=DAILY" [ ( "BYDAY", byDay ), ( "BYMONTHDAY", byMonthDay ), ( "BYMONTH", byMonth ), ( "BYSETPOS", bySetPos ) ]
-                            |> Result.map (\_ -> Daily)
+                        noParts "FREQ=DAILY" [ ( "BYMONTHDAY", byMonthDay ), ( "BYMONTH", byMonth ), ( "BYSETPOS", bySetPos ) ]
+                            |> Result.andThen (\_ -> dailyPattern every byDay)
 
                     FWeekly ->
                         noParts "FREQ=WEEKLY" [ ( "BYMONTHDAY", byMonthDay ), ( "BYMONTH", byMonth ), ( "BYSETPOS", bySetPos ) ]
-                            |> Result.andThen (\_ -> weeklyPattern byDay)
+                            |> Result.andThen (\_ -> weeklyPattern "FREQ=WEEKLY" byDay)
 
                     FMonthly ->
                         noParts "FREQ=MONTHLY" [ ( "BYMONTH", byMonth ) ]
@@ -447,8 +447,28 @@ noParts context checks =
             Ok ()
 
 
-weeklyPattern : Maybe String -> Result Problem Pattern
-weeklyPattern byDay =
+{-| `FREQ=DAILY` is every day. With `BYDAY` and no interval it is "every day
+that is one of these weekdays", which is the same as a weekly rule on them
+(Google writes "every weekday" this way), so that is what it is read as. With an
+interval above 1 it would be "every n-th day, but only if it is one of these",
+which a weekly rule cannot say.
+-}
+dailyPattern : Int -> Maybe String -> Result Problem Pattern
+dailyPattern every byDay =
+    case byDay of
+        Nothing ->
+            Ok Daily
+
+        Just raw ->
+            if every > 1 then
+                Err (Unsupported ("BYDAY with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)"))
+
+            else
+                weeklyPattern "FREQ=DAILY" (Just raw)
+
+
+weeklyPattern : String -> Maybe String -> Result Problem Pattern
+weeklyPattern context byDay =
     case byDay of
         Nothing ->
             Err (MissingPart "BYDAY")
@@ -459,7 +479,7 @@ weeklyPattern byDay =
                     (\tokens ->
                         case List.filter (\( ordinal, _, _ ) -> ordinal /= Nothing) tokens of
                             ( _, _, text ) :: _ ->
-                                Err (Unsupported ("BYDAY=" ++ text ++ " with FREQ=WEEKLY"))
+                                Err (Unsupported ("BYDAY=" ++ text ++ " with " ++ context))
 
                             [] ->
                                 Ok (Weekly (List.map (\( _, weekday, _ ) -> weekday) tokens))
@@ -508,17 +528,27 @@ yearlyPattern byMonth byDay byMonthDay bySetPos =
                             ( Nothing, Just raw ) ->
                                 monthDayOf bySetPos raw
                                     |> Result.andThen
-                                        (\( day, missing ) ->
-                                            if day == 31 && missing == UseLastDay then
-                                                Err (Unsupported "BYMONTHDAY=-1 with FREQ=YEARLY (the last day of a month)")
-
-                                            else if missing == UseLastDay && not (month == 2 && day == 29) then
-                                                Err (Unsupported ("BYSETPOS with BYMONTHDAY=" ++ raw ++ " in a yearly rule"))
-
-                                            else
-                                                Ok (YearlyDate month day missing)
-                                        )
+                                        (\( day, missing ) -> Ok (yearlyDay month day missing))
                     )
+
+
+{-| The date of a yearly rule. "The last day of the month" (`BYMONTHDAY=-1`, or
+the `BYSETPOS=-1` form of it) is the same date every year, except in February: the
+last day of a month that is always as long as it is, and 29 February in a leap year
+and 28 February otherwise, which is what the missing-day choice of the rule says.
+-}
+yearlyDay : Int -> Int -> Missing -> Pattern
+yearlyDay month day missing =
+    case missing of
+        Skip ->
+            YearlyDate month day Skip
+
+        UseLastDay ->
+            if month == 2 then
+                YearlyDate 2 29 UseLastDay
+
+            else
+                YearlyDate month (min day (Date.daysInMonth 2001 month)) Skip
 
 
 monthOf : String -> Result Problem Int
@@ -704,15 +734,30 @@ weekdayOfCode code =
 -- NUMBERS
 
 
-{-| A whole number written with digits only.
+{-| A whole number written with digits only. `String.toInt` is not exact for a
+number of more than about fifteen digits, so a longer one is read as a number
+that is certainly too large (and a rule says so), not as a different number.
 -}
 digits : String -> Maybe Int
 digits raw =
     if raw /= "" && String.all Char.isDigit raw then
-        String.toInt raw
+        if String.length (dropZeros raw) > 12 then
+            Just 999999999999
+
+        else
+            String.toInt raw
 
     else
         Nothing
+
+
+dropZeros : String -> String
+dropZeros raw =
+    if String.startsWith "0" raw && String.length raw > 1 then
+        dropZeros (String.dropLeft 1 raw)
+
+    else
+        raw
 
 
 {-| A whole number with an optional sign, as RFC 5545 writes them.

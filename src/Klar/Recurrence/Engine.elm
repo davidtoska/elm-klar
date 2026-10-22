@@ -23,7 +23,7 @@ Not meant for application code.
 
 import Klar.Calendar.Util as Util
 import Klar.Date as Date
-import Klar.Recurrence.Spec exposing (End(..), Missing(..), Ordinal(..), Pattern(..), Spec)
+import Klar.Recurrence.Spec as Spec exposing (End(..), Missing(..), Ordinal(..), Pattern(..), Spec)
 import Set
 
 
@@ -50,7 +50,7 @@ maxResults =
 -}
 lastEpochDay : Int
 lastEpochDay =
-    epochOf 9999 12 31
+    epochOf Spec.lastYear 12 31
 
 
 {-| The day numbers of the dates of a rule in a window, ascending.
