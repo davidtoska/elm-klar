@@ -31,6 +31,7 @@ import Klar.Switch as Switch
 import Klar.Table as Table
 import Klar.Text as Text
 import Klar.Theme as Theme exposing (Tone(..))
+import Page.Gallery.Tables.Large as Large
 import Process
 import Set
 import Showcase.Doc as Doc
@@ -54,6 +55,7 @@ type alias Model =
     , narrow : Table.State OrderId
     , norwegian : Table.State OrderId
     , pagers : Pagers
+    , large : Large.Model
     }
 
 
@@ -193,6 +195,8 @@ type Msg
     | CompactPage Int
     | FewPage Int
     | ManyPage Int
+      -- 50 000 rows
+    | LargeMsg Large.Msg
 
 
 init : ( Model, Cmd Msg )
@@ -250,6 +254,7 @@ init =
       , narrow = Table.init "narrow-orders" |> Table.setDensity Theme.Compact |> Table.setPageSize 50
       , norwegian = Table.init "norwegian-orders" |> Table.setPageSize 10
       , pagers = { full = { page = 6, pageSize = 25 }, compact = 1, few = 2, many = 1234 }
+      , large = Large.init
       }
     , fetchCmd
     )
@@ -637,6 +642,10 @@ update msg model =
 
         ManyPage n ->
             ( withPagers (\p -> { p | many = n }) model, Cmd.none )
+
+        LargeMsg inner ->
+            Large.update inner model.large
+                |> Tuple.mapBoth (\large -> { model | large = large }) (Cmd.map LargeMsg)
 
 
 {-| Stores the new state of a table and maps its commands.
@@ -1678,7 +1687,13 @@ view locale model =
         , Html.Lazy.lazy2 narrowSection locale model.narrow
         , Html.Lazy.lazy norwegianSection model.norwegian
         , Html.Lazy.lazy2 paginationSection locale model.pagers
+        , Html.Lazy.lazy2 largeSection locale model.large
         ]
+
+
+largeSection : Locale -> Large.Model -> Html Msg
+largeSection locale large =
+    Html.map LargeMsg (Large.view locale large)
 
 
 eventRow : String -> String -> Html Msg

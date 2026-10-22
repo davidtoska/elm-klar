@@ -1,5 +1,5 @@
 module Klar.Table.Index exposing
-    ( Index, build, hasHaystack, hasRanks
+    ( Index, Totals, build, hasHaystack, hasRanks, totalsOf
     , Level(..), Matches, matching
     , matchCount, pageIndices, allIndices
     )
@@ -35,7 +35,16 @@ type Index
     = Index
         { haystack : Maybe (Array String)
         , ranks : Dict String Ranks
+        , totals : Dict String Totals
         }
+
+
+{-| The sum of a numeric column over all rows, and how many rows have a value in it.
+-}
+type alias Totals =
+    { sum : Float
+    , count : Int
+    }
 
 
 {-| The positions of all rows, ascending and descending by one column. Rows with
@@ -52,7 +61,10 @@ type alias Ranks =
 search words are looked for in (already folded to lower case without accents);
 `sorts` makes a sort key per row for each column id that can be sorted this way.
 -}
-build : Array row -> { search : Maybe (row -> String), sorts : List ( String, row -> Key ) } -> Index
+build :
+    Array row
+    -> { search : Maybe (row -> String), sorts : List ( String, row -> Key ), totals : List ( String, row -> Maybe Float ) }
+    -> Index
 build rows spec =
     Index
         { haystack = Maybe.map (\text -> Array.map text rows) spec.search
@@ -60,7 +72,36 @@ build rows spec =
             spec.sorts
                 |> List.map (\( id, toKey ) -> ( id, ranksOf (Array.toList (Array.map toKey rows)) ))
                 |> Dict.fromList
+        , totals =
+            spec.totals
+                |> List.map
+                    (\( id, toNumber ) ->
+                        let
+                            numbers =
+                                Array.foldr
+                                    (\row acc ->
+                                        case toNumber row of
+                                            Just n ->
+                                                n :: acc
+
+                                            Nothing ->
+                                                acc
+                                    )
+                                    []
+                                    rows
+                        in
+                        ( id, { sum = List.sum numbers, count = List.length numbers } )
+                    )
+                |> Dict.fromList
         }
+
+
+{-| The sum and the count of a column over all the rows, if the index was asked
+to keep them.
+-}
+totalsOf : String -> Index -> Maybe Totals
+totalsOf id (Index index) =
+    Dict.get id index.totals
 
 
 {-| Does the index have search texts?

@@ -43,6 +43,7 @@ indexOf rows =
     Index.build (Array.fromList rows)
         { search = Just .word
         , sorts = [ ( "size", sizeKey ), ( "word", wordKey ) ]
+        , totals = [ ( "size", .size >> Maybe.map toFloat ) ]
         }
 
 
@@ -157,7 +158,7 @@ suite =
                             [ Row Nothing "ada" ]
 
                         bare =
-                            Index.build (Array.fromList rows) { search = Nothing, sorts = [] }
+                            Index.build (Array.fromList rows) { search = Nothing, sorts = [], totals = [] }
                     in
                     Index.matching (Just bare) { count = 1, words = [ "ada" ], tests = [], levels = [] }
                         |> Index.matchCount

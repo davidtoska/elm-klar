@@ -20,6 +20,7 @@ module Support.Orders exposing
     , rowClickOn
     , rowDomId
     , send
+    , shownNumbers
     , sortButton
     , sortClick
     )
