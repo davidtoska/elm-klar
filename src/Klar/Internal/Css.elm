@@ -1880,7 +1880,7 @@ css =
  .klar-permissions__cell--locked{background: var(--klar-surface-subtle);cursor: not-allowed}
  .klar-permissions__cell--locked .klar-permissions__mark{opacity: 0.7}
  .klar-permissions__dot{display: inline-block;flex: none;width: 7px;height: 7px;background: var(--klar-primary);border-radius: 50%}
- .klar-permissions__dot--cell{position: absolute;top: 5px;right: 6px;outline: 2px solid var(--klar-surface)}
+ .klar-permissions__dot--cell{position: absolute;pointer-events: none;top: 5px;right: 6px;outline: 2px solid var(--klar-surface)}
  .klar-permissions__cell--changed{background: var(--klar-primary-subtle)}
  .klar-permissions__cell--changed.klar-permissions__cell--editable:hover{background: var(--klar-primary-subtle-hover)}
  @media (forced-colors: active){.klar-permissions__cell--granted .klar-permissions__mark{forced-color-adjust: none;background: Highlight;border-color: Highlight;color: HighlightText}.klar-permissions__dot{forced-color-adjust: none;background: Highlight}}

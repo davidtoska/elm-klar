@@ -11365,6 +11365,7 @@ html:has(.klar-modal-lock) {
 
 .klar-permissions__dot--cell {
   position: absolute;
+  pointer-events: none;
   top: 5px;
   right: 6px;
   outline: 2px solid var(--klar-surface);
