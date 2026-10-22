@@ -11,6 +11,10 @@ type anything: the suggestions only help. Use it for free text that often
 repeats earlier values (a city, a company name, a product title), and `Select`
 when only listed values are valid.
 
+Use when: free text that often repeats earlier values, such as a city or a company name, where the suggestions only help.
+Do not use when: only listed values are valid (`Klar.Select`).
+Quick path: `init`, `update`, `view`, `text`, `picked`
+
     import Klar.Autocomplete as Autocomplete
     import Klar.Select as Select
 

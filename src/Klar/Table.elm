@@ -24,9 +24,11 @@ module Klar.Table exposing
 {-| A data table for records: search, column filters, sorting, selection with
 bulk actions, row actions, expandable rows, CSV export and pagination.
 
-Use it when people have to find, compare and act on many rows of the same kind:
-orders, customers, shipments. For a short list of things to open, see
-[Klar.ListItem](Klar-ListItem); for a long, plain list of equal rows,
+Use when: people have to find, compare and act on many rows of the same kind: orders, customers, shipments.
+Do not use when: you show a short list of things to open (as `Klar.ListItem`) or a long, plain list of equal rows (as `Klar.VirtualList`).
+Quick path: `init`, `update`, `view`, `columns`, `rows`, `rowId`
+
+See also [Klar.ListItem](Klar-ListItem) and
 [Klar.VirtualList](Klar-VirtualList). The page controls in the footer are
 [Klar.Pagination](Klar-Pagination).
 

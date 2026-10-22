@@ -8,6 +8,9 @@ module Klar.Button exposing
 
 {-| Buttons and button-looking links.
 
+Use when: the user must trigger an action, or follow a link that should look like a button.
+Do not use when: you need a plain link in running text (as `Klar.Link`) or a choice between options (as `Klar.SegmentedControl`).
+
     import Klar.Button as Button
     import Klar.Icon as Icon
 

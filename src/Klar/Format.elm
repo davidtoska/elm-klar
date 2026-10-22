@@ -7,6 +7,9 @@ module Klar.Format exposing
 {-| Formatting numbers, sizes, dates and times for people, in the conventions of
 a `Locale`.
 
+Use when: the application shows numbers, sizes, dates or times to people.
+Do not use when: the text is a machine format (use `iso8601` for a date in data, or the plain value).
+
     import Klar.Format as Format
     import Klar.Locale exposing (Locale(..))
 

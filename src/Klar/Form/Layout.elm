@@ -15,6 +15,9 @@ module Klar.Form.Layout exposing
 fields, the row of buttons, the list of problems after a failed submit, the
 state of the submit and a reminder of unsaved changes.
 
+Use when: you need the frame of a form (sections, grid, button row, status of the save, unsaved mark) or wire a form by hand.
+Do not use when: you want values, rules, steps and problems kept for you (use `Klar.Form`).
+
 This is the frame that [Klar.Form](Klar-Form) is drawn in, and it works alone for
 a form that you wire by hand (the example below). For most forms start with
 [Klar.Form](Klar-Form), which keeps the values, the rules, the steps and the

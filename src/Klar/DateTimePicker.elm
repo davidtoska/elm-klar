@@ -11,8 +11,9 @@ module Klar.DateTimePicker exposing
 {-| A date and a time in one control: a [Klar.DatePicker](Klar-DatePicker) and a
 [Klar.TimePicker](Klar-TimePicker) side by side under one label.
 
-Use it when the two belong together, such as the moment of a pick-up. For a date
-alone or a time alone use the pickers themselves.
+Use when: the date and the time belong together, such as the moment of a pick-up.
+Do not use when: you need a date alone (as `Klar.DatePicker`) or a time alone (as `Klar.TimePicker`).
+Quick path: `init`, `update`, `view`, `dateTime`
 
     import Klar.DateTimePicker as DateTimePicker
 

@@ -7,6 +7,10 @@ module Klar.Progress exposing
 
 {-| Progress: a linear bar, a bar divided into steps, and a ring.
 
+Use when: you can say how far a task has come, as a percentage or as steps such as "3 of 5".
+Do not use when: there is nothing to measure and a plain wait will do (use `Klar.Spinner`).
+Quick path: `view`, `ring`
+
     import Klar.Progress as Progress
     import Klar.Theme exposing (Tone(..))
 

@@ -6,6 +6,10 @@ module Klar.Select.Option exposing
 {-| The option model shared by [Klar.Select](Klar-Select),
 [Klar.MultiSelect](Klar-MultiSelect) and [Klar.Autocomplete](Klar-Autocomplete).
 
+Use when: options for a select are built in a module that has no select of its own, such as a data module or a simulated backend.
+Do not use when: the options are built next to the select itself; `Klar.Select` re-exports the same functions.
+Quick path: `option`, `withDescription`, `withGroup`, `withKeywords`
+
 Most applications do not import this module. `Klar.Select` re-exports `Option`,
 `option` and the `with*` helpers, and the other two components take the same
 `Option` values. Import it when you build options in a module that has no select

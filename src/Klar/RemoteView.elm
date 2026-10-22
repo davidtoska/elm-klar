@@ -7,6 +7,9 @@ module Klar.RemoteView exposing
 a loading skeleton that screen readers hear, the failure with a retry, and the
 data, old or being refreshed. You write only what the data looks like.
 
+Use when: the body of a card, a dialog or a drawer shows one piece of remote data.
+Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListItem`, which take a `Remote` themselves).
+
     import Klar.Card as Card
     import Klar.RemoteView as RemoteView
 

@@ -13,9 +13,9 @@ module Klar.Drawer exposing
 a list, a form with many filters, anything the user wants to see next to the
 page they came from.
 
-Use a [Klar.Modal](Klar-Modal) for a task that has to be finished before
-anything else, a [Klar.ConfirmDialog](Klar-ConfirmDialog) for a yes-or-no
-question and a [Klar.Popover](Klar-Popover) for a small panel next to a button.
+Use when: the user looks at details or a form next to the page they came from, such as the details of a row in a list.
+Do not use when: the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`) or the panel is small and next to a button (use `Klar.Popover`).
+Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.Button as Button
     import Klar.Drawer as Drawer

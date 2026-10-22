@@ -7,6 +7,9 @@ module Klar.Field exposing
 {-| The wrapper around a form control: a label, a required or optional mark, a
 hint and an error message, joined to the control for screen readers.
 
+Use when: you build a custom control that should look and behave like the other fields (label, hint, error).
+Do not use when: you use a control from this package such as `Klar.TextInput` or `Klar.Select`; they wrap themselves in a field.
+
 The inputs of this package (`TextInput`, `Select`, `DatePicker`, `Radio`,
 `Slider` ...) wrap themselves in a field, so an application seldom calls this
 module. It uses the attributes these controls have in common instead:

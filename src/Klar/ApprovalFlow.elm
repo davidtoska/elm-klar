@@ -11,6 +11,9 @@ module Klar.ApprovalFlow exposing
 {-| The approval process of one item: an ordered list of steps, each with one or
 several approvers and a decision from each, and where the item stands.
 
+Use when: an invoice, a credit note or a request needs sign-off and the page shows who has decided and who is next.
+Do not use when: only a history of what happened is shown, use `Klar.Timeline`, or the steps of a wizard, use `Klar.Stepper`.
+
     import Klar.ApprovalFlow as ApprovalFlow
     import Klar.Avatar as Avatar
 

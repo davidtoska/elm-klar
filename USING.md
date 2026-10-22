@@ -7,6 +7,8 @@ parts fit together in an application that talks to a backend.
 
 ## Start here
 
+*Writing the application with an AI? Point it at [AI.md](AI.md) first; section 4 below has the paragraph for the application's own `CLAUDE.md`.*
+
 A complete application with the frame of Klar: a `Browser.application` with an
 `AppShell`, a side menu typed by your own `Page`, and a `Remote` that a table draws.
 It compiles as it stands. Copy it, then replace `fetchOrders` with a real request
@@ -552,3 +554,28 @@ runs it against rows that are in the browser.
 
 **Keyboard shortcuts** are built from keys, not written as text:
 `Shortcut.mod (Shortcut.char 'k')`, `Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ]`.
+
+## 4. Telling an AI how to use Klar
+
+An AI that builds the application needs three things: the files to read, the rules, and a
+starting point. Klar ships them:
+
+- **Read:** [AI.md](AI.md) (the mental model, the standard application, the ten rules, "I need X,
+  use module Y", the known traps), [ai/klar-index.json](ai/klar-index.json) (every module: when to
+  use it, when not, its types and main functions) and [ai/modules/](ai/modules/README.md) (every
+  signature and the documentation of each module as plain text). They are generated from the doc
+  comments by `npm run gen:ai-docs`, so they are never stale. [llms.txt](llms.txt) is the map.
+- **Copy:** [template/](template/README.md) is a working application; [recipes/](recipes/README.md)
+  are complete programs for the common screens.
+- **Rules:** drop this paragraph into the `CLAUDE.md` (or the project instructions) of your
+  application, with the path where Klar lives (`vendor/klar` below):
+
+  > This application uses Klar (`vendor/klar`), a UI toolkit for Elm. Use only the modules that
+  > Klar exposes (`Klar.*`, listed in `vendor/klar/elm.json`), never `Klar.Internal.*`, and never
+  > copy or edit a Klar file. Before you write any screen, read `vendor/klar/AI.md` and search
+  > `vendor/klar/ai/klar-index.json`; then read `vendor/klar/ai/modules/<Module>.md` for the
+  > modules you use and the nearest program in `vendor/klar/recipes/`. Never write your own popup,
+  > dialog, focus, scroll, date, keyboard-shortcut or virtual-list code: a Klar module does it.
+  > Write no CSS, no `class`, no `style` attribute and no JavaScript. Keep ids as your own types
+  > and backend data as `Remote`. If Klar lacks something, write the best honest version, put
+  > `-- KLAR GAP: <what is missing>` above it and list it in `LIBRARY-REQUESTS.md`.

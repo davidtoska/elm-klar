@@ -11,6 +11,10 @@ module Klar.FileDrop exposing
 
 {-| Choose files by dropping them on a zone or with a "Choose files" button.
 
+Use when: a form where the choice of files matters and the application only needs their names, sizes and types.
+Do not use when: the file itself must be read or uploaded, which needs an upload built on `elm/file` in your application.
+Quick path: `init`, `update`, `view`, `files`
+
     import Klar.FileDrop as FileDrop
 
     type alias Model =

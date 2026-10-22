@@ -282,6 +282,27 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   the matching rows, or when the user asks for them, and it counts the selected rows
   that a search or a filter hides only when the search or a filter leaves rows out.
 
+### Documentation for an AI reader (A1, A3)
+
+- `AI.md`: the mental model, a complete standard application, the ten rules, "I need X, use
+  module Y" for every exposed module, and the traps found in A0 (each checked against the
+  source). `llms.txt` is the map.
+- `ai/modules/<Module>.md` (one file per exposed module: every signature, then the
+  documentation in the author's order) and `ai/klar-index.json` (purpose, when to use, when
+  not, State / Msg / ids, main functions, related modules, keywords), generated from the doc
+  comments by `npm run gen:ai-docs`; `npm run check:ai-docs` fails when they are stale, and
+  also compiles the program in `AI.md`.
+- `recipes/`: six complete programs (server-mode inbox, edit form, confirm before delete,
+  dashboard, multi-step flow with a leave guard, command palette), and `template/`, a working
+  application. `npm run check:recipes` compiles them with `--optimize`. Gaps found while writing
+  them are marked `-- KLAR GAP:`.
+- `npm run check:doc-examples` compiles the complete examples of the module docs and writes
+  `ai/doc-example-report.md` (it does not fail yet; `--strict` does).
+- `bench/`: the twelve fixed tasks of the AI benchmark, how a run is done and the baseline from
+  A0. `scripts/bench-workspace.mjs` builds the folder a fresh session gets.
+- USING.md has the paragraph for the `CLAUDE.md` of an application. The scaffold of the round 1
+  Stock application lists `elm/url` as a direct dependency.
+
 ### Small fixes after A0 round 2
 
 - `Format.currency` no longer prints `USD645.15` (R2F-006): an ISO code with a well-known
@@ -363,3 +384,7 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
 - The showcase uses the new pieces: the Products tree can be cleared by clicking the chosen
   category again, the saved views of the rules page have a "New view ..." button (`startSave`)
   and a shared view, and the application frame is wired with `AppShell.State`.
+- Every module doc opens with its purpose, `Use when:`, `Do not use when:` and, for a module with a State
+  and Msg, `Quick path:` (at most six functions in call order); `ai/klar-index.json` reads them, and
+  `check:ai-docs` fails when a module lacks the first two. The recipes were rewritten on the stale data
+  (`Remote.Kept`), the form model (`Klar.Form`) and the repaired `LeaveGuard`.

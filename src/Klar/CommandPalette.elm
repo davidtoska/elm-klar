@@ -11,9 +11,9 @@ module Klar.CommandPalette exposing
 ("New order", "Go to invoices") and for content ("Ada Lovelace"). Type to narrow
 the list, use the arrow keys to move, `Enter` to run and `Escape` to close.
 
-Use it for the actions and places of the whole application. For choosing one
-value in a form use [Klar.Select](Klar-Select), and for a search field on a page
-[Klar.SearchInput](Klar-SearchInput).
+Use when: the application needs one search box for its commands and places, usually opened with Ctrl K.
+Do not use when: the user chooses one value in a form (use `Klar.Select`) or searches inside a page (use `Klar.SearchInput`).
+Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.CommandPalette as CommandPalette
     import Klar.Icon as Icon

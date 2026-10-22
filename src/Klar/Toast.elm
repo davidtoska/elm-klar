@@ -10,10 +10,9 @@ module Klar.Toast exposing
 {-| Short notifications that appear in a corner of the window, stack up and go
 away by themselves: "Order saved", "Could not send the invoice".
 
-Use a toast for feedback about something the user just did, which needs no
-decision. For a message that has to stay on the page use a
-[Klar.Alert](Klar-Alert), and for a question a
-[Klar.ConfirmDialog](Klar-ConfirmDialog).
+Use when: the user needs feedback about something they just did, which needs no decision.
+Do not use when: a message must stay on the page (use `Klar.Alert`) or the user must answer a question (use `Klar.ConfirmDialog`).
+Quick path: `init`, `push`, `update`, `view`, `dismissAll`
 
     -- model:   toasts : Toast.State Msg       (Toast.init)
 

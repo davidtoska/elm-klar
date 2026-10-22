@@ -6,9 +6,10 @@ module Klar.ListItem exposing
     , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, zone
     )
 
-{-| A dense list row, and the list that holds the rows. Use it for records such
-as orders, tickets and files, as a menu of things to open, or as a master list
-next to a detail pane.
+{-| A dense list row, and the list that holds the rows.
+
+Use when: the application shows records such as orders, tickets and files, a menu of things to open, or a master list next to a detail pane.
+Do not use when: people must search, sort and act on many rows of one kind (as `Klar.Table`).
 
     import Klar.ListItem as ListItem
 

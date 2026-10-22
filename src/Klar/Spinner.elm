@@ -6,6 +6,9 @@ module Klar.Spinner exposing
 {-| Loading indicators: a small spinner for inline use and a centered panel for
 a region that is still loading.
 
+Use when: you do not know what the content will look like or how long the wait will be.
+Do not use when: you can sketch the content (use `Klar.Skeleton`) or want a bar that shows how far a task has come (use `Klar.Progress`).
+
     import Klar.Spinner as Spinner
     import Klar.Theme exposing (Size(..))
 

@@ -8,6 +8,9 @@ module Klar.Pagination exposing
 3,000"), rows per page, first / previous / page numbers with ellipsis / next /
 last, and "Go to page".
 
+Use when: you page a list that you fetch or show yourself, outside `Klar.Table`.
+Do not use when: the list is a `Klar.Table`, which has its own page controls.
+
     import Klar.Pagination as Pagination
 
     Pagination.view

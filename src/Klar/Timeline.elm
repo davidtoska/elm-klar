@@ -8,6 +8,9 @@ module Klar.Timeline exposing
 
 {-| A vertical history of events: an audit trail, an order log, an activity feed.
 
+Use when: a history of events is shown newest first, grouped by day, such as an audit trail or an order log.
+Do not use when: the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`.
+
     import Klar.Icon as Icon
     import Klar.Text as Text
     import Klar.Theme exposing (Tone(..))

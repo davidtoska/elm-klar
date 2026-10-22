@@ -8,6 +8,10 @@ module Klar.LeaveGuard exposing
 {-| Asks "Leave without saving?" when the user leaves a page with unsaved work: by a
 link, by your own code and by the browser's Back and Forward buttons.
 
+Use when: a page holds unsaved work and every way of leaving it, including Back and Forward, must ask first.
+Do not use when: only the unsaved state itself is needed without a dialog, read it with `isDirty` or compare values in your own model.
+Quick path: `initAt`, `setDirty`, `request`, `onUrlChange`, `update`, `view`
+
 **The quick path.** Six functions, in this order:
 
   - `initAt` in `init`, with the `Key` and the `Url`;

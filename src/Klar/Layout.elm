@@ -9,6 +9,9 @@ module Klar.Layout exposing
 {-| Layout primitives: vertical stacks, horizontal rows and grids, with spacing
 from a fixed scale.
 
+Use when: you arrange content in stacks, rows, grids or a page column with spacing from the design scale.
+Do not use when: you need a frame for a whole application (as `Klar.AppShell`) or a grouped surface (as `Klar.Card`).
+
     import Klar.Layout as Layout
     import Klar.Text as Text
 

@@ -8,6 +8,9 @@ module Klar.Search exposing
 {-| Text matching for search fields, selects and command palettes: forgiving
 about case and accents, and ranked, so the best match comes first.
 
+Use when: a search field, a select or a list needs forgiving, ranked text matching.
+Do not use when: the match must be exact, such as an id (compare the strings yourself).
+
 Matching ignores case and diacritics (`ø` matches `o`, `é` matches `e`), and
 treats a query as several words that must all match somewhere:
 `"ada london"` finds "Ada Lovelace, London".

@@ -8,6 +8,9 @@ module Klar.Card exposing
 {-| A bordered surface that groups related content, with an optional header and
 footer.
 
+Use when: related content belongs together on a bordered surface with an optional title, actions and footer.
+Do not use when: the content is a whole page region with its own header (as `Klar.PageHeader`) or an overlay (as `Klar.Modal`).
+
     import Klar.Button as Button
     import Klar.Card as Card
 

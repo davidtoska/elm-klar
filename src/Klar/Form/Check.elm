@@ -3,6 +3,9 @@ module Klar.Form.Check exposing (roundTrip, lostIds)
 {-| Tests for a form: what an `elm-test` file needs to be sure that a
 declaration is right, in one line each.
 
+Use when: you write an `elm-test` file for a form declared with `Klar.Form.Spec`.
+Do not use when: you declare or draw a form (use `Klar.Form.Spec` and `Klar.Form`); this module is for tests only.
+
     import Expect
     import Klar.Form.Check as Check
 

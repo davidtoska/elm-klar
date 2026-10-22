@@ -10,6 +10,9 @@ own id type (a `RegionId`, a `ProductId`, plain text ...) is written as a key,
 and the nodes of a hierarchy to choose from. The components give your ids back
 as they are, so you never write the way back from a key to an id.
 
+Use when: you build the nodes for `Klar.TreeSelect`, `Klar.Cascader` or `Klar.Transfer`, or need one way to write your ids as keys.
+Do not use when: you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes).
+
     import Klar.Picking as Picking
     import Klar.Remote as Remote exposing (Remote(..))
 

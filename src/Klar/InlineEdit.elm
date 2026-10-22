@@ -12,6 +12,10 @@ module Klar.InlineEdit exposing
 {-| Click-to-edit text. In reading mode it looks like text (with a pencil on
 hover); a click turns it into an input.
 
+Use when: a single text that is edited in place and saved at once, such as a customer name on a detail page.
+Do not use when: the text is one field of a form that is saved with a button; use `Klar.TextInput`.
+Quick path: `init`, `update`, `view`, `pending`, `saved`, `failed`
+
     import Klar.InlineEdit as InlineEdit
     import Klar.Locale as Locale
     import Klar.Validate as Validate

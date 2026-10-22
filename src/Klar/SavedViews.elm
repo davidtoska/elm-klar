@@ -11,6 +11,10 @@ views and lets the user apply one, save the current filter under a new name,
 rename and delete views (after an inline confirmation), mark one as the default
 view and reset to it.
 
+Use when: users want to save, name and reapply their filters.
+Do not use when: the filter is fixed and has no names to remember (use `Klar.FilterBar` alone).
+Quick path: `init`, `setViews`, `update`, `view`, `revision`, `active`
+
 Use it next to a [Klar.FilterBar](Klar-FilterBar) or a
 [Klar.RuleBuilder](Klar-RuleBuilder). a view is a name and a
 [Klar.Rule](Klar-Rule) `Rule`, and optionally a table query (see below).

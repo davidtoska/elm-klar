@@ -8,6 +8,9 @@ module Klar.Markdown exposing
 {-| Markdown as safe, calm HTML: for the text of a note, a description, a help
 page, or the answer of a language model that is still being written.
 
+Use when: text written in Markdown, also by someone else or by a model, must be shown as safe HTML.
+Do not use when: the user is to write the text, use `Klar.MarkdownEditor`.
+
     import Klar.Markdown as Markdown
 
     Markdown.view [] model.description

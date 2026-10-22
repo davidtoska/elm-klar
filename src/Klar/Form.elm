@@ -15,6 +15,10 @@ one [`Msg`](#Msg) in your messages, and draw each control with one call. The
 application never writes a DOM id, a component state per field, a dirty test, a
 "validate before Next" or a second copy of the server's problems.
 
+Use when: you edit a record in a form and want the values, rules, steps and server problems kept in one state.
+Do not use when: the form is hand-wired or only needs a frame (use `Klar.Form.Layout`), or one value saves by itself (use `Klar.InlineEdit`).
+Quick path: `init`, `bind`, `update`, `toValues`, `summary`, `rejected`
+
 Use it for an edit form, a sign-up, a wizard with a review step, a form with a
 repeating group (the contacts of a supplier). For one value that saves by itself
 use [`Klar.InlineEdit`](Klar-InlineEdit); for the frame around a form (sections,

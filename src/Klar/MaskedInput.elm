@@ -13,6 +13,10 @@ IBAN, an organisation number, a bank account, a postal code, a phone number, or 
 code of your own such as `AB-1234`. It writes the text in its groups as the user types
 it, and says what is wrong with it. It is stateful.
 
+Use when: an identifier with a fixed shape and often a check digit, such as an IBAN, an organisation number or a postal code.
+Do not use when: the text is free (`Klar.TextInput`) or the value is an amount of money (`Klar.MoneyInput`).
+Quick path: `init`, `update`, `view`, `value`
+
     import Klar.MaskedInput as MaskedInput
 
     type alias Model =

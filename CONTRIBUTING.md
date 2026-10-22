@@ -20,6 +20,11 @@ src/Klar/Internal/       the generated stylesheet module (do not edit)
 css/src/*.css            the stylesheet sources (tokens, base, the icon frame, one file per group)
 css/klar.css             the generated bundle (do not edit, see "Stylesheet")
 scripts/                 development tools (Node, no dependencies)
+AI.md, llms.txt          the entry points for an AI that builds an application (AI.md by hand)
+ai/                      generated: ai/modules/*.md, ai/klar-index.json, reports (npm run gen:ai-docs)
+recipes/                 complete programs for the common screens (each compiled by check:recipes)
+template/                a minimal working application
+bench/                   the AI benchmark: tasks, how to run it, results
 tests/                   unit tests of the pure logic (elm-test)
 example/                 the showcase application (its own elm.json)
 ```
@@ -36,6 +41,12 @@ npm run check:classes    # every CSS class the Elm code uses has a rule
 npm run check:icons      # every icon is an Elm value with a valid drawing and a unique name
 npm run check:docs       # every exposed name is documented; elm make --docs passes
 npm run check:api        # no public signature mentions a type a user cannot name
+npm run gen:ai-docs      # docs.json -> ai/modules/*.md, ai/klar-index.json, llms.txt (commit the result)
+npm run check:ai-docs    # those files are up to date; AI.md is under 400 lines, names every module, and its program compiles
+npm run check:recipes    # every recipe and the template compile with --optimize; lists the KLAR GAP comments
+npm run check:doc-examples  # compiles the complete code examples of the module docs; writes ai/doc-example-report.md
+node scripts/check-doc-examples.mjs --strict   # the same, and fails when one does not compile (this is what check runs)
+node scripts/bench-workspace.mjs <dir>         # the folder a benchmark builder gets (bench/run.md)
 npm run check:format     # elm-format --validate
 npm test                 # elm-test
 npm run build:example    # compiles the showcase application (optimized)
