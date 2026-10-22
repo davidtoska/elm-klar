@@ -10,6 +10,7 @@ import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Remote exposing (Problem)
+import Klar.RemoteView as RemoteView
 import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
@@ -38,6 +39,7 @@ type Msg
     | MoreLoaded (Result Problem ())
     | Retry
     | RetryDone
+    | Focused
 
 
 init : Model
@@ -64,7 +66,13 @@ update failing msg model =
             ( { model | loadingMore = False, moreFailed = Just problem }, Cmd.none )
 
         Retry ->
-            ( { model | retrying = True }, Pretend.later RetryDone )
+            -- "Try again" is replaced by the skeleton: focus goes to the timeline (its id).
+            ( { model | retrying = True }
+            , Cmd.batch [ Pretend.later RetryDone, RemoteView.focus "history-timeline" Focused ]
+            )
+
+        Focused ->
+            ( model, Cmd.none )
 
         RetryDone ->
             ( { model | retrying = False }, Cmd.none )
@@ -186,6 +194,7 @@ Timeline.view [ Timeline.remote model.history, Timeline.onRetry Reload ] events"
                     []
                 , Timeline.view
                     (Timeline.remote (Pretend.down locale model.retrying)
+                        :: Timeline.id "history-timeline"
                         :: Timeline.onRetry Retry
                         :: common
                     )

@@ -129,6 +129,13 @@ id value =
 `update` branch that starts the request again, so that focus is not lost when the
 retry button is replaced by the skeleton: the screen reader then reads "Loading",
 and a keyboard user stays on the page. The message is sent when it is done.
+
+It works with any element that has the id and can take focus: the body of a
+`RemoteView` (`id`), and the tile, chart or timeline that was given an id
+(`Stat.id`, `Chart.id`, `Timeline.id`). Use a message of its own for the retry of
+the region (not the one a "Reload" button also sends), so that focus moves only
+when the user pressed "Try again".
+
 -}
 focus : String -> msg -> Cmd msg
 focus domId done =

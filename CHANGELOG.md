@@ -490,3 +490,12 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   inside a card with an `h2` title; directly under a page `h1` say 2). `id` gives the timeline a DOM id
   and a focus stop in every state, see the retry focus entry below. The button is no longer the place
   where focus is kept at the end of the list: that is what `id` and `RemoteView.focus` are for.
+- Retry focus in `Stat`, `Chart`, `Timeline` (and `Tree`, which has `focusNode`): "Try again" is
+  replaced by the skeleton, and the focus fell to `body` in every region, not only in `RemoteView`.
+  `Stat.id`, `Chart.id` and `Timeline.id` give the region an element with that id that takes focus
+  in every state (a `tabindex="-1"` on the tile, the chart's wrapper or the section), and
+  `RemoteView.focus` moves it there in the update branch of the retry. Verified in Chrome for the
+  three in the showcase. Why not automatic: Elm can only move focus from a command, and a `Stat` or
+  `Chart` has no state and no message of its own to receive one, so the focus guard that dialogs
+  use (CSS animation plus `animationstart`) would still need a message from the application; the
+  one-line pattern needs the same and keeps the intent visible. The showcase pages do it.

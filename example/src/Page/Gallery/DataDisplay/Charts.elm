@@ -11,6 +11,7 @@ import Klar.Format as Format
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote
+import Klar.RemoteView as RemoteView
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Page.Gallery.DataDisplay.Pretend as Pretend
@@ -32,6 +33,7 @@ type alias Model =
 type Msg
     = Retry String
     | RetryDone String
+    | Focused
 
 
 init : Model
@@ -43,10 +45,21 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Retry example ->
-            ( { model | retrying = example :: model.retrying }, Pretend.later (RetryDone example) )
+            -- "Try again" is replaced by the skeleton: focus goes to the chart (its id).
+            ( { model | retrying = example :: model.retrying }
+            , Cmd.batch [ Pretend.later (RetryDone example), RemoteView.focus (chartId example) Focused ]
+            )
+
+        Focused ->
+            ( model, Cmd.none )
 
         RetryDone example ->
             ( { model | retrying = List.filter (\other -> other /= example) model.retrying }, Cmd.none )
+
+
+chartId : String -> String
+chartId example =
+    "chart-retry-" ++ example
 
 
 
@@ -497,6 +510,7 @@ stateExamples locale model =
                 [ kind [ Chart.loading True ]
                 , kind
                     [ Chart.remote (Pretend.down locale (List.member example model.retrying))
+                    , Chart.id (chartId example)
                     , Chart.onRetry (Retry example)
                     ]
                 , kind [ Chart.emptyText "No orders in this period" ]
