@@ -1,38 +1,459 @@
 module Page.Gallery.Flow exposing (Model, Msg, init, subscriptions, update, view)
 
-{-| Gallery page: pages and flow.
+{-| Gallery page: pages and flow. Result pages, the bulk action bar, the leave
+guard and the undo history, each with a small working scene around it.
+
+The leave guard asks inside a `Modal.host`, which makes the page behind the dialog
+inert; the undo shortcuts are listened to by the same host, so they work as soon as
+focus is anywhere in this page.
+
 -}
 
+import Api.Types as Types
+import Browser.Dom as Dom
 import Html exposing (Html)
-import Klar.Locale exposing (Locale)
+import Html.Attributes as Attr
+import Klar.Alert as Alert
+import Klar.Badge as Badge
+import Klar.BulkBar as BulkBar
+import Klar.Button as Button
+import Klar.Checkbox as Checkbox
+import Klar.Form as Form
+import Klar.Format as Format
+import Klar.History as History exposing (History)
+import Klar.Icon as Icon
+import Klar.Layout as Layout
+import Klar.LeaveGuard as LeaveGuard exposing (Answer(..), Decision(..))
+import Klar.Locale as Locale exposing (Locale)
+import Klar.Menu as Menu
+import Klar.Modal as Modal
+import Klar.Remote as Remote
+import Klar.Shortcut as Shortcut exposing (Shortcut)
+import Klar.Spinner as Spinner
+import Klar.StatusPage as StatusPage
+import Klar.Text as Text
+import Klar.TextArea as TextArea
+import Klar.TextInput as TextInput
+import Klar.Theme as Theme
+import Klar.Toolbar as Toolbar
+import Process
+import Set exposing (Set)
 import Showcase.Doc as Doc
+import Showcase.Sample as Sample
+import Task
 
 
 
 -- MODEL
 
 
+type Route
+    = Orders
+    | Customers
+    | Settings
+
+
+type Form
+    = NoteForm
+    | AddressForm
+
+
+type Field
+    = Quantity
+    | Note
+
+
+type alias Draft =
+    { quantity : String
+    , note : String
+    }
+
+
 type alias Model =
-    {}
+    { shortcuts : Shortcut.State
+
+    -- status pages
+    , problem : Remote.Kind
+    , retries : Int
+    , customer : String
+    , created : Bool
+
+    -- bulk bar
+    , search : String
+    , picked : Set String
+    , everything : Bool
+    , moreMenu : Menu.State
+    , outcome : Maybe String
+
+    -- leave guard
+    , route : Route
+    , guard : LeaveGuard.Guard Form Route
+    , note : String
+    , noteSaved : String
+    , address : String
+    , addressSaved : String
+    , offerSave : Bool
+    , saving : Maybe Route
+
+    -- undo history
+    , history : History Field Draft
+    }
 
 
 type Msg
-    = NoOp
+    = ShortcutMsg Shortcut.Msg
+    | NoOp
+      -- status pages
+    | ProblemPicked Remote.Kind
+    | Retried
+    | CustomerTyped String
+    | CreateOrder
+    | CreateAnother
+      -- bulk bar
+    | SearchTyped String
+    | RowToggled String Bool
+    | PageToggled Bool
+    | SelectEverything
+    | ClearSelection
+    | Exported
+    | Deleted
+    | MoreMenuMsg Menu.Msg
+    | Assigned
+      -- leave guard
+    | Navigate Route
+    | GuardMsg LeaveGuard.Msg
+    | NoteTyped String
+    | AddressTyped String
+    | SaveNote
+    | SaveAddress
+    | OfferSaveToggled Bool
+    | SavedThenGo Route
+      -- undo history
+    | QuantityTyped String
+    | HistoryNoteTyped String
+    | FieldLeft
+    | UndoPressed
+    | RedoPressed
+    | MarkSaved
+    | DiscardChanges
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( {}, Cmd.none )
+    ( { shortcuts = Shortcut.init
+      , problem = Remote.server
+      , retries = 0
+      , customer = ""
+      , created = False
+      , search = ""
+      , picked = Set.empty
+      , everything = False
+      , moreMenu = Menu.init "flow-more-menu"
+      , outcome = Nothing
+      , route = Orders
+      , guard = LeaveGuard.init "flow-leave-dialog"
+      , note = "Leave at the loading dock."
+      , noteSaved = "Leave at the loading dock."
+      , address = "Dock 4, 12 Harbour Road"
+      , addressSaved = "Dock 4, 12 Harbour Road"
+      , offerSave = True
+      , saving = Nothing
+      , history = History.init { quantity = "12", note = "" }
+      }
+    , Cmd.none
+    )
+
+
+
+-- SAMPLE DATA
+
+
+{-| The orders on the page the bulk bar demo shows, and how many orders match in all.
+-}
+pageOrders : List Types.Order
+pageOrders =
+    List.take 8 Sample.orders
+
+
+matching : Int
+matching =
+    1240
+
+
+orderKey : Types.Order -> String
+orderKey order =
+    Types.orderIdText order.id
+
+
+selectedCount : Model -> Int
+selectedCount model =
+    if model.everything then
+        matching
+
+    else
+        Set.size model.picked
+
+
+isPicked : Model -> Types.Order -> Bool
+isPicked model order =
+    model.everything || Set.member (orderKey order) model.picked
+
+
+pageKeys : Set String
+pageKeys =
+    Set.fromList (List.map orderKey pageOrders)
+
+
+
+-- SHORTCUTS
+
+
+{-| The undo shortcuts of the history demo. They are marked `inInputs` because the
+history records every key typed in the two fields: `Ctrl Z` there undoes the
+history, not the text of one field.
+-}
+pageShortcuts : Locale -> List (Shortcut Msg)
+pageShortcuts locale =
+    History.shortcuts locale { onUndo = UndoPressed, onRedo = RedoPressed }
+        |> List.map Shortcut.inInputs
+
+
+
+-- UPDATE
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update _ model =
-    ( model, Cmd.none )
+update msg model =
+    case msg of
+        ShortcutMsg inner ->
+            let
+                ( state, fired ) =
+                    -- the language only changes the names in the sheet, not the keys
+                    Shortcut.update (pageShortcuts Locale.default) inner model.shortcuts
+            in
+            case fired of
+                Just next ->
+                    update next { model | shortcuts = state }
+
+                Nothing ->
+                    ( { model | shortcuts = state }, Cmd.none )
+
+        NoOp ->
+            ( model, Cmd.none )
+
+        -- STATUS PAGES
+        ProblemPicked kind ->
+            ( { model | problem = kind, retries = 0 }, Cmd.none )
+
+        Retried ->
+            ( { model | retries = model.retries + 1 }, Cmd.none )
+
+        CustomerTyped text ->
+            ( { model | customer = text }, Cmd.none )
+
+        CreateOrder ->
+            -- the form is gone in the next frame, and so is the focused button:
+            -- the title of the page that replaces it takes focus
+            ( { model | created = True }, StatusPage.focusTitle "flow-created" NoOp )
+
+        CreateAnother ->
+            ( { model | created = False, customer = "" }
+            , Task.attempt (\_ -> NoOp) (Dom.focus "flow-customer")
+            )
+
+        -- BULK BAR
+        SearchTyped text ->
+            ( { model | search = text }, Cmd.none )
+
+        RowToggled key checked ->
+            let
+                base =
+                    if model.everything then
+                        pageKeys
+
+                    else
+                        model.picked
+            in
+            ( { model
+                | everything = False
+                , picked =
+                    if checked then
+                        Set.insert key base
+
+                    else
+                        Set.remove key base
+                , outcome = Nothing
+              }
+            , Cmd.none
+            )
+
+        PageToggled checked ->
+            ( { model
+                | everything = False
+                , picked =
+                    if checked then
+                        pageKeys
+
+                    else
+                        Set.empty
+                , outcome = Nothing
+              }
+            , Cmd.none
+            )
+
+        SelectEverything ->
+            -- the button the user pressed is replaced by the new count: the bar takes focus
+            ( { model | everything = True, outcome = Nothing }, BulkBar.focus "flow-bulk" NoOp )
+
+        ClearSelection ->
+            clearSelection model Nothing
+
+        Exported ->
+            ( { model | outcome = Just (String.fromInt (selectedCount model) ++ " orders exported (nothing leaves this demo).") }, Cmd.none )
+
+        Deleted ->
+            clearSelection model (Just (String.fromInt (selectedCount model) ++ " orders deleted (they come back when you reload the page)."))
+
+        Assigned ->
+            ( { model | outcome = Just (String.fromInt (selectedCount model) ++ " orders assigned to you.") }, Cmd.none )
+
+        MoreMenuMsg inner ->
+            let
+                ( menu, cmd ) =
+                    Menu.update inner model.moreMenu
+            in
+            ( { model | moreMenu = menu }, Cmd.map MoreMenuMsg cmd )
+
+        -- LEAVE GUARD
+        Navigate route ->
+            case LeaveGuard.request route model.guard of
+                Proceed target ->
+                    ( { model | route = target }, Cmd.none )
+
+                Hold guard cmd ->
+                    ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+        GuardMsg inner ->
+            let
+                ( guard, cmd, decision ) =
+                    LeaveGuard.update inner model.guard
+
+                next =
+                    { model | guard = guard }
+            in
+            case decision of
+                Nothing ->
+                    ( next, Cmd.map GuardMsg cmd )
+
+                Just (Leave route) ->
+                    -- the changes are given up: the drafts go back to what was saved
+                    ( { next | route = route, note = model.noteSaved, address = model.addressSaved }
+                    , Cmd.map GuardMsg cmd
+                    )
+
+                Just (SaveFirst route) ->
+                    -- the save takes a moment; the route travels in the message that comes back
+                    ( { next | saving = Just route }
+                    , Cmd.batch
+                        [ Cmd.map GuardMsg cmd
+                        , Task.perform (\_ -> SavedThenGo route) (Process.sleep 700)
+                        ]
+                    )
+
+        NoteTyped text ->
+            ( dirtied { model | note = text }, Cmd.none )
+
+        AddressTyped text ->
+            ( dirtied { model | address = text }, Cmd.none )
+
+        SaveNote ->
+            ( dirtied { model | noteSaved = model.note }, Cmd.none )
+
+        SaveAddress ->
+            ( dirtied { model | addressSaved = model.address }, Cmd.none )
+
+        OfferSaveToggled checked ->
+            ( { model | offerSave = checked }, Cmd.none )
+
+        SavedThenGo route ->
+            ( dirtied { model | noteSaved = model.note, addressSaved = model.address, saving = Nothing, route = route }, Cmd.none )
+
+        -- UNDO HISTORY
+        QuantityTyped text ->
+            let
+                draft =
+                    History.present model.history
+            in
+            ( { model
+                | history =
+                    History.record
+                        [ History.label "Changed quantity", History.coalesce Quantity ]
+                        { draft | quantity = text }
+                        model.history
+              }
+            , Cmd.none
+            )
+
+        HistoryNoteTyped text ->
+            let
+                draft =
+                    History.present model.history
+            in
+            ( { model
+                | history =
+                    History.record
+                        [ History.label "Changed note", History.coalesce Note ]
+                        { draft | note = text }
+                        model.history
+              }
+            , Cmd.none
+            )
+
+        FieldLeft ->
+            ( { model | history = History.endBurst model.history }, Cmd.none )
+
+        UndoPressed ->
+            ( { model | history = History.undo model.history }, Cmd.none )
+
+        RedoPressed ->
+            ( { model | history = History.redo model.history }, Cmd.none )
+
+        MarkSaved ->
+            ( { model | history = History.markSaved model.history }, Cmd.none )
+
+        DiscardChanges ->
+            ( { model
+                | history = History.record [ History.label "Discarded changes" ] (History.saved model.history) model.history
+              }
+            , Cmd.none
+            )
+
+
+{-| Clearing the selection removes the bar and the button that has focus: the list
+takes it.
+-}
+clearSelection : Model -> Maybe String -> ( Model, Cmd Msg )
+clearSelection model outcome =
+    ( { model | picked = Set.empty, everything = False, outcome = outcome }
+    , Task.attempt (\_ -> NoOp) (Dom.focus "flow-orders")
+    )
+
+
+{-| Tells the guard what is dirty now. Called after every change of a draft.
+-}
+dirtied : Model -> Model
+dirtied model =
+    { model
+        | guard =
+            model.guard
+                |> LeaveGuard.setDirty NoteForm (model.note /= model.noteSaved)
+                |> LeaveGuard.setDirty AddressForm (model.address /= model.addressSaved)
+    }
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    Shortcut.subscription ShortcutMsg (pageShortcuts Locale.default) model.shortcuts
 
 
 
@@ -40,9 +461,612 @@ subscriptions _ =
 
 
 view : Locale -> Model -> Html Msg
-view _ _ =
-    Doc.page
-        { title = "Pages and flow"
-        , description = "Result pages, the bulk action bar, the leave guard and undo history."
+view locale model =
+    Modal.host
+        { attributes = [ Shortcut.listen ShortcutMsg (pageShortcuts locale) model.shortcuts ]
+        , blocked = LeaveGuard.isOpen model.guard
+        , page =
+            [ Doc.page
+                { title = "Pages and flow"
+                , description = "The page for a result, the bar of actions for a selection, the question that stops a user from losing unsaved work, and undo and redo. Each has a small working scene around it. The language switch in the top bar changes the built-in texts."
+                }
+                [ statusSection locale model
+                , bulkSection locale model
+                , guardSection locale model
+                , historySection locale model
+                ]
+            ]
+        , overlays = [ LeaveGuard.view GuardMsg (guardAttributes locale model) model.guard ]
         }
-        []
+
+
+{-| A box with a height, like the region of an application shell: a status page
+fills the box it is in.
+-}
+frame : Int -> Html msg -> Html msg
+frame height content =
+    Html.div
+        [ Attr.style "height" (String.fromInt height ++ "px")
+        , Attr.style "overflow" "auto"
+        , Attr.style "border" "1px solid var(--klar-border)"
+        , Attr.style "border-radius" "var(--klar-radius-lg)"
+        , Attr.style "background" "var(--klar-bg)"
+        ]
+        [ content ]
+
+
+
+-- STATUS PAGES
+
+
+statusSection : Locale -> Model -> Html Msg
+statusSection locale model =
+    Doc.section "Status page"
+        "A result that is the whole page, where Klar.EmptyState and Klar.ErrorState are the versions that live inside a table or a card. The kind of page chooses the icon, the color and the text; the actions are your buttons. There is exactly one h1, no live region (a page that arrives with a navigation is content, not an alert) and nothing takes focus by itself. The pages below fill their frames the way they fill the content of an application shell."
+        [ Doc.example
+            { title = "The kinds"
+            , description = Just "Success, not found, no access, signed out, server error, offline and maintenance. Each has a built-in text in English and Norwegian Bokmål, which the title and description attributes replace."
+            , code = Just kindsCode
+            }
+            (Layout.grid [ Layout.minColumn 320, Layout.gap 4 ]
+                [ labelled "StatusPage.success" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href "#/components/flow" ] "Back to orders" ] ] StatusPage.success))
+                , labelled "StatusPage.notFound" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ] StatusPage.notFound))
+                , labelled "StatusPage.denied" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href "#/" ] "Home" ] ] StatusPage.denied))
+                , labelled "StatusPage.sessionExpired" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/" ] "Sign in" ] ] StatusPage.sessionExpired))
+                , labelled "StatusPage.serverError" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.reference "req-7f3a-91c2" ] StatusPage.serverError))
+                , labelled "StatusPage.offline" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.offline))
+                , labelled "StatusPage.maintenance" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.maintenance))
+                ]
+            )
+        , Doc.example
+            { title = "For a failed request"
+            , description = Just "fromProblem picks the icon and the color from the kind of the problem and takes the texts of the problem, so Remote.withTitle and friends change them. Try again is offered only when trying again can help. The reference is selected by one click (copying needs JavaScript), so Ctrl C copies it."
+            , code = Just problemCode
+            }
+            (Layout.stack [ Layout.gap 3 ]
+                [ Layout.row [ Layout.gap 2, Layout.wrap ]
+                    (List.map (problemButton model)
+                        [ ( "Server", Remote.server )
+                        , ( "Network", Remote.network )
+                        , ( "Timeout", Remote.timeout )
+                        , ( "Not found", Remote.notFound )
+                        , ( "Forbidden", Remote.forbidden )
+                        , ( "Signed out", Remote.unauthorized )
+                        , ( "Conflict", Remote.conflict )
+                        ]
+                    )
+                , frame 380
+                    (StatusPage.view
+                        [ StatusPage.locale locale
+                        , StatusPage.onRetry Retried
+                        , StatusPage.reference "req-7f3a-91c2"
+                        , StatusPage.actions [ Button.view [ Button.href "#/orders" ] "Go to orders" ]
+                        ]
+                        (StatusPage.fromProblem (Remote.problem model.problem |> Remote.withCode "503"))
+                    )
+                , Text.caption ("Try again was pressed " ++ String.fromInt model.retries ++ " times.")
+                ]
+            )
+        , Doc.example
+            { title = "Replacing a form, with focus"
+            , description = Just "The form is replaced by the result without a navigation, so the button that was pressed is gone and focus would fall to the page. The page has an id and the update calls focusTitle: the title takes focus, and a screen reader reads the result. Create another order takes focus back to the field."
+            , code = Just focusCode
+            }
+            (frame 380
+                (if model.created then
+                    StatusPage.view
+                        [ StatusPage.locale locale
+                        , StatusPage.id "flow-created"
+                        , StatusPage.title ("Order created for " ++ model.customer)
+                        , StatusPage.description "A confirmation was sent to the customer."
+                        , StatusPage.icon Icon.package
+                        , StatusPage.actions
+                            [ Button.view [ Button.primary, Button.onClick CreateAnother ] "Create another order"
+                            , Button.view [ Button.href "#/orders" ] "Open orders"
+                            ]
+                        , StatusPage.reference "ORD-1042"
+                        ]
+                        StatusPage.success
+
+                 else
+                    Html.div [ Attr.style "padding" "var(--klar-space-6)", Attr.style "max-width" "420px" ]
+                        [ Layout.stack [ Layout.gap 3 ]
+                            [ Text.heading "New order"
+                            , TextInput.view
+                                [ TextInput.id "flow-customer"
+                                , TextInput.label "Customer"
+                                , TextInput.value model.customer
+                                , TextInput.onInput CustomerTyped
+                                , TextInput.onEnter CreateOrder
+                                , TextInput.locale locale
+                                ]
+                            , Button.view
+                                [ Button.id "flow-create-order"
+                                , Button.primary
+                                , Button.disabled (String.isEmpty (String.trim model.customer))
+                                , Button.onClick CreateOrder
+                                ]
+                                "Create order"
+                            ]
+                        ]
+                )
+            )
+        ]
+
+
+labelled : String -> Html msg -> Html msg
+labelled name content =
+    Html.div [ Attr.style "min-width" "0" ]
+        [ Html.div [ Attr.style "margin-bottom" "var(--klar-space-1)" ] [ Text.mono name ]
+        , content
+        ]
+
+
+problemButton : Model -> ( String, Remote.Kind ) -> Html Msg
+problemButton model ( name, kind ) =
+    Button.view
+        [ Button.small
+        , Button.pressed (model.problem == kind)
+        , Button.onClick (ProblemPicked kind)
+        ]
+        name
+
+
+
+-- BULK BAR
+
+
+bulkSection : Locale -> Model -> Html Msg
+bulkSection locale model =
+    let
+        count =
+            selectedCount model
+
+        pageSelected =
+            List.all (isPicked model) pageOrders
+    in
+    Doc.section "Bulk action bar"
+        "Appears when a selection is not empty: the count, the actions for it and Clear selection. It does not push anything: the bar takes the place of the toolbar, in the same box, and the toolbar underneath keeps its state (type in the search field, then select a row). The count is announced politely by one region that is always on the page. It never takes focus by itself, and Escape does nothing here: whether Escape clears is the application's decision."
+        [ Doc.example
+            { title = "A selectable list of orders"
+            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Clear selection and Delete give focus back to the list; Select all moves focus to the bar so that Tab reaches the actions."
+            , code = Just bulkCode
+            }
+            (Layout.stack [ Layout.gap 3 ]
+                [ BulkBar.view
+                    [ BulkBar.id "flow-bulk"
+                    , BulkBar.locale locale
+                    , BulkBar.selectAllMatching { total = matching, onPage = List.length pageOrders, onSelectAll = SelectEverything }
+                    ]
+                    { toolbar =
+                        Toolbar.view [ Toolbar.ariaLabel "Orders" ]
+                            [ Toolbar.label "Orders"
+                            , Toolbar.spacer
+                            , TextInput.view
+                                [ TextInput.search
+                                , TextInput.label "Search orders"
+                                , TextInput.labelHidden
+                                , TextInput.placeholder "Search orders"
+                                , TextInput.value model.search
+                                , TextInput.onInput SearchTyped
+                                , TextInput.locale locale
+                                ]
+                            , Button.view [ Button.primary, Button.icon Icon.plus ] "New order"
+                            ]
+                    , selected = count
+                    , onClear = ClearSelection
+                    }
+                    [ Button.view [ Button.icon Icon.download, Button.onClick Exported ] "Export"
+                    , Menu.view MoreMenuMsg
+                        [ Menu.label "More actions"
+                        , Menu.alignEnd
+                        , Menu.items
+                            [ Menu.item "Assign to me" Assigned |> Menu.withIcon Icon.user
+                            ]
+                        ]
+                        model.moreMenu
+                    , Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Deleted ] "Delete"
+                    ]
+                , Html.div
+                    [ Attr.id "flow-orders"
+                    , Attr.tabindex -1
+                    , Attr.style "border" "1px solid var(--klar-border)"
+                    , Attr.style "border-radius" "var(--klar-radius-lg)"
+                    , Attr.style "background" "var(--klar-surface)"
+                    ]
+                    (Html.div
+                        [ Attr.style "padding" "var(--klar-space-2) var(--klar-space-3)"
+                        , Attr.style "border-bottom" "1px solid var(--klar-border-subtle)"
+                        ]
+                        [ Checkbox.view
+                            [ Checkbox.ariaLabel "Select all orders on this page"
+                            , Checkbox.checked pageSelected
+                            , Checkbox.indeterminate (count > 0 && not pageSelected)
+                            , Checkbox.onCheck PageToggled
+                            ]
+                        ]
+                        :: List.map (orderRow locale model) pageOrders
+                    )
+                , case model.outcome of
+                    Just text ->
+                        Alert.view [ Alert.compact, Alert.polite, Alert.locale locale ] text
+
+                    Nothing ->
+                        Text.caption ("Showing " ++ String.fromInt (List.length pageOrders) ++ " of " ++ Format.int locale matching ++ " matching orders.")
+                ]
+            )
+        ]
+
+
+orderRow : Locale -> Model -> Types.Order -> Html Msg
+orderRow locale model order =
+    Html.div
+        [ Attr.style "display" "flex"
+        , Attr.style "align-items" "center"
+        , Attr.style "gap" "var(--klar-space-3)"
+        , Attr.style "padding" "var(--klar-space-2) var(--klar-space-3)"
+        , Attr.style "border-bottom" "1px solid var(--klar-border-subtle)"
+        ]
+        [ Checkbox.view
+            [ Checkbox.ariaLabel ("Select order " ++ orderKey order)
+            , Checkbox.checked (isPicked model order)
+            , Checkbox.onCheck (RowToggled (orderKey order))
+            ]
+        , Html.span [ Attr.style "min-width" "7ch" ] [ Text.mono (orderKey order) ]
+        , Html.span [ Attr.style "flex" "1" ] [ Html.text order.customer ]
+        , Html.span [ Attr.class "klar-tabular" ] [ Html.text (Format.currency locale "$" 2 order.total) ]
+        ]
+
+
+
+-- LEAVE GUARD
+
+
+guardAttributes : Locale -> Model -> List LeaveGuard.Attribute
+guardAttributes locale model =
+    LeaveGuard.locale locale
+        :: (if model.offerSave then
+                [ LeaveGuard.saveAndLeave ]
+
+            else
+                []
+           )
+
+
+guardSection : Locale -> Model -> Html Msg
+guardSection locale model =
+    Doc.section "Leave guard"
+        "Asks \"Leave without saving?\" when the user navigates inside the application while something is not saved. Every navigation goes through LeaveGuard.request: a clean guard answers Proceed with the value, a dirty one answers Hold and opens the dialog, and the held value comes back as data when the user chooses. Several forms are independent sources, and the guard is clean only when all are. Closing the tab, reloading and typing another address cannot be intercepted without JavaScript."
+        [ Doc.example
+            { title = "A fake application with two forms"
+            , description = Just "Change the note or the address, then press Customers or Settings. Focus goes to Stay, Escape means Stay, and focus returns to the button you pressed. Save the forms, or undo the edit by hand, and the next move is free. Save and leave saves for a moment and then goes."
+            , code = Just guardCode
+            }
+            (Layout.stack [ Layout.gap 3 ]
+                [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+                    [ routeButton model Orders "Orders"
+                    , routeButton model Customers "Customers"
+                    , routeButton model Settings "Settings"
+                    , Layout.spacer
+                    , Checkbox.view
+                        [ Checkbox.label "Offer Save and leave"
+                        , Checkbox.checked model.offerSave
+                        , Checkbox.onCheck OfferSaveToggled
+                        ]
+                    ]
+                , Html.div
+                    [ Attr.style "border" "1px solid var(--klar-border)"
+                    , Attr.style "border-radius" "var(--klar-radius-lg)"
+                    , Attr.style "padding" "var(--klar-space-4)"
+                    , Attr.style "background" "var(--klar-surface)"
+                    ]
+                    [ case model.route of
+                        Orders ->
+                            Layout.stack [ Layout.gap 4 ]
+                                [ Text.heading "Order 1042"
+                                , Layout.grid [ Layout.minColumn 280, Layout.gap 4 ]
+                                    [ Layout.stack [ Layout.gap 2 ]
+                                        [ TextArea.view
+                                            [ TextArea.id "flow-note"
+                                            , TextArea.label "Delivery note"
+                                            , TextArea.value model.note
+                                            , TextArea.rows 3
+                                            , TextArea.onInput NoteTyped
+                                            , TextArea.locale locale
+                                            ]
+                                        , Layout.row [ Layout.gap 2, Layout.alignCenter ]
+                                            [ Button.view [ Button.small, Button.onClick SaveNote, Button.disabled (model.note == model.noteSaved) ] "Save note"
+                                            , Form.unsavedFlag [ Form.locale locale ] (model.note /= model.noteSaved)
+                                            ]
+                                        ]
+                                    , Layout.stack [ Layout.gap 2 ]
+                                        [ TextInput.view
+                                            [ TextInput.id "flow-address"
+                                            , TextInput.label "Shipping address"
+                                            , TextInput.value model.address
+                                            , TextInput.onInput AddressTyped
+                                            , TextInput.locale locale
+                                            ]
+                                        , Layout.row [ Layout.gap 2, Layout.alignCenter ]
+                                            [ Button.view [ Button.small, Button.onClick SaveAddress, Button.disabled (model.address == model.addressSaved) ] "Save address"
+                                            , Form.unsavedFlag [ Form.locale locale ] (model.address /= model.addressSaved)
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                        Customers ->
+                            Layout.stack [ Layout.gap 2 ]
+                                [ Text.heading "Customers"
+                                , Text.paragraph "You are on another page. Go back to Orders to change the forms again."
+                                ]
+
+                        Settings ->
+                            Layout.stack [ Layout.gap 2 ]
+                                [ Text.heading "Settings"
+                                , Text.paragraph "You are on another page. Go back to Orders to change the forms again."
+                                ]
+                    ]
+                , Layout.row [ Layout.gap 3, Layout.wrap, Layout.alignCenter ]
+                    [ if LeaveGuard.isDirty model.guard then
+                        Badge.view [ Badge.tone Theme.Warning ] "Unsaved"
+
+                      else
+                        Badge.view [ Badge.tone Theme.Success ] "Everything saved"
+                    , Text.caption ("Dirty sources: " ++ dirtyText (LeaveGuard.dirtySources model.guard))
+                    , case model.saving of
+                        Just route ->
+                            Layout.row [ Layout.gap 2, Layout.alignCenter ]
+                                [ Spinner.view []
+                                , Text.caption ("Saving, then going to " ++ routeName route ++ " ...")
+                                ]
+
+                        Nothing ->
+                            Html.text ""
+                    ]
+                ]
+            )
+        ]
+
+
+routeButton : Model -> Route -> String -> Html Msg
+routeButton model route name =
+    Button.view
+        [ Button.id ("flow-go-" ++ String.toLower name)
+        , Button.pressed (model.route == route)
+        , Button.onClick (Navigate route)
+        ]
+        name
+
+
+routeName : Route -> String
+routeName route =
+    case route of
+        Orders ->
+            "Orders"
+
+        Customers ->
+            "Customers"
+
+        Settings ->
+            "Settings"
+
+
+dirtyText : List Form -> String
+dirtyText forms =
+    if List.isEmpty forms then
+        "none"
+
+    else
+        forms
+            |> List.map
+                (\form ->
+                    case form of
+                        NoteForm ->
+                            "note"
+
+                        AddressForm ->
+                            "address"
+                )
+            |> String.join ", "
+
+
+
+-- UNDO HISTORY
+
+
+historySection : Locale -> Model -> Html Msg
+historySection locale model =
+    let
+        draft =
+            History.present model.history
+    in
+    Doc.section "Undo history"
+        "Undo and redo as a plain value: the present, the steps before it and the steps after it. Typing in one field is one step (a burst) and ends when the field loses focus; every step has a label that a screen reader hears (\"Undid: Changed quantity\"). History does not listen to the keyboard: the page wires Ctrl Z and Ctrl Shift Z with Klar.Shortcut, marked inInputs because every key typed here is recorded. The saved point tells whether the value is still what was saved."
+        [ Doc.example
+            { title = "Two fields with undo and redo"
+            , description = Just "Type in the quantity, leave the field, type in the note, then press Ctrl Z or the Undo button. Mark saved sets the saved point; undoing past it makes the form dirty again, and redo comes back to it."
+            , code = Just historyCode
+            }
+            (Layout.stack [ Layout.gap 3 ]
+                [ Toolbar.view [ Toolbar.ariaLabel "Edit" ]
+                    [ History.controls [ History.locale locale, History.showShortcuts ]
+                        { onUndo = UndoPressed, onRedo = RedoPressed }
+                        model.history
+                    , Toolbar.separator
+                    , Button.view [ Button.icon Icon.save, Button.onClick MarkSaved, Button.disabled (History.isAtSavedPoint model.history) ] "Mark saved"
+                    , Button.view [ Button.icon Icon.refresh, Button.onClick DiscardChanges, Button.disabled (History.isAtSavedPoint model.history) ] "Discard changes"
+                    , Toolbar.spacer
+                    , Form.unsavedFlag [ Form.locale locale ] (not (History.isAtSavedPoint model.history))
+                    ]
+                , Layout.grid [ Layout.minColumn 240, Layout.gap 4 ]
+                    [ TextInput.view
+                        [ TextInput.id "flow-quantity"
+                        , TextInput.label "Quantity"
+                        , TextInput.value draft.quantity
+                        , TextInput.onInput QuantityTyped
+                        , TextInput.onBlur FieldLeft
+                        , TextInput.locale locale
+                        ]
+                    , TextArea.view
+                        [ TextArea.id "flow-history-note"
+                        , TextArea.label "Note"
+                        , TextArea.value draft.note
+                        , TextArea.rows 3
+                        , TextArea.onInput HistoryNoteTyped
+                        , TextArea.onBlur FieldLeft
+                        , TextArea.locale locale
+                        ]
+                    ]
+                , Text.caption
+                    ("Undo: "
+                        ++ Maybe.withDefault "nothing" (History.undoLabel model.history)
+                        ++ " · Redo: "
+                        ++ Maybe.withDefault "nothing" (History.redoLabel model.history)
+                    )
+                ]
+            )
+        ]
+
+
+
+-- CODE
+
+
+kindsCode : String
+kindsCode =
+    """StatusPage.view
+    [ StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ]
+    StatusPage.notFound
+
+-- the others: success, denied, sessionExpired, serverError, offline, maintenance
+StatusPage.view
+    [ StatusPage.onRetry ReloadOrders, StatusPage.reference "req-7f3a-91c2" ]
+    StatusPage.serverError
+
+-- a page that stands on its own, without an AppShell, is the main landmark
+StatusPage.view [ StatusPage.standalone ] StatusPage.denied"""
+
+
+problemCode : String
+problemCode =
+    """case model.order of
+    Failure problem ->
+        StatusPage.view
+            [ StatusPage.onRetry ReloadOrder
+            , StatusPage.reference requestId
+            ]
+            (StatusPage.fromProblem problem)
+
+    _ ->
+        viewOrder model
+
+-- the texts of the problem are the texts of the page
+Remote.problem Remote.notFound |> Remote.withTitle "Order not found" """
+
+
+focusCode : String
+focusCode =
+    """CreateOrder ->
+    ( { model | created = True }
+    , StatusPage.focusTitle "order-created" NoOp
+    )
+
+StatusPage.view
+    [ StatusPage.id "order-created"
+    , StatusPage.title ("Order created for " ++ model.customer)
+    , StatusPage.actions [ Button.view [ Button.onClick CreateAnother ] "Create another order" ]
+    ]
+    StatusPage.success"""
+
+
+bulkCode : String
+bulkCode =
+    """BulkBar.view
+    [ BulkBar.id "orders-bulk"
+    , BulkBar.selectAllMatching { total = 1240, onPage = 8, onSelectAll = SelectEverything }
+    ]
+    { toolbar = Toolbar.view [ Toolbar.ariaLabel "Orders" ] [ searchField, newOrderButton ]
+    , selected = Set.size model.picked
+    , onClear = ClearSelection
+    }
+    [ Button.view [ Button.icon Icon.download, Button.onClick Exported ] "Export"
+    , Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Deleted ] "Delete"
+    ]
+
+-- the buttons of the bar are gone in the next frame: keep focus in the page
+ClearSelection ->
+    ( { model | picked = Set.empty }, Task.attempt (always NoOp) (Dom.focus "orders-list") )
+
+SelectEverything ->
+    ( { model | everything = True }, BulkBar.focus "orders-bulk" NoOp )"""
+
+
+guardCode : String
+guardCode =
+    """-- every navigation asks the guard
+Navigate route ->
+    case LeaveGuard.request route model.guard of
+        Proceed target ->
+            ( { model | route = target }, Cmd.none )
+
+        Hold guard cmd ->
+            ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+-- the forms say whether they are dirty
+NoteTyped text ->
+    ( { model
+        | note = text
+        , guard = LeaveGuard.setDirty NoteForm (text /= model.noteSaved) model.guard
+      }
+    , Cmd.none
+    )
+
+-- the user answers
+GuardMsg inner ->
+    let
+        ( guard, cmd, decision ) =
+            LeaveGuard.update inner model.guard
+    in
+    case decision of
+        Just (Leave route) ->
+            ( { model | guard = guard, route = route }, Cmd.map GuardMsg cmd )
+
+        Just (SaveFirst route) ->
+            ( { model | guard = guard }, Cmd.batch [ Cmd.map GuardMsg cmd, saveThenGo route ] )
+
+        Nothing ->
+            ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+-- view: the page is inert while the question is open
+Modal.host
+    { attributes = []
+    , blocked = LeaveGuard.isOpen model.guard
+    , page = [ page ]
+    , overlays = [ LeaveGuard.view GuardMsg [ LeaveGuard.saveAndLeave ] model.guard ]
+    }"""
+
+
+historyCode : String
+historyCode =
+    """History.record
+    [ History.label "Changed quantity", History.coalesce Quantity ]
+    { draft | quantity = text }
+    model.history
+
+FieldLeft ->
+    ( { model | history = History.endBurst model.history }, Cmd.none )
+
+History.controls [ History.showShortcuts ]
+    { onUndo = UndoPressed, onRedo = RedoPressed }
+    model.history
+
+-- keys: the page listens, History only makes the shortcuts
+Shortcut.listen ShortcutMsg
+    (History.shortcuts Locale.en { onUndo = UndoPressed, onRedo = RedoPressed }
+        |> List.map Shortcut.inInputs
+    )
+    model.shortcuts
+
+-- dirty is whether the value differs from what is saved
+Form.unsavedFlag [] (not (History.isAtSavedPoint model.history))"""
