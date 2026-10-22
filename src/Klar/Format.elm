@@ -1,7 +1,7 @@
 module Klar.Format exposing
     ( int, decimal, percent, currency, plural
     , bytes, duration
-    , date, dateLong, time, dateTime, relative
+    , date, dateLong, time, dateTime, iso8601, relative
     )
 
 {-| Formatting numbers, sizes, dates and times for people, in the conventions of
@@ -54,7 +54,7 @@ until more languages are added.
 
 # Dates and times
 
-@docs date, dateLong, time, dateTime, relative
+@docs date, dateLong, time, dateTime, iso8601, relative
 
 -}
 
@@ -554,6 +554,25 @@ Norwegian.
 dateTime : Locale -> Time.Zone -> Time.Posix -> String
 dateTime locale zone posix =
     date locale (Date.fromPosix zone posix) ++ " " ++ time zone posix
+
+
+{-| A moment as the text that APIs and logs use: ISO 8601 in UTC, to the second,
+`2026-10-22T14:05:00Z`. It does not depend on a locale or a time zone. Milliseconds
+are left out.
+
+    Format.iso8601 (Time.millisToPosix 0) -- "1970-01-01T00:00:00Z"
+
+-}
+iso8601 : Time.Posix -> String
+iso8601 posix =
+    Date.toIso (Date.fromPosix Time.utc posix)
+        ++ "T"
+        ++ pad2 (Time.toHour Time.utc posix)
+        ++ ":"
+        ++ pad2 (Time.toMinute Time.utc posix)
+        ++ ":"
+        ++ pad2 (Time.toSecond Time.utc posix)
+        ++ "Z"
 
 
 {-| How long ago something happened, or how long until it does, relative to

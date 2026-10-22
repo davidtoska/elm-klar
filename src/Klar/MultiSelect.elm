@@ -603,7 +603,7 @@ configure : List (Attribute id msg) -> Config id msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
-        , options = Success []
+        , options = Loaded []
         , serverSearch = False
         , placeholder = Nothing
         , searchPlaceholder = Nothing
@@ -636,13 +636,13 @@ one wins.
 -}
 options : List (Option id) -> Attribute id msg
 options list =
-    Attribute (\config -> { config | options = Success list })
+    Attribute (\config -> { config | options = Loaded list })
 
 
 {-| Options from the backend, as a `Remote` (see [Klar.Remote](Klar-Remote)).
 The list shows loading rows while the data is `Loading` or `NotAsked`, a compact
-error with a retry button on `Failure` (see `onRetry`), the empty state on
-`Success []`, and the options on `Success`.
+error with a retry button on `Failed` (see `onRetry`), the empty state on
+`Loaded []`, and the options on `Loaded`.
 
     MultiSelect.remote model.categories
 
@@ -984,10 +984,10 @@ resolve config available selection =
 
                 else
                     case config.options of
-                        Success _ ->
+                        Loaded _ ->
                             unlisted value
 
-                        Failure _ ->
+                        Failed _ ->
                             Unresolved False
 
                         _ ->
@@ -1346,7 +1346,7 @@ viewPopup toMsg config t env (State state) =
 
         isLoaded =
             case config.options of
-                Success _ ->
+                Loaded _ ->
                     True
 
                 _ ->
@@ -1420,7 +1420,7 @@ viewPopup toMsg config t env (State state) =
         -- application must have said what retrying means.
         retry =
             case config.options of
-                Failure problem ->
+                Failed problem ->
                     Popup.retryFor problem config.onRetry
 
                 _ ->
@@ -1544,7 +1544,7 @@ viewPopup toMsg config t env (State state) =
 
         body =
             case config.options of
-                Success _ ->
+                Loaded _ ->
                     if rows.optionRows == 0 then
                         if String.isEmpty (String.trim state.query) then
                             Popup.viewEmpty Icon.inbox t.noOptions Nothing
@@ -1555,7 +1555,7 @@ viewPopup toMsg config t env (State state) =
                     else
                         Html.div [] [ list, Popup.viewFooter status actions ]
 
-                Failure problem ->
+                Failed problem ->
                     Popup.viewFailure
                         { locale = config.locale
                         , onRetry = retry

@@ -1,7 +1,7 @@
 module Klar.Stat exposing
     ( view, row
     , Attribute, label, value, int, decimal, compact, unit, caption, icon
-    , delta, deltaText, deltaLabel, lowerIsBetter, deltaTone
+    , delta, change, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
     , size, flat, onClick, locale
     , loading, failed, onRetry, remote
@@ -76,7 +76,7 @@ only its retry button is a control).
 
 # Change since last time
 
-@docs delta, deltaText, deltaLabel, lowerIsBetter, deltaTone
+@docs delta, change, deltaText, deltaLabel, lowerIsBetter, deltaTone
 
 
 # Trend
@@ -153,7 +153,7 @@ type alias Config msg =
 
 configure : List (Attribute msg) -> Config msg
 configure attributes =
-    List.foldl (\(Attribute change) config -> change config)
+    List.foldl (\(Attribute apply) config -> apply config)
         { label = ""
         , value = Nothing
         , unit = Nothing
@@ -251,6 +251,30 @@ delta percent =
                         Just percent
             }
         )
+
+
+{-| The change from a previous value to the current one, worked out for you: the
+same as `delta` with the percentage `(current - previous) / |previous| * 100`. When
+the previous value is 0 there is no percentage: two zeros are unchanged (a dash),
+and from 0 to anything else no change is shown (use `deltaText "new"` to say so),
+never `NaN` or infinity.
+
+    Stat.change { current = 3, previous = 0 } -- no change shown
+
+    Stat.change { current = 150, previous = 120 } -- +25%
+
+-}
+change : { current : Float, previous : Float } -> Attribute msg
+change values =
+    if values.previous == 0 then
+        if values.current == 0 then
+            delta 0
+
+        else
+            Attribute identity
+
+    else
+        delta ((values.current - values.previous) / abs values.previous * 100)
 
 
 {-| The change as text of your own: "+12 orders". Pair it with `delta` to set
@@ -388,7 +412,7 @@ failed problem =
 
 
 {-| Takes the content of the tile from a `Remote`. While the data is `NotAsked`
-or `Loading` the tile shows a skeleton, on `Failure` it shows the problem, and
+or `Loading` the tile shows a skeleton, on `Failed` it shows the problem, and
 when the data has arrived it applies the attributes that the function returns
 for it.
 
@@ -406,10 +430,10 @@ remote data toAttributes =
     Attribute
         (\config ->
             case data of
-                Remote.Success payload ->
-                    List.foldl (\(Attribute change) c -> change c) { config | state = Ready } (toAttributes payload)
+                Remote.Loaded payload ->
+                    List.foldl (\(Attribute apply) c -> apply c) { config | state = Ready } (toAttributes payload)
 
-                Remote.Failure problem ->
+                Remote.Failed problem ->
                     { config | state = Failed problem }
 
                 Remote.NotAsked ->

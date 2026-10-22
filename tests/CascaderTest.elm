@@ -300,7 +300,7 @@ columnTests =
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ attr "aria-busy" "true" ] (html [ Cascader.remote Loading ] openField))
                     , \_ -> Expect.equal True (Drive.has [ Selector.text "No options" ] (html [ Cascader.nodes [] ] openField))
-                    , \_ -> Expect.equal True (Drive.has [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] (html [ Cascader.remote (Failure (Remote.problem Remote.network)), Cascader.onRetry (RetriedNode "top") ] openField))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] (html [ Cascader.remote (Failed (Remote.problem Remote.network)), Cascader.onRetry (RetriedNode "top") ] openField))
                     , \_ -> Expect.equal False (Drive.has [ Selector.id "place-search", attr "aria-controls" "place-tree" ] (html [ Cascader.remote Loading ] openField))
                     ]
                     ()
@@ -536,7 +536,7 @@ valueTests =
                 in
                 Expect.equal [ True, True ]
                     [ Drive.has [ Selector.text "Loading ..." ] (html [ Cascader.remote Loading ] state)
-                    , Drive.has [ Selector.text "Could not be loaded" ] (html [ Cascader.remote (Failure (Remote.problem Remote.network)) ] state)
+                    , Drive.has [ Selector.text "Could not be loaded" ] (html [ Cascader.remote (Failed (Remote.problem Remote.network)) ] state)
                     ]
         , test "setPath remembers the labels, so a path through a branch that is not loaded is shown" <|
             \_ ->
@@ -750,12 +750,12 @@ lazyTests =
                     state =
                         atJapan NotAsked |> sendTo NotAsked "ArrowRight"
                 in
-                Expect.equal True (Drive.has [ attr "role" "treeitem", Selector.containing [ Selector.text "Tokyo" ] ] (withAreas (Success [ Picking.leaf ids "tokyo" "Tokyo" ]) state))
+                Expect.equal True (Drive.has [ attr "role" "treeitem", Selector.containing [ Selector.text "Tokyo" ] ] (withAreas (Loaded [ Picking.leaf ids "tokyo" "Tokyo" ]) state))
         , test "a failed branch shows the problem and a retry button; Enter on that row retries" <|
             \_ ->
                 let
                     failed =
-                        Failure (Remote.problem Remote.network)
+                        Failed (Remote.problem Remote.network)
 
                     state =
                         atJapan failed |> sendTo failed "ArrowRight" |> sendTo failed "ArrowRight"
@@ -773,7 +773,7 @@ lazyTests =
             \_ ->
                 let
                     failed =
-                        Failure (Remote.problem Remote.forbidden)
+                        Failed (Remote.problem Remote.forbidden)
 
                     state =
                         atJapan failed |> sendTo failed "ArrowRight"

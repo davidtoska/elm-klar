@@ -1336,10 +1336,10 @@ viewRemote toMsg attributes state data =
             texts config.locale
     in
     case data of
-        Remote.Success theMatrix ->
+        Remote.Loaded theMatrix ->
             view toMsg attributes state theMatrix
 
-        Remote.Failure problem ->
+        Remote.Failed problem ->
             ErrorState.view
                 (List.filterMap identity
                     [ Just ErrorState.compact

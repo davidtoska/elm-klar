@@ -70,10 +70,10 @@ update : Context -> Msg -> Backend -> Model -> ( Model, Backend, Cmd Msg )
 update context msg backend model =
     case msg of
         Loaded (Ok summary) ->
-            ( { model | summary = Remote.Success summary }, backend, Cmd.none )
+            ( { model | summary = Remote.Loaded summary }, backend, Cmd.none )
 
         Loaded (Err error) ->
-            ( { model | summary = Remote.Failure (Problem.toProblem error) }, backend, Cmd.none )
+            ( { model | summary = Remote.Failed (Problem.toProblem error) }, backend, Cmd.none )
 
         Retry ->
             let
@@ -104,7 +104,7 @@ view context model =
                 , PageHeader.subtitle "Orders, revenue and delivery performance at a glance."
                 ]
             , case model.summary of
-                Remote.Failure problem ->
+                Remote.Failed problem ->
                     Card.view []
                         [ ErrorState.view [ ErrorState.onRetry Retry, ErrorState.locale context.locale ] problem ]
 
@@ -190,7 +190,7 @@ viewSummary context summary =
 chartOrSkeleton : Remote Summary -> (Summary -> Html Msg) -> Html Msg
 chartOrSkeleton summary toChart =
     case summary of
-        Remote.Success s ->
+        Remote.Loaded s ->
             toChart s
 
         _ ->

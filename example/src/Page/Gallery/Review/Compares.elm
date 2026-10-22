@@ -56,7 +56,7 @@ type Scenario
 
 init : Model
 init =
-    { products = Remote.Success Samples.products
+    { products = Remote.Loaded Samples.products
     , onlyDifferences = False
     , baseline = Nothing
     , density = Normal
@@ -93,26 +93,26 @@ update msg model =
             ( { model | products = Remote.Loading }, later Loaded )
 
         Loaded ->
-            ( { model | products = Remote.Success Samples.products }, Cmd.none )
+            ( { model | products = Remote.Loaded Samples.products }, Cmd.none )
 
 
 productsFor : Scenario -> Remote (List Product)
 productsFor scenario =
     case scenario of
         AllThree ->
-            Remote.Success Samples.products
+            Remote.Loaded Samples.products
 
         LoadingNow ->
             Remote.Loading
 
         Failed ->
-            Remote.Failure (Remote.problem Remote.network)
+            Remote.Failed (Remote.problem Remote.network)
 
         NoRecords ->
-            Remote.Success []
+            Remote.Loaded []
 
         OnlyOne ->
-            Remote.Success (List.take 1 Samples.products)
+            Remote.Loaded (List.take 1 Samples.products)
 
 
 later : Msg -> Cmd Msg

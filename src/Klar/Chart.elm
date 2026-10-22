@@ -556,8 +556,8 @@ onRetry msg =
 
 
 {-| Takes loading and failure from a `Remote`. The data itself is passed to the
-chart as usual. `NotAsked` and `Loading` show the skeleton, `Failure` shows the
-problem and `Success` shows the chart.
+chart as usual. `NotAsked` and `Loading` show the skeleton, `Failed` shows the
+problem and `Loaded` shows the chart.
 
     Chart.line [ Chart.remote model.sales ] (Remote.withDefault [] model.sales)
 
@@ -577,10 +577,10 @@ remote data =
                         Remote.Loading ->
                             Busy
 
-                        Remote.Failure problem ->
+                        Remote.Failed problem ->
                             Failed problem
 
-                        Remote.Success _ ->
+                        Remote.Loaded _ ->
                             Ready
             }
         )

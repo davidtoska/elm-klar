@@ -1,6 +1,6 @@
 module Klar.Date exposing
     ( Date, fromParts, year, month, day
-    , fromIso, toIso, fromPosix
+    , fromIso, toIso, fromPosix, toPosix
     , compare, diffDays, weekday, isLeapYear, daysInMonth
     , addDays, addMonths, startOfMonth, endOfMonth
     , monthGrid
@@ -38,7 +38,7 @@ use this type, and so does `Klar.Format` when it writes dates.
 
 # Reading and writing text
 
-@docs fromIso, toIso, fromPosix
+@docs fromIso, toIso, fromPosix, toPosix
 
 
 # Comparing and counting
@@ -442,6 +442,56 @@ fromPosix zone posix =
         , month = monthNumber (Time.toMonth zone posix)
         , day = Time.toDay zone posix
         }
+
+
+{-| The first moment of a date in a time zone: the inverse of `fromPosix`, for the
+timestamps of events that happen on a day (the history of an order, the events of
+a `Timeline`).
+
+    Date.fromParts 2026 10 20 |> Maybe.map (Date.toPosix Time.utc) -- Just 2026-10-20T00:00:00Z
+
+    Date.toPosix zone date |> Date.fromPosix zone -- date
+
+In a time zone that skips midnight (a clock that jumps forward at 00:00) it is the
+first moment of the date that exists.
+
+-}
+toPosix : Time.Zone -> Date -> Time.Posix
+toPosix zone date =
+    let
+        wall =
+            toEpochDay date * 86400000
+
+        offsetAt millis =
+            localMillis zone (Time.millisToPosix millis) - millis
+
+        first =
+            wall - offsetAt wall
+
+        second =
+            wall - offsetAt first
+
+        onTheDay millis =
+            fromPosix zone (Time.millisToPosix millis) == date
+    in
+    [ first, second ]
+        |> List.filter onTheDay
+        |> List.minimum
+        |> Maybe.withDefault second
+        |> Time.millisToPosix
+
+
+localMillis : Time.Zone -> Time.Posix -> Int
+localMillis zone posix =
+    toEpochDay (fromPosix zone posix)
+        * 86400000
+        + Time.toHour zone posix
+        * 3600000
+        + Time.toMinute zone posix
+        * 60000
+        + Time.toSecond zone posix
+        * 1000
+        + Time.toMillis zone posix
 
 
 monthNumber : Time.Month -> Int

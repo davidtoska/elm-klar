@@ -90,7 +90,7 @@ css =
  .klar-kbd-combo{display: inline-flex;align-items: center;gap: 3px}
  .klar-stack{display: flex;flex-direction: column;gap: var(--klar-gap,var(--klar-space-3))}
  .klar-row{display: flex;flex-direction: row;align-items: center;gap: var(--klar-gap,var(--klar-space-3))}
- .klar-grid{display: grid;grid-template-columns: var(--klar-grid-template,repeat(auto-fill,minmax(240px,1fr)));gap: var(--klar-gap,var(--klar-space-3))}
+ .klar-grid{display: grid;grid-template-columns: var(--klar-grid-template,repeat(auto-fit,minmax(240px,1fr)));gap: var(--klar-gap,var(--klar-space-3))}
  .klar-row--wrap{flex-wrap: wrap}
  .klar-row--align-start,.klar-grid--align-start{align-items: flex-start}
  .klar-row--align-center,.klar-grid--align-center{align-items: center}
@@ -111,6 +111,7 @@ css =
  .klar-scroll:focus-visible{outline-offset: -2px}
  .klar-fill{width: 100%}
  .klar-grow{flex: 1 1 0;min-width: 0}
+ .klar-fill-rest{flex: 1 1 auto;min-height: 0}
  .klar-padded{padding: var(--klar-pad,0)}
  .klar-spacer{flex: 1 1 auto}
  .klar-container{width: 100%;max-width: var(--klar-max-w,var(--klar-page-max));margin-inline: auto;padding-inline: var(--klar-space-6)}
@@ -538,6 +539,7 @@ css =
  .klar-form-grid__full{grid-column: 1 / -1;min-width: 0}
  @media (max-width: 640px){.klar-form-grid{grid-template-columns: minmax(0,1fr)}}
  .klar-form-actions{display: flex;flex-wrap: wrap;align-items: center;justify-content: flex-end;gap: var(--klar-space-2);padding-top: var(--klar-space-4);border-top: 1px solid var(--klar-border)}
+ .klar-form-actions > .klar-form-statusregion{flex: 1 1 0;min-width: 0}
  .klar-form-actions--sticky{position: sticky;bottom: 0;z-index: var(--klar-z-sticky);padding: var(--klar-space-3) var(--klar-space-4);background: var(--klar-surface);box-shadow: 0 -1px 0 var(--klar-border),0 -6px 10px -8px color-mix(in srgb,var(--klar-gray-900) 25%,transparent)}
  .klar-form-actions--sticky::after,.klar-form-unsaved--sticky::before{content: "";position: absolute;left: 0;right: 0;height: var(--klar-content-pad,0px);background: var(--klar-surface);pointer-events: none}
  .klar-form-actions--sticky::after{top: 100%}
@@ -546,7 +548,7 @@ css =
  .klar-form-summary:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: 2px}
  .klar-form-summary__intro{margin-bottom: 4px}
  .klar-form-summary__list{display: flex;flex-direction: column;gap: 2px;padding-left: 18px;list-style: disc}
- .klar-form-summary__link{padding: 0;border: 0;background: none;font: inherit;text-align: left;color: var(--klar-red-700);text-decoration: underline;cursor: pointer}
+ .klar-form-summary__link{min-width: 24px;min-height: 24px;padding: 2px 4px;border: 0;background: none;font: inherit;text-align: left;color: var(--klar-red-700);text-decoration: underline;cursor: pointer}
  .klar-form-summary__link:hover{color: var(--klar-danger-hover)}
  .klar-form-statusregion:focus{outline: none}
  .klar-form-statusregion:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: 2px;border-radius: var(--klar-radius)}
@@ -592,7 +594,7 @@ css =
  .klar-input--disabled .klar-select__chip{opacity: 0.7}
  .klar-select__popup{display: flex;flex-direction: column;width: 100%;min-width: 260px;max-width: calc(100vw - 16px);padding: 0;overflow: hidden}
  .klar-select--multi .klar-select__popup{min-width: 340px}
- @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a){.klar-select__popup{width: anchor-size(width)}}
+ @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a){.klar-select__popup{width: max-content;min-width: max(260px,anchor-size(width));max-width: min(36rem,calc(100vw - 16px))}}
  @position-try --klar-select-below-edge{top: anchor(bottom);bottom: auto;left: auto;right: 8px;margin: 4px 0 0}
  @position-try --klar-select-above-edge{top: auto;bottom: anchor(top);left: auto;right: 8px;margin: 0 0 4px}
  @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a){.klar-select__popup{position-try-fallbacks: flip-block,flip-inline,flip-block flip-inline,--klar-select-below-edge,--klar-select-above-edge}}
@@ -747,7 +749,7 @@ css =
  .klar-table{--_row-h: var(--klar-row);--_head-h: var(--klar-row);--_cell-px: var(--klar-space-3);--_font: var(--klar-text-md);--_shadow: color-mix(in srgb,var(--klar-gray-900) 12%,transparent);position: relative;display: flex;flex-direction: column;min-width: 0;background: var(--klar-surface);border: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg);overflow: clip;timeline-scope: --klar-table-x,--klar-table-y}
  .klar-table--compact{--_row-h: var(--klar-row-compact);--_head-h: var(--klar-row-compact);--_cell-px: var(--klar-space-2);--_font: var(--klar-text-sm)}
  .klar-table--comfortable{--_row-h: var(--klar-row-comfortable);--_head-h: var(--klar-row);--_cell-px: var(--klar-space-4)}
- .klar-table--fill{height: 100%;min-height: 0}
+ .klar-table--fill{height: 100%;min-height: 0;flex: 1 1 auto}
  .klar-table--fill .klar-table__frame{display: flex;flex-direction: column;flex: 1 1 auto;min-height: 0}
  .klar-table--fill .klar-table__scroll{flex: 1 1 auto;min-height: 0}
  .klar-table__toolbar{position: relative;display: grid;flex: none;border-bottom: 1px solid var(--klar-border)}
@@ -966,6 +968,7 @@ css =
  .klar-app-shell__content{--klar-content-pad: var(--klar-content-pad-wide,var(--klar-space-6));flex: 1 1 auto;min-width: 0;padding: var(--klar-content-pad);overflow: auto}
  .klar-app-shell__content:focus{outline: none}
  .klar-app-shell__page{width: 100%;margin-inline: auto}
+ .klar-app-shell__page:has(> .klar-fill-rest){display: flex;flex-direction: column;height: 100%}
  .klar-app-shell__backdrop{display: none}
  @container klar-app-shell (min-width: 900px){.klar-app-shell--collapsed .klar-app-shell__sidebar{width: var(--klar-sidebar-w-collapsed)}}
  @container klar-app-shell (max-width: 899px){.klar-app-shell__bar{grid-template-columns: minmax(0,1fr) auto auto;column-gap: var(--klar-space-2);padding: 0 var(--klar-space-2)}.klar-app-shell__bar-start{min-width: 0}.klar-app-shell__brand{min-width: 0}.klar-app-shell__toggle--wide{display: none}.klar-app-shell__toggle--narrow{display: inline-flex}.klar-app-shell__bar-middle{display: flex;justify-content: flex-end}.klar-app-shell__search{width: var(--klar-control);justify-content: center;padding: 0;cursor: pointer}.klar-app-shell__search-text,.klar-app-shell__search-keys{display: none}.klar-app-shell__sidebar{position: absolute;z-index: calc(var(--klar-z-header) + 5);top: 0;bottom: 0;left: 0;width: min(280px,86%);visibility: hidden;transform: translateX(-100%);transition: transform var(--klar-dur) var(--klar-ease),visibility 0s linear var(--klar-dur)}.klar-app-shell--drawer-open .klar-app-shell__sidebar{visibility: visible;transform: none;transition-delay: 0s;box-shadow: var(--klar-shadow-lg)}.klar-app-shell__backdrop{display: block;position: absolute;z-index: calc(var(--klar-z-header) + 4);inset: 0;background: var(--klar-overlay);animation: klar-fade-in var(--klar-dur) var(--klar-ease)}.klar-app-shell__content{--klar-content-pad: min(var(--klar-content-pad-wide,var(--klar-space-6)),var(--klar-space-4))}.klar-app-shell--drawer-open .klar-app-shell__content{interactivity: inert}}

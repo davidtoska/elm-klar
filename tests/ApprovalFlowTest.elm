@@ -928,7 +928,7 @@ remoteTests =
             \_ ->
                 let
                     html =
-                        remote (Remote.Failure (Remote.problem Remote.network))
+                        remote (Remote.Failed (Remote.problem Remote.network))
                 in
                 Expect.all
                     [ \_ -> H.has [ Selector.text "Try again" ] html
@@ -937,13 +937,13 @@ remoteTests =
                     ()
         , test "a failure that cannot be retried has no button" <|
             \_ ->
-                remote (Remote.Failure (Remote.problem Remote.forbidden))
+                remote (Remote.Failed (Remote.problem Remote.forbidden))
                     |> H.none [ Selector.tag "button" ]
         , test "success shows the steps, and an empty flow its own state" <|
             \_ ->
                 Expect.all
-                    [ \_ -> remote (Remote.Success creditNote) |> H.has [ Selector.class "klar-approval__steps" ]
-                    , \_ -> remote (Remote.Success (ApprovalFlow.flow [])) |> H.has [ Selector.text "No approval is required" ]
+                    [ \_ -> remote (Remote.Loaded creditNote) |> H.has [ Selector.class "klar-approval__steps" ]
+                    , \_ -> remote (Remote.Loaded (ApprovalFlow.flow [])) |> H.has [ Selector.text "No approval is required" ]
                     ]
                     ()
         ]

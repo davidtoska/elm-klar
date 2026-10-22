@@ -25,7 +25,7 @@ Reports needs this model and these messages:
 
     type alias Model =
         { page : Page
-        , sideNav : SideNav.State -- SideNav.init "main-nav"
+        , sideNav : SideNav.State Page -- SideNav.init "main-nav"
         , userMenu : Menu.State -- Menu.init "user-menu"
         , sidebarCollapsed : Bool -- icons only, on wide screens
         , drawerOpen : Bool -- the sidebar drawer, on narrow screens
@@ -73,7 +73,7 @@ second the content of the current page:
                 , AppShell.sidebar
                     (SideNav.view SideNavMsg
                         [ SideNav.entries navigation
-                        , SideNav.current (pageKey model.page)
+                        , SideNav.current model.page
                         , SideNav.collapsed model.sidebarCollapsed
                         ]
                         model.sideNav
@@ -101,19 +101,24 @@ second the content of the current page:
             ]
         }
 
-    navigation : List (SideNav.Entry msg)
+    pageKeys : SideNav.Keys Page
+    pageKeys =
+        SideNav.keys pageToString
+
+    navigation : List (SideNav.Entry Page msg)
     navigation =
         [ SideNav.section "Workspace"
-            [ SideNav.item { key = "orders", label = "Orders", href = "#/orders" }
+            [ SideNav.item pageKeys { key = Orders, label = "Orders", href = "#/orders" }
                 |> SideNav.withIcon Icon.clipboardCheck
-            , SideNav.item { key = "customers", label = "Customers", href = "#/customers" }
+            , SideNav.item pageKeys { key = Customers, label = "Customers", href = "#/customers" }
                 |> SideNav.withIcon Icon.users
-            , SideNav.item { key = "reports", label = "Reports", href = "#/reports" }
+            , SideNav.item pageKeys { key = Reports, label = "Reports", href = "#/reports" }
                 |> SideNav.withIcon Icon.barChart
             ]
         ]
 
-`Page`, `pageKey` (the key of the `SideNav` entry of a page), `pageFromUrl` and
+`Page` (here `Orders | Customers | Reports`) is also the key type of the menu,
+`pageToString` writes a page as text (see `SideNav.keys`), and `pageFromUrl` and
 `viewPage` stand for your own routing and page views.
 
 The shell never moves keyboard focus by itself, so the branches of `update` that
@@ -131,7 +136,7 @@ nothing; the commands send it when they are done.
 
         else
             ( { model | drawerOpen = True }
-            , SideNav.focusLink (pageKey model.page) model.sideNav NoOp
+            , SideNav.focusLink pageKeys model.page model.sideNav NoOp
             )
 
     CloseDrawer ->

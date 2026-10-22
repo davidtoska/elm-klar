@@ -27,6 +27,7 @@ import Klar.Chart as Chart
 import Klar.Locale as Locale
 import Klar.Remote as Remote
 import Klar.Stat as Stat
+import Klar.Timeline as Timeline
 import Klar.Tree as Tree
 import Test exposing (Test, describe, fuzz, test)
 import Test.Html.Event as Event
@@ -50,6 +51,8 @@ suite =
         , treePropertyTests
         , statNestingTests
         , statNumberTests
+        , statChangeTests
+        , timelineScrollTests
         , chartAriaValueTests
         , chartNameTests
         , chartLegendTests
@@ -536,6 +539,66 @@ notRetryable =
     Remote.problem Remote.forbidden
 
 
+timelineScrollTests : Test
+timelineScrollTests =
+    let
+        timeline attributes =
+            Timeline.view attributes [] |> Query.fromHtml
+    in
+    describe "Timeline.maxHeight"
+        [ test "a scroll area without a load more button can take the focus and is a named region" <|
+            \_ ->
+                timeline [ Timeline.maxHeight 300 ]
+                    |> Query.has
+                        [ Selector.attribute (Attr.tabindex 0)
+                        , Selector.attribute (Attr.attribute "role" "region")
+                        , Selector.attribute (Attr.attribute "aria-label" "Events")
+                        ]
+        , test "ariaLabel gives the region its name" <|
+            \_ ->
+                timeline [ Timeline.maxHeight 300, Timeline.ariaLabel "Order history" ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Order history") ]
+        , test "a timeline that does not scroll is not a tab stop" <|
+            \_ ->
+                timeline []
+                    |> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
+        , test "with a load more button the button is the tab stop" <|
+            \_ ->
+                timeline [ Timeline.maxHeight 300, Timeline.onLoadMore TileClicked ]
+                    |> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
+        ]
+
+
+statChangeTests : Test
+statChangeTests =
+    let
+        delta =
+            [ Selector.class "klar-stat__delta" ]
+    in
+    describe "Stat.change"
+        [ test "shows the percentage from the previous value" <|
+            \_ ->
+                tile [ Stat.int 150, Stat.change { current = 150, previous = 120 } ]
+                    |> Query.find delta
+                    |> Query.has [ Selector.text "+25%" ]
+        , test "a previous value of 0 shows no change, not NaN" <|
+            \_ ->
+                tile [ Stat.int 3, Stat.change { current = 3, previous = 0 } ]
+                    |> Query.findAll delta
+                    |> Query.count (Expect.equal 0)
+        , test "two zeros are unchanged" <|
+            \_ ->
+                tile [ Stat.int 0, Stat.change { current = 0, previous = 0 } ]
+                    |> Query.findAll delta
+                    |> Query.count (Expect.equal 1)
+        , test "a fall is negative" <|
+            \_ ->
+                tile [ Stat.int 90, Stat.change { current = 90, previous = 120 } ]
+                    |> Query.find delta
+                    |> Query.has [ Selector.text "−25%" ]
+        ]
+
+
 tile : List (Stat.Attribute Msg) -> Query.Single Msg
 tile attributes =
     inside (Stat.view (Stat.label "Open orders" :: attributes))
@@ -634,7 +697,7 @@ statNestingTests =
                 tile
                     [ Stat.onClick TileClicked
                     , Stat.onRetry Retried
-                    , Stat.remote (Remote.Failure retryable) (\n -> [ Stat.int n ])
+                    , Stat.remote (Remote.Failed retryable) (\n -> [ Stat.int n ])
                     ]
                     |> Expect.all
                         [ tileAs "div" >> Query.has []
@@ -667,7 +730,7 @@ statNestingTests =
             \_ ->
                 tile
                     [ Stat.onClick TileClicked
-                    , Stat.remote (Remote.Success 5) (\n -> [ Stat.int n ])
+                    , Stat.remote (Remote.Loaded 5) (\n -> [ Stat.int n ])
                     ]
                     |> tileAs "button"
                     |> click

@@ -830,10 +830,10 @@ viewRemote person attributes data =
             texts config.locale
     in
     case data of
-        Remote.Success theFlow ->
+        Remote.Loaded theFlow ->
             view person attributes theFlow
 
-        Remote.Failure problem ->
+        Remote.Failed problem ->
             ErrorState.view
                 (List.filterMap identity
                     [ Just ErrorState.compact

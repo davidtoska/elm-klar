@@ -687,7 +687,7 @@ matrixSection locale model =
                     (PermissionMatrix.viewRemote FailingMsg
                         [ PermissionMatrix.locale locale, PermissionMatrix.onRetry Retried ]
                         model.failing
-                        (Remote.Failure (Remote.problem Remote.network))
+                        (Remote.Failed (Remote.problem Remote.network))
                     )
                 ]
             )
@@ -801,7 +801,7 @@ approvalSection locale model =
                 , labelled "Failure"
                     (ApprovalFlow.viewRemote personOf
                         (ApprovalFlow.onRetry Retried :: staticAttributes locale)
-                        (Remote.Failure (Remote.problem Remote.timeout))
+                        (Remote.Failed (Remote.problem Remote.timeout))
                     )
                 ]
             )

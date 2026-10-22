@@ -407,7 +407,7 @@ view attributes config =
             texts settings.locale
     in
     case config.records of
-        Remote.Success [] ->
+        Remote.Loaded [] ->
             frame settings
                 []
                 [ EmptyState.view
@@ -420,10 +420,10 @@ view attributes config =
                     )
                 ]
 
-        Remote.Success records ->
+        Remote.Loaded records ->
             viewRecords settings t config records
 
-        Remote.Failure problem ->
+        Remote.Failed problem ->
             frame settings
                 []
                 [ ErrorState.view

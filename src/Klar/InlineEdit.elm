@@ -70,7 +70,9 @@ is the application's cue to send the new text (`pending`) to the backend. The
 text keeps showing the new value with a spinner. When the backend answers, call
 `saved` (the value is now `pending`) or `failed` with a
 [Klar.Remote](Klar-Remote) `Problem`: the text is then shown with the problem,
-a "Try again" button (which makes `isSaving` `True` again) and a "Cancel" button
+a "Try again" button (which makes `isSaving` `True` again; left out when
+`Remote.isRetryable` says the problem would fail the same way, such as a conflict
+or a validation problem) and a "Cancel" button
 (which goes back to the old value). Confirming the text unchanged saves nothing.
 
 **Validation.** `validate` is checked when the user confirms; a message keeps
@@ -258,7 +260,9 @@ saved (State state) =
 
 
 {-| The save failed. The text is shown with "Could not save." and the `title` of
-the problem, a "Try again" button (which makes `isSaving` `True` again) and a
+the problem, a "Try again" button (which makes `isSaving` `True` again, but only
+when `Remote.isRetryable` allows it: not for a conflict or a validation problem,
+which would fail the same way) and a
 "Cancel" button that goes back to the old value. The `Problem` is from
 [Klar.Remote](Klar-Remote); make one from your own error with `Remote.problem`.
 
@@ -730,6 +734,11 @@ viewEditor toMsg config rules state =
 
 viewFailure : (Msg -> msg) -> Config -> Fields -> List (Html msg)
 viewFailure toMsg config state =
+    let
+        -- A conflict or a validation problem fails the same way again.
+        retryable =
+            state.problem |> Maybe.map Remote.isRetryable |> Maybe.withDefault True
+    in
     [ viewDisplay toMsg config state (Maybe.withDefault state.value state.pending)
     , Html.div
         [ Internal.cls [ "klar-inline-edit__failure" ]
@@ -742,8 +751,12 @@ viewFailure toMsg config state =
                     ++ (state.problem |> Maybe.map (Remote.title config.locale) |> Maybe.withDefault "")
                 )
             ]
-        , Button.view [ Button.small, Button.disabled config.disabled, Button.onClick (toMsg Retry) ]
-            (Locale.pick config.locale { nb = "Prøv igjen", en = "Try again" })
+        , if retryable then
+            Button.view [ Button.small, Button.disabled config.disabled, Button.onClick (toMsg Retry) ]
+                (Locale.pick config.locale { nb = "Prøv igjen", en = "Try again" })
+
+          else
+            Html.text ""
         , Button.view [ Button.small, Button.ghost, Button.disabled config.disabled, Button.onClick (toMsg Discard) ]
             (Locale.pick config.locale { nb = "Avbryt", en = "Cancel" })
         ]

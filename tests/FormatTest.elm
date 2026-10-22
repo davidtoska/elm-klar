@@ -152,6 +152,8 @@ dateTests =
         , check "long Norwegian date" "20. oktober 2026" (Format.dateLong Locale.nb (day 2026 10 20))
         , check "time of day" "14:05" (Format.time Time.utc (Time.millisToPosix (((14 * 60) + 5) * 60 * 1000)))
         , check "time of day pads" "00:07" (Format.time Time.utc (Time.millisToPosix (7 * 60 * 1000)))
+        , check "ISO 8601 in UTC" "1970-01-02T01:02:03Z" (Format.iso8601 (Time.millisToPosix (((24 + 1) * 3600 + 2 * 60 + 3) * 1000 + 999)))
+        , check "ISO 8601 of the epoch" "1970-01-01T00:00:00Z" (Format.iso8601 (Time.millisToPosix 0))
         , check "date and time" "1970-01-02 01:00" (Format.dateTime Locale.en Time.utc (Time.millisToPosix ((24 + 1) * 3600 * 1000)))
         ]
 

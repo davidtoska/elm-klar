@@ -40,7 +40,7 @@
   --_cell-px: var(--klar-space-4);
 }
 
-.klar-table--fill { height: 100%; min-height: 0; }
+.klar-table--fill { height: 100%; min-height: 0; flex: 1 1 auto; }
 .klar-table--fill .klar-table__frame { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .klar-table--fill .klar-table__scroll { flex: 1 1 auto; min-height: 0; }
 

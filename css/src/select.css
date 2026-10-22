@@ -222,8 +222,12 @@
 }
 
 @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
+  /* As wide as the field at least, and as wide as the longest option (with its
+     description) up to a limit, so descriptions are not cut. */
   .klar-select__popup {
-    width: anchor-size(width);
+    width: max-content;
+    min-width: max(260px, anchor-size(width));
+    max-width: min(36rem, calc(100vw - 16px));
   }
 }
 

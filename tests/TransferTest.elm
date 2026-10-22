@@ -942,7 +942,7 @@ sourceTests =
             \_ ->
                 let
                     v kind =
-                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids (Failure (Remote.problem kind)), Transfer.onRetry Retried ] field
+                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids (Failed (Remote.problem kind)), Transfer.onRetry Retried ] field
                 in
                 Expect.all
                     [ \_ -> Expect.equal (Just Retried) (Drive.fire [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] Event.click (v Remote.network))
@@ -957,7 +957,7 @@ sourceTests =
                         Transfer.setValues ids [ 2 ] field
 
                     loaded =
-                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids (Success products) ] state
+                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids (Loaded products) ] state
                 in
                 Expect.all
                     [ \_ -> Expect.equal False (Drive.has [ Selector.class "klar-transfer__row--unknown" ] loaded)

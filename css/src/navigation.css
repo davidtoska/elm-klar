@@ -274,6 +274,14 @@
   margin-inline: auto;
 }
 
+/* A page with a Layout.fillRest child has the height of the content area, so the
+   child can hand the rest of it on to a table (the child is a flex item). */
+.klar-app-shell__page:has(> .klar-fill-rest) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .klar-app-shell__backdrop { display: none; }
 
 /* wide: the sidebar can collapse to icons */

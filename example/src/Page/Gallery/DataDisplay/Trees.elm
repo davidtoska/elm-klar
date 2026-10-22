@@ -349,7 +349,7 @@ statesExample locale model =
             , Tree.viewRemote StateMsg
                 [ Tree.emptyText "No warehouses registered", Tree.locale locale ]
                 (Tree.init "tree-empty")
-                (Remote.Success [])
+                (Remote.Loaded [])
             ]
         )
 

@@ -97,7 +97,7 @@ compare attributes records =
 
 shown : List (Compare.Attribute Int Msg) -> List Product -> Query.Single Msg
 shown attributes records =
-    compare attributes (Success records) |> Query.fromHtml
+    compare attributes (Loaded records) |> Query.fromHtml
 
 
 byClass : String -> Selector
@@ -125,7 +125,7 @@ statesTests =
     describe "the states"
         [ test "no records is the empty state" <|
             \_ ->
-                compare [] (Success [])
+                compare [] (Loaded [])
                     |> Query.fromHtml
                     |> Expect.all
                         [ Query.has [ Selector.text "Nothing to compare" ]
@@ -133,7 +133,7 @@ statesTests =
                         ]
         , test "the empty state can be changed" <|
             \_ ->
-                compare [ Compare.emptyState [ EmptyState.title "Pick two products" ] ] (Success [])
+                compare [ Compare.emptyState [ EmptyState.title "Pick two products" ] ] (Loaded [])
                     |> Query.fromHtml
                     |> Query.has [ Selector.text "Pick two products" ]
         , test "loading is a skeleton and says so" <|
@@ -149,19 +149,19 @@ statesTests =
             \_ -> compare [] NotAsked |> Query.fromHtml |> Query.has [ byClass "klar-skeleton" ]
         , test "a failure shows the problem and a button to try again" <|
             \_ ->
-                compare [ Compare.onRetry Retry ] (Failure (Remote.problem Remote.server))
+                compare [ Compare.onRetry Retry ] (Failed (Remote.problem Remote.server))
                     |> Query.fromHtml
                     |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
                     |> Event.simulate Event.click
                     |> Event.expect Retry
         , test "there is no button for a problem that would fail again" <|
             \_ ->
-                compare [ Compare.onRetry Retry ] (Failure (Remote.problem Remote.notFound))
+                compare [ Compare.onRetry Retry ] (Failed (Remote.problem Remote.notFound))
                     |> Query.fromHtml
                     |> Query.hasNot [ Selector.tag "button" ]
         , test "there is no button without a message" <|
             \_ ->
-                compare [] (Failure (Remote.problem Remote.server))
+                compare [] (Failed (Remote.problem Remote.server))
                     |> Query.fromHtml
                     |> Query.hasNot [ Selector.tag "button" ]
         , test "refreshing keeps the table, dims it and says so" <|
@@ -555,7 +555,7 @@ localeTests =
                         ]
         , test "Norwegian states" <|
             \_ ->
-                compare [ Compare.locale Locale.nb ] (Success [])
+                compare [ Compare.locale Locale.nb ] (Loaded [])
                     |> Query.fromHtml
                     |> Query.has [ Selector.text "Ingenting å sammenligne" ]
         ]

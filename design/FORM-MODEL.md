@@ -1,0 +1,688 @@
+# Form model
+
+Design for ROADMAP A8 "Form model" (EVALUATION item 10). Paper only: no code under `src/`,
+`tests/`, `example/` or `css/` was written. Status: **proposal for the owner**.
+
+Method: the onboarding app (`apps/onboarding/src`) is the test. Line counts are physical
+lines of the file ranges named; the counts of the proposal are non-blank lines of the
+sketches in section 7. One piece was checked with the compiler (in a scratch directory, not
+in the repository): the typing of the builder pipeline (section 2). A text handle given to a
+select view is a type error, as intended. Everything else here is a design, not a build.
+
+## 1. The problem in numbers
+
+`apps/onboarding` has a five-step flow. The values of one form live in ten places: eight
+Klar component states (`Select`, `MultiSelect` x2, `TagInput`, `FileDrop`, `NumberInput` x2,
+`Select`), plain strings, and lists the application edits itself. Everything that ties them
+together was written by hand. The friction log marks 270 lines `KLAR GAP`; that undercounts,
+because most of the plumbing is not marked. From `Flow.elm` (1951 lines) and `Ids.elm`
+(180 lines):
+
+| What the application wrote | Lines | Where | Friction |
+|---|---|---|---|
+| `Draft`, `emptyDraft`, `toDraft`, `withBaseline`, `isDirty` (dirty = values differ from a baseline) | 67 | 100-120, 242-264, 301-324 | O-018 |
+| `load` (a record into ten states, ten different setters) | 32 | 267-298 | O-018 |
+| `toSupplier` (ten states into the record, `Maybe` if invalid) | 28 | 341-368 | O-018 |
+| client validation per step, `requiredValue`, `nonEmptyList`, `numberProblems`, `fromErrors` | 160 | 372-530 | O-001 |
+| server problems: field-to-handle mapping, merge with client problems, drop on edit | 73 | 534-606 (plus `edited` called in 8 update branches) | O-019 |
+| step control: `step`, `furthest`, `attempted`, `reviewAttempted`, `firstFieldOf`, `markAttempted`, `GoStep`/`Back`/`Submit`/`FocusField`, the stepper list | about 100 | 608-624, 948-997, 1155-1161, 1229-1246 | O-003, O-022 |
+| one `Msg` constructor, one `update` branch and one `case` per control | about 150 | 646-686, 715-839 | O-018 |
+| DOM ids (`Ids.elm`: 40 ids, 10 of them functions of a row) and the `Form.labels` list that repeats them with a label | 180 + 28 | `Ids.elm`, 1274-1301 | O-021 |
+| **Form plumbing in total** | **about 820** | of about 3 100 application lines (26 %) | |
+
+Not form model, but measured with it: the leave guard (45 lines in `Main`, O-017) and the rule
+keys (30 lines, O-002, fixed by the "typed ids" item of A8).
+
+**What every application will repeat** (so Klar should own it): a baseline and a dirty test;
+load a record and read one back; "is this required field empty" for every control kind;
+problems from the server tied to a field, merged with client problems and cleared when the
+field is edited; which step a field is on, validation before Next, "go to the field on
+another step"; the stepper status; ids and labels written twice. **What stays the
+application's**: the record type, the rules about its own data, the mapping from its backend's
+field names to its fields, the navigation, the words.
+
+Nobody got a type wrong (0 wrong-type errors in 3 builds), so this is not a type-safety
+failure of today's API. It is the glue between existing components, and principle 4
+("complexity inside, business logic outside") and the admission question "does it avoid glue
+code that every application would repeat?" say it belongs in Klar.
+
+## 2. The design
+
+### 2.1 The idea in one paragraph
+
+A form is **declared once**, as a constant: its fields in order, each with a label and its
+rules, grouped in steps. The declaration gives the application three things: a record of
+**field handles** (to put in the view, to read, to tie a server problem to), the **record the
+form produces** when valid, and the **schema** Klar needs to validate and to update. The
+application keeps one `Fm.State` in its model and one `FormMsg Fm.Msg` in its `Msg`. The state
+holds every value, the baseline, what was touched, the step, the server problems and the
+submit status. It holds the existing component states (`Select.State` and the rest)
+internally. It contains no function, and neither does `Fm.Msg`.
+
+(`Fm` is `import Klar.Form.Model as Fm`. The layout module `Klar.Form` stays as it is:
+`view`, `section`, `grid`, `actions`, `status`, `errorSummary`, `unsavedFlag`. One new exposed
+module, so `Klar.Form` does not grow past what one doc page can say.)
+
+### 2.2 Types
+
+```elm
+module Klar.Form.Model exposing (..)   -- exposed names listed in 2.6
+
+type Form step fields values          -- the declaration; a constant, never in Model or Msg
+type State step                       -- opaque, data only; derive nothing from it by hand
+type Msg                              -- opaque, data only (Dict key, component Msg, ...)
+type Field control                    -- a handle; `control` is the type of the control's value
+type Ids id                           -- how the application's id type is written as text, once
+type Problem                          -- a message tied to a field (client or server)
+type View msg                         -- a form, a state and a `toMsg`, bound once per view
+
+ids : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id      -- same shape as Table.rowIds
+```
+
+`Field control` is what `Fields` is made of. The control type says what the value looks like
+*while editing* (empty is a legal value): text is `String`, a select is `Maybe id`, a
+multi select `List id`, a number `Maybe Float`, tags `List String`, files `List FileInfo`, a
+switch `Bool`, a date `Maybe Date`. What the form *produces* is a second type, the output of
+the rules: a required select produces `id`, not `Maybe id`.
+
+### 2.3 Declaring fields (the builder pipeline)
+
+```elm
+type Spec control output              -- one field's kind, label and rules; built by the functions below
+type Builder step fields values       -- the pipeline while it is being built
+
+define : String -> fields -> values -> Builder step fields values
+          -- the String is the form's DOM id prefix; fields and values are record constructors
+with   : Spec control output -> Builder step (Field control -> f) (output -> v) -> Builder step f v
+step   : step -> String -> Builder step f v -> Builder step f v   -- the fields that follow are on this step
+build  : Builder step fields values -> Form step fields values
+fields : Form step fields values -> fields                         -- the handles, a constant
+
+-- kinds (one per control; a label is always required)
+text    : String -> Spec String (Maybe String)           -- blank is Nothing; the output is trimmed, the display is not
+number  : String -> Spec (Maybe Float) (Maybe Float)
+choice  : Ids id -> String -> Spec (Maybe id) (Maybe id)  -- Select, or Radio at view time
+choices : Ids id -> String -> Spec (List id) (List id)    -- MultiSelect
+tags    : String -> Spec (List String) (List String)
+files   : String -> Spec (List FileInfo) (List FileInfo)
+toggle  : String -> Spec Bool Bool
+day     : String -> Spec (Maybe Date) (Maybe Date)
+custom  : String -> { empty : a, encode : a -> Value, decoder : Decoder a } -> Spec a a   -- application-owned editor (rule builder, list in a dialog)
+rows    : String -> Form () rf rv -> Spec (Rows rf) (List rv)                             -- 2.7
+
+-- rules; each returns the same kind of spec, a few change the output type
+required : Spec c (Maybe a) -> Spec c a              -- also draws the "*"; removes Maybe from the output
+atLeast  : Int -> Spec c (List a) -> Spec c (List a)  -- required, and the message says how many
+one      : Spec c (List a) -> Spec c (Maybe a)        -- at most one (a single file)
+rules    : List Validate.Validator -> Spec String o -> Spec String o   -- the existing validators, unchanged
+range    : Float -> Float -> Spec (Maybe Float) o -> Spec (Maybe Float) o
+whole    : Spec (Maybe Float) o -> Spec (Maybe Float) o               -- no decimals, shown and checked
+hint     : String -> Spec c o -> Spec c o
+withMessage : { nb : String, en : String } -> Spec c o -> Spec c o   -- replaces the message of the rule just added
+```
+
+How a mistake becomes a compile error (principle 5):
+
+| Mistake | Why it does not compile |
+|---|---|
+| A field is declared but not in `Fields` (or the reverse) | `with` consumes one constructor argument of `Fields` *and* one of `Values` per call. `build` of a half-applied pipeline has type `Form step (Field c -> Fields) ...`, not `Form step Fields Values`; the annotation on the declaration fails |
+| A field is read before it exists | the only way to get a handle is `fields form`, which is the record of all of them |
+| Two fields clash on a DOM id | the application never writes one. Ids are `<form id>-<slug of label>`, numbered `-2`, `-3` for a repeated label, in declaration order. Two forms with the same prefix are the one remaining way, and `define` takes the prefix as its first argument, like `Form.id` today |
+| A required choice is used as optional | `required` changes the output type: `Values.country : CountryId` cannot be given `Maybe CountryId` |
+| A select view is given a text handle | `select : View msg -> Field (Maybe id) -> ...` takes only a `Maybe id` control; checked in the scratch sketch. Gap: `text` and `choice` over `String` ids are different types (`String` against `Maybe String`), but a `choice` over `Float` ids and a `number` are both `Maybe Float`. Rare; a runtime check draws a visible "this field is declared as another kind" instead of garbage |
+| A select has no options | the options are a positional argument of `select` and `multiSelect`, not an attribute |
+| An id type is unusable as a key | `ids` needs both `toKey` and `fromKey`; `Table.rowIds` already asks for the same two functions |
+| Two states that exclude each other | a step is the application's own custom type (`Company | Contacts | ...`); the status is the existing `Form.Status`; `choice` is "one or none", never a `Maybe` next to a flag |
+
+What the compiler does **not** check, said plainly: that `Fields` and `Values` list their
+fields in the same order as the pipeline (both are filled by position, like a decoder
+pipeline; swapping two `Maybe String` slots in only one of the two records is a bug no type
+sees), and that `fill` (loading, 2.4) sets every field. The mitigation is one property the
+application tests in one line (`fill s |> toValues |> Result.map toSupplier == Ok s`) and the
+fact that `Fields` and `Values` are declared next to each other. Section 8 lists this as a risk.
+
+### 2.4 Load, read, dirty
+
+```elm
+init       : Form step f v -> State step                        -- every field empty, first step, clean
+set        : Field c -> c -> State step -> State step           -- the one setter, for every kind
+get        : Field c -> State step -> c                         -- the value as edited (Maybe, List, ...)
+toValues   : Form step f v -> State step -> Result (List Problem) v   -- all rules, all steps; the record or the problems
+isDirty    : State step -> Bool                                  -- values differ from the baseline
+markClean  : State step -> State step                            -- baseline := now (after load, after a successful save)
+revert     : Form step f v -> State step -> State step           -- values := baseline
+```
+
+* **Going in.** `fill : Supplier -> State Step -> State Step` is a pipe of `Fm.set fields.x s.x`,
+  one line per field. `Fm.init form |> fill supplier |> Fm.markClean` is "load a record".
+  `set` is one function for all kinds because `Field c` carries the control type (a select
+  takes `Maybe CountryId`, a switch `Bool`): a wrong value is a type error. For a select, `set`
+  also needs the option's label; as today (`Select.setValue`), the field shows "Loading ..." until
+  the options arrive and then the label, and `Fm.get` returns the id at once.
+* **Coming out.** `toValues` returns `Err problems` or `Ok values`: an invalid form cannot
+  produce a record, and the problems are the same list the summary shows. `values` is the form's
+  own flat record (`Values`); the application maps it to its domain record in a function it
+  owns (`toSupplier : Values -> Supplier`, with the version and the id that the form never
+  touches). `Maybe` would hide which field is wrong; the cost of `Result` is none, since
+  `Result.toMaybe` exists.
+* **Dirty** is not "an input event happened". It is `snapshot state /= baseline`, where a
+  snapshot holds only values (a `Select`'s open list and search text are not part of it), so
+  typing a letter and deleting it is clean again, which is what the existing `unsavedFlag`
+  promises. The text a user typed is compared as typed; trimming happens only in the output
+  (principle 2: nothing is changed behind the user's back).
+
+### 2.5 What is inside `State`
+
+```elm
+type State step =
+    State
+        { slots : Dict String Slot        -- key = the field's DOM id; one slot per field
+        , baseline : Dict String Snapshot
+        , touched : Set String            -- left once, or edited
+        , server : Dict String String     -- problems from the server, by field
+        , step : Int, furthest : Int, attempted : Set Int, reviewed : Bool
+        , status : Form.Status
+        }
+
+type Slot                                   -- private
+    = SText String
+    | SSelect (Select.State String)         -- ids are the keys given by `Ids`
+    | SMulti (MultiSelect.State String)
+    | STags TagInput.State
+    | SNumber NumberInput.State
+    | SFiles FileDrop.State
+    | SDate DatePicker.State
+    | SToggle Bool
+    | SJson String                          -- `custom`: the value as encoded text, compared as text
+    | SRows ...
+```
+
+The **existing component states stay as they are** and the form holds them (answer to
+question 6). Because several kinds of component state are stored in one dictionary, an id type
+cannot appear in the type of the slot: the form stores `Select.State String` with the key from
+`Ids`. `Fm.Msg` is then one closed union of the component messages at `String`
+(`Selected Key (Select.Msg String)`, `Typed Key String`, ...). It is data, opaque, and can grow.
+The application never sees a key: it sees `CountryId`.
+
+Consequences: `Select.Option id` must be mapped to `Select.Option String` inside `select`; this
+needs one small addition to `Select` (`mapOption`), listed in step 1 of the plan. The behaviour
+that components have worked out ("keys right after a list opens", focus return) lives in the
+component `update`; the form calls it and forwards the `Cmd`, so it is kept.
+
+### 2.6 The view
+
+```elm
+bind : (Msg -> msg) -> Form step f v -> State step -> View msg   -- once per view; carries the state and the toMsg
+
+text        : View msg -> Field String -> List (TextInput.Attribute msg) -> Html msg
+textArea    : View msg -> Field String -> List (TextArea.Attribute msg) -> Html msg
+number      : View msg -> Field (Maybe Float) -> List (NumberInput.Attribute msg) -> Html msg
+select      : View msg -> Field (Maybe id) -> Remote (List (Select.Option id)) -> List (Select.Attribute id msg) -> Html msg
+radio       : View msg -> Field (Maybe id) -> List (Select.Option id) -> List (Radio.Attribute msg) -> Html msg   -- the same field as select, other control
+multiSelect : View msg -> Field (List id) -> Remote (List (Select.Option id)) -> List (MultiSelect.Attribute id msg) -> Html msg
+tags        : View msg -> Field (List String) -> List (TagInput.Attribute msg) -> Html msg
+files       : View msg -> Field (List FileInfo) -> List (FileDrop.Attribute msg) -> Html msg
+toggle      : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
+day         : View msg -> Field (Maybe Date) -> List DatePicker.Attribute -> Html msg
+```
+
+Each view sets `id`, `label`, `required`, `value`, `errorMaybe` and the message **after** the
+application's attributes, so they win: the application cannot give a control a second id.
+The attributes that remain are the ones the declaration does not know (a placeholder, a
+suffix text, `TextInput.url`, `FileDrop.accept`, `Select.onRetry`). The existing attribute
+types are reused, so there is no second vocabulary to learn (principle 10). For a `custom` or
+`rows` field the application draws the control and uses three helpers:
+`errorFor : View msg -> Field c -> Maybe String`, `domId : Field c -> String` (for
+`Form.focusField` and `Card.id`), `isRequired`.
+
+Exposed names (the budget, for `check:api`): types `Form State Msg Field Ids Problem View Spec
+Builder Rows`; declaration `define with step build fields ids`, kinds 9, rules 8; state `init
+set get toValues isDirty markClean revert update bind`; steps and problems 12 (section 4 and
+3); views 10. About 55 names, against 25 today in `Klar.Form`. No new exposed union.
+
+### 2.7 Repeating groups and application-owned values
+
+The onboarding contacts step is a list of rows with five fields each, and the price rules are
+edited in a dialog that returns one finished rule. Both are common. They are in scope, but they
+are the last piece (plan step 5), because they are the hard one:
+
+```elm
+rows   : String -> Form () rf rv -> Spec (Rows rf) (List rv)     -- a sub-declaration per row
+row    : Int -> Field (Rows rf) -> State step -> rf              -- the handles of row i (ids: contacts-2-email)
+addRow, removeRow : Field (Rows rf) -> State step -> State step
+check  : (fields -> values -> List Problem) -> Form step f v -> Form step f v   -- across fields and rows
+```
+
+"Exactly one contact is the primary" is a `check` that returns a `Problem` on a row's handle.
+A `custom` field keeps the application's value (`List PriceRule`) as encoded text for the
+baseline, and the dialog commits with `Fm.set fields.priceRules rules`. It needs a codec; the
+only one missing for the onboarding app is none (`Rule.encode` and `Rule.decoder` exist).
+
+## 3. Server problems tied to fields (O-019)
+
+The application hands back one value after a failed save:
+
+```elm
+problem  : Field c -> String -> Problem                             -- a handle and a message
+rejected : List Problem -> Form step f v -> State step -> ( State step, Cmd Msg )
+```
+
+`problem` takes a handle of any kind, so the type of the *application's* backend field
+(`Backend.Name`, `Backend.ContactEmail 2`) is mapped once to a handle:
+
+```elm
+fromBackend : Backend.Problem -> Fm.Problem
+fromBackend p =
+    case p.field of
+        Backend.Name -> Fm.problem fields.name p.message
+        Backend.CountryField -> Fm.problem fields.country p.message
+        Backend.ContactEmail i -> Fm.problem (Fm.row i fields.contacts).email p.message
+```
+
+`rejected` stores them by field key and does what `Flow.SaveArrived` does by hand today: marks
+the form as reviewed, moves to the review step (or, in a form without one, the step of the first
+problem), and focuses the summary. Rules for showing a problem:
+
+* A field shows **one** message, chosen in this order: its client problem, then its server
+  problem. A server problem never hides a client problem, and a field that is fine on the
+  client but rejected by the server shows the server's words (today's `visibleProblems`).
+* Problems appear **next to the field** (the control's own error) and **in the summary**
+  (`Fm.summary`), with the label from the declaration, so `Form.labels` is not needed. A
+  contact row's label is "Contact 2 email" from the row's index.
+* A server problem is **cleared when its field is edited**: the form's `update` drops
+  `server[key]` on any change of that field (also a change that restores the old value; the
+  server said no to a value the user has since touched). It is the only place that ever needed
+  `edited` and its eight call sites.
+* A whole-request failure (`Remote.Problem`: network, conflict) is not a field problem. It is
+  the existing `Form.Status` (`Fm.setStatus (Form.Failed problem)`), shown by `Form.status` with
+  its retry. `Remote.Problem` stays opaque and request-level; the field problems are a different
+  type because they have a different owner (principle 9: Klar does not know the backend).
+* A conflict (a version changed by another person) stays in the application: it needs the
+  other record. The model helps with one function (step 4): `differingSteps : Form step f v ->
+  State step -> State step -> List step` compares two states by step, so the dialog's list of
+  "sections that differ" (`sectionsDiffering`, 25 lines) becomes
+  `differingSteps form mine (fill theirs (init form))`.
+
+## 4. Steps (O-003, O-022)
+
+```elm
+step   : step -> String -> Builder ... -> Builder ...             -- declaration (2.3)
+review : step -> String -> Builder ... -> Builder ...             -- a last step with no fields of its own
+
+currentStep : Form step f v -> State step -> step
+advance : Form step f v -> State step -> { state : State step, cmd : Cmd Msg, submit : Maybe v }
+back    : Form step f v -> State step -> ( State step, Cmd Msg )
+goTo    : Form step f v -> step -> State step -> ( State step, Cmd Msg )
+stepper : View msg -> List (Stepper.Attribute msg) -> Html msg
+summary : View msg -> Html msg
+```
+
+* **Which fields are on which step** is the position of `step Company "Company"` in the
+  declaration. The step type is the application's own custom type, so `case step of` in the
+  application is checked by the compiler, and the name given to `step` is the label of the
+  stepper.
+* **Validation before Next.** `advance` is the whole `Submit` branch of today's `update`: on a
+  non-last step it validates the fields of the current step only, and if there are problems it
+  marks the step attempted, shows them and focuses the summary; if not it moves on and focuses
+  the first field of the next step (the step's first field is known from the declaration, so
+  `firstFieldOf` goes). On the last step it validates all steps; if valid it returns `submit =
+  Just values` (the application starts its request and calls `setStatus Submitting`), otherwise
+  it marks the form reviewed so all problems show. The result is a record, not an exposed union,
+  so nothing here can break by growing.
+* **The review step.** `summary` lists every *visible* problem of every step with its label and
+  a button; the button's message is `Fm.Msg` and `update` handles it: set the step of the field
+  (`Fm.goTo` semantics), then focus the field in the same update (checked to work without a
+  delay in the onboarding run). The review page itself (the descriptions of the values) is the
+  application's view; it reads `Fm.get fields.country state` and a step-level
+  `Fm.stepHasProblems : Form -> State -> step -> Bool` to colour its cards.
+* **Visible problems.** A field shows its problem when it was left once (blur) or edited, when
+  its step has been attempted, or when the form was reviewed. Before that a required field is
+  quiet. This is the rule the application writes by hand today with `attempted` and
+  `reviewAttempted`.
+* **Stepper status.** `stepper` renders `Stepper.view` with, per step: *disabled* if it is
+  after the furthest step reached, *failed* if it has visible problems, *done* if it was
+  attempted and has none, otherwise upcoming or current. `failed` and `disabledStep` exist;
+  *done* needs `Stepper.done : Step -> Step` (step 1 of the plan; additive). "Visited" is
+  "not disabled": the stepper does not need a fourth look.
+* `goTo` to a step beyond the furthest is refused (the stepper's click), except in a form
+  loaded from a record, where every step is reached (`init |> fill |> markClean` sets furthest
+  to the last step, as `Flow.init` does by hand).
+
+## 5. Dirty and the leave question (O-005, O-017)
+
+**Klar can do, purely in Elm:** `isDirty`, a baseline (`markClean`, `revert`), the existing
+`Form.unsavedFlag` / `unsavedChanges` fed by `isDirty state`, and `differingSteps`. The mark
+for "unsaved changes" is therefore one call with no `Draft`.
+
+**Stays with the application:** the question "may the user leave?". Klar sees only its own
+state. The leave itself is a navigation event (`LinkClicked`, `UrlChanged`), and
+`Browser.application` is the application's. What the form model gives is the flag:
+
+```elm
+LinkClicked request when Fm.isDirty model.form -> ask "Discard changes?" via ConfirmDialog
+```
+
+The roadmap already has "leave-guard for unsaved changes inside the application" (Phase B) and
+O-017 proposes `Klar.Navigation`. That helper takes a `Bool` (`Fm.isDirty`) and is independent
+of the form model; it should be designed next to the overlay layer, not here. Honest limits,
+the same as `Form.unsavedChanges` says today: closing or reloading the tab cannot be guarded
+without `beforeunload`, which needs JavaScript (principle 7 and 8). Klar will not fake it.
+
+**The draft.** A draft in memory is the state itself. Surviving a reload needs storage, which
+needs JavaScript. `encodeDraft : Form step f v -> State step -> Value` and `restoreDraft` can
+exist for an application that has a port and a place to put it; Klar offers the encoding and
+nothing else (open question 4).
+
+## 6. How the form model meets the existing components
+
+Three designs were weighed. All three keep the component modules (`Select`, `MultiSelect`,
+`TagInput`, `NumberInput`, `FileDrop`, `DatePicker`) and `Form`, `Field`, `Validate`, `Stepper`
+as modules; they differ in who owns the values and how the application names a field.
+
+**A. Declared fields: a builder pipeline with typed handles** (section 2). One `Fm.State`,
+one `Fm.Msg`; the components' states are held inside, ids go through `Ids`.
+
+**B. Declared fields: a custom type of keys.** The application writes
+`type FieldKey = Name | Country | Categories | ContactEmail Int | ...` and one function
+`fieldSpec : FieldKey -> Fm.Spec` with an exhaustive `case`; values are read with
+`Fm.text Name state`, `Fm.choice countries Country state`. One `State FieldKey`, one `Msg
+FieldKey`.
+
+**C. Toolkit: the application keeps the component states, Klar adds lenses.** The model stays
+as it is; Klar adds `Form.watch : (model -> a) -> ...` style helpers and a `Form.dirty` that
+compares a list of getters, plus a recipe for server problems.
+
+| Criterion | A. Pipeline and handles | B. Custom type of keys | C. Toolkit over today's states |
+|---|---|---|---|
+| New API surface | about 55 names; the biggest of the three | about 40; no handle types, no `Builder` | about 15 |
+| Type safety | **highest**: the control type is in the handle (`Field (Maybe CountryId)`), required changes the output type, a half-declared form does not compile, `set` and `get` are checked | medium: a key is not tied to a value type, so `Fm.text Country state` compiles and fails (or shows a blank) at run time; *exhaustiveness is excellent*: a key without a spec does not compile, and the same for its step | as today: nothing ties a getter to a control |
+| "Cannot read before declared", "ids cannot clash" | compile time (only `fields form` gives handles; ids derived) | compile time for declared (`case` is exhaustive); the DOM id needs `toString : FieldKey -> String` written by the application, unless derived from the label (then it is the same as A) | not solved: ids are strings |
+| What the application writes for onboarding step 1 | about 100 lines, about 125 formatted (section 7) | about 130 (estimate): the key type (10), the spec function (35), views by key (45), getters for the record by hand (25 for the step) | about 230 (estimate): states, messages and updates remain; saves the `Draft` and `load` only (about 60 lines for the whole app) |
+| `Msg` and `State` | `FormMsg Fm.Msg` and `form : Fm.State Step`; no function in either. The typed component messages are forwarded inside | `FormMsg (Fm.Msg FieldKey)` and `State FieldKey`; no function | **ten `Msg` constructors remain** and ten component states; a `Draft` record is the only new thing |
+| Repeating rows | needs `rows` (a second declaration); design cost | natural: `ContactEmail Int` is a key | natural: it is the application's list |
+| Migration from today's `Form`, `Field`, `Validate` | additive: `Klar.Form` and `Validate` unchanged and reused; `Validate.Validator` is the text rule type; components unchanged except `Select.mapOption` and `Stepper.done`. Existing applications keep working | additive too; but the key-to-id string function resembles what O-021 complained about | none; nothing is delivered that fixes O-019, O-003, O-022 |
+| How an AI reads it from the docs | one pipeline that reads like a decoder (`|> with`), one record of handles, one state; two things to keep in order | plain Elm everywhere (a custom type and a `case`); the three-places-per-field cost is visible, but each place is obvious | the AI must write the same glue as before; it has a recipe, not a type |
+| Risks | positional `Fields` / `Values` (not compiler-checked); the erased id; the large `update` | type holes at run time; a fourth place per field when the value type changes | the 820 lines stay |
+
+**Recommendation: A.** B is the second best and the right choice if the owner decides that no
+type machinery beyond custom types and records is acceptable; its weakness is exactly the one
+Klar exists to remove (a value read as the wrong kind compiles). C is not a form model; it
+only moves the 270 marked lines into a tidier recipe and leaves ten messages and ten states in
+every application.
+
+A wins on the things the three applications showed hurt: the compiler already catches the
+wrong argument (0 errors), so the next step in safety is to make the *forgotten* thing
+impossible (an unvalidated required select, a field on no step, a server problem tied to a
+string), and only A does that. Its price is a pipeline that must be learnt once. That cost is
+small for an AI that has read `Json.Decode.Pipeline` and is paid back by every field
+afterwards. B gets its repeated-row support for free; A must build it (2.7), and that is the
+largest piece of work.
+
+## 7. A real piece rewritten: step 1 of the onboarding app
+
+Step 1 is the company: four text fields, a `Select` over `CountryId`, a `MultiSelect` over
+`CategoryId`, tags, and a required file. The server can reject `Name`, `LegalName`,
+`Registration`, `Website`, `CountryField`.
+
+### 7.1 Today (counted in `Flow.elm` and `Ids.elm`)
+
+| Part | Lines |
+|---|---|
+| Model fields `name` ... `contract` | 8 |
+| `Draft`, `emptyDraft`, `toDraft` (company fields) | 24 |
+| `init` (blank states with their DOM ids) | 8 |
+| `load`, company fields (the contract file takes 9) | 16 |
+| `toSupplier`, company fields | 9 |
+| `companyProblems` and its validators (`registrationFormat`, `httpUrl`) | 22 + 10 |
+| `serverProblem`, company cases | 15 |
+| `Msg` constructors and the `TextField` type | 10 |
+| `update` branches for the company controls | 40 |
+| `companyStep` view | 85 |
+| DOM ids (`Ids.elm`, 8 ids) and the `Form.labels` rows | 40 + 8 |
+| **Total** | **295** |
+
+### 7.2 With the form model
+
+```elm
+-- Supplier/Form.elm: the declaration (company part) ------------------------------- count: A
+type Step
+    = Company
+    | Contacts
+    | Delivery
+    | Pricing
+    | Review
+
+
+type alias Fields =
+    { name : Fm.Field String
+    , legalName : Fm.Field String
+    , registration : Fm.Field String
+    , website : Fm.Field String
+    , country : Fm.Field (Maybe CountryId)
+    , categories : Fm.Field (List CategoryId)
+    , certifications : Fm.Field (List String)
+    , contract : Fm.Field (List FileDrop.FileInfo)
+    }
+
+
+type alias Values =
+    { name : String
+    , legalName : String
+    , registration : String
+    , website : Maybe String
+    , country : CountryId
+    , categories : List CategoryId
+    , certifications : List String
+    , contract : FileDrop.FileInfo
+    }
+
+
+countryIds : Fm.Ids CountryId
+countryIds =
+    Fm.ids { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
+
+
+categoryIds : Fm.Ids CategoryId
+categoryIds =
+    Fm.ids { toKey = \(CategoryId n) -> String.fromInt n, fromKey = Maybe.map CategoryId << String.toInt }
+
+
+form : Fm.Form Step Fields Values
+form =
+    Fm.define "supplier" Fields Values
+        |> Fm.step Company "Company"
+        |> Fm.with (Fm.text "Name" |> Fm.required |> Fm.rules [ Validate.maxLength 80 ])
+        |> Fm.with (Fm.text "Legal name" |> Fm.required)
+        |> Fm.with (Fm.text "Registration number" |> Fm.required |> Fm.rules [ registrationFormat ])
+        |> Fm.with (Fm.text "Website" |> Fm.rules [ httpUrl ])
+        |> Fm.with (Fm.choice countryIds "Country" |> Fm.required)
+        |> Fm.with (Fm.choices categoryIds "Product categories" |> Fm.atLeast 1)
+        |> Fm.with (Fm.tags "Certifications")
+        |> Fm.with (Fm.files "Signed contract" |> Fm.one |> Fm.required)
+        -- ... Contacts, Delivery, Pricing, Review follow the same way
+        |> Fm.build
+
+
+fields : Fields
+fields =
+    Fm.fields form
+```
+
+```elm
+-- Supplier/Form.elm: loading and the server's problems (company part) ------------- count: B
+fill : Supplier -> Fm.State Step -> Fm.State Step
+fill s =
+    Fm.set fields.name s.name
+        >> Fm.set fields.legalName s.legalName
+        >> Fm.set fields.registration s.registrationNumber
+        >> Fm.set fields.website s.website
+        >> Fm.set fields.country (Just s.country)
+        >> Fm.set fields.categories s.categories
+        >> Fm.set fields.certifications s.certifications
+        >> Fm.set fields.contract (Maybe.withDefault [] (Maybe.map (\f -> [ f ]) s.contractFile))
+
+
+fromBackend : Backend.Problem -> Fm.Problem
+fromBackend p =
+    case p.field of
+        Backend.Name -> Fm.problem fields.name p.message
+        Backend.LegalName -> Fm.problem fields.legalName p.message
+        Backend.Registration -> Fm.problem fields.registration p.message
+        Backend.Website -> Fm.problem fields.website p.message
+        Backend.CountryField -> Fm.problem fields.country p.message
+        -- ... contacts, delivery, pricing
+```
+
+```elm
+-- Flow.elm: the model, the update and the step's view ------------------------------- count: C
+type alias Model =                     -- the form fields are one entry
+    { form : Fm.State Step, ... }
+
+type Msg
+    = FormMsg Fm.Msg                   -- one constructor for every control of every step
+    | ...
+
+FormMsg inner ->
+    Fm.update form inner m.form |> Tuple.mapBoth (\f -> { m | form = f }) (Cmd.map FormMsg)
+
+Submit ->
+    let r = Fm.advance form m.form in
+    ( { m | form = r.state }, Cmd.map FormMsg r.cmd )   -- and send r.submit when Just
+
+dirty : Bool
+dirty = Fm.isDirty m.form
+
+companyStep : Ctx -> Fm.View Msg -> Html Msg
+companyStep ctx v =
+    Form.section "Company"
+        "Who the supplier is, as registered."
+        [ Form.grid 2
+            [ Fm.text v fields.name [ TextInput.hint "How the supplier appears in lists." ]
+            , Fm.text v fields.legalName []
+            , Fm.text v fields.registration [ TextInput.hint "8 digits." ]
+            , Fm.text v fields.website [ TextInput.url ]
+            , Fm.select v fields.country (countryOptions ctx.countries) [ Select.onRetry ReloadRef ]
+            , Fm.multiSelect v fields.categories (categoryOptions ctx.categories) [ MultiSelect.onRetry ReloadRef ]
+            , Form.fullRow (Fm.tags v fields.certifications [ TagInput.placeholder "Type a certification and press Enter", TagInput.hint "For example ISO 9001.", TagInput.maxTags 10 ])
+            , Form.fullRow (Fm.files v fields.contract [ FileDrop.accept [ ".pdf" ], FileDrop.maxSize 5000000 ])
+            ]
+        ]
+```
+
+### 7.3 The count
+
+| Part | Today | With the model |
+|---|---|---|
+| Declaration: records, ids, pipeline (A) | 8 (model) + 24 (draft) + 8 (init) + 22 + 10 (rules) + 48 (ids, labels) = 120 | 50 |
+| Load and server problems (B) | 16 + 9 + 15 = 40 | 20 |
+| Msg, update and view (C) | 10 + 40 + 85 = 135 | 28 |
+| **Total** | **295** | **98** |
+
+(Non-blank lines of the sketches above, comments included; elm-format breaks the longest view lines, so say about 125 in a real file, against 295: a reduction of about 60 %. The `Msg` and `update` lines of C are counted once, since they are shared by all five steps;
+in the other four steps they are 0 more lines, where today each step adds its own.) The
+checks that ran by hand are now one declaration: `requiredValue`, `nonEmptyList`,
+`numberProblems`, `fromErrors` and `validateText` (about 50 lines, shared) disappear, as do
+`Draft`, `toDraft`, `withBaseline`, `isDirty`, the whole of `Ids.elm` except modal ids, the
+`edited` helper and its eight call sites, `visibleProblems` and `errorFor`, `markAttempted`,
+`firstFieldOf` and the stepper list. For the whole app the estimate is: 820 lines of plumbing
+become about 260 (declaration 110, fill and backend mapping 60, wiring 30, review and
+dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constructors.
+
+## 8. What the design does not do, risks, open questions, plan
+
+### Deliberately not done
+
+* **No generated views.** The form model does not draw the form. The application keeps its
+  sections, grid and its own review page; the model supplies controls one at a time. A full
+  generator (`Form.view fields`) would take away the layout the application needs.
+* **No conditional visibility, no field groups, no wizard branching** (Phase F "field groups
+  with conditional visibility"). A field that is hidden is simply not placed in the view; a rule
+  that depends on another field uses `check`.
+* **No HTTP, no knowledge of the backend.** Klar takes `List Problem` and a `Form.Status`.
+* **No leave guard, no `beforeunload`** (section 5).
+* **No persistence of a draft** beyond in memory (section 5).
+* **No undo/redo.** The baseline gives `revert`; history is Phase D.
+* **`InlineEdit` is not a form field.** It saves one value on its own and keeps its own state;
+  the detail page (`Detail.elm`) does not change. Using `Fm.Field` inside it later is possible,
+  not planned.
+* **No validation that depends on the server** (is this registration number taken?): that is
+  a server problem after the save, or an asynchronous check the application owns.
+
+### The three biggest risks
+
+1. **Order is by position, and `fill` is not checked for completeness.** `Fields`, `Values`
+   and the pipeline must list the fields in the same order, and two `Maybe String` slots
+   swapped in one record only is invisible to the compiler. Mitigation: the documentation
+   puts both records next to the declaration, a one-line round-trip test is part of every
+   recipe, and `Fm.roundTrips` can be a ready-made test helper. If the owner finds this
+   unacceptable for principle 5, design B is the alternative.
+2. **Erased ids and a large `update`.** Choices are stored as `Select.State String` by key.
+   A bad `Ids` (`fromKey` not the inverse of `toKey`) is a silent loss. The form's `update`
+   must forward 10 component kinds and keep their focus behaviour (the CONTRIBUTING items about
+   keys right after a list opens and focus surviving a re-render); a regression there would
+   be found only in the browser, where the three applications found all their bugs.
+   Mitigation: `ids` exports a test helper that checks a list of values round-trips; every
+   kind is checked with real key presses and `document.activeElement` before the step is done.
+3. **Scope: rows and application-owned editors.** The flat form is well defined; contacts
+   (rows with a cross-row rule) and pricing rules (an editor in a dialog) are what the
+   onboarding app actually needs. If they turn out awkward, the model covers only half of the
+   app, and the 820 lines drop to 500, not 260. They are built last (step 5) so that the
+   decision can be reviewed with a working core. The API is frozen at the first publish, so
+   `rows` and `custom` must be right before then; they are not worth shipping half done.
+
+### Open questions for the owner
+
+1. **Are string keys for ids acceptable?** `choice` needs `Ids id` (`toKey`, `fromKey`), the
+   same pair `Table.rowIds` and `Tree.nodeIds` already ask for. *Recommend: yes*, and unify the
+   three into one `Klar.Ids` type in the "typed ids" item of A8, which also fixes O-002 and
+   O-004 (`Rule` choices, `Radio`). The alternative is to keep `Select.State id` in the
+   application's model, which is design C.
+2. **Is a positional pipeline acceptable?** See risk 1. *Recommend: yes*, with the round-trip
+   test in the recipe. Say no only if the owner wants the compiler to refuse a swap.
+3. **Rows and custom values in the first version, or later?** *Recommend: in the first
+   version, but as the last implementation step*, so that the core can be reviewed and used
+   by the three applications without waiting for them.
+4. **When is a field's problem shown?** Proposed: after the field was left once or edited,
+   after its step was attempted, after the form was reviewed. The alternative (only after a
+   Next or Save) shows less while typing. *Recommend: the proposed rule*; it is one function
+   and can be changed in a minor version because the rule is not part of the types.
+5. **The draft.** Encode and restore the state as `Value` for applications with a port, or
+   not at all? *Recommend: not in the first version.* It adds names to a frozen API and no
+   application of the three asked for it. Add it with Phase F "wizard form with a draft".
+
+### Implementation plan (each step reviewable on its own)
+
+1. **Small additions to existing modules** (no new module). `Select.mapOption` (and the same
+   for `MultiSelect`'s option), `Stepper.done` plus a doc line that "visited" is "not
+   disabled". Tests: pure unit tests of
+   `mapOption` (label, group, description kept). Breaks: nothing. Review: a 100-line diff.
+2. **`Klar.Form.Model`, the core for text, number, choice, choices, toggle.** `Ids`, `Spec`,
+   `define/with/build/fields`, `init/set/get/toValues`, `isDirty/markClean/revert`, `update`,
+   `bind` and the five views, the id derivation. Tests (elm-test, pure): validation and the
+   output type of `required`, `atLeast`, `one`; `set`/`get`/`toValues` round trip; dirty after
+   typing and undoing; id derivation is unique for equal labels; and the "must not compile"
+   list that A5 asks for (a half-declared form, a text handle given to `select`). Breaks:
+   nothing; the new module is added to `exposed-modules`. Showcase page.
+3. **The remaining kinds**: tags, files, day, radio, `textArea`, and `custom`. Tests: each
+   kind's parse, empty value and snapshot. A browser pass with the keyboard on every kind,
+   checking focus after an edit and after opening a list (the CONTRIBUTING rules). Breaks:
+   nothing.
+4. **Steps, problems and status.** `step/review`, `advance/back/goTo`, `stepper`, `summary`,
+   the visible-problem rule, `problem/rejected`, `setStatus`, `differingSteps`,
+   `stepHasProblems`. Tests: the rule of visibility for every combination of touched,
+   attempted and reviewed; `advance` on every step; a server problem clears when its field is
+   edited; `rejected` goes to the right step. Breaks: nothing.
+5. **Rows and `check`.** `rows`, `row`, `addRow`, `removeRow`, row ids, `check`. Tests: ids
+   of row 0 and 2 stay stable when row 1 is removed (the keys follow the position, so the
+   summary says "Contact 2"); a cross-row rule; dirty after adding and removing a row. Breaks:
+   nothing. This is the step that can change the design of 2.7; review it separately.
+6. **Migrate and document.** Rewrite `apps/onboarding` on the model (the A0 second round), the
+   recipe "an edit form with validation and a save that can fail" (A1) and the `Klar.Form`
+   module doc, which points to the model and keeps its low-level example. In the same change,
+   decide what to remove while the API is free: `Form.labels` and `Form.onFocusField` stay (a
+   hand-written form still needs them); `Validate.collect` stays. Tests: `npm run check`, the
+   benchmark. Breaks: nothing in `Klar.Form`. The application `apps/onboarding` changes
+   completely, which is the purpose.
+
+**First step: step 1**, because it is additive and small, and it settles the one thing the
+core depends on (a `Select.Option` can be given another id type).

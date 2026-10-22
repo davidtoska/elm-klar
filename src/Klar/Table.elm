@@ -47,6 +47,10 @@ is turned into HTML, so thousands of rows are fine.
     orderRows =
         Table.rowIds { toKey = OrderId.toString, fromKey = OrderId.fromString }
 
+    customer : Table.ColumnId
+    customer =
+        Table.columnId "customer"
+
     -- update
     TableMsg m ->
         let
@@ -58,9 +62,9 @@ is turned into HTML, so thousands of rows are fine.
     -- view
     Table.view TableMsg
         [ Table.columns
-            [ Table.text "customer" "Customer" .customer [ Table.pinned, Table.filterText ]
-            , Table.text "city" "City" .city [ Table.width 140, Table.filterSelect ]
-            , Table.int "items" "Items" .items [ Table.filterRange, Table.footerSum ]
+            [ Table.text customer "Customer" .customer [ Table.pinned, Table.filterText ]
+            , Table.text (Table.columnId "city") "City" .city [ Table.width 140, Table.filterSelect ]
+            , Table.int (Table.columnId "items") "Items" .items [ Table.filterRange, Table.footerSum ]
             ]
         , Table.rows model.orders
         , Table.rowId orderRows .id
@@ -1680,7 +1684,7 @@ build base attributes =
     Column (List.foldl (\(ColumnAttribute change) config -> change config) base attributes)
 
 
-{-| A text column: `Table.text "customer" "Customer" .customer []` takes the
+{-| A text column: `Table.text (Table.columnId "customer") "Customer" .customer []` takes the
 column id (unique in the table), the title for the header and a function that
 reads the text from a row.
 
@@ -1695,7 +1699,7 @@ text (ColumnId colId) title toText attributes =
     build (baseColumn colId title (\_ row -> toText row)) attributes
 
 
-{-| A whole number: `Table.int "items" "Items" .items []`. It is right-aligned
+{-| A whole number: `Table.int (Table.columnId "items") "Items" .items []`. It is right-aligned
 with tabular digits and thousands separators (`1,234` in English), sorted
 numerically, exported as a plain number and 104 pixels wide (see `width`). It
 supports `filterRange`, `footerSum` and `footerAverage`, and the search box
@@ -1725,7 +1729,7 @@ int (ColumnId colId) title toInt attributes =
 
 
 {-| A decimal number with a fixed count of decimals:
-`Table.float "weight" "Weight (kg)" 1 .weight []`. The `Int` is the number of
+`Table.float (Table.columnId "weight") "Weight (kg)" 1 .weight []`. The `Int` is the number of
 decimals shown (also in filter hints and footers). It is like `int` otherwise,
 but 112 pixels wide, and the CSV export keeps the decimals with the locale's
 decimal separator and no thousands separator, so a spreadsheet reads a number.
@@ -1755,7 +1759,7 @@ float (ColumnId colId) title decimals toNumber attributes =
 `2026-10-20` in English or `20.10.2026` in Norwegian. For a date that may be
 missing use `maybeDate`.
 
-    Table.date "shipped" "Shipped" .shippedOn []
+    Table.date (Table.columnId "shipped") "Shipped" .shippedOn []
 
 -}
 date : ColumnId -> String -> (row -> Date) -> List (ColumnAttribute row msg) -> Column row msg
@@ -1786,7 +1790,7 @@ maybeDate (ColumnId colId) title toDate attributes =
 [Klar.Badge](Klar-Badge). The label is the text used for search, sorting, export
 and `filterSelect`; the column is 124 pixels wide.
 
-    Table.badge "status"
+    Table.badge (Table.columnId "status")
         "Status"
         (\order -> ( statusTone order.status, statusLabel order.status ))
         [ Table.filterSelect ]
@@ -1897,7 +1901,7 @@ text the column is not searched, sorted or exported; turn sorting back on with
 with `exportAs`. For a custom look with a text behind it, use `text` with `cell`
 instead.
 
-    Table.custom "progress" "Progress" viewProgress [ Table.sortNumber .progress ]
+    Table.custom (Table.columnId "progress") "Progress" viewProgress [ Table.sortNumber .progress ]
 
 -}
 custom : ColumnId -> String -> (row -> Html msg) -> List (ColumnAttribute row msg) -> Column row msg
@@ -1923,7 +1927,7 @@ the title is only read by screen readers. For a "more" menu use `rowActions`
 instead: its button is one tab stop for the whole table, while controls you draw
 here are a tab stop in every row (keep them few).
 
-    Table.actions "open"
+    Table.actions (Table.columnId "open")
         "Open"
         (\order ->
             [ Button.iconOnly
@@ -2040,7 +2044,7 @@ noTooltip =
 search, sorting, export and filters, but a match is no longer highlighted in the
 cell, and there is no tooltip.
 
-    Table.text "customer" "Customer" .customer [ Table.cell viewCustomerLink ]
+    Table.text (Table.columnId "customer") "Customer" .customer [ Table.cell viewCustomerLink ]
 
 -}
 cell : (row -> Html msg) -> ColumnAttribute row msg
@@ -2083,7 +2087,7 @@ sortMaybeNumber toNumber =
 {-| Sorts by a date instead of the text, for example when the column shows a
 date in your own format.
 
-    Table.text "due" "Due" .dueText [ Table.sortDate .dueDate ]
+    Table.text (Table.columnId "due") "Due" .dueText [ Table.sortDate .dueDate ]
 
 -}
 sortDate : (row -> Date) -> ColumnAttribute row msg
@@ -2094,7 +2098,7 @@ sortDate toDate =
 {-| Sorts with your own comparison, written for the ascending order; the table
 reverses it for `Descending`. Rows that compare equal keep their order.
 
-    Table.text "size" "Size" .sizeLabel [ Table.sortWith (\a b -> compare a.sizeRank b.sizeRank) ]
+    Table.text (Table.columnId "size") "Size" .sizeLabel [ Table.sortWith (\a b -> compare a.sizeRank b.sizeRank) ]
 
 -}
 sortWith : (row -> row -> Order) -> ColumnAttribute row msg
@@ -2169,7 +2173,7 @@ column's text for the rows they should match, and a chosen value that is not in
 the list stays in it. It also turns the select filter on, so `filterSelect` is
 not needed next to it.
 
-    Table.text "status" "Status" .statusLabel [ Table.filterOptions [ "Open", "Shipped", "Cancelled" ] ]
+    Table.text (Table.columnId "status") "Status" .statusLabel [ Table.filterOptions [ "Open", "Shipped", "Cancelled" ] ]
 
 -}
 filterOptions : List String -> ColumnAttribute row msg
@@ -2190,7 +2194,7 @@ filterRange =
 filters in client mode, the current page in server mode. The footer row shows
 when any visible column has a footer value and there are rows.
 
-    Table.int "items" "Items" .items [ Table.footer (\orders -> String.fromInt (List.length orders) ++ " orders") ]
+    Table.int (Table.columnId "items") "Items" .items [ Table.footer (\orders -> String.fromInt (List.length orders) ++ " orders") ]
 
 -}
 footer : (List row -> String) -> ColumnAttribute row msg
@@ -2320,8 +2324,8 @@ columns value =
 
 
 {-| The rows, as [Klar.Remote](Klar-Remote) data. `Loading` (and `NotAsked`)
-shows skeleton rows under the header, `Failure` shows the error with a retry
-button (see `onRetry`), and `Success []` shows the empty state (see
+shows skeleton rows under the header, `Failed` shows the error with a retry
+button (see `onRetry`), and `Loaded []` shows the empty state (see
 `emptyState`). In server mode these are the rows of the current page only.
 Without `rows` the table shows the loading skeleton.
 -}
@@ -2552,7 +2556,7 @@ onRefresh msg =
 {-| Pass `True` while new data is on its way and you still hold the old rows
 (the next page in server mode, a manual refresh): the rows stay, dimmed, with a
 progress line under the header, and screen readers hear "Refreshing ...". It
-only applies to `Success` rows; while `rows` is `Loading` the skeleton is shown
+only applies to `Loaded` rows; while `rows` is `Loading` the skeleton is shown
 instead. The default is `False`.
 -}
 refreshing : Bool -> Attribute id row msg
@@ -2561,7 +2565,7 @@ refreshing value =
 
 
 {-| The message to send when the user clicks "Try again" in the error state, which
-shows when `rows` is a `Failure`. Without it there is no button, and the button
+shows when `rows` is a `Failed`. Without it there is no button, and the button
 only appears for problems worth retrying (see `Remote.isRetryable` in
 [Klar.Remote](Klar-Remote)). Keyboard focus stays in the table while the new rows
 load.
@@ -2659,7 +2663,9 @@ maxHeight px =
 
 
 {-| The table fills the height of its parent, which must have a height of its
-own, and the rows scroll inside under the header.
+own, and the rows scroll inside under the header. For the rest of the page under
+a heading, put the table in a `Layout.stack [ Layout.fillRest ]` (inside an
+`AppShell` that is the height of the window under the top bar).
 -}
 fillHeight : Attribute id row msg
 fillHeight =
@@ -2722,7 +2728,7 @@ process config model allColumns visible =
             }
     in
     case config.rows of
-        Remote.Success allRows ->
+        Remote.Loaded allRows ->
             case config.server of
                 Just total ->
                     let
@@ -2767,7 +2773,7 @@ process config model allColumns visible =
                     , offset = offset
                     }
 
-        Remote.Failure problem ->
+        Remote.Failed problem ->
             { nothing | status = Failed problem }
 
         _ ->
@@ -3668,7 +3674,7 @@ exportOptions ctx popup filename =
 
         selectedRows =
             case ( ctx.config.rows, ctx.config.server ) of
-                ( Remote.Success allRows, Nothing ) ->
+                ( Remote.Loaded allRows, Nothing ) ->
                     allRows
                         |> List.indexedMap Tuple.pair
                         |> List.filter (\( index, row ) -> isPicked ctx.model.selection (ctx.keyOf index row))
@@ -4746,7 +4752,7 @@ viewFilterContent ctx col =
                             let
                                 numbers =
                                     case ctx.config.rows of
-                                        Remote.Success allRows ->
+                                        Remote.Loaded allRows ->
                                             List.filterMap toNumber allRows
 
                                         _ ->
@@ -4824,7 +4830,7 @@ filterValues ctx col =
                     let
                         source =
                             case ctx.config.rows of
-                                Remote.Success allRows ->
+                                Remote.Loaded allRows ->
                                     allRows
 
                                 _ ->
@@ -4869,7 +4875,7 @@ viewChoiceFilter ctx col =
         -- how many rows each value would add, given the other filters and the search
         counts =
             case ( ctx.config.server, ctx.config.rows ) of
-                ( Nothing, Remote.Success allRows ) ->
+                ( Nothing, Remote.Loaded allRows ) ->
                     allRows
                         |> keepMatching ctx.config ctx.model ctx.allColumns ctx.visible (Just col.id)
                         |> List.foldl

@@ -636,7 +636,7 @@ listClass config =
 
 {-| A list of records from the backend. `toRow` turns one record into a row,
 usually with `view`. While the data is `NotAsked` or `Loading` the list shows
-placeholder rows (`skeletonRows`), a `Failure` shows an error state with a retry
+placeholder rows (`skeletonRows`), a `Failed` shows an error state with a retry
 button (`onRetry`), an empty list shows an empty state (`emptyTitle`) and
 otherwise the rows are shown in a `list`.
 
@@ -659,10 +659,10 @@ remote attributes toRow data =
         Remote.Loading ->
             skeletonList config
 
-        Remote.Failure problem ->
+        Remote.Failed problem ->
             framed (failureView config problem)
 
-        Remote.Success [] ->
+        Remote.Loaded [] ->
             framed
                 (EmptyState.view
                     (List.filterMap identity
@@ -677,7 +677,7 @@ remote attributes toRow data =
                     )
                 )
 
-        Remote.Success items ->
+        Remote.Loaded items ->
             list attributes (List.map toRow items)
 
 

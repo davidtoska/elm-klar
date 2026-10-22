@@ -791,7 +791,7 @@ compareView : List (Compare.Field Item msg) -> List Item -> Html msg
 compareView fields items =
     Compare.view []
         { label = "Compare"
-        , records = Remote.Success items
+        , records = Remote.Loaded items
         , id = .id
         , toKey = String.fromInt
         , header = \item -> Html.text item.name
@@ -841,7 +841,7 @@ compareTests =
             \_ ->
                 Compare.view [ Compare.locale Locale.nb ]
                     { label = "Sammenlign"
-                    , records = Remote.Success items
+                    , records = Remote.Loaded items
                     , id = .id
                     , toKey = String.fromInt
                     , header = \item -> Html.text item.name

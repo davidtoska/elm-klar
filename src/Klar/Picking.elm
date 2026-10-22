@@ -173,7 +173,7 @@ with an ellipsis when it does not fit (the whole label is the tooltip).
 -}
 leaf : Ids id -> id -> String -> Node id
 leaf node nodeId nodeLabel =
-    make node nodeId nodeLabel (Remote.Success [])
+    make node nodeId nodeLabel (Remote.Loaded [])
 
 
 {-| A node with children: the ids, the id and the label of the node, and its
@@ -184,12 +184,12 @@ child nodes. A branch with an empty list of children looks like a leaf.
 -}
 branch : Ids id -> id -> String -> List (Node id) -> Node id
 branch node nodeId nodeLabel kids =
-    make node nodeId nodeLabel (Remote.Success kids)
+    make node nodeId nodeLabel (Remote.Loaded kids)
 
 
 {-| A node whose children come from the backend. Until the user opens it, the
 `Remote` is `NotAsked`; while the request is on its way you pass `Loading`, and
-then `Success` with the children or `Failure` with a problem. A lazy node always
+then `Loaded` with the children or `Failed` with a problem. A lazy node always
 looks like something that can be opened, until its children arrive empty.
 
     Picking.lazy regionIds bergen "Bergen" model.bergenZones
@@ -293,7 +293,7 @@ isDisabled (Node data) =
     data.disabled
 
 
-{-| The children of the node as a `Remote`: `Success []` for a leaf, the list for
+{-| The children of the node as a `Remote`: `Loaded []` for a leaf, the list for
 a branch, and whatever state the backend request is in for a lazy node.
 -}
 children : Node id -> Remote (List (Node id))

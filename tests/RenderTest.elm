@@ -1283,7 +1283,7 @@ tableTests =
             Table.onRetry Orders.Retried
 
         failure kind =
-            Failure (Remote.problem kind)
+            Failed (Remote.problem kind)
 
         inTable : List Selector -> List Selector -> Html Orders.Msg -> Expectation
         inTable find selectors html =
@@ -1382,15 +1382,15 @@ tableTests =
             ]
         , describe "without rows"
             [ test "the empty state says there is no data" <|
-                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No data", Selector.text "There are no rows to show." ] (table [ Table.rows (Success []) ])
+                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No data", Selector.text "There are no rows to show." ] (table [ Table.rows (Loaded []) ])
             , test "it takes the whole width of the table" <|
-                \_ -> inTable [ Selector.class "klar-table__state-cell" ] [ Selector.attribute (Attr.colspan 8) ] (table [ Table.rows (Success []) ])
+                \_ -> inTable [ Selector.class "klar-table__state-cell" ] [ Selector.attribute (Attr.colspan 8) ] (table [ Table.rows (Loaded []) ])
             , test "the application can change it" <|
-                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No orders yet" ] (table [ Table.rows (Success []), Table.emptyState [ EmptyState.title "No orders yet" ] ])
+                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No orders yet" ] (table [ Table.rows (Loaded []), Table.emptyState [ EmptyState.title "No orders yet" ] ])
             , test "there is no pagination and no totals" <|
-                \_ -> table [ Table.rows (Success []) ] |> Expect.all [ noneInTable [ Selector.tag "nav" ], noneInTable [ Selector.tag "tfoot" ] ]
+                \_ -> table [ Table.rows (Loaded []) ] |> Expect.all [ noneInTable [ Selector.tag "nav" ], noneInTable [ Selector.tag "tfoot" ] ]
             , test "the table says it has one row, the header" <|
-                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-rowcount" "1" ] (table [ Table.rows (Success []) ])
+                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-rowcount" "1" ] (table [ Table.rows (Loaded []) ])
             , test "a search without results says 'No matches'" <|
                 \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No matches" ] (Orders.render [] (Table.setSearch "nothing like this" start))
             , test "and offers a way out" <|
@@ -1398,7 +1398,7 @@ tableTests =
             , test "the pagination stays when a search has no results" <|
                 \_ -> inTable [ Selector.tag "nav" ] [ Selector.text "0 of 0" ] (Orders.render [] (Table.setSearch "nothing like this" start))
             , test "everything that is named exists" <|
-                \_ -> expectWellWired (table [ Table.rows (Success []) ])
+                \_ -> expectWellWired (table [ Table.rows (Loaded []) ])
             ]
         , describe "while loading"
             [ test "shows skeleton rows, as many as a page" <|

@@ -1260,7 +1260,7 @@ remoteTests =
             \_ ->
                 let
                     html =
-                        remote (Remote.Failure (Remote.problem Remote.network))
+                        remote (Remote.Failed (Remote.problem Remote.network))
                 in
                 Expect.all
                     [ \_ -> H.has [ Selector.text "Try again" ] html
@@ -1269,7 +1269,7 @@ remoteTests =
                     ()
         , test "success shows the matrix" <|
             \_ ->
-                remote (Remote.Success (theMatrix (cellOf grants)))
+                remote (Remote.Loaded (theMatrix (cellOf grants)))
                     |> H.has [ Selector.tag "table" ]
         , test "no roles and no permissions have states of their own" <|
             \_ ->

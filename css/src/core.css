@@ -150,7 +150,7 @@
 
 .klar-grid {
   display: grid;
-  grid-template-columns: var(--klar-grid-template, repeat(auto-fill, minmax(240px, 1fr)));
+  grid-template-columns: var(--klar-grid-template, repeat(auto-fit, minmax(240px, 1fr)));
   gap: var(--klar-gap, var(--klar-space-3));
 }
 
@@ -179,6 +179,7 @@
 
 .klar-fill { width: 100%; }
 .klar-grow { flex: 1 1 0; min-width: 0; }
+.klar-fill-rest { flex: 1 1 auto; min-height: 0; }
 .klar-padded { padding: var(--klar-pad, 0); }
 .klar-spacer { flex: 1 1 auto; }
 

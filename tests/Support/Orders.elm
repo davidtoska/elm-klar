@@ -129,7 +129,7 @@ render : List (Table.Attribute String Order Msg) -> Table.State String -> Html M
 render attributes state =
     Table.view TableMsg
         ([ Table.columns columns
-         , Table.rows (Success curated)
+         , Table.rows (Loaded curated)
          , Table.rowId Ids.strings .number
          , Table.label "Orders"
          ]
