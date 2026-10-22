@@ -74,6 +74,9 @@ follow, and both are about the browser, not about this module:
     as that change left it. After typing, `Ctrl Z` is the browser's again, and when
     it has undone the typing it reaches the editor's changes again.
   - The scroll position of a long text after a button is the browser's choice.
+  - A text area that is made again (the editor was left out of the view and put back)
+    is given the selection of the last button change once, clamped to the text. The
+    property cannot be taken away: Elm would write `null`, which for a selection is 0.
 
 **The text is the user's.** The editor changes it only for a button or a shortcut,
 and never by itself. `maxLength` does not cut anything off: the counter turns red

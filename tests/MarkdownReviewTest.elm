@@ -272,7 +272,7 @@ halves : Test
 halves =
     let
         letter =
-            "\u{1D49C}"
+            "𝒜"
 
         noHalf text =
             -- a half of a character is written as an escape by JSON, and a whole one is not

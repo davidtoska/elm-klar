@@ -2,7 +2,8 @@ module Klar.Markdown exposing
     ( view, viewDocument
     , Document, parse, plainText
     , Heading, headings, headingLevel, headingText, headingId
-    , Attribute, locale, headingOffset, idPrefix, images, ImageHost, imageHost, imagesFrom
+    , Attribute, locale, headingOffset, idPrefix, images, imagesFrom
+    , ImageHost, imageHost
     )
 
 {-| Markdown as safe, calm HTML: for the text of a note, a description, a help
@@ -376,7 +377,7 @@ imagesFrom hosts =
 often; for a text that you show again and again, parse it once with `parse` and
 use `viewDocument`.
 
-    Markdown.view [] "Orders **shipped today**: see [the list](#/orders)."
+    Markdown.view [] "Orders **shipped today**: see [the list](/orders)."
 
 -}
 view : List Attribute -> String -> Html msg

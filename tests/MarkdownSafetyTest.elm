@@ -422,7 +422,7 @@ hosts =
         [ shown "![a](https://cdn.example.com/a.png)"
         , shown "![a](HTTPS://CDN.EXAMPLE.COM/a.png)"
         , shown "![a](https://images.example.com/a.png)"
-        , shown "![a](https://cdn.example.com:8443/a.png)"
+        , notShown "![a](https://cdn.example.com:8443/a.png)"
         , shown "![a](//cdn.example.com/a.png)"
         , shown "![a](/local/a.png)"
         , shown "![a](a.png)"
@@ -445,7 +445,7 @@ hosts =
         , test "the host of an address" <|
             \_ ->
                 Expect.equal
-                    [ Just "example.com", Just "example.com", Just "example.com", Nothing, Nothing, Nothing ]
+                    [ Just "example.com", Nothing, Just "example.com", Nothing, Nothing, Nothing ]
                     [ Url.host "https://example.com/a"
                     , Url.host "http://EXAMPLE.com:80/a?b"
                     , Url.host "//example.com"

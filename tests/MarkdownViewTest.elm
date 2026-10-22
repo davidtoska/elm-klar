@@ -372,7 +372,7 @@ documentTests =
             \_ ->
                 let
                     letter =
-                        "\u{1D49C}"
+                        "𝒜"
 
                     heading =
                         Markdown.headings [] (Markdown.parse ("# a" ++ String.repeat 45 letter))
