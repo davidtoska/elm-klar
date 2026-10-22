@@ -37,7 +37,7 @@ number that is not money.
 `Money.currency "KWD"` for a code that comes from data) and not a phantom type,
 because the currency of an invoice is only known when the program runs. Every
 currency of the active ISO 4217 list is there (`allCurrencies`), with its number of
-decimals: two for NOK and USD, none for JPY, three for KWD. The two that ended most
+decimals, which is two for NOK and USD, none for JPY and three for KWD. The two that ended most
 recently, the Netherlands Antillean guilder (ANG) and the Bulgarian lev (BGN), can
 still be read from old data with `currency` and are not active (`isActive`).
 
