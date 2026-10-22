@@ -91,7 +91,6 @@ import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Tone)
-import Time
 
 
 

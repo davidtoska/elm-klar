@@ -58,7 +58,6 @@ import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
-import Time
 
 
 {-| A setting of the body. Make them with the functions below and pass a list to

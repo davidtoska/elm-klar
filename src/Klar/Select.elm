@@ -136,7 +136,6 @@ import Klar.Select.Popup as Popup
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Theme as Theme exposing (Size(..))
 import Klar.VirtualList as VirtualList
-import Time
 
 
 

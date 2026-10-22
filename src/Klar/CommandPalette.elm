@@ -201,7 +201,6 @@ import Klar.Shortcut as Shortcut
 import Klar.Skeleton as Skeleton
 import Klar.Text as Text
 import Task
-import Time
 
 
 

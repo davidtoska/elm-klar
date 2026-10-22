@@ -110,7 +110,6 @@ import Klar.Settings as Settings exposing (Settings)
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..))
 import Klar.VirtualList as VirtualList
-import Time
 
 
 
