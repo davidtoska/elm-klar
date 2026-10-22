@@ -9441,7 +9441,8 @@ html:has(.klar-modal-lock) {
 }
 
 @media (max-width: 640px) {
-  :root:has(.klar-modal--side) .klar-toasts {
+  :root:has(.klar-modal--side.klar-modal--right) .klar-toasts,
+  :root:has(.klar-modal--side.klar-modal--left) .klar-toasts {
     top: var(--klar-space-4);
     bottom: auto;
     left: 0;

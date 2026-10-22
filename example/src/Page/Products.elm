@@ -428,6 +428,7 @@ viewCategories context model =
             _ ->
                 Tree.viewRemote TreeMsg
                     [ Tree.ariaLabel "Product categories"
+                    , Tree.allowEmptySelection
                     , Tree.locale context.locale
                     , Tree.compact
                     , Tree.filterBox

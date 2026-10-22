@@ -1589,7 +1589,7 @@ css =
  :root:has(.klar-modal-lock) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}
  :root:has(.klar-modal--side.klar-modal--right) .klar-toasts{top: auto;bottom: var(--klar-space-4);left: var(--klar-space-4);right: auto;margin-inline: 0}
  :root:has(.klar-modal--side.klar-modal--left) .klar-toasts{top: auto;bottom: var(--klar-space-4);left: auto;right: var(--klar-space-4);margin-inline: 0}
- @media (max-width: 640px){:root:has(.klar-modal--side) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}}
+ @media (max-width: 640px){:root:has(.klar-modal--side.klar-modal--right) .klar-toasts,:root:has(.klar-modal--side.klar-modal--left) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}}
  .klar-toast{--_accent: var(--klar-blue-600);pointer-events: auto;display: flex;align-items: flex-start;gap: var(--klar-space-3);padding: var(--klar-space-3) var(--klar-space-2) var(--klar-space-3) var(--klar-space-3);background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-left: 3px solid var(--_accent);border-radius: var(--klar-radius-lg);box-shadow: var(--klar-shadow-md);color: var(--klar-text);animation: klar-slide-in-right var(--klar-dur-slow) var(--klar-ease)}
  .klar-toast--success{--_accent: var(--klar-green-600)}
  .klar-toast--warning{--_accent: var(--klar-amber-600)}

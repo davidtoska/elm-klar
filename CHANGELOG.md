@@ -302,3 +302,6 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   gallery's demo and serve a shell that keeps its flags itself), but the docs now start with the
   state. `elm/url` is a direct dependency of the package for this (`Url` in `update`); Klar still
   never uses its `percentEncode`.
+- The showcase uses the new pieces: the Products tree can be cleared by clicking the chosen
+  category again, the saved views of the rules page have a "New view ..." button (`startSave`)
+  and a shared view, and the application frame is wired with `AppShell.State`.
