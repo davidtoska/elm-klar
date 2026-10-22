@@ -61,6 +61,17 @@ scope="row"` for the fields, inside a box that scrolls sideways and, with
 headings at the top while it scrolls. The component has no state: the switch
 "Show only differences" is yours (a `Bool` in your model).
 
+**Right to left** pages are supported: the table, the sticky labels and the bar that marks
+a difference follow the direction of the page (the `dir` attribute of the page).
+
+**Cost.** The word marks in a long text (`longText`) are worked out in `view`, in
+all about a third of a second for the whole table; the texts after that are shown without
+marks. Keep the table to a handful of records, and long texts to the fields that need
+them. The other fields cost one comparison of text for each cell.
+
+**No fields.** A comparison with no fields (or only headings) says "No fields", not
+"No differences".
+
 Use [Klar.Table](Klar-Table) for many records of the same kind with sorting and
 paging, and [Klar.Diff](Klar-Diff) for what changed between two versions of one text
 or one record. The number of records is meant for a handful (a hundred columns work,
@@ -325,6 +336,8 @@ type alias Texts =
     , nothingToCompareDescription : String
     , noDifferences : String
     , noDifferencesDescription : String
+    , noFields : String
+    , noFieldsDescription : String
     , loading : String
     , refreshing : String
     }
@@ -352,6 +365,8 @@ texts loc =
     , nothingToCompareDescription = pick "Det er ingen poster å sammenligne ennå." "There are no records to compare yet."
     , noDifferences = pick "Ingen forskjeller" "No differences"
     , noDifferencesDescription = pick "Alle postene har de samme verdiene." "All the records have the same values."
+    , noFields = pick "Ingen felt" "No fields"
+    , noFieldsDescription = pick "Det er ingen felt å sammenligne postene på." "There are no fields to compare the records by."
     , loading = pick "Laster ..." "Loading ..."
     , refreshing = pick "Oppdaterer ..." "Refreshing ..."
     }
@@ -486,6 +501,7 @@ type Line record msg
         , show : Show record msg
         , values : List Value
         , row : Rows.Row
+        , words : List (Maybe (List Inline.Segment))
         }
 
 
@@ -543,6 +559,7 @@ viewRecords settings t config records =
                                 , show = found.show
                                 , values = values
                                 , row = Rows.compareRow baselineAt values
+                                , words = List.map (always Nothing) values
                                 }
                 )
                 config.fields
@@ -563,6 +580,7 @@ viewRecords settings t config records =
 
         shown =
             Rows.visible only lineRow lines
+                |> withWordMarks baselineAt
 
         shownFields =
             List.length (List.filterMap lineRow shown)
@@ -571,7 +589,10 @@ viewRecords settings t config records =
             settings.refreshing
 
         summary =
-            if recordCount < 2 then
+            if List.isEmpty fieldRows then
+                t.noFields
+
+            else if recordCount < 2 then
                 t.single
 
             else if only then
@@ -648,15 +669,23 @@ viewRecords settings t config records =
             groupByHeading shown
 
         body =
-            if List.isEmpty shown then
+            if List.isEmpty shown || List.isEmpty fieldRows then
                 [ Html.tbody []
                     [ Html.tr []
                         [ Html.td [ Internal.cls [ "klar-compare__none" ], Attr.colspan (recordCount + 1) ]
                             [ EmptyState.view
                                 [ EmptyState.compact
                                 , EmptyState.icon Icon.checkCircle
-                                , EmptyState.title t.noDifferences
-                                , EmptyState.description t.noDifferencesDescription
+                                , if List.isEmpty fieldRows then
+                                    EmptyState.title t.noFields
+
+                                  else
+                                    EmptyState.title t.noDifferences
+                                , if List.isEmpty fieldRows then
+                                    EmptyState.description t.noFieldsDescription
+
+                                  else
+                                    EmptyState.description t.noDifferencesDescription
                                 ]
                             ]
                         ]
@@ -782,13 +811,14 @@ viewLine t columns baselineAt line =
                     found.values |> List.drop baselineAt |> List.head |> Maybe.withDefault Missing
 
                 cells =
-                    List.map3
-                        (\( record, key, _ ) value mark ->
-                            ( "record " ++ key, viewCell t found.show baselineValue record value mark )
+                    List.map4
+                        (\( record, key, _ ) value mark words ->
+                            ( "record " ++ key, viewCell t found.show baselineValue record value mark words )
                         )
                         columns
                         found.values
                         found.row.marks
+                        found.words
             in
             Just
                 (Keyed.node "tr"
@@ -809,6 +839,54 @@ viewLine t columns baselineAt line =
                 )
 
 
+{-| Marks the words of the long texts that differ from the baseline. The work is
+limited for the whole table (`Inline.sharedBudget`): the texts after it is spent are
+shown as they are, without marks.
+-}
+withWordMarks : Int -> List (Line record msg) -> List (Line record msg)
+withWordMarks baselineAt lines =
+    let
+        step line ( built, left ) =
+            case line of
+                FieldLine found ->
+                    case ( found.show, found.values |> List.drop baselineAt |> List.head ) of
+                        ( ShowLong, Just (Value reference) ) ->
+                            let
+                                ( words, remaining ) =
+                                    wordsOf reference left found.values found.row.marks
+                            in
+                            ( FieldLine { found | words = words } :: built, remaining )
+
+                        _ ->
+                            ( line :: built, left )
+
+                HeadingLine _ ->
+                    ( line :: built, left )
+    in
+    List.foldl step ( [], Inline.sharedBudget ) lines
+        |> Tuple.first
+        |> List.reverse
+
+
+wordsOf : String -> Int -> List Value -> List Mark -> ( List (Maybe (List Inline.Segment)), Int )
+wordsOf reference budget values marks =
+    let
+        step ( value, mark ) ( built, left ) =
+            case ( mark, value ) of
+                ( Differs, Value shownText ) ->
+                    let
+                        ( segments, spent ) =
+                            Inline.diffWithin left reference shownText
+                    in
+                    ( Just segments :: built, left - spent )
+
+                _ ->
+                    ( Nothing :: built, left )
+    in
+    List.foldl step ( [], budget ) (List.map2 Tuple.pair values marks)
+        |> Tuple.mapFirst List.reverse
+
+
 markName : Mark -> String
 markName mark =
     case mark of
@@ -825,11 +903,11 @@ markName mark =
             "alone"
 
 
-viewCell : Texts -> Show record msg -> Value -> record -> Value -> Mark -> Html msg
-viewCell t show baselineValue record value mark =
+viewCell : Texts -> Show record msg -> Value -> record -> Value -> Mark -> Maybe (List Inline.Segment) -> Html msg
+viewCell t show baselineValue record value mark words =
     let
-        srOnly words =
-            Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text words ]
+        srOnly sentence =
+            Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text sentence ]
 
         prefix =
             case mark of
@@ -860,11 +938,11 @@ viewCell t show baselineValue record value mark =
                             [ toHtml record ]
 
                         ShowLong ->
-                            case ( mark, baselineValue ) of
-                                ( Differs, Value reference ) ->
-                                    viewWordDiff reference shownText
+                            case words of
+                                Just segments ->
+                                    viewWordDiff segments shownText
 
-                                _ ->
+                                Nothing ->
                                     [ Html.text shownText ]
     in
     Html.td
@@ -886,13 +964,13 @@ viewCell t show baselineValue record value mark =
 only the baseline has are struck through, words only this text has are underlined.
 Text that has nothing in common with the baseline is shown as it is.
 -}
-viewWordDiff : String -> String -> List (Html msg)
-viewWordDiff reference shownText =
-    case Inline.diff reference shownText of
+viewWordDiff : List Inline.Segment -> String -> List (Html msg)
+viewWordDiff segments shownText =
+    case segments of
         [ Inline.Replace _ _ ] ->
             [ Html.text shownText ]
 
-        segments ->
+        _ ->
             List.concatMap
                 (\segment ->
                     case segment of

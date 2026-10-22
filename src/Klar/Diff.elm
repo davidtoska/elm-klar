@@ -192,13 +192,21 @@ apart from one with: adding the final newline of a file is a change, as `git`
 sees it. An empty text has no lines.
 
 Inside a changed line, the changed words are marked (a changed number is marked
-digit by digit).
+digit by digit, and a letter is never cut from its accent).
 
-The work is limited. When the two texts are so different that finding the
-shortest set of changes would take more than about a third of a second, the diff
-becomes a summary (`tooLarge` is `True`): the number of lines of each text, how many
-lines are the same at the start and at the end, and how many lines of each text do
-not occur in the other. It says so, instead of freezing the page.
+**The work is limited**, so that a diff never freezes the page. The beginning and the
+end that are the same in both texts are cut off first (two equal texts cost no more
+than reading them). Finding the shortest set of changes in what is left may take
+about a third of a second; when the two texts are so different that it would take
+more (roughly more than two thousand changed lines, unless they are one block that
+only one of the texts has), the diff becomes a summary (`tooLarge` is `True`): the
+number of lines of each text, how many lines are the same at the start and at the
+end, and how many lines of each text do not occur in the other. It says so. Marking
+the changed words inside the changed lines has a budget of its own, about a third of
+a second for the whole diff, and is left out for a block of more than a thousand
+changed lines: the lines that come after the budget is spent are marked as whole
+lines. All in all, beyond the time it takes to read the two texts, `lines` takes no
+more than about two thirds of a second, whatever the texts are.
 
 -}
 lines : List TextOption -> String -> String -> Diff
@@ -800,7 +808,10 @@ context count =
 
 {-| How many changes are drawn before a row says "Showing 200 of 1,340 changes" and
 offers to show more. The default is 200, and the value is kept between 10 and 5000.
-It keeps a diff with thousands of changes fast; `viewStatic` has no limit.
+It keeps a diff with thousands of changes fast. A block of more than 500 changed
+lines is cut as well, after 500 lines, with a button that shows 500 more. `viewStatic`
+has no buttons, so it draws at most 1,000 changes and 500 lines of a block, and says
+how many it left out.
 -}
 maxChanges : Int -> Attribute
 maxChanges count =
@@ -994,13 +1005,20 @@ row ("12 unchanged lines") that opens when it is pressed, and marks the changed
 words inside a changed line. The diff of two equal versions says "No changes"; a
 diff that became a summary says that it is too large and gives the numbers. A diff
 with many changes draws the first ones and says "Showing 200 of 1,340 changes" with
-buttons to show more (see `maxChanges`).
+buttons to show more (see `maxChanges`). One block of more than 500 changed lines is
+cut as well: "Showing 500 of 20,000 changed lines", with a button for 500 more.
 
 **Keyboard.** The box that scrolls is a tab stop with a name (`ariaLabel`), so the
-arrow keys, Page Down and Home scroll it. The buttons "Previous change" and "Next
-change" move the focus to a change, and the box scrolls to it; while the focus is
-in the box, `n` and `p` do the same without leaving it. The rows that fold unchanged
-lines are buttons.
+arrow keys, Page Down and Home scroll it (a list of JSON or field changes is a tab stop
+only with `maxHeight`; without it the whole viewer has the name). The buttons "Previous
+change" and "Next change" move the focus to a change, and the box scrolls to it; while the
+focus is in the box, `n` and `p` do the same without leaving it. The rows that fold
+unchanged lines are buttons; when one opens more lines the focus goes to the first line
+that appeared, so that the page does not jump.
+
+**Right to left.** The columns of a diff are the line numbers, the signs and the text, from
+the left, whatever the direction of the page, as in every diff tool; each line of text is
+shown in its own direction. The toolbar follows the direction of the page.
 
 **Screen readers.** A text diff is a table with the columns line number, new line
 number, kind of change and text; added and removed lines say "Added" and "Removed" in
@@ -1020,8 +1038,9 @@ view toMsg attributes state diff =
 
 {-| The viewer without state, for a diff in a list of many (an audit log, the history
 of a record): the changes only, in the unified layout, with no toolbar, no buttons, no
-id and no limit on the number of changes. The unchanged lines around the changes of a
-text diff are still folded, into rows that say how many they are but do not open.
+id. It draws at most 1,000 changes and at most 500 lines of one block of changed lines,
+and says how many it left out. The unchanged lines around the changes of a text diff are
+folded, into rows that say how many they are but do not open.
 
     Diff.viewStatic [ Diff.locale model.locale ] entry.diff
 
