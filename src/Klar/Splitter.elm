@@ -60,9 +60,11 @@ announcements of ours.
 
 Pointer: press a separator and drag; the panes follow at once. The separator never
 goes beyond what the two panes beside it allow, and the others keep their size. A
-mouse that is let go outside the window ends the drag. The component uses pointer
-events (and not the HTML5 drag and drop), so a finger or a pen works too, and the
-cursor and the text selection are handled for the whole window while it drags.
+mouse that is let go outside the window ends the drag when it comes back. The
+component uses pointer events (and not the HTML5 drag and drop), so a finger or a
+pen works too. It needs no subscription: once the mouse has moved, a transparent
+layer over the window receives the events and gives the window one cursor and no
+text selection.
 
 Limits: a limit in pixels is checked against the container as it was when the user
 last pressed or focused a separator; between then and the next time, the stylesheet

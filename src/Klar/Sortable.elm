@@ -64,7 +64,10 @@ Pointer: press the handle and drag. A press that does not move 4 pixels is a pla
 click and does nothing. The item stays where it is and is drawn as lifted, a line
 shows where it would land, and its label follows the pointer. Let go to drop;
 `Escape` cancels. The component uses pointer events, not the HTML5 drag and drop of
-the browser, so it works in Firefox and with a finger or a pen. With `wholeItem` the
+the browser, so it works in Firefox and with a finger or a pen. It needs no
+subscription: while the mouse drags, a transparent layer over the window receives
+the events (and gives the window one cursor and no text selection), and a mouse that
+is let go outside the window cancels the drag when it comes back. With `wholeItem` the
 mouse can also take hold of the item anywhere except on buttons, links and fields; a
 finger always uses the handle, so the rest of the item still scrolls the page.
 
