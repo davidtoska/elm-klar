@@ -10864,6 +10864,13 @@ html:has(.klar-modal-lock) {
 
 /* ---- Toggle group ----------------------------------------------------- */
 
+/* The outer element of a group. It is not a .klar-field itself, so a toolbar does not
+   give it the 240px that it gives a text field. */
+.klar-toggle {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .klar-toggle-field {
   display: flex;
   flex-direction: column;

@@ -219,6 +219,7 @@ pathTests =
                     , \_ -> Address.path "/\n/evil.example" |> Expect.equal "/evil.example"
                     , \_ -> Address.path "java\tscript:alert(1)" |> Expect.equal "/javascript:alert(1)"
                     , \_ -> Address.path "\u{0000}/orders" |> Expect.equal "/orders"
+                    , \_ -> Address.path "/orders \u{0000}" |> Expect.equal "/orders"
                     ]
                     ()
         , fuzz anyPath "the result is a path, a fragment or a query, never another site" <|

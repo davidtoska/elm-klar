@@ -445,6 +445,37 @@ inactiveTests =
                 split [ SplitButton.loading True ] opened
                     |> Query.fromHtml
                     |> ActionsQuery.absent [ role "menu" ]
+        , test "while loading or disabled the keys that open the menu do nothing" <|
+            \_ ->
+                let
+                    arrowDownOnMain attributes =
+                        split attributes closed
+                            |> Query.fromHtml
+                            |> mainPart
+                            |> Event.simulate (keyDown { alt = False } "ArrowDown")
+                            |> Event.toResult
+
+                    altArrowDown attributes =
+                        split attributes closed
+                            |> Query.fromHtml
+                            |> Event.simulate (keyDown { alt = True } "ArrowDown")
+                            |> Event.toResult
+                in
+                Expect.all
+                    [ \_ -> arrowDownOnMain [ SplitButton.loading True ] |> Expect.err
+                    , \_ -> altArrowDown [ SplitButton.loading True ] |> Expect.err
+                    , \_ -> arrowDownOnMain [ SplitButton.disabled True ] |> Expect.err
+                    , \_ -> altArrowDown [ SplitButton.disabled True ] |> Expect.err
+                    , \_ -> arrowDownOnMain [] |> Expect.ok
+                    ]
+                    ()
+        , test "without items there is no menu to open with the keys" <|
+            \_ ->
+                SplitButton.view SplitMsg [] { label = "Save", onClick = Save, items = [] } closed
+                    |> Query.fromHtml
+                    |> Event.simulate (keyDown { alt = False } "ArrowDown")
+                    |> Event.toResult
+                    |> Expect.err
         , test "loading False is an ordinary button again" <|
             \_ ->
                 split [ SplitButton.loading True, SplitButton.loading False ] closed

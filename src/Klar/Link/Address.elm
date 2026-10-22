@@ -192,8 +192,8 @@ path raw =
     let
         text =
             raw
-                |> String.trim
                 |> String.filter (\c -> not (isControl c))
+                |> String.trim
                 |> String.map
                     (\c ->
                         if c == '\\' then

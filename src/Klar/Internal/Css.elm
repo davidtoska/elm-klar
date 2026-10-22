@@ -1814,6 +1814,7 @@ css =
  .klar-btn-group--lg .klar-button--md:not(.klar-button--icon-only){padding: 0 16px;font-size: var(--klar-text-lg)}
  .klar-btn-group--disabled .klar-button{opacity: 0.5;cursor: not-allowed}
  .klar-btn-group--disabled a.klar-button{pointer-events: none}
+ .klar-toggle{min-width: 0;max-width: 100%}
  .klar-toggle-field{display: flex;flex-direction: column;gap: 4px;min-width: 0}
  .klar-toggle-group{align-self: flex-start}
  .klar-toggle-group--full{display: flex;align-self: stretch;width: 100%}

@@ -133,7 +133,7 @@ buttonGroupSection _ model =
             )
         , Doc.example
             { title = "Sizes"
-            , description = Just "The size is for the buttons that have none of their own. A Button.small or Button.large keeps its size, and so does a medium button in a group of another size."
+            , description = Just "The size is for the buttons that have none of their own: the group sets it for them, and a button made with Button.small or Button.large keeps the size it has."
             , code = Just groupSizesCode
             }
             (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
@@ -181,7 +181,7 @@ buttonGroupSection _ model =
                     , Button.iconOnly [ Button.onClick (Did "Redo") ] Icon.redo "Redo"
                     ]
                 , Toolbar.separator
-                , ToggleGroup.multiple [ ToggleGroup.labelHidden ]
+                , ToggleGroup.multiple [ ToggleGroup.labelHidden, ToggleGroup.id "actions-toolbar-styles" ]
                     { label = "Text style", selected = model.toolbarStyles, onChange = ToolbarStylesChanged }
                     styleOptions
                 ]
@@ -429,7 +429,7 @@ toolbarCode =
         , Button.iconOnly [ Button.onClick Redo ] Icon.redo "Redo"
         ]
     , Toolbar.separator
-    , ToggleGroup.multiple [ ToggleGroup.labelHidden ]
+    , ToggleGroup.multiple [ ToggleGroup.labelHidden, ToggleGroup.id "editor-styles" ]
         { label = "Text style", selected = model.styles, onChange = StylesChanged }
         [ ToggleGroup.iconOption Bold Icon.bold "Bold"
         , ToggleGroup.iconOption Italic Icon.italic "Italic"

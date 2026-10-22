@@ -337,6 +337,10 @@ view toMsg attributes content (State state) =
         inactive =
             config.disabled || config.loading
 
+        -- the keys that open the menu, when there is a menu that can open
+        opensMenu =
+            not inactive && not (List.isEmpty content.items)
+
         look =
             lookOf config
 
@@ -346,7 +350,7 @@ view toMsg attributes content (State state) =
                     ++ [ Button.loading config.loading
                        , Button.disabled config.disabled
                        , Button.onClick content.onClick
-                       , Button.htmlAttrs [ Internal.onKeys [ ( "ArrowDown", toMsg OpenFromKey ) ] ]
+                       , Button.htmlAttrs [ Internal.attrIf opensMenu (Internal.onKeys [ ( "ArrowDown", toMsg OpenFromKey ) ]) ]
                        ]
                     ++ (case config.icon of
                             Just leading ->
@@ -396,7 +400,7 @@ view toMsg attributes content (State state) =
 
             -- Alt+ArrowDown from either part (and from inside the open menu, which
             -- `update` ignores).
-            , Internal.onKeys [ ( "Alt+ArrowDown", toMsg OpenFromKey ) ]
+            , Internal.attrIf opensMenu (Internal.onKeys [ ( "Alt+ArrowDown", toMsg OpenFromKey ) ])
             ]
             [ mainButton
             , Menu.view (\inner -> toMsg (MenuMsg inner))

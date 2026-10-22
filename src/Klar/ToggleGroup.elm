@@ -333,44 +333,48 @@ render attributes label isOn messageFor options =
         labelId =
             Field.labelId field
     in
-    Field.viewGroup field
-        (Html.div [ Internal.cls [ "klar-toggle-field" ] ]
-            [ Html.span
-                [ Internal.cls
-                    [ "klar-field__label"
-                    , if field.labelHidden then
-                        "klar-sr-only"
+    -- The field wrapper is inside one more element, so that a toolbar, which gives a
+    -- text field that is its direct child a width of 240px, leaves the group alone.
+    Html.div [ Internal.cls [ "klar-toggle" ] ]
+        [ Field.viewGroup field
+            (Html.div [ Internal.cls [ "klar-toggle-field" ] ]
+                [ Html.span
+                    [ Internal.cls
+                        [ "klar-field__label"
+                        , if field.labelHidden then
+                            "klar-sr-only"
 
-                      else
-                        ""
+                          else
+                            ""
+                        ]
+                    , Attr.id labelId
                     ]
-                , Attr.id labelId
+                    [ Html.text label ]
+                , Html.div
+                    (Attr.id field.id
+                        :: Field.describedByAttributes field
+                        ++ [ Internal.cls
+                                [ "klar-btn-group"
+                                , "klar-toggle-group"
+                                , if config.fullWidth then
+                                    "klar-toggle-group--full"
+
+                                  else
+                                    ""
+                                , if field.error /= Nothing then
+                                    "klar-toggle-group--invalid"
+
+                                  else
+                                    ""
+                                ]
+                           , Attr.attribute "role" "group"
+                           , Attr.attribute "aria-labelledby" labelId
+                           ]
+                    )
+                    (List.map (viewOption config isOn messageFor) options)
                 ]
-                [ Html.text label ]
-            , Html.div
-                (Attr.id field.id
-                    :: Field.describedByAttributes field
-                    ++ [ Internal.cls
-                            [ "klar-btn-group"
-                            , "klar-toggle-group"
-                            , if config.fullWidth then
-                                "klar-toggle-group--full"
-
-                              else
-                                ""
-                            , if field.error /= Nothing then
-                                "klar-toggle-group--invalid"
-
-                              else
-                                ""
-                            ]
-                       , Attr.attribute "role" "group"
-                       , Attr.attribute "aria-labelledby" labelId
-                       ]
-                )
-                (List.map (viewOption config isOn messageFor) options)
-            ]
-        )
+            )
+        ]
 
 
 viewOption : Config -> (id -> Bool) -> (id -> msg) -> Option id -> Html msg
