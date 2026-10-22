@@ -52,9 +52,10 @@ more can be added later.
 The title is the `h1` of the page. Use `headingLevel` when the page sits in a
 layout that already has one (a panel under a page header, say). There is no
 `role` and no live region: a page that appears when the user navigates is
-content, announced by the navigation (`AppShell` moves focus to the content and
-the document title changes), and `role="alert"` would interrupt a screen reader
-in the middle of a sentence for something the user asked for. A live region that
+content, announced by the navigation itself (the application moves focus to the
+content, see `AppShell.focusContent`, and changes the document title), and
+`role="alert"` would interrupt a screen reader in the middle of a sentence for
+something the user asked for. A live region that
 is inserted together with its text is also announced by too few screen readers
 to rely on.
 

@@ -440,6 +440,17 @@ burstTests =
                     |> typing 2 2
                     |> typing 1 3
                     |> (\h -> Expect.equal [ 3, 2, 1, 0 ] (walkBack h))
+        , test "markSaved ends the burst: what is typed after a save is a step of its own" <|
+            \_ ->
+                fresh
+                    |> typing 1 1
+                    |> History.markSaved
+                    |> typing 1 2
+                    |> Expect.all
+                        [ \h -> Expect.equal [ 2, 1, 0 ] (walkBack h)
+                        , \h -> Expect.equal 1 (History.present (History.undo h))
+                        , \h -> Expect.equal True (History.isAtSavedPoint (History.undo h))
+                        ]
         , test "reset and clear end the burst" <|
             \_ ->
                 Expect.all

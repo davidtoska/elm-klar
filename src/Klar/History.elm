@@ -57,9 +57,9 @@ to redo together (100 by default, see `withLimit`); older steps are dropped.
 **Bursts.** Typing in a field records a new value for every key. Give those edits the
 same `coalesce` key and they become one step, so that one undo takes back the whole
 word. The key is your own type, a union of the fields, for example. A burst ends when
-another edit with another key (or none) is recorded, with `undo`, `redo`, `endBurst`
-(call it when the field loses focus) and with anything that changes the history as a
-whole. A burst that ends where it began leaves no step.
+another edit with another key (or none) is recorded, with `undo`, `redo`, `markSaved`,
+`endBurst` (call it when the field loses focus) and with anything that changes the
+history as a whole. A burst that ends where it began leaves no step.
 
 **The saved point** is the value that counts as saved. `init` makes the first value
 the saved one; call `markSaved` after a successful save and `reset` after loading
@@ -396,11 +396,13 @@ redoLabel (History state) =
 
 
 {-| Says that the present value is the saved one. Call it when a save has
-succeeded. The steps stay, so the user can still undo past the save.
+succeeded. The steps stay, so the user can still undo past the save, and it ends
+the burst that is open: what is typed after a save is a step of its own, so that
+one undo goes back to what was saved.
 -}
 markSaved : History key a -> History key a
 markSaved (History state) =
-    History { state | saved = state.present }
+    History { state | saved = state.present, burst = Nothing }
 
 
 {-| Is the present value equal to the saved one? It is, right after `init`,
