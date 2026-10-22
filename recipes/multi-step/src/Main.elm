@@ -155,7 +155,9 @@ type Msg
     | UrlChanged Url
     | FormMsg Form.Msg
     | Next
+    | Retry
     | Back
+    | NoOp
     | Submitted (Result String ())
     | GuardMsg LeaveGuard.Msg
     | ToastMsg Toast.Msg
@@ -237,6 +239,17 @@ update msg model =
 
                     Nothing ->
                         ( { model | order = next.state }, Cmd.map FormMsg next.cmd )
+
+        Retry ->
+            -- "Try again" is replaced by "Saving ..." the moment it is pressed: move focus to the status line
+            let
+                ( retried, cmd ) =
+                    update Next model
+            in
+            ( retried, Cmd.batch [ cmd, FormLayout.focusStatus "order-form" NoOp ] )
+
+        NoOp ->
+            ( model, Cmd.none )
 
         Back ->
             let
@@ -353,7 +366,7 @@ viewOrder model =
             Form.currentStep form model.order
 
         attributes =
-            [ FormLayout.id "order-form", FormLayout.onSubmit Next, FormLayout.onRetry Next ]
+            [ FormLayout.id "order-form", FormLayout.onSubmit Next, FormLayout.onRetry Retry ]
     in
     Layout.stack []
         [ PageHeader.view [ PageHeader.title "New order" ]

@@ -10,6 +10,7 @@ The pattern:
 2. Load into the form with `Form.set` and then `Form.markClean`; `Form.isDirty` drives `FormLayout.unsavedChanges`, and `Form.revert` is Discard.
 3. On submit: `Form.toValues` gives the record or the problems; on problems call `Form.reveal` (shows all, focuses the summary).
 4. A save sets `FormLayout.Submitting`; the answer is `Form.markClean` plus a toast, or `Form.rejected` with `Form.problem field message` for each field problem (shown at the field and in the summary until that field is edited), or `FormLayout.Failed problem` for a failure with a retry button.
-5. `Form.summary` draws the list of problems and receives the focus; the application writes no DOM id and no draft record.
+5. The retry button of a failure gets its own message (`Retry`): it runs `Submit` and `FormLayout.focusStatus`, because "Try again" is replaced by "Saving ..." the moment it is pressed and focus would fall to the page. `Form.rejected` (field problems from the server) already moves focus to the summary.
+6. `Form.summary` draws the list of problems and receives the focus; the application writes no DOM id and no draft record.
 
 Try the e-mail `taken@example.com` (field problem) and the name `Crash` (failure).

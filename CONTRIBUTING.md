@@ -43,6 +43,7 @@ npm run check:docs       # every exposed name is documented; elm make --docs pas
 npm run check:api        # no public signature mentions a type a user cannot name
 npm run gen:ai-docs      # docs.json -> ai/modules/*.md, ai/klar-index.json, llms.txt (commit the result)
 npm run check:ai-docs    # those files are up to date; AI.md is under 400 lines, names every module, and its program compiles
+npm run check:ai-names   # every Module.name in the AI documents and the doc comments exists; complete programs in them compile
 npm run check:recipes    # every recipe and the template compile with --optimize; lists the KLAR GAP comments
 npm run check:doc-examples  # compiles the complete code examples of the module docs; writes ai/doc-example-report.md
 node scripts/check-doc-examples.mjs --strict   # the same, and fails when one does not compile (this is what check runs)
@@ -398,6 +399,31 @@ products, invoices, shipments, warehouses. No people records beyond names such a
 at a glance and make sure they would compile with the imports shown or implied.
 
 Link to other modules with `[Klar.Button](Klar-Button)`.
+
+### How the AI documents are kept true
+
+The main reader of Klar is an AI that builds an application from `AI.md`, `llms.txt`,
+`ai/`, `USING.md`, `recipes/` and `template/`. If two of them disagree, or a name does not
+exist, it loses the time it was meant to save. Never edit `ai/` or `llms.txt` by hand: they
+are written from the doc comments in `src/` by `npm run gen:ai-docs`. Each script of
+`npm run check` catches one kind of lie:
+
+| Script | Catches |
+|---|---|
+| `check:ai-docs` (`gen-ai-docs.mjs --check`, `check-ai-md.mjs`) | a generated file that is older than the doc comments; `AI.md` at 400 lines or more, a module it does not name, a broken link, its program not compiling; a module without a "Use when" or "Do not use when" line |
+| `check:ai-names` (`check-ai-names.mjs`) | a `Module.name` in backticks or a code block, in the hand-written documents and in the doc comments, where the module is not exposed or does not expose that name (`Modal.host`, `Form.focusField`); a name in an `import Klar.X exposing (...)` line that does not exist; a complete program (a fenced block with `module`) that does not compile; the same top-level name declared in two code blocks of `AI.md` or `USING.md` |
+| `check-doc-examples.mjs --strict` | a complete example in a doc comment that the compiler rejects |
+| `check:recipes` | a recipe or the template that does not compile, imports a module that is not exposed, or uses `class` / `style` |
+| `check:api` | a type in a public signature that a user cannot name |
+
+What no script can check, you check when you write: a **claim** (what a component waits for,
+how long something takes, what a heading level is) must be read from the code or measured,
+with the number in the text; a "Do not use when" line must be a decision that names the
+alternative and must not forbid what the module does; and **there is one way to do each
+thing**. Where `AI.md` shows how the frame is wired, the template, `USING.md`, the
+`AppShell` and `SideNav` docs show the same; an example name that an AI could copy into
+the same module as another (`changed`, `model`) is made distinct. When a fix touches an AI
+document, run `npm run gen:ai-docs` and then the three checks above.
 
 ## Adding a component
 

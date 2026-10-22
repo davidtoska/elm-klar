@@ -4,7 +4,7 @@
 
 Read in this order:
 
-- [AI.md](AI.md): the mental model, the standard application, the ten rules, "I need X, use module Y", the known traps. Start here.
+- [AI.md](AI.md): the mental model, the frame, the standard application, the ten rules, the known traps, "I need X, use module Y". Start here.
 - [ai/klar-index.json](ai/klar-index.json): every module with its purpose, when to use it, when not, its State / Msg / ids, its main functions, related modules and keywords. Search it before you read a module.
 - [ai/modules/README.md](ai/modules/README.md): the modules by group; one file per module in ai/modules/<Module>.md with every signature and the documentation.
 - [USING.md](USING.md): getting Klar into a project, talking to a backend, a paragraph for the CLAUDE.md of your application.
@@ -17,11 +17,11 @@ The mental model in ten lines:
 3. The `String` given to `init` is the DOM id of the component and must be unique on the page.
 4. Ids of your own things (rows, nodes, columns, pages) are your own types; Klar asks for a `toKey` function once and never shows a string.
 5. Data from a backend is a `Remote a` (`NotAsked | Loading | Loaded a | Failed Problem`); components draw all four states themselves.
-6. Dialogs, drawers, toasts and the palette go in one overlay list (`Klar.Overlay`); it owns focus, the opener and `modalOpen`.
+6. Dialogs, drawers, toasts and the palette go in one overlay list (`Klar.Overlay`); it owns focus and the opener, and makes the page inert.
 7. Dates are `Klar.Date.Date` (no time zone); money is `Klar.Money` (minor units); formatting is `Klar.Format`; text is `Klar.Locale`.
-8. A form is `Klar.Form.Model`: one state for all fields, dirty tracking, server problems per field.
-9. Never write focus, popup, scroll, date or keyboard code, and no CSS: if you feel you need to, a module exists; read the index.
-10. Import only the modules exposed in elm.json (`Klar.*`), never `Klar.Internal.*`.
+8. A form is `Klar.Form`, declared once with `Klar.Form.Spec`: one state for all fields, dirty tracking, server problems per field.
+9. Never write focus, popup, scroll, date or keyboard code, and no CSS: if you feel you need to, a module exists; read the index. Import only the modules exposed in elm.json (`Klar.*`), never `Klar.Internal.*`.
+10. The application frame is `Klar.AppShell`, wired one way (AI.md, "The frame"): it owns the address, the sidebar, the drawer and the focus.
 
 Modules by group (each is ai/modules/Klar.<Name>.md):
 

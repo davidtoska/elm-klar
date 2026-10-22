@@ -137,10 +137,10 @@ the address:
         case msg of
             ShellMsg m ->
                 let
-                    ( shell, cmd, changed ) =
+                    ( shell, cmd, address ) =
                         AppShell.update m model.shell
                 in
-                case changed of
+                case address of
                     Just url ->
                         let
                             page =
@@ -155,7 +155,8 @@ the address:
 
             ...
 
-That is all the wiring of the frame: a link is followed (`pushUrl`, or `load` for
+That is the one wiring of the frame, and the only one to write (not a `SideNav.init`, a
+`LinkClicked` and a `pushUrl` of your own). It is all of it: a link is followed (`pushUrl`, or `load` for
 an address elsewhere), a new address closes the drawer and scrolls the content to
 the top, the sidebar toggle, the drawer, the skip link and the focus that goes with
 each (the current link when the drawer opens, the menu button when it closes, the
@@ -228,6 +229,11 @@ another page) loses the element that had focus; send it to the content with
 When a click on a link must be held back (a `LeaveGuard` asks about unsaved changes),
 give `Browser.application` your own `onUrlRequest` message and call `Nav.pushUrl`
 yourself when the click may go on; everything else stays as above.
+
+**The sidebar is any `Html`.** `AppShell.sideNav` draws a `SideNav`, but `sidebar` takes any
+`Html msg`: a `Tree` of regions, a list of saved views, a filter form. An application with one
+page can leave out `AppShell.init` and use `Browser.document` with `AppShell.id` and a sidebar of
+its own.
 
 **Wiring it yourself.** `AppShell.state` and `sideNav` are made of the attributes
 below (`id`, `sidebarCollapsed`, `onToggleSidebar`, `drawerOpen`, `onToggleDrawer`,
@@ -361,13 +367,13 @@ it is the address, once, after the browser has changed it (a link, the Back butt
 
     ShellMsg m ->
         let
-            ( shell, cmd, changed ) =
+            ( shell, cmd, address ) =
                 AppShell.update m model.shell
 
             next =
                 { model | shell = shell }
         in
-        case changed of
+        case address of
             Just url ->
                 enter (routeFromUrl url) next |> addCmd (Cmd.map ShellMsg cmd)
 

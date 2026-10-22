@@ -8,7 +8,7 @@
       "group": "Start here",
       "purpose": "Klar (Norwegian for \"clear\" and \"ready\") is a toolkit of interface components for data-intensive applications.",
       "whenToUse": "you start any application with Klar, to put its stylesheet on the page once.",
-      "whenNot": "you only need a component, which has its own module (as `Klar.Button`).",
+      "whenNot": "you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet.",
       "state": [],
       "msg": [],
       "ids": [],
@@ -47,7 +47,7 @@
       "group": "Foundations",
       "purpose": "The small shared vocabulary of the components: the color of a message (`Tone`), the size of a control (`Size`) and how tightly rows are packed (`Density`).",
       "whenToUse": "you give a component a tone, a size or a density, or write a component of your own that follows them.",
-      "whenNot": "you want to restyle the look, which is done with the CSS custom properties of the stylesheet (see `Klar`).",
+      "whenNot": "the whole look should change, which a person does with the CSS custom properties of the stylesheet (see `Klar`), never the application code.",
       "state": [],
       "msg": [],
       "ids": [],
@@ -187,7 +187,7 @@
       "group": "Foundations",
       "purpose": "Typography: titles, paragraphs, small print and code.",
       "whenToUse": "the page needs titles, paragraphs, small print or code that look the same everywhere.",
-      "whenNot": "you need a link that is also a button (as `Klar.Button`) or key caps (as `Klar.Kbd`).",
+      "whenNot": "the text is a link (use `Klar.Link`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -809,6 +809,11 @@
         "fields",
         "layout",
         "unsaved",
+        "form state",
+        "dirty",
+        "server errors",
+        "record",
+        "steps",
         "value",
         "choices",
         "every",
@@ -2054,7 +2059,7 @@
       "import": "import Klar.Cascader as Cascader",
       "group": "Choosing",
       "purpose": "A field for choosing a path through levels: Region, Country, City; Category, Subcategory, Product.",
-      "whenToUse": "the user thinks in levels and knows where to look.",
+      "whenToUse": "the user picks one value by drilling down through levels they know, such as country, region and city.",
       "whenNot": "the user picks from a tree with check boxes (as `Klar.TreeSelect`) or from one flat list (as `Klar.Select`).",
       "state": [
         "State"
@@ -2541,7 +2546,15 @@
         "view",
         "columns",
         "rows",
-        "rowId"
+        "rowId",
+        "server",
+        "query",
+        "searchable",
+        "onRowClick",
+        "selectable",
+        "bulkActions",
+        "exportCsv",
+        "onRetry"
       ],
       "mainFunctions": [
         "view",
@@ -2812,7 +2825,7 @@
       "group": "Overlays",
       "purpose": "The \"are you sure?\" dialog, with the whole life of the request it guards.",
       "whenToUse": "the user must confirm an action that is hard to undo or that affects others, such as deleting an order or canceling a shipment.",
-      "whenNot": "the dialog needs form fields (use `Klar.Modal`).",
+      "whenNot": "the dialog is a form with several fields to fill in (use `Klar.Modal`); one or two controls in `body`, such as a reason or a target to choose, are fine.",
       "state": [
         "State"
       ],
@@ -3271,6 +3284,11 @@
       ],
       "stateful": true,
       "quickPath": [
+        "keys",
+        "item",
+        "section",
+        "withIcon",
+        "entries",
         "init",
         "update",
         "view",
@@ -3576,7 +3594,7 @@
       "group": "Arranging",
       "purpose": "A list the user can put in a new order: by dragging an item by its handle, or with the keyboard.",
       "whenToUse": "a short list has an order that matters, such as the steps of a pick sequence or the filters of a saved view.",
-      "whenNot": "the columns of a table are to be moved, use the column order of `Klar.Table`.",
+      "whenNot": "the user only chooses which columns of a table to show (use `Table.columnChooser`); a table has no way to reorder its columns.",
       "state": [
         "State"
       ],
@@ -3771,9 +3789,10 @@
         "dismiss"
       ],
       "related": [
-        "Klar.Form",
+        "Klar.Form.Layout",
+        "Klar.Locale",
         "Klar.Modal",
-        "Klar.Locale"
+        "Klar.Overlay"
       ],
       "keywords": [
         "leave guard",
@@ -4294,7 +4313,15 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "textField",
+        "choiceField",
+        "numberField",
+        "matches",
+        "describe",
+        "encode",
+        "decoder"
+      ],
       "mainFunctions": [
         "bareField",
         "textField",

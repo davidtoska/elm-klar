@@ -165,8 +165,9 @@ with =
 {-| The fields that follow are on this step. The step is a value of the
 application's own type, and the text is its label in the stepper and in the
 review list. Declare the steps in order, before their fields. A step with no
-fields of its own is the review step: its summary lists every problem of every
-step.
+fields of its own has an empty region: the last one is the review step, whose
+summary lists every problem of every step, and one in the middle is a step whose
+content you draw yourself (a rule builder, say).
 
     Spec.define "supplier" Fields Values
         |> Spec.step Company "Company"

@@ -44,9 +44,8 @@ type alias Order =
 
 
 type alias Model =
-    { key : Nav.Key
-    , page : Page
-    , sideNav : SideNav.State Page
+    { page : Page
+    , shell : AppShell.State Page
     , table : Table.State String
     , orders : Remote (List Order)
     , clearDialog : ConfirmDialog.State
@@ -55,9 +54,7 @@ type alias Model =
 
 
 type Msg
-    = LinkClicked Browser.UrlRequest
-    | UrlChanged Url
-    | SideNavMsg SideNav.Msg
+    = ShellMsg AppShell.Msg
     | TableMsg Table.Msg
     | ToastMsg Toast.Msg
     | DialogMsg ConfirmDialog.Msg
@@ -67,7 +64,6 @@ type Msg
     | ConfirmClear
     | CancelClear
     | Cleared
-    | NoOp
 
 
 main : Program () Model Msg
@@ -77,8 +73,8 @@ main =
         , update = update
         , view = view
         , subscriptions = \_ -> Sub.none
-        , onUrlRequest = LinkClicked
-        , onUrlChange = UrlChanged
+        , onUrlRequest = AppShell.onUrlRequest ShellMsg
+        , onUrlChange = AppShell.onUrlChange ShellMsg
         }
 
 
@@ -88,9 +84,8 @@ init _ url key =
         page =
             pageFromUrl url
     in
-    ( { key = key
-      , page = page
-      , sideNav = SideNav.init "main-nav" |> SideNav.reveal page navigation
+    ( { page = page
+      , shell = AppShell.init { id = shellId, key = key } |> AppShell.setPage navigation page
       , table = Table.init "orders"
       , orders = Loading
       , clearDialog = ConfirmDialog.init "clear-dialog"
@@ -123,27 +118,24 @@ clearOrders =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        LinkClicked (Browser.Internal url) ->
-            ( model, Nav.pushUrl model.key (Url.toString url) )
-
-        LinkClicked (Browser.External href) ->
-            ( model, Nav.load href )
-
-        UrlChanged url ->
+        ShellMsg m ->
             let
-                page =
-                    pageFromUrl url
+                ( shell, cmd, address ) =
+                    AppShell.update m model.shell
             in
-            ( { model | page = page, sideNav = SideNav.reveal page navigation model.sideNav }
-            , AppShell.resetScroll shellId NoOp
-            )
+            case address of
+                Just url ->
+                    -- the one place that learns of a new route
+                    let
+                        page =
+                            pageFromUrl url
+                    in
+                    ( { model | page = page, shell = AppShell.setPage navigation page shell }
+                    , Cmd.map ShellMsg cmd
+                    )
 
-        SideNavMsg m ->
-            let
-                ( sideNav, cmd ) =
-                    SideNav.update m model.sideNav
-            in
-            ( { model | sideNav = sideNav }, Cmd.map SideNavMsg cmd )
+                Nothing ->
+                    ( { model | shell = shell }, Cmd.map ShellMsg cmd )
 
         TableMsg m ->
             let
@@ -201,9 +193,6 @@ update msg model =
             , Cmd.batch [ closeCmd, Cmd.map ToastMsg toastCmd ]
             )
 
-        NoOp ->
-            ( model, Cmd.none )
-
 
 closeClearDialog : Model -> ( Model, Cmd Msg )
 closeClearDialog model =
@@ -224,13 +213,9 @@ view model =
     , body =
         [ Klar.stylesheet
         , AppShell.view
-            [ AppShell.id shellId
+            [ AppShell.state ShellMsg model.shell
             , AppShell.brand (AppShell.brandLink { name = "Acme Operations", href = "#/", logo = Nothing })
-            , AppShell.sidebar
-                (SideNav.view SideNavMsg
-                    [ SideNav.entries navigation, SideNav.current model.page ]
-                    model.sideNav
-                )
+            , AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
             , AppShell.overlays (overlays model)
             ]
             [ viewPage model ]

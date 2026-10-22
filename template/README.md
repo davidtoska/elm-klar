@@ -7,8 +7,8 @@ What is in it:
 
 | Piece | Where |
 |---|---|
-| `Browser.application` with `LinkClicked` / `UrlChanged` and hash routes | `src/Main.elm` |
-| `AppShell` (top bar, side navigation, content), `resetScroll` on a route change | `view` |
+| `Browser.application` whose `onUrlRequest` and `onUrlChange` go to `AppShell` (hash routes) | `src/Main.elm` |
+| `AppShell` keeps the key, the sidebar, the drawer and the focus; `update` returns the address, the one place that learns of a new route | `ShellMsg` in `update` |
 | `SideNav` typed by the application's own `Page` (`SideNav.keys`) | `pageKeys`, `navigation` |
 | Two pages (`Orders`, `Settings`) chosen by `pageFromUrl` | `viewPage` |
 | A `Remote` from a backend stand-in, drawn by `Table` (loading, failure with retry, empty) | `fetchOrders`, `GotOrders` |

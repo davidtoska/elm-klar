@@ -26,7 +26,136 @@ bulk actions, row actions, expandable rows, CSV export and pagination.
 
 Use when: people have to find, compare and act on many rows of the same kind: orders, customers, shipments.
 Do not use when: you show a short list of things to open (as `Klar.ListItem`) or a long, plain list of equal rows (as `Klar.VirtualList`).
-Quick path: `init`, `update`, `view`, `columns`, `rows`, `rowId`
+Quick path: `init`, `update`, `view`, `columns`, `rows`, `rowId`; in server mode also `server`, `query`, `searchable`, `onRowClick`, `selectable`, `bulkActions`, `exportCsv`, `onRetry`
+
+**Quick path: a client table.** All rows are in the browser; the table searches,
+filters, sorts and pages them. In this order:
+
+  - `init "orders"` in your `init` (the string is the DOM id), a `Table.State String` in the model;
+  - `update` for a `TableMsg Table.Msg`, mapped back with `Cmd.map TableMsg`;
+  - `Table.view TableMsg [ ... ] model.table` with the attributes `columns` (made with
+    `Table.text`, `int`, `float`, `date`, each with a `Table.columnId` named once), `rows`
+    (a `Remote (List row)`, which draws the skeleton, the failure and the empty state) and `rowId`
+    (`Table.stringIds`, `Table.intIds`, or `Table.rowIds` for your own id type);
+  - when you need them: `searchable`, `selectable`, `bulkActions`, `rowActions`, `onRetry`.
+
+The view of the whole table is one function:
+
+    import Html exposing (Html)
+    import Klar.Remote exposing (Remote)
+    import Klar.Table as Table
+
+    type alias Order =
+        { id : String, customer : String, total : Float }
+
+    ordersTable : (Table.Msg -> msg) -> msg -> Remote (List Order) -> Table.State String -> Html msg
+    ordersTable toMsg retry orders state =
+        Table.view toMsg
+            [ Table.columns
+                [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
+                , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
+                , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
+                ]
+            , Table.rows orders
+            , Table.rowId Table.stringIds .id
+            , Table.searchable
+            , Table.onRetry retry
+            ]
+            state
+
+**Quick path: a server table.** The rows live on the server; you give the table one page
+of them and the number of matches, and it only records what the user asked for. Everything an
+inbox needs, in order:
+
+  - `Table.server { total = model.total }` and `Table.rows model.page` (a `Remote` of the
+    current page only);
+  - `Table.query` before and after `update`: when it differs, ask the server. The search
+    box and the filter fields already wait 350 ms (`searchDebounce`); a sort click and a page change
+    arrive at once, so **write no debounce of your own**. Give each request a ticket and drop an
+    answer that is not for the latest one (`recipes/inbox`);
+  - `searchable` for the search box, `onRowClick` for the row that opens a drawer or a page,
+    `selectable` with `Table.selectedIds` and `bulkActions` for "assign these 12", `exportCsv`
+    for the download;
+  - `onRetry` for a failure with no rows to keep, and `Table.setPage 1` whenever the filter that
+    you keep outside the table (a `FilterBar` rule) changed.
+
+The view with all of it, and the comparison that decides whether to ask:
+
+    import Html exposing (Html)
+    import Klar.Button as Button
+    import Klar.Remote exposing (Remote)
+    import Klar.Table as Table
+
+    type alias Order =
+        { id : String, customer : String, total : Float }
+
+    inbox : (Table.Msg -> msg) -> { retry : msg, open : Order -> msg, assign : msg } -> Int -> Remote (List Order) -> Table.State String -> Html msg
+    inbox toMsg on total page state =
+        Table.view toMsg
+            [ Table.columns
+                [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
+                , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
+                ]
+            , Table.server { total = total }
+            , Table.rows page
+            , Table.rowId Table.stringIds .id
+            , Table.searchable
+            , Table.onRowClick on.open
+            , Table.selectable
+            , Table.bulkActions [ Button.view [ Button.onClick on.assign ] "Assign" ]
+            , Table.exportCsv "orders.csv"
+            , Table.onRetry on.retry
+            ]
+            state
+
+    -- the third part is True when the user asked for something new: ask the server
+    asked : Table.Msg -> Table.State String -> ( Table.State String, Cmd Table.Msg, Bool )
+    asked msg before =
+        let
+            ( after, cmd ) =
+                Table.update msg before
+        in
+        ( after, cmd, Table.query after /= Table.query before )
+
+**Quick path: many rows.** Tens of thousands of rows in client mode: prepare them once,
+when they arrive, with `prepareRows`, keep the `Rows` in the model and give them to
+`preparedRows` instead of `rows`; add `virtual` when people read the table by scrolling.
+
+The columns are given twice, once to `prepareRows` and once to the view:
+
+    import Array
+    import Html exposing (Html)
+    import Klar.Locale as Locale
+    import Klar.Remote exposing (Remote)
+    import Klar.Table as Table
+
+    type alias Order =
+        { id : String, customer : String }
+
+    columns : List (Table.Column Order msg)
+    columns =
+        [ Table.text (Table.columnId "id") "Order" .id []
+        , Table.text (Table.columnId "customer") "Customer" .customer []
+        ]
+
+    prepare : List Order -> Table.Rows Order
+    prepare orders =
+        Table.prepareRows Locale.default columns (Array.fromList orders)
+
+    bigTable : (Table.Msg -> msg) -> Remote (Table.Rows Order) -> Table.State String -> Html msg
+    bigTable toMsg rows state =
+        Table.view toMsg
+            [ Table.columns columns
+            , Table.preparedRows rows
+            , Table.rowId Table.stringIds .id
+            , Table.searchable
+            , Table.virtual
+            ]
+            state
+
+With 50 000 prepared rows, measured in the optimized build: a sort click or a page change
+takes a few milliseconds, a keystroke in the search box tens of milliseconds (about 40 to 90),
+a jump in `virtual` about 40. Everything stays under 100 ms. The rest of this page is the reference.
 
 See also [Klar.ListItem](Klar-ListItem) and
 [Klar.VirtualList](Klar-VirtualList). The page controls in the footer are
@@ -177,9 +306,10 @@ model instead of the `List`:
     Table.preparedRows model.orders
 
 The table then has, for every row, the text that the search looks in and, for every
-sortable column, the rows in order. A keystroke in the search box, a sort click and
-a page change each take a few milliseconds with 50 000 rows, as with 500, and a
-page change does not sort again. Search and sorting need no other rows than
+sortable column, the rows in order. With 50 000 rows, measured in the optimized build,
+a sort click or a page change takes a few milliseconds (4 to 10), a keystroke in the
+search box tens of milliseconds (40 to 90), and all of them stay under 100 ms; a page
+change does not sort again. Search and sorting need no other rows than
 these; `rowsArray` gives the `Array` to the other parts of the page that want the
 rows, such as [Klar.VirtualList](Klar-VirtualList), so that the page keeps one
 collection. If the rows change (an order is edited), prepare them again.

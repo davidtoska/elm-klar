@@ -55,6 +55,40 @@ of" and "any of" groups. For a row of filter chips above a table,
 friends. For a large data set the application can show `counting True` while it
 works out the count.
 
+**The outcome is yours.** A rule is only the condition: what happens when it
+matches (a discount, a tag, a route) is neither in `Rule` nor in the builder. For
+"if the category is X and the quantity is above Y, take Z off" keep one builder
+per outcome, next to the control for the outcome, in a list of your own, and ask
+each rule about the row:
+
+    import Klar.Date exposing (Date)
+    import Klar.Rule as Rule
+    import Klar.RuleBuilder as RuleBuilder
+
+    type alias Order =
+        { category : String, quantity : Int }
+
+    type alias PriceRule =
+        { when : RuleBuilder.State, discountPercent : Float }
+
+    orderFields : List (Rule.Field Order)
+    orderFields =
+        [ Rule.textField "category" "Category" .category
+        , Rule.numberField "quantity" "Quantity" (.quantity >> toFloat >> Just)
+        ]
+
+    discountFor : Date -> List PriceRule -> Order -> Float
+    discountFor today priceRules order =
+        priceRules
+            |> List.filter (\priceRule -> Rule.matches today orderFields (RuleBuilder.rule priceRule.when) order)
+            |> List.map .discountPercent
+            |> List.maximum
+            |> Maybe.withDefault 0
+
+Each `PriceRule` has its own `RuleBuilder.init` id, and the message of its builder
+carries the index of the rule. Rules kept outside a `Klar.Form` report their
+problems into it with `Form.outside`.
+
 **Editors**: the field picker is a searchable [Klar.Select](Klar-Select),
 grouped by the heading given with `Rule.inGroup`; the operators come from
 `Rule.operatorsFor`. The value editor follows the field and the operator: a

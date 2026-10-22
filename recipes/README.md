@@ -7,8 +7,8 @@ is compiled with `--optimize` by `npm run check:recipes`, so none of them is sta
 
 | I need | Recipe | Shows |
 |---|---|---|
-| A list that lives on the server, with search, sort, paging, filters and saved views | [inbox](inbox/README.md) | `Table` server mode, `FilterBar`, `SavedViews`, the debounce and ticket pattern, reset to page 1 |
-| An edit form with validation and a save that can fail | [edit-form](edit-form/README.md) | `Klar.Form.Model`, `Form`, server problems per field, dirty state, toast |
+| A list that lives on the server, with search, sort, paging, filters and saved views | [inbox](inbox/README.md) | `Table` server mode, `FilterBar`, `SavedViews`, the ticket pattern (no debounce needed), reset to page 1 |
+| An edit form with validation and a save that can fail | [edit-form](edit-form/README.md) | `Klar.Form` with `Klar.Form.Spec` and `Klar.Form.Layout`, server problems per field, dirty state, retry with focus, toast |
 | A confirmation before delete, with a toast and the focus right | [confirm-delete](confirm-delete/README.md) | `ConfirmDialog` (busy, failed, retry), `Toast` with Undo, the overlay list, bulk delete |
 | A dashboard where every panel loads and fails on its own | [dashboard](dashboard/README.md) | `Remote` in `Stat`, `Chart`, `Tree`, `Timeline`, a period picker, stale answers dropped |
 | A multi-step flow that asks before it is left | [multi-step](multi-step/README.md) | `Stepper`, `LeaveGuard`, one route per step, a review step, a submit that can fail |
