@@ -343,7 +343,7 @@ fileDrops lang model =
             filesOf "files-attachments" model
     in
     Doc.section "File drop"
-        "Drop files on the field, or use \"Choose files\" (Tab to the button, Enter or Space opens the file dialog). The files are checked against the allowed types, the largest size, the number of files and duplicates. The contents of the files are not read: without elm/file there is no upload, the application only gets the name, size and type."
+        "Drop files on the field, or use \"Choose files\" (Tab to the button, Enter or Space opens the file dialog). The files are checked against the allowed types, the largest size, the number of files and duplicates. The contents of the files are not read or sent by the library: it hands the application the name, size and type (FileDrop.files) and the browser's own File values (FileDrop.rawFiles) for a request the application makes."
         [ Doc.example
             { title = "Several files"
             , description = Just "PDF or images, at most 5 MB, up to three files. Try an .exe file or a large file to see the refusals. Refused files stay in the list with a message until you remove them."

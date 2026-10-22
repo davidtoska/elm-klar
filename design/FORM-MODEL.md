@@ -1029,3 +1029,28 @@ stepper, add and remove rows with Enter on the buttons (focus after each), a rej
 its problem goes), the conflict flow, the offline retry, and the unsaved mark. axe-core 4.10
 (wcag2a, 2aa, 21aa, 22aa, best-practice): no violations in the states of the application
 that were walked and in 11 states of the showcase page.
+
+## 11. The seams of A0 round 3 (branch `z-seams`)
+
+The onboarding application of round 3 still wrote 25 lines of `KLAR GAP` and a 336-line second
+implementation of its price rules next to the form. What was added, and why (R3O rows in
+`apps/round3/onboarding/FRICTION.md`):
+
+* **`rejected` stays on the review step** (R3O-005). The review step is the last step when it
+  has no fields; every problem of every step is listed there, so a refused save leaves the
+  user where the whole list is. From any other step it still goes to the first problem. No
+  option: an option would be one more way to land on a step whose summary hides the refusal.
+* **A rule builder is a kind of field** (`Spec.conditions`, drawn with `Form.ruleBuilder`), so
+  it can sit in a row next to its outcome (R3O-003, R3O-013). The alternative, a generic slot
+  for any application value, needs a function or a codec in `State`: `ROWS-EXTRAS.md`.
+* **A problem has a target** besides its key (the control the focus goes to), and a line of the
+  summary carries its step. `RuleBuilder.focusId` gives the target inside a builder (R3O-007).
+* **`Form.problemInRow`** maps the server's position to a row (R3O-018). **`Form.rawFiles`**
+  hands over the `File` values (R3O-017); `elm/file` is a dependency for `FileDrop` alone.
+* **`Validate`** has one message shape (`Locale -> String`), `sameAs` instead of `matches`,
+  `digits` and `url`, and no pattern validator on purpose (R3O-004, R3O-010).
+
+Proof: `apps/round3/onboarding` rewritten (scratch copy): 2 137 to 1 827 non-blank lines,
+`PriceRules.elm` (336) gone, `KLAR GAP` 1 marker (about 25 lines) to 0, walked in headless
+Chrome (review after a refusal, rule rows, a real file choice and drop, dirty over a rule
+builder), axe clean on every state walked.

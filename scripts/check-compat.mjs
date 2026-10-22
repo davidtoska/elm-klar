@@ -77,8 +77,8 @@ fs.writeFileSync(
       type: 'application',
       'source-directories': ['src', path.join(root, 'src').split(path.sep).join('/')],
       'elm-version': '0.19.1',
-      // what the direct ones need themselves (elm/browser needs elm/url, elm/html needs elm/virtual-dom)
-      dependencies: { direct: lowest, indirect: { 'elm/url': '1.0.0', 'elm/virtual-dom': '1.0.2' } },
+      // what the direct ones need themselves (elm/file needs elm/bytes, elm/html needs elm/virtual-dom)
+      dependencies: { direct: lowest, indirect: { 'elm/bytes': '1.0.0', 'elm/virtual-dom': '1.0.2' } },
       'test-dependencies': { direct: {}, indirect: {} },
     },
     null,

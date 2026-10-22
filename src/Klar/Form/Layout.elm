@@ -526,6 +526,10 @@ the `h1` of a page. A `Card` inside a section is an `h2` too, so give it
 `Card.headingLevel 3`. A section has no DOM id, so
 two sections may share a title, also in different forms on one page.
 
+A `Card` inside a section takes the level below: give it `Card.headingLevel 3`,
+or the page outline skips a level. A card with no section above it (on a
+review page, say) keeps the default, 2.
+
 -}
 section : String -> String -> List (Html msg) -> Html msg
 section title description children =

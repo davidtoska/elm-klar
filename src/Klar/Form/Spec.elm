@@ -1,6 +1,6 @@
 module Klar.Form.Spec exposing
     ( Builder, define, with, step, check, build
-    , Spec, text, number, choice, choices, toggle, tags, files, rows
+    , Spec, text, number, choice, choices, toggle, tags, files, conditions, rows
     , required, atLeast, one, rule, rules, range, whole, hint, withMessage
     )
 
@@ -83,6 +83,52 @@ repeated label gets the next free DOM id (`name`, `name-2`), so two fields never
 clash; the prefix is the one thing that must be different for every form on a page.
 
 
+# A step you draw yourself
+
+A step with no `with` after it, in the middle of the form, has no fields of the
+form: you draw what is on it. The form still owns the step (the stepper, Next and
+Back, the focus when the step is entered, the red mark when something on it is
+wrong), and `Form.summary` still goes at the top, where it draws an empty region
+the focus can land on. What the form cannot see, give it as problems with
+`Form.outside`, on this step. Only the **last** step with no fields is the review
+step, whose summary lists every problem of every step.
+
+    type Step
+        = Company
+        | Pricing
+        | Review
+
+    type alias Fields =
+        { name : Form.Field String }
+
+    type alias Values =
+        { name : String }
+
+    form : Form.Form Step Fields Values
+    form =
+        Spec.define "supplier" Fields Values
+            |> Spec.step Company "Company"
+            |> Spec.with (Spec.text "Name" |> Spec.required)
+            |> Spec.step Pricing "Pricing rules"
+            |> Spec.step Review "Review"
+            |> Spec.build
+
+    viewPricing : (Form.Msg -> msg) -> Form.State Step -> Html msg -> Html msg
+    viewPricing toMsg state editor =
+        Html.div []
+            [ Form.summary (Form.bind Locale.default toMsg form state)
+            , editor
+            ]
+
+    withEditorProblems : List (Form.Problem Step) -> Form.State Step -> Form.State Step
+    withEditorProblems found =
+        Form.outside form found
+
+Each problem you give names its `step` (`Just Pricing`) and the DOM id the focus
+goes to. When the thing you draw is a list of rules, prefer `rows` with
+`conditions`: the form then owns the list as well.
+
+
 # Declaring a form
 
 @docs Builder, define, with, step, check, build
@@ -94,7 +140,7 @@ A kind says what the field holds and what the form produces. Every kind takes a
 label; it is the label of the control, the line in the summary and the base of
 the DOM id.
 
-@docs Spec, text, number, choice, choices, toggle, tags, files, rows
+@docs Spec, text, number, choice, choices, toggle, tags, files, conditions, rows
 
 
 # Rules
@@ -108,6 +154,7 @@ import Klar.Form as Form
 import Klar.Form.Core as Core
 import Klar.Ids exposing (Ids)
 import Klar.Locale exposing (Locale)
+import Klar.Rule as Rule
 import Klar.Validate as Validate
 
 
@@ -164,10 +211,10 @@ with =
 
 {-| The fields that follow are on this step. The step is a value of the
 application's own type, and the text is its label in the stepper and in the
-review list. Declare the steps in order, before their fields. A step with no
-fields of its own has an empty region: the last one is the review step, whose
-summary lists every problem of every step, and one in the middle is a step whose
-content you draw yourself (a rule builder, say).
+review list. Declare the steps in order, before their fields. The last step,
+when it has no fields of its own, is the review step: its summary lists every
+problem of every step. A step with no fields in the middle is one you draw
+yourself (see "A step you draw yourself" above).
 
     Spec.define "supplier" Fields Values
         |> Spec.step Company "Company"
@@ -276,7 +323,9 @@ drop zone refused (wrong type, too large) are not in the value; while one of
 them is still listed the field has the problem "Remove the refused file". Add
 `atLeast 1` to require a file, or `one` for a single file (`one |> required`
 for a file that must be there). The size and type limits belong to the view
-(`FileDrop.accept`, `FileDrop.maxSize`).
+(`FileDrop.accept`, `FileDrop.maxSize`). The value is the name, size and type of
+each file; the browser's own `File` values, for the request you make, are
+`Form.rawFiles`.
 
     Spec.files "Signed contract" |> Spec.one |> Spec.required
 
@@ -284,6 +333,29 @@ for a file that must be there). The size and type limits belong to the view
 files : String -> Spec (List FileDrop.FileInfo) (List FileDrop.FileInfo)
 files =
     Core.files
+
+
+{-| The conditions of a rule, edited in a rule builder and drawn with
+`Form.ruleBuilder`: "if the category is X and the quantity is above Y". The value
+is a [`Rule`](Klar-Rule); empty (no condition) is `Nothing`, and `required`
+asks for at least one. The fields say what a rule can talk about and are used to
+check it (`RuleBuilder.issues`), so a rule with an unfinished condition is a
+problem of the field; the choices' options are not read there, so the declaration
+can hold the fields without them and the view the same fields with the options
+that have arrived.
+
+    Spec.conditions "Conditions" (priceFields [])
+        |> Spec.required
+        |> Spec.withMessage (\locale -> Locale.pick locale { nb = "Legg til en betingelse", en = "Add a condition" })
+
+The usual place is the row of a group: the conditions of a price rule next to the
+outcome it gives, so that adding, removing, dirty, problems and the focus
+are the form's (see `rows`).
+
+-}
+conditions : String -> List (Rule.Field ()) -> Spec Rule.Rule (Maybe Rule.Rule)
+conditions =
+    Core.conditions
 
 
 {-| A repeating group, such as the contacts of a supplier: every row has the

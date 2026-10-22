@@ -9,6 +9,7 @@ what an application sees.
 -}
 
 import Dict exposing (Dict)
+import File exposing (File)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Button as Button
@@ -21,6 +22,8 @@ import Klar.Locale as Locale exposing (Locale)
 import Klar.MultiSelect as MultiSelect
 import Klar.NumberInput as NumberInput
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Rule as Rule
+import Klar.RuleBuilder as RuleBuilder
 import Klar.Select as Select
 import Klar.Stepper as Stepper
 import Klar.Switch as Switch
@@ -96,11 +99,12 @@ type Msg
     | NumberMsg String NumberInput.Msg
     | TagsMsg String TagInput.Msg
     | FilesMsg String FileDrop.Msg
+    | RuleMsg String RuleBuilder.Msg
     | Toggled String Bool
     | AddRow String
     | RemoveRow String Int
     | GoStep Int
-    | FocusField String
+    | FocusField Int String
     | NoOp
 
 
@@ -153,6 +157,7 @@ type alias Problem step =
 
 type alias Found =
     { field : String
+    , target : String
     , label : String
     , message : String
     }
@@ -241,6 +246,7 @@ type Raw
     | RBool Bool
     | RTags (List String)
     | RFiles (List FileDrop.FileInfo) Bool
+    | RRule Rule.Rule
     | RRows (List Int)
 
 
@@ -251,6 +257,7 @@ type Slot
     | SNumber NumberInput.State
     | STags TagInput.State
     | SFiles FileDrop.State
+    | SRule RuleBuilder.State
     | SToggle Bool
     | SRows { order : List Int, next : Int }
 
@@ -288,6 +295,7 @@ type Origin
 
 type alias Diagnosis =
     { field : String
+    , target : String
     , label : String
     , message : String
     , step : Int
@@ -439,7 +447,7 @@ check verdict (Builder b) =
                                     Ok values
 
                                 found ->
-                                    Err (List.map (\p -> { field = p.field, label = p.label, message = p.message }) found)
+                                    Err (List.map (\p -> { field = p.field, target = p.field, label = p.label, message = p.message }) found)
 
                         Err found ->
                             Err found
@@ -683,6 +691,54 @@ files label =
     Spec { spec | few = \locale n -> Locale.pick locale { nb = "Legg ved minst " ++ String.fromInt n, en = "Attach at least " ++ String.fromInt n } }
 
 
+{-| The conditions of a rule, edited in a rule builder.
+
+    Fm.conditions "Conditions" priceFields |> Fm.required
+
+-}
+conditions : String -> List (Rule.Field ()) -> Spec Rule.Rule (Maybe Rule.Rule)
+conditions label ruleFields =
+    Spec
+        { label = label
+        , hint = Nothing
+        , required = False
+        , empty = Rule.emptyGroup
+        , toRaw = RRule
+        , fromData = \key data -> ruleIn key data
+        , limits = noLimits
+        , rows = Nothing
+        , few = \locale _ -> Locale.pick locale { nb = "Legg til en betingelse", en = "Add a condition" }
+        , read =
+            \key locale data ->
+                case Dict.get key data.slots of
+                    Just (SRule state) ->
+                        case RuleBuilder.issues locale ruleFields state of
+                            issue :: _ ->
+                                Err [ { field = key, target = RuleBuilder.focusId ruleFields state issue.nodeId, label = label, message = issue.message } ]
+
+                            [] ->
+                                if Rule.isEmpty (RuleBuilder.rule state) then
+                                    Ok Nothing
+
+                                else
+                                    Ok (Just (RuleBuilder.rule state))
+
+                    _ ->
+                        Ok Nothing
+        , reword = Nothing
+        }
+
+
+ruleIn : String -> Data -> Rule.Rule
+ruleIn key data =
+    case lookup key data of
+        Just (RRule rule_) ->
+            rule_
+
+        _ ->
+            Rule.emptyGroup
+
+
 {-| A repeating group, such as the contacts of a supplier: every row has the
 fields of the form you give, declared once. The `label` names the group (in the
 summary, "Add at least 1" and the like), the `item` names one row ("Contact":
@@ -788,7 +844,7 @@ make label empty toRaw fromRaw finish =
                         lookup key data |> Maybe.withDefault (toRaw empty)
 
                     refuse message =
-                        Err [ { field = key, label = label, message = message } ]
+                        Err [ { field = key, target = key, label = label, message = message } ]
                 in
                 case raw of
                     RUnreadable ->
@@ -799,7 +855,7 @@ make label empty toRaw fromRaw finish =
 
                     _ ->
                         finish locale (fromRaw raw |> Maybe.withDefault empty)
-                            |> Result.mapError (\message -> [ { field = key, label = label, message = message } ])
+                            |> Result.mapError (\message -> [ { field = key, target = key, label = label, message = message } ])
         , reword = Nothing
         }
 
@@ -853,7 +909,7 @@ requiredWith message (Spec spec) =
                         Ok output
 
                     Ok Nothing ->
-                        Err [ { field = key, label = spec.label, message = message locale } ]
+                        Err [ { field = key, target = key, label = spec.label, message = message locale } ]
 
                     Err found ->
                         Err found
@@ -883,7 +939,7 @@ atLeastWith n message (Spec spec) =
                     case spec.read key locale data of
                         Ok list ->
                             if List.length list < n then
-                                Err [ { field = key, label = spec.label, message = message locale } ]
+                                Err [ { field = key, target = key, label = spec.label, message = message locale } ]
 
                             else
                                 Ok list
@@ -923,7 +979,7 @@ oneWith message (Spec spec) =
                         Ok (Just single)
 
                     Ok _ ->
-                        Err [ { field = key, label = spec.label, message = message locale } ]
+                        Err [ { field = key, target = key, label = spec.label, message = message locale } ]
 
                     Err found ->
                         Err found
@@ -956,7 +1012,7 @@ rule holds message (Spec spec) =
                                 Ok list
 
                             else
-                                Err [ { field = key, label = spec.label, message = message locale } ]
+                                Err [ { field = key, target = key, label = spec.label, message = message locale } ]
 
                         Err found ->
                             Err found
@@ -998,7 +1054,7 @@ addCheck verdict (Spec spec) =
                         Ok output ->
                             case verdict locale (spec.fromData key data) of
                                 Just message ->
-                                    Err [ { field = key, label = spec.label, message = message } ]
+                                    Err [ { field = key, target = key, label = spec.label, message = message } ]
 
                                 Nothing ->
                                     Ok output
@@ -1129,6 +1185,9 @@ newSlot def =
         RFiles _ _ ->
             SFiles (FileDrop.init def.key)
 
+        RRule _ ->
+            SRule (RuleBuilder.init def.key)
+
         RRows _ ->
             SRows { order = [], next = 1 }
 
@@ -1202,6 +1261,9 @@ rawOf slot =
         SFiles state ->
             RFiles (FileDrop.files state) (FileDrop.hasProblems state)
 
+        SRule state ->
+            RRule (RuleBuilder.rule state)
+
         SToggle value ->
             RBool value
 
@@ -1232,6 +1294,9 @@ putRaw raw slot =
 
         ( RFiles value _, SFiles state ) ->
             SFiles (FileDrop.setFiles value state)
+
+        ( RRule value, SRule state ) ->
+            SRule (RuleBuilder.setRule value state)
 
         ( RBool value, SToggle _ ) ->
             SToggle value
@@ -1288,6 +1353,19 @@ an empty multi select, the text as typed.
 get : Field c -> State step -> c
 get (Field field) (State data) =
     field.fromData data
+
+
+{-| The browser's `File` values of the accepted files of a `files` field, for the
+request the application makes. A file loaded with `set` has none.
+-}
+rawFiles : Field (List FileDrop.FileInfo) -> State step -> List File
+rawFiles (Field field) (State data) =
+    case Dict.get field.key data.slots of
+        Just (SFiles state) ->
+            FileDrop.rawFiles state
+
+        _ ->
+            []
 
 
 {-| The handles of the rows a group has now, in order. Draw one card of fields
@@ -1576,6 +1654,18 @@ update declared msg ((State data) as current) =
                 _ ->
                     ( current, Cmd.none )
 
+        RuleMsg key inner ->
+            case Dict.get key data.slots of
+                Just ((SRule before) as old) ->
+                    let
+                        ( after, cmd ) =
+                            RuleBuilder.update inner before
+                    in
+                    ( moved key old (SRule after) current, Cmd.map (RuleMsg key) cmd )
+
+                _ ->
+                    ( current, Cmd.none )
+
         AddRow key ->
             addRowTo declared key current
 
@@ -1585,8 +1675,8 @@ update declared msg ((State data) as current) =
         GoStep index ->
             goToIndex declared index current
 
-        FocusField key ->
-            goToKey declared key current
+        FocusField index key ->
+            goToKey declared index key current
 
         NoOp ->
             ( current, Cmd.none )
@@ -1603,10 +1693,24 @@ moved key before after (State data) =
             { data | slots = Dict.insert key after data.slots }
     in
     if stable (rawOf before) /= stable (rawOf after) then
-        State { next | touched = Set.insert key next.touched, server = Dict.remove key next.server }
+        State { next | touched = touchedBy after key next.touched, server = Dict.remove key next.server }
 
     else
         State next
+
+
+{-| A rule builder is never "left": half a condition is how a rule is made, so
+its problems show once the step has been tried, as the problems of something
+the form does not draw itself do.
+-}
+touchedBy : Slot -> String -> Set String -> Set String
+touchedBy slot key touched =
+    case slot of
+        SRule _ ->
+            touched
+
+        _ ->
+            Set.insert key touched
 
 
 touch : String -> State step -> State step
@@ -1695,7 +1799,20 @@ button) when the row has none.
 -}
 rowFirstKey : RowsPlan -> String -> String -> String
 rowFirstKey (RowsPlan plan) prefix groupKey =
-    plan.defsAt prefix |> List.head |> Maybe.map .key |> Maybe.withDefault groupKey
+    plan.defsAt prefix |> List.head |> Maybe.map entryOf |> Maybe.withDefault groupKey
+
+
+{-| The DOM id the focus goes to when it goes to this field: its own, or for a
+rule builder (a group that is no control) the button that adds a condition.
+-}
+entryOf : Def -> String
+entryOf def =
+    case def.initial of
+        RRule _ ->
+            RuleBuilder.focusId [] (RuleBuilder.init def.key) 0
+
+        _ ->
+            def.key
 
 
 findDef : String -> List Def -> Maybe Def
@@ -1761,10 +1878,10 @@ diagnose locale (Form form) data defs =
                             (\f ->
                                 case Dict.get f.field byKey of
                                     Just def ->
-                                        { field = f.field, label = def.label, message = f.message, step = def.step, origin = FromRule }
+                                        { field = f.field, target = reachable def f.target, label = def.label, message = f.message, step = def.step, origin = FromRule }
 
                                     Nothing ->
-                                        { field = f.field, label = f.label, message = f.message, step = 0, origin = FromRule }
+                                        { field = f.field, target = f.target, label = f.label, message = f.message, step = 0, origin = FromRule }
                             )
 
         server =
@@ -1772,17 +1889,30 @@ diagnose locale (Form form) data defs =
                 |> List.filterMap
                     (\def ->
                         Dict.get def.key data.server
-                            |> Maybe.map (\message -> { field = def.key, label = def.label, message = message, step = def.step, origin = FromServer })
+                            |> Maybe.map (\message -> { field = def.key, target = entryOf def, label = def.label, message = message, step = def.step, origin = FromServer })
                     )
 
         fromOutside =
             data.outside
                 |> List.map
                     (\o ->
-                        { field = o.field, label = o.label, message = o.message, step = Maybe.withDefault 0 o.step, origin = FromOutside }
+                        { field = o.field, target = o.field, label = o.label, message = o.message, step = Maybe.withDefault 0 o.step, origin = FromOutside }
                     )
     in
     client ++ server ++ fromOutside
+
+
+{-| Where the focus goes for a problem: the target the rule named, or the way
+into the field when it named the field itself (a rule builder is a group, not a
+control).
+-}
+reachable : Def -> String -> String
+reachable def target =
+    if target == def.key then
+        entryOf def
+
+    else
+        target
 
 
 {-| Every problem once, in the order of the declaration: a field has its own
@@ -1832,7 +1962,7 @@ isShown data d =
 
 asProblem : Form step fields values -> Diagnosis -> Problem step
 asProblem declared d =
-    { field = d.field
+    { field = d.target
     , label = d.label
     , message = d.message
     , step = stepAt declared d.step
@@ -1941,12 +2071,29 @@ problem (Field field) message =
     { field = field.key, label = field.label, message = message, step = Nothing }
 
 
+{-| The same for a field in a row of a group, counted from 0 as the server
+counts. `Nothing` when the group has no such row.
+-}
+problemInRow : Field (Rows rowFields) -> Int -> (rowFields -> Field c) -> String -> State step -> Maybe (Problem step)
+problemInRow group position pick message state =
+    if position < 0 then
+        Nothing
+
+    else
+        rowFields group state
+            |> List.drop position
+            |> List.head
+            |> Maybe.map (\row -> problem (pick row) message)
+
+
 {-| Gives the form the problems of a failed save. Each is shown at its field
 and in the summary until that field is edited, and counts as a problem
 (`problems`, `toValues`) for as long. Every problem of the form shows from now
 on, the form moves to the step of the first problem (so that its summary is the
-one on screen), and the focus goes to the summary. A problem for a field the
-form does not have is ignored.
+one on screen), and the focus goes to the summary. On the review step (the last
+step, when it has no fields) the form stays: its summary lists every problem of
+every step, each with a button that goes there. A problem for a field the form
+does not have is ignored.
 
 The problems are stored whether or not the form is on screen. The `Cmd` focuses
 the summary of this form; when the summary is not on screen (the form is on
@@ -1975,10 +2122,21 @@ rejected found ((Form form) as declared) (State data) =
         first =
             standing (diagnose Locale.default declared withServer defs) defs |> List.head
 
+        last =
+            max 0 (List.length form.steps - 1)
+
+        onReview =
+            data.current == last && isEmptyStep last defs
+
         landed =
             case ( first, form.steps ) of
                 ( Just d, _ :: _ ) ->
-                    { withServer | current = d.step }
+                    -- the review step lists every problem of every step: stay there
+                    if onReview then
+                        withServer
+
+                    else
+                        { withServer | current = d.step }
 
                 _ ->
                     withServer
@@ -2009,13 +2167,25 @@ allSteps (Form form) =
 -}
 revealSteps : List Int -> List Def -> Data -> Data
 revealSteps indexes defs data =
+    let
+        onSteps =
+            List.filter (\def -> List.member def.step indexes) defs
+    in
     { data
-        | touched =
-            defs
-                |> List.filter (\def -> List.member def.step indexes)
-                |> List.foldl (\def all -> Set.insert def.key all) data.touched
+        | touched = List.foldl (\def all -> Set.insert def.key all) data.touched onSteps
+        , slots = List.foldl (\def all -> Dict.update def.key (Maybe.map showIssues) all) data.slots onSteps
         , attempted = List.foldl Set.insert data.attempted indexes
     }
+
+
+showIssues : Slot -> Slot
+showIssues slot =
+    case slot of
+        SRule state ->
+            SRule (RuleBuilder.showIssues state)
+
+        _ ->
+            slot
 
 
 {-| Moves the focus to a field, so the application never writes a DOM id. Map
@@ -2045,26 +2215,16 @@ goToProblem declared p (State data) =
             ( State data, focusOn p.field )
 
 
-goToKey : Form step fields values -> String -> State step -> ( State step, Cmd Msg )
-goToKey declared key (State data) =
-    let
-        index =
-            case findDef key (expandedDefs declared data) of
-                Just def ->
-                    Just def.step
+{-| A line of the summary: the step it is listed under and the DOM id of the
+element it leads to.
+-}
+goToKey : Form step fields values -> Int -> String -> State step -> ( State step, Cmd Msg )
+goToKey (Form form) index key (State data) =
+    if List.isEmpty form.steps then
+        ( State data, focusOn key )
 
-                Nothing ->
-                    data.outside
-                        |> List.filter (\o -> o.field == key)
-                        |> List.head
-                        |> Maybe.andThen .step
-    in
-    case index of
-        Just i ->
-            ( State { data | current = i }, focusOn key )
-
-        Nothing ->
-            ( State data, focusOn key )
+    else
+        ( State { data | current = clamp 0 (List.length form.steps - 1) index }, focusOn key )
 
 
 
@@ -2248,10 +2408,10 @@ enter ((Form form) as declared) index data =
         firstField =
             case List.filter (\def -> not (isGroup def)) onStep |> List.head of
                 Just def ->
-                    Just def.key
+                    Just (entryOf def)
 
                 Nothing ->
-                    List.head onStep |> Maybe.map .key
+                    List.head onStep |> Maybe.map entryOf
     in
     ( { data | current = index }
     , case firstField of
@@ -2301,23 +2461,26 @@ bind locale toMsg ((Form form) as declared) (State data) =
         visible =
             List.filter (isShown data) found
 
-        byField =
+        winners =
             visible
                 |> List.filter (\d -> d.origin /= FromOutside)
-                |> List.foldr (\d all -> Dict.insert d.field d.message all) Dict.empty
+                |> List.foldr (\d all -> Dict.insert d.field d all) Dict.empty
+
+        byField =
+            Dict.map (\_ d -> d.message) winners
 
         ofFields =
             defs
                 |> List.filterMap
                     (\def ->
-                        Dict.get def.key byField
-                            |> Maybe.map (\message -> { field = def.key, label = def.label, message = message, step = def.step })
+                        Dict.get def.key winners
+                            |> Maybe.map (\d -> { field = d.target, label = def.label, message = d.message, step = def.step })
                     )
 
         ofOutside =
             visible
                 |> List.filter (\d -> d.origin == FromOutside)
-                |> List.map (\d -> { field = d.field, label = d.label, message = d.message, step = d.step })
+                |> List.map (\d -> { field = d.target, label = d.label, message = d.message, step = d.step })
 
         shown =
             ofFields ++ ofOutside
@@ -2333,7 +2496,7 @@ bind locale toMsg ((Form form) as declared) (State data) =
                 standing found defs
                     |> List.map
                         (\d ->
-                            { field = d.field
+                            { field = d.target
                             , label = d.label ++ " (" ++ stepLabel d.step ++ ")"
                             , message = d.message
                             , step = d.step
@@ -2362,6 +2525,15 @@ bind locale toMsg ((Form form) as declared) (State data) =
             else
                 Nothing
         }
+
+
+stepOfListed : List Listed -> String -> Int
+stepOfListed listed key =
+    listed
+        |> List.filter (\p -> p.field == key)
+        |> List.head
+        |> Maybe.map .step
+        |> Maybe.withDefault 0
 
 
 {-| Everything the declaration says about a field and the view needs: the
@@ -2584,6 +2756,27 @@ fileDrop ((View view) as bound) field attributes =
             mismatch bound field "files"
 
 
+{-| A rule builder for a `conditions` field. The label is the declaration's; the
+fields (what a rule can talk about, with the options the user chooses among) and
+the other settings are the application's attributes.
+-}
+ruleBuilder : View msg -> Field Rule.Rule -> List (Rule.Field ()) -> List (RuleBuilder.Attribute () msg) -> Html msg
+ruleBuilder ((View view) as bound) field fieldList attributes =
+    case fieldDef bound field of
+        Just ( def, SRule state ) ->
+            RuleBuilder.view (\inner -> view.toMsg (RuleMsg def.key inner))
+                (attributes
+                    ++ [ RuleBuilder.fields fieldList
+                       , RuleBuilder.locale view.locale
+                       , RuleBuilder.label def.label
+                       ]
+                )
+                state
+
+        _ ->
+            mismatch bound field "conditions"
+
+
 {-| A switch for a `toggle` field. The hint of the declaration is its
 description.
 -}
@@ -2739,7 +2932,7 @@ summary (View view) =
             [ FormLayout.id view.prefix
             , FormLayout.locale view.locale
             , FormLayout.labels (List.map (\p -> ( p.field, p.label )) view.listed)
-            , FormLayout.onFocusField (\key -> view.toMsg (FocusField key))
+            , FormLayout.onFocusField (\key -> view.toMsg (FocusField (stepOfListed view.listed key) key))
             ]
             (List.map (\p -> { field = p.field, message = p.message }) view.listed)
 

@@ -1,6 +1,6 @@
 module Klar.Validate exposing
     ( Validator, Error, run, firstError, collect, errorFor
-    , required, minLength, maxLength, email, phone, norwegianPhone, integerBetween, matches, oneOf, date, notInFuture
+    , required, minLength, maxLength, email, phone, norwegianPhone, integerBetween, sameAs, digits, url, oneOf, date, notInFuture
     , all, when, withMessage, custom, customWith
     , parseDate
     )
@@ -47,7 +47,7 @@ counted the way Elm counts them (`String.length`), in UTF-16 units.
 
 # Checks
 
-@docs required, minLength, maxLength, email, phone, norwegianPhone, integerBetween, matches, oneOf, date, notInFuture
+@docs required, minLength, maxLength, email, phone, norwegianPhone, integerBetween, sameAs, digits, url, oneOf, date, notInFuture
 
 
 # Combining and customizing
@@ -177,35 +177,43 @@ when condition validator =
         Validator (\_ _ -> Nothing)
 
 
-{-| Replaces the message of a validator, in both languages.
+{-| Replaces the message of a validator. The message is a function of the
+language, the same shape as `Spec.rule` and `Spec.withMessage` of the form model,
+so a custom rule is written one way everywhere.
 
-    Validate.required |> Validate.withMessage { nb = "Oppgi navn", en = "Enter a name" }
+    Validate.required
+        |> Validate.withMessage (\locale -> Locale.pick locale { nb = "Oppgi navn", en = "Enter a name" })
 
 -}
-withMessage : { nb : String, en : String } -> Validator -> Validator
-withMessage texts (Validator check) =
+withMessage : (Locale -> String) -> Validator -> Validator
+withMessage message (Validator check) =
     Validator
         (\locale value ->
             check locale value
-                |> Maybe.map (\_ -> Locale.pick locale texts)
+                |> Maybe.map (\_ -> message locale)
         )
 
 
-{-| A validator from a yes/no test and a message in both languages. The test
-sees the value as typed, also when it is empty.
+{-| A validator from a yes/no test and a message. The test sees the value as
+typed, also when it is empty (in a form with `Spec.rules` a blank text never
+reaches it). The message is a function of the language, like every message of
+the form model. There is no pattern validator on purpose: a pattern is a string
+that can be wrong without the compiler knowing, so `digits`, `url`, `oneOf` and
+this function (a test written in Elm) cover what a pattern would.
 
-    Validate.custom (String.startsWith "ORD-") { nb = "Må starte med ORD-", en = "Must start with ORD-" }
+    Validate.custom (String.startsWith "ORD-")
+        (\locale -> Locale.pick locale { nb = "Må starte med ORD-", en = "Must start with ORD-" })
 
 -}
-custom : (String -> Bool) -> { nb : String, en : String } -> Validator
-custom isValid texts =
+custom : (String -> Bool) -> (Locale -> String) -> Validator
+custom isValid message =
     Validator
         (\locale value ->
             if isValid value then
                 Nothing
 
             else
-                Just (Locale.pick locale texts)
+                Just (message locale)
         )
 
 
@@ -353,13 +361,15 @@ integerMessage locale low high =
         }
 
 
-{-| The value must equal another value, like "repeat password".
+{-| The value must be the same as another value, like "repeat password". It is
+equality, not a pattern: use `digits`, `url` or `custom` to check the shape of a
+value.
 
-    Validate.matches model.password
+    Validate.sameAs model.password
 
 -}
-matches : String -> Validator
-matches other =
+sameAs : String -> Validator
+sameAs other =
     optional
         (\locale value ->
             if value == other then
@@ -367,6 +377,50 @@ matches other =
 
             else
                 Just (Locale.pick locale { nb = "Verdiene må være like", en = "The values must match" })
+        )
+
+
+{-| Exactly this many digits and nothing else, like an organisation number
+(`digits 9`). Spaces and dashes are not ignored: show the user the shape you
+want, or tidy the text before it gets here.
+
+    Validate.run Locale.en (Validate.digits 9) "91234567" -- Just "Enter 9 digits"
+
+-}
+digits : Int -> Validator
+digits n =
+    optional
+        (\locale value ->
+            if String.length value == n && String.all Char.isDigit value then
+                Nothing
+
+            else
+                Just
+                    (Locale.pick locale
+                        { nb = "Oppgi " ++ String.fromInt n ++ " siffer"
+                        , en = "Enter " ++ String.fromInt n ++ " digits"
+                        }
+                    )
+        )
+
+
+{-| A web address that starts with `http://` or `https://`, followed by a host
+with a dot in it (`localhost` is fine too), an optional port and an optional
+path. No spaces. It checks the shape, not whether the page exists.
+
+    Validate.run Locale.en Validate.url "example.com"
+    -- Just "Enter an address that starts with http:// or https://"
+
+-}
+url : Validator
+url =
+    optional
+        (\locale value ->
+            if isUrl (String.trim value) then
+                Nothing
+
+            else
+                Just (Locale.pick locale { nb = "Skriv en adresse som starter med http:// eller https://", en = "Enter an address that starts with http:// or https://" })
         )
 
 
@@ -489,14 +543,14 @@ isPhone raw =
             String.trim raw
                 |> String.filter (\c -> not (List.member c [ ' ', '-', '.', '(', ')', '\u{00A0}' ]))
 
-        digits =
+        numbers =
             if String.startsWith "+" compact then
                 String.dropLeft 1 compact
 
             else
                 compact
     in
-    String.all Char.isDigit digits && String.length digits >= 7 && String.length digits <= 15
+    String.all Char.isDigit numbers && String.length numbers >= 7 && String.length numbers <= 15
 
 
 norwegianDigits : String -> Maybe String
@@ -521,6 +575,53 @@ norwegianDigits raw =
 
     else
         Nothing
+
+
+isUrl : String -> Bool
+isUrl value =
+    let
+        rest =
+            if String.startsWith "https://" value then
+                Just (String.dropLeft 8 value)
+
+            else if String.startsWith "http://" value then
+                Just (String.dropLeft 7 value)
+
+            else
+                Nothing
+
+        authority after =
+            after
+                |> String.split "/"
+                |> List.head
+                |> Maybe.withDefault ""
+                |> String.split "?"
+                |> List.head
+                |> Maybe.withDefault ""
+                |> String.split "#"
+                |> List.head
+                |> Maybe.withDefault ""
+
+        isHost host =
+            host == "localhost" || validDomain host
+
+        isAuthority text =
+            case String.split ":" text of
+                [ host ] ->
+                    isHost host
+
+                [ host, port_ ] ->
+                    isHost host && isDigits port_ && String.length port_ <= 5
+
+                _ ->
+                    False
+    in
+    case rest of
+        Just after ->
+            not (String.any (\c -> c == ' ' || c == '\u{00A0}') value) && isAuthority (authority after)
+
+        Nothing ->
+            False
 
 
 isEmail : String -> Bool
