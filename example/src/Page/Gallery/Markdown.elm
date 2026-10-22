@@ -36,6 +36,8 @@ type alias Model =
     , loadImages : Bool
     , wide : MarkdownEditor.State
     , narrow : MarkdownEditor.State
+    , errored : MarkdownEditor.State
+    , locked : MarkdownEditor.State
     }
 
 
@@ -47,6 +49,8 @@ type Msg
     | ImagesToggled Bool
     | WideMsg MarkdownEditor.Msg
     | NarrowMsg MarkdownEditor.Msg
+    | ErroredMsg MarkdownEditor.Msg
+    | LockedMsg MarkdownEditor.Msg
     | LoadSample
     | ClearEditors
     | ScrollTo String
@@ -62,6 +66,8 @@ init =
       , loadImages = False
       , wide = MarkdownEditor.init "md-wide" |> MarkdownEditor.setValue Sample.note
       , narrow = MarkdownEditor.init "md-narrow" |> MarkdownEditor.setValue Sample.note
+      , errored = MarkdownEditor.init "md-error"
+      , locked = MarkdownEditor.init "md-locked" |> MarkdownEditor.setValue Sample.note
       }
     , Cmd.none
     )
@@ -109,6 +115,20 @@ update msg model =
                     MarkdownEditor.update inner model.narrow
             in
             ( { model | narrow = narrow }, Cmd.map NarrowMsg cmd )
+
+        ErroredMsg inner ->
+            let
+                ( errored, cmd ) =
+                    MarkdownEditor.update inner model.errored
+            in
+            ( { model | errored = errored }, Cmd.map ErroredMsg cmd )
+
+        LockedMsg inner ->
+            let
+                ( locked, cmd ) =
+                    MarkdownEditor.update inner model.locked
+            in
+            ( { model | locked = locked }, Cmd.map LockedMsg cmd )
 
         LoadSample ->
             ( { model
@@ -372,18 +392,24 @@ editorSection locale model =
             , code = Nothing
             }
             (Layout.stack [ Layout.gap 4 ]
-                [ MarkdownEditor.view WideMsg
+                [ MarkdownEditor.view LockedMsg
                     [ MarkdownEditor.label "Read only", MarkdownEditor.readOnly True, MarkdownEditor.rows 4, MarkdownEditor.locale locale ]
-                    model.wide
-                , MarkdownEditor.view NarrowMsg
+                    model.locked
+                , MarkdownEditor.view ErroredMsg
                     [ MarkdownEditor.label "With an error"
-                    , MarkdownEditor.error "A description is needed before the order can be saved."
+                    , MarkdownEditor.errorMaybe
+                        (if String.trim (MarkdownEditor.value model.errored) == "" then
+                            Just "A description is needed before the order can be saved."
+
+                         else
+                            Nothing
+                        )
                     , MarkdownEditor.required
                     , MarkdownEditor.rows 4
                     , MarkdownEditor.sideBySide
                     , MarkdownEditor.locale locale
                     ]
-                    (MarkdownEditor.init "md-error" |> MarkdownEditor.setValue "")
+                    model.errored
                 ]
             )
         ]
