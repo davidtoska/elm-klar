@@ -169,7 +169,7 @@ import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Search as Search
 import Klar.Spinner as Spinner
 import Klar.Tag as Tag
-import Klar.Theme as Theme exposing (Size(..))
+import Klar.Theme as Theme exposing (Size(..), Tone(..))
 import Klar.VirtualList as VirtualList
 import Set exposing (Set)
 
@@ -496,11 +496,12 @@ close (State data) =
     )
 
 
-{-| The lazy nodes whose children the user just asked for, found by comparing the
-state before and after an update: the nodes that were opened and whose children
-are `NotAsked`. Usually zero or one; `*` on the keyboard can open several. Set
-the children of these nodes to `Loading` in your data and fetch them; the next
-time you build the nodes they hold the answer.
+{-| The lazy nodes whose children somebody is waiting for: the open nodes of the
+open popup whose children are `NotAsked`. Usually zero or one; `*` on the keyboard
+can open several. Call it after every `update` of the field. Set the children of
+the nodes it names to `Loading` in your data and fetch them; the next time you
+build the nodes they hold the answer. Asking again is harmless, because a node you
+have marked `Loading` is not named any more.
 
     SiteMsg inner ->
         let
@@ -508,38 +509,45 @@ time you build the nodes they hold the answer.
                 TreeSelect.update inner model.site
 
             requested =
-                TreeSelect.loadRequests model.site site
+                TreeSelect.loadRequests site
         in
         ( { model | site = site, zones = markLoading requested model.zones }
         , Cmd.batch (Cmd.map SiteMsg cmd :: List.map fetchZones requested)
         )
 
-Once a node is not `NotAsked` it is not requested again; after a failure the user
-retries with the button that `onRetryChildren` adds.
+The answer is worked out from the nodes of the last message the field got, so if
+you set a node back to `NotAsked` yourself (to load it again), you also fetch it
+yourself: the field asks again only after its next message. After a failure the
+user retries with the button that `onRetryChildren` adds.
 
 -}
-loadRequests : State mode id -> State mode id -> List id
-loadRequests (State before) (State after) =
-    case after.cache of
-        Just cache ->
-            Set.diff (openKeys after) (openKeys before)
-                |> Set.toList
+loadRequests : State mode id -> List id
+loadRequests (State data) =
+    case ( data.open, data.cache ) of
+        ( True, Just cache ) ->
+            cache.rows.rows
+                |> Array.toList
                 |> List.filterMap
-                    (\key ->
-                        case Index.get key cache.index of
-                            Just entry ->
-                                case entry.kids of
-                                    Unloaded ->
-                                        Just (Picking.id entry.node)
+                    (\entryRow ->
+                        case entryRow of
+                            LoadingRow r ->
+                                case Index.get r.parent cache.index of
+                                    Just entry ->
+                                        case entry.kids of
+                                            Unloaded ->
+                                                Just (Picking.id entry.node)
 
-                                    _ ->
+                                            _ ->
+                                                Nothing
+
+                                    Nothing ->
                                         Nothing
 
-                            Nothing ->
+                            _ ->
                                 Nothing
                     )
 
-        Nothing ->
+        _ ->
             []
 
 
@@ -711,7 +719,7 @@ type Msg id
     | QueryChanged (Env id) String
     | Backspace (Env id)
     | Key (Env id) Move
-    | Hover Pos
+    | Hover (Env id) Pos
     | Choose (Env id) String
     | ToggleOpen (Env id) String
     | Remove String
@@ -807,11 +815,13 @@ step msg data =
             else
                 ( data, Cmd.none )
 
-        Hover pos ->
-            ( { data | highlighted = Just pos }, Cmd.none )
+        Hover env pos ->
+            -- the view hands over the nodes, so that after they changed the next
+            -- draw uses a cache that is up to date and not a new one for every row
+            ( { data | highlighted = Just pos } |> refreshFor env.nodes, Cmd.none )
 
         Choose env key ->
-            choose env key (refreshWith env.nodes data)
+            choose key (refreshWith env.nodes data)
 
         ToggleOpen env key ->
             ( setOpen (not (isOpenNow data key)) key (refreshWith env.nodes data) |> refreshCached, Cmd.none )
@@ -1188,10 +1198,10 @@ moveBy env move data =
                             stay
 
                 Enter ->
-                    chooseRow env current data
+                    chooseRow current data
 
                 Space ->
-                    chooseRow env current data
+                    chooseRow current data
 
         _ ->
             ( data, Cmd.none )
@@ -1243,11 +1253,11 @@ firstFrom accept direction from rows =
 
 {-| Enter or Space on the highlighted row.
 -}
-chooseRow : Env id -> Int -> Data id -> ( Data id, Cmd (Msg id) )
-chooseRow env current data =
+chooseRow : Int -> Data id -> ( Data id, Cmd (Msg id) )
+chooseRow current data =
     case data.cache |> Maybe.andThen (\cache -> Index.rowAt current cache.rows) of
         Just (NodeRow item) ->
-            choose env item.entry.key data
+            choose item.entry.key data
 
         _ ->
             ( data, Cmd.none )
@@ -1256,8 +1266,8 @@ chooseRow env current data =
 {-| A node was picked, with the pointer or the keyboard. A node that is disabled
 cannot be chosen, but it can be opened or closed.
 -}
-choose : Env id -> String -> Data id -> ( Data id, Cmd (Msg id) )
-choose _ key data =
+choose : String -> Data id -> ( Data id, Cmd (Msg id) )
+choose key data =
     case data.cache |> Maybe.andThen (\cache -> Index.get key cache.index |> Maybe.map (Tuple.pair cache)) of
         Just ( cache, entry ) ->
             if entry.disabled then
@@ -1649,39 +1659,49 @@ type Shown
     | Unknown
 
 
-shownFor : Config id msg -> Dict String String -> List ( String, Chosen id ) -> List ( String, Chosen id, Shown )
-shownFor config found chosen =
-    List.map
-        (\( key, c ) ->
-            ( key
-            , c
-            , case c.label of
+shownFor : Config id msg -> (String -> Maybe String) -> Dict String String -> List ( String, Chosen id ) -> List ( String, Chosen id, Shown )
+shownFor config current found chosen =
+    let
+        unlabelled c =
+            case config.nodes of
+                Loaded _ ->
+                    case config.valueText of
+                        Just toText ->
+                            Labelled (toText c.id)
+
+                        Nothing ->
+                            Unknown
+
+                Failed _ ->
+                    LoadFailed
+
+                _ ->
+                    NotLoadedYet
+
+        labelOf ( key, c ) =
+            -- the label that the nodes have now wins over the one remembered when
+            -- the node was chosen (the application may have renamed it)
+            case firstOf [ current key, c.label, Dict.get key found ] of
                 Just text ->
                     Labelled text
 
                 Nothing ->
-                    case Dict.get key found of
-                        Just text ->
-                            Labelled text
+                    unlabelled c
+    in
+    List.map (\entry -> ( Tuple.first entry, Tuple.second entry, labelOf entry )) chosen
 
-                        Nothing ->
-                            case config.nodes of
-                                Loaded _ ->
-                                    case config.valueText of
-                                        Just toText ->
-                                            Labelled (toText c.id)
 
-                                        Nothing ->
-                                            Unknown
+firstOf : List (Maybe a) -> Maybe a
+firstOf options =
+    case options of
+        [] ->
+            Nothing
 
-                                Failed _ ->
-                                    LoadFailed
+        (Just found) :: _ ->
+            Just found
 
-                                _ ->
-                                    NotLoadedYet
-            )
-        )
-        chosen
+        Nothing :: rest ->
+            firstOf rest
 
 
 shownText : Texts -> Shown -> String
@@ -1720,7 +1740,47 @@ resolveChosen config data limit =
         found =
             Index.findLabels missing (Remote.withDefault [] config.nodes)
     in
-    shownFor config found (List.take limit ordered)
+    shownFor config (currentLabel config data) found (List.take limit ordered)
+
+
+{-| The label that the nodes you give now have for a key, when the field has an
+index of exactly these nodes (it has one once the popup was open); no walk of the
+tree on a draw.
+-}
+currentLabel : Config id msg -> Data id -> String -> Maybe String
+currentLabel config data key =
+    case data.cache of
+        Just cache ->
+            if cache.nodes == Remote.withDefault [] config.nodes then
+                Index.get key cache.index |> Maybe.map .label
+
+            else
+                Nothing
+
+        Nothing ->
+            Nothing
+
+
+{-| The path to a chosen node as a tooltip (several nodes can have the same
+label), when the field has an index of the nodes you give.
+-}
+pathOf : Config id msg -> Data id -> String -> Maybe String
+pathOf config data key =
+    case data.cache of
+        Just cache ->
+            if cache.nodes == Remote.withDefault [] config.nodes then
+                case Index.labelPath key cache.index of
+                    [] ->
+                        Nothing
+
+                    path ->
+                        Just (String.join " / " path)
+
+            else
+                Nothing
+
+        Nothing ->
+            Nothing
 
 
 viewControl : (Msg id -> msg) -> Config id msg -> Field.Config -> Texts -> Env id -> Data id -> Html msg
@@ -1968,7 +2028,7 @@ viewMultipleControl toMsg config t data controlClasses triggerAttributes openMsg
         chip ( key, _, status ) =
             case status of
                 Labelled text ->
-                    Html.span [ Internal.cls [ "klar-select__chip" ] ]
+                    Html.span [ Internal.cls [ "klar-select__chip" ], Attr.title (Maybe.withDefault text (pathOf config data key)) ]
                         [ Tag.view
                             ([ Tag.size tagSize, Tag.locale config.locale ]
                                 ++ (if interactive then
@@ -1985,18 +2045,31 @@ viewMultipleControl toMsg config t data controlClasses triggerAttributes openMsg
                     Html.span [ Internal.cls [ "klar-select__chip", "klar-select__chip--unknown" ] ]
                         [ Tag.view [ Tag.size tagSize, Tag.outline, Tag.locale config.locale ] (shownText t status) ]
 
+        -- the same chip as a Tag draws, with a remove button that is named for
+        -- what it does ("Clear the selection"), not "Remove 40 selected"
         summaryChip =
             Html.span [ Internal.cls [ "klar-select__chip" ] ]
-                [ Tag.view
-                    ([ Tag.size tagSize, Tag.locale config.locale ]
-                        ++ (if interactive then
-                                [ Tag.onRemove (toMsg Clear) ]
+                [ Html.span
+                    [ Internal.cls
+                        [ "klar-tag"
+                        , "klar-tag--" ++ Theme.toneSuffix Neutral
+                        , "klar-tag--" ++ Theme.sizeSuffix tagSize
+                        ]
+                    ]
+                    [ Html.span [ Internal.cls [ "klar-tag__label" ] ] [ Html.text (t.selected count) ]
+                    , if interactive then
+                        Html.button
+                            [ Internal.cls [ "klar-tag__remove" ]
+                            , Attr.type_ "button"
+                            , Attr.attribute "aria-label" t.clearChosen
+                            , Attr.title t.clearChosen
+                            , Events.onClick (toMsg Clear)
+                            ]
+                            [ Icon.sized Icon.ExtraSmall Icon.close ]
 
-                            else
-                                []
-                           )
-                    )
-                    (t.selected count)
+                      else
+                        Html.text ""
+                    ]
                 ]
 
         summary =
@@ -2452,7 +2525,7 @@ viewFailedRow rc index r =
                                 Decode.fail "already highlighted"
 
                              else
-                                Decode.succeed (rc.toMsg (Hover (AtRetry r.parent)))
+                                Decode.succeed (rc.toMsg (Hover rc.env (AtRetry r.parent)))
                             )
                         ]
 
@@ -2593,7 +2666,7 @@ viewNodeRow rc index item =
                 Decode.fail "already highlighted"
 
              else
-                Decode.succeed (rc.toMsg (Hover (AtNode entry.key)))
+                Decode.succeed (rc.toMsg (Hover rc.env (AtNode entry.key)))
             )
         , Internal.onClickPrevent (rc.toMsg (Choose rc.env entry.key))
         ]

@@ -1,7 +1,8 @@
 module Klar.Picking.Texts exposing (Texts, texts)
 
 {-| The built-in text of `Klar.TreeSelect`, `Klar.Cascader` and `Klar.Transfer`,
-in English and Norwegian Bokmål.
+in English and Norwegian Bokmål. A title that the application gave to a list is
+put in quotes wherever it is part of a sentence.
 
 Not for application code.
 
@@ -23,6 +24,7 @@ type alias Texts =
     , unknownValue : String
     , clearSelection : String
     , clearAll : String
+    , clearChosen : String
     , clearQuery : String
     , tryAgain : String
     , couldNotLoadChildren : String
@@ -31,7 +33,6 @@ type alias Texts =
     , matches : Int -> Int -> String
     , options : Int -> String
     , results : Int -> String
-    , columnLabel : Int -> String
     , choose : String -> String
     , path : String
 
@@ -48,8 +49,7 @@ type alias Texts =
     , selectAllIn : String -> String
     , movedTo : Int -> String -> String
     , lockedItem : String
-    , itemCount : Int -> String
-    , transferLabel : String
+    , filtered : Int -> String -> String
     }
 
 
@@ -65,13 +65,14 @@ texts locale =
             , searchPlaceholder = "Søk ..."
             , searchLabel = "Søk i alternativene"
             , noMatches = "Ingen treff"
-            , noMatchesFor = \query -> "Ingenting passer til «" ++ query ++ "»."
+            , noMatchesFor = \query -> "Ingen alternativer passer til «" ++ query ++ "»."
             , noOptions = "Ingen alternativer"
             , loading = "Laster ..."
             , unavailable = "Kunne ikke hentes"
             , unknownValue = "Ukjent verdi"
             , clearSelection = "Fjern valget"
             , clearAll = "Fjern alle"
+            , clearChosen = "Fjern alle valgte"
             , clearQuery = "Tøm søket"
             , tryAgain = "Prøv igjen"
             , couldNotLoadChildren = "Kunne ikke hentes"
@@ -88,19 +89,18 @@ texts locale =
                                 " alternativer"
                            )
             , results = \n -> num n ++ " treff"
-            , columnLabel = \level -> "Nivå " ++ num level
             , choose = \name -> "Velg «" ++ name ++ "»"
             , path = "Sti"
             , available = "Tilgjengelige"
             , chosen = "Valgte"
             , selectedOf = \n total -> num n ++ " av " ++ num total ++ " markert"
             , selectedOfFiltered = \n shown total -> num n ++ " av " ++ num shown ++ " markert (" ++ num total ++ " totalt)"
-            , filterLabel = \title -> "Filtrer " ++ title
+            , filterLabel = \title -> "Filtrer «" ++ title ++ "»"
             , filterPlaceholder = "Filtrer ..."
-            , moveSelected = \title -> "Flytt markerte til " ++ title
-            , moveAll = \title -> "Flytt alle til " ++ title
+            , moveSelected = \title -> "Flytt markerte til «" ++ title ++ "»"
+            , moveAll = \title -> "Flytt alle viste til «" ++ title ++ "»"
             , noItems = "Ingen elementer"
-            , selectAllIn = \title -> "Marker alle i " ++ title
+            , selectAllIn = \title -> "Marker alle i «" ++ title ++ "»"
             , movedTo =
                 \n title ->
                     num n
@@ -110,32 +110,25 @@ texts locale =
                             else
                                 " elementer"
                            )
-                        ++ " flyttet til "
+                        ++ " flyttet til «"
                         ++ title
+                        ++ "»"
             , lockedItem = "Låst"
-            , itemCount =
-                \n ->
-                    num n
-                        ++ (if n == 1 then
-                                " element"
-
-                            else
-                                " elementer"
-                           )
-            , transferLabel = "Overføring mellom to lister"
+            , filtered = \n title -> num n ++ " vist i «" ++ title ++ "»"
             }
         , en =
             { placeholder = "Select ..."
             , searchPlaceholder = "Search ..."
             , searchLabel = "Search the options"
             , noMatches = "No matches"
-            , noMatchesFor = \query -> "Nothing matches “" ++ query ++ "”."
+            , noMatchesFor = \query -> "No options match “" ++ query ++ "”."
             , noOptions = "No options"
             , loading = "Loading ..."
             , unavailable = "Could not be loaded"
             , unknownValue = "Unknown value"
             , clearSelection = "Clear selection"
             , clearAll = "Clear all"
+            , clearChosen = "Clear the selection"
             , clearQuery = "Clear search"
             , tryAgain = "Try again"
             , couldNotLoadChildren = "Could not be loaded"
@@ -160,19 +153,18 @@ texts locale =
                             else
                                 " matches"
                            )
-            , columnLabel = \level -> "Level " ++ num level
             , choose = \name -> "Select “" ++ name ++ "”"
             , path = "Path"
             , available = "Available"
             , chosen = "Chosen"
             , selectedOf = \n total -> num n ++ " of " ++ num total ++ " selected"
             , selectedOfFiltered = \n shown total -> num n ++ " of " ++ num shown ++ " selected (" ++ num total ++ " in all)"
-            , filterLabel = \title -> "Filter " ++ title
+            , filterLabel = \title -> "Filter “" ++ title ++ "”"
             , filterPlaceholder = "Filter ..."
-            , moveSelected = \title -> "Move selected to " ++ title
-            , moveAll = \title -> "Move all to " ++ title
+            , moveSelected = \title -> "Move selected to “" ++ title ++ "”"
+            , moveAll = \title -> "Move all shown to “" ++ title ++ "”"
             , noItems = "No items"
-            , selectAllIn = \title -> "Select all in " ++ title
+            , selectAllIn = \title -> "Select all in “" ++ title ++ "”"
             , movedTo =
                 \n title ->
                     num n
@@ -182,18 +174,10 @@ texts locale =
                             else
                                 " items"
                            )
-                        ++ " moved to "
+                        ++ " moved to “"
                         ++ title
+                        ++ "”"
             , lockedItem = "Locked"
-            , itemCount =
-                \n ->
-                    num n
-                        ++ (if n == 1 then
-                                " item"
-
-                            else
-                                " items"
-                           )
-            , transferLabel = "Transfer between two lists"
+            , filtered = \n title -> num n ++ " shown in “" ++ title ++ "”"
             }
         }
