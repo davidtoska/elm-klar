@@ -213,15 +213,20 @@ tokens text =
                 class =
                     classify char
             in
-            case ( currentClass, class ) of
-                ( Just Space, Space ) ->
-                    ( finished, String.fromChar char :: current, currentClass )
+            if current /= [] && extendsCluster char then
+                -- an accent or another mark stays with the character before it
+                ( finished, String.fromChar char :: current, currentClass )
 
-                ( Just Word, Word ) ->
-                    ( finished, String.fromChar char :: current, currentClass )
+            else
+                case ( currentClass, class ) of
+                    ( Just Space, Space ) ->
+                        ( finished, String.fromChar char :: current, currentClass )
 
-                _ ->
-                    ( closeToken current finished, [ String.fromChar char ], Just class )
+                    ( Just Word, Word ) ->
+                        ( finished, String.fromChar char :: current, currentClass )
+
+                    _ ->
+                        ( closeToken current finished, [ String.fromChar char ], Just class )
 
         ( done, last, _ ) =
             List.foldl step ( [], [], Nothing ) (String.toList text)
