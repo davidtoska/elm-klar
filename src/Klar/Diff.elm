@@ -555,7 +555,8 @@ compared with the same options, and different for every hunk of a diff: use it t
 remember a decision about the hunk (accepted, rejected) in a `Dict` or a `Set`. For
 a text it says where the hunk is (`"12:3/14:2"`: three lines from line 12 of the old
 text became two lines from line 14 of the new text), for JSON it is the path, for
-fields the label. It is meant for programs, not for people, and it changes when
+fields the label. A path or a label that comes twice gets `~2` or `(2)` after it, so
+that the keys of a diff are always different. It is meant for programs, not for people, and it changes when
 the texts change, so a decision about a hunk stays valid only for the diff it was
 made for.
 -}
