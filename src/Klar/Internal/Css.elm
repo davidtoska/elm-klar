@@ -1799,4 +1799,54 @@ css =
  .klar-savedviews__action-icon{display: flex;flex: none;width: 16px;color: var(--klar-text-secondary)}
  .klar-savedviews__action-label{flex: 0 1 auto}
  .klar-savedviews__action-hint{flex: 0 1 auto;margin-left: auto;padding-left: 12px;color: var(--klar-text-muted);font-size: var(--klar-text-sm)}
+ .klar-btn-group{display: inline-flex;flex-wrap: nowrap;align-items: stretch;max-width: 100%;min-width: 0;min-inline-size: 0;margin: 0;padding: 0;border: 0;vertical-align: middle}
+ .klar-btn-group > *{flex: 0 1 auto;min-width: 0}
+ .klar-btn-group > * + *{margin-left: -1px}
+ .klar-btn-group .klar-button{border-radius: 0}
+ .klar-btn-group > .klar-button:first-child,.klar-btn-group > :first-child .klar-button{border-top-left-radius: var(--klar-radius);border-bottom-left-radius: var(--klar-radius)}
+ .klar-btn-group > .klar-button:last-child,.klar-btn-group > :last-child .klar-button{border-top-right-radius: var(--klar-radius);border-bottom-right-radius: var(--klar-radius)}
+ .klar-btn-group .klar-button:hover,.klar-btn-group .klar-button[aria-pressed="true"]{position: relative;z-index: 1}
+ .klar-btn-group .klar-button:focus-visible{position: relative;z-index: 2}
+ .klar-btn-group > .klar-button--primary + .klar-button--primary:not(:focus-visible),.klar-btn-group > .klar-button--danger + .klar-button--danger:not(:focus-visible){border-left-color: color-mix(in srgb,var(--klar-white) 40%,transparent)}
+ .klar-btn-group--sm{--klar-control: var(--klar-control-sm)}
+ .klar-btn-group--lg{--klar-control: var(--klar-control-lg)}
+ .klar-btn-group--sm .klar-button--md:not(.klar-button--icon-only){padding: 0 8px;font-size: var(--klar-text-sm);gap: 5px}
+ .klar-btn-group--lg .klar-button--md:not(.klar-button--icon-only){padding: 0 16px;font-size: var(--klar-text-lg)}
+ .klar-btn-group--disabled .klar-button{opacity: 0.5;cursor: not-allowed}
+ .klar-btn-group--disabled a.klar-button{pointer-events: none}
+ .klar-toggle-field{display: flex;flex-direction: column;gap: 4px;min-width: 0}
+ .klar-toggle-group{align-self: flex-start}
+ .klar-toggle-group--full{display: flex;align-self: stretch;width: 100%}
+ .klar-toggle-group--full > .klar-button{flex: 1 1 0}
+ .klar-toggle-group--invalid .klar-button{--_border: var(--klar-danger)}
+ .klar-split{position: relative;display: inline-flex;align-items: stretch;max-width: 100%;vertical-align: middle}
+ .klar-split > .klar-button{flex: 0 1 auto;min-width: 0;border-top-right-radius: 0;border-bottom-right-radius: 0}
+ .klar-split > .klar-menu{position: static;display: flex;flex: none;margin-left: -1px}
+ .klar-split > .klar-menu .klar-button{padding: 0 7px;border-top-left-radius: 0;border-bottom-left-radius: 0}
+ .klar-split > .klar-menu .klar-button__label{display: none}
+ .klar-split--sm > .klar-menu .klar-button{padding: 0 5px}
+ .klar-split--lg > .klar-menu .klar-button{padding: 0 10px}
+ .klar-split .klar-button:hover,.klar-split .klar-button[aria-expanded="true"]{position: relative;z-index: 1}
+ .klar-split .klar-button:focus-visible{position: relative;z-index: 2}
+ .klar-split > .klar-button--primary + .klar-menu .klar-button:not(:focus-visible),.klar-split > .klar-button--danger + .klar-menu .klar-button:not(:focus-visible){border-left-color: color-mix(in srgb,var(--klar-white) 40%,transparent)}
+ .klar-split--loading > .klar-menu .klar-button[disabled]{opacity: 1;cursor: progress}
+ @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a){.klar-split{anchor-name: --klar-anchor;anchor-scope: --klar-anchor}.klar-split > .klar-menu{anchor-name: none;anchor-scope: none}}
+ .klar-link--inline:visited{color: color-mix(in srgb,var(--klar-primary) 70%,var(--klar-gray-700))}
+ .klar-link--standalone{text-decoration: none}
+ .klar-link--standalone:hover{text-decoration: underline}
+ .klar-link--current,.klar-link--current:visited{color: var(--klar-text);font-weight: var(--klar-weight-bold);text-decoration: none}
+ .klar-link--disabled,.klar-link--disabled:hover{color: var(--klar-text-disabled);text-decoration: none;cursor: not-allowed}
+ .klar-link__icon,.klar-link__external{display: inline-flex;flex: none;vertical-align: -0.15em}
+ .klar-link__icon{margin-right: 0.35em}
+ .klar-link__external{margin-left: 0.3em}
+ .klar-link--truncate{display: inline-flex;align-items: center;max-width: 100%;vertical-align: bottom}
+ .klar-link--truncate .klar-link__text{min-width: 0;overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+ .klar-keys{display: inline-flex;align-items: center;vertical-align: middle;white-space: nowrap}
+ .klar-keys__caps{display: inline-flex;align-items: center;gap: 6px}
+ .klar-keys__then{font-size: var(--klar-text-sm);color: var(--klar-text-muted)}
+ .klar-keys--sm .klar-kbd{height: 16px;min-width: 16px;padding: 0 4px;font-size: 10.5px}
+ .klar-keys--inline,.klar-keys--inline .klar-keys__caps,.klar-keys--inline .klar-kbd-combo{display: inline;vertical-align: baseline}
+ .klar-keys--inline .klar-kbd{display: inline-block;height: auto;min-width: 0;padding: 0.05em 0.4em;font-size: 0.85em;line-height: 1.35}
+ .klar-keys--inline .klar-kbd + .klar-kbd{margin-left: 0.25em}
+ .klar-keys--inline .klar-keys__then{margin: 0 0.35em;font-size: 0.9em}
 """
