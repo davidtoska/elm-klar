@@ -468,3 +468,15 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   and Msg, `Quick path:` (at most six functions in call order); `ai/klar-index.json` reads them, and
   `check:ai-docs` fails when a module lacks the first two. The recipes were rewritten on the stale data
   (`Remote.Kept`), the form model (`Klar.Form`) and the repaired `LeaveGuard`.
+
+Fixes from benchmark run 1 (`bench/results/run-1.md`):
+
+- `CommandPalette`: the list of options is a `listbox` that holds only options. A section without
+  items (skeleton, failure, "No results") is drawn after it, outside, and the failure is read by
+  the polite status line instead of a `role="alert"` inside the list (axe `aria-required-children`
+  in every state); the search box only has `aria-controls` when there is a list. An item can declare
+  the words that call it (`withCommand "go to order"`: it stays in the list while the user types
+  "go to order 1001") and `argument items state` returns the query without those words, for the
+  request to the backend. Picking an item now gives focus back to the opener like `Escape` (it
+  closes first and sends the item's message after, so a message that moves focus, such as one that
+  opens a dialog, wins; the page was left with focus on `body`).

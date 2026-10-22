@@ -915,9 +915,9 @@ update msg model =
                 |> withToast [ Toast.info, Toast.title "Command run", Toast.message label ]
 
         Debounced ticket ->
-            if ticket == model.ticket && String.trim (CommandPalette.query model.palette) /= "" then
+            if ticket == model.ticket && paletteArgument model.palette /= "" then
                 ( { model | hits = Remote.Loading }
-                , searchOrders ticket (CommandPalette.query model.palette) model.failSearch
+                , searchOrders ticket (paletteArgument model.palette) model.failSearch
                 )
 
             else
@@ -932,7 +932,7 @@ update msg model =
 
         RetryHits ->
             ( { model | hits = Remote.Loading, ticket = model.ticket + 1 }
-            , searchOrders (model.ticket + 1) (CommandPalette.query model.palette) model.failSearch
+            , searchOrders (model.ticket + 1) (paletteArgument model.palette) model.failSearch
             )
 
         FailSearchChanged value ->
@@ -1995,10 +1995,25 @@ drawerLeftView locale model =
 -- PALETTE CONTENT
 
 
+{-| "Go to order ORD-1001" asks the "server" for "ORD-1001": the words of the command
+are declared on the item and taken off by `argument`.
+-}
+goToOrder : CommandPalette.Item Msg
+goToOrder =
+    command "Go to order ..." Icon.clipboard Nothing [] (Navigated "orders")
+        |> CommandPalette.withCommand "go to order"
+
+
+paletteArgument : CommandPalette.State -> String
+paletteArgument palette =
+    CommandPalette.argument [ goToOrder ] palette
+
+
 paletteSections : Model -> List (CommandPalette.Section Msg)
 paletteSections model =
     [ CommandPalette.section "Navigation"
         [ command "Go to orders" Icon.clipboard (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ])) [ "list", "sales" ] (Navigated "orders")
+        , goToOrder
         , command "Go to products" Icon.database (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'p' ])) [ "catalog", "items" ] (Navigated "products")
         , command "Go to reports" Icon.barChart Nothing [ "statistics" ] (Navigated "reports")
         , command "Go to settings" Icon.settings Nothing [ "configuration", "preferences" ] (Navigated "settings")
