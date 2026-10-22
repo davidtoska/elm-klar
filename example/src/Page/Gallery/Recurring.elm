@@ -186,7 +186,7 @@ view locale model =
 
 mono : String -> Html msg
 mono text =
-    Html.code [ Attr.style "font-size" "var(--klar-text-sm)" ] [ Html.text text ]
+    Html.code [ Attr.style "font-size" "var(--klar-text-sm)", Attr.style "overflow-wrap" "anywhere" ] [ Html.text text ]
 
 
 
@@ -233,7 +233,7 @@ fieldSection locale model =
             )
         , Doc.example
             { title = "Read-only"
-            , description = Just "Only the label and the sentence, for a page that shows a saved rule. The state is the same as for the field; this one is a rule that starts on the second Tuesday."
+            , description = Just "Only the label and the sentence, for a page that shows a saved rule. The state is the same as for the field: the first is a rule loaded with setRule, the second a field that does not repeat."
             , code = Just "RecurrencePicker.view RepeatMsg [ RecurrencePicker.readOnly True ] model.repeat"
             }
             (Layout.stack [ Layout.gap 4 ]
@@ -368,11 +368,11 @@ rejected : String -> Html msg
 rejected text =
     case Recurrence.fromRRule text of
         Ok rule ->
-            Layout.row [ Layout.gap 3, Layout.alignBaseline, Layout.wrap ]
+            Layout.stack [ Layout.gap 0 ]
                 [ mono text, Text.muted ("read as: " ++ Recurrence.describe Locale.en rule) ]
 
         Err problem ->
-            Layout.row [ Layout.gap 3, Layout.alignBaseline, Layout.wrap ]
+            Layout.stack [ Layout.gap 0 ]
                 [ mono text
                 , Text.muted (Recurrence.problemText Locale.en problem)
                 , Text.muted (Recurrence.problemText Locale.nb problem)
