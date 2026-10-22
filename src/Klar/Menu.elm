@@ -52,8 +52,8 @@ Every menu needs a `State` and an id of its own. The menu has no built-in text,
 so there is no `locale`: the labels come from your application.
 [Klar.Modal](Klar-Modal) describes the rules that all popups share.
 
-If an item opens a dialog, render the dialog through
-[`Modal.host`](Klar-Modal#host): the page behind it is then `inert`, so closing
+If an item opens a dialog, give the dialog to
+[`Overlay.host`](Klar-Overlay#host): the page behind it is then `inert`, so closing
 the menu, which gives focus back to its button, cannot take focus away from the
 dialog.
 

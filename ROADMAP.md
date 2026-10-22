@@ -257,7 +257,7 @@ new ones.
 |---|---|
 | Sure fixes: rename the clashing `Success` (`Theme.Tone` against `Remote`), fix every doc example that does not compile (and compile them in `check:docs`), the mounting and `elm/url` recipe, and about twenty small gaps (`Date.toPosix`, `Format.iso8601`, `Stat.change`, `Layout.fillRest`, heading levels, target sizes, ...) | M |
 | **Form model**: one `Form.State` that owns every field's value, knows when it is dirty, loads and returns a record, takes server problems per field, and knows steps and their status | XL |
-| **Overlay layer**: it owns focus, derives `modalOpen`, keeps toasts reachable and out of the way of dialogs, fixes the duplicate landmarks | L |
+| **Overlay layer** (done: `Klar.Overlay`, see CHANGELOG): it owns focus, derives `modalOpen`, keeps toasts reachable and out of the way of dialogs, fixes the duplicate landmarks | L |
 | **Data-dense performance**: cache the sorted and filtered rows in `Table`, virtual rows, `Search` pre-filtering, one row type for `Table` and `VirtualList`, keyboard model for `VirtualList`; tested at 50 000 rows | L |
 | **Server-mode helper**: "compare, reset the page, ticket the answer, debounce" in one place, shared by `Table`, `FilterBar`, `SavedViews` and the palette section | L |
 | `Remote`-aware containers (`Drawer`, `Modal`, `Card`) and a stale state for refreshes that fail | M |

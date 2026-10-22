@@ -63,8 +63,8 @@ describes these rules, shared by all popups and dialogs, in one place.
 
 The panel is announced as a dialog, named by its `title` or its `ariaLabel`.
 The only built-in text is the label of the close button; it follows `locale`.
-If a button in the panel opens a dialog, render the dialog through
-[`Modal.host`](Klar-Modal#host): the page is then `inert`, so closing the panel,
+If a button in the panel opens a dialog, give the dialog to
+[`Overlay.host`](Klar-Overlay#host): the page is then `inert`, so closing the panel,
 which gives focus back to its button, cannot take focus away from the dialog.
 
 

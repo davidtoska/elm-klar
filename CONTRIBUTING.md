@@ -252,6 +252,21 @@ Dropdowns, menus, date pickers and popovers share one mechanism (`css/src/base.c
   fragments it does not own.
 - **Page-level keyboard**: use `Klar.Shortcut`; do not add document listeners of your
   own.
+- **Overlays are values, not `Html`.** A component that draws on top of the page
+  (a dialog, a drawer, a palette, a stack of toasts) returns a `Klar.Overlay.Overlay`
+  from its `view`, built with `Overlay.dialog` or `Overlay.toasts`. The page
+  (`Overlay.host`, `AppShell.overlays`) takes the list, so it knows by itself whether
+  a dialog is open (`inert` page), which is on top, and where the toasts go; an
+  application cannot forget one, and no function goes into a `Msg` or a `State`. A
+  closed dialog still sits in the list: it listens to the focus on the page (`Seen`)
+  so that it can give focus back to an element that still exists, also when
+  something else than a click opened it.
+- **Lost focus has no event.** When the focused element of a dialog is removed or
+  disabled, browsers send nothing. `Modal` puts an invisible `.klar-modal__guard` in
+  the dialog on top; the stylesheet runs an animation on it exactly while no
+  overlay contains focus (`:root:not(:has(... :focus-within))`), and `animationstart`
+  is the message. A new surface that can hold focus (like the palette panel and the
+  toasts) has to be added to that selector list in `css/src/overlay.css`.
 - **Focus must survive a re-render.** When an element that has focus is replaced or
   moved in the DOM (a control that moves into the `Field` wrapper when its first error
   appears, a keyed child that Elm moves instead of inserting around), the browser drops

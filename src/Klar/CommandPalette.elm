@@ -185,9 +185,8 @@ import Klar.Button as Button
 import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
-import Klar.Internal.Overlay as Overlay
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Overlay exposing (Overlay)
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem, Remote(..))
 import Klar.Search as Search
 import Klar.Shortcut as Shortcut

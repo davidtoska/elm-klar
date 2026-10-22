@@ -270,9 +270,8 @@ import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
-import Klar.Internal.Overlay as Overlay
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Overlay exposing (Overlay)
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Text as Text
 import Task
 

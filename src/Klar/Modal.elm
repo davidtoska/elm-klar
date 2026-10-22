@@ -171,9 +171,8 @@ import Json.Decode as Decode exposing (Decoder)
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
-import Klar.Internal.Overlay as Overlay
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Overlay exposing (Overlay)
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Theme as Theme exposing (Size(..))
 import Task
 
@@ -208,8 +207,9 @@ init id =
     State { id = id, open = False, opener = "", trail = [], arrived = False, nudge = 0 }
 
 
-{-| Is the dialog open? Use it for the `blocked` flag of `host`, or to show
-something only while the dialog is open.
+{-| Is the dialog open? The page behind it is made inert by the overlay `view`
+returns, so you rarely need this: use it to show something only while the dialog
+is open.
 -}
 isOpen : State -> Bool
 isOpen (State state) =

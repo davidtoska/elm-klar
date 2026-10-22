@@ -106,9 +106,8 @@ import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
-import Klar.Internal.Overlay as Overlay
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Overlay exposing (Overlay)
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Theme as Theme exposing (Tone(..))
 import Process
 import Task
@@ -603,6 +602,7 @@ viewStack toMsg attributes (State state) trap =
     Html.div [ Internal.cls [ "klar-contents" ] ]
         [ Html.div
             [ Internal.cls [ "klar-toasts" ]
+
             -- A log, not a region: a region is a landmark, and an application can
             -- have two stacks (its own and one of a page) with the same name.
             , Attr.attribute "role" "log"

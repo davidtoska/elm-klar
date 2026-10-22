@@ -381,6 +381,29 @@ component, so a language switch changes a failure that is already on the screen.
 When you refresh data that is already there, keep the old `Loaded` and add
 `Table.refreshing True`: the rows stay, dimmed.
 
+**Dialogs, drawers, toasts and the palette.** Each has a `State` in your model and a
+`view` that returns an `Overlay`. Give the list of them to the page; the layer does
+the rest:
+
+```elm
+AppShell.overlays
+    [ Modal.view EditMsg [ Modal.title "Edit order" ] model.edit [ form ]
+    , Drawer.view OrderMsg [ Drawer.title "Order 1042" ] model.order [ details ]
+    , ConfirmDialog.view CancelMsg [ ConfirmDialog.title "Cancel order?" ] model.cancel
+    , CommandPalette.view PaletteMsg [ CommandPalette.sections sections ] model.palette
+    , Toast.view ToastMsg [] model.toasts
+    ]
+-- without an AppShell: Overlay.host { attributes = [], page = [ ... ], overlays = [ ... ] }
+```
+
+You do not write: a flag that makes the page inert (it is inert while any dialog in
+the list is open), a call that gives focus back after an action replaced the button
+that had it, the id of the opener of a dialog that a route or the palette opens
+(`Drawer.open ""`), a copy of a toast inside a dialog (toasts move to the top of the
+window and `Tab` reaches them after the footer), or anything for the landmarks. Keep
+every overlay in the list all the time, also while it is closed. In a page module of
+your own, `List.map (Overlay.map PageMsg) overlays` gives the list to the main module.
+
 **Ids from your database, in the selects.** The value of an option is your own
 type, and the select hands the same value back:
 

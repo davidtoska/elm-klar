@@ -36,6 +36,43 @@ The first release.
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
 
+### The overlay layer (A8)
+
+What the three applications had to write around dialogs, drawers and toasts is
+now done by the library. Nothing was released before this, so it changes the first
+API and not a published one.
+
+- New module `Klar.Overlay`: `Overlay msg` (what the `view` of every dialog-like
+  component returns), `host` (the root of a page with overlays, replaces
+  `Modal.host`) and `map`. `Modal.view`, `Drawer.view`, `ConfirmDialog.view`,
+  `CommandPalette.view`, `ShortcutHelp.view` and `Toast.view` return an `Overlay`.
+  The page is `inert` while any dialog in the list is open (F-013): `Modal.host`'s
+  `blocked` and `AppShell.modalOpen` are gone, and so is the `isBlocking` helper
+  every page had to write. A dialog cannot be drawn outside the list, so it cannot
+  be forgotten. `ContextMenu.view` stays plain `Html`: it is a popup, not a dialog.
+- Removed: `Modal.host`, `AppShell.modalOpen`, `Modal.refocus` and `Drawer.refocus`.
+- Focus ownership (F-005): when the element that has focus in the dialog on top is
+  removed or disabled (a button replaced after an action, a confirm button that
+  becomes disabled), focus moves to the dialog itself. Browsers send no event for
+  that; an invisible element in the dialog runs a CSS animation exactly while no
+  overlay contains focus, and `animationstart` is the signal. Nothing to call.
+- The opener (F-006): a closed dialog remembers the last elements of the page that
+  had focus. `open ""`, or an opener that is gone, returns focus to the most recent
+  of them that still exists, so a drawer opened by a route change or by a command of
+  the palette needs no opener carried by the application. An explicit opener is
+  still tried first.
+- Toasts (F-010, O-011): while a dialog is open the stack moves to the top of the
+  window, so that it never covers the footer buttons, and it is the last stop of the
+  dialog's `Tab` loop: footer, then the buttons of the toasts, then the first element
+  of the dialog. The stack is `role="log"` and no longer `role="region"`, so two
+  stacks (the application's and a page's) are not two landmarks with one name.
+- Landmarks (F-020): the header and the footer of a dialog are `div`s, not
+  `header` and `footer`, so two open dialogs no longer give axe duplicate banner and
+  contentinfo landmarks.
+- `ConfirmDialog.confirmDisabled : Bool -> Attribute msg` and
+  `ConfirmDialog.clearFailure : State -> State`; the documentation of `setFailed`
+  says it is for the answer of the server, not for checking input (F-011).
+
 ### Fixes from the first three applications (A8, the sure fixes)
 
 Three applications were built from the documentation alone (`apps/`); these are the

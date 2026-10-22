@@ -2072,12 +2072,12 @@ OpenDialog ->
     in
     ( { model | sizeDialog = dialog }, Cmd.map SizeDialogMsg cmd )
 
--- put the page and the dialogs in Modal.host: the page is inert while one is open
-Modal.host
+-- the dialogs are overlays: the page is inert while any of them is open,
+-- and there is no flag to compute
+Overlay.host
     { attributes = []
-    , blocked = Modal.isOpen model.sizeDialog
     , page = [ viewPage model ]
-    , overlays = [ sizeDialogView model ]
+    , overlays = [ sizeDialogView model ] -- Modal.view, Drawer.view, Toast.view ...
     }"""
 
 
