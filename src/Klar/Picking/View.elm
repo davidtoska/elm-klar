@@ -122,16 +122,30 @@ type alias Caret =
     , start : Int
     , end : Int
     , repeated : Bool
+    , composing : Bool
     }
 
 
 caret : Decoder Caret
 caret =
-    Decode.map4 Caret
+    Decode.map5 Caret
         (Decode.oneOf [ Decode.at [ "target", "value" ] Decode.string, Decode.succeed "" ])
         (Decode.oneOf [ Decode.at [ "target", "selectionStart" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.at [ "target", "selectionEnd" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ])
+        composing
+
+
+{-| Is the key part of an input method composition (Japanese, Chinese, Korean
+...)? Then Enter commits the composed text and the arrows pick a candidate: they
+are not keys for the list. Browsers say so with `isComposing`, and the key code
+229 for the key that ends a composition in some of them.
+-}
+composing : Decoder Bool
+composing =
+    Decode.map2 (||)
+        (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "keyCode" Decode.int |> Decode.map (\code -> code == 229), Decode.succeed False ])
 
 
 holds : Condition -> Caret -> Bool
@@ -208,17 +222,21 @@ onSearchKeys bindings =
                         name =
                             keyName event
                     in
-                    case findBinding name c bindings.handled of
-                        Just msg ->
-                            Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
+                    if c.composing then
+                        Decode.fail "a key of an input method composition"
 
-                        Nothing ->
-                            case findBinding name c bindings.passive of
-                                Just msg ->
-                                    Decode.succeed { message = msg, preventDefault = False, stopPropagation = False }
+                    else
+                        case findBinding name c bindings.handled of
+                            Just msg ->
+                                Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
 
-                                Nothing ->
-                                    Decode.fail "unhandled key"
+                            Nothing ->
+                                case findBinding name c bindings.passive of
+                                    Just msg ->
+                                        Decode.succeed { message = msg, preventDefault = False, stopPropagation = False }
+
+                                    Nothing ->
+                                        Decode.fail "unhandled key"
                 )
         )
 
@@ -312,15 +330,21 @@ onWindowKeys :
     -> Html.Attribute msg
 onWindowKeys bindings =
     Events.custom "keydown"
-        (Decode.map2 Tuple.pair Internal.keyEvent (Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ])
+        (Decode.map3 (\event repeated inComposition -> ( event, repeated, inComposition ))
+            Internal.keyEvent
+            (Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ])
+            composing
             |> Decode.andThen
-                (\( event, repeated ) ->
+                (\( event, repeated, composing_ ) ->
                     let
                         handled msg =
                             Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
                     in
                     if event.ctrl || event.meta || event.alt then
                         Decode.fail "modifier"
+
+                    else if composing_ then
+                        Decode.fail "a key of an input method composition"
 
                     else
                         case event.key of
