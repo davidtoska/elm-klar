@@ -12,6 +12,7 @@ import Dict exposing (Dict)
 import File exposing (File)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Keyed as Keyed
 import Klar.Button as Button
 import Klar.FileDrop as FileDrop
 import Klar.Form.Layout as FormLayout
@@ -2898,6 +2899,27 @@ stepper (View view) attributes =
                 )
                 view.stepInfo
             )
+
+
+{-| The fields of the current step, drawn by the application. Every child has a key
+of the step it is on, so when the form moves to the next step Elm makes new inputs
+and does not reuse the focused input of the old step for the field at the same place
+in the new one (it would blur it with the focus move, which shows "Required" on a
+field nobody has touched).
+-}
+stepBody : View msg -> List (Html msg) -> Html msg
+stepBody view children =
+    Keyed.node "div" [] (stepKeys view children)
+
+
+{-| The children with the keys that `stepBody` gives them: the prefix of the form,
+the step and the place in the step.
+-}
+stepKeys : View msg -> List (Html msg) -> List ( String, Html msg )
+stepKeys (View view) children =
+    List.indexedMap
+        (\place child -> ( view.prefix ++ "-step-" ++ String.fromInt view.current ++ "-" ++ String.fromInt place, child ))
+        children
 
 
 {-| The list of problems that are showing, with the labels of the declaration,

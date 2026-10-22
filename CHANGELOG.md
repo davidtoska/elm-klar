@@ -516,3 +516,11 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   is unchanged, and `ServerList.viewTable` takes it as any `Table.Attribute`. A function (not a
   Locale text) because the order of the words differs from language to language, not only the
   words.
+- `Form.stepBody` (T05): the fields of the current step drawn by the application go inside it, and
+  each child is keyed by the form, the step and its place, so Elm no longer reuses the focused input
+  of one step for the field at the same place in the next. Without it, `advance` moved focus on, the
+  reused input blurred and showed "Required" on a field nobody had touched; reproduced in Chrome with
+  two steps of three text inputs and gone with `stepBody`. The form already knows the step, so the
+  keyed wrapper is the form's (no key to invent); making the form draw the bodies itself would have
+  meant a `Html msg` per step in `Spec`, which holds no functions. The recipe `multi-step`, the
+  showcase wizard, `Form`'s docs and `AI.md` use it. The test checks the keys (Elm cannot diff in a test).
