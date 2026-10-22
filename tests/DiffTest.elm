@@ -984,8 +984,8 @@ localeTests =
                         [ Query.has [ Selector.text "Neste endring" ]
                         , Query.has [ Selector.text "Forrige endring" ]
                         , Query.has [ Selector.text "16 uendrede linjer" ]
-                        , Query.has [ Selector.text "Samlet" ]
-                        , Query.has [ Selector.text "Delt" ]
+                        , Query.has [ Selector.text "Under hverandre" ]
+                        , Query.has [ Selector.text "Side ved side" ]
                         , Query.has [ Selector.text "1 endret" ]
                         ]
         , test "Norwegian sentences" <|

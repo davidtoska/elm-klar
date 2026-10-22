@@ -21,6 +21,7 @@ import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Encode as Encode
 import Klar.Diff.Inline as Inline
+import Klar.Diff.Keys as Keys
 import Klar.Diff.Types exposing (Entry, Kind(..), Part, Shown(..))
 import Set
 
@@ -110,14 +111,43 @@ when the list is empty.
 -}
 diff : Options -> Value -> Value -> List Entry
 diff options old new =
-    compareNodes options [] (parse old) (parse new) []
+    compareNodes options [] (parse old) (parse new) { entries = [], budget = Inline.sharedBudget }
+        |> .entries
         |> List.reverse
+        |> withUniqueKeys
+
+
+{-| Two different places can have the same path as text (an object that has a key
+`"a.b"` and an object `a` with a key `b`), and the viewer needs a different key for
+every entry. The label stays what it is.
+-}
+withUniqueKeys : List Entry -> List Entry
+withUniqueKeys entries =
+    List.map2 (\entry key -> { entry | key = key })
+        entries
+        (Keys.unique (\key number -> key ++ "~" ++ String.fromInt number) (List.map .key entries))
+
+
+{-| What is found so far (the last entry first) and what is left of the work for
+marking what changed inside the strings: all the strings of a diff share one budget,
+so that the work has a limit whatever the number of strings is. A string that comes
+after the budget is spent is shown as a whole.
+-}
+type alias Found =
+    { entries : List Entry
+    , budget : Int
+    }
+
+
+push : Entry -> Found -> Found
+push entry found =
+    { found | entries = entry :: found.entries }
 
 
 {-| Compares two values and puts the entries on the front of `found` (so the
 result is in reverse order).
 -}
-compareNodes : Options -> List Step -> Node -> Node -> List Entry -> List Entry
+compareNodes : Options -> List Step -> Node -> Node -> Found -> Found
 compareNodes options path old new found =
     case ( old, new ) of
         ( JObject oldMembers, JObject newMembers ) ->
@@ -136,28 +166,28 @@ compareNodes options path old new found =
                 found
 
             else
-                changedStrings path a b :: found
+                changedStrings path a b found
 
         ( JNumber a, JNumber b ) ->
             if sameNumber a b then
                 found
 
             else
-                changed path old new :: found
+                push (changed path old new) found
 
         ( JBool a, JBool b ) ->
             if a == b then
                 found
 
             else
-                changed path old new :: found
+                push (changed path old new) found
 
         ( JNull, JNull ) ->
             found
 
         _ ->
             -- another kind of value, or one that cannot be compared
-            changed path old new :: found
+            push (changed path old new) found
 
 
 {-| NaN cannot come out of JSON text, but a value from a port can have it.
@@ -167,17 +197,17 @@ sameNumber a b =
     a == b || (isNaN a && isNaN b)
 
 
-compareMembers : Options -> List Step -> List ( String, Node ) -> List ( String, Node ) -> List Entry -> List Entry
+compareMembers : Options -> List Step -> List ( String, Node ) -> List ( String, Node ) -> Found -> Found
 compareMembers options path oldMembers newMembers found =
     case ( oldMembers, newMembers ) of
         ( [], [] ) ->
             found
 
         ( ( oldKey, oldValue ) :: oldRest, [] ) ->
-            compareMembers options path oldRest [] (removed (Key oldKey :: path) oldValue :: found)
+            compareMembers options path oldRest [] (push (removed (Key oldKey :: path) oldValue) found)
 
         ( [], ( newKey, newValue ) :: newRest ) ->
-            compareMembers options path [] newRest (added (Key newKey :: path) newValue :: found)
+            compareMembers options path [] newRest (push (added (Key newKey :: path) newValue) found)
 
         ( ( oldKey, oldValue ) :: oldRest, ( newKey, newValue ) :: newRest ) ->
             case compare oldKey newKey of
@@ -185,23 +215,23 @@ compareMembers options path oldMembers newMembers found =
                     compareMembers options path oldRest newRest (compareNodes options (Key oldKey :: path) oldValue newValue found)
 
                 LT ->
-                    compareMembers options path oldRest newMembers (removed (Key oldKey :: path) oldValue :: found)
+                    compareMembers options path oldRest newMembers (push (removed (Key oldKey :: path) oldValue) found)
 
                 GT ->
-                    compareMembers options path oldMembers newRest (added (Key newKey :: path) newValue :: found)
+                    compareMembers options path oldMembers newRest (push (added (Key newKey :: path) newValue) found)
 
 
-comparePositions : Options -> List Step -> Int -> List Node -> List Node -> List Entry -> List Entry
+comparePositions : Options -> List Step -> Int -> List Node -> List Node -> Found -> Found
 comparePositions options path index oldItems newItems found =
     case ( oldItems, newItems ) of
         ( [], [] ) ->
             found
 
         ( oldItem :: oldRest, [] ) ->
-            comparePositions options path (index + 1) oldRest [] (removed (Index index :: path) oldItem :: found)
+            comparePositions options path (index + 1) oldRest [] (push (removed (Index index :: path) oldItem) found)
 
         ( [], newItem :: newRest ) ->
-            comparePositions options path (index + 1) [] newRest (added (Index index :: path) newItem :: found)
+            comparePositions options path (index + 1) [] newRest (push (added (Index index :: path) newItem) found)
 
         ( oldItem :: oldRest, newItem :: newRest ) ->
             comparePositions options path (index + 1) oldRest newRest (compareNodes options (Index index :: path) oldItem newItem found)
@@ -295,7 +325,7 @@ keyOf field node =
             Nothing
 
 
-compareMatched : Options -> List Step -> String -> List ( String, Matched ) -> List Entry -> List Entry
+compareMatched : Options -> List Step -> String -> List ( String, Matched ) -> Found -> Found
 compareMatched options path field pairs found =
     List.foldl
         (\( key, matched ) soFar ->
@@ -308,10 +338,10 @@ compareMatched options path field pairs found =
                     compareNodes options here oldItem newItem soFar
 
                 OnlyOld oldItem ->
-                    removed here oldItem :: soFar
+                    push (removed here oldItem) soFar
 
                 OnlyNew newItem ->
-                    added here newItem :: soFar
+                    push (added here newItem) soFar
         )
         found
         pairs
@@ -351,8 +381,8 @@ changed path old new =
     }
 
 
-changedStrings : List Step -> String -> String -> Entry
-changedStrings path old new =
+changedStrings : List Step -> String -> String -> Found -> Found
+changedStrings path old new found =
     let
         oldText =
             encodeString old
@@ -364,19 +394,21 @@ changedStrings path old new =
             pathLabel (List.reverse path)
     in
     if String.length oldText > longestInline || String.length newText > longestInline then
-        { key = label, label = label, kind = Changed, before = Just (shown (JString old)), after = Just (shown (JString new)) }
+        push { key = label, label = label, kind = Changed, before = Just (shown (JString old)), after = Just (shown (JString new)) } found
 
     else
         let
-            segments =
-                Inline.diff oldText newText
+            ( segments, spent ) =
+                Inline.diffWithin found.budget oldText newText
         in
-        { key = label
-        , label = label
-        , kind = Changed
-        , before = Just (Text { parts = side (\removedText _ -> removedText) segments, truncated = False })
-        , after = Just (Text { parts = side (\_ addedText -> addedText) segments, truncated = False })
-        }
+        push
+            { key = label
+            , label = label
+            , kind = Changed
+            , before = Just (Text { parts = side (\removedText _ -> removedText) segments, truncated = False })
+            , after = Just (Text { parts = side (\_ addedText -> addedText) segments, truncated = False })
+            }
+            { found | budget = found.budget - spent }
 
 
 {-| The parts of one side of an inline comparison. Text with nothing in common is

@@ -20,7 +20,7 @@ turns what it wants compared into text.
 
 -}
 
-import Dict exposing (Dict)
+import Klar.Diff.Keys as Keys
 
 
 {-| What a record has in a field: nothing, or a text.
@@ -131,31 +131,15 @@ baselineIndex keys wanted =
 {-| Keys that are different for every record, so that two records with the same id
 (a mistake in the data, but one that can happen) are both drawn and nothing is
 dropped. The first record keeps its key; the next one with the same key gets
-`~2` after it, then `~3`.
+`~2` after it, then `~3`. A key that is taken (a record whose id is `"a~2"`) is
+skipped, so the keys are different whatever the ids look like.
 
     uniqueKeys [ "a", "b", "a" ] -- [ "a", "b", "a~2" ]
 
 -}
 uniqueKeys : List String -> List String
-uniqueKeys keys =
-    let
-        step key ( built, seen ) =
-            let
-                count =
-                    Dict.get key seen |> Maybe.withDefault 0
-
-                unique =
-                    if count == 0 then
-                        key
-
-                    else
-                        key ++ "~" ++ String.fromInt (count + 1)
-            in
-            ( unique :: built, Dict.insert key (count + 1) seen )
-    in
-    List.foldl step ( [], Dict.empty ) keys
-        |> Tuple.first
-        |> List.reverse
+uniqueKeys =
+    Keys.unique (\key number -> key ++ "~" ++ String.fromInt number)
 
 
 {-| The items that are drawn. A row where all records are equal is left out when

@@ -12150,7 +12150,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
   flex-wrap: wrap;
   align-items: center;
   gap: var(--klar-space-1) var(--klar-space-3);
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .klar-diff__layout,
@@ -12175,7 +12175,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 }
 
 .klar-diff__counter {
-  margin-right: var(--klar-space-1);
+  margin-inline-end: var(--klar-space-1);
   color: var(--klar-text-secondary);
   white-space: nowrap;
 }
@@ -12240,7 +12240,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
   min-width: calc(var(--_digits, 3) * 1ch + 14px);
   padding: 0 6px;
   color: var(--klar-text-muted);
-  text-align: right;
+  text-align: end;
   background: var(--klar-surface-subtle);
   -webkit-user-select: none;
   user-select: none;
@@ -12278,6 +12278,12 @@ a.klar-md__placeholder:hover { border-style: solid; }
   min-height: 20px;
 }
 
+/* The columns of a diff are the line numbers, the signs and the text, from the left,
+   whatever the direction of the page (as in every diff tool); each line of text is
+   laid out in its own direction. */
+.klar-diff__scroll { direction: ltr; }
+.klar-diff__text { unicode-bidi: plaintext; }
+
 /* A change is a cell of the kind added or removed in every column it spans. */
 .klar-diff__cell--added { background: var(--_added-bg); }
 .klar-diff__cell--removed { background: var(--_removed-bg); }
@@ -12293,7 +12299,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 }
 
 /* The old and the new text are told apart by a line between them. */
-.klar-diff__table--split .klar-diff__row > :nth-child(4) { border-left: 1px solid var(--klar-border); }
+.klar-diff__table--split .klar-diff__row > :nth-child(4) { border-inline-start: 1px solid var(--klar-border); }
 
 .klar-diff__row { background: var(--klar-surface); }
 
@@ -12374,7 +12380,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 /* The row stays in view while a wide table scrolls sideways. */
 .klar-diff__fold-button {
   position: sticky;
-  left: 0;
+  inset-inline-start: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--klar-space-1);
@@ -12410,6 +12416,19 @@ a.klar-md__placeholder:hover { border-style: solid; }
 .klar-diff__fold-icon {
   display: inline-flex;
   color: var(--klar-gray-500);
+}
+
+/* "Showing 500 of 20,000 changed lines" and the button that draws more of them. */
+.klar-diff__fold-cell--more {
+  display: table-cell;
+  color: var(--klar-text-secondary);
+}
+
+.klar-diff__fold-note {
+  position: sticky;
+  inset-inline-start: 0;
+  display: inline-block;
+  padding: 2px var(--klar-space-3);
 }
 
 /* ---- The changes of JSON and the fields of a record --------------------------- */
@@ -12482,7 +12501,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 }
 
 .klar-diff__cut {
-  margin-left: var(--klar-space-1);
+  margin-inline-start: var(--klar-space-1);
   color: var(--klar-text-muted);
   font-family: var(--klar-font);
   font-size: var(--klar-text-xs);
@@ -12575,7 +12594,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 }
 
 .klar-compare__summary {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--klar-text-secondary);
   font-size: var(--klar-text-sm);
 }
@@ -12613,18 +12632,18 @@ a.klar-md__placeholder:hover { border-style: solid; }
   font-size: var(--klar-text-md);
   font-weight: var(--klar-weight-bold);
   line-height: var(--klar-leading-tight);
-  text-align: left;
+  text-align: start;
   vertical-align: bottom;
 }
 
 .klar-compare__head {
   min-width: 11rem;
   max-width: 22rem;
-  border-left: 1px solid var(--klar-border-subtle);
+  border-inline-start: 1px solid var(--klar-border-subtle);
 }
 
 .klar-compare__corner {
-  left: 0;
+  inset-inline-start: 0;
   z-index: calc(var(--klar-z-sticky) + 3);
   min-width: 8rem;
   max-width: 14rem;
@@ -12653,7 +12672,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 
 .klar-compare__label {
   position: sticky;
-  left: 0;
+  inset-inline-start: 0;
   z-index: var(--klar-z-sticky);
   min-width: 8rem;
   max-width: 14rem;
@@ -12664,7 +12683,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
   font-size: var(--klar-text-sm);
   font-weight: var(--klar-weight-medium);
   line-height: var(--klar-leading);
-  text-align: left;
+  text-align: start;
   vertical-align: top;
   overflow-wrap: anywhere;
 }
@@ -12675,7 +12694,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
   height: var(--_row-h);
   padding: var(--_cell-py) var(--_cell-px);
   border-bottom: 1px solid var(--klar-border-subtle);
-  border-left: 1px solid var(--klar-border-subtle);
+  border-inline-start: 1px solid var(--klar-border-subtle);
   line-height: var(--klar-leading);
   vertical-align: top;
   overflow-wrap: anywhere;
@@ -12685,14 +12704,18 @@ a.klar-md__placeholder:hover { border-style: solid; }
 
 .klar-compare__cell--baseline { background: var(--klar-surface-subtle); }
 
-/* A cell that differs: a sign, an amber bar on the left and a tint. */
+/* A cell that differs: a sign, an amber bar at the start and a tint. */
 .klar-compare__cell--differs {
   background: var(--klar-warning-subtle);
-  box-shadow: inset 3px 0 0 var(--klar-amber-500);
+  box-shadow: inset calc(3px * var(--_dir, 1)) 0 0 var(--klar-amber-500);
 }
 
+/* The bar and the animation of the progress line run the other way in a page that
+   is written from right to left. */
+:dir(rtl) .klar-compare { --_dir: -1; }
+
 .klar-compare__sign {
-  margin-right: var(--klar-space-1);
+  margin-inline-end: var(--klar-space-1);
   color: var(--klar-amber-700);
   font-weight: var(--klar-weight-bold);
 }
@@ -12723,14 +12746,14 @@ a.klar-md__placeholder:hover { border-style: solid; }
   font-size: var(--klar-text-xs);
   font-weight: var(--klar-weight-bold);
   letter-spacing: 0.04em;
-  text-align: left;
+  text-align: start;
   text-transform: uppercase;
 }
 
 /* The text stays in view while the table scrolls sideways. */
 .klar-compare__heading-text {
   position: sticky;
-  left: var(--_cell-px);
+  inset-inline-start: var(--_cell-px);
   display: inline-block;
 }
 
@@ -12768,8 +12791,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 .klar-compare__progress {
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   z-index: calc(var(--klar-z-sticky) + 4);
   height: 2px;
   overflow: hidden;
@@ -12782,15 +12804,15 @@ a.klar-md__placeholder:hover { border-style: solid; }
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
+  inset-inline-start: 0;
   width: 25%;
   background: var(--klar-primary);
   animation: klar-compare-progress 1.2s var(--klar-ease) infinite;
 }
 
 @keyframes klar-compare-progress {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(400%); }
+  from { transform: translateX(calc(-100% * var(--_dir, 1))); }
+  to { transform: translateX(calc(400% * var(--_dir, 1))); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -12804,6 +12826,40 @@ a.klar-md__placeholder:hover { border-style: solid; }
 /* The skeleton is drawn in the same table, without the sticky headings. */
 .klar-compare--loading .klar-compare__corner,
 .klar-compare--loading .klar-compare__head { position: static; }
+
+
+/* ==========================================================================
+   Forced colors (Windows high contrast): the tints and the bars are gone, so the
+   marks that carry the meaning are drawn with system colors. The signs, the hidden
+   text, the underline of an insertion and the strike-through of a deletion are
+   there already.
+   ========================================================================== */
+
+@media (forced-colors: active) {
+  .klar-diff__hunk--current > .klar-diff__row > :first-child,
+  .klar-diff__entry--current {
+    box-shadow: none;
+    outline: 3px solid Highlight;
+    outline-offset: -3px;
+  }
+
+  .klar-diff__ins,
+  .klar-compare__ins { text-decoration: underline 2px; }
+
+  .klar-diff__del,
+  .klar-compare__del { text-decoration: line-through 2px; }
+
+  .klar-diff__trailing { outline: 1px solid CanvasText; }
+
+  .klar-compare__cell--differs {
+    box-shadow: none;
+    border-inline-start: 3px solid Highlight;
+  }
+
+  .klar-compare__head--baseline { border-bottom: 3px solid Highlight; }
+
+  .klar-compare__progress::after { background: Highlight; }
+}
 
 /* ==== structured.css ==== */
 

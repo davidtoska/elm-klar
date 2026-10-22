@@ -2,8 +2,8 @@ module Page.Gallery.Review.Diffs exposing (Model, Msg, init, update, view)
 
 {-| The diff section of the review page: a shipping policy in two layouts, a CSV of
 stock levels, an order as JSON compared by position and by key, the fields of an
-order as audit log entries, two versions that are equal, a diff with many changes
-and one that is too large to compare.
+order as audit log entries, two versions that are equal, a diff with many changes,
+one that is too large to compare and one huge block of new lines.
 -}
 
 import Html exposing (Html)
@@ -39,6 +39,8 @@ type alias Model =
     , manyDiff : Maybe Diff.Diff
     , big : Diff.State
     , bigDiff : Maybe Diff.Diff
+    , block : Diff.State
+    , blockDiff : Maybe Diff.Diff
     }
 
 
@@ -56,6 +58,8 @@ type Msg
     | CompareMany
     | BigMsg Diff.Msg
     | CompareBig
+    | BlockMsg Diff.Msg
+    | CompareBlock
 
 
 init : Model
@@ -76,6 +80,8 @@ init =
     , manyDiff = Nothing
     , big = Diff.init "review-big"
     , bigDiff = Nothing
+    , block = Diff.init "review-block"
+    , blockDiff = Nothing
     }
 
 
@@ -193,6 +199,16 @@ update msg model =
         CompareBig ->
             ( { model | bigDiff = Just (Diff.lines [] Samples.bigBefore Samples.bigAfter) }, Cmd.none )
 
+        BlockMsg inner ->
+            let
+                ( state, cmd ) =
+                    Diff.update inner model.block
+            in
+            ( { model | block = state }, Cmd.map BlockMsg cmd )
+
+        CompareBlock ->
+            ( { model | blockDiff = Just (Diff.lines [] "" (blockOfLines 20000)) }, Cmd.none )
+
 
 
 -- VIEW
@@ -209,6 +225,7 @@ view locale model =
         , sameExample locale model
         , manyExample locale model
         , bigExample locale model
+        , blockExample locale model
         ]
 
 
@@ -415,5 +432,37 @@ bigExample locale model =
                 Diff.view BigMsg
                     [ Diff.ariaLabel "Changes between the exports", Diff.locale locale ]
                     model.big
+                    diff
+        )
+
+
+{-| A log of that many lines, all of them new.
+-}
+blockOfLines : Int -> String
+blockOfLines count =
+    List.range 1 count
+        |> List.map (\i -> "2026-03-04 09:" ++ String.padLeft 2 '0' (String.fromInt (modBy 60 i)) ++ " order " ++ String.fromInt (1000 + i) ++ " picked")
+        |> String.join "\n"
+
+
+blockExample : Locale -> Model -> Html Msg
+blockExample locale model =
+    Doc.example
+        { title = "One huge block"
+        , description = Just "A log of 20 000 lines that did not exist before is one change. The viewer draws the first 500 lines, says \"Showing 500 of 20,000 changed lines\" and offers 500 more; the focus goes to the first new line. A static view cuts the block the same way and has no button."
+        , code = Just """Diff.lines [] "" newLog
+    |> Diff.view BlockMsg [ Diff.maxHeight 420 ] model.block"""
+        }
+        (case model.blockDiff of
+            Nothing ->
+                Layout.row [ Layout.gap 3, Layout.alignCenter ]
+                    [ Button.view [ Button.onClick CompareBlock ] "Compare with a new log of 20 000 lines"
+                    , Text.caption "Draws 500 lines, not 20 000."
+                    ]
+
+            Just diff ->
+                Diff.view BlockMsg
+                    [ Diff.ariaLabel "The new log", Diff.maxHeight 420, Diff.locale locale ]
+                    model.block
                     diff
         )
