@@ -548,6 +548,20 @@ eventTests =
                     , \_ -> leftAlone middleButton
                     ]
                     ()
+        , test "a link that opens a new tab ignores it: taking the click over would stop the tab" <|
+            \_ ->
+                link [ Link.onClick Opened ] website
+                    |> Query.fromHtml
+                    |> Event.simulate plainClick
+                    |> Event.toResult
+                    |> Expect.err
+        , test "an email address and a telephone number can still be taken over" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> link [ Link.onClick Opened ] emailLink |> Query.fromHtml |> Event.simulate plainClick |> Event.expect Opened
+                    , \_ -> link [ Link.onClick Opened ] phoneLink |> Query.fromHtml |> Event.simulate plainClick |> Event.expect Opened
+                    ]
+                    ()
         , test "a disabled link sends nothing" <|
             \_ ->
                 link [ Link.onClick Opened, Link.disabled True ] ordersLink

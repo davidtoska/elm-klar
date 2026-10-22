@@ -7,6 +7,7 @@ import Html.Attributes as Attr
 import Klar.Icon as Icon
 import Klar.Theme exposing (Size(..))
 import Klar.ToggleGroup as ToggleGroup
+import Klar.ToggleGroup.Ids as Ids
 import Klar.ToggleGroup.Selection as Selection
 import Support.ActionsQuery as ActionsQuery
 import Test exposing (Test, describe, fuzz, fuzz2, fuzz3, test)
@@ -236,21 +237,21 @@ renderTests =
                     |> Query.fromHtml
                     |> Query.find [ role "group" ]
                     |> Expect.all
-                        [ Query.has [ attribute "aria-labelledby" "klar-toggle-status-label" ]
+                        [ Query.has [ attribute "aria-labelledby" (statusId ++ "-label") ]
                         , ActionsQuery.count [ Selector.tag "button" ] >> Expect.equal 3
                         ]
         , test "the label that names the group exists, and says the label" <|
             \_ ->
                 singleGroup [] Nothing
                     |> Query.fromHtml
-                    |> Query.find [ Selector.id "klar-toggle-status-label" ]
+                    |> Query.find [ Selector.id (statusId ++ "-label") ]
                     |> Query.has [ Selector.exactText "Status" ]
         , test "the label is shown, unless it is hidden" <|
             \_ ->
                 Expect.all
-                    [ \_ -> singleGroup [] Nothing |> Query.fromHtml |> Query.find [ Selector.id "klar-toggle-status-label" ] |> Query.has [ Selector.class "klar-field__label" ]
-                    , \_ -> singleGroup [] Nothing |> Query.fromHtml |> Query.find [ Selector.id "klar-toggle-status-label" ] |> Query.hasNot [ Selector.class "klar-sr-only" ]
-                    , \_ -> singleGroup [ ToggleGroup.labelHidden ] Nothing |> Query.fromHtml |> Query.find [ Selector.id "klar-toggle-status-label" ] |> Query.has [ Selector.class "klar-sr-only" ]
+                    [ \_ -> singleGroup [] Nothing |> Query.fromHtml |> Query.find [ Selector.id (statusId ++ "-label") ] |> Query.has [ Selector.class "klar-field__label" ]
+                    , \_ -> singleGroup [] Nothing |> Query.fromHtml |> Query.find [ Selector.id (statusId ++ "-label") ] |> Query.hasNot [ Selector.class "klar-sr-only" ]
+                    , \_ -> singleGroup [ ToggleGroup.labelHidden ] Nothing |> Query.fromHtml |> Query.find [ Selector.id (statusId ++ "-label") ] |> Query.has [ Selector.class "klar-sr-only" ]
                     ]
                     ()
         , test "the buttons are not submit buttons" <|
@@ -264,7 +265,7 @@ renderTests =
                 Expect.all
                     [ \_ -> singleGroup [ ToggleGroup.id "order-status" ] Nothing |> Query.fromHtml |> Query.find [ Selector.id "order-status" ] |> Query.has [ role "group" ]
                     , \_ -> singleGroup [ ToggleGroup.id "order-status" ] Nothing |> Query.fromHtml |> Query.find [ Selector.id "order-status-label" ] |> Query.has [ Selector.text "Status" ]
-                    , \_ -> singleGroup [] Nothing |> Query.fromHtml |> Query.find [ Selector.id "klar-toggle-status" ] |> Query.has [ role "group" ]
+                    , \_ -> singleGroup [] Nothing |> Query.fromHtml |> Query.find [ Selector.id statusId ] |> Query.has [ role "group" ]
                     ]
                     ()
         , test "a hint and an error are joined to the group, and exist" <|
@@ -460,28 +461,63 @@ optionTests =
         ]
 
 
+statusId : String
+statusId =
+    Ids.groupId "Status" [ "Open", "Shipped", "Cancelled" ]
+
+
 labelTests : Test
 labelTests =
-    describe "ids"
-        [ fuzz Fuzz.string "an id made from any label is safe in the page" <|
+    describe "the id of a group that was not given one"
+        [ fuzz2 Fuzz.string (Fuzz.list Fuzz.string) "is valid in the page whatever the label and the options say" <|
+            \label options ->
+                let
+                    id =
+                        Ids.groupId label options
+                in
+                Expect.all
+                    [ \_ -> String.startsWith "klar-toggle-" id |> Expect.equal True
+                    , \_ -> String.all (\c -> (Char.isAlphaNum c && Char.toCode c < 128) || c == '-' || c == '_') id |> Expect.equal True
+                    ]
+                    ()
+        , test "says what the group is, as far as the label can be written in an id" <|
+            \_ ->
+                Ids.groupId "Order status" [ "Open" ]
+                    |> String.startsWith "klar-toggle-order-status-"
+                    |> Expect.equal True
+        , test "a label with no letter that an id can hold (or no label) reads 'group'" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Ids.groupId "" [] |> String.startsWith "klar-toggle-group-" |> Expect.equal True
+                    , \_ -> Ids.groupId "日本語" [] |> String.startsWith "klar-toggle-group-" |> Expect.equal True
+                    , \_ -> Ids.groupId "---" [] |> String.startsWith "klar-toggle-group-" |> Expect.equal True
+                    ]
+                    ()
+        , test "labels that look alike once the letters are gone still get different ids" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.notEqual (Ids.groupId "日本語" []) (Ids.groupId "中文字" [])
+                    , \_ -> Expect.notEqual (Ids.groupId "Størrelse" []) (Ids.groupId "Sørrelse" [])
+                    , \_ -> Expect.notEqual (Ids.groupId "" []) (Ids.groupId "日本語" [])
+                    ]
+                    ()
+        , test "the same label with other options is another id; the same label and options is the same id" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.notEqual (Ids.groupId "Status" [ "Open", "Shipped" ]) (Ids.groupId "Status" [ "Open", "Cancelled" ])
+                    , \_ -> Expect.equal (Ids.groupId "Status" [ "Open", "Shipped" ]) (Ids.groupId "Status" [ "Open", "Shipped" ])
+                    ]
+                    ()
+        , fuzz Fuzz.string "the group uses it, and its label has the id that the group refers to" <|
             \label ->
+                let
+                    id =
+                        Ids.groupId label [ "Open", "Shipped", "Cancelled" ]
+                in
                 ToggleGroup.single [] { label = label, selected = Nothing, onChange = Chose } statusOptions
                     |> Query.fromHtml
-                    |> Query.find [ role "group" ]
-                    |> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" (generatedId label ++ "-label")) ]
+                    |> Expect.all
+                        [ Query.find [ role "group" ] >> Query.has [ Selector.id id, Selector.attribute (Attr.attribute "aria-labelledby" (id ++ "-label")) ]
+                        , Query.find [ Selector.id (id ++ "-label") ] >> Query.has [ Selector.class "klar-field__label" ]
+                        ]
         ]
-
-
-generatedId : String -> String
-generatedId label =
-    "klar-toggle-"
-        ++ (String.toLower label
-                |> String.map
-                    (\c ->
-                        if (Char.isAlphaNum c && Char.toCode c < 128) || c == '-' || c == '_' then
-                            c
-
-                        else
-                            '-'
-                    )
-           )

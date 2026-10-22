@@ -278,8 +278,9 @@ keeps its own page state, or for a link that opens a panel of the same page
 when it is clicked and still leads to a page when it is opened in a new tab.
 In a `Browser.application` you do not need it: Elm reports the click to
 `onUrlRequest` anyway, and `msg` would be sent as well. A link that opens in a
-new tab (another site) is not meant for it, because the click would not open
-the tab any more.
+new tab (a page on another site) ignores `onClick`: taking the click over would
+keep the browser from opening the tab, which is the point of the link. Such a link
+is always left to the browser.
 
 -}
 onClick : msg -> Attribute msg
@@ -372,8 +373,15 @@ view attributes ((Target target) as destination) label =
             , Internal.attrIf config.current (Attr.attribute "aria-current" "page")
             , Internal.attrIf config.truncate (Attr.title label)
             , Internal.attrMaybe Attr.id config.id
+
+            -- A link that opens a new tab is left to the browser: stopping the click would stop the tab.
             , Internal.attrMaybe
                 (\msg -> Events.preventDefaultOn "click" (Decode.map (\_ -> ( msg, True )) Click.plain))
-                config.onClick
+                (if newTab then
+                    Nothing
+
+                 else
+                    config.onClick
+                )
             ]
             content

@@ -128,7 +128,7 @@ buttonGroupSection _ model =
             }
             (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                 [ ButtonGroup.view [] "Order actions" (orderActions model)
-                , ButtonGroup.view [ ButtonGroup.disabled True ] "Order actions (not available)" (List.take 2 (orderActions model))
+                , ButtonGroup.view [ ButtonGroup.disabled True ] "Order actions (not available)" (List.take 2 (orderActions model) ++ [ Button.view [ Button.href "#links/open" ] "Open" ])
                 ]
             )
         , Doc.example
@@ -406,7 +406,7 @@ groupCode =
     , Button.iconOnly [ Button.onClick Print ] Icon.print "Print"
     ]
 
--- every button turned off at once (a fieldset that is disabled)
+-- every button and link turned off at once (a fieldset that is disabled and inert)
 ButtonGroup.view [ ButtonGroup.disabled True ] "Order actions" [ ... ]
 """
 

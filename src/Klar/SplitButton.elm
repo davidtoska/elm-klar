@@ -41,7 +41,9 @@ functions of that module, and picking one sends its own message and closes the
 menu. The menu is the menu of that module, so it opens below the button with its
 right edge level with the button's (it flips above when there is no room), is
 never cut off by a table or a dialog, and shuts when the user clicks outside it.
-A split button without items is drawn as an ordinary button.
+A split button without items has no arrow and looks like an ordinary button, and
+the main button stays the same element when items arrive later (remote data), so
+it keeps the keyboard focus.
 
 **Keyboard.** The two parts are two buttons in the Tab order. Enter and Space on the
 main part send `onClick`; on the arrow they open the menu. `ArrowDown` on either
@@ -54,9 +56,12 @@ first and last, `Escape` closes the menu and gives focus back to the arrow, and
 "More options for Save" that has a menu (`aria-haspopup`) and says whether it
 is open (`aria-expanded`).
 
-While the button is `loading` the main part shows a spinner and does nothing, the
-arrow is switched off and an open menu is hidden; with `disabled` both parts
-are off. The look (`primary`, `secondary`, `ghost`, `danger`, the sizes) is the
+While the button is `loading` the main part shows a spinner and does nothing, and
+the arrow cannot open the menu (it is `aria-disabled` and keeps the keyboard focus, like
+the main part, so a user who has just picked an item is not thrown out of the
+page); with `disabled` both parts are off and cannot be focused. A menu that is open
+when this happens stays open and working until it is closed (`close`, `Escape`, a
+click outside): the state is never faked. The look (`primary`, `secondary`, `ghost`, `danger`, the sizes) is the
 look of a [Klar.Button](Klar-Button), and the same for both parts. Each split
 button needs a `State` and an id of its own. The built-in text ("More options
 for") follows `locale`.
@@ -126,7 +131,7 @@ highlight. Wrap it in a constructor of your own message type and hand it to
 `update`. The click on the main part is not one of them: it sends your `onClick`.
 -}
 type Msg
-    = MenuMsg Menu.Msg
+    = MenuMsg Bool Menu.Msg
     | OpenFromKey
 
 
@@ -137,9 +142,20 @@ through here: it sends the message of the item.
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
-        MenuMsg inner ->
-            Menu.update inner state.menu
-                |> wrap state.id
+        -- The flag says that the split button was loading or disabled when the
+        -- message was made: such a message cannot open a menu that is closed
+        -- (the arrow of a loading button can still be reached with the keyboard,
+        -- and the menu's own `ArrowDown` would open it).
+        MenuMsg inactive inner ->
+            let
+                ( menu, cmd ) =
+                    Menu.update inner state.menu
+            in
+            if inactive && not (Menu.isOpen state.menu) && Menu.isOpen menu then
+                ( current, Cmd.none )
+
+            else
+                wrap state.id ( menu, cmd )
 
         -- `Alt+ArrowDown` also reaches this from inside the open menu, where it
         -- must not start the menu over.
@@ -171,7 +187,7 @@ close (State state) =
 
 wrap : String -> ( Menu.State, Cmd Menu.Msg ) -> ( State, Cmd Msg )
 wrap id ( menu, cmd ) =
-    ( State { id = id, menu = menu }, Cmd.map MenuMsg cmd )
+    ( State { id = id, menu = menu }, Cmd.map (MenuMsg False) cmd )
 
 
 
@@ -280,17 +296,19 @@ icon value =
 
 
 {-| While `True` the main part shows a spinner instead of its icon, announces
-`aria-busy` and ignores clicks, the arrow is switched off and the menu cannot be
-opened. Pass a field of your model, so the button cannot be clicked twice while
-a request is on its way.
+`aria-busy` and ignores clicks, and the arrow cannot open the menu. Both parts
+stay in the tab order (`aria-disabled`, not `disabled`), so a user who has just
+picked an item from the menu keeps the keyboard focus. Pass a field of your
+model, so the button cannot be clicked twice while a request is on its way.
 -}
 loading : Bool -> Attribute
 loading value =
     Attribute (\config -> { config | loading = value })
 
 
-{-| Disables both parts. A disabled button cannot be focused, and an open menu is
-hidden. The default is `False`.
+{-| Disables both parts (the HTML `disabled` attribute). A disabled button cannot
+be focused. A menu that is open stays open until it is closed. The default is
+`False`.
 -}
 disabled : Bool -> Attribute
 disabled value =
@@ -337,9 +355,12 @@ view toMsg attributes content (State state) =
         inactive =
             config.disabled || config.loading
 
+        noItems =
+            List.isEmpty content.items
+
         -- the keys that open the menu, when there is a menu that can open
         opensMenu =
-            not inactive && not (List.isEmpty content.items)
+            not inactive && not noItems
 
         look =
             lookOf config
@@ -369,48 +390,57 @@ view toMsg attributes content (State state) =
 
                 Nothing ->
                     Locale.pick config.locale { nb = "Flere valg for ", en = "More options for " } ++ content.label
-
-        -- A closed menu while the arrow is switched off: an open menu would still
-        -- accept clicks on its items.
-        shownMenu =
-            if inactive then
-                Menu.init state.id
-
-            else
-                state.menu
     in
-    if List.isEmpty content.items then
-        mainButton
+    -- The same element whatever the items are, with the main button first, so that
+    -- items that arrive later do not make Elm build the main button again (a
+    -- button that has focus would lose it).
+    Html.div
+        [ Internal.cls
+            [ "klar-split"
+            , if noItems then
+                "klar-split--single"
 
-    else
-        Html.div
-            [ Internal.cls
-                [ "klar-split"
-                , if config.size == Medium then
-                    ""
+              else
+                ""
+            , if config.size == Medium then
+                ""
 
-                  else
-                    "klar-split--" ++ Theme.sizeSuffix config.size
-                , if config.loading then
-                    "klar-split--loading"
+              else
+                "klar-split--" ++ Theme.sizeSuffix config.size
+            , if config.loading then
+                "klar-split--loading"
 
-                  else
-                    ""
-                ]
-
-            -- Alt+ArrowDown from either part (and from inside the open menu, which
-            -- `update` ignores).
-            , Internal.attrIf opensMenu (Internal.onKeys [ ( "Alt+ArrowDown", toMsg OpenFromKey ) ])
+              else
+                ""
             ]
-            [ mainButton
-            , Menu.view (\inner -> toMsg (MenuMsg inner))
+
+        -- Alt+ArrowDown from either part (and from inside the open menu, which
+        -- `update` ignores).
+        , Internal.attrIf opensMenu (Internal.onKeys [ ( "Alt+ArrowDown", toMsg OpenFromKey ) ])
+        ]
+        [ mainButton
+        , if noItems then
+            Html.text ""
+
+          else
+            Menu.view (\inner -> toMsg (MenuMsg inactive inner))
                 [ Menu.label ""
                 , Menu.alignEnd
                 , Menu.items content.items
-                , Menu.trigger (look ++ [ Button.ariaLabel arrowName, Button.disabled inactive ])
+                , Menu.trigger
+                    (look
+                        ++ [ Button.ariaLabel arrowName
+
+                           -- Loading is not disabled: the arrow may have the focus (the
+                           -- menu gives it back after an item is picked), and an element
+                           -- that becomes `disabled` throws its focus to the page.
+                           , Button.disabled config.disabled
+                           , Button.ariaDisabled config.loading
+                           ]
+                    )
                 ]
-                shownMenu
-            ]
+                state.menu
+        ]
 
 
 {-| The look of both parts: the variant, the danger tone and the size, as
