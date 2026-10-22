@@ -47,6 +47,12 @@ would fail the same way again, so there is no button for them. The components
 that show remote data ([Klar.Table](Klar-Table), [Klar.Tree](Klar-Tree),
 [Klar.ListItem](Klar-ListItem) ...) use this module themselves.
 
+The retry button is replaced when the request starts again, and keyboard focus
+falls to the page with it. For the body of a card, a dialog or a page use
+[Klar.RemoteView](Klar-RemoteView), which has a body that keeps focus (`id`,
+`focus`); a page that is only an error state draws its title outside it
+(see "A page that is only a `RemoteView`" there).
+
 
 # View
 

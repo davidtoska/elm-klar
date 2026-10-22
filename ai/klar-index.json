@@ -748,6 +748,7 @@
       "related": [
         "Klar.ListItem",
         "Klar.Remote",
+        "Klar.RemoteView",
         "Klar.Table",
         "Klar.Tree"
       ],
@@ -2956,7 +2957,7 @@
         "count",
         "queued",
         "push",
-        "clear"
+        "dismiss"
       ],
       "related": [
         "Klar.Overlay",
@@ -4493,7 +4494,9 @@
         "Klar.FilterBar",
         "Klar.Rule",
         "Klar.RuleBuilder",
+        "Klar.ServerList",
         "Klar.Table",
+        "Klar.TextInput",
         "Klar.Theme"
       ],
       "keywords": [
@@ -4510,6 +4513,52 @@
         "dropdown"
       ],
       "reference": "ai/modules/Klar.SavedViews.md"
+    },
+    {
+      "name": "Klar.ServerList",
+      "import": "import Klar.ServerList as ServerList",
+      "group": "Rules and filters",
+      "purpose": "A list whose rows live on a server: a table, a filter bar and saved views that edit one query, and the glue that every such list needs, in one place.",
+      "whenToUse": "a screen is a table of rows that the server searches, filters, sorts and pages, with a filter bar and saved views.",
+      "whenNot": "you have all the rows (use `Klar.Table` in client mode) or only one of the parts (use `Klar.Table` with `server`).",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "init",
+        "update",
+        "gotPage",
+        "viewTable",
+        "viewFilterBar",
+        "viewSavedViews"
+      ],
+      "mainFunctions": [
+        "init",
+        "update",
+        "gotPage",
+        "viewTable",
+        "viewFilterBar",
+        "viewSavedViews",
+        "refresh",
+        "clearFilters"
+      ],
+      "related": [],
+      "keywords": [
+        "server list",
+        "serverlist",
+        "rules and filters",
+        "whose",
+        "server",
+        "table",
+        "filter",
+        "saved"
+      ],
+      "reference": "ai/modules/Klar.ServerList.md"
     },
     {
       "name": "Klar.Remote",
@@ -4563,7 +4612,8 @@
       "stateful": false,
       "quickPath": [],
       "mainFunctions": [
-        "view"
+        "view",
+        "focus"
       ],
       "related": [
         "Klar.EmptyState",

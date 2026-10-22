@@ -58,6 +58,7 @@ selectedCount : Int -> State id -> Int
 isSelected : RowIds id -> id -> State id -> Bool
 setSelected : RowIds id -> List id -> Bool -> State id -> State id
 clearSelection : State id -> State id
+dropAllMatching : State id -> State id
 
 -- Expanded rows, columns and density
 expandedIds : RowIds id -> State id -> List id
@@ -935,6 +936,17 @@ clearSelection : State id -> State id
 
 Deselects everything, including an "all matching" selection. Call it when a
 bulk action has done its work.
+
+### `dropAllMatching`
+
+```elm
+dropAllMatching : State id -> State id
+```
+
+Drops an "all matching" selection (see `Selection`) and keeps the rows that were
+picked one by one. The table does it by itself when its own search or filters change; call
+it when something else changes what "all matching" means, such as a filter bar next to
+the table.
 
 ## Expanded rows, columns and density
 

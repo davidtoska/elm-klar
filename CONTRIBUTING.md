@@ -107,7 +107,8 @@ its dependencies that `elm.json` allows (check both before a release, see
    `Rule.Rule`, `Rule.Combinator`, `Rule.Operator`, `Rule.Operands` and
    `Rule.FieldKind` (a rule is data an application translates to its own query),
    `Table.Filter`, `Table.Direction` and `Table.Selection` (the answer a server-mode
-   table gives), `Remote.Remote` (the five states of a request: the fifth, `Kept`, has an
+   table gives), `ServerList.Target` (a selection across pages: ids, or everything that
+   matches except some, for the application to fulfil in its backend), `Remote.Remote` (the five states of a request: the fifth, `Kept`, has an
    opaque payload that only `Remote.refresh` and `Remote.refreshWith` make), `Form.Layout.Status`,
    `FileDrop.Problem`, `Pagination.Item`, `Calendar.Event` and `Avatar.Status`
    (a result or a state an application reads), and the small design vocabularies

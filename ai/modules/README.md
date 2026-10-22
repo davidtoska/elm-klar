@@ -145,6 +145,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.RuleBuilder](Klar.RuleBuilder.md): A visual editor for rules: groups of conditions that the user builds, rearranges and reads as a sentence, drawn with thin gray connector lines.
 - [Klar.FilterBar](Klar.FilterBar.md): Quick filters above a table: the conditions that are on, shown as chips ("Status is Paid"), an "Add filter" button that opens a small editor (field, operator, value), and optional preset pills like ...
 - [Klar.SavedViews](Klar.SavedViews.md): Named, saved filters ("views"): a dropdown button that lists the saved views and lets the user apply one, save the current filter under a new name, rename and delete views (after an inline ...
+- [Klar.ServerList](Klar.ServerList.md): A list whose rows live on a server: a table, a filter bar and saved views that edit one query, and the glue that every such list needs, in one place.
 ## Data and utilities
 
 - [Klar.Remote](Klar.Remote.md): The state of data that comes from a backend: not asked for yet, loading, failed, or here.

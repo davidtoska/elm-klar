@@ -39,11 +39,12 @@ type Section
     | Access
     | Recurring
     | StaleData
+    | ServerLists
 
 
 all : List Section
 all =
-    [ Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData ]
+    [ Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists ]
 
 
 slug : Section -> String
@@ -111,6 +112,9 @@ slug section =
 
         StaleData ->
             "old-data"
+
+        ServerLists ->
+            "server-lists"
 
 
 fromSlug : String -> Maybe Section
@@ -184,6 +188,9 @@ title section =
         StaleData ->
             "Old and refreshing data"
 
+        ServerLists ->
+            "Server lists"
+
 
 icon : Section -> Icon
 icon section =
@@ -251,6 +258,9 @@ icon section =
         StaleData ->
             Icon.clock
 
+        ServerLists ->
+            Icon.database
+
 
 description : Section -> String
 description section =
@@ -317,6 +327,9 @@ description section =
 
         StaleData ->
             "Data that is refreshed, or old because the last refresh failed: every data component draws it, from the Remote alone."
+
+        ServerLists ->
+            "A table, a filter bar and saved views over rows on a server, with no glue: tickets, page reset, saved views. Make the server slow, jumbled or failing."
 
 
 {-| The components shown on each page.
@@ -386,6 +399,9 @@ components section =
 
         StaleData ->
             [ "Remote", "RemoteView" ]
+
+        ServerLists ->
+            [ "ServerList" ]
 
 
 componentCount : Int

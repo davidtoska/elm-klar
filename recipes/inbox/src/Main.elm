@@ -1,14 +1,10 @@
 module Main exposing (main)
 
 {-| A server-mode inbox: a `Table` whose rows live on the server, a `FilterBar` and `SavedViews`
-that edit one `Rule` and the table's query, and the glue that every such list needs:
-
-  - compare the query and the rule before and after each `update`;
-  - go back to page 1 when the rule changed;
-  - nothing to debounce: the search box and the filter fields of the table already wait 350 ms in
-    server mode, the filter bar changes its rule only when the user applies a filter, and a sort
-    click or a page change should ask at once;
-  - give each request a ticket and drop answers that are not for the latest one.
+that edit one `Rule` and the table's query. `Klar.ServerList` owns the three and the glue
+between them (compare the query and the rule, go back to page 1 when the rule changed, load an
+applied view, give each request a ticket and drop late answers). This program keeps only what is
+its own: the request to the server, the columns and the fields.
 
 The "server" is `search`, a function over an in-memory list behind `Process.sleep`.
 Type `fail` in the search box to see the failure: the first time the table has no rows to keep, and
@@ -24,9 +20,10 @@ import Klar.Date as Date exposing (Date)
 import Klar.FilterBar as FilterBar
 import Klar.Layout as Layout
 import Klar.PageHeader as PageHeader
-import Klar.Remote as Remote exposing (Remote(..))
-import Klar.Rule as Rule exposing (Rule)
+import Klar.Remote as Remote
+import Klar.Rule as Rule
 import Klar.SavedViews as SavedViews
+import Klar.ServerList as ServerList
 import Klar.Table as Table
 import Klar.Theme exposing (Tone(..))
 import Process
@@ -46,20 +43,6 @@ type alias OrderRow =
     }
 
 
-{-| What the server needs to answer: the table's query and the rule.
--}
-type alias Request =
-    { query : Table.Query
-    , rule : Rule
-    }
-
-
-type alias Page =
-    { rows : List OrderRow
-    , total : Int
-    }
-
-
 fields : List (Rule.Field OrderRow)
 fields =
     [ Rule.textField "customer" "Customer" .customer
@@ -76,23 +59,11 @@ statusChoices =
     ]
 
 
-{-| A rule is plain data: one condition inside the root group.
--}
-whereField : String -> Rule.Operator -> List String -> Rule
-whereField field operator values =
-    Rule.GroupRule
-        { id = 0
-        , combinator = Rule.All
-        , negated = False
-        , children = [ Rule.ConditionRule { id = 1, field = field, operator = operator, values = values } ]
-        }
-
-
 initialViews : List SavedViews.SavedView
 initialViews =
-    [ SavedViews.savedView "Open orders" (whereField "status" Rule.Is [ "open" ]) |> SavedViews.asDefault
-    , SavedViews.savedView "Large orders" (whereField "total" Rule.GreaterOrEqual [ "1000" ])
-    , SavedViews.savedView "Shipped (team)" (whereField "status" Rule.Is [ "shipped" ]) |> SavedViews.asShared
+    [ SavedViews.savedView "Open orders" (Rule.allOf [ Rule.is "status" "open" ]) |> SavedViews.asDefault
+    , SavedViews.savedView "Large orders" (Rule.allOf [ Rule.when "total" Rule.GreaterOrEqual [ "1000" ] ])
+    , SavedViews.savedView "Shipped (team)" (Rule.allOf [ Rule.is "status" "shipped" ]) |> SavedViews.asShared
     ]
 
 
@@ -101,23 +72,14 @@ initialViews =
 
 
 type alias Model =
-    { table : Table.State String
-    , filterBar : FilterBar.State
-    , views : SavedViews.State
-    , page : Remote (List OrderRow)
-    , total : Int
-    , ticket : Int
+    { orders : ServerList.State String OrderRow
     , today : Date
     }
 
 
 type Msg
-    = TableMsg Table.Msg
-    | FilterBarMsg FilterBar.Msg
-    | ViewsMsg SavedViews.Msg
+    = OrdersMsg (ServerList.Msg OrderRow)
     | SaveView
-    | GotPage Int Time.Posix (Result Remote.Problem Page)
-    | Retry
 
 
 main : Program () Model Msg
@@ -133,21 +95,10 @@ main =
 init : ( Model, Cmd Msg )
 init =
     let
-        views =
-            SavedViews.init "order-views" |> SavedViews.setViews initialViews
-
-        rule =
-            SavedViews.defaultView views |> Maybe.map .rule |> Maybe.withDefault Rule.emptyGroup
+        step =
+            ServerList.init "orders" initialViews
     in
-    request
-        { table = Table.init "orders"
-        , filterBar = FilterBar.init "order-filters" |> FilterBar.setRule rule
-        , views = SavedViews.setActive (Just "Open orders") views
-        , page = Loading
-        , total = 0
-        , ticket = 0
-        , today = Date.fromPosix Time.utc (Time.millisToPosix 0)
-        }
+    follow { orders = step.state, today = Date.fromPosix Time.utc (Time.millisToPosix 0) } step
 
 
 
@@ -157,118 +108,32 @@ init =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        TableMsg m ->
-            let
-                ( table, cmd ) =
-                    Table.update m model.table
-            in
-            askIfChanged model { model | table = table } (Cmd.map TableMsg cmd)
-
-        FilterBarMsg m ->
-            let
-                ( filterBar, cmd ) =
-                    FilterBar.update m model.filterBar
-            in
-            askIfChanged model { model | filterBar = filterBar } (Cmd.map FilterBarMsg cmd)
-
-        ViewsMsg m ->
-            let
-                ( views, cmd ) =
-                    SavedViews.update m model.views
-
-                next =
-                    { model | views = views }
-            in
-            if SavedViews.revision views /= SavedViews.revision model.views then
-                -- the user applied a view (or "Reset"): load its rule into the filter bar
-                let
-                    active =
-                        SavedViews.active views
-
-                    rule =
-                        active |> Maybe.map .rule |> Maybe.withDefault Rule.emptyGroup
-
-                    -- a view that holds a query puts the table's search, sort and filters back too
-                    table =
-                        case active |> Maybe.andThen .query of
-                            Just q ->
-                                Table.setQuery q next.table
-
-                            Nothing ->
-                                next.table
-                in
-                askIfChanged model { next | filterBar = FilterBar.setRule rule next.filterBar, table = table } (Cmd.map ViewsMsg cmd)
-
-            else
-                ( next, Cmd.map ViewsMsg cmd )
+        OrdersMsg m ->
+            follow model (ServerList.update m model.orders)
 
         SaveView ->
             -- the same form as "Save current view ...", opened from a button
-            let
-                ( views, cmd ) =
-                    SavedViews.startSave model.views
-            in
-            ( { model | views = views }, Cmd.map ViewsMsg cmd )
-
-        GotPage ticket at result ->
-            if ticket /= model.ticket then
-                -- an answer to a question that is no longer asked
-                ( model, Cmd.none )
-
-            else
-                case result of
-                    Ok page ->
-                        ( { model | page = Remote.refreshWith model.page (Ok page.rows) at, total = page.total }, Cmd.none )
-
-                    Err problem ->
-                        -- with rows on the screen they stay as old data; without, the table shows the failure
-                        ( { model | page = Remote.refreshWith model.page (Err problem) at }, Cmd.none )
-
-        Retry ->
-            request model
+            follow model (ServerList.startSaveView model.orders)
 
 
-{-| Compare before and after. If the query or the rule changed, ask again with a new ticket. A new
-rule starts at page 1: page 7 of the old answer means nothing for the new one.
+{-| The one place that turns what the list says into commands: its own command, the request
+for the server (when the query changed), and the saved views to store (here nothing is stored,
+so `step.save` is ignored; send it to your backend).
 -}
+follow : Model -> ServerList.Step String OrderRow -> ( Model, Cmd Msg )
+follow model step =
+    ( { model | orders = step.state }
+    , Cmd.batch
+        [ Cmd.map OrdersMsg step.cmd
+        , case step.request of
+            Just request ->
+                search model.today request
+                    |> Task.andThen (\result -> Time.now |> Task.map (\at -> ( result, at )))
+                    |> Task.perform (\( result, at ) -> OrdersMsg (ServerList.gotPage request result at))
 
-
-
--- KLAR GAP: no server-mode helper; comparing query and rule, resetting the page and the ticket (about 30 lines) are the same in every server-mode list.
-
-
-askIfChanged : Model -> Model -> Cmd Msg -> ( Model, Cmd Msg )
-askIfChanged before after cmd =
-    let
-        ruleChanged =
-            FilterBar.rule after.filterBar /= FilterBar.rule before.filterBar
-
-        next =
-            if ruleChanged then
-                { after | table = Table.setPage 1 after.table }
-
-            else
-                after
-    in
-    if ruleChanged || Table.query next.table /= Table.query before.table then
-        let
-            ( asked, askCmd ) =
-                request { next | ticket = next.ticket + 1 }
-        in
-        ( asked, Cmd.batch [ cmd, askCmd ] )
-
-    else
-        ( next, cmd )
-
-
-{-| Ask now. Rows that are already on the screen stay (dimmed and busy, see `Remote.refresh`) while the answer comes.
--}
-request : Model -> ( Model, Cmd Msg )
-request model =
-    ( { model | page = Remote.refresh model.page }
-    , search model.today fields { query = Table.query model.table, rule = FilterBar.rule model.filterBar }
-        |> Task.andThen (\result -> Time.now |> Task.map (\at -> ( at, result )))
-        |> Task.perform (\( at, result ) -> GotPage model.ticket at result)
+            Nothing ->
+                Cmd.none
+        ]
     )
 
 
@@ -282,38 +147,23 @@ view model =
         [ Klar.stylesheet
         , PageHeader.view [ PageHeader.title "Inbox", PageHeader.subtitle "Orders from the server", PageHeader.actions [ Button.view [ Button.secondary, Button.onClick SaveView ] "Save view ..." ] ]
         , Layout.row [ Layout.gap 2, Layout.alignStart ]
-            [ SavedViews.view ViewsMsg [ SavedViews.current (FilterBar.rule model.filterBar), SavedViews.currentQuery (Table.query model.table) ] model.views
+            [ ServerList.viewSavedViews OrdersMsg [] model.orders
             , Layout.stack [ Layout.grow ]
-                [ FilterBar.view FilterBarMsg
+                [ ServerList.viewFilterBar OrdersMsg
                     [ FilterBar.fields fields
                     , FilterBar.totalCount allOrdersCount
-                    , FilterBar.matchCount (Just model.total |> keepIf (Remote.isLoaded model.page))
-                    , FilterBar.counting (Remote.isRefreshing model.page || Remote.isLoading model.page)
                     , FilterBar.today model.today
                     ]
-                    model.filterBar
+                    model.orders
                 ]
             ]
-        , Table.view TableMsg
+        , ServerList.viewTable OrdersMsg
             [ Table.columns columns
-            , Table.server { total = model.total }
-            , Table.rows model.page
             , Table.rowId Table.stringIds .id
             , Table.searchable
-            , Table.onRefresh Retry
-            , Table.onRetry Retry
             ]
-            model.table
+            model.orders
         ]
-
-
-keepIf : Bool -> Maybe a -> Maybe a
-keepIf condition value =
-    if condition then
-        value
-
-    else
-        Nothing
 
 
 columns : List (Table.Column OrderRow Msg)
@@ -393,8 +243,8 @@ pick items n =
 {-| Filter by the rule and the search text, sort, cut out one page, after a pause.
 Searching for `fail` answers with a problem.
 -}
-search : Date -> List (Rule.Field OrderRow) -> Request -> Task.Task Never (Result Remote.Problem Page)
-search today ruleFields req =
+search : Date -> ServerList.Request -> Task.Task Never (Result Remote.Problem (ServerList.Page OrderRow))
+search today req =
     Process.sleep 400
         |> Task.map
             (\_ ->
@@ -408,7 +258,7 @@ search today ruleFields req =
 
                         matching =
                             allOrders
-                                |> List.filter (Rule.matches today ruleFields req.rule)
+                                |> List.filter (Rule.matches today fields req.rule)
                                 |> List.filter (\o -> String.contains needle (String.toLower (o.id ++ " " ++ o.customer)))
                                 |> sortBy req.query.sort
                     in

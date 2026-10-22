@@ -32,6 +32,7 @@ import Page.Gallery.Recurring as Recurring
 import Page.Gallery.Review as Review
 import Page.Gallery.Rules as Rules
 import Page.Gallery.Selects as Selects
+import Page.Gallery.ServerLists as ServerLists
 import Page.Gallery.StaleData as StaleData
 import Page.Gallery.Structured as Structured
 import Page.Gallery.Tables as Tables
@@ -64,6 +65,7 @@ type alias Model =
     , access : Maybe Access.Model
     , recurring : Maybe Recurring.Model
     , staleData : Maybe StaleData.Model
+    , serverLists : Maybe ServerLists.Model
     }
 
 
@@ -91,6 +93,7 @@ init =
     , access = Nothing
     , recurring = Nothing
     , staleData = Nothing
+    , serverLists = Nothing
     }
 
 
@@ -121,6 +124,7 @@ type Msg
     | AccessMsg Access.Msg
     | RecurringMsg Recurring.Msg
     | StaleDataMsg StaleData.Msg
+    | ServerListsMsg ServerLists.Msg
 
 
 {-| Creates the page for a section if it has not been visited yet. Call it when
@@ -191,6 +195,9 @@ ensure section model =
 
         StaleData ->
             create model.staleData StaleData.init (\page -> { model | staleData = page }) StaleDataMsg model
+
+        ServerLists ->
+            create model.serverLists ServerLists.init (\page -> { model | serverLists = page }) ServerListsMsg model
 
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
@@ -271,6 +278,9 @@ update msg model =
 
         StaleDataMsg inner ->
             step model.staleData (StaleData.update inner) (\page -> { model | staleData = page }) StaleDataMsg model
+
+        ServerListsMsg inner ->
+            step model.serverLists (ServerLists.update inner) (\page -> { model | serverLists = page }) ServerListsMsg model
 
 
 {-| Runs a page's update on its model, if the page exists.
@@ -364,6 +374,9 @@ view locale maybeSection model =
                 StaleData ->
                     show StaleDataMsg (StaleData.view locale) model.staleData
 
+                ServerLists ->
+                    show ServerListsMsg (ServerLists.view locale) model.serverLists
+
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
 show toMsg viewPage maybePage =
@@ -451,6 +464,9 @@ subscriptions maybeSection model =
 
                 StaleData ->
                     sub StaleDataMsg StaleData.subscriptions model.staleData
+
+                ServerLists ->
+                    sub ServerListsMsg ServerLists.subscriptions model.serverLists
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

@@ -23,6 +23,7 @@ queued : State msg -> Int
 
 -- Showing and removing toasts
 push : List (Attribute msg) -> State msg -> ( State msg, Cmd Msg )
+dismiss : String -> State msg -> State msg
 clear : State msg -> State msg
 dismissAll : State msg -> State msg
 
@@ -31,6 +32,7 @@ type Attribute msg  -- opaque: no constructors are exposed
 title : String -> Attribute msg
 message : String -> Attribute msg
 action : String -> msg -> Attribute msg
+key : String -> Attribute msg
 
 -- Tone and time
 tone : Theme.Tone -> Attribute msg
@@ -200,6 +202,19 @@ one waits in the queue.
 
     Toast.push [ Toast.warning, Toast.message "Stock is running low." ] model.toasts
 
+### `dismiss`
+
+```elm
+dismiss : String -> State msg -> State msg
+```
+
+Removes the toast with this key (see `key`), on screen or waiting, and lets the
+next one in the queue take its place. A key that no toast has changes nothing, so it is
+safe to call when the toast may already be gone. Call it from `update`, for example
+when a retry succeeded and the failure toast of the first try is stale:
+
+    Toast.dismiss "note-save" model.toasts
+
 ### `clear`
 
 ```elm
@@ -256,6 +271,18 @@ A toast with an action stays at least 8 seconds, unless you set `duration` or
 `sticky`.
 
     Toast.action "Undo" UndoDelete
+
+### `key`
+
+```elm
+key : String -> Attribute msg
+```
+
+Names the toast, so that the application can take it away from `update` with
+`dismiss`, and so that a new toast with the same key replaces the old one instead of
+stacking next to it (a second failed save shows one toast, not two).
+
+    Toast.push [ Toast.danger, Toast.key "note-save", Toast.title "Could not save the note" ] model.toasts
 
 ## Tone and time
 
