@@ -603,7 +603,9 @@ viewStack toMsg attributes (State state) trap =
     Html.div [ Internal.cls [ "klar-contents" ] ]
         [ Html.div
             [ Internal.cls [ "klar-toasts" ]
-            , Attr.attribute "role" "region"
+            -- A log, not a region: a region is a landmark, and an application can
+            -- have two stacks (its own and one of a page) with the same name.
+            , Attr.attribute "role" "log"
             , Attr.attribute "aria-label" (Locale.pick config.locale { nb = "Varsler", en = "Notifications" })
             , Attr.attribute "aria-live" "polite"
             , Attr.attribute "aria-relevant" "additions text"

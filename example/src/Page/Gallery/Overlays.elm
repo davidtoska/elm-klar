@@ -125,6 +125,10 @@ type alias Model =
     , onlyOpen : Bool
     , onlyUrgent : Bool
     , drawerCity : String
+    , step : Int
+    , noteAdded : Bool
+    , cancel : ConfirmDialog.State
+    , cancelAck : Bool
 
     -- popovers
     , filterPopover : Popover.State
@@ -226,6 +230,19 @@ type Msg
     | OnlyOpenChanged Bool
     | OnlyUrgentChanged Bool
     | DrawerCityChanged String
+    | AdvanceStep
+    | AddNote
+    | SaveNote
+    | NoteSaveFailed
+    | RetrySaveNote
+    | AskCancel
+    | CancelMsg ConfirmDialog.Msg
+    | CancelAckChanged Bool
+    | CancelConfirmed
+    | CancelFinished
+    | CancelCancelled
+    | RouteOpen Types.Order
+    | RouteOpened Types.Order
       -- toasts
     | ToastMsg Toast.Msg
     | PushToast Tone
@@ -291,6 +308,10 @@ init =
       , onlyOpen = True
       , onlyUrgent = False
       , drawerCity = ""
+      , step = 0
+      , noteAdded = False
+      , cancel = ConfirmDialog.init "cancel-order-dialog"
+      , cancelAck = False
       , filterPopover = Popover.init "filter-popover"
       , helpPopover = Popover.init "help-popover"
       , filterCustomer = ""
@@ -709,6 +730,75 @@ update msg model =
 
         DrawerCityChanged value ->
             ( { model | drawerCity = value }, Cmd.none )
+
+        -- What the order drawer does that used to need glue: the button that
+        -- was pressed is replaced (AdvanceStep) or disabled (AddNote) and the
+        -- drawer keeps the focus by itself; the failure toast has an action
+        -- the keyboard reaches while the drawer is open (SaveNote).
+        AdvanceStep ->
+            ( { model | step = model.step + 1 }, Cmd.none )
+
+        AddNote ->
+            ( { model | noteAdded = True }, Cmd.none )
+
+        SaveNote ->
+            ( model, Process.sleep 300 |> Task.perform (\_ -> NoteSaveFailed) )
+
+        NoteSaveFailed ->
+            ( model, Cmd.none )
+                |> withToast
+                    [ Toast.danger
+                    , Toast.title "Could not save the note"
+                    , Toast.message "The server did not answer."
+                    , Toast.action "Try again" RetrySaveNote
+                    ]
+
+        RetrySaveNote ->
+            ( { model | noteAdded = True }, Cmd.none )
+                |> withToast [ Toast.success, Toast.message "The note was saved." ]
+
+        AskCancel ->
+            -- No opener: the dialog gives focus back to the button that was
+            -- pressed, which is inside the drawer.
+            ConfirmDialog.open "" model.cancel
+                |> andMap CancelMsg (\state -> { model | cancel = state, cancelAck = False })
+
+        CancelMsg inner ->
+            ConfirmDialog.update inner model.cancel |> andMap CancelMsg (\state -> { model | cancel = state })
+
+        CancelAckChanged value ->
+            -- A failure that was shown is over once the user changes the answer.
+            ( { model | cancelAck = value, cancel = ConfirmDialog.clearFailure model.cancel }, Cmd.none )
+
+        CancelConfirmed ->
+            ( { model | cancel = ConfirmDialog.setBusy model.cancel }
+            , Process.sleep 600 |> Task.perform (\_ -> CancelFinished)
+            )
+
+        CancelFinished ->
+            ( { model
+                | cancel =
+                    ConfirmDialog.setFailed
+                        (Remote.problem Remote.server |> Remote.withCode "HTTP 503")
+                        model.cancel
+              }
+            , Cmd.none
+            )
+
+        CancelCancelled ->
+            if ConfirmDialog.isBusy model.cancel then
+                ( model, Cmd.none )
+
+            else
+                ConfirmDialog.close model.cancel |> andMap CancelMsg (\state -> { model | cancel = state })
+
+        RouteOpen order ->
+            -- The palette closed, and the drawer opens one update later, as when
+            -- a route change opens it: nothing carries the opener.
+            ( model, Process.sleep 0 |> Task.perform (\_ -> RouteOpened order) )
+
+        RouteOpened order ->
+            update (OpenOrder "" order) model
 
         -- TOASTS
         ToastMsg inner ->
@@ -1413,12 +1503,13 @@ overlays locale model =
     , dangerDialog locale model
     , lifecycleDialog locale model
     , drawerRightView locale model
+    , cancelDialog locale model
     , drawerLeftView locale model
     , ShortcutHelp.view HelpMsg [ ShortcutHelp.locale locale ] sheetShortcuts model.help
     , CommandPalette.view PaletteMsg
         [ CommandPalette.locale locale
         , CommandPalette.sections (paletteSections model)
-        , CommandPalette.recent (List.map (orderItem (CommandPalette.openedFrom model.palette)) model.recent)
+        , CommandPalette.recent (List.map orderItem model.recent)
         ]
         model.palette
     , Toast.view ToastMsg [ Toast.locale locale ] model.toasts
@@ -1750,6 +1841,33 @@ lifecycleDialog locale model =
         model.lifecycle
 
 
+{-| Asked from inside the drawer, on top of it. The confirm button stays disabled
+until the box is ticked; a failure of the server goes away when it changes.
+-}
+cancelDialog : Locale -> Model -> Overlay Msg
+cancelDialog locale model =
+    ConfirmDialog.view CancelMsg
+        [ ConfirmDialog.danger
+        , ConfirmDialog.title "Cancel the order?"
+        , ConfirmDialog.message "The customer is told by email."
+        , ConfirmDialog.body
+            [ Checkbox.view
+                [ Checkbox.id "cancel-ack"
+                , Checkbox.label "I have checked the shipment"
+                , Checkbox.checked model.cancelAck
+                , Checkbox.onCheck CancelAckChanged
+                ]
+            ]
+        , ConfirmDialog.confirmLabel "Cancel order"
+        , ConfirmDialog.cancelLabel "Keep order"
+        , ConfirmDialog.confirmDisabled (not model.cancelAck)
+        , ConfirmDialog.onConfirm CancelConfirmed
+        , ConfirmDialog.onCancel CancelCancelled
+        , ConfirmDialog.locale locale
+        ]
+        model.cancel
+
+
 drawerRightView : Locale -> Model -> Overlay Msg
 drawerRightView locale model =
     -- Always in the list, even before the first order is chosen: a closed drawer
@@ -1766,7 +1884,7 @@ drawerRightView locale model =
         model.drawerRight
         [ case model.drawerData of
             Remote.Loaded loaded ->
-                orderDetails locale loaded
+                Layout.stack [ Layout.gap 5 ] [ orderDetails locale loaded, workflow model ]
 
             Remote.Failed problem ->
                 ErrorState.view [ ErrorState.compact, ErrorState.onRetry RetryDrawer, ErrorState.locale locale ] problem
@@ -1778,6 +1896,34 @@ drawerRightView locale model =
                     , Skeleton.lines 4
                     , Skeleton.block 72
                     ]
+        ]
+
+
+{-| The actions of the order. Pressing one replaces or disables the button that
+has focus, and the drawer takes the focus itself.
+-}
+workflow : Model -> Html Msg
+workflow model =
+    Layout.stack [ Layout.gap 3 ]
+        [ Text.overline "Workflow"
+        , case model.step of
+            0 ->
+                Layout.row [ Layout.gap 2 ]
+                    [ Button.view [ Button.id "wf-picking", Button.onClick AdvanceStep ] "Mark as picking" ]
+
+            1 ->
+                Layout.stack [ Layout.gap 2 ]
+                    [ Text.caption "Picking started."
+                    , Button.view [ Button.id "wf-packed", Button.onClick AdvanceStep ] "Mark as packed"
+                    ]
+
+            _ ->
+                Text.caption "Packed."
+        , Layout.row [ Layout.gap 2, Layout.wrap ]
+            [ Button.view [ Button.id "wf-note", Button.disabled model.noteAdded, Button.onClick AddNote ] "Add note"
+            , Button.view [ Button.id "wf-save", Button.onClick SaveNote ] "Save note (fails)"
+            , Button.view [ Button.id "wf-cancel", Button.danger, Button.onClick AskCancel ] "Cancel order ..."
+            ]
         ]
 
 
@@ -1866,7 +2012,7 @@ paletteSections model =
         [ command "Show keyboard shortcuts" Icon.keyboard (Just (Shortcut.char '?')) [ "shortcuts", "keys" ] OpenHelp
         , command "Open the documentation" Icon.externalLink Nothing [ "guide", "manual" ] (PaletteRan "Open the documentation")
         ]
-    , CommandPalette.remote "Orders" (Remote.map (List.map (orderItem (CommandPalette.openedFrom model.palette))) model.hits)
+    , CommandPalette.remote "Orders" (Remote.map (List.map orderItem) model.hits)
         |> CommandPalette.onRetry RetryHits
         |> CommandPalette.emptyText "No orders found"
     ]
@@ -1886,13 +2032,14 @@ command label icon keys keywords msg =
            )
 
 
-{-| The drawer an order opens in gives focus back to where the palette was opened
-from (the palette itself is gone by then). Many orders share a customer, so the
-order number is the identity.
+{-| The order opens in its drawer one update after the palette closes, as it would
+after a route change, and without an opener: the drawer gives focus back to where
+the palette was opened from. Many orders share a customer, so the order number is
+the identity.
 -}
-orderItem : String -> Types.Order -> CommandPalette.Item Msg
-orderItem from order =
-    CommandPalette.item order.customer (OpenOrder from order)
+orderItem : Types.Order -> CommandPalette.Item Msg
+orderItem order =
+    CommandPalette.item order.customer (RouteOpen order)
         |> CommandPalette.withIcon Icon.clipboard
         |> CommandPalette.withDescription (Types.orderIdText order.id ++ " · " ++ Types.orderStatusLabel order.status)
         |> CommandPalette.withId (Types.orderIdText order.id)
@@ -2042,11 +2189,14 @@ drawerCode =
 -- from the left, and only closed by its own buttons
 Drawer.view FilterDrawerMsg [ Drawer.left, Drawer.small, Drawer.static, Drawer.title "Filters" ] model.filterDrawer [ filters ]
 
--- "Try again" makes way for the skeleton: hand focus back to the drawer
+-- "Try again" makes way for the skeleton: nothing to call, the drawer takes
+-- the focus by itself
 RetryLoad ->
-    ( { model | order = Remote.Loading }
-    , Cmd.batch [ loadOrder, Cmd.map DrawerMsg (Drawer.refocus model.drawer) ]
-    )"""
+    ( { model | order = Remote.Loading }, loadOrder )
+
+-- opened one update after a route change, from the palette: no opener needed
+UrlChanged url ->
+    Drawer.open "" model.drawer"""
 
 
 toastCode : String
