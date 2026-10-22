@@ -65,6 +65,7 @@
             "Klar.MultiSelect",
             "Klar.Autocomplete",
             "Klar.VirtualList",
+            "Klar.Picking",
             "Klar.TreeSelect",
             "Klar.Cascader",
             "Klar.Transfer"

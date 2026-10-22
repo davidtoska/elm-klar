@@ -12846,7 +12846,318 @@ a.klar-md__placeholder:hover { border-style: solid; }
 
 /* ==== picking.css ==== */
 
-/* TreeSelect, Cascader, Transfer. */
+/* ==========================================================================
+   Picking from trees and lists: TreeSelect, Cascader, Transfer.
+   They look like the select family (the trigger, the search box, the rows and
+   the footer are the .klar-select__* parts, see select.css) and add what a tree,
+   a set of columns and two lists need.
+   ========================================================================== */
+
+/* ---- TreeSelect ------------------------------------------------------- */
+
+.klar-tree-select,
+.klar-cascader {
+  min-width: 0;
+}
+
+.klar-tree-select__tree {
+  outline: none;
+}
+
+.klar-tree-select__popup {
+  min-width: 300px;
+}
+
+.klar-tree-select--multiple .klar-tree-select__popup {
+  min-width: 340px;
+}
+
+/* One level of nesting is 16px; the row is a fixed-height row of the select
+   list, so the tree can be windowed like any other list. */
+.klar-tree-select__row {
+  padding-left: calc(8px + var(--klar-depth, 0) * 16px);
+}
+
+.klar-tree-select__toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--klar-radius-sm);
+  color: var(--klar-gray-500);
+}
+
+.klar-tree-select__toggle:hover {
+  background: var(--klar-gray-150);
+  color: var(--klar-text);
+}
+
+.klar-tree-select__toggle .klar-icon {
+  transition: transform var(--klar-dur-fast) var(--klar-ease);
+}
+
+.klar-tree-select__toggle--open .klar-icon {
+  transform: rotate(90deg);
+}
+
+.klar-tree-select__spacer {
+  flex: none;
+  width: 16px;
+}
+
+.klar-tree-select__row--chosen {
+  background: var(--klar-selection);
+}
+
+.klar-tree-select__row--chosen.klar-select__option--highlighted {
+  background: var(--klar-primary-subtle-hover);
+}
+
+.klar-tree-select__row--chosen .klar-select__option-label {
+  font-weight: var(--klar-weight-medium);
+}
+
+/* "Loading ..." and "Could not be loaded" under a node. */
+.klar-tree-select__row--status {
+  color: var(--klar-text-muted);
+  font-size: var(--klar-text-sm);
+  cursor: default;
+}
+
+.klar-tree-select__row--failed {
+  cursor: pointer;
+}
+
+.klar-tree-select__status-text {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.klar-tree-select__status-text--error {
+  color: var(--klar-red-700);
+}
+
+/* ---- Cascader --------------------------------------------------------- */
+
+.klar-cascader__popup {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 280px;
+  max-width: calc(100vw - 16px);
+  padding: 0;
+  overflow: hidden;
+}
+
+@supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
+  .klar-cascader__popup {
+    min-width: max(anchor-size(width), 280px);
+  }
+}
+
+/* The columns sit side by side and scroll sideways when they do not fit (a
+   narrow screen); opening a branch scrolls to its column. */
+.klar-cascader__columns {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.klar-cascader__column {
+  flex: 0 0 200px;
+  width: 200px;
+  min-width: 0;
+  border-right: 1px solid var(--klar-border-subtle);
+}
+
+.klar-cascader__column:last-child {
+  border-right: 0;
+}
+
+@media (max-width: 480px) {
+  .klar-cascader__column {
+    flex-basis: 70vw;
+    width: 70vw;
+  }
+}
+
+.klar-cascader__item {
+  padding-right: 6px;
+}
+
+/* The branch that is open in a column. */
+.klar-cascader__item--opened {
+  background: var(--klar-primary-subtle);
+}
+
+.klar-cascader__item--opened.klar-select__option--highlighted {
+  background: var(--klar-gray-100);
+}
+
+.klar-cascader__item--chosen .klar-select__option-label {
+  font-weight: var(--klar-weight-medium);
+}
+
+.klar-cascader__next {
+  display: flex;
+  flex: none;
+  margin-left: auto;
+  color: var(--klar-gray-500);
+}
+
+.klar-cascader__item--status {
+  color: var(--klar-text-muted);
+  font-size: var(--klar-text-sm);
+  cursor: default;
+}
+
+.klar-cascader__result .klar-select__option-label {
+  flex: 1 1 auto;
+}
+
+/* ---- Transfer --------------------------------------------------------- */
+
+.klar-transfer {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.klar-transfer__legend {
+  display: block;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+/* The lists go side by side with the buttons between them, and are stacked
+   (the buttons between them, pointing down and up) when the field is narrow:
+   the width of the field decides, not the width of the window. */
+.klar-transfer__box {
+  container: klar-transfer / inline-size;
+}
+
+.klar-transfer__panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.klar-transfer__pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border-strong);
+  border-radius: var(--klar-radius-lg);
+}
+
+.klar-transfer--invalid .klar-transfer__pane {
+  border-color: var(--klar-danger);
+}
+
+.klar-transfer--disabled .klar-transfer__pane,
+.klar-transfer--disabled .klar-transfer__buttons {
+  opacity: 0.6;
+}
+
+.klar-transfer__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  background: var(--klar-surface-subtle);
+  border-bottom: 1px solid var(--klar-border);
+}
+
+.klar-transfer__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--klar-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.klar-transfer__filter {
+  flex: none;
+}
+
+.klar-transfer__count {
+  flex: none;
+  color: var(--klar-text-muted);
+  font-size: var(--klar-text-xs);
+}
+
+/* Both lists have the same height, with rows or without. */
+.klar-transfer__body {
+  min-height: calc(var(--klar-transfer-rows, 10) * var(--klar-option-h));
+}
+
+.klar-transfer__list:focus {
+  outline: none;
+}
+
+.klar-transfer__list:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+/* The highlight is only drawn while the list has the keyboard focus. */
+.klar-transfer__list .klar-select__option--highlighted {
+  background: transparent;
+}
+
+.klar-transfer__list:focus .klar-select__option--highlighted {
+  background: var(--klar-gray-100);
+}
+
+.klar-transfer__row {
+  user-select: none;
+}
+
+.klar-transfer__row--marked,
+.klar-transfer__list:focus .klar-transfer__row--marked.klar-select__option--highlighted {
+  background: var(--klar-selection);
+}
+
+.klar-transfer__row--unknown .klar-select__option-label {
+  color: var(--klar-text-muted);
+  font-style: italic;
+}
+
+.klar-transfer__buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+@container klar-transfer (max-width: 560px) {
+  .klar-transfer__panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .klar-transfer__buttons {
+    flex-direction: row;
+  }
+
+  .klar-transfer__buttons .klar-icon {
+    transform: rotate(90deg);
+  }
+}
 
 /* ==== access.css ==== */
 
