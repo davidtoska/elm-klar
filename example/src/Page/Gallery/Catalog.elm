@@ -324,10 +324,10 @@ components section =
             [ "Table", "Pagination" ]
 
         Forms ->
-            [ "TextArea", "NumberInput", "PasswordInput", "Radio", "CheckboxGroup", "Switch", "Slider", "SegmentedControl", "SearchInput", "TagInput", "FileDrop", "InlineEdit", "Form" ]
+            [ "TextArea", "NumberInput", "PasswordInput", "Radio", "CheckboxGroup", "Switch", "Slider", "SegmentedControl", "SearchInput", "TagInput", "FileDrop", "InlineEdit", "Form.Layout" ]
 
         FormModel ->
-            [ "Form.Model" ]
+            [ "Form", "Form.Spec", "Form.Check", "Ids" ]
 
         DateTime ->
             [ "DatePicker", "DateRangePicker", "TimePicker", "DateTimePicker", "Calendar" ]

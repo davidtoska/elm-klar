@@ -13,7 +13,8 @@ counts against the old version are in `design/FORM-MODEL.md` section 9.4.
 import Html exposing (Html)
 import Klar.Button as Button
 import Klar.Form as Form
-import Klar.Form.Model as Fm
+import Klar.Form.Layout as FormLayout
+import Klar.Form.Spec as Spec
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
@@ -123,12 +124,12 @@ save values =
 
 
 type alias Fields =
-    { name : Fm.Field String
-    , legalName : Fm.Field String
-    , registration : Fm.Field String
-    , website : Fm.Field String
-    , country : Fm.Field (Maybe CountryId)
-    , segments : Fm.Field (List SegmentId)
+    { name : Form.Field String
+    , legalName : Form.Field String
+    , registration : Form.Field String
+    , website : Form.Field String
+    , country : Form.Field (Maybe CountryId)
+    , segments : Form.Field (List SegmentId)
     }
 
 
@@ -152,21 +153,21 @@ segmentIds =
     Ids.make { toKey = \(SegmentId n) -> String.fromInt n, fromKey = Maybe.map SegmentId << String.toInt }
 
 
-form : Fm.Form () Fields Values
+form : Form.Form () Fields Values
 form =
-    Fm.define "account" Fields Values
-        |> Fm.with (Fm.text "Name" |> Fm.required |> Fm.rules [ Validate.maxLength 80 ])
-        |> Fm.with (Fm.text "Legal name" |> Fm.required)
-        |> Fm.with (Fm.text "Registration number" |> Fm.required |> Fm.rules [ registrationFormat ])
-        |> Fm.with (Fm.text "Website" |> Fm.rules [ httpUrl ])
-        |> Fm.with (Fm.choice countryIds "Country" |> Fm.required)
-        |> Fm.with (Fm.choices segmentIds "Segments" |> Fm.atLeast 1)
-        |> Fm.build
+    Spec.define "account" Fields Values
+        |> Spec.with (Spec.text "Name" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])
+        |> Spec.with (Spec.text "Legal name" |> Spec.required)
+        |> Spec.with (Spec.text "Registration number" |> Spec.required |> Spec.rules [ registrationFormat ])
+        |> Spec.with (Spec.text "Website" |> Spec.rules [ httpUrl ])
+        |> Spec.with (Spec.choice countryIds "Country" |> Spec.required)
+        |> Spec.with (Spec.choices segmentIds "Segments" |> Spec.atLeast 1)
+        |> Spec.build
 
 
 f : Fields
 f =
-    Fm.fields form
+    Form.fields form
 
 
 registrationFormat : Validate.Validator
@@ -185,14 +186,14 @@ httpUrl =
 -- B: LOAD, READ BACK, AND THE SERVER'S PROBLEMS
 
 
-fill : Account -> Fm.State () -> Fm.State ()
+fill : Account -> Form.State () -> Form.State ()
 fill a =
-    Fm.set f.name a.name
-        >> Fm.set f.legalName a.legalName
-        >> Fm.set f.registration a.registrationNumber
-        >> Fm.set f.website a.website
-        >> Fm.set f.country (Just a.country)
-        >> Fm.set f.segments a.segments
+    Form.set f.name a.name
+        >> Form.set f.legalName a.legalName
+        >> Form.set f.registration a.registrationNumber
+        >> Form.set f.website a.website
+        >> Form.set f.country (Just a.country)
+        >> Form.set f.segments a.segments
 
 
 toAccount : Values -> Account
@@ -206,23 +207,23 @@ toAccount v =
     }
 
 
-fromBackend : BackendProblem -> Fm.Problem ()
+fromBackend : BackendProblem -> Form.Problem ()
 fromBackend p =
     case p.field of
         Name ->
-            Fm.problem f.name p.message
+            Form.problem f.name p.message
 
         LegalName ->
-            Fm.problem f.legalName p.message
+            Form.problem f.legalName p.message
 
         Registration ->
-            Fm.problem f.registration p.message
+            Form.problem f.registration p.message
 
         Website ->
-            Fm.problem f.website p.message
+            Form.problem f.website p.message
 
         CountryField ->
-            Fm.problem f.country p.message
+            Form.problem f.country p.message
 
 
 
@@ -230,14 +231,14 @@ fromBackend p =
 
 
 type alias Model =
-    { form : Fm.State ()
-    , status : Form.Status
+    { form : Form.State ()
+    , status : FormLayout.Status
     , saved : Maybe Account
     }
 
 
 type Msg
-    = FormMsg Fm.Msg
+    = FormMsg Form.Msg
     | Save
     | Load
     | Revert
@@ -245,34 +246,34 @@ type Msg
 
 init : ( Model, Cmd Msg )
 init =
-    ( { form = Fm.init form, status = Form.Idle, saved = Nothing }, Cmd.none )
+    ( { form = Form.init form, status = FormLayout.Idle, saved = Nothing }, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         FormMsg inner ->
-            Fm.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+            Form.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
         Load ->
-            ( { model | form = Fm.init form |> fill savedAccount |> Fm.markClean, status = Form.Idle }, Cmd.none )
+            ( { model | form = Form.init form |> fill savedAccount |> Form.markClean, status = FormLayout.Idle }, Cmd.none )
 
         Revert ->
-            ( { model | form = Fm.revert form model.form, status = Form.Idle }, Cmd.none )
+            ( { model | form = Form.revert form model.form, status = FormLayout.Idle }, Cmd.none )
 
         Save ->
-            case Fm.toValues Locale.default form model.form of
+            case Form.toValues Locale.default form model.form of
                 Err _ ->
-                    Fm.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+                    Form.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
                 Ok values ->
                     case save values of
                         [] ->
-                            ( { model | form = Fm.markClean model.form, status = Form.Succeeded "Saved.", saved = Just (toAccount values) }, Cmd.none )
+                            ( { model | form = Form.markClean model.form, status = FormLayout.Succeeded "Saved.", saved = Just (toAccount values) }, Cmd.none )
 
                         problems ->
-                            Fm.rejected (List.map fromBackend problems) form model.form
-                                |> Tuple.mapBoth (\s -> { model | form = s, status = Form.Idle }) (Cmd.map FormMsg)
+                            Form.rejected (List.map fromBackend problems) form model.form
+                                |> Tuple.mapBoth (\s -> { model | form = s, status = FormLayout.Idle }) (Cmd.map FormMsg)
 
 
 subscriptions : Model -> Sub Msg
@@ -284,26 +285,26 @@ accountForm : Locale -> Model -> Html Msg
 accountForm locale model =
     let
         v =
-            Fm.bind locale FormMsg form model.form
+            Form.bind locale FormMsg form model.form
     in
-    Form.view [ Form.id "account", Form.onSubmit Save ]
-        [ Fm.summary v
-        , Form.unsavedFlag [ Form.locale locale ] (Fm.isDirty model.form)
-        , Form.section "Account"
+    FormLayout.view [ FormLayout.id "account", FormLayout.onSubmit Save ]
+        [ Form.summary v
+        , FormLayout.unsavedFlag [ FormLayout.locale locale ] (Form.isDirty model.form)
+        , FormLayout.section "Account"
             "Who the customer is, as registered."
-            [ Form.grid 2
-                [ Fm.textInput v f.name [ TextInput.hint "How the customer appears in lists." ]
-                , Fm.textInput v f.legalName []
-                , Fm.textInput v f.registration [ TextInput.placeholder "8 digits" ]
-                , Fm.textInput v f.website [ TextInput.url ]
-                , Fm.select v f.country (Remote.Loaded countryOptions) []
-                , Fm.multiSelect v f.segments (Remote.Loaded segmentOptions) []
+            [ FormLayout.grid 2
+                [ Form.textInput v f.name [ TextInput.hint "How the customer appears in lists." ]
+                , Form.textInput v f.legalName []
+                , Form.textInput v f.registration [ TextInput.placeholder "8 digits" ]
+                , Form.textInput v f.website [ TextInput.url ]
+                , Form.select v f.country (Remote.Loaded countryOptions) []
+                , Form.multiSelect v f.segments (Remote.Loaded segmentOptions) []
                 ]
             ]
-        , Form.actions
-            [ Form.status [ Form.locale locale ] model.status
+        , FormLayout.actions
+            [ FormLayout.status [ FormLayout.locale locale ] model.status
             , Layout.spacer
-            , Button.view [ Button.onClick Revert, Button.disabled (not (Fm.isDirty model.form)) ] "Revert"
+            , Button.view [ Button.onClick Revert, Button.disabled (not (Form.isDirty model.form)) ] "Revert"
             , Button.view [ Button.onClick Load ] "Load saved account"
             , Button.view [ Button.primary, Button.submit ] "Save"
             ]
@@ -326,7 +327,7 @@ view locale model =
             , Layout.stack [ Layout.gap 2 ]
                 [ Text.caption
                     ("Unsaved changes: "
-                        ++ (if Fm.isDirty model.form then
+                        ++ (if Form.isDirty model.form then
                                 "yes"
 
                             else

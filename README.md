@@ -133,7 +133,7 @@ every module has an example.
 | **Icon library** | 500 icons in one style: `Icon` and `Icon.Library`, plus `Icon.Arrows`, `Icon.Business`, `Icon.Data`, `Icon.Documents`, `Icon.Logistics` and more (see [ICONS.md](ICONS.md)) |
 | **Actions** | `Button`, `Menu`, `ButtonGroup`, `ToggleGroup`, `SplitButton`, `Link`, `Kbd` |
 | **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
-| **Forms** | `Form`, `Field`, `Validate` |
+| **Forms** | `Form` (the form model), `Form.Spec` (declaring a form), `Form.Layout` (the frame), `Form.Check` (tests), `Ids`, `Field`, `Validate` |
 | **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
 | **Choosing** | `Select`, `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |

@@ -37,7 +37,9 @@
         ],
         "Forms": [
             "Klar.Form",
-            "Klar.Form.Model",
+            "Klar.Form.Spec",
+            "Klar.Form.Layout",
+            "Klar.Form.Check",
             "Klar.Field",
             "Klar.Validate"
         ],

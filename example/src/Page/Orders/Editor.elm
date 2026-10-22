@@ -42,7 +42,7 @@ import Klar.Alert as Alert
 import Klar.Autocomplete as Autocomplete
 import Klar.DatePicker as DatePicker
 import Klar.DescriptionList as DescriptionList
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Format as Format
 import Klar.Layout as Layout
 import Klar.NumberInput as NumberInput
@@ -88,12 +88,12 @@ type alias Editor =
 
     -- What the server said was wrong with the last submit, by field id.
     , errors : List FieldError
-    , submit : Form.Status
+    , submit : FormLayout.Status
     }
 
 
 {-| The id of the form. The error summary and the status line are found by it
-(`Form.focusSummary`, `Form.focusStatus`).
+(`FormLayout.focusSummary`, `FormLayout.focusStatus`).
 -}
 formId : String
 formId =
@@ -139,7 +139,7 @@ init target =
     , total = NumberInput.init "order-total" |> NumberInput.setValue values.total
     , note = values.note
     , errors = []
-    , submit = Form.Idle
+    , submit = FormLayout.Idle
     }
 
 
@@ -496,7 +496,7 @@ view config editor =
         -- saved. Read-only, not disabled: a control that is disabled while it
         -- has the cursor drops the keyboard focus out of the drawer.
         locked =
-            not (isEditable editor) || editor.submit == Form.Submitting
+            not (isEditable editor) || editor.submit == FormLayout.Submitting
 
         errorOf field =
             editor.errors
@@ -505,21 +505,21 @@ view config editor =
                 |> Maybe.map .message
 
         formAttributes =
-            [ Form.id formId
-            , Form.onSubmit config.onSubmit
-            , Form.onFocusField config.onFocusField
-            , Form.labels fieldLabels
-            , Form.stacked
-            , Form.locale context.locale
+            [ FormLayout.id formId
+            , FormLayout.onSubmit config.onSubmit
+            , FormLayout.onFocusField config.onFocusField
+            , FormLayout.labels fieldLabels
+            , FormLayout.stacked
+            , FormLayout.locale context.locale
             ]
     in
     Layout.stack [ Layout.gap 5 ]
         [ viewOrderFacts context editor
-        , Form.view formAttributes
-            [ Form.errorSummary formAttributes (List.sortBy (\error -> formOrder error.field) editor.errors)
-            , Form.section "Customer"
+        , FormLayout.view formAttributes
+            [ FormLayout.errorSummary formAttributes (List.sortBy (\error -> formOrder error.field) editor.errors)
+            , FormLayout.section "Customer"
                 "Who placed the order and how to reach them."
-                [ Form.grid 2
+                [ FormLayout.grid 2
                     [ Autocomplete.view (CustomerMsg >> toMsg)
                         [ Autocomplete.label "Customer"
                         , Autocomplete.required
@@ -546,9 +546,9 @@ view config editor =
                         ]
                     ]
                 ]
-            , Form.section "Delivery"
+            , FormLayout.section "Delivery"
                 "Where the goods are sent from and to, and when they are due."
-                [ Form.grid 2
+                [ FormLayout.grid 2
                     [ Select.view (CountryMsg >> toMsg)
                         [ Select.label "Country"
                         , Select.required
@@ -594,9 +594,9 @@ view config editor =
                         editor.due
                     ]
                 ]
-            , Form.section "Order"
+            , FormLayout.section "Order"
                 "How many lines the order has and what it comes to."
-                [ Form.grid 2
+                [ FormLayout.grid 2
                     [ NumberInput.view (LinesMsg >> toMsg)
                         [ NumberInput.label "Lines"
                         , NumberInput.required
@@ -623,9 +623,9 @@ view config editor =
                         editor.total
                     ]
                 ]
-            , Form.section "Handling"
+            , FormLayout.section "Handling"
                 "How urgent the order is and who looks after it."
-                [ Form.grid 2
+                [ FormLayout.grid 2
                     [ SegmentedControl.view
                         [ SegmentedControl.id "order-priority"
                         , SegmentedControl.label "Priority"
@@ -649,7 +649,7 @@ view config editor =
                         , Select.locale context.locale
                         ]
                         editor.owner
-                    , Form.fullRow
+                    , FormLayout.fullRow
                         (TextArea.view
                             [ TextArea.id "order-note"
                             , TextArea.label "Note"

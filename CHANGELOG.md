@@ -28,10 +28,17 @@ The first release.
   RRULE in and out); `Klar.PermissionMatrix` and `Klar.ApprovalFlow`. No new package
   dependency was added for any of them.
 - Built-in text in English and Norwegian Bokmål (`Klar.Locale`).
-- `Klar.Form.Model` (a prototype, see `design/FORM-MODEL.md`): a form declared once, with
-  one state that owns every field's value, knows when it is dirty, loads and returns a
-  record, and ties problems from the server to fields. Text, number, one choice, several
-  choices and switches so far. `Select.mapOption` gives an option another kind of value.
+- The form model (`Klar.Form`, declared with `Klar.Form.Spec`, tested with `Klar.Form.Check`;
+  see `design/FORM-MODEL.md`): a form declared once, with one state that owns every field's
+  value, knows when it is dirty, loads and returns a record, and ties problems from the
+  server to fields. Text, long text, number, one choice, several choices, switches, tags and
+  files; steps with a stepper, validation on the way and a review step that lists every
+  problem; repeating rows with stable keys, add and remove buttons and rules across rows
+  (`Spec.rows`, `Spec.check`); `Form.problems` and `Form.outside` for everything that is
+  showing, also what the model does not hold (a rule builder); `Form.focus` so that an
+  application never writes a DOM id. `Klar.Ids` is the one place an id type is written as
+  text, shared with `Rule.choiceFieldOf`. The old `Klar.Form` (the frame of a form) is now
+  `Klar.Form.Layout`. `Select.mapOption` gives an option another kind of value.
 - An icon library of 500 line icons in one style (24 by 24 grid, 2 pixel stroke, round
   ends), every one an Elm value that carries its own drawing: `Klar.Icon` has the
   everyday icons and `Klar.Icon.Arrows`, `Business`, `Calendar`, `Communication`,

@@ -30,7 +30,7 @@ in the order given:
         ]
 
 The `field` of an `Error` is the DOM id of the control, so
-[`Form.errorSummary`](Klar-Form) can move focus to it.
+[`FormLayout.errorSummary`](Klar-Form-Layout) can move focus to it.
 
 The messages are built in; use `withMessage` to say it your way. Lengths are
 counted the way Elm counts them (`String.length`), in UTF-16 units.

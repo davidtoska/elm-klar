@@ -1,128 +1,11 @@
-module Klar.Form.Model exposing
-    ( Form, State, Msg, Field, Rows, Problem, Spec, Builder, View
-    , define, with, step, check, build, fields
-    , text, number, choice, choices, toggle, tags, files, rows
-    , required, atLeast, one, rules, range, whole, hint, withMessage
-    , init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
-    , problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
-    , currentStep, attempted, advance, back, goTo
-    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
-    , roundTrip, lostIds
-    )
+module Klar.Form.Core exposing (..)
 
-{-| A form declared once: its fields in order, each with a label and its rules.
-The declaration gives the application the **handles** of the fields (to put in
-the view, to read and set, to tie a server problem to), the **record** the form
-produces when it is valid, and everything Klar needs to validate and update it.
-The application keeps one [`State`](#State) in its model and one [`Msg`](#Msg)
-in its messages, instead of one component state and one message per field.
-
-This is a prototype of the form model (`design/FORM-MODEL.md` in the
-repository): text, numbers, one choice, several choices, switches, tags, files,
-steps and repeating rows. Import it as `Fm`.
-
-    import Klar.Form.Model as Fm
-    import Klar.Locale as Locale
-    import Klar.Validate as Validate
-
-    type alias Fields =
-        { name : Fm.Field String
-        , country : Fm.Field (Maybe CountryId)
-        , categories : Fm.Field (List CategoryId)
-        }
-
-    type alias Values =
-        { name : String
-        , country : CountryId
-        , categories : List CategoryId
-        }
-
-    form : Fm.Form () Fields Values
-    form =
-        Fm.define "supplier" Fields Values
-            |> Fm.with (Fm.text "Name" |> Fm.required |> Fm.rules [ Validate.maxLength 80 ])
-            |> Fm.with (Fm.choice countryIds "Country" |> Fm.required)
-            |> Fm.with (Fm.choices categoryIds "Categories" |> Fm.atLeast 1)
-            |> Fm.build
-
-    f : Fields
-    f =
-        Fm.fields form
-
-    -- model:  { form : Fm.State () }          init: Fm.init form
-    -- message: FormMsg Fm.Msg
-    -- update:  FormMsg inner -> Fm.update form inner model.form |> Tuple.mapBoth ... (Cmd.map FormMsg)
-    -- view:
-    let
-        v =
-            Fm.bind Locale.default FormMsg form model.form
-    in
-    Layout.stack
-        [ Fm.textInput v f.name []
-        , Fm.select v f.country (Remote.Loaded countries) []
-        , Fm.multiSelect v f.categories (Remote.Loaded categories) []
-        , Fm.summary v
-        ]
-
-Fields and values are filled **by position**, like a decoder pipeline: the
-n-th `with` fills the n-th argument of `Fields` and of `Values`. The compiler
-refuses a field that is declared but not in the records, and the other way
-round; it cannot see two fields of the same type swapped in one of the two
-records. Put [`roundTrip`](#roundTrip) in one test to catch that.
-
-Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
-
-  - a field in the pipeline but not in `Fields` or `Values`, and the reverse
-  - a field read as another type than it was declared (`Maybe CountryId` against
-    `CountryId` when the field is `required`)
-  - a text handle given to `select`, a choice handle given to `textInput`
-  - a `required` rule on a field that cannot be empty (a switch)
-
-
-# Types
-
-@docs Form, State, Msg, Field, Rows, Problem, Spec, Builder, View
-
-
-# Declaring a form
-
-@docs define, with, step, check, build, fields
-
-
-# Kinds of field
-
-@docs text, number, choice, choices, toggle, tags, files, rows
-
-
-# Rules
-
-@docs required, atLeast, one, rules, range, whole, hint, withMessage
-
-
-# Values and state
-
-@docs init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
-
-
-# Problems and focus
-
-@docs problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
-
-
-# Steps
-
-@docs currentStep, attempted, advance, back, goTo
-
-
-# Views
-
-@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
-
-
-# Tests
-
-@docs roundTrip, lostIds
-
+{-| The implementation of the form model. It is not exposed: `Klar.Form`,
+`Klar.Form.Spec` and `Klar.Form.Check` are its public faces, and their types are
+aliases of the types defined here. Everything is in one module because the
+declaration, the state and the views share the same private types (`Raw`,
+`Slot`, `Def`); the three public modules only carry the documentation and decide
+what an application sees.
 -}
 
 import Dict exposing (Dict)
@@ -130,7 +13,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Button as Button
 import Klar.FileDrop as FileDrop
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
@@ -1785,7 +1668,7 @@ findDef key defs =
 
 focusOn : String -> Cmd Msg
 focusOn key =
-    Form.focusField key NoOp
+    FormLayout.focusField key NoOp
 
 
 
@@ -2064,7 +1947,7 @@ rejected found ((Form form) as declared) (State data) =
                     withServer
     in
     ( State (revealSteps (allSteps declared) defs landed)
-    , Form.focusSummary form.prefix NoOp
+    , FormLayout.focusSummary form.prefix NoOp
     )
 
 
@@ -2076,7 +1959,7 @@ rows added later start quiet again.
 reveal : Form step fields values -> State step -> ( State step, Cmd Msg )
 reveal ((Form form) as declared) (State data) =
     ( State (revealSteps (allSteps declared) (expandedDefs declared data) data)
-    , Form.focusSummary form.prefix NoOp
+    , FormLayout.focusSummary form.prefix NoOp
     )
 
 
@@ -2191,7 +2074,7 @@ to the first field of the next step. On the last step it checks the whole form:
 with problems, they are all shown and the form goes to the review step (or, when
 the last step has fields, to the first step with a problem); without,
 `submit` is the record, ready to send. Sending it and keeping the
-`Form.Status` stays with the application.
+`FormLayout.Status` stays with the application.
 
     Submit ->
         let
@@ -2226,7 +2109,7 @@ advance ((Form form) as declared) ((State data) as current) =
 
             _ ->
                 { state = State (revealSteps [ data.current ] defs data)
-                , cmd = Form.focusSummary form.prefix NoOp
+                , cmd = FormLayout.focusSummary form.prefix NoOp
                 , submit = Nothing
                 }
 
@@ -2248,7 +2131,7 @@ advance ((Form form) as declared) ((State data) as current) =
                         { data | current = target }
                 in
                 { state = State (revealSteps (allSteps declared) defs moved_)
-                , cmd = Form.focusSummary form.prefix NoOp
+                , cmd = FormLayout.focusSummary form.prefix NoOp
                 , submit = Nothing
                 }
 
@@ -2310,7 +2193,7 @@ goToIndex ((Form form) as declared) target (State data) =
 
             Just bad ->
                 ( State (revealSteps [ bad ] defs { data | current = bad })
-                , Form.focusSummary form.prefix NoOp
+                , FormLayout.focusSummary form.prefix NoOp
                 )
 
 
@@ -2781,7 +2664,7 @@ stepper (View view) attributes =
 
 
 {-| The list of problems that are showing, with the labels of the declaration,
-as `Form.errorSummary`: the form's own and those given to `outside`. Each line
+as `FormLayout.errorSummary`: the form's own and those given to `outside`. Each line
 moves the focus to its element, on another step if need be. On a step it lists
 the problems of that step; on the review step (a step with no fields) it lists
 every problem of every step, shown or not, with the step in brackets. Nothing
@@ -2789,11 +2672,11 @@ is drawn while there is nothing to list.
 -}
 summary : View msg -> Html msg
 summary (View view) =
-    Form.errorSummary
-        [ Form.id view.prefix
-        , Form.locale view.locale
-        , Form.labels (List.map (\p -> ( p.field, p.label )) view.listed)
-        , Form.onFocusField (\key -> view.toMsg (FocusField key))
+    FormLayout.errorSummary
+        [ FormLayout.id view.prefix
+        , FormLayout.locale view.locale
+        , FormLayout.labels (List.map (\p -> ( p.field, p.label )) view.listed)
+        , FormLayout.onFocusField (\key -> view.toMsg (FocusField key))
         ]
         (List.map (\p -> { field = p.field, message = p.message }) view.listed)
 

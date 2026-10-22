@@ -18,7 +18,7 @@ import Klar.Badge as Badge
 import Klar.BulkBar as BulkBar
 import Klar.Button as Button
 import Klar.Checkbox as Checkbox
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Format as Format
 import Klar.History as History exposing (History)
 import Klar.Icon as Icon
@@ -797,7 +797,7 @@ guardSection locale model =
                                             ]
                                         , Layout.row [ Layout.gap 2, Layout.alignCenter ]
                                             [ Button.view [ Button.small, Button.onClick SaveNote, Button.disabled (model.note == model.noteSaved) ] "Save note"
-                                            , Form.unsavedFlag [ Form.locale locale ] (model.note /= model.noteSaved)
+                                            , FormLayout.unsavedFlag [ FormLayout.locale locale ] (model.note /= model.noteSaved)
                                             ]
                                         ]
                                     , Layout.stack [ Layout.gap 2 ]
@@ -810,7 +810,7 @@ guardSection locale model =
                                             ]
                                         , Layout.row [ Layout.gap 2, Layout.alignCenter ]
                                             [ Button.view [ Button.small, Button.onClick SaveAddress, Button.disabled (model.address == model.addressSaved) ] "Save address"
-                                            , Form.unsavedFlag [ Form.locale locale ] (model.address /= model.addressSaved)
+                                            , FormLayout.unsavedFlag [ FormLayout.locale locale ] (model.address /= model.addressSaved)
                                             ]
                                         ]
                                     ]
@@ -918,7 +918,7 @@ historySection locale model =
                     , Button.view [ Button.icon Icon.save, Button.onClick MarkSaved, Button.disabled (History.isAtSavedPoint model.history) ] "Mark saved"
                     , Button.view [ Button.icon Icon.refresh, Button.onClick DiscardChanges, Button.disabled (History.isAtSavedPoint model.history) ] "Discard changes"
                     , Toolbar.spacer
-                    , Form.unsavedFlag [ Form.locale locale ] (not (History.isAtSavedPoint model.history))
+                    , FormLayout.unsavedFlag [ FormLayout.locale locale ] (not (History.isAtSavedPoint model.history))
                     ]
                 , Layout.grid [ Layout.minColumn 240, Layout.gap 4 ]
                     [ TextInput.view
@@ -1102,4 +1102,4 @@ Shortcut.listen ShortcutMsg
     model.shortcuts
 
 -- dirty is whether the value differs from what is saved
-Form.unsavedFlag [] (not (History.isAtSavedPoint model.history))"""
+FormLayout.unsavedFlag [] (not (History.isAtSavedPoint model.history))"""

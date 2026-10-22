@@ -171,6 +171,17 @@ compares before and after to react (`Select.value new /= Select.value old`). The
 are no out-messages. Row clicks, row actions and other things that are not state
 changes are plain `msg` callbacks given as attributes.
 
+### One implementation, several public modules
+
+When one piece is too big for one page of documentation, split the *documentation*,
+not the implementation: the form model is `src/Klar/Form/Core.elm` (not exposed, no
+documentation to keep), and `Klar.Form` (using a form), `Klar.Form.Spec` (declaring one)
+and `Klar.Form.Check` (testing one) are thin modules that carry the docs. Their types are
+aliases of the types in `Core` (`type alias Form step fields values = Core.Form step fields
+values`), and their functions are `name = Core.name` with the signature and the comment
+written out. `npm run check:api` accepts exactly this shape: an alias whose body is only a
+type of an internal module, because the user names the type through the alias.
+
 ### Remote data
 
 Components that show data from a backend take it as a `Remote`:
