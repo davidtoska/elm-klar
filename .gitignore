@@ -18,3 +18,4 @@ Thumbs.db
 # A0 applications build output
 /apps/*/main.js
 /apps/round2/*/main.js
+/apps/round3/*/main.js
