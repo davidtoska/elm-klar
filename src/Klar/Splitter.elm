@@ -49,8 +49,8 @@ Orders"). A pane can have a smallest and a largest size, in percent of the room 
 pixels, and can be `collapsible`. The panes scroll inside themselves when their
 content is larger than they are; a pane that has nothing in it that can take the focus
 is scrolled with the keyboard in current Chrome and Firefox, which make a scrolling
-box focusable, but not in every browser, so give such a pane a button or a link if it matters. The container needs a height (give the parent one,
-or use `height`).
+box focusable, but not in every browser, so give such a pane a button or a link if it
+matters. The container needs a height (give the parent one, or use `height`).
 
 Keyboard: a separator is a tab stop. `Left` and `Right` move it by 1 percent (`Up`
 and `Down` when the panes are `stacked`), with `Shift` by 10 percent, `Home` and
