@@ -24,8 +24,12 @@ lines that were removed and the lines that were added. The first removed line is
 compared with the first added line inside the hunk, the second with the second and
 so on, to mark what changed inside the line ([Klar.Diff.Inline](Klar-Diff-Inline)).
 
-When the texts are too different to compare in the given amount of work, the answer
-is a summary of both texts instead (`TooLarge`), never a wrong or a late diff.
+The work is limited. The beginning and the end of the texts that are the same are
+cut off first (two equal texts cost no more than reading them). When what is left
+is too different to compare in the given amount of work, the answer is a summary of
+both texts instead (`TooLarge`), never a wrong or a late diff. Marking what changed
+inside the lines has one budget for the whole diff (half of the given work): the
+changed lines that come after it is spent are marked as a whole.
 
 -}
 
@@ -53,12 +57,22 @@ defaultMaxWork =
     2000000
 
 
-{-| Together the two texts may have this many lines; more are not compared line
-by line.
+{-| Together the lines of the two texts that are left when the beginning and the end
+that are the same are cut off may be this many; more are not compared line by line.
 -}
 mostLines : Int
 mostLines =
     200000
+
+
+{-| A hunk that has more removed lines or more added lines than this is not marked
+inside the lines. Lines are paired by their place in the hunk (the first removed
+with the first added), which tells something about a small hunk and nothing about
+a block of thousands of lines.
+-}
+mostPairs : Int
+mostPairs =
+    1000
 
 
 {-| The answer, with a note on the line ends of the two texts.
@@ -186,36 +200,86 @@ diff options oldText newText =
         newMissingNewline =
             not new.endsWithNewline
 
-        oldKeys =
-            keysOf options old
-
-        newKeys =
-            keysOf options new
-
-        ( oldIds, newIds ) =
-            identify oldKeys newKeys
+        compared segments =
+            Done
+                { old = old.lines
+                , new = new.lines
+                , oldMissingNewline = oldMissingNewline
+                , newMissingNewline = newMissingNewline
+                , segments = segments
+                }
 
         outcome =
-            if Array.length old.lines + Array.length new.lines > mostLines then
-                TooLarge (summarize oldKeys newKeys oldIds newIds)
+            if oldText == newText then
+                -- the same text is the same whatever the options say, and costs no more than reading it
+                compared
+                    (if Array.isEmpty old.lines then
+                        []
+
+                     else
+                        [ Equal { oldStart = 0, newStart = 0, count = Array.length old.lines } ]
+                    )
 
             else
-                case Myers.diff options.maxWork oldIds newIds of
-                    Just runs ->
-                        Done
-                            { old = old.lines
-                            , new = new.lines
-                            , oldMissingNewline = oldMissingNewline
-                            , newMissingNewline = newMissingNewline
-                            , segments = toSegments old.lines new.lines oldMissingNewline newMissingNewline runs
-                            }
+                let
+                    oldKeys =
+                        keysOf options old
 
-                    Nothing ->
-                        TooLarge (summarize oldKeys newKeys oldIds newIds)
+                    newKeys =
+                        keysOf options new
+
+                    oldCount =
+                        Array.length oldKeys
+
+                    newCount =
+                        Array.length newKeys
+
+                    -- the beginning and the end that are the same are not part of the work
+                    prefix =
+                        samePrefix oldKeys newKeys 0 (min oldCount newCount)
+
+                    suffix =
+                        sameSuffix oldKeys newKeys prefix 0
+
+                    ( oldIds, newIds ) =
+                        identify
+                            (Array.slice prefix (oldCount - suffix) oldKeys)
+                            (Array.slice prefix (newCount - suffix) newKeys)
+                in
+                if Array.length oldIds + Array.length newIds > mostLines then
+                    TooLarge (summarize oldCount newCount prefix suffix oldIds newIds)
+
+                else
+                    case Myers.diff options.maxWork oldIds newIds of
+                        Just runs ->
+                            compared
+                                (toSegments (options.maxWork // 2)
+                                    old.lines
+                                    new.lines
+                                    oldMissingNewline
+                                    newMissingNewline
+                                    (sameRun prefix ++ runs ++ sameRun suffix)
+                                )
+
+                        Nothing ->
+                            TooLarge (summarize oldCount newCount prefix suffix oldIds newIds)
     in
     { outcome = outcome
     , lineEndsDiffer = old.windowsLineEnds /= new.windowsLineEnds && Array.length old.lines > 0 && Array.length new.lines > 0
     }
+
+
+{-| The beginning or the end that is the same in both texts, as the first or the
+last run of the script. The runs of the middle never begin or end with a stretch
+that is the same, because that was cut off.
+-}
+sameRun : Int -> List Run
+sameRun count =
+    if count > 0 then
+        [ Same count ]
+
+    else
+        []
 
 
 {-| What decides whether two lines are the same: the text, with the white space
@@ -281,21 +345,14 @@ identify first second =
     ( Array.fromList (List.reverse firstIds), Array.fromList (List.reverse secondIds) )
 
 
-summarize : Array ( String, Int ) -> Array ( String, Int ) -> Array Int -> Array Int -> Summary
-summarize oldKeys newKeys oldIds newIds =
+{-| What can be said of two texts that are too different to compare: how many lines
+they have, how many are the same at the start and at the end (those were cut off
+before the comparison, `oldIds` and `newIds` are the lines in between), and how many
+lines of each text do not occur in the other.
+-}
+summarize : Int -> Int -> Int -> Int -> Array Int -> Array Int -> Summary
+summarize oldCount newCount prefix suffix oldIds newIds =
     let
-        oldCount =
-            Array.length oldIds
-
-        newCount =
-            Array.length newIds
-
-        prefix =
-            samePrefix oldIds newIds 0 (min oldCount newCount)
-
-        suffix =
-            sameSuffix oldIds newIds prefix 0
-
         counts ids =
             Array.foldl (\id -> Dict.update id (\n -> Just (Maybe.withDefault 0 n + 1))) Dict.empty ids
 
@@ -320,7 +377,7 @@ summarize oldKeys newKeys oldIds newIds =
     }
 
 
-samePrefix : Array Int -> Array Int -> Int -> Int -> Int
+samePrefix : Array a -> Array a -> Int -> Int -> Int
 samePrefix a b i limit =
     if i < limit && Array.get i a == Array.get i b then
         samePrefix a b (i + 1) limit
@@ -329,7 +386,7 @@ samePrefix a b i limit =
         i
 
 
-sameSuffix : Array Int -> Array Int -> Int -> Int -> Int
+sameSuffix : Array a -> Array a -> Int -> Int -> Int
 sameSuffix a b prefix count =
     let
         n =
@@ -349,27 +406,40 @@ sameSuffix a b prefix count =
 -- SEGMENTS
 
 
-toSegments : Array String -> Array String -> Bool -> Bool -> List Run -> List Segment
-toSegments old new oldMissingNewline newMissingNewline runs =
+toSegments : Int -> Array String -> Array String -> Bool -> Bool -> List Run -> List Segment
+toSegments inlineBudget old new oldMissingNewline newMissingNewline runs =
     let
-        go remaining oldAt newAt index built =
+        -- `budget` is what is left of the work for marking the changes inside the lines
+        go remaining oldAt newAt index budget built =
             case remaining of
                 [] ->
                     List.reverse built
 
                 (Same count) :: rest ->
-                    go rest (oldAt + count) (newAt + count) index (Equal { oldStart = oldAt, newStart = newAt, count = count } :: built)
+                    go rest (oldAt + count) (newAt + count) index budget (Equal { oldStart = oldAt, newStart = newAt, count = count } :: built)
 
                 (Remove removedCount) :: (Insert addedCount) :: rest ->
-                    go rest (oldAt + removedCount) (newAt + addedCount) (index + 1) (Changed (hunk index oldAt newAt removedCount addedCount) :: built)
+                    let
+                        ( found, spent ) =
+                            hunk index oldAt newAt removedCount addedCount budget
+                    in
+                    go rest (oldAt + removedCount) (newAt + addedCount) (index + 1) (budget - spent) (Changed found :: built)
 
                 (Remove removedCount) :: rest ->
-                    go rest (oldAt + removedCount) newAt (index + 1) (Changed (hunk index oldAt newAt removedCount 0) :: built)
+                    let
+                        ( found, spent ) =
+                            hunk index oldAt newAt removedCount 0 budget
+                    in
+                    go rest (oldAt + removedCount) newAt (index + 1) (budget - spent) (Changed found :: built)
 
                 (Insert addedCount) :: rest ->
-                    go rest oldAt (newAt + addedCount) (index + 1) (Changed (hunk index oldAt newAt 0 addedCount) :: built)
+                    let
+                        ( found, spent ) =
+                            hunk index oldAt newAt 0 addedCount budget
+                    in
+                    go rest oldAt (newAt + addedCount) (index + 1) (budget - spent) (Changed found :: built)
 
-        hunk index oldAt newAt removedCount addedCount =
+        hunk index oldAt newAt removedCount addedCount budget =
             let
                 removedTexts =
                     texts old oldAt removedCount
@@ -377,22 +447,56 @@ toSegments old new oldMissingNewline newMissingNewline runs =
                 addedTexts =
                     texts new newAt addedCount
 
-                paired =
-                    List.map2 Inline.diff removedTexts addedTexts
+                ( paired, spent ) =
+                    if removedCount > 0 && addedCount > 0 && removedCount <= mostPairs && addedCount <= mostPairs then
+                        pairUp budget removedTexts addedTexts
 
-                partsOf side pairs =
-                    List.map side pairs
+                    else
+                        ( [], 0 )
             in
-            { index = index
-            , oldStart = oldAt
-            , newStart = newAt
-            , removed =
-                changedLines (oldAt + 1) (Array.length old) oldMissingNewline removedTexts (partsOf removedParts paired)
-            , added =
-                changedLines (newAt + 1) (Array.length new) newMissingNewline addedTexts (partsOf addedParts paired)
-            }
+            ( { index = index
+              , oldStart = oldAt
+              , newStart = newAt
+              , removed =
+                    changedLines (oldAt + 1) (Array.length old) oldMissingNewline removedTexts (List.map removedParts paired)
+              , added =
+                    changedLines (newAt + 1) (Array.length new) newMissingNewline addedTexts (List.map addedParts paired)
+              }
+            , spent
+            )
     in
-    go runs 0 0 0 []
+    go runs 0 0 0 inlineBudget []
+
+
+{-| The first removed line is compared with the first added line, the second with
+the second, and so on, each with what is left of the budget. A pair that comes
+after the budget is spent is not compared: its lines are marked as a whole.
+-}
+pairUp : Int -> List String -> List String -> ( List (List Inline.Segment), Int )
+pairUp budget removedTexts addedTexts =
+    let
+        step removedText addedText ( built, left ) =
+            if left <= 0 then
+                ( [ Inline.Replace removedText addedText ] :: built, left )
+
+            else
+                let
+                    ( segments, spent ) =
+                        Inline.diffWithin left removedText addedText
+                in
+                ( segments :: built, left - spent )
+
+        ( reversed, remaining ) =
+            List.foldl (\( removedText, addedText ) state -> step removedText addedText state)
+                ( [], budget )
+                (zip removedTexts addedTexts)
+    in
+    ( List.reverse reversed, budget - remaining )
+
+
+zip : List a -> List b -> List ( a, b )
+zip first second =
+    List.map2 Tuple.pair first second
 
 
 texts : Array String -> Int -> Int -> List String

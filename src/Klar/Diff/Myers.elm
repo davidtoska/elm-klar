@@ -1,4 +1,4 @@
-module Klar.Diff.Myers exposing (Run(..), diff)
+module Klar.Diff.Myers exposing (Run(..), diff, diffCounted)
 
 {-| The shortest edit script between two sequences, by the O(ND) algorithm of
 Eugene Myers ("An O(ND) Difference Algorithm and Its Variations", 1986).
@@ -40,6 +40,16 @@ finding it takes more than the given amount of work.
 -}
 diff : Int -> Array Int -> Array Int -> Maybe (List Run)
 diff maxWork a b =
+    Tuple.first (diffCounted maxWork a b)
+
+
+{-| Like `diff`, and says how much work it did: the work of cutting off the common
+beginning and end counts too, and so does the work of a search that gave up (then
+it is more than the given amount). A caller that compares many pairs of sequences
+can share one budget between them.
+-}
+diffCounted : Int -> Array Int -> Array Int -> ( Maybe (List Run), Int )
+diffCounted maxWork a b =
     let
         n =
             Array.length a
@@ -59,22 +69,24 @@ diff maxWork a b =
         middleB =
             Array.slice prefix (m - suffix) b
 
-        middle =
+        ( middle, searched ) =
             case ( Array.length middleA, Array.length middleB ) of
                 ( 0, 0 ) ->
-                    Just []
+                    ( Just [], 0 )
 
                 ( 0, lengthB ) ->
-                    Just [ Insert lengthB ]
+                    ( Just [ Insert lengthB ], 0 )
 
                 ( lengthA, 0 ) ->
-                    Just [ Remove lengthA ]
+                    ( Just [ Remove lengthA ], 0 )
 
                 _ ->
                     search maxWork middleA middleB
     in
-    middle
+    ( middle
         |> Maybe.map (\runs -> normalize (Same prefix :: runs ++ [ Same suffix ]))
+    , prefix + suffix + searched
+    )
 
 
 commonPrefix : Array Int -> Array Int -> Int -> Int -> Int
@@ -116,20 +128,24 @@ entry `i` is the diagonal `2 * i - d`. A layer is built from the one before it
 alone. An entry of -1 is a diagonal that leaves the grid.
 
 -}
-search : Int -> Array Int -> Array Int -> Maybe (List Run)
+search : Int -> Array Int -> Array Int -> ( Maybe (List Run), Int )
 search maxWork a b =
     let
         env =
             { a = a, b = b, n = Array.length a, m = Array.length b, maxWork = maxWork }
+
+        ( found, work ) =
+            forward env 0 Array.empty [] 0
     in
-    forward env 0 Array.empty [] 0
-        |> Maybe.map (\( d, layers ) -> backtrack env layers d (env.n - env.m) [])
+    ( found |> Maybe.map (\( d, layers ) -> backtrack env layers d (env.n - env.m) [])
+    , work
+    )
 
 
-forward : Env -> Int -> Array Int -> List (Array Int) -> Int -> Maybe ( Int, List (Array Int) )
+forward : Env -> Int -> Array Int -> List (Array Int) -> Int -> ( Maybe ( Int, List (Array Int) ), Int )
 forward env d previous layers work =
     if work > env.maxWork then
-        Nothing
+        ( Nothing, work )
 
     else
         let
@@ -140,7 +156,7 @@ forward env d previous layers work =
                 layer :: layers
         in
         if reached env d layer then
-            Just ( d, all )
+            ( Just ( d, all ), work + spent )
 
         else
             forward env (d + 1) layer all (work + spent)
