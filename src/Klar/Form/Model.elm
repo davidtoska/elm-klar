@@ -4,7 +4,7 @@ module Klar.Form.Model exposing
     , text, number, choice, choices, toggle
     , required, atLeast, one, rules, range, whole, hint, withMessage
     , init, set, get, toValues, isDirty, markClean, revert, update
-    , problem, rejected, reveal
+    , problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
     , bind, textInput, numberInput, select, multiSelect, switch, summary
     , roundTrip, lostIds
     )
@@ -103,9 +103,9 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 @docs init, set, get, toValues, isDirty, markClean, revert, update
 
 
-# Problems from the server
+# Problems and focus
 
-@docs problem, rejected, reveal
+@docs problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
 
 
 # Views
@@ -149,7 +149,7 @@ type Form step fields values
         { prefix : String
         , defs : List Def
         , fields : fields
-        , read : Locale -> Dict String Raw -> Result (List Problem) values
+        , read : Locale -> Dict String Raw -> Result (List (Problem step)) values
         }
 
 
@@ -164,6 +164,7 @@ type State step
         , baseline : Dict String Raw
         , touched : Set String
         , server : Dict String String
+        , outside : List (Problem step)
         , reviewed : Bool
         }
 
@@ -209,13 +210,25 @@ type Ids id
     = Ids { toKey : id -> String, fromKey : String -> Maybe id }
 
 
-{-| A message tied to a field: the DOM id of the control (`field`) and what to
-tell the user. It has the shape of `Validate.Error`, so it fits
-`Form.errorSummary`.
+{-| A message tied to a field: the DOM id of the control (`field`), the label
+the user knows the field by (`label`), what to tell the user (`message`) and,
+in a form with steps, the step the field is on. `problems` lists them all.
+
+Write one by hand for something the form model does not hold, such as the
+rule builder of a price rule, and hand it to `outside`:
+
+    { field = "price-rule-1"
+    , label = "Price rule 1"
+    , message = "Add at least one condition."
+    , step = Nothing
+    }
+
 -}
-type alias Problem =
+type alias Problem step =
     { field : String
+    , label : String
     , message : String
+    , step : Maybe step
     }
 
 
@@ -258,7 +271,7 @@ type Builder step fields values
         , used : Set String
         , defs : List Def
         , fields : fields
-        , read : Locale -> Dict String Raw -> Result (List Problem) values
+        , read : Locale -> Dict String Raw -> Result (List (Problem step)) values
         }
 
 
@@ -272,8 +285,16 @@ type View msg
         , prefix : String
         , defs : List Def
         , slots : Dict String Slot
-        , shown : Dict String String
+        , byField : Dict String String
+        , shown : List ShownProblem
         }
+
+
+type alias ShownProblem =
+    { field : String
+    , label : String
+    , message : String
+    }
 
 
 {-| The value of a field as the form compares and stores it.
@@ -373,14 +394,14 @@ with (Spec spec) (Builder b) =
                 ( Ok constructor, Ok output ) ->
                     Ok (constructor output)
 
-                ( Err problems, Ok _ ) ->
-                    Err problems
+                ( Err found, Ok _ ) ->
+                    Err found
 
                 ( Ok _, Err message ) ->
-                    Err [ { field = key, message = message } ]
+                    Err [ { field = key, label = spec.label, message = message, step = Nothing } ]
 
-                ( Err problems, Err message ) ->
-                    Err (problems ++ [ { field = key, message = message } ])
+                ( Err found, Err message ) ->
+                    Err (found ++ [ { field = key, label = spec.label, message = message, step = Nothing } ])
     in
     Builder
         { prefix = b.prefix
@@ -867,6 +888,7 @@ init (Form form) =
         , baseline = Dict.map (\_ slot -> rawOf slot) slots
         , touched = Set.empty
         , server = Dict.empty
+        , outside = []
         , reviewed = False
         }
 
@@ -980,19 +1002,58 @@ get (Field field) (State state) =
 {-| The record the form produces, or all the problems, in the order of the
 declaration, in the given language. An invalid form cannot produce a record.
 Rules and `required` run on every field, whether or not the user has been
-there.
+there. A problem the server gave that still stands (its field has not been
+edited) and every problem given to `outside` count too: the form is not valid
+while they are there, so a record is never produced behind them.
 
     case Fm.toValues Locale.default form model.form of
         Ok values ->
             save values
 
-        Err problems ->
+        Err found ->
             ...
 
 -}
-toValues : Locale -> Form step fields values -> State step -> Result (List Problem) values
+toValues : Locale -> Form step fields values -> State step -> Result (List (Problem step)) values
 toValues locale (Form form) (State state) =
-    form.read locale (Dict.map (\_ slot -> rawOf slot) state.slots)
+    let
+        client =
+            form.read locale (Dict.map (\_ slot -> rawOf slot) state.slots)
+
+        clientProblems =
+            case client of
+                Ok _ ->
+                    []
+
+                Err found ->
+                    found
+
+        standing =
+            form.defs
+                |> List.filterMap
+                    (\def ->
+                        case List.filter (\p -> p.field == def.key) clientProblems of
+                            first :: _ ->
+                                Just first
+
+                            [] ->
+                                Dict.get def.key state.server
+                                    |> Maybe.map (\message -> { field = def.key, label = def.label, message = message, step = Nothing })
+                    )
+
+        everything =
+            standing ++ state.outside
+    in
+    case client of
+        Ok values ->
+            if List.isEmpty everything then
+                Ok values
+
+            else
+                Err everything
+
+        Err _ ->
+            Err everything
 
 
 {-| `True` when the values differ from the baseline. Typing a letter and
@@ -1148,13 +1209,62 @@ dropServer key (State state) =
 
 
 
--- PROBLEMS FROM THE SERVER
+-- PROBLEMS AND FOCUS
+
+
+{-| Everything that is wrong now, in the order of the declaration: the rules of
+every field (whether or not the user has been there), the problems the server
+gave that still stand, and the problems given to `outside`. A field has at most
+one problem from the form, its own rule first and then the server's. This is the
+list `toValues` gives when it fails, and the list for a review page or a count;
+`summary` and the field's own message show the part of it that has come to
+light.
+
+    Fm.problems Locale.default form model.form
+        |> List.map (\p -> p.label ++ ": " ++ p.message)
+
+-}
+problems : Locale -> Form step fields values -> State step -> List (Problem step)
+problems locale declared current =
+    case toValues locale declared current of
+        Ok _ ->
+            []
+
+        Err found ->
+            found
+
+
+{-| `True` when `problems` is not empty. Use it to keep a Save button quiet or to
+colour a step: the language does not matter for the answer.
+-}
+hasProblems : Form step fields values -> State step -> Bool
+hasProblems declared current =
+    not (List.isEmpty (problems Locale.default declared current))
+
+
+{-| Gives the form the problems of something it does not hold itself, such as
+the rule builder of a price rule. They count like the form's own: they are in
+`problems`, `toValues` fails while they stand, and `summary` lists them once the
+problems have been revealed (`reveal`, `rejected`). Each is a `Problem` you write
+by hand; its `field` is the DOM id of the element the summary moves the focus
+to.
+
+The list replaces the one given before, so compute it from your model and call
+it at the end of your `update`, for example in the same place that handles the
+messages of the rule builder:
+
+    ( { model | form = Fm.outside (ruleProblems model) model.form }, cmd )
+
+-}
+outside : List (Problem step) -> State step -> State step
+outside found (State state) =
+    State { state | outside = found }
 
 
 {-| A message from the server tied to a field. Map the backend's own field type
 to a handle once, in the application:
 
-    fromBackend : Backend.Problem -> Fm.Problem
+    fromBackend : Backend.Problem -> Fm.Problem step
     fromBackend p =
         case p.field of
             Backend.Name ->
@@ -1164,24 +1274,32 @@ to a handle once, in the application:
                 Fm.problem f.country p.message
 
 -}
-problem : Field c -> String -> Problem
+problem : Field c -> String -> Problem step
 problem (Field field) message =
-    { field = field.key, message = message }
+    { field = field.key, label = field.label, message = message, step = Nothing }
 
 
 {-| Gives the form the problems of a failed save. Each is shown at its field
-and in the summary until that field is edited. All the problems of the form show
-from now on, and the focus moves to the summary. A problem for a field the form
-does not have is ignored.
+and in the summary until that field is edited, and counts as a problem
+(`problems`, `toValues`) for as long. All the problems of the form show from now
+on, and the focus moves to the summary. A problem for a field the form does not
+have is ignored.
+
+The problems are stored whether or not the form is on screen. The `Cmd` focuses
+the summary of this form; when the summary is not on screen (the form is on
+another page, or not drawn yet) it finds nothing and does nothing, so it is safe
+to batch or to drop. Two forms rejected in one reply each focus their own
+summary, and the last one wins: keep the `Cmd` of the one the user is looking at.
+
 -}
-rejected : List Problem -> Form step fields values -> State step -> ( State step, Cmd Msg )
-rejected problems (Form form) (State state) =
+rejected : List (Problem step) -> Form step fields values -> State step -> ( State step, Cmd Msg )
+rejected found (Form form) (State state) =
     let
         known =
             List.map .key form.defs
 
         server =
-            problems
+            found
                 |> List.filter (\p -> List.member p.field known)
                 |> List.foldl (\p all -> Dict.update p.field (\old -> Just (Maybe.withDefault p.message old)) all) Dict.empty
     in
@@ -1201,6 +1319,27 @@ reveal (Form form) (State state) =
     )
 
 
+{-| Moves the focus to a field, so the application never writes a DOM id. Map
+the `Cmd` with your message constructor. Nothing happens when the field is not
+on screen.
+
+    Fm.focus f.name |> Cmd.map FormMsg
+
+-}
+focus : Field c -> Cmd Msg
+focus (Field field) =
+    Form.focusField field.key NoOp
+
+
+{-| Moves the focus to the element a problem is about, for a review list you
+draw yourself (the summary does this by itself). The problem is one of
+`problems`, or one you gave to `outside`.
+-}
+goToProblem : Form step fields values -> Problem step -> State step -> ( State step, Cmd Msg )
+goToProblem _ p state =
+    ( state, Form.focusField p.field NoOp )
+
+
 
 -- VIEWS
 
@@ -1210,19 +1349,37 @@ view. The result carries everything the controls need, so each control is one
 call.
 -}
 bind : Locale -> (Msg -> msg) -> Form step fields values -> State step -> View msg
-bind locale toMsg ((Form form) as declared) ((State state) as current) =
+bind locale toMsg (Form form) (State state) =
     let
         client =
-            case toValues locale declared current of
+            case form.read locale (Dict.map (\_ slot -> rawOf slot) state.slots) of
                 Ok _ ->
                     []
 
-                Err problems ->
-                    problems
+                Err found ->
+                    found
                         |> List.filter (\p -> state.reviewed || Set.member p.field state.touched)
 
         shownClient =
             client |> List.map (\p -> ( p.field, p.message )) |> Dict.fromList
+
+        shownByField =
+            Dict.union shownClient state.server
+
+        ofForm =
+            form.defs
+                |> List.filterMap
+                    (\def ->
+                        Dict.get def.key shownByField
+                            |> Maybe.map (\message -> { field = def.key, label = def.label, message = message })
+                    )
+
+        ofOutside =
+            if state.reviewed then
+                List.map (\p -> { field = p.field, label = p.label, message = p.message }) state.outside
+
+            else
+                []
     in
     View
         { toMsg = toMsg
@@ -1230,7 +1387,8 @@ bind locale toMsg ((Form form) as declared) ((State state) as current) =
         , prefix = form.prefix
         , defs = form.defs
         , slots = state.slots
-        , shown = Dict.union shownClient state.server
+        , byField = shownByField
+        , shown = ofForm ++ ofOutside
         }
 
 
@@ -1249,7 +1407,7 @@ fieldDef (View view) (Field field) =
 
 problemOf : View msg -> Def -> Maybe String
 problemOf (View view) def =
-    Dict.get def.key view.shown
+    Dict.get def.key view.byField
 
 
 mismatch : View msg -> Field c -> String -> Html msg
@@ -1411,27 +1569,18 @@ switch ((View view) as bound) field attributes =
 
 
 {-| The list of problems that are showing, with the labels of the declaration,
-as `Form.errorSummary`. Each line moves the focus to its field. Nothing is
-drawn while no problem is showing.
+as `Form.errorSummary`: the form's own and those given to `outside`. Each line
+moves the focus to its element. Nothing is drawn while no problem is showing.
 -}
 summary : View msg -> Html msg
 summary (View view) =
-    let
-        problems =
-            view.defs
-                |> List.filterMap
-                    (\def ->
-                        Dict.get def.key view.shown
-                            |> Maybe.map (\message -> { field = def.key, message = message })
-                    )
-    in
     Form.errorSummary
         [ Form.id view.prefix
         , Form.locale view.locale
-        , Form.labels (List.map (\def -> ( def.key, def.label )) view.defs)
+        , Form.labels (List.map (\p -> ( p.field, p.label )) view.shown)
         , Form.onFocusField (\key -> view.toMsg (FocusField key))
         ]
-        problems
+        (List.map (\p -> { field = p.field, message = p.message }) view.shown)
 
 
 
@@ -1447,7 +1596,7 @@ a sample with a different value in every field.
         |> Expect.equal (Ok sample)
 
 -}
-roundTrip : Form step fields values -> (values -> State step -> State step) -> values -> Result (List Problem) values
+roundTrip : Form step fields values -> (values -> State step -> State step) -> values -> Result (List (Problem step)) values
 roundTrip declared fill values =
     init declared |> fill values |> toValues Locale.en declared
 

@@ -205,7 +205,7 @@ toAccount v =
     }
 
 
-fromBackend : BackendProblem -> Fm.Problem
+fromBackend : BackendProblem -> Fm.Problem ()
 fromBackend p =
     case p.field of
         Name ->

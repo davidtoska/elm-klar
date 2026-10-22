@@ -167,6 +167,7 @@ suite =
         , derivedIds
         , serverProblems
         , visibility
+        , everythingShowing
         , mapOptionTest
         ]
 
@@ -242,7 +243,7 @@ validation =
                                )
                 in
                 Fm.toValues Locale.en optional typed
-                    |> Expect.equal (Err [ { field = "n-weight", message = "Must be a number" } ])
+                    |> Expect.equal (Err [ { field = "n-weight", label = "Weight", message = "Must be a number", step = Nothing } ])
         , test "atLeast counts the choices" <|
             \_ ->
                 ( Fm.set f.categories [] filled |> problemsOf
@@ -539,6 +540,92 @@ visibility =
                 typeAge "17" filled
                     |> (\state -> Fm.numberInput (bound state) f.age [])
                     |> showsText "Must be between 18 and 99"
+        ]
+
+
+everythingShowing : Test
+everythingShowing =
+    let
+        withServer =
+            Fm.rejected [ Fm.problem f.name "Already taken" ] form filled |> Tuple.first
+
+        priceRule =
+            { field = "price-rule-1", label = "Price rule 1", message = "Add a condition.", step = Nothing }
+
+        summed state =
+            Fm.summary (bound state)
+
+        labelled state =
+            Fm.problems Locale.en form state |> List.map (\p -> ( p.label, p.message ))
+    in
+    describe "the problems that are showing"
+        [ test "a valid form has no problems" <|
+            \_ -> ( Fm.problems Locale.en form filled, Fm.hasProblems form filled ) |> Expect.equal ( [], False )
+        , test "problems carry the label of the declaration, in declaration order" <|
+            \_ ->
+                Fm.problems Locale.en form (Fm.init form)
+                    |> List.map (\p -> ( p.label, p.message ))
+                    |> Expect.equal
+                        [ ( "Name", "Required" )
+                        , ( "Age", "Required" )
+                        , ( "Country", "Required" )
+                        , ( "Categories", "Choose at least 1" )
+                        ]
+        , test "a server problem is a problem until its field is edited" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> labelled withServer |> Expect.equal [ ( "Name", "Already taken" ) ]
+                    , \_ -> Fm.hasProblems form withServer |> Expect.equal True
+                    , \_ -> labelled (typeName "Acme 2" withServer) |> Expect.equal []
+                    ]
+                    ()
+        , test "toValues does not produce a record while a server problem stands" <|
+            \_ ->
+                ( Fm.toValues Locale.en form withServer |> Result.map (always ())
+                , Fm.toValues Locale.en form (typeName "Acme 2" withServer) |> Result.map (always ())
+                )
+                    |> Expect.equal ( Err [ Fm.problem f.name "Already taken" ], Ok () )
+        , test "a client problem of the field comes before the server's" <|
+            \_ ->
+                labelled (Fm.set f.name "A very long name" withServer)
+                    |> Expect.equal [ ( "Name", "Must be at most 10 characters" ) ]
+        , test "a problem from outside counts, and is replaced by the next list" <|
+            \_ ->
+                let
+                    withRule =
+                        Fm.outside [ priceRule ] filled
+                in
+                Expect.all
+                    [ \_ -> labelled withRule |> Expect.equal [ ( "Price rule 1", "Add a condition." ) ]
+                    , \_ -> Fm.hasProblems form withRule |> Expect.equal True
+                    , \_ -> Fm.toValues Locale.en form withRule |> Result.map (always ()) |> Expect.equal (Err [ priceRule ])
+                    , \_ -> labelled (Fm.outside [] withRule) |> Expect.equal []
+                    ]
+                    ()
+        , test "a problem from outside is quiet until the problems are revealed" <|
+            \_ ->
+                let
+                    withRule =
+                        Fm.outside [ priceRule ] filled
+                in
+                Expect.all
+                    [ \_ -> summed withRule |> hidesText "Add a condition."
+                    , \_ -> summed (Fm.reveal form withRule |> Tuple.first) |> showsText "Price rule 1: Add a condition."
+                    ]
+                    ()
+        , test "rejected stores the problems of a form that is not on screen" <|
+            \_ ->
+                -- nothing is drawn: the state alone holds them, and the focus command is harmless
+                Fm.rejected [ Fm.problem f.name "Already taken", Fm.problem f.website "No" ] form filled
+                    |> Tuple.first
+                    |> labelled
+                    |> Expect.equal [ ( "Name", "Already taken" ), ( "Website", "No" ) ]
+        , test "a problem the form does not know is ignored" <|
+            \_ ->
+                Fm.rejected [ { field = "elsewhere", label = "?", message = "x", step = Nothing } ] form filled
+                    |> Tuple.first
+                    |> labelled
+                    |> Expect.equal []
         ]
 
 
