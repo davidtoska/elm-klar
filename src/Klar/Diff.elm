@@ -817,6 +817,7 @@ type alias Texts =
     , layout : String
     , previousChange : String
     , nextChange : String
+    , stepThrough : String
     , changeCount : Int -> String
     , changeOf : Int -> Int -> String
     , addedWord : String
@@ -881,6 +882,7 @@ texts loc =
     , layout = pick "Visning" "Layout"
     , previousChange = pick "Forrige endring" "Previous change"
     , nextChange = pick "Neste endring" "Next change"
+    , stepThrough = pick "Gå gjennom endringene" "Go through the changes"
     , changeCount = \n -> count n { one = pick "endring" "change", other = pick "endringer" "changes" }
     , changeOf = \i n -> pick ("Endring " ++ number i ++ " av " ++ number n) ("Change " ++ number i ++ " of " ++ number n)
     , addedWord = pick "Lagt til" "Added"
@@ -1203,7 +1205,7 @@ viewToolbar ctx ((Diff diff) as whole) =
                       else
                         Html.text ""
                     , if hasChanges then
-                        Html.div [ Internal.cls [ "klar-diff__nav" ], Attr.attribute "role" "group", Attr.attribute "aria-label" t.changeColumn ]
+                        Html.div [ Internal.cls [ "klar-diff__nav" ], Attr.attribute "role" "group", Attr.attribute "aria-label" t.stepThrough ]
                             [ Html.span [ Internal.cls [ "klar-diff__counter", "klar-tabular" ] ]
                                 [ Html.text
                                     (case current of
@@ -1315,9 +1317,10 @@ viewSummary ctx summary =
 
 
 {-| The box that scrolls: sideways for long lines, and up and down when there is a
-`maxHeight`. It is a tab stop with a name when it is interactive, so the keys can
-scroll it, and `n` and `p` go to the next and the previous change while the focus
-is inside.
+`maxHeight`. It is a tab stop with a name when it can scroll (a table of lines
+always can, a list of changes only with a `maxHeight`), so the arrow keys scroll it.
+In the viewer `n` and `p` go to the next and the previous change while the focus is
+inside, whether it is a tab stop or not.
 -}
 scrollArea : Ctx msg -> String -> Bool -> List (Html msg) -> Html msg
 scrollArea ctx label tabStop content =
@@ -1379,16 +1382,21 @@ scrollArea ctx label tabStop content =
                 Internal.noAttr
          ]
             ++ (if tabStop then
-                    [ Attr.id (state.id ++ "-scroll")
-                    , Attr.tabindex 0
+                    [ Attr.tabindex 0
                     , Attr.attribute "role" "region"
                     , Attr.attribute "aria-label" label
-                    , Internal.attrIf (not (List.isEmpty keys)) (Internal.onKeys keys)
                     ]
+                        ++ (if ctx.interactive then
+                                [ Attr.id (state.id ++ "-scroll") ]
+
+                            else
+                                []
+                           )
 
                 else
                     []
                )
+            ++ [ Internal.attrIf (not (List.isEmpty keys)) (Internal.onKeys keys) ]
         )
         content
 
@@ -1449,7 +1457,7 @@ viewLines ctx label compared =
     in
     scrollArea ctx
         label
-        interactive
+        True
         [ Keyed.node "table"
             [ Internal.cls
                 [ "klar-diff__table"
