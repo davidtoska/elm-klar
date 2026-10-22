@@ -236,3 +236,13 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
 - `AppShell.sidebar` renders an `aside` named "Sidebar" ("Sidepanel" in Norwegian), so a caption
   or a filter tree next to the `SideNav` is inside a landmark (R2S-007, axe `region`). The
   `SideNav` stays its own `nav` inside it; the roles differ, so no landmark is duplicated.
+- `SavedViews` (R2F-002, R2F-003, R2F-004): `startSave` opens the list with the save form open and
+  focus in its name, so a command or a shortcut needs no dialog of its own. A view can be shared
+  (`asShared`, `isShared`): the list shows a "Shared" badge, and `apply name` marks a view active
+  and bumps `revision` for a link that names it (the docs show the `?view=` recipe; Klar stores and
+  shares nothing). A view can hold the table's query (`query : Maybe Table.Query`, `withQuery`,
+  and `currentQuery (Table.query table)` on `view`): search text, sort, column filters and page
+  size are saved with the rule, compared for "modified", and applied with `Table.setQuery`. This
+  was the smallest bridge: no JSON payload, no second state; the page is not kept. Views built
+  without `currentQuery` hold only the rule, as before. The `SavedView` record has two new fields
+  (`isShared`, `query`); build it with `savedView`.
