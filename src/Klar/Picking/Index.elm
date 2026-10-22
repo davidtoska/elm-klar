@@ -11,6 +11,7 @@ module Klar.Picking.Index exposing
     , build
     , descendantKeys
     , empty
+    , failureIndex
     , filter
     , findLabels
     , get
@@ -465,6 +466,7 @@ type Row id
 type alias Rows id =
     { rows : Array (Row id)
     , positions : Dict String Int
+    , failures : Dict String Int
     , shown : Int
     , matchCount : Int
     , total : Int
@@ -530,6 +532,20 @@ rows view index =
                     )
                     Dict.empty
 
+        failures =
+            ordered
+                |> List.indexedMap Tuple.pair
+                |> List.foldl
+                    (\( i, row ) dict ->
+                        case row of
+                            FailedRow r ->
+                                Dict.insert r.parent i dict
+
+                            _ ->
+                                dict
+                    )
+                    Dict.empty
+
         matchCount =
             case view.filter of
                 Just f ->
@@ -540,6 +556,7 @@ rows view index =
     in
     { rows = Array.fromList ordered
     , positions = positions
+    , failures = failures
     , shown = Dict.size positions
     , matchCount = matchCount
     , total = size index
@@ -642,6 +659,13 @@ rowAt i r =
 rowIndex : String -> Rows id -> Maybe Int
 rowIndex key r =
     Dict.get key r.positions
+
+
+{-| The row of the failure under a node, when it is on screen.
+-}
+failureIndex : String -> Rows id -> Maybe Int
+failureIndex parent r =
+    Dict.get parent r.failures
 
 
 

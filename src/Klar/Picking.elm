@@ -1,5 +1,5 @@
 module Klar.Picking exposing
-    ( Ids, ids, stringIds, intIds, toKey, fromKey
+    ( Ids, ids, stringIds, intIds, toKey
     , Node, leaf, branch, lazy, withDescription, withIcon, withKeywords, disabled
     , key, id, label, description, icon, keywords, isDisabled, children
     )
@@ -7,7 +7,8 @@ module Klar.Picking exposing
 {-| The vocabulary that [Klar.TreeSelect](Klar-TreeSelect),
 [Klar.Cascader](Klar-Cascader) and [Klar.Transfer](Klar-Transfer) share: how your
 own id type (a `RegionId`, a `ProductId`, plain text ...) is written as a key,
-and the nodes of a hierarchy to choose from.
+and the nodes of a hierarchy to choose from. The components give your ids back
+as they are, so you never write the way back from a key to an id.
 
     import Klar.Picking as Picking
     import Klar.Remote exposing (Remote(..))
@@ -15,7 +16,7 @@ and the nodes of a hierarchy to choose from.
     -- how a RegionId is written as a key, once for the whole application
     regionIds : Picking.Ids RegionId
     regionIds =
-        Picking.ids { toKey = RegionId.toString, fromKey = RegionId.fromString }
+        Picking.ids RegionId.toString
 
     -- a hierarchy: Europe holds Oslo, and the zones of Bergen come from the backend
     regions : Remote (List Zone) -> List (Picking.Node RegionId)
@@ -36,10 +37,8 @@ it, and a `lazy` node has children that come from the backend, shown as loading,
 failed or loaded. Only the nodes of an open branch are drawn.
 
 Every id must be unique in the whole tree, not only among its siblings, and its
-key (what `toKey` makes of it) must be different for different ids. A node whose
-key was already used by an earlier node is left out of the choice list. The
-components give your own ids back through `fromKey`, so a key that it rejects is
-left out of the answer.
+key (what `ids` was told to make of it) must be different for different ids. A node
+whose key was already used by an earlier node is left out of the choice list.
 
 The functions that read a node (`key`, `id`, `label` ...) are for the components
 of this package and for code that builds one tree from another; an application
@@ -48,7 +47,7 @@ rarely needs them.
 
 # Ids
 
-@docs Ids, ids, stringIds, intIds, toKey, fromKey
+@docs Ids, ids, stringIds, intIds, toKey
 
 
 # Nodes
@@ -71,32 +70,29 @@ import Klar.Remote as Remote exposing (Remote)
 
 
 {-| How the id type of your nodes (a `RegionId`, a `ProductId`, plain text ...) is
-written as a key and read back. Declare one value for each kind of id, once, and
-pass it to the node constructors and to the functions that speak ids
-(`TreeSelect.values`, `Cascader.value`, `Transfer.values` ...). The components are
-typed by the id (`TreeSelect.State TreeSelect.Multiple RegionId`), so a field for
-regions cannot be asked about product ids.
+written as a key. Declare one value for each kind of id, once, and pass it to the
+node constructors and to the functions that set ids from your code
+(`TreeSelect.setValues`, `Cascader.setValue`, `Transfer.setValues` ...). The
+components are typed by the id (`TreeSelect.State TreeSelect.Multiple RegionId`),
+so a field for regions cannot be asked about product ids.
 
     regionIds : Picking.Ids RegionId
     regionIds =
-        Picking.ids { toKey = RegionId.toString, fromKey = RegionId.fromString }
+        Picking.ids RegionId.toString
 
-The key is what the components keep inside their `State`, so `toKey` must give
-every id its own key and `fromKey` must give the id back. A key `fromKey`
-rejects (it can come from an id that no longer exists) is left out of the lists
-you get.
+The key is what the components use to look an id up quickly, so it must give
+every id its own text. The ids come back as you gave them: nothing is converted
+back from a key.
 
 -}
 type Ids id
-    = Ids
-        { toKey : id -> String
-        , fromKey : String -> Maybe id
-        }
+    = Ids (id -> String)
 
 
-{-| Makes the `Ids` of an id type, see there.
+{-| Makes the `Ids` of an id type from the function that writes an id as a key,
+see there.
 -}
-ids : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
+ids : (id -> String) -> Ids id
 ids =
     Ids
 
@@ -105,14 +101,14 @@ ids =
 -}
 stringIds : Ids String
 stringIds =
-    Ids { toKey = identity, fromKey = Just }
+    Ids identity
 
 
 {-| Ids that are whole numbers (a database id).
 -}
 intIds : Ids Int
 intIds =
-    Ids { toKey = String.fromInt, fromKey = String.toInt }
+    Ids String.fromInt
 
 
 {-| The key of an id: what `ids` was told to make of it.
@@ -121,21 +117,8 @@ intIds =
 
 -}
 toKey : Ids id -> id -> String
-toKey (Ids i) =
-    i.toKey
-
-
-{-| The id that a key stands for, or `Nothing` when the key is not one that `toKey`
-makes.
-
-    Picking.fromKey Picking.intIds "42" --> Just 42
-
-    Picking.fromKey Picking.intIds "oslo" --> Nothing
-
--}
-fromKey : Ids id -> String -> Maybe id
-fromKey (Ids i) =
-    i.fromKey
+toKey (Ids write) =
+    write
 
 
 
@@ -164,9 +147,9 @@ type alias Data id =
 
 
 make : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
-make (Ids i) nodeId nodeLabel kids =
+make (Ids write) nodeId nodeLabel kids =
     Node
-        { key = i.toKey nodeId
+        { key = write nodeId
         , id = nodeId
         , label = nodeLabel
         , description = Nothing

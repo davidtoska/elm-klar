@@ -25,10 +25,7 @@ type RegionId
 
 regionIds : Picking.Ids RegionId
 regionIds =
-    Picking.ids
-        { toKey = \(RegionId n) -> "region-" ++ String.fromInt n
-        , fromKey = \key -> String.toInt (String.dropLeft 7 key) |> Maybe.map RegionId
-        }
+    Picking.ids (\(RegionId n) -> "region-" ++ String.fromInt n)
 
 
 suite : Test
@@ -50,21 +47,10 @@ suite =
 idTests : Test
 idTests =
     describe "Ids"
-        [ test "an id of the application's own type goes to a key and back" <|
-            \_ ->
-                Picking.toKey regionIds (RegionId 7)
-                    |> Picking.fromKey regionIds
-                    |> Expect.equal (Just (RegionId 7))
-        , test "a key the ids do not make is rejected" <|
-            \_ -> Expect.equal Nothing (Picking.fromKey regionIds "oslo")
+        [ test "an id of the application's own type is written as a key" <|
+            \_ -> Expect.equal "region-7" (Picking.toKey regionIds (RegionId 7))
         , test "string and int ids" <|
-            \_ ->
-                Expect.all
-                    [ \_ -> Expect.equal ( "a", Just "a" ) ( Picking.toKey Picking.stringIds "a", Picking.fromKey Picking.stringIds "a" )
-                    , \_ -> Expect.equal ( "42", Just 42 ) ( Picking.toKey Picking.intIds 42, Picking.fromKey Picking.intIds "42" )
-                    , \_ -> Expect.equal Nothing (Picking.fromKey Picking.intIds "x")
-                    ]
-                    ()
+            \_ -> Expect.equal ( "a", "42" ) ( Picking.toKey Picking.stringIds "a", Picking.toKey Picking.intIds 42 )
         ]
 
 
