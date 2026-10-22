@@ -54,9 +54,9 @@ import Html.Attributes as Attr
 import Klar.ErrorState as ErrorState
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Time
 
@@ -113,6 +113,7 @@ skeleton html =
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     RemoteView.settings model.settings
+
 -}
 settings : Settings -> Attribute msg
 settings given =

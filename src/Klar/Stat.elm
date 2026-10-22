@@ -107,10 +107,10 @@ import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money as Money exposing (Money)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
 import Time
@@ -492,6 +492,7 @@ remote data toAttributes =
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     Stat.settings model.settings
+
 -}
 settings : Settings -> Attribute msg
 settings given =

@@ -332,12 +332,12 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Internal.Window as Window
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Pagination as Pagination
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Table.Csv as Csv
@@ -2657,6 +2657,7 @@ label value =
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     Table.settings model.settings
+
 -}
 settings : Settings -> Attribute id row msg
 settings given =

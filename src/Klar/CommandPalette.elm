@@ -192,11 +192,11 @@ import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem, Remote(..))
 import Klar.Search as Search
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Shortcut as Shortcut
 import Klar.Skeleton as Skeleton
 import Klar.Text as Text
@@ -688,6 +688,7 @@ noResults value =
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     CommandPalette.settings model.settings
+
 -}
 settings : Settings -> Attribute msg
 settings given =

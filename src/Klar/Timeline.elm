@@ -96,9 +96,9 @@ import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
@@ -304,6 +304,7 @@ times and of the day an event belongs to, and of "Old data from 14:05". Without 
 the times are written in UTC and end in "UTC".
 
     Timeline.settings model.settings
+
 -}
 settings : Settings -> Attribute msg
 settings given =

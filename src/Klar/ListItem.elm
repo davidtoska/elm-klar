@@ -86,9 +86,9 @@ import Klar.ErrorState as ErrorState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Tone)
 import Time
@@ -597,6 +597,7 @@ skeletonRows n =
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     ListItem.settings model.settings
+
 -}
 settings : Settings -> ListAttribute msg
 settings given =

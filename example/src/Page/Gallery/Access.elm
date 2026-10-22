@@ -21,6 +21,7 @@ import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.PermissionMatrix as PermissionMatrix
 import Klar.Remote as Remote
+import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Klar.TextArea as TextArea
 import Klar.Theme as Theme
@@ -438,7 +439,6 @@ type alias Model =
     , retries : Int
     , big : PermissionMatrix.State
     , bigGrants : Set ( Int, Int )
-    , zone : Time.Zone
     , viewer : Maybe User
     , users : Dict String Verdicted
     , rejecting : Bool
@@ -457,7 +457,6 @@ type Msg
     | Retried
     | BigMsg PermissionMatrix.Msg
     | BigChanged (List (PermissionMatrix.Change Int Int))
-    | GotZone Time.Zone
     | ViewerPicked (Maybe User)
     | ApproveClicked
     | RejectClicked
@@ -480,13 +479,12 @@ init =
       , retries = 0
       , big = PermissionMatrix.init "access-big"
       , bigGrants = initialBig
-      , zone = Time.utc
       , viewer = Just Grace
       , users = initialDecisionsOfUsers
       , rejecting = False
       , reason = ""
       }
-    , Task.perform GotZone Time.here
+    , Cmd.none
     )
 
 
@@ -567,9 +565,6 @@ update msg model =
             , Cmd.none
             )
 
-        GotZone zone ->
-            ( { model | zone = zone }, Cmd.none )
-
         ViewerPicked user ->
             ( { model | viewer = user, rejecting = False }, Cmd.none )
 
@@ -609,14 +604,14 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Settings -> Locale -> Model -> Html Msg
+view settings locale model =
     Doc.page
         { title = "Roles and approvals"
         , description = "A permission matrix for roles and an approval flow with approvers and status. The status of a flow is derived from the decisions, so what is drawn can never contradict them. The language switch in the top bar changes the built-in texts."
         }
         [ matrixSection locale model
-        , approvalSection locale model
+        , approvalSection settings locale model
         ]
 
 
@@ -728,27 +723,28 @@ viewerButton model choice =
         )
 
 
-flowAttributes : Locale -> Model -> List (ApprovalFlow.Attribute User Msg)
-flowAttributes locale model =
+flowAttributes : Settings -> Locale -> Model -> List (ApprovalFlow.Attribute User Msg)
+flowAttributes settings locale model =
     [ ApprovalFlow.viewer model.viewer
     , ApprovalFlow.onApprove ApproveClicked
     , ApprovalFlow.onReject RejectClicked
     , ApprovalFlow.now Sample.now
-    , ApprovalFlow.zone model.zone
+    , ApprovalFlow.settings settings
     , ApprovalFlow.locale locale
     , ApprovalFlow.ariaLabel "Approval of credit note 2024-117"
     ]
 
 
-staticAttributes : Locale -> List (ApprovalFlow.Attribute User Msg)
-staticAttributes locale =
+staticAttributes : Settings -> Locale -> List (ApprovalFlow.Attribute User Msg)
+staticAttributes settings locale =
     [ ApprovalFlow.now Sample.now
+    , ApprovalFlow.settings settings
     , ApprovalFlow.locale locale
     ]
 
 
-approvalSection : Locale -> Model -> Html Msg
-approvalSection locale model =
+approvalSection : Settings -> Locale -> Model -> Html Msg
+approvalSection settings locale model =
     Doc.section "Approval flow"
         "The steps of an approval, each with the rule for its approvers (all of them, or any one) and a decision from each. Where each step stands, and the flow, is worked out from the decisions: an approval in an any step wins over rejections, a rejection in an all step wins over approvals, and a rejection leaves the later steps not reached. Pick who you are, and decide."
         [ Doc.example
@@ -767,7 +763,7 @@ approvalSection locale model =
 
                   else
                     Html.text ""
-                , ApprovalFlow.view personOf (flowAttributes locale model) (creditNote model.users)
+                , ApprovalFlow.view personOf (flowAttributes settings locale model) (creditNote model.users)
                 ]
             )
         , Doc.example
@@ -776,7 +772,7 @@ approvalSection locale model =
             , code = Just "ApprovalFlow.view personOf [ ApprovalFlow.horizontal ] flow"
             }
             (ApprovalFlow.view personOf
-                (ApprovalFlow.horizontal :: staticAttributes locale)
+                (ApprovalFlow.horizontal :: staticAttributes settings locale)
                 (creditNote model.users)
             )
         , Doc.example
@@ -785,9 +781,9 @@ approvalSection locale model =
             , code = Just statusCode
             }
             (Layout.grid [ Layout.minColumn 340, Layout.gap 4 ]
-                [ labelled "Overdue" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, overdue" :: staticAttributes locale) lateRequest)
-                , labelled "Rejected" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, rejected" :: staticAttributes locale) rejectedRequest)
-                , labelled "Approved" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, approved" :: staticAttributes locale) approvedRequest)
+                [ labelled "Overdue" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, overdue" :: staticAttributes settings locale) lateRequest)
+                , labelled "Rejected" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, rejected" :: staticAttributes settings locale) rejectedRequest)
+                , labelled "Approved" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, approved" :: staticAttributes settings locale) approvedRequest)
                 , labelled "No approval required" (ApprovalFlow.view personOf (ApprovalFlow.locale locale :: []) (ApprovalFlow.flow []))
                 ]
             )
@@ -797,10 +793,10 @@ approvalSection locale model =
             , code = Just "ApprovalFlow.viewRemote personOf [ ApprovalFlow.onRetry Reload ] model.approval"
             }
             (Layout.grid [ Layout.minColumn 340, Layout.gap 4 ]
-                [ labelled "Loading" (ApprovalFlow.viewRemote personOf (staticAttributes locale) Remote.Loading)
+                [ labelled "Loading" (ApprovalFlow.viewRemote personOf (staticAttributes settings locale) Remote.Loading)
                 , labelled "Failure"
                     (ApprovalFlow.viewRemote personOf
-                        (ApprovalFlow.onRetry Retried :: staticAttributes locale)
+                        (ApprovalFlow.onRetry Retried :: staticAttributes settings locale)
                         (Remote.Failed (Remote.problem Remote.timeout))
                     )
                 ]
@@ -902,7 +898,7 @@ flowCode =
     , ApprovalFlow.onApprove Approve
     , ApprovalFlow.onReject AskWhy        -- your own dialog; send the reason with the decision
     , ApprovalFlow.now model.now
-    , ApprovalFlow.zone model.zone
+    , ApprovalFlow.settings settings
     ]
     (ApprovalFlow.flow
         [ ApprovalFlow.step "Team lead" ApprovalFlow.all (approver ada) []

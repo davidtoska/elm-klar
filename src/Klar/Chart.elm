@@ -123,9 +123,9 @@ import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Tone(..))
 import Time
@@ -532,6 +532,7 @@ unit text =
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     Chart.settings model.settings
+
 -}
 settings : Settings -> Attribute msg
 settings given =

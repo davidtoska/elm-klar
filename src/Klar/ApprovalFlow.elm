@@ -156,8 +156,8 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Theme exposing (Size(..), Tone(..))
 import Time

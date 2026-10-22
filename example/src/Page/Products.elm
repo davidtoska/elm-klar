@@ -44,7 +44,6 @@ import Klar.Tree as Tree
 import Page.Effect as Effect exposing (Context, Effect(..))
 import Page.Products.Category as Category exposing (Branch(..), Category)
 import Set
-import Klar.Settings as Settings
 import Time
 
 
@@ -239,7 +238,7 @@ loaded context result model =
                 -- them as old) and say so. This page has no clock, so the time
                 -- given for a failed answer is never used.
                 { model
-                    | products = Remote.refreshWith model.products (Err problem) (Settings.at context.settings (Time.millisToPosix 0))
+                    | products = Remote.refreshWith model.products (Err problem) (Time.millisToPosix 0)
                     , effects = Effect.push (Notify Danger "Products not refreshed" (Maybe.withDefault (Remote.title context.locale problem) (Remote.detail context.locale problem))) model.effects
                 }
 
@@ -426,6 +425,7 @@ viewCategories context model =
                     [ Tree.ariaLabel "Product categories"
                     , Tree.allowEmptySelection
                     , Tree.locale context.locale
+                    , Tree.settings context.settings
                     , Tree.compact
                     , Tree.filterBox
                     , Tree.filterPlaceholder "Find a category ..."

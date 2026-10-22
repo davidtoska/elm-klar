@@ -101,12 +101,12 @@ import Klar.Field as Field
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select.Match as Match
 import Klar.Select.Option as Option exposing (Option)
 import Klar.Select.Popup as Popup
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..))
 import Klar.VirtualList as VirtualList
@@ -596,6 +596,7 @@ prefixIcon icon =
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     Autocomplete.settings model.settings
+
 -}
 settings : Settings -> Attribute msg
 settings given =

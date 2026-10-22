@@ -9,8 +9,8 @@ import Html exposing (Html)
 import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
-import Klar.Settings as Settings exposing (Moment, Settings)
 import Klar.Remote exposing (Problem)
+import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Klar.Timeline as Timeline
@@ -78,10 +78,7 @@ view : Settings -> Locale -> Model -> Html Msg
 view settings locale model =
     let
         common =
-            [ Timeline.locale locale, Timeline.now (Settings.at settings Sample.now) ]
-
-        orderLog =
-            orderEvents settings
+            [ Timeline.locale locale, Timeline.settings settings, Timeline.now Sample.now ]
 
         loadMoreFailure =
             case model.moreFailed of
@@ -119,11 +116,11 @@ Timeline.moreFailed problem"""
                     ++ [ Timeline.ariaLabel "Order log"
                        , Timeline.onLoadMore LoadMore
                        , Timeline.loadingMore model.loadingMore
-                       , Timeline.hasMore (model.shown < List.length orderLog)
+                       , Timeline.hasMore (model.shown < List.length orderEvents)
                        ]
                     ++ loadMoreFailure
                 )
-                (List.take model.shown orderLog)
+                (List.take model.shown orderEvents)
             )
         , Doc.example
             { title = "Compact"
@@ -132,7 +129,7 @@ Timeline.moreFailed problem"""
             }
             (Timeline.view
                 (Timeline.compact :: Timeline.maxHeight 230 :: Timeline.ariaLabel "Order log, compact" :: common)
-                (List.take 14 orderLog)
+                (List.take 14 orderEvents)
             )
         , Doc.example
             { title = "Without day headings"
@@ -145,7 +142,7 @@ Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
             }
             (Timeline.view
                 (Timeline.ungrouped :: Timeline.ariaLabel "Order log, ungrouped" :: common)
-                (List.take 5 orderLog
+                (List.take 5 orderEvents
                     |> List.indexedMap
                         (\i event ->
                             if i == 0 then
@@ -191,13 +188,13 @@ Timeline.view [ Timeline.remote model.history, Timeline.onRetry Reload ] events"
 {-| Forty events, about an hour and a half apart, going back from the moment the
 sample data pretends it is. One of every kind, and one with very long texts.
 -}
-orderEvents : Settings -> List (Timeline.Event msg)
-orderEvents settings =
-    List.range 0 39 |> List.map (orderEvent settings)
+orderEvents : List (Timeline.Event msg)
+orderEvents =
+    List.range 0 39 |> List.map orderEvent
 
 
-orderEvent : Settings -> Int -> Timeline.Event msg
-orderEvent settings i =
+orderEvent : Int -> Timeline.Event msg
+orderEvent i =
     let
         order =
             Sample.orders |> List.drop (i * 7 + 3) |> List.head
@@ -215,7 +212,7 @@ orderEvent settings i =
             i * 83 + modBy 17 (i * 13)
 
         time =
-            Settings.at settings (Time.millisToPosix (Time.posixToMillis Sample.now - minutesAgo * 60000))
+            Time.millisToPosix (Time.posixToMillis Sample.now - minutesAgo * 60000)
 
         id =
             "event-" ++ String.fromInt i
@@ -230,7 +227,7 @@ orderEvent settings i =
         orderEventOfKind (modBy 6 i) id time { customer = customer, orderId = orderId, owner = owner }
 
 
-orderEventOfKind : Int -> String -> Moment -> { customer : String, orderId : String, owner : String } -> Timeline.Event msg
+orderEventOfKind : Int -> String -> Time.Posix -> { customer : String, orderId : String, owner : String } -> Timeline.Event msg
 orderEventOfKind kind id time who =
     case kind of
         0 ->

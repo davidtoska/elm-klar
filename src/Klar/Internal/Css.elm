@@ -1465,23 +1465,23 @@ css =
  .klar-timeline__list--skeleton .klar-timeline__time{display: block;padding-top: 5px}
  .klar-timeline__list--skeleton .klar-timeline__content{display: flex;flex-direction: column;gap: 8px;padding-top: 5px}
  .klar-timeline__list--skeleton .klar-timeline__rail{padding-top: 0}
- .klar-timeline--compact,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)){--_time-w: 0px;--_rail-w: 16px;gap: 10px}
- .klar-timeline--compact .klar-timeline__days,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__days{gap: 10px}
- .klar-timeline--compact .klar-timeline__day-title,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__day-title{padding-left: 0}
- .klar-timeline--compact .klar-timeline__footer,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__footer{padding-left: 0}
- .klar-timeline--compact .klar-timeline__item,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__item{grid-template-columns: var(--_rail-w) minmax(0,1fr);padding-bottom: 4px}
- .klar-timeline--compact .klar-timeline__item:last-child,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__item:last-child{padding-bottom: 0}
- .klar-timeline--compact .klar-timeline__item::before,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__item::before{left: calc(var(--_rail-w) / 2)}
- .klar-timeline--compact .klar-timeline__item:first-child::before,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__item:first-child::before{top: 10px}
- .klar-timeline--compact .klar-timeline__item:last-child::before,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__item:last-child::before{height: 10px}
- .klar-timeline--compact .klar-timeline__marker--dot,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__marker--dot{width: 7px;height: 7px;margin-top: 6.5px;box-shadow: 0 0 0 2px var(--klar-surface)}
- .klar-timeline--compact .klar-timeline__content,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__content{padding-left: 6px}
+ .klar-timeline--compact{--_time-w: 0px;--_rail-w: 16px;gap: 10px}
+ .klar-timeline--compact .klar-timeline__days{gap: 10px}
+ .klar-timeline--compact .klar-timeline__day-title{padding-left: 0}
+ .klar-timeline--compact .klar-timeline__footer{padding-left: 0}
+ .klar-timeline--compact .klar-timeline__item{grid-template-columns: var(--_rail-w) minmax(0,1fr);padding-bottom: 4px}
+ .klar-timeline--compact .klar-timeline__item:last-child{padding-bottom: 0}
+ .klar-timeline--compact .klar-timeline__item::before{left: calc(var(--_rail-w) / 2)}
+ .klar-timeline--compact .klar-timeline__item:first-child::before{top: 10px}
+ .klar-timeline--compact .klar-timeline__item:last-child::before{height: 10px}
+ .klar-timeline--compact .klar-timeline__marker--dot{width: 7px;height: 7px;margin-top: 6.5px;box-shadow: 0 0 0 2px var(--klar-surface)}
+ .klar-timeline--compact .klar-timeline__content{padding-left: 6px}
  .klar-timeline__line{display: flex;align-items: center;gap: 8px;min-height: 20px;min-width: 0}
- .klar-timeline--compact .klar-timeline__title,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__title{flex: none;max-width: 55%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
- .klar-timeline--compact .klar-timeline__description,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__description{flex: 1 20 auto;min-width: 0;max-width: none;margin: 0;color: var(--klar-text-muted)}
- .klar-timeline--compact .klar-timeline__time,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__time{flex: none;margin-left: auto;padding: 0}
- .klar-timeline--compact .klar-timeline__details-body,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__details-body{margin-top: 4px}
- .klar-timeline--compact .klar-timeline__details,:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact,.klar-timeline--comfortable)) .klar-timeline__details{margin-top: 0}
+ .klar-timeline--compact .klar-timeline__title{flex: none;max-width: 55%;overflow: hidden;text-overflow: ellipsis;white-space: nowrap}
+ .klar-timeline--compact .klar-timeline__description{flex: 1 20 auto;min-width: 0;max-width: none;margin: 0;color: var(--klar-text-muted)}
+ .klar-timeline--compact .klar-timeline__time{flex: none;margin-left: auto;padding: 0}
+ .klar-timeline--compact .klar-timeline__details-body{margin-top: 4px}
+ .klar-timeline--compact .klar-timeline__details{margin-top: 0}
  .klar-json{min-width: 0;background: var(--klar-surface);border: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg);font-family: var(--klar-font-mono);font-size: var(--klar-text-sm);line-height: 20px;color: var(--klar-text)}
  .klar-json--error{padding: var(--klar-space-3) var(--klar-space-4);color: var(--klar-red-700);font-family: var(--klar-font)}
  .klar-json__toolbar{display: flex;gap: 4px;padding: 6px 8px;background: var(--klar-surface-subtle);border-bottom: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg) var(--klar-radius-lg) 0 0;font-family: var(--klar-font)}
@@ -2402,4 +2402,7 @@ css =
  [data-klar-density] .klar-card--flush > .klar-card__body{padding: 0}
  :where([data-klar-density="compact"]) .klar-stat:where(:not(.klar-stat--sm,.klar-stat--lg)){--_fs: 20px}
  :where([data-klar-density="comfortable"]) .klar-stat:where(:not(.klar-stat--sm,.klar-stat--lg)){--_fs: 30px}
+ [data-klar-density="compact"] .klar-timeline:not(.klar-timeline--compact) .klar-timeline__item:not(:last-child){padding-bottom: 8px}
+ [data-klar-density="comfortable"] .klar-timeline:not(.klar-timeline--compact) .klar-timeline__item:not(:last-child){padding-bottom: 20px}
+ .klar-settings{display: contents}
 """

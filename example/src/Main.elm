@@ -32,11 +32,11 @@ import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Radio as Radio
 import Klar.Remote as Remote exposing (Remote)
 import Klar.SegmentedControl as SegmentedControl
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Shortcut as Shortcut exposing (Shortcut)
 import Klar.ShortcutHelp as ShortcutHelp
 import Klar.SideNav as SideNav
 import Klar.Text as Text
-import Klar.Settings as Settings exposing (Settings)
 import Klar.Theme exposing (Density(..), Tone(..))
 import Klar.Toast as Toast
 import Page.Effect as Effect exposing (Effect(..))

@@ -1221,6 +1221,7 @@ view context model =
             , Table.view TableMsg
                 [ Table.label "Orders"
                 , Table.locale context.locale
+                , Table.settings context.settings
                 , Table.columns (columns context lookups)
                 , Table.rows model.rows
                 , Table.server { total = model.total }
