@@ -72,7 +72,9 @@ Limits: a limit in pixels is checked against the container as it was when the us
 last pressed or focused a separator; between then and the next time, the stylesheet
 keeps the panes from being drawn smaller than their `minPixels` (and larger than
 their `maxPixels`), but the sizes that `sizes` gives are the last ones that the
-user's own movement set. Only the two panes beside a separator change when it
+user's own movement set. When the pixel minimums of the panes add up to more than the
+container has (a phone), the splitter scrolls sideways, or downwards when it is
+`stacked`, so that no pane is cut off. Only the two panes beside a separator change when it
 moves, and the content of every pane is drawn all the time, also in a pane that is
 folded away. Right-to-left languages are not mirrored yet.
 

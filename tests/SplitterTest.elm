@@ -4,6 +4,7 @@ import Expect exposing (Expectation)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar
 import Klar.Locale as Locale
 import Klar.Splitter as Splitter
 import Test exposing (Test, describe, test)
@@ -227,6 +228,22 @@ structureTests =
                 rendered model
                     |> Query.find [ Selector.id "split-pane-0" ]
                     |> Query.has [ Selector.attribute (Attr.attribute "style" "--klar-grow:40;--klar-min:240px;--klar-max:600px") ]
+        , test "pixel minimums that do not fit the container scroll it, so that the last pane is not cut off" <|
+            \_ ->
+                let
+                    rule selector =
+                        Klar.css
+                            |> String.split (selector ++ "{")
+                            |> List.drop 1
+                            |> List.head
+                            |> Maybe.andThen (String.split "}" >> List.head)
+                            |> Maybe.withDefault ""
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (String.contains "overflow-x: auto" (rule ".klar-splitter"))
+                    , \_ -> Expect.equal True (String.contains "overflow-y: auto" (rule ".klar-splitter--stacked"))
+                    ]
+                    ()
         , test "a size outside the limits is drawn inside them" <|
             \_ ->
                 let

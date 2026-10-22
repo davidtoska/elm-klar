@@ -506,7 +506,11 @@ reorder (Ids ids) toId (State before) (State after) list =
 place `to` is where the element ends up. A `to` beyond the ends counts as the
 nearest end, and a `from` that is not in the list changes nothing. Use it for the
 same move without dragging, for example for "Move up" and "Move down" buttons in a
-menu, so that people who cannot drag have another way.
+menu, so that people who cannot drag have another way. A button inside the item goes
+with the item to its new place, and the browser takes the focus from an element that is
+moved in the page: give the button an `id` and send the focus back to it in the same
+`update`, with `Browser.Dom.focus`, or a keyboard user starts again from the top of the
+page after every press.
 
     Sortable.move { from = 0, to = 2 } [ "a", "b", "c", "d" ] --> [ "b", "c", "a", "d" ]
 

@@ -272,7 +272,7 @@ fieldSection locale model =
                     , RecurrencePicker.locale locale
                     , RecurrencePicker.readOnly True
                     ]
-                    (RecurrencePicker.setRule Nothing model.loaded)
+                    (RecurrencePicker.init "recurrence-not-repeating" today)
                 ]
             )
         ]

@@ -84,12 +84,13 @@ offerButton =
 nothingSelectedTests : Test
 nothingSelectedTests =
     describe "with nothing selected"
-        [ test "no bar and none of its buttons" <|
+        [ test "the bar is only kept in its place: hidden, inert and without a role, so that nobody can reach or hear it" <|
             \_ ->
                 bar [] 0
                     |> Expect.all
-                        [ H.none [ theBar ]
-                        , H.none [ Selector.tag "button" ]
+                        [ H.count 1 [ theBar ]
+                        , H.inside [ theBar ] [ Selector.class "klar-bulk__bar--reserved", H.attr "aria-hidden" "true", H.attr "inert" "" ]
+                        , H.none [ theBar, H.attr "role" "group" ]
                         ]
         , test "the toolbar is there and can be used" <|
             \_ ->
@@ -97,17 +98,33 @@ nothingSelectedTests =
                     |> Expect.all
                         [ H.count 1 [ Selector.class "orders-search" ]
                         , H.none [ Selector.class "klar-bulk__under--covered" ]
-                        , H.none [ H.attr "inert" "" ]
+                        , H.none [ Selector.class "klar-bulk__under", H.attr "inert" "" ]
                         ]
         , fuzz (Fuzz.intRange -50 0) "a count of zero or less is the same" <|
             \count ->
                 bar [] count
                     |> Expect.all
-                        [ H.none [ theBar ]
+                        [ H.count 1 [ Selector.class "klar-bulk__bar--reserved" ]
                         , H.none [ Selector.class "klar-bulk__under--covered" ]
                         ]
-        , test "the offer is not drawn either" <|
-            \_ -> bar [ everything 500 25 ] 0 |> H.none [ Selector.tag "button" ]
+        , test "the place is kept for the bar as it looks with a page ticked: the count with the total and the offer" <|
+            \_ ->
+                bar [ everything 500 25 ] 0
+                    |> Expect.all
+                        [ H.inside [ Selector.class "klar-bulk__count" ] [ Selector.exactText "25 of 500 selected" ]
+                        , H.inside [ Selector.class "klar-bulk__offer" ] [ Selector.text "Select all 500 matching" ]
+                        ]
+        , test "the live region says nothing about it" <|
+            \_ -> bar [ everything 500 25 ] 0 |> H.inside [ live ] [ Selector.exactText "" ]
+        , test "the real bar has the role again, and is not hidden" <|
+            \_ ->
+                bar [] 3
+                    |> Expect.all
+                        [ H.count 1 [ theBar ]
+                        , H.none [ Selector.class "klar-bulk__bar--reserved" ]
+                        , H.none [ Selector.class "klar-bulk__bar", H.attr "inert" "" ]
+                        , H.count 1 [ theBar, H.attr "role" "group" ]
+                        ]
         ]
 
 

@@ -461,6 +461,13 @@
   min-width: 0;
 }
 
+/* Focused by ApprovalFlow.focus after the buttons that had focus are gone. */
+.klar-approval:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 2px;
+  border-radius: var(--klar-radius-lg);
+}
+
 .klar-approval__summary {
   display: inline-flex;
   align-items: center;

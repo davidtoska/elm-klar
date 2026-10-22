@@ -1856,8 +1856,8 @@ css =
  .klar-sortable__empty{padding: var(--klar-space-4);border: 1px dashed var(--klar-border-strong);border-radius: var(--klar-radius);color: var(--klar-text-muted);text-align: center}
  @media (prefers-reduced-motion: reduce){.klar-sortable__item{transition: none}}
  @media (forced-colors: active){.klar-sortable__item--drop-before::before,.klar-sortable__item--drop-after::after{forced-color-adjust: none;background: Highlight}.klar-sortable__item--lifted{outline: 2px solid Highlight;outline-offset: -2px}}
- .klar-splitter{--klar-split-gutter: 8px;position: relative;display: flex;flex-direction: row;width: 100%;height: var(--klar-split-h,100%);min-width: 0;min-height: 0}
- .klar-splitter--stacked{flex-direction: column}
+ .klar-splitter{--klar-split-gutter: 8px;position: relative;display: flex;flex-direction: row;width: 100%;height: var(--klar-split-h,100%);min-width: 0;min-height: 0;overflow-x: auto;overflow-y: hidden}
+ .klar-splitter--stacked{flex-direction: column;overflow-x: hidden;overflow-y: auto}
  .klar-splitter__pane{position: relative;flex: var(--klar-grow,1) 1 0px;min-width: var(--klar-min,0px);max-width: var(--klar-max,none);min-height: 0;overflow: auto}
  .klar-splitter--stacked > .klar-splitter__pane{min-width: 0;max-width: none;min-height: var(--klar-min,0px);max-height: var(--klar-max,none)}
  .klar-splitter__pane--folded{min-width: 0;min-height: 0;overflow: hidden;visibility: hidden}
@@ -1947,7 +1947,9 @@ css =
  .klar-bulk__under,.klar-bulk__bar{grid-area: 1 / 1;min-width: 0}
  .klar-bulk__under--covered{visibility: hidden}
  .klar-bulk__live{pointer-events: none}
- .klar-bulk__bar{display: flex;flex-wrap: wrap;align-items: center;align-content: center;gap: 6px var(--klar-space-3);padding: 6px var(--klar-space-2);background: var(--klar-primary-subtle);border: 1px solid var(--klar-primary-border);border-radius: var(--klar-radius-lg);color: var(--klar-blue-800);animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
+ .klar-bulk__bar{display: flex;flex-wrap: wrap;align-items: center;align-content: center;gap: 6px var(--klar-space-3);padding: 6px var(--klar-space-2);background: var(--klar-primary-subtle);border: 1px solid var(--klar-primary-border);border-radius: var(--klar-radius-lg);color: var(--klar-blue-800)}
+ .klar-bulk__bar:not(.klar-bulk__bar--reserved){animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
+ .klar-bulk__bar--reserved{visibility: hidden;pointer-events: none}
  .klar-bulk__count{flex: none;padding: 0 var(--klar-space-1);font-weight: var(--klar-weight-bold);white-space: nowrap}
  .klar-bulk__offer{display: flex;flex-wrap: wrap;align-items: center;min-width: 0}
  .klar-bulk__actions{display: flex;flex-wrap: wrap;align-items: center;justify-content: flex-end;gap: var(--klar-space-2);margin-left: auto;max-width: 100%}
@@ -2299,6 +2301,7 @@ css =
  .klar-permissions__skeleton-row > :first-child{justify-self: start;width: 100%}
  .klar-permissions__skeleton-row--head{background: var(--klar-gray-50);border-bottom-color: var(--klar-border)}
  .klar-approval{--_marker: 24px;display: flex;flex-direction: column;gap: var(--klar-space-3);min-width: 0}
+ .klar-approval:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: 2px;border-radius: var(--klar-radius-lg)}
  .klar-approval__summary{display: inline-flex;align-items: center;gap: 6px;margin: 0;color: var(--klar-blue-700);font-weight: var(--klar-weight-bold)}
  .klar-approval__summary--approved{color: var(--klar-success)}
  .klar-approval__summary--rejected{color: var(--klar-danger)}

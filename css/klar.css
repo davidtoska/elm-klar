@@ -11190,9 +11190,18 @@ html:has(.klar-modal-lock) {
   height: var(--klar-split-h, 100%);
   min-width: 0;
   min-height: 0;
+  /* The panes keep their pixel minimums (--klar-min). When those add up to more than
+     the container has (a phone, a narrow column), the panes would spill out of it and
+     the last one could not be reached: the splitter scrolls sideways instead. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.klar-splitter--stacked { flex-direction: column; }
+.klar-splitter--stacked {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 
 /* A pane shares the room that is left by its size (--klar-grow is a number: the
    panes' numbers add up to 100). It starts at nothing and grows, so the share is
@@ -11731,7 +11740,8 @@ html:has(.klar-modal-lock) {
 /* ---- Bulk bar -------------------------------------------------------------
    The toolbar and the bar share one grid cell: the cell is as big as the bigger
    of the two, so showing the bar moves nothing. The covered toolbar keeps its
-   place and its state but cannot be seen or reached.
+   place and its state but cannot be seen or reached; and with nothing selected the
+   bar is there, invisible (--reserved), to keep its place.
    ------------------------------------------------------------------------- */
 
 .klar-bulk {
@@ -11770,9 +11780,16 @@ html:has(.klar-modal-lock) {
   border: 1px solid var(--klar-primary-border);
   border-radius: var(--klar-radius-lg);
   color: var(--klar-blue-800);
-  animation: klar-fade-in var(--klar-dur) var(--klar-ease);
 }
 
+.klar-bulk__bar:not(.klar-bulk__bar--reserved) { animation: klar-fade-in var(--klar-dur) var(--klar-ease); }
+
+/* With nothing selected the bar is there all the same, as tall as it will be, but out of
+   sight: it keeps the place for it, so that showing it moves nothing below. */
+.klar-bulk__bar--reserved {
+  visibility: hidden;
+  pointer-events: none;
+}
 
 .klar-bulk__count {
   flex: none;
@@ -13874,6 +13891,13 @@ a.klar-md__placeholder:hover { border-style: solid; }
   flex-direction: column;
   gap: var(--klar-space-3);
   min-width: 0;
+}
+
+/* Focused by ApprovalFlow.focus after the buttons that had focus are gone. */
+.klar-approval:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 2px;
+  border-radius: var(--klar-radius-lg);
 }
 
 .klar-approval__summary {

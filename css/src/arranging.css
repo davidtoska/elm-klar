@@ -257,9 +257,18 @@
   height: var(--klar-split-h, 100%);
   min-width: 0;
   min-height: 0;
+  /* The panes keep their pixel minimums (--klar-min). When those add up to more than
+     the container has (a phone, a narrow column), the panes would spill out of it and
+     the last one could not be reached: the splitter scrolls sideways instead. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
-.klar-splitter--stacked { flex-direction: column; }
+.klar-splitter--stacked {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 
 /* A pane shares the room that is left by its size (--klar-grow is a number: the
    panes' numbers add up to 100). It starts at nothing and grows, so the share is

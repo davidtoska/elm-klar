@@ -117,22 +117,25 @@ pressed buttonLabel text selectionStart selectionEnd state =
         |> Result.map (\msg -> Editor.update msg state)
 
 
+keydown : { key : String, ctrl : Bool, shift : Bool } -> String -> Int -> Int -> ( String, Encode.Value )
+keydown keys text selectionStart selectionEnd =
+    Event.custom "keydown"
+        (Encode.object
+            (( "key", Encode.string keys.key )
+                :: ( "ctrlKey", Encode.bool keys.ctrl )
+                :: ( "metaKey", Encode.bool False )
+                :: ( "shiftKey", Encode.bool keys.shift )
+                :: ( "altKey", Encode.bool False )
+                :: target text selectionStart selectionEnd
+            )
+        )
+
+
 shortcut : { key : String, ctrl : Bool, shift : Bool } -> String -> Int -> Int -> State -> Result String ( State, Cmd Msg )
 shortcut keys text selectionStart selectionEnd state =
-    let
-        event =
-            Encode.object
-                (( "key", Encode.string keys.key )
-                    :: ( "ctrlKey", Encode.bool keys.ctrl )
-                    :: ( "metaKey", Encode.bool False )
-                    :: ( "shiftKey", Encode.bool keys.shift )
-                    :: ( "altKey", Encode.bool False )
-                    :: target text selectionStart selectionEnd
-                )
-    in
     render [] state
         |> textarea
-        |> Event.simulate (Event.custom "keydown" event)
+        |> Event.simulate (keydown keys text selectionStart selectionEnd)
         |> Event.toResult
         |> Result.map (\msg -> Editor.update msg state)
 
@@ -239,6 +242,25 @@ eventTests =
                 ]
                     |> List.map value
                     |> Expect.equal [ Just "a *b* c", Just "a [b](https://) c" ]
+        , test "a shortcut of the editor goes no further, so that the application's own Ctrl K does not fire as well" <|
+            \_ ->
+                [ "b", "i", "k" ]
+                    |> List.map
+                        (\key _ ->
+                            render [] (start "a b c")
+                                |> textarea
+                                |> Event.simulate (keydown { key = key, ctrl = True, shift = False } "a b c" 2 3)
+                                |> Expect.all [ Event.expectStopPropagation, Event.expectPreventDefault ]
+                        )
+                    |> (\checks -> Expect.all checks ())
+        , test "a key that is the browser's is passed on and not prevented" <|
+            \_ ->
+                render [] (start "a b c")
+                    |> textarea
+                    |> Event.simulate (keydown { key = "a", ctrl = True, shift = False } "a b c" 2 3)
+                    |> Event.toResult
+                    |> Result.toMaybe
+                    |> Expect.equal Nothing
         , test "a key without ctrl or cmd is not a shortcut, and the browser keeps it" <|
             \_ ->
                 shortcut { key = "b", ctrl = False, shift = False } "a b c" 2 3 (start "a b c")
