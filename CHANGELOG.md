@@ -485,3 +485,8 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   nodes it has: the docs now say so in one line and how to search the backend (watch `query`); a
   typed request value like `loadRequests` was the larger option and would only move the same code
   into the application.
+- `Timeline`: with `hasMore False` the "Load more" button is gone (it stayed, dimmed; the status line says
+  "No more events"). `headingLevel` sets the level of the day headings (default `h3`, which is right
+  inside a card with an `h2` title; directly under a page `h1` say 2). `id` gives the timeline a DOM id
+  and a focus stop in every state, see the retry focus entry below. The button is no longer the place
+  where focus is kept at the end of the list: that is what `id` and `RemoteView.focus` are for.
