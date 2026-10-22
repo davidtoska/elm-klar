@@ -1838,6 +1838,7 @@ css =
  .klar-permissions__actions{display: flex;flex-wrap: wrap;align-items: center;gap: var(--klar-space-2);margin-left: auto}
  .klar-permissions__notes{flex: none;display: flex;flex-direction: column;gap: var(--klar-space-1);padding: var(--klar-space-2) var(--klar-space-3);border-top: 1px solid var(--klar-border)}
  .klar-permissions__note{margin: 0;color: var(--klar-text-muted);font-size: var(--klar-text-sm)}
+ .klar-permissions__note--warning{display: flex;align-items: center;gap: 6px;color: var(--klar-warning);font-weight: var(--klar-weight-medium)}
  .klar-permissions__locked-list{display: flex;flex-direction: column;gap: 2px;margin: 0;padding: 0;list-style: none;color: var(--klar-text-secondary);font-size: var(--klar-text-sm)}
  .klar-permissions__locked-list > li{display: flex;align-items: center;gap: 6px}
  .klar-permissions__scroll{flex: 1 1 auto;min-height: 0;max-height: 70vh;overflow: auto;overscroll-behavior-x: contain;scroll-padding-top: var(--_row-h);scroll-padding-left: var(--_label-w)}
@@ -1874,6 +1875,11 @@ css =
  .klar-permissions__cell--inherited.klar-permissions__cell--granted .klar-permissions__mark{background: var(--klar-primary-subtle);border-color: var(--klar-primary);color: var(--klar-primary)}
  .klar-permissions__word{min-width: 0;overflow: hidden;color: var(--klar-text-secondary);font-size: var(--klar-text-sm);text-overflow: ellipsis;white-space: nowrap}
  .klar-permissions__cell--inherited .klar-permissions__word{color: var(--klar-text-muted);font-style: italic}
+ .klar-permissions__reset{position: absolute;top: 50%;right: 6px;display: none;align-items: center;justify-content: center;width: 20px;height: 20px;margin-top: -10px;background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-radius: var(--klar-radius);color: var(--klar-text-secondary);cursor: pointer}
+ .klar-permissions__reset *{pointer-events: none}
+ .klar-permissions__reset:hover{background: var(--klar-surface-hover);color: var(--klar-text)}
+ .klar-permissions__cell--override:hover > .klar-permissions__reset,.klar-permissions__cell--override:focus > .klar-permissions__reset{display: inline-flex}
+ .klar-permissions__cell--override::before{content: "";position: absolute;top: 0;left: 0;border-top: 7px solid var(--klar-primary);border-right: 7px solid transparent}
  .klar-permissions__cell--editable{cursor: pointer}
  .klar-permissions__cell--editable:hover{background: var(--klar-surface-hover)}
  .klar-permissions__cell--editable:hover .klar-permissions__mark{border-color: var(--klar-primary)}

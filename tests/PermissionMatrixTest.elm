@@ -11,7 +11,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Locale as Locale
-import Klar.PermissionMatrix as PermissionMatrix exposing (Access(..), Change, Matrix)
+import Klar.PermissionMatrix as PermissionMatrix exposing (Change, Matrix)
 import Klar.Remote as Remote
 import Klar.Theme as Theme
 import Set exposing (Set)
@@ -130,13 +130,10 @@ grants =
 cellOf : Grants -> Role -> Permission -> PermissionMatrix.Cell
 cellOf given role permission =
     if role == Dispatcher && permission == ViewOrders then
-        PermissionMatrix.inheritedFrom "Picker" Granted
-
-    else if Set.member ( roleKey role, permissionKey permission ) given then
-        PermissionMatrix.granted
+        PermissionMatrix.cell { own = Nothing, inherited = Just { access = PermissionMatrix.granted, from = Just "Picker" } }
 
     else
-        PermissionMatrix.denied
+        PermissionMatrix.direct (PermissionMatrix.fromBool (Set.member ( roleKey role, permissionKey permission ) given))
 
 
 theMatrix : (Role -> Permission -> PermissionMatrix.Cell) -> Matrix Role Permission
@@ -311,11 +308,11 @@ theScroll =
 
 {-| What the grid sends to the application when this happens in the table.
 -}
-changesFor : ( String, Encode.Value ) -> Html Msg -> Maybe (List (Change Role Permission))
+changesFor : ( String, Encode.Value ) -> Html Msg -> Maybe (List Summary)
 changesFor event html =
     case H.sends theTable event html of
         Ok (Changed changes) ->
-            Just changes
+            Just (summaryOf changes)
 
         _ ->
             Nothing
@@ -343,14 +340,48 @@ through event current =
             current
 
 
-the : Permission -> Role -> Change Role Permission
+{-| A change as the tests write it: the role, the permission and whether the role gets an access
+of its own, granted (True) or denied (False), or none (inherits again).
+-}
+type alias Summary =
+    ( Role, Permission, Maybe Bool )
+
+
+summaryOf : List (Change Role Permission) -> List Summary
+summaryOf changes =
+    List.map
+        (\change ->
+            ( PermissionMatrix.changedRole change
+            , PermissionMatrix.changedPermission change
+            , Maybe.map PermissionMatrix.isGranted (PermissionMatrix.newAccess change)
+            )
+        )
+        changes
+
+
+fromMsg : Msg -> List Summary
+fromMsg msg =
+    case msg of
+        Changed changes ->
+            summaryOf changes
+
+        _ ->
+            []
+
+
+the : Permission -> Role -> Summary
 the permission role =
-    { role = role, permission = permission, access = Granted }
+    ( role, permission, Just True )
 
 
-denying : Permission -> Role -> Change Role Permission
+denying : Permission -> Role -> Summary
 denying permission role =
-    { role = role, permission = permission, access = Denied }
+    ( role, permission, Just False )
+
+
+inheritingAgain : Permission -> Role -> Summary
+inheritingAgain permission role =
+    ( role, permission, Nothing )
 
 
 stopsIn : Html Msg -> Query.Multiple Msg
@@ -389,7 +420,7 @@ structureTests =
                         ]
         , test "the name of the grid can be set" <|
             \_ ->
-                viewIt (PermissionMatrix.label "Permissions of the roles" :: editable)
+                viewIt (PermissionMatrix.ariaLabel "Permissions of the roles" :: editable)
                     |> H.inside theTable [ H.attr "aria-label" "Permissions of the roles" ]
         , test "headers: a column header for each role and the corner, a row header for each row" <|
             \_ ->
@@ -442,7 +473,7 @@ structureTests =
                         , roleKey = roleKey
                         , permissions = [ PermissionMatrix.permission ViewOrders "View orders", PermissionMatrix.permission ViewOrders "View orders again" ]
                         , permissionKey = permissionKey
-                        , cell = \_ _ -> PermissionMatrix.denied
+                        , cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.denied
                         }
                     )
                     |> Query.fromHtml
@@ -482,12 +513,12 @@ nameTests =
                 PermissionMatrix.view MatrixMsg
                     editable
                     state
-                    (theMatrix (\_ _ -> PermissionMatrix.inherited Denied))
+                    (theMatrix (\_ _ -> PermissionMatrix.cell { own = Nothing, inherited = Just { access = PermissionMatrix.denied, from = Nothing } }))
                     |> H.has (cellNamed "Picker, View orders, denied, inherited")
         , test "a cell of a locked role says so, and points at the reason" <|
             \_ ->
                 viewIt editable
-                    |> H.has (cellNamed "Administrator, View orders, granted, locked" ++ [ H.attr "aria-disabled" "true" ])
+                    |> H.has (cellNamed "Administrator, View orders, granted, locked" ++ [ H.attr "aria-readonly" "true" ])
         , test "an inherited cell is drawn with the word, so it differs in more than colour" <|
             \_ ->
                 viewIt editable
@@ -769,6 +800,7 @@ headerTests =
                 |> Query.find (checkboxNamed name)
                 |> Event.simulate (Event.check yes)
                 |> Event.toResult
+                |> Result.map fromMsg
     in
     describe "the checkboxes of a column and of a row"
         [ test "a role that has some of the permissions shows a dash, and its name says what it does" <|
@@ -781,42 +813,40 @@ headerTests =
             \_ ->
                 viewIt editable
                     |> fire "Grant all permissions for Supervisor" True
-                    |> Expect.equal (Ok (Changed [ the CancelOrders Supervisor, the AdjustStock Supervisor, the ExportReports Supervisor ]))
+                    |> Expect.equal (Ok [ the CancelOrders Supervisor, the AdjustStock Supervisor, the ExportReports Supervisor ])
         , test "a role that has nothing is unchecked, and one that has everything is checked and denies all" <|
             \_ ->
                 let
                     all =
-                        theMatrix (\_ _ -> PermissionMatrix.granted)
+                        theMatrix (\_ _ -> PermissionMatrix.direct PermissionMatrix.granted)
                 in
                 PermissionMatrix.view MatrixMsg editable state all
                     |> fire "Grant all permissions for Picker" False
                     |> Expect.equal
                         (Ok
-                            (Changed
-                                [ denying ViewOrders Picker
-                                , denying EditOrders Picker
-                                , denying CancelOrders Picker
-                                , denying ViewStock Picker
-                                , denying AdjustStock Picker
-                                , denying ExportReports Picker
-                                ]
-                            )
+                            [ denying ViewOrders Picker
+                            , denying EditOrders Picker
+                            , denying CancelOrders Picker
+                            , denying ViewStock Picker
+                            , denying AdjustStock Picker
+                            , denying ExportReports Picker
+                            ]
                         )
         , test "the checkbox of a permission acts on the roles that can change, and leaves the locked one" <|
             \_ ->
                 viewIt editable
                     |> fire "Grant Cancel orders to all roles" True
-                    |> Expect.equal (Ok (Changed [ the CancelOrders Picker, the CancelOrders Dispatcher, the CancelOrders Supervisor ]))
+                    |> Expect.equal (Ok [ the CancelOrders Picker, the CancelOrders Dispatcher, the CancelOrders Supervisor ])
         , test "a permission that all the editable roles have is checked, and a click denies them all, inherited ones too" <|
             \_ ->
                 viewIt editable
                     |> fire "Grant View orders to all roles" False
-                    |> Expect.equal (Ok (Changed [ denying ViewOrders Picker, denying ViewOrders Dispatcher, denying ViewOrders Supervisor ]))
+                    |> Expect.equal (Ok [ denying ViewOrders Picker, denying ViewOrders Dispatcher, denying ViewOrders Supervisor ])
         , test "an inherited granted cell counts as granted: it is not asked to be granted again" <|
             \_ ->
                 viewIt editable
                     |> fire "Grant View orders to all roles" True
-                    |> Expect.equal (Ok (Changed []))
+                    |> Expect.equal (Ok [])
         , test "a locked role has no checkbox, and says why in the header" <|
             \_ ->
                 viewIt editable
@@ -908,7 +938,8 @@ filterTests =
                             |> Query.find (checkboxNamed "Grant the 2 permissions shown for Supervisor")
                             |> Event.simulate (Event.check True)
                             |> Event.toResult
-                            |> Expect.equal (Ok (Changed [ the AdjustStock Supervisor ]))
+                            |> Result.map fromMsg
+                            |> Expect.equal (Ok [ the AdjustStock Supervisor ])
                     , \_ -> H.none (checkboxNamed "Grant all permissions for Supervisor") html
                     ]
                     ()
@@ -959,7 +990,8 @@ groupTests =
                     |> Query.find (checkboxNamed "Grant all permissions for Supervisor")
                     |> Event.simulate (Event.check True)
                     |> Event.toResult
-                    |> Expect.equal (Ok (Changed [ the CancelOrders Supervisor, the AdjustStock Supervisor, the ExportReports Supervisor ]))
+                    |> Result.map fromMsg
+                    |> Expect.equal (Ok [ the CancelOrders Supervisor, the AdjustStock Supervisor, the ExportReports Supervisor ])
         ]
 
 
@@ -971,10 +1003,10 @@ baseline : Role -> Permission -> PermissionMatrix.Cell
 baseline role permission =
     -- as saved: the supervisor could not edit orders, and the dispatcher had view orders directly
     if role == Supervisor && permission == EditOrders then
-        PermissionMatrix.denied
+        PermissionMatrix.direct PermissionMatrix.denied
 
     else if role == Dispatcher && permission == ViewOrders then
-        PermissionMatrix.granted
+        PermissionMatrix.direct PermissionMatrix.granted
 
     else
         cellOf grants role permission
@@ -992,9 +1024,9 @@ savedTests =
                         , Query.find (cellNamed "Supervisor, Edit orders, granted, unsaved change")
                             >> Query.has [ Selector.class "klar-permissions__cell--changed", Selector.class "klar-permissions__dot" ]
                         , Query.find [ Selector.class "klar-permissions__changes" ]
-                            >> Query.has [ H.attr "role" "status", Selector.text "2 unsaved changes" ]
+                            >> Query.has [ Selector.text "2 unsaved changes" ]
                         ]
-        , test "direct against inherited is a change, even when the access is the same" <|
+        , test "an own access against inheriting is a change, even when what is shown is the same" <|
             \_ ->
                 viewIt (PermissionMatrix.saved baseline :: editable)
                     |> H.has (cellNamed "Dispatcher, View orders, granted, inherited from Picker, unsaved change")
@@ -1002,13 +1034,12 @@ savedTests =
             \_ ->
                 viewIt (PermissionMatrix.saved (\r p -> cellOf (Set.insert ( roleKey Supervisor, permissionKey CancelOrders ) grants) r p) :: editable)
                     |> H.inside [ Selector.class "klar-permissions__changes" ] [ Selector.text "1 unsaved change" ]
-        , test "nothing differs: no marks, and an empty status that is still there for the next change" <|
+        , test "nothing differs: no marks, and no count" <|
             \_ ->
                 viewIt (PermissionMatrix.saved (cellOf grants) :: editable)
                     |> Query.fromHtml
                     |> Expect.all
                         [ Query.hasNot [ Selector.class "klar-permissions__cell--changed" ]
-                        , Query.find [ Selector.class "klar-permissions__changes" ] >> Query.has [ H.attr "role" "status" ]
                         , Query.find [ Selector.class "klar-permissions__changes" ] >> Query.hasNot [ Selector.text "unsaved" ]
                         ]
         , test "without saved values there is no count and no mark" <|
@@ -1175,7 +1206,7 @@ lockedTests =
                         , roleKey = roleKey
                         , permissions = [ PermissionMatrix.permission ViewOrders "View orders" ]
                         , permissionKey = permissionKey
-                        , cell = \_ _ -> PermissionMatrix.denied
+                        , cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.denied
                         }
                     )
                     |> H.has [ Selector.text "Picker: This role cannot be changed" ]
@@ -1189,7 +1220,7 @@ lockedTests =
                         , roleKey = roleKey
                         , permissions = [ PermissionMatrix.permission ViewOrders "View orders" ]
                         , permissionKey = permissionKey
-                        , cell = \_ _ -> PermissionMatrix.denied
+                        , cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.denied
                         }
                     )
                     |> H.none [ Selector.class "klar-permissions__locked-list" ]
@@ -1250,7 +1281,7 @@ remoteTests =
                                 , roleKey = roleKey
                                 , permissions = permissions
                                 , permissionKey = permissionKey
-                                , cell = \_ _ -> PermissionMatrix.denied
+                                , cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.denied
                                 }
                             )
                 in
@@ -1276,9 +1307,9 @@ localeTests =
                     |> Expect.all
                         [ Query.has [ H.attr "aria-label" "Tilganger" ]
                         , Query.has (cellNamed "Supervisor, Cancel orders, nektet")
-                        , Query.has (cellNamed "Dispatcher, View orders, gitt, arvet fra Picker, ulagret endring")
-                        , Query.has (cellNamed "Administrator, View orders, gitt, låst")
-                        , Query.has (checkboxNamed "Gi alle tilganger for Supervisor")
+                        , Query.has (cellNamed "Dispatcher, View orders, tillatt, arvet fra Picker, ulagret endring")
+                        , Query.has (cellNamed "Administrator, View orders, tillatt, låst")
+                        , Query.has (checkboxNamed "Gi Supervisor alle tilganger")
                         , Query.has (checkboxNamed "Gi Cancel orders til alle roller")
                         , Query.has [ Selector.tag "label", Selector.containing [ Selector.text "Filtrer tilganger" ] ]
                         , Query.has [ Selector.text "2 ulagrede endringer" ]
@@ -1286,12 +1317,12 @@ localeTests =
         , test "read-only words and the skeleton in Norwegian" <|
             \_ ->
                 viewIt [ PermissionMatrix.locale Locale.nb ]
-                    |> H.has [ Selector.text "Nektet", Selector.text "Gitt", Selector.text "Picker" ]
+                    |> H.has [ Selector.text "Nektet", Selector.text "Tillatt", Selector.text "Picker" ]
         , test "the failure and the empty states in Norwegian" <|
             \_ ->
                 Expect.all
                     [ \_ -> PermissionMatrix.viewRemote MatrixMsg [ PermissionMatrix.locale Locale.nb ] state Remote.Loading |> H.has [ Selector.text "Laster tilganger" ]
-                    , \_ -> viewWith [ PermissionMatrix.locale Locale.nb ] (PermissionMatrix.setQuery "zzz" state) |> H.has [ Selector.text "Ingen tilgang treffer «zzz»" ]
+                    , \_ -> viewWith [ PermissionMatrix.locale Locale.nb ] (PermissionMatrix.setQuery "zzz" state) |> H.has [ Selector.text "Ingen tilganger samsvarer med «zzz»" ]
                     ]
                     ()
         , test "an announcement in Norwegian" <|
@@ -1301,7 +1332,7 @@ localeTests =
                         state |> through (click (place CancelOrders Supervisor))
                 in
                 PermissionMatrix.view MatrixMsg (PermissionMatrix.locale Locale.nb :: editable) acted (theMatrix (cellOf (Set.insert ( roleKey Supervisor, permissionKey CancelOrders ) grants)))
-                    |> H.has [ Selector.text "Cancel orders gitt til Supervisor" ]
+                    |> H.has [ Selector.text "Cancel orders: tillatt for Supervisor" ]
         ]
 
 
@@ -1316,16 +1347,16 @@ listTests =
             \_ ->
                 let
                     a =
-                        viewIt [ PermissionMatrix.onChange Changed, PermissionMatrix.saved baseline, PermissionMatrix.label "x" ]
+                        viewIt [ PermissionMatrix.onChange Changed, PermissionMatrix.saved baseline, PermissionMatrix.ariaLabel "x" ]
 
                     b =
-                        viewIt [ PermissionMatrix.label "x", PermissionMatrix.saved baseline, PermissionMatrix.onChange Changed ]
+                        viewIt [ PermissionMatrix.ariaLabel "x", PermissionMatrix.saved baseline, PermissionMatrix.onChange Changed ]
                 in
                 Expect.equal (Query.fromHtml a |> Query.find [ Selector.class "klar-permissions__changes" ] |> Query.has [ Selector.text "2 unsaved changes" ])
                     (Query.fromHtml b |> Query.find [ Selector.class "klar-permissions__changes" ] |> Query.has [ Selector.text "2 unsaved changes" ])
         , test "a later attribute wins" <|
             \_ ->
-                viewIt [ PermissionMatrix.label "first", PermissionMatrix.label "second" ]
+                viewIt [ PermissionMatrix.ariaLabel "first", PermissionMatrix.ariaLabel "second" ]
                     |> H.inside theTable [ H.attr "aria-label" "second" ]
         ]
 
@@ -1355,11 +1386,7 @@ bigMatrix permissions roles =
         , permissionKey = String.fromInt
         , cell =
             \r p ->
-                if modBy 3 (r + p) == 0 then
-                    PermissionMatrix.granted
-
-                else
-                    PermissionMatrix.denied
+                PermissionMatrix.direct (PermissionMatrix.fromBool (modBy 3 (r + p) == 0))
         }
 
 

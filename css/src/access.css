@@ -104,6 +104,14 @@
   font-size: var(--klar-text-sm);
 }
 
+.klar-permissions__note--warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--klar-warning);
+  font-weight: var(--klar-weight-medium);
+}
+
 .klar-permissions__locked-list {
   display: flex;
   flex-direction: column;
@@ -164,6 +172,9 @@
   vertical-align: middle;
 }
 
+/* Stacking of the sticky parts, lowest first: the first column and the group rows
+   (z-sticky) are under the header row (z-sticky + 2), and the corner, which is both a
+   header and a first column, is over everything (z-sticky + 3). */
 .klar-permissions__th--role,
 .klar-permissions__th--corner {
   position: sticky;
@@ -344,6 +355,40 @@
 }
 
 .klar-permissions__cell--inherited .klar-permissions__word { color: var(--klar-text-muted); font-style: italic; }
+
+/* An own access over an inherited one: a plain box, and a mark that goes back to inheriting. */
+.klar-permissions__reset {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border-strong);
+  border-radius: var(--klar-radius);
+  color: var(--klar-text-secondary);
+  cursor: pointer;
+}
+
+.klar-permissions__reset * { pointer-events: none; }
+.klar-permissions__reset:hover { background: var(--klar-surface-hover); color: var(--klar-text); }
+
+.klar-permissions__cell--override:hover > .klar-permissions__reset,
+.klar-permissions__cell--override:focus > .klar-permissions__reset { display: inline-flex; }
+
+/* a small corner mark tells that the cell has an own value over an inherited one */
+.klar-permissions__cell--override::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-top: 7px solid var(--klar-primary);
+  border-right: 7px solid transparent;
+}
 
 .klar-permissions__cell--editable { cursor: pointer; }
 .klar-permissions__cell--editable:hover { background: var(--klar-surface-hover); }

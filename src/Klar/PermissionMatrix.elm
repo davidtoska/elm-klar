@@ -100,8 +100,8 @@ access (store it) or nothing (it inherits again: remove what you stored).
 Say both what was decided for the role itself (`own`) and what it would inherit
 (`inherited`, with where from) in `cell`. A cell that only inherits is drawn with a dashed
 box and the source. Clicking it, or Space or Enter, overrides it with the opposite. When the
-role has an access of its own over an inherited one, the cell offers to go back: a small
-"inherit again" mark under the pointer, and Delete or Backspace on the keyboard (named in
+role has an access of its own over an inherited one, the cell has a small mark in its corner
+and offers to go back: an "inherit again" mark under the pointer, and Delete or Backspace on the keyboard (named in
 the cell's `aria-keyshortcuts`). Toggling an own value to what would be inherited anyway
 also returns to inheriting. In every case you get a `Change` whose `newAccess` is `Nothing`,
 so no application has to work out inheritance to undo an override.
@@ -300,8 +300,10 @@ permission value text =
 {-| Puts the permission in a group, which has a row of its own that folds. Give the
 permissions of a group in a row or not: the matrix gathers them, the groups in the
 order in which they first appear. Permissions without a group stay together where
-the first of them appeared, with no group row. A blank name means no group. Group
-names must be different from each other; they are what the folded state remembers.
+the first of them appeared, with no group row. A blank name means no group. A group has
+no id of its own: its name is what the user reads and what the state remembers as folded,
+so the names of two groups must differ, and a group that is renamed (for example by a change
+of language) opens again.
 -}
 inGroup : String -> Permission permission -> Permission permission
 inGroup name (Permission data) =
