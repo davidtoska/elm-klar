@@ -105,7 +105,7 @@ this, so it changes the first API. See `design/SETTINGS.md`.
 - `Timeline.dayEvent` is an event of a day with no time of day; it draws no "00:00".
 - `Format.dateShort` (`21 Sep`, `21. sep.`) and `Chart.dates`, categories that are days, whose
   axis uses it and whose tooltip has the whole date.
-- `Stat.money` and `Stat.moneyChange` take `Klar.Money` values, so money stays `Money` to the screen.
+- `Stat.money` (with the currency symbol) and `Stat.moneyChange` take `Klar.Money` values, so money stays `Money` to the screen.
 - The showcase has a density switch and a zone switch in the top bar, working on every page.
 
 ### LeaveGuard and the browser's buttons (A0 round 2: R2O-008, 009, 010, 015, 019)

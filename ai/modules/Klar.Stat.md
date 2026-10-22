@@ -208,11 +208,12 @@ decimal. A number that is not finite (NaN or infinity) is shown as an en dash.
 money : Money.Money -> Attribute msg
 ```
 
-An amount of money, written with its currency code in the conventions of the
-tile's `locale` (`NOK 1,234.50` in English, `1 234,50 NOK` in Norwegian), exactly
-as `Money.toString` writes it. Use it instead of formatting the amount yourself, so
-that money stays `Klar.Money` all the way to the screen. For the symbol of the
-currency use `value (Money.toSymbolString locale amount)`.
+An amount of money, written with the symbol of its currency in the conventions
+of the tile's `locale` (`$1,234.50` in English, `1 234,50 kr` in Norwegian), exactly
+as `Money.toSymbolString` writes it. Use it instead of formatting the amount
+yourself, so that money stays `Klar.Money` all the way to the screen. A symbol can
+stand for several currencies (`kr`): where more than one is on the page, give the
+code with `value (Money.toString locale amount)`.
 
 ### `unit`
 

@@ -170,6 +170,11 @@ dayEvents =
         ]
 
 
+dollars : Money
+dollars =
+    Money.fromMinor Money.usd 123450 |> Maybe.withDefault (Money.zero Money.usd)
+
+
 nok : Int -> Money
 nok minor =
     Money.fromMinor Money.nok minor |> Maybe.withDefault (Money.zero Money.nok)
@@ -182,11 +187,11 @@ statMoney =
             Stat.view (Stat.label "Stock value" :: attributes) |> Query.fromHtml
     in
     describe "Stat.money"
-        [ test "an amount is written with its currency in the language of the tile" <|
+        [ test "an amount is written with the symbol of its currency in the language of the tile" <|
             \_ ->
                 Expect.all
-                    [ \_ -> tile [ Stat.money (nok 123450) ] |> Query.has [ Selector.text "NOK\u{00A0}1,234.50" ]
-                    , \_ -> tile [ Stat.money (nok 123450), Stat.locale Locale.nb ] |> Query.has [ Selector.text "1\u{00A0}234,50\u{00A0}NOK" ]
+                    [ \_ -> tile [ Stat.money dollars ] |> Query.has [ Selector.text "$1,234.50" ]
+                    , \_ -> tile [ Stat.money dollars, Stat.locale Locale.nb ] |> Query.has [ Selector.text (Money.toSymbolString Locale.nb dollars) ]
                     ]
                     ()
         , test "the change between two amounts is a percentage" <|
