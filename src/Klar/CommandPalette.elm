@@ -61,8 +61,8 @@ value in a form use [Klar.Select](Klar-Select), and for a search field on a page
 
 Picking an item sends the item's own message and closes the palette. `Escape`
 and a click outside close it without running anything. The palette is a modal
-dialog: put it among the `overlays` of the `host` of [Klar.Modal](Klar-Modal),
-with `isOpen` in the `blocked` flag, so that the page behind it becomes inert.
+dialog: `view` returns an [`Overlay`](Klar-Overlay#Overlay), and while it is open
+the page behind it is inert.
 Pressing the shortcut again while the palette is open starts over with an empty
 query; call `close` instead if you want the shortcut to toggle.
 
@@ -185,7 +185,9 @@ import Klar.Button as Button
 import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Overlay as Overlay
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem, Remote(..))
 import Klar.Search as Search
 import Klar.Shortcut as Shortcut
@@ -223,7 +225,8 @@ init id =
     State { id = id, open = False, query = "", active = Nothing, opener = "" }
 
 
-{-| Is the palette open? Use it for the `blocked` flag of `Modal.host`.
+{-| Is the palette open? The page is made inert by the overlay `view` returns;
+this is for your own logic (a shortcut that toggles the palette, say).
 -}
 isOpen : State -> Bool
 isOpen (State state) =
@@ -945,8 +948,9 @@ place paletteId blocks =
 
 
 {-| The palette, centered near the top of the window above everything else.
-Renders nothing while closed. Put it in the `overlays` of `Modal.host` so the
-page behind it becomes inert. The first argument turns the palette's messages
+Renders nothing while closed. Put it in the list of overlays of
+[`Overlay.host`](Klar-Overlay#host) (or `AppShell.overlays`) so the page behind it
+becomes inert. The first argument turns the palette's messages
 into yours.
 
     CommandPalette.view PaletteMsg
@@ -954,8 +958,18 @@ into yours.
         model.palette
 
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
-view toMsg attributes (State state) =
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Overlay msg
+view toMsg attributes ((State state) as current) =
+    Overlay.dialog
+        { open = state.open
+        , entry = Nothing
+        , watch = Nothing
+        , render = \_ -> viewPalette toMsg attributes current
+        }
+
+
+viewPalette : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
+viewPalette toMsg attributes (State state) =
     if not state.open then
         Html.text ""
 

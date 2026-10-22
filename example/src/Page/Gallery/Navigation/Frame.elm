@@ -23,6 +23,7 @@ import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Menu as Menu
+import Klar.Modal as Modal
 import Klar.PageHeader as PageHeader
 import Klar.SideNav as SideNav
 import Klar.Tabs as Tabs
@@ -41,7 +42,7 @@ type alias Model =
       collapsed : Bool
     , drawerOpen : Bool
     , narrow : Bool
-    , modal : Bool
+    , modal : Modal.State
     , banner : Bool
     , page : String
     , nav : SideNav.State String
@@ -63,7 +64,7 @@ init =
     { collapsed = False
     , drawerOpen = False
     , narrow = False
-    , modal = False
+    , modal = Modal.init "frame-demo-dialog"
     , banner = False
     , page = "orders"
     , nav = SideNav.init "nav-demo-links" |> SideNav.reveal "orders" Demo.menu
@@ -87,7 +88,9 @@ type Msg
     | ToggleDrawer
     | CloseDrawer
     | ToggleNarrow
-    | SetModal Bool
+    | OpenModal
+    | CloseModal
+    | ModalMsg Modal.Msg
     | ToggleBanner
     | SkipToContent
     | PageSelected String
@@ -125,8 +128,26 @@ update msg model =
         ToggleNarrow ->
             ( { model | narrow = not model.narrow, drawerOpen = False }, Cmd.none )
 
-        SetModal value ->
-            ( { model | modal = value }, Cmd.none )
+        OpenModal ->
+            let
+                ( modal, cmd ) =
+                    Modal.open "frame-demo-open" model.modal
+            in
+            ( { model | modal = modal }, Cmd.map ModalMsg cmd )
+
+        CloseModal ->
+            let
+                ( modal, cmd ) =
+                    Modal.close model.modal
+            in
+            ( { model | modal = modal }, Cmd.map ModalMsg cmd )
+
+        ModalMsg inner ->
+            let
+                ( modal, cmd ) =
+                    Modal.update inner model.modal
+            in
+            ( { model | modal = modal }, Cmd.map ModalMsg cmd )
 
         ToggleBanner ->
             ( { model | banner = not model.banner }, Cmd.none )
@@ -218,10 +239,10 @@ shellSection locale model =
                         "Narrow frame"
                     , Button.view
                         [ Button.icon Icon.lock
-                        , Button.pressed model.modal
-                        , Button.onClick (SetModal (not model.modal))
+                        , Button.id "frame-demo-open"
+                        , Button.onClick OpenModal
                         ]
-                        "Simulate an open dialog"
+                        "Open a dialog"
                     , Button.view
                         [ Button.icon Icon.info
                         , Button.pressed model.banner
@@ -253,8 +274,7 @@ shellProps =
     , { name = "userMenu", type_ = "Html msg", description = "A Menu.view after the name: my profile, sign out." }
     , { name = "banner", type_ = "Html msg", description = "A message above the top bar, for example Alert.banner." }
     , { name = "contentMaxWidth, contentPadding", type_ = "Int", description = "The largest width in pixels, and the space around the content (the 4px scale, default 6)." }
-    , { name = "overlays", type_ = "List (Html msg)", description = "Dialogs, drawers and toasts. They are placed outside the inert part." }
-    , { name = "modalOpen", type_ = "Bool", description = "Makes the banner, top bar, sidebar and content inert." }
+    , { name = "overlays", type_ = "List (Overlay msg)", description = "Dialogs, drawers, the palette and toasts, as their views return them. They are placed outside the part that becomes inert while one of them is open." }
     , { name = "onSkipToContent", type_ = "msg", description = "\"Skip to main content\". Answer it with AppShell.focusContent (a plain #link would change the route)." }
     , { name = "onStrayDrop", type_ = "msg", description = "Cancels a file dropped outside a drop zone, which would make the browser replace the whole application with the file." }
     , { name = "shortcuts", type_ = "Html.Attribute msg", description = "The place for Shortcut.listen: the global keyboard shortcuts of the application." }
@@ -318,21 +338,16 @@ shell locale model =
                 model.userMenu
             )
          , AppShell.contentMaxWidth 1100
-         , AppShell.modalOpen model.modal
          , AppShell.onSkipToContent SkipToContent
          , AppShell.overlays
-            (if model.modal then
-                [ Alert.viewWith
-                    [ Alert.tone Warning
-                    , Alert.title "Dialog (simulated)"
-                    , Alert.actions [ Button.view [ Button.small, Button.onClick (SetModal False) ] "Close the dialog" ]
-                    ]
-                    [ Text.text "While the dialog is open, the menu, the top bar and the content are inert. Tab stays here, and screen readers skip the rest." ]
+            [ Modal.view ModalMsg
+                [ Modal.title "A dialog"
+                , Modal.small
+                , Modal.footer [ Button.view [ Button.onClick CloseModal ] "Close" ]
                 ]
-
-             else
-                []
-            )
+                model.modal
+                [ Text.text "While the dialog is open, the menu, the top bar and the content are inert. Tab stays here, and screen readers skip the rest." ]
+            ]
          ]
             ++ (if model.narrow then
                     [ AppShell.width 640 ]
@@ -475,7 +490,6 @@ shellCode =
     , AppShell.userName "Ada Lovelace"
     , AppShell.userRole "Operations manager"
     , AppShell.userMenu (Menu.view UserMenuMsg [ Menu.kebab "User menu", Menu.alignEnd, Menu.items [ Menu.item "Sign out" SignOut ] ] model.userMenu)
-    , AppShell.modalOpen (Modal.isOpen model.dialog)
     , AppShell.overlays [ Modal.view DialogMsg [ Modal.title "Edit order" ] model.dialog [ orderForm model ] ]
     , AppShell.onSkipToContent SkipToContent -- answer with AppShell.focusContent "app" NoOp
     ]

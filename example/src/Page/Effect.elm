@@ -22,6 +22,7 @@ area so that the page behind them can be made inert.
 import Html exposing (Html)
 import Klar.Date exposing (Date)
 import Klar.Locale exposing (Locale)
+import Klar.Overlay exposing (Overlay)
 import Klar.Theme exposing (Tone)
 import Route exposing (Route)
 
@@ -50,8 +51,7 @@ type alias Outbox =
 
 type alias View msg =
     { content : Html msg
-    , overlays : List (Html msg)
-    , modalOpen : Bool
+    , overlays : List (Overlay msg)
     }
 
 

@@ -73,6 +73,7 @@
             "Klar.Tree"
         ],
         "Overlays": [
+            "Klar.Overlay",
             "Klar.Modal",
             "Klar.ConfirmDialog",
             "Klar.Drawer",

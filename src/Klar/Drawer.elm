@@ -1,7 +1,7 @@
 module Klar.Drawer exposing
     ( view
     , State, Msg, init, update, isOpen
-    , open, openWith, close, refocus, closeButtonId
+    , open, openWith, close, closeButtonId
     , Attribute, title, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
     , small, medium, large, right, left
     , static, busy, onRequestClose
@@ -51,9 +51,11 @@ the window. It has the same state and the same attributes, and it behaves the
 same way: focus moves in when it opens, `Tab` stays inside, focus returns to
 the opener when it closes, and `Escape`, a click on the backdrop and the close
 button close it unless it is `static` or `busy`. The page behind an open drawer
-cannot be scrolled, and wrapping the page in [`Modal.host`](Klar-Modal#host)
-also makes it `inert`. [Klar.Modal](Klar-Modal) explains all of this once, for
-every overlay.
+cannot be scrolled, and the [`Overlay`](Klar-Overlay#Overlay) that `view` returns
+makes it `inert`. If the element that has focus inside the drawer is removed or
+disabled (a button replaced after an action), focus moves to the drawer itself.
+[Klar.Modal](Klar-Modal) and [Klar.Overlay](Klar-Overlay) explain all of this once,
+for every overlay.
 
 The drawer is as tall as the window. It is `medium` (480px) unless you say
 `small` (360px) or `large` (720px), and never wider than the window. The only
@@ -73,7 +75,7 @@ everything else comes from your application.
 
 # Opening and closing
 
-@docs open, openWith, close, refocus, closeButtonId
+@docs open, openWith, close, closeButtonId
 
 
 # Content
@@ -105,6 +107,7 @@ everything else comes from your application.
 import Html exposing (Html)
 import Klar.Locale exposing (Locale)
 import Klar.Modal as Modal
+import Klar.Overlay exposing (Overlay)
 
 
 {-| The state of one drawer: whether it is open and where focus returns to.
@@ -139,8 +142,8 @@ init =
     Modal.init
 
 
-{-| Is the drawer open? Use it for the `blocked` flag of
-[`Modal.host`](Klar-Modal#host).
+{-| Is the drawer open? The page is made inert by the overlay `view` returns; this
+is for your own logic.
 -}
 isOpen : State -> Bool
 isOpen =
@@ -149,8 +152,10 @@ isOpen =
 
 {-| Opens the drawer and moves focus into it. `opener` is the DOM id of the
 element to give focus back to when the drawer closes, such as the button or the
-table row that opened it. With `""` focus goes back to the element that had it
-when the drawer opened, if that element has an id.
+table row that opened it. With `""`, or when that element is gone, focus goes back
+to the most recent element of the page that had focus before the drawer opened
+and still exists (it needs an id). A drawer opened by a route change needs no
+opener.
 -}
 open : String -> State -> ( State, Cmd Msg )
 open =
@@ -179,15 +184,6 @@ close =
     Modal.close
 
 
-{-| Gives focus back to the drawer, for when the element that had it is replaced
-while the drawer stays open (a "Try again" button that makes way for a loading
-skeleton, say). See [`Modal.refocus`](Klar-Modal#refocus).
--}
-refocus : State -> Cmd Msg
-refocus =
-    Modal.refocus
-
-
 {-| The DOM id of the close button in the header, for use as the `opener` of a
 dialog that you open from the drawer (a "Discard changes?" question asked from
 `onRequestClose`, say), so that focus comes back to the close button. There is
@@ -208,10 +204,11 @@ update =
 
 {-| The drawer, with `body` in its scrolling middle; it comes in from the right
 unless you say `left`. `toMsg` wraps the messages of the drawer. Renders nothing
-while closed, so it can stay in your view all the time; put it in the
-`overlays` of [`Modal.host`](Klar-Modal#host) if you use one.
+while closed, so it can stay in your view all the time. It returns an
+[`Overlay`](Klar-Overlay#Overlay): put it in the list of overlays of
+[`Overlay.host`](Klar-Overlay#host) or `AppShell.overlays`.
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Overlay msg
 view toMsg attributes =
     Modal.view toMsg (Modal.side Modal.Right :: attributes)
 

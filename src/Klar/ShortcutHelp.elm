@@ -40,8 +40,8 @@ the application listens to, so the sheet always says what the keys really do.
 
 The sheet is a [Klar.Modal](Klar-Modal): it moves focus to the filter box, keeps
 `Tab` inside, closes with `Escape` or the "Close" button and returns focus to
-where it came from. Put it among the `overlays` of the `host` of that module and
-use `isOpen` for the `blocked` flag, so that the page behind it becomes inert.
+where it came from. It returns an [`Overlay`](Klar-Overlay#Overlay): put it in
+the list of overlays of the page, which makes the page behind it inert.
 
 The shortcuts are listed under their `group`, in the order in which the groups
 first appear, each with its label and its keys as key caps (a sequence such as
@@ -82,6 +82,7 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Modal as Modal
+import Klar.Overlay exposing (Overlay)
 import Klar.Search as Search
 import Klar.Shortcut as Shortcut exposing (Shortcut)
 import Klar.Text as Text
@@ -114,7 +115,8 @@ init id =
     State { id = id, modal = Modal.init id, filter = "" }
 
 
-{-| Is the sheet open? Use it for the `blocked` flag of `Modal.host`.
+{-| Is the sheet open? The page is made inert by the overlay the sheet returns, so
+you need this for your own logic only (a shortcut that toggles the sheet, say).
 -}
 isOpen : State -> Bool
 isOpen (State state) =
@@ -238,7 +240,7 @@ written as "Ctrl" on the sheet.
     ShortcutHelp.view HelpMsg [ ShortcutHelp.title "Keys" ] shortcuts model.help
 
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> List (Shortcut a) -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> List (Shortcut a) -> State -> Overlay msg
 view toMsg attributes shortcuts (State state) =
     let
         config =

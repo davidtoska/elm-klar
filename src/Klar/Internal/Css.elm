@@ -1512,6 +1512,7 @@ css =
  @media (forced-colors: active){.klar-chart__bar,.klar-chart__segment,.klar-chart__point,.klar-chart__line,.klar-chart__area,.klar-chart__swatch,.klar-chart__gauge-arc,.klar-meter__zone,.klar-meter__marker,.klar-progress__bar,.klar-progress__segment,.klar-progress-ring__arc,.klar-avatar,.klar-timeline__marker{forced-color-adjust: none}.klar-tree__row--selected,.klar-list-item--selected{outline: 2px solid Highlight;outline-offset: -2px}}
  .klar-overlay-host{min-height: 100%}
  .klar-overlay-host:focus{outline: none}
+ .klar-contents{display: contents}
  .klar-modal-lock{display: none}
  html:has(.klar-modal-lock){scrollbar-gutter: stable;background: linear-gradient(var(--klar-overlay),var(--klar-overlay)),var(--klar-bg)}
  .klar-modal{--klar-modal-w: 560px;position: fixed;inset: 0;z-index: var(--klar-z-modal);display: flex;align-items: center;justify-content: center;padding: var(--klar-space-6)}
@@ -1519,6 +1520,9 @@ css =
  .klar-modal--md{--klar-modal-w: 560px}
  .klar-modal--lg{--klar-modal-w: 800px}
  .klar-modal__backdrop{position: absolute;inset: 0;background: var(--klar-overlay);animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
+ .klar-modal__guard{position: absolute;width: 0;height: 0;pointer-events: none}
+ :root:not(:has(.klar-modal__dialog:focus-within,.klar-palette__panel:focus-within,.klar-toasts:focus-within)) .klar-modal__guard{animation: klar-focus-lost 1ms}
+ @keyframes klar-focus-lost{from{opacity: 0.99}to{opacity: 1}}
  .klar-modal__sentinel{position: fixed;top: 0;left: 0;width: 1px;height: 1px;opacity: 0;pointer-events: none;outline: none}
  .klar-modal__dialog{position: relative;display: flex;flex-direction: column;width: var(--klar-modal-w);max-width: 100%;max-height: 100%;background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-radius: var(--klar-radius-lg);box-shadow: var(--klar-shadow-lg);color: var(--klar-text);animation: klar-modal-in var(--klar-dur-slow) var(--klar-ease);outline: none}
  .klar-modal--tall > .klar-modal__dialog{height: 100%}
@@ -1562,6 +1566,7 @@ css =
  .klar-confirm__list li::marker{color: var(--klar-text-muted)}
  .klar-confirm__retry{display: contents}
  .klar-toasts{position: fixed;right: var(--klar-space-4);bottom: var(--klar-space-4);z-index: var(--klar-z-toast);display: flex;flex-direction: column;align-items: stretch;gap: var(--klar-space-2);width: 380px;max-width: calc(100vw - 2 * var(--klar-space-4));pointer-events: none}
+ :root:has(.klar-modal-lock) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}
  .klar-toast{--_accent: var(--klar-blue-600);pointer-events: auto;display: flex;align-items: flex-start;gap: var(--klar-space-3);padding: var(--klar-space-3) var(--klar-space-2) var(--klar-space-3) var(--klar-space-3);background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-left: 3px solid var(--_accent);border-radius: var(--klar-radius-lg);box-shadow: var(--klar-shadow-md);color: var(--klar-text);animation: klar-slide-in-right var(--klar-dur-slow) var(--klar-ease)}
  .klar-toast--success{--_accent: var(--klar-green-600)}
  .klar-toast--warning{--_accent: var(--klar-amber-600)}

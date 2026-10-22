@@ -19,6 +19,7 @@ import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Modal as Modal
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Remote as Remote
 import Klar.Rule as Rule exposing (Combinator(..), Operator(..), Rule(..))
 import Klar.RuleBuilder as RuleBuilder
@@ -807,9 +808,8 @@ subscriptions _ =
 
 view : Locale -> Model -> Html Msg
 view locale model =
-    Modal.host
+    Overlay.host
         { attributes = []
-        , blocked = Modal.isOpen model.dialog
         , page =
             [ Doc.page
                 { title = "Rules and filters"
@@ -827,7 +827,7 @@ view locale model =
         }
 
 
-viewDialog : Locale -> Model -> Html Msg
+viewDialog : Locale -> Model -> Overlay Msg
 viewDialog locale model =
     Modal.view DialogMsg
         [ Modal.title "Edit rule"

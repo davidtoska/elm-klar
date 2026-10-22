@@ -3,8 +3,8 @@ module Page.Gallery.Overlays exposing (Model, Msg, init, subscriptions, update, 
 {-| Gallery page: modals, confirmations, drawers, toasts, popovers, tooltips, the
 context menu, the command palette and the shortcut sheet.
 
-The overlays are the page's own children: `Modal.host` renders them next to the
-content and makes the content inert while one is open. The application already
+The overlays are given to `Overlay.host` as a list: it renders them next to the
+content and makes the content inert while one is open, without a flag. The application already
 listens to `Ctrl K`, `?` and the `g` sequences, so this page wires only `n` and
 `Shift T` itself and opens its own palette and shortcut sheet from buttons.
 
@@ -27,6 +27,7 @@ import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Modal as Modal
+import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Popover as Popover
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
@@ -682,10 +683,8 @@ update msg model =
             case model.drawerOrder of
                 Just order ->
                     -- The "Try again" button makes way for the skeleton: the drawer
-                    -- takes focus, so that Escape still works.
-                    ( { model | drawerData = Remote.Loading }
-                    , Cmd.batch [ loadOrder order.id, Cmd.map RightDrawerMsg (Drawer.refocus model.drawerRight) ]
-                    )
+                    -- takes focus by itself, so that Escape still works.
+                    ( { model | drawerData = Remote.Loading }, loadOrder order.id )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -984,9 +983,8 @@ subscriptions model =
 
 view : Locale -> Model -> Html Msg
 view locale model =
-    Modal.host
+    Overlay.host
         { attributes = [ Shortcut.listen ShortcutMsg pageShortcuts model.shortcuts ]
-        , blocked = anyOverlayOpen model
         , page =
             [ Doc.page
                 { title = "Dialogs and overlays"
@@ -1001,28 +999,11 @@ view locale model =
                 , contextSection model
                 , paletteSection model
                 , helpSection
+                , ContextMenu.view ContextMsg contextItems model.context
                 ]
             ]
         , overlays = overlays locale model
         }
-
-
-anyOverlayOpen : Model -> Bool
-anyOverlayOpen model =
-    List.any identity
-        [ Modal.isOpen model.sizeModal
-        , Modal.isOpen model.formModal
-        , Modal.isOpen model.menuModal
-        , ConfirmDialog.isOpen model.discard
-        , ConfirmDialog.isOpen model.neutral
-        , ConfirmDialog.isOpen model.warning
-        , ConfirmDialog.isOpen model.danger
-        , ConfirmDialog.isOpen model.lifecycle
-        , Drawer.isOpen model.drawerRight
-        , Drawer.isOpen model.drawerLeft
-        , CommandPalette.isOpen model.palette
-        , ShortcutHelp.isOpen model.help
-        ]
 
 
 statusBadge : Types.Order -> Html msg
@@ -1037,7 +1018,7 @@ statusBadge order =
 modalSection : Model -> Html Msg
 modalSection model =
     Doc.section "Modal"
-        "A dialog that takes over the page when the user has to do something before going on. Tab and Shift+Tab keep focus inside the dialog, Escape and a click outside close it (not a static dialog), and focus returns to the button that opened it. The page behind cannot be scrolled, and Modal.host also makes it inert, so the keyboard cannot reach it either."
+        "A dialog that takes over the page when the user has to do something before going on. Tab and Shift+Tab keep focus inside the dialog, Escape and a click outside close it (not a static dialog), and focus returns to the button that opened it. The page behind cannot be scrolled, and the overlay layer also makes it inert, so the keyboard cannot reach it either."
         [ Doc.example
             { title = "Sizes"
             , description = Just "Small (400 px), medium (560 px, the default), large (800 px) and full height. The content scrolls on its own while the header and footer stay put."
@@ -1421,7 +1402,7 @@ helpSection =
 -- OVERLAYS
 
 
-overlays : Locale -> Model -> List (Html Msg)
+overlays : Locale -> Model -> List (Overlay Msg)
 overlays locale model =
     [ sizeModal locale model
     , formModal locale model
@@ -1440,7 +1421,6 @@ overlays locale model =
         , CommandPalette.recent (List.map (orderItem (CommandPalette.openedFrom model.palette)) model.recent)
         ]
         model.palette
-    , ContextMenu.view ContextMsg contextItems model.context
     , Toast.view ToastMsg [ Toast.locale locale ] model.toasts
     ]
 
@@ -1454,7 +1434,7 @@ paragraphs =
     ]
 
 
-sizeModal : Locale -> Model -> Html Msg
+sizeModal : Locale -> Model -> Overlay Msg
 sizeModal locale model =
     let
         ( sizeAttrs, name, subtitle ) =
@@ -1505,7 +1485,7 @@ sizeModal locale model =
         [ Layout.stack [ Layout.gap 3 ] body ]
 
 
-formModal : Locale -> Model -> Html Msg
+formModal : Locale -> Model -> Overlay Msg
 formModal locale model =
     let
         form =
@@ -1603,7 +1583,7 @@ formModal locale model =
         ]
 
 
-menuModal : Locale -> Model -> Html Msg
+menuModal : Locale -> Model -> Overlay Msg
 menuModal locale model =
     Modal.view MenuModalMsg
         [ Modal.title "Dialog with a menu and a panel"
@@ -1671,7 +1651,7 @@ menuModal locale model =
         ]
 
 
-discardDialog : Locale -> Model -> Html Msg
+discardDialog : Locale -> Model -> Overlay Msg
 discardDialog locale model =
     ConfirmDialog.view DiscardMsg
         [ ConfirmDialog.warning
@@ -1686,7 +1666,7 @@ discardDialog locale model =
         model.discard
 
 
-neutralDialog : Locale -> Model -> Html Msg
+neutralDialog : Locale -> Model -> Overlay Msg
 neutralDialog locale model =
     ConfirmDialog.view NeutralMsg
         [ ConfirmDialog.title "Send the order for approval?"
@@ -1699,7 +1679,7 @@ neutralDialog locale model =
         model.neutral
 
 
-warningDialog : Locale -> Model -> Html Msg
+warningDialog : Locale -> Model -> Overlay Msg
 warningDialog locale model =
     ConfirmDialog.view WarningMsg
         [ ConfirmDialog.warning
@@ -1725,7 +1705,7 @@ warningDialog locale model =
         model.warning
 
 
-dangerDialog : Locale -> Model -> Html Msg
+dangerDialog : Locale -> Model -> Overlay Msg
 dangerDialog locale model =
     ConfirmDialog.view DangerMsg
         [ ConfirmDialog.danger
@@ -1747,7 +1727,7 @@ dangerDialog locale model =
         model.danger
 
 
-lifecycleDialog : Locale -> Model -> Html Msg
+lifecycleDialog : Locale -> Model -> Overlay Msg
 lifecycleDialog locale model =
     let
         name =
@@ -1770,38 +1750,35 @@ lifecycleDialog locale model =
         model.lifecycle
 
 
-drawerRightView : Locale -> Model -> Html Msg
+drawerRightView : Locale -> Model -> Overlay Msg
 drawerRightView locale model =
-    case model.drawerOrder of
-        Just order ->
-            Drawer.view RightDrawerMsg
-                [ Drawer.title (Types.orderIdText order.id)
-                , Drawer.subtitle (order.customer ++ " · " ++ order.email)
-                , Drawer.locale locale
-                , Drawer.footer
-                    [ Button.view [ Button.onClick CloseRightDrawer ] "Close"
-                    , Button.view [ Button.primary, Button.icon Icon.edit, Button.onClick CloseRightDrawer ] "Edit"
+    -- Always in the list, even before the first order is chosen: a closed drawer
+    -- listens to the focus on the page, to give it back when it closes.
+    Drawer.view RightDrawerMsg
+        [ Drawer.title (Maybe.map (.id >> Types.orderIdText) model.drawerOrder |> Maybe.withDefault "")
+        , Drawer.subtitle (Maybe.map (\order -> order.customer ++ " · " ++ order.email) model.drawerOrder |> Maybe.withDefault "")
+        , Drawer.locale locale
+        , Drawer.footer
+            [ Button.view [ Button.onClick CloseRightDrawer ] "Close"
+            , Button.view [ Button.primary, Button.icon Icon.edit, Button.onClick CloseRightDrawer ] "Edit"
+            ]
+        ]
+        model.drawerRight
+        [ case model.drawerData of
+            Remote.Loaded loaded ->
+                orderDetails locale loaded
+
+            Remote.Failed problem ->
+                ErrorState.view [ ErrorState.compact, ErrorState.onRetry RetryDrawer, ErrorState.locale locale ] problem
+
+            _ ->
+                Layout.stack [ Layout.gap 5 ]
+                    [ Spinner.view [ Spinner.size Small, Spinner.label "Loading the order ..." ]
+                    , Skeleton.line 35
+                    , Skeleton.lines 4
+                    , Skeleton.block 72
                     ]
-                ]
-                model.drawerRight
-                [ case model.drawerData of
-                    Remote.Loaded loaded ->
-                        orderDetails locale loaded
-
-                    Remote.Failed problem ->
-                        ErrorState.view [ ErrorState.compact, ErrorState.onRetry RetryDrawer, ErrorState.locale locale ] problem
-
-                    _ ->
-                        Layout.stack [ Layout.gap 5 ]
-                            [ Spinner.view [ Spinner.size Small, Spinner.label "Loading the order ..." ]
-                            , Skeleton.line 35
-                            , Skeleton.lines 4
-                            , Skeleton.block 72
-                            ]
-                ]
-
-        Nothing ->
-            Text.text ""
+        ]
 
 
 orderDetails : Locale -> Types.Order -> Html Msg
@@ -1837,7 +1814,7 @@ orderDetails locale order =
         ]
 
 
-drawerLeftView : Locale -> Model -> Html Msg
+drawerLeftView : Locale -> Model -> Overlay Msg
 drawerLeftView locale model =
     Drawer.view LeftDrawerMsg
         [ Drawer.left
