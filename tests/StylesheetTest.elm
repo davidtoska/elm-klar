@@ -45,6 +45,20 @@ suite =
                             [ String.contains "min-height: 24px" >> Expect.equal True
                             , String.contains "min-width: 24px" >> Expect.equal True
                             ]
+            , test "the entrance animations of dialogs, drawers, toasts and popups move and never fade (axe reads half-transparent text)" <|
+                \_ ->
+                    [ "klar-pop-in", "klar-modal-in", "klar-slide-in-right", "klar-slide-in-left", "klar-slide-in-up" ]
+                        |> List.map
+                            (\name ->
+                                Klar.css
+                                    |> String.split ("@keyframes " ++ name ++ "{")
+                                    |> List.drop 1
+                                    |> List.head
+                                    |> Maybe.map (String.split "}}" >> List.head >> Maybe.withDefault "")
+                                    |> Maybe.withDefault "missing"
+                            )
+                        |> List.filter (\frames -> frames == "missing" || String.contains "opacity" frames)
+                        |> Expect.equal []
             , test "has as many opening as closing braces" <|
                 \_ -> Expect.equal (count "{" Klar.css) (count "}" Klar.css)
             , test "defines the tokens" <|

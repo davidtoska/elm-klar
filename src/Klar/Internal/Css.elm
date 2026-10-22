@@ -43,11 +43,11 @@ css =
  .klar-no-select{-webkit-user-select: none;user-select: none}
  .klar-mark{background: var(--klar-highlight);color: inherit;border-radius: 2px;padding: 0 1px}
  @keyframes klar-fade-in{from{opacity: 0}to{opacity: 1}}
- @keyframes klar-pop-in{from{opacity: 0;transform: translateY(-4px)}to{opacity: 1;transform: none}}
- @keyframes klar-modal-in{from{opacity: 0;transform: translateY(8px) scale(0.985)}to{opacity: 1;transform: none}}
- @keyframes klar-slide-in-right{from{transform: translateX(24px);opacity: 0}to{transform: none;opacity: 1}}
- @keyframes klar-slide-in-left{from{transform: translateX(-24px);opacity: 0}to{transform: none;opacity: 1}}
- @keyframes klar-slide-in-up{from{transform: translateY(12px);opacity: 0}to{transform: none;opacity: 1}}
+ @keyframes klar-pop-in{from{transform: translateY(-4px)}to{transform: none}}
+ @keyframes klar-modal-in{from{transform: translateY(8px) scale(0.985)}to{transform: none}}
+ @keyframes klar-slide-in-right{from{transform: translateX(24px)}to{transform: none}}
+ @keyframes klar-slide-in-left{from{transform: translateX(-24px)}to{transform: none}}
+ @keyframes klar-slide-in-up{from{transform: translateY(12px)}to{transform: none}}
  @keyframes klar-spin{to{transform: rotate(360deg)}}
  @keyframes klar-shimmer{0%{background-position: -200% 0}100%{background-position: 200% 0}}
  @keyframes klar-pulse{0%,100%{opacity: 1}50%{opacity: 0.45}}

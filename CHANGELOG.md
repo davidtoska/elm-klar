@@ -524,3 +524,11 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   keyed wrapper is the form's (no key to invent); making the form draw the bodies itself would have
   meant a `Html msg` per step in `Spec`, which holds no functions. The recipe `multi-step`, the
   showcase wizard, `Form`'s docs and `AI.md` use it. The test checks the keys (Elm cannot diff in a test).
+- Entrance animations (T02, T09): axe reported `color-contrast` once right after a toast, a
+  drawer, a dialog or the delete confirmation appeared, because the entrance faded the surface in
+  and a checker reads text on a half-transparent background. `klar-modal-in`, `klar-slide-in-*` and
+  `klar-pop-in` now only move (transform); the backdrop, which carries no text, still fades.
+  Reproduced and fixed in Chrome by freezing the animations at 5 % and 50 % and running axe: before,
+  toast 1, confirmation 8, drawer 3 and dialog 25 nodes; after, none. `prefers-reduced-motion`
+  already set the durations to 0. The fades of the accordion body, the table and the bulk bar are
+  unchanged.

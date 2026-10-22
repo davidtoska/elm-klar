@@ -192,29 +192,33 @@ table {
   to { opacity: 1; }
 }
 
+/* Entrance animations move (transform) and never fade (opacity): while a surface
+   with text is partly transparent, the contrast that a checker computes is the
+   contrast of text on a half-covered background, and it reports a violation that
+   is gone a moment later. Only the backdrop fades; it carries no text. */
 @keyframes klar-pop-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: none; }
+  from { transform: translateY(-4px); }
+  to { transform: none; }
 }
 
 @keyframes klar-modal-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.985); }
-  to { opacity: 1; transform: none; }
+  from { transform: translateY(8px) scale(0.985); }
+  to { transform: none; }
 }
 
 @keyframes klar-slide-in-right {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: none; opacity: 1; }
+  from { transform: translateX(24px); }
+  to { transform: none; }
 }
 
 @keyframes klar-slide-in-left {
-  from { transform: translateX(-24px); opacity: 0; }
-  to { transform: none; opacity: 1; }
+  from { transform: translateX(-24px); }
+  to { transform: none; }
 }
 
 @keyframes klar-slide-in-up {
-  from { transform: translateY(12px); opacity: 0; }
-  to { transform: none; opacity: 1; }
+  from { transform: translateY(12px); }
+  to { transform: none; }
 }
 
 @keyframes klar-spin {
