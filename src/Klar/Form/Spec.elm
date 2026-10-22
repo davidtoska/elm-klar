@@ -83,6 +83,52 @@ repeated label gets the next free DOM id (`name`, `name-2`), so two fields never
 clash; the prefix is the one thing that must be different for every form on a page.
 
 
+# A step you draw yourself
+
+A step with no `with` after it, in the middle of the form, has no fields of the
+form: you draw what is on it. The form still owns the step (the stepper, Next and
+Back, the focus when the step is entered, the red mark when something on it is
+wrong), and `Form.summary` still goes at the top, where it draws an empty region
+the focus can land on. What the form cannot see, give it as problems with
+`Form.outside`, on this step. Only the **last** step with no fields is the review
+step, whose summary lists every problem of every step.
+
+    type Step
+        = Company
+        | Pricing
+        | Review
+
+    type alias Fields =
+        { name : Form.Field String }
+
+    type alias Values =
+        { name : String }
+
+    form : Form.Form Step Fields Values
+    form =
+        Spec.define "supplier" Fields Values
+            |> Spec.step Company "Company"
+            |> Spec.with (Spec.text "Name" |> Spec.required)
+            |> Spec.step Pricing "Pricing rules"
+            |> Spec.step Review "Review"
+            |> Spec.build
+
+    viewPricing : (Form.Msg -> msg) -> Form.State Step -> Html msg -> Html msg
+    viewPricing toMsg state editor =
+        Html.div []
+            [ Form.summary (Form.bind Locale.default toMsg form state)
+            , editor
+            ]
+
+    withEditorProblems : List (Form.Problem Step) -> Form.State Step -> Form.State Step
+    withEditorProblems found =
+        Form.outside form found
+
+Each problem you give names its `step` (`Just Pricing`) and the DOM id the focus
+goes to. When the thing you draw is a list of rules, prefer `rows` with
+`conditions`: the form then owns the list as well.
+
+
 # Declaring a form
 
 @docs Builder, define, with, step, check, build
@@ -165,9 +211,10 @@ with =
 
 {-| The fields that follow are on this step. The step is a value of the
 application's own type, and the text is its label in the stepper and in the
-review list. Declare the steps in order, before their fields. A step with no
-fields of its own is the review step: its summary lists every problem of every
-step.
+review list. Declare the steps in order, before their fields. The last step,
+when it has no fields of its own, is the review step: its summary lists every
+problem of every step. A step with no fields in the middle is one you draw
+yourself (see "A step you draw yourself" above).
 
     Spec.define "supplier" Fields Values
         |> Spec.step Company "Company"
