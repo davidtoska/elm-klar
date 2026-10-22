@@ -164,7 +164,7 @@ update msg model =
             ( { model
                 | items = Remote.Loaded rows
                 , list = Remote.Loaded generated
-                , texts = Array.fromList (Search.prepareMany (List.map .name generated))
+                , texts = Array.fromList (Search.prepareMany (List.map searchText generated))
                 , results = Table.rowsArray rows
                 , picked = Nothing
               }
@@ -206,7 +206,20 @@ update msg model =
             ( { model | picked = Just index }, Cmd.none )
 
 
-{-| The items whose name matches, best matches first.
+{-| What the search looks in: the name, the category, the warehouse, the SKU and a
+description of about twenty words, so that the texts are as long as the texts of
+real products.
+-}
+searchText : Item -> String
+searchText found =
+    String.join " "
+        ([ found.name, found.category, found.warehouse, found.sku ]
+            ++ List.map (\k -> pick products (found.id * k + k)) (List.range 1 12)
+            ++ List.map (\k -> pick adjectives (found.id * k + 3 * k)) (List.range 1 8)
+        )
+
+
+{-| The items whose name, category, warehouse or SKU match, best matches first.
 -}
 find : String -> Model -> Array Item
 find text model =
@@ -321,7 +334,7 @@ view locale model =
             }
             (Layout.stack [ Layout.gap 3 ]
                 [ SearchInput.view SearchMsg
-                    [ SearchInput.placeholder "Search 50,000 names ..."
+                    [ SearchInput.placeholder "Search 50,000 items ..."
                     , SearchInput.ariaLabel "Search the items"
                     , SearchInput.locale locale
                     ]

@@ -1,6 +1,10 @@
 module Klar.Internal.Window exposing
-    ( Geometry, Window
-    , window, clampScroll, scrollToRow, rowsPerScreen
+    ( Geometry
+    , Window
+    , clampScroll
+    , rowsPerScreen
+    , scrollToRow
+    , window
     )
 
 {-| The arithmetic of a list that draws only the rows in view: which rows to draw

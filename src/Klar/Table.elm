@@ -7,12 +7,12 @@ module Klar.Table exposing
     , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection
     , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
     , Attribute, columns, rows, rowId, rowLabel, server, label, locale
-    , Rows, prepareRows, rowsArray, preparedRows
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
     , refreshing, onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
     , pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
+    , Rows, prepareRows, rowsArray, preparedRows
     , Column, text, int, float, date, maybeDate, badge, status, bool, custom, actions
     , ColumnAttribute, width, minWidth, alignRight, alignCenter, pinned, hiddenByDefault, alwaysVisible, wrap, noTooltip, cell, hint
     , sortText, sortNumber, sortMaybeNumber, sortDate, sortWith, unsortable
@@ -32,7 +32,8 @@ orders, customers, shipments. For a short list of things to open, see
 
 A table works in one of two modes. In **client mode** you give it all the rows
 and it searches, filters, sorts and paginates them itself. Only the current page
-is turned into HTML, so thousands of rows are fine.
+is turned into HTML. Thousands of rows are fine, and tens of thousands are too once
+the rows are prepared (see "Many rows" below).
 
     import Klar.Button as Button
     import Klar.Menu as Menu
@@ -162,13 +163,37 @@ Name the table with `label`; the page controls in its footer are named after it
 too ("Pages of Orders"), so that two tables on a page can be told apart.
 `rowLabel` names a row for screen readers ("Select Ada Lovelace" on its checkbox).
 
-**Performance.** Client mode searches, filters and sorts inside `view`. Sort keys
-are computed once per row, a missing sort or filter costs nothing, and only the
-current page is turned into HTML (`unpaged` turns every matching row into HTML).
-That work is repeated each time `view` runs. If the rest of your page changes
-often, put the table in a function of the rows and the `State` and call it with
-`Html.Lazy.lazy2`. The rows must come straight from your model, not be rebuilt in
-`view`, for Elm to see that they did not change.
+**Many rows.** Client mode searches, filters and sorts inside `view`: sort keys
+are made once per row, a missing sort or filter costs nothing, and only the
+current page is turned into HTML. That is quick for a few thousand rows and slow
+for tens of thousands, because every value is turned into text again each time. So
+for many rows, make the work once, when the rows arrive, and keep the result in your
+model instead of the `List`:
+
+    Loaded orders ->
+        { model | orders = Loaded (Table.prepareRows locale columns (Array.fromList orders)) }
+
+    Table.preparedRows model.orders
+
+The table then has, for every row, the text that the search looks in and, for every
+sortable column, the rows in order. A keystroke in the search box, a sort click and
+a page change each take a few milliseconds with 50 000 rows, as with 500, and a
+page change does not sort again. Search and sorting need no other rows than
+these; `rowsArray` gives the `Array` to the other parts of the page that want the
+rows, such as [Klar.VirtualList](Klar-VirtualList), so that the page keeps one
+collection. If the rows change (an order is edited), prepare them again.
+
+**Paging or scrolling.** Use pages (the default) when people search, filter and
+sort to find a few rows, and when a row can hold anything: details that expand, text
+that wraps, a menu. Use `virtual` when people read a long table by scrolling, jump to
+its end or go through it with the keyboard: only the rows in view are drawn, every
+row is the height of the density, and the header and the totals stay in view. Do not
+use `unpaged` for many rows: it turns every row into HTML.
+
+**Narrow places.** A table in a narrow card scrolls sideways, and a shadow at the
+edge shows that columns are cut off. Put the columns that matter first (the first can
+be `pinned`), give the others a `minWidth`, and leave out what people rarely need
+with `hiddenByDefault`; with `columnChooser` they can add it.
 
 
 # View
@@ -238,6 +263,14 @@ a saved view.
 # Pagination and layout
 
 @docs pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
+
+
+# Many rows
+
+Prepared rows are made once for a list of rows that arrives or changes (see "Many
+rows" at the top).
+
+@docs Rows, prepareRows, rowsArray, preparedRows
 
 
 # Columns
@@ -960,7 +993,7 @@ step msg model =
             ( { model | sort = nextSort multi colId model.sort, page = 1, activeRow = 0, scroll = 0 }, Cmd.none )
 
         PageChanged n ->
-            ( { model | page = max 1 n, activeRow = 0, rowMenu = Nothing }, Cmd.none )
+            ( { model | page = max 1 n, activeRow = 0, scroll = 0, rowMenu = Nothing }, Cmd.none )
 
         PageSizeChanged size ->
             let
@@ -970,7 +1003,7 @@ step msg model =
                 firstIndex =
                     (max 1 model.page - 1) * model.pageSize
             in
-            ( { model | pageSize = newSize, page = firstIndex // newSize + 1, activeRow = 0 }, Cmd.none )
+            ( { model | pageSize = newSize, page = firstIndex // newSize + 1, activeRow = 0, scroll = 0 }, Cmd.none )
 
         SearchChanged value delay ->
             schedule delay { model | searchInput = value }
@@ -1173,7 +1206,7 @@ step msg model =
 
         FirstPageClicked ->
             -- the same for "Go to the first page" in the empty page: rows replace it
-            ( { model | page = 1, activeRow = 0, rowMenu = Nothing }, Internal.focus (scrollDomId model.id) NoOp )
+            ( { model | page = 1, activeRow = 0, scroll = 0, rowMenu = Nothing }, Internal.focus (scrollDomId model.id) NoOp )
 
 
 {-| Where focus goes after a filter was removed. The control that removed it
@@ -2854,6 +2887,7 @@ it) and the header and the totals row stay in view. The keyboard works as in a
 paged table, and PageUp and PageDown move by a screenful. In server mode the
 pagination stays, and `virtual` only draws the rows of the current page that are
 in view, so a page can be a few hundred rows.
+
 -}
 virtual : Attribute id row msg
 virtual =
@@ -4744,8 +4778,10 @@ activeRowHidden : Ctx row msg -> Bool
 activeRowHidden ctx =
     ctx.config.virtual
         && ctx.interactiveRows
-        && ctx.data.status == Ready
-        && ctx.data.rowCount > 0
+        && ctx.data.status
+        == Ready
+        && ctx.data.rowCount
+        > 0
         && (ctx.activeRow < ctx.data.first || ctx.activeRow >= ctx.data.first + List.length ctx.data.pageRows)
 
 

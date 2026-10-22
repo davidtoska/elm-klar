@@ -284,7 +284,6 @@ content attributes title =
 row : (List (Html.Attribute msg) -> List (Html msg) -> Html msg) -> RowConfig msg -> String -> Html msg
 row root config title =
     let
-
         interactive =
             not config.disabled && (config.onClick /= Nothing || config.href /= Nothing)
 

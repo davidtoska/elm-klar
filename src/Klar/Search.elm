@@ -243,17 +243,21 @@ scoreWords words prepared total =
 
 scoreWord : Word -> Prepared -> Maybe Int
 scoreWord word (Prepared prepared) =
-    if prepared.text == word.text then
-        Just 0
+    -- Every exact match is a match of the word inside the text, so the one search
+    -- for it comes first: a text that does not contain the word is not asked
+    -- about its start or its words at all.
+    if String.contains word.text prepared.text then
+        if prepared.text == word.text then
+            Just 0
 
-    else if String.startsWith word.text prepared.text then
-        Just 1
+        else if String.startsWith word.text prepared.text then
+            Just 1
 
-    else if String.contains word.spaced prepared.words then
-        Just 2
+        else if String.contains word.spaced prepared.words then
+            Just 2
 
-    else if String.contains word.text prepared.text then
-        Just 3
+        else
+            Just 3
 
     else if word.fuzzy && hasEveryLetter word.distinct prepared.text && inOrder word.letters prepared.text then
         Just 6

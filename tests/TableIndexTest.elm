@@ -138,7 +138,10 @@ suite =
                         byWord a b =
                             compare (rowAt a).word (rowAt b).word
                     in
-                    fast rows (indexOf rows) [] (always True)
+                    fast rows
+                        (indexOf rows)
+                        []
+                        (always True)
                         [ Keyed first (rowAt >> sizeKey)
                         , Compared second byWord
                         ]

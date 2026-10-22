@@ -1,7 +1,16 @@
 module Klar.Table.Index exposing
-    ( Index, Totals, build, hasHaystack, hasRanks, totalsOf
-    , Level(..), Matches, matching
-    , matchCount, pageIndices, allIndices
+    ( Index
+    , Level(..)
+    , Matches
+    , Totals
+    , allIndices
+    , build
+    , hasHaystack
+    , hasRanks
+    , matchCount
+    , matching
+    , pageIndices
+    , totalsOf
     )
 
 {-| What a client-mode table works out once per list of rows, and the one pipeline

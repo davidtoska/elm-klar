@@ -114,7 +114,15 @@ Text without them needs no accent folding.
 -}
 hasLatinLetters : String -> Bool
 hasLatinLetters text =
-    String.any (\char -> Char.toCode char >= 0xC0 && Char.toCode char <= 0x017F) text
+    String.any
+        (\char ->
+            let
+                code =
+                    Char.toCode char
+            in
+            code >= 0xC0 && code <= 0x017F
+        )
+        text
 
 
 {-| Lowercases a text and replaces the letters with diacritics by plain letters, so
