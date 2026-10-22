@@ -9,7 +9,7 @@ import Expect
 import Fuzz exposing (Fuzzer)
 import Html exposing (Html)
 import Json.Encode as Encode
-import Klar.ApprovalFlow as ApprovalFlow exposing (Status(..))
+import Klar.ApprovalFlow as ApprovalFlow
 import Klar.Avatar as Avatar
 import Klar.Locale as Locale
 import Klar.Remote as Remote
@@ -105,9 +105,63 @@ build specs =
         |> ApprovalFlow.flow
 
 
+{-| The statuses as the tests write them: the library's are opaque and are asked with
+predicates.
+-}
+type Status
+    = Waiting
+    | InProgress
+    | Approved
+    | Rejected
+    | Skipped
+
+
+stepStatus : ApprovalFlow.StepStatus -> Status
+stepStatus status =
+    if ApprovalFlow.stepIsWaiting status then
+        Waiting
+
+    else if ApprovalFlow.stepIsInProgress status then
+        InProgress
+
+    else if ApprovalFlow.stepIsApproved status then
+        Approved
+
+    else if ApprovalFlow.stepIsRejected status then
+        Rejected
+
+    else if ApprovalFlow.stepIsSkipped status then
+        Skipped
+
+    else
+        -- no step status is none of these five
+        Waiting
+
+
+{-| The status of a whole flow, written with the same names (it is never Waiting or Skipped).
+-}
+flowStatus : ApprovalFlow.Flow Int -> Status
+flowStatus theFlow =
+    let
+        status =
+            ApprovalFlow.status theFlow
+    in
+    if ApprovalFlow.isApproved status then
+        Approved
+
+    else if ApprovalFlow.isRejected status then
+        Rejected
+
+    else if ApprovalFlow.isInProgress status then
+        InProgress
+
+    else
+        Waiting
+
+
 statusesOf : List Spec -> List Status
 statusesOf specs =
-    ApprovalFlow.stepStatuses (build specs)
+    List.map stepStatus (ApprovalFlow.stepStatuses (build specs))
 
 
 everyoneOf : List D -> Spec
@@ -159,7 +213,7 @@ derivationTests =
                     empty =
                         build []
                 in
-                Expect.equal ( ApprovalFlow.status empty, ApprovalFlow.currentStep empty, ApprovalFlow.pendingApprovers empty )
+                Expect.equal ( flowStatus empty, ApprovalFlow.currentStep empty, ApprovalFlow.pendingApprovers empty )
                     ( Approved, Nothing, [] )
         , test "nothing decided: the first step is in progress, the rest wait" <|
             \_ ->
@@ -171,7 +225,7 @@ derivationTests =
                     specs =
                         [ everyoneOf [ Y ], anyOf [ P, P ], everyoneOf [ P ] ]
                 in
-                Expect.equal ( statusesOf specs, ApprovalFlow.status (build specs), ApprovalFlow.currentStep (build specs) )
+                Expect.equal ( statusesOf specs, flowStatus (build specs), ApprovalFlow.currentStep (build specs) )
                     ( [ Approved, InProgress, Waiting ], InProgress, Just 1 )
         , test "all: one approval of two is still in progress" <|
             \_ ->
@@ -201,7 +255,7 @@ derivationTests =
                     specs =
                         [ everyoneOf [ Y ], everyoneOf [ N ], everyoneOf [ P ], anyOf [ Y ] ]
                 in
-                Expect.equal ( statusesOf specs, ApprovalFlow.status (build specs), ApprovalFlow.currentStep (build specs) )
+                Expect.equal ( statusesOf specs, flowStatus (build specs), ApprovalFlow.currentStep (build specs) )
                     ( [ Approved, Rejected, Skipped, Skipped ], Rejected, Just 1 )
         , test "a decision on a step that is not reached is shown but does not count" <|
             \_ ->
@@ -209,7 +263,7 @@ derivationTests =
                     specs =
                         [ everyoneOf [ P ], everyoneOf [ Y ], anyOf [ N ] ]
                 in
-                Expect.equal ( statusesOf specs, ApprovalFlow.status (build specs) )
+                Expect.equal ( statusesOf specs, flowStatus (build specs) )
                     ( [ InProgress, Waiting, Waiting ], InProgress )
         , test "every step approved: the flow is approved and there is no current step" <|
             \_ ->
@@ -217,7 +271,7 @@ derivationTests =
                     specs =
                         [ everyoneOf [ Y ], anyOf [ P, Y ], everyoneOf [ Y, Y ] ]
                 in
-                Expect.equal ( ApprovalFlow.status (build specs), ApprovalFlow.currentStep (build specs) )
+                Expect.equal ( flowStatus (build specs), ApprovalFlow.currentStep (build specs) )
                     ( Approved, Nothing )
         , test "the pending approvers are those of the current step who have not decided" <|
             \_ ->
@@ -330,7 +384,7 @@ propertyTests =
                         else
                             InProgress
                 in
-                ApprovalFlow.status (build specs) |> Expect.equal expected
+                flowStatus (build specs) |> Expect.equal expected
         , fuzz specsFuzz "the current step is the first step that is not approved" <|
             \specs ->
                 let
@@ -426,7 +480,7 @@ propertyTests =
                     pendingIds =
                         ApprovalFlow.pendingApprovers theFlow
                 in
-                case ( ApprovalFlow.status theFlow, ApprovalFlow.currentStep theFlow ) of
+                case ( flowStatus theFlow, ApprovalFlow.currentStep theFlow ) of
                     ( InProgress, Just index ) ->
                         Expect.all
                             [ \ids -> List.isEmpty ids |> Expect.equal False
@@ -538,6 +592,14 @@ listTests =
                         [ Query.has [ Selector.tag "section", H.attr "aria-label" "Approval steps" ]
                         , Query.find [ Selector.tag "ol" ] >> Query.findAll [ Selector.tag "li", stepItem ] >> Query.count (Expect.equal 3)
                         ]
+        , test "the lists keep their list semantics when the stylesheet takes the bullets away" <|
+            \_ ->
+                viewIt [] creditNote
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.find [ Selector.tag "ol" ] >> Query.has [ H.attr "role" "list" ]
+                        , Query.findAll [ Selector.tag "ul", Selector.class "klar-approval__people" ] >> Query.each (Query.has [ H.attr "role" "list" ])
+                        ]
         , test "the name can be set" <|
             \_ ->
                 viewIt [ ApprovalFlow.ariaLabel "Approval of credit note 2024-117" ] creditNote
@@ -616,8 +678,8 @@ wordsTests =
         , test "the line above says where the flow stands, as a polite status" <|
             \_ ->
                 Expect.all
-                    [ \_ -> viewIt [] creditNote |> H.inside [ Selector.class "klar-approval__summary" ] [ H.attr "role" "status", Selector.text "In progress: step 2 of 3: Finance" ]
-                    , \_ -> viewIt [] rejectedNote |> H.inside [ Selector.class "klar-approval__summary" ] [ Selector.text "Rejected at step 2: Finance" ]
+                    [ \_ -> viewIt [] creditNote |> H.inside [ Selector.class "klar-approval__summary" ] [ H.attr "role" "status", Selector.text "In progress: step 2 of 3 (Finance)" ]
+                    , \_ -> viewIt [] rejectedNote |> H.inside [ Selector.class "klar-approval__summary" ] [ Selector.text "Rejected at step 2 (Finance)" ]
                     , \_ -> viewIt [] approvedNote |> H.inside [ Selector.class "klar-approval__summary" ] [ Selector.text "Approved" ]
                     ]
                     ()
@@ -784,12 +846,22 @@ localeTests =
                         , Query.has [ Selector.text "Pågår" ]
                         , Query.has [ Selector.text "Venter på steg 2" ]
                         , Query.has [ Selector.text "Én av 2 må godkjenne" ]
-                        , Query.has [ Selector.text "Forfalt" ]
+                        , Query.has [ Selector.text "Over fristen" ]
                         , Query.has [ Selector.text "Frist" ]
                         , Query.has [ Selector.tag "button", Selector.containing [ Selector.text "Godkjenn" ] ]
                         , Query.has [ Selector.tag "button", Selector.containing [ Selector.text "Avvis" ] ]
                         , Query.has [ H.attr "aria-label" "Din beslutning om Finance" ]
-                        , Query.has [ Selector.text "Pågår: steg 2 av 3: Finance" ]
+                        , Query.has [ Selector.text "Pågår: steg 2 av 3 (Finance)" ]
+                        , Query.has [ Selector.text "Venter på svar" ]
+                        , Query.has [ Selector.text "(du)" ]
+                        ]
+        , test "a rejection and the steps that are not reached, in Norwegian" <|
+            \_ ->
+                viewIt [ ApprovalFlow.locale Locale.nb ] rejectedNote
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Avvist i steg 2 (Finance)" ]
+                        , Query.has [ Selector.text "Ikke aktuelt" ]
                         ]
         , test "the empty flow in Norwegian" <|
             \_ ->

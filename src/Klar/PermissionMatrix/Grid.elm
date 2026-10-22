@@ -107,6 +107,9 @@ type alias Layout =
     , matches : List Int
     , total : Int
     , truncated : Bool
+
+    -- how many permission rows the cap cut off (rows of folded groups are not cut, they are folded)
+    , cutRows : Int
     }
 
 
@@ -180,6 +183,7 @@ layout options items =
     , matches = List.filter matching items |> List.map .index
     , total = List.length items
     , truncated = truncated
+    , cutRows = permissionRows rows - permissionRows shown
     }
 
 
@@ -227,6 +231,21 @@ gather items =
             )
         )
         order
+
+
+permissionRows : List Row -> Int
+permissionRows rows =
+    rows
+        |> List.filter
+            (\row ->
+                case row of
+                    PermissionRow _ ->
+                        True
+
+                    GroupRow _ _ ->
+                        False
+            )
+        |> List.length
 
 
 capRows : Int -> List Row -> ( List Row, Bool )

@@ -145,6 +145,16 @@ layoutTests =
                         List.filter isPermissionRow result.rows
                 in
                 Expect.equal ( List.length permissionRows, result.truncated ) ( 4, True )
+        , test "the cut rows are counted, and rows of a folded group are folded, not cut" <|
+            \_ ->
+                let
+                    folded =
+                        Grid.layout { plain | maxRows = 3, collapsed = Set.fromList [ "Orders" ] } items
+
+                    open =
+                        Grid.layout { plain | maxRows = 3 } items
+                in
+                Expect.equal ( folded.cutRows, open.cutRows ) ( 0, 3 )
         , test "exactly at the cap is not truncated" <|
             \_ ->
                 (Grid.layout { plain | maxRows = 6 } items).truncated |> Expect.equal False

@@ -5,9 +5,9 @@ each other, with Save and Discard around it, and an approval flow in which the v
 approves or rejects and the displayed state follows at once.
 
 The matrix keeps its values here, in `Decisions`: only what was said directly about a
-role. A role without a decision inherits from its parent, which is what the matrix is
-told through `inheritedFrom`. Toggling back to what the parent says removes the decision,
-so the cell inherits again.
+role. A role without a decision inherits from its parent, and the matrix is told both
+(`PermissionMatrix.cell`). A change says what a role should have of its own, or nothing,
+which removes the decision so that the cell inherits again.
 
 -}
 
@@ -19,7 +19,7 @@ import Klar.Avatar as Avatar
 import Klar.Button as Button
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
-import Klar.PermissionMatrix as PermissionMatrix exposing (Access(..))
+import Klar.PermissionMatrix as PermissionMatrix
 import Klar.Remote as Remote
 import Klar.Text as Text
 import Klar.TextArea as TextArea
@@ -127,18 +127,20 @@ parent role =
 {-| What was said directly about a role and a permission. Everything else is inherited.
 -}
 type alias Decisions =
-    Dict ( String, String ) Access
+    Dict ( String, String ) Bool
 
 
-effective : Decisions -> Role -> Permission -> Access
+{-| What a role may do: what was said for it, or else what its parent may.
+-}
+effective : Decisions -> Role -> Permission -> Bool
 effective decisions role permission =
     if role == Administrator then
-        Granted
+        True
 
     else
         case Dict.get ( roleKey role, permissionKey permission ) decisions of
-            Just access ->
-                access
+            Just own ->
+                own
 
             Nothing ->
                 case parent role of
@@ -146,58 +148,59 @@ effective decisions role permission =
                         effective decisions above permission
 
                     Nothing ->
-                        Denied
+                        False
 
 
+{-| Both what was said for the role and what it would inherit: the matrix decides what to
+show, how to toggle and when a cell can go back to inheriting.
+-}
 cellOf : Decisions -> Role -> Permission -> PermissionMatrix.Cell
 cellOf decisions role permission =
     if role == Administrator then
-        PermissionMatrix.granted
+        PermissionMatrix.direct PermissionMatrix.granted
 
     else
-        case Dict.get ( roleKey role, permissionKey permission ) decisions of
-            Just access ->
-                PermissionMatrix.fromAccess access
+        PermissionMatrix.cell
+            { own = Dict.get ( roleKey role, permissionKey permission ) decisions |> Maybe.map PermissionMatrix.fromBool
+            , inherited =
+                parent role
+                    |> Maybe.map
+                        (\above ->
+                            { access = PermissionMatrix.fromBool (effective decisions above permission)
+                            , from = Just (roleName above)
+                            }
+                        )
+            }
 
-            Nothing ->
-                case parent role of
-                    Just above ->
-                        PermissionMatrix.inheritedFrom (roleName above) (effective decisions above permission)
 
-                    Nothing ->
-                        PermissionMatrix.denied
-
-
-{-| A change is a decision. When it says what the parent says anyway, the decision is
-dropped, and the cell inherits again.
+{-| A change is what a role should have of its own: an access to store, or nothing, which
+removes the decision and lets the cell inherit again. No inheritance logic is needed here.
 -}
 applyChange : PermissionMatrix.Change Role Permission -> Decisions -> Decisions
 applyChange change decisions =
     let
         key =
-            ( roleKey change.role, permissionKey change.permission )
-
-        inheritedValue =
-            parent change.role |> Maybe.map (\above -> effective decisions above change.permission)
+            ( roleKey (PermissionMatrix.changedRole change), permissionKey (PermissionMatrix.changedPermission change) )
     in
-    if Just change.access == inheritedValue then
-        Dict.remove key decisions
+    case PermissionMatrix.newAccess change of
+        Just access ->
+            Dict.insert key (PermissionMatrix.isGranted access) decisions
 
-    else
-        Dict.insert key change.access decisions
+        Nothing ->
+            Dict.remove key decisions
 
 
 initialDecisions : Decisions
 initialDecisions =
-    [ ( Picker, ViewOrders, Granted )
-    , ( Picker, ViewStock, Granted )
-    , ( Dispatcher, EditOrders, Granted )
-    , ( Dispatcher, CancelOrders, Granted )
-    , ( Supervisor, AdjustStock, Granted )
-    , ( Supervisor, ExportReports, Granted )
-    , ( Supervisor, CancelOrders, Denied )
+    [ ( Picker, ViewOrders, True )
+    , ( Picker, ViewStock, True )
+    , ( Dispatcher, EditOrders, True )
+    , ( Dispatcher, CancelOrders, True )
+    , ( Supervisor, AdjustStock, True )
+    , ( Supervisor, ExportReports, True )
+    , ( Supervisor, CancelOrders, False )
     ]
-        |> List.map (\( role, permission, access ) -> ( ( roleKey role, permissionKey permission ), access ))
+        |> List.map (\( role, permission, own ) -> ( ( roleKey role, permissionKey permission ), own ))
         |> Dict.fromList
 
 
@@ -244,12 +247,7 @@ bigMatrix given =
                     )
         , permissionKey = String.fromInt
         , cell =
-            \r p ->
-                if Set.member ( r, p ) given then
-                    PermissionMatrix.granted
-
-                else
-                    PermissionMatrix.denied
+            \r p -> PermissionMatrix.direct (PermissionMatrix.fromBool (Set.member ( r, p ) given))
         }
 
 
@@ -556,12 +554,12 @@ update msg model =
                 | bigGrants =
                     List.foldl
                         (\change grants ->
-                            case change.access of
-                                Granted ->
-                                    Set.insert ( change.role, change.permission ) grants
+                            case Maybe.map PermissionMatrix.isGranted (PermissionMatrix.newAccess change) of
+                                Just True ->
+                                    Set.insert ( PermissionMatrix.changedRole change, PermissionMatrix.changedPermission change ) grants
 
-                                Denied ->
-                                    Set.remove ( change.role, change.permission ) grants
+                                _ ->
+                                    Set.remove ( PermissionMatrix.changedRole change, PermissionMatrix.changedPermission change ) grants
                         )
                         model.bigGrants
                         changes
@@ -645,7 +643,7 @@ matrixSection locale model =
         [ Doc.example
             { title = "Roles that inherit, with Save and Discard"
             , description =
-                Just "A dispatcher has what a picker has, and a supervisor what a dispatcher has, unless a cell says otherwise (dashed boxes with the source). Toggling an inherited cell overrides it, and toggling it back to what the parent says lets it inherit again. The administrator column is locked, with the reason under the grid. Cells that differ from the last save have a dot; the count and your buttons are above. Arrow keys, Home, End, Ctrl+Home, Ctrl+End, Page Up and Page Down move; Space or Enter toggles; the checkbox of a role or a permission grants or denies the whole line; Enter on a group row folds it."
+                Just "A dispatcher has what a picker has, and a supervisor what a dispatcher has, unless a cell says otherwise (dashed boxes with the source). Toggling an inherited cell overrides it (a small mark in its corner); toggling it back to what the parent says, the mark that appears under the pointer, or Delete or Backspace lets it inherit again, and the application only stores or removes what the change says. The administrator column is locked, with the reason under the grid. Cells that differ from the last save have a dot; the count and your buttons are above. Arrow keys, Home, End, Ctrl+Home, Ctrl+End, Page Up and Page Down move; Space or Enter toggles; the checkbox of a role or a permission grants or denies the whole line; Enter on a group row folds it."
             , code = Just matrixCode
             }
             (Layout.stack [ Layout.gap 2 ]
@@ -653,7 +651,7 @@ matrixSection locale model =
                     [ PermissionMatrix.onChange CellsChanged
                     , PermissionMatrix.saved (cellOf model.saved)
                     , PermissionMatrix.locale locale
-                    , PermissionMatrix.label "Permissions of the roles"
+                    , PermissionMatrix.ariaLabel "Permissions of the roles"
                     , PermissionMatrix.toolbarActions
                         [ Button.view [ Button.disabled (not changed), Button.onClick Discard ] "Discard"
                         , Button.view [ Button.primary, Button.disabled (not changed), Button.onClick Save ] "Save"
@@ -865,13 +863,20 @@ PermissionMatrix.view MatrixMsg
     )
 
 cellOf decisions role permission =
-    case Dict.get ( role, permission ) decisions of
-        Just Granted -> PermissionMatrix.granted
-        Just Denied -> PermissionMatrix.denied
-        Nothing -> PermissionMatrix.inheritedFrom "Picker" (inheritedAccess role permission)
+    PermissionMatrix.cell
+        { own = Dict.get ( role, permission ) decisions |> Maybe.map PermissionMatrix.fromBool
+        , inherited =
+            parentOf role
+                |> Maybe.map (inheritedFrom permission)   -- { access = ..., from = Just "Picker" }
+        }
 
 CellsChanged changes ->      -- one click or key, a list of one; a header checkbox, many
-    ( { model | decisions = List.foldl store model.decisions changes }, Cmd.none )"""
+    ( { model | decisions = List.foldl store model.decisions changes }, Cmd.none )
+
+store change decisions =
+    case PermissionMatrix.newAccess change of
+        Just access -> Dict.insert (key change) (PermissionMatrix.isGranted access) decisions
+        Nothing -> Dict.remove (key change) decisions   -- inherits again"""
 
 
 readOnlyCode : String
@@ -908,15 +913,15 @@ flowCode =
     )
 
 -- the same answers, for a list or for the server
-ApprovalFlow.status flow          -- InProgress | Approved | Rejected
-ApprovalFlow.currentStep flow     -- Just 1
+ApprovalFlow.isApproved (ApprovalFlow.status flow)   -- ask it, never match it
+ApprovalFlow.currentStep flow                        -- Just 1
 ApprovalFlow.pendingApprovers flow"""
 
 
 statusCode : String
 statusCode =
-    """ApprovalFlow.stepStatuses flow
---> [ Approved, Rejected, Skipped ]     -- Skipped is shown as "Not reached"
+    """List.map ApprovalFlow.stepIsSkipped (ApprovalFlow.stepStatuses flow)
+--> [ False, False, True ]     -- a skipped step is shown as "Not reached"
 
 ApprovalFlow.approved { at = Just time, comment = Just "Within budget." }
 ApprovalFlow.rejected { at = Just time, comment = Just "The amount is wrong." }
