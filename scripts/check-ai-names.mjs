@@ -162,6 +162,7 @@ function resolveChain(segments, aliases) {
     }
     for (const c of candidates) {
       if (exposedModules.has(c)) {
+        if (c === 'Klar' && caps.length > 1) return { module: caps.join('.'), name: null, missing: true }; // Klar.Nothing.x
         const after = [...caps.slice(k), ...rest];
         return { module: c, name: after[0] || null, extra: after.length > 1 };
       }
