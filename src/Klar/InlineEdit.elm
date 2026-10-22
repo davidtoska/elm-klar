@@ -264,13 +264,21 @@ saved (State state) =
 
 
 {-| The save failed. The text is shown with "Could not save." and the `title` of
-the problem, a "Try again" button (which makes `isSaving` `True` again, but only
-when `Remote.isRetryable` allows it: not for a conflict or a validation problem,
-which would fail the same way) and a
-"Cancel" button that goes back to the old value. The `Problem` is from
+the problem, followed by its `detail` when you gave one with `Remote.withDetail`
+(the server's message for this field), a "Try again" button (which makes
+`isSaving` `True` again, but only when `Remote.isRetryable` allows it: not for a
+conflict or a validation problem, which would fail the same way) and a "Cancel"
+button that goes back to the old value. The `Problem` is from
 [Klar.Remote](Klar-Remote); make one from your own error with `Remote.problem`.
 
     InlineEdit.failed (Remote.problem Remote.network) model.customerName
+
+A refusal that names the field:
+
+    InlineEdit.failed
+        (Remote.problem Remote.validation |> Remote.withDetail "This domain is blocked.")
+        model.website
+    -- "Could not save. The form has errors: This domain is blocked."
 
 -}
 failed : Problem -> State -> State
@@ -752,7 +760,7 @@ viewFailure toMsg config state =
         , Html.span [ Internal.cls [ "klar-inline-edit__failure-text" ] ]
             [ Html.text
                 (Locale.pick config.locale { nb = "Kunne ikke lagre. ", en = "Could not save. " }
-                    ++ (state.problem |> Maybe.map (Remote.title config.locale) |> Maybe.withDefault "")
+                    ++ (state.problem |> Maybe.map (failureText config.locale) |> Maybe.withDefault "")
                 )
             ]
         , if retryable then
@@ -765,6 +773,31 @@ viewFailure toMsg config state =
             (Locale.pick config.locale { nb = "Avbryt", en = "Cancel" })
         ]
     ]
+
+
+{-| The title of the problem, and its detail after a colon when the application
+gave one of its own (`Remote.withDetail`), such as the server's message for this
+field. The ready-made detail of a kind is left out: it would only repeat the title.
+-}
+failureText : Locale -> Problem -> String
+failureText lang problem =
+    let
+        own =
+            Remote.detail lang problem
+
+        standard =
+            Remote.detail lang (Remote.problem (Remote.kind problem))
+    in
+    case own of
+        Just text ->
+            if own /= standard && String.trim text /= "" then
+                Remote.title lang problem ++ ": " ++ text
+
+            else
+                Remote.title lang problem
+
+        Nothing ->
+            Remote.title lang problem
 
 
 keyDecoder : (Msg -> msg) -> Rules -> Decode.Decoder ( msg, Bool )
