@@ -4364,7 +4364,7 @@ viewBulkBar ctx =
                         > 0
                         && Set.size keys
                         >= selectableTotal
-                        && List.all (\key -> Set.member key keys) (selectableKeys ctx)
+                        && (everyRowCanBeSelected ctx || List.all (\key -> Set.member key keys) (selectableKeys ctx))
 
         note value =
             Html.span [ Internal.cls [ "klar-table__bulk-note" ] ] [ Html.text value ]
@@ -4477,6 +4477,15 @@ selectableKeys ctx =
         |> List.indexedMap (\index row -> ( ctx.keyOf index row, rowIsDisabled ctx.config row ))
         |> List.filter (\( _, disabled ) -> not disabled)
         |> List.map Tuple.first
+
+
+{-| Does every row of the table match, and can every one be selected? Then as many
+selected keys as rows mean that all rows are selected, and the bulk bar need not
+go through the rows to see it.
+-}
+everyRowCanBeSelected : Ctx row msg -> Bool
+everyRowCanBeSelected ctx =
+    ctx.data.total == ctx.data.available && not (isJust ctx.config.rowDisabled)
 
 
 {-| How many matching rows can be selected. Without `rowDisabled` that is all of them.
