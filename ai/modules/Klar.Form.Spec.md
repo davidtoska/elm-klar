@@ -358,7 +358,9 @@ drop zone refused (wrong type, too large) are not in the value; while one of
 them is still listed the field has the problem "Remove the refused file". Add
 `atLeast 1` to require a file, or `one` for a single file (`one |> required`
 for a file that must be there). The size and type limits belong to the view
-(`FileDrop.accept`, `FileDrop.maxSize`).
+(`FileDrop.accept`, `FileDrop.maxSize`). The value is the name, size and type of
+each file; the browser's own `File` values, for the request you make, are
+`Form.rawFiles`.
 
     Spec.files "Signed contract" |> Spec.one |> Spec.required
 
