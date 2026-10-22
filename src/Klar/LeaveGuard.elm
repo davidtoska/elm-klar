@@ -148,6 +148,7 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Modal as Modal
+import Klar.Overlay exposing (Overlay)
 
 
 
@@ -518,7 +519,7 @@ view all the time; put it in the `overlays` of
     LeaveGuard.view GuardMsg [ LeaveGuard.saveAndLeave ] model.guard
 
 -}
-view : (Msg -> msg) -> List Attribute -> Guard source target -> Html msg
+view : (Msg -> msg) -> List Attribute -> Guard source target -> Overlay msg
 view toMsg attributes (Guard state) =
     let
         config =

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fix = process.argv.includes('--fix');
 
-const skipDirectories = new Set(['node_modules', 'elm-stuff', '.git']);
+const skipDirectories = new Set(['node_modules', 'elm-stuff', '.git', '.claude']);
 const skipFiles = new Set(['example/main.js', 'example/docs.json', 'docs.json']);
 const textExtensions = new Set([
   '.elm', '.css', '.md', '.json', '.mjs', '.js', '.html', '.yml', '.yaml', '.txt',

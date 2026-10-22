@@ -12,6 +12,7 @@ import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
 import Klar.Locale as Locale
+import Klar.Overlay as Overlay
 import Support.FlowHtml as H
 import Test exposing (Test, describe, fuzz, test)
 import Test.Html.Event as Event
@@ -67,7 +68,7 @@ them, so the test can hand them to `update` as the application would.
 -}
 dialog : List LeaveGuard.Attribute -> Guard -> Html LeaveGuard.Msg
 dialog attributes guard =
-    LeaveGuard.view identity attributes guard
+    Overlay.host { attributes = [], page = [], overlays = [ LeaveGuard.view identity attributes guard ] }
 
 
 {-| The message that a click on the element sends.

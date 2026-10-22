@@ -3,7 +3,7 @@ module Page.Gallery.Flow exposing (Model, Msg, init, subscriptions, update, view
 {-| Gallery page: pages and flow. Result pages, the bulk action bar, the leave
 guard and the undo history, each with a small working scene around it.
 
-The leave guard asks inside a `Modal.host`, which makes the page behind the dialog
+The leave guard asks inside an `Overlay.host`, which makes the page behind the dialog
 inert; the undo shortcuts are listened to by the same host, so they work as soon as
 focus is anywhere in this page.
 
@@ -27,6 +27,7 @@ import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Modal as Modal
+import Klar.Overlay as Overlay
 import Klar.Remote as Remote
 import Klar.Shortcut as Shortcut exposing (Shortcut)
 import Klar.Spinner as Spinner
@@ -485,9 +486,8 @@ subscriptions model =
 
 view : Locale -> Model -> Html Msg
 view locale model =
-    Modal.host
+    Overlay.host
         { attributes = [ Shortcut.listen ShortcutMsg (pageShortcuts locale) model.shortcuts ]
-        , blocked = LeaveGuard.isOpen model.guard
         , page =
             [ Doc.page
                 { title = "Pages and flow"
@@ -1073,9 +1073,8 @@ SavedThenGo route ->
     ( { model | guard = guard, route = route }, Cmd.map GuardMsg cmd )
 
 -- view: the page is inert while the question is open
-Modal.host
+Overlay.host
     { attributes = []
-    , blocked = LeaveGuard.isOpen model.guard
     , page = [ page ]
     , overlays = [ LeaveGuard.view GuardMsg [ LeaveGuard.saveAndLeave ] model.guard ]
     }"""
