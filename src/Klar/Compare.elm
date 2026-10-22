@@ -615,12 +615,12 @@ viewRecords settings t config records =
         headRow =
             Keyed.node "tr"
                 []
-                (( "\u{0000}field"
+                (( "field"
                  , Html.th [ Internal.cls [ "klar-compare__corner" ], Attr.scope "col" ] [ Html.text t.field ]
                  )
                     :: List.map
                         (\( record, key, index ) ->
-                            ( key
+                            ( "record " ++ key
                             , Html.th
                                 [ Internal.cls
                                     [ "klar-compare__head"
@@ -784,7 +784,7 @@ viewLine t columns baselineAt line =
                 cells =
                     List.map3
                         (\( record, key, _ ) value mark ->
-                            ( key, viewCell t found.show baselineValue record value mark )
+                            ( "record " ++ key, viewCell t found.show baselineValue record value mark )
                         )
                         columns
                         found.values
@@ -801,7 +801,7 @@ viewLine t columns baselineAt line =
                             ""
                         ]
                     ]
-                    (( "\u{0000}label"
+                    (( "label"
                      , Html.th [ Internal.cls [ "klar-compare__label" ], Attr.scope "row" ] [ Html.text found.label ]
                      )
                         :: cells

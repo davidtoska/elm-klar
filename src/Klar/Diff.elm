@@ -102,6 +102,7 @@ import Klar.Button as Button
 import Klar.DescriptionList as DescriptionList
 import Klar.Diff.Inline as Inline
 import Klar.Diff.Json as DiffJson
+import Klar.Diff.Keys as Keys
 import Klar.Diff.Lines as Lines
 import Klar.Diff.Types exposing (Entry, Kind(..), Part, Shown(..))
 import Klar.Format as Format
@@ -308,27 +309,22 @@ shows what changed inside it.
 fields : List { label : String, before : Maybe String, after : Maybe String } -> Diff
 fields records =
     let
-        step record ( entries, seen ) =
-            case ( record.before, record.after ) of
-                ( Nothing, Nothing ) ->
-                    ( entries, seen )
+        present =
+            List.filter (\record -> record.before /= Nothing || record.after /= Nothing) records
 
-                _ ->
-                    let
-                        count =
-                            Dict.get record.label seen |> Maybe.withDefault 0
+        -- the same label twice is a mistake that can happen: both are shown, with different keys
+        keys =
+            Keys.unique (\key number -> key ++ " (" ++ String.fromInt number ++ ")") (List.map .label present)
 
-                        key =
-                            if count == 0 then
-                                record.label
-
-                            else
-                                record.label ++ " (" ++ String.fromInt (count + 1) ++ ")"
-                    in
-                    ( fieldEntry key record :: entries, Dict.insert record.label (count + 1) seen )
+        step ( key, record ) ( entries, budget ) =
+            let
+                ( entry, spent ) =
+                    fieldEntry budget key record
+            in
+            ( entry :: entries, budget - spent )
 
         ( found, _ ) =
-            List.foldl step ( [], Dict.empty ) records
+            List.foldl step ( [], Inline.sharedBudget ) (List.map2 Tuple.pair keys present)
     in
     Diff
         { content = EntriesContent FromFields (List.reverse found)
@@ -336,8 +332,11 @@ fields records =
         }
 
 
-fieldEntry : String -> { label : String, before : Maybe String, after : Maybe String } -> Entry
-fieldEntry key record =
+{-| An entry of a field and the work that marking what changed inside the text took,
+out of the budget that is left for all the fields of the diff.
+-}
+fieldEntry : Int -> String -> { label : String, before : Maybe String, after : Maybe String } -> ( Entry, Int )
+fieldEntry budget key record =
     let
         plain text =
             Text { parts = [ { text = text, changed = False } ], truncated = False }
@@ -345,31 +344,33 @@ fieldEntry key record =
     case ( record.before, record.after ) of
         ( Just before, Just after ) ->
             if before == after then
-                { key = key, label = record.label, kind = Unchanged, before = Just (plain before), after = Just (plain after) }
+                ( { key = key, label = record.label, kind = Unchanged, before = Just (plain before), after = Just (plain after) }, 0 )
 
             else if String.length before > 2000 || String.length after > 2000 then
-                { key = key, label = record.label, kind = Changed, before = Just (plain before), after = Just (plain after) }
+                ( { key = key, label = record.label, kind = Changed, before = Just (plain before), after = Just (plain after) }, 0 )
 
             else
                 let
-                    segments =
-                        Inline.diff before after
+                    ( segments, spent ) =
+                        Inline.diffWithin budget before after
                 in
-                { key = key
-                , label = record.label
-                , kind = Changed
-                , before = Just (Text { parts = sideParts (\removed _ -> removed) segments, truncated = False })
-                , after = Just (Text { parts = sideParts (\_ added -> added) segments, truncated = False })
-                }
+                ( { key = key
+                  , label = record.label
+                  , kind = Changed
+                  , before = Just (Text { parts = sideParts (\removed _ -> removed) segments, truncated = False })
+                  , after = Just (Text { parts = sideParts (\_ added -> added) segments, truncated = False })
+                  }
+                , spent
+                )
 
         ( Just before, Nothing ) ->
-            { key = key, label = record.label, kind = Removed, before = Just (plain before), after = Nothing }
+            ( { key = key, label = record.label, kind = Removed, before = Just (plain before), after = Nothing }, 0 )
 
         ( Nothing, Just after ) ->
-            { key = key, label = record.label, kind = Added, before = Nothing, after = Just (plain after) }
+            ( { key = key, label = record.label, kind = Added, before = Nothing, after = Just (plain after) }, 0 )
 
         ( Nothing, Nothing ) ->
-            { key = key, label = record.label, kind = Unchanged, before = Nothing, after = Nothing }
+            ( { key = key, label = record.label, kind = Unchanged, before = Nothing, after = Nothing }, 0 )
 
 
 {-| The parts of one side of an inline comparison. Text with nothing in common is

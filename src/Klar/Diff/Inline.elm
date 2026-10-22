@@ -1,4 +1,4 @@
-module Klar.Diff.Inline exposing (Segment(..), addedText, clusters, diff, diffWithin, pairBudget, removedText, tokens)
+module Klar.Diff.Inline exposing (Segment(..), addedText, clusters, diff, diffWithin, pairBudget, removedText, sharedBudget, tokens)
 
 {-| The difference between two pieces of text inside a line, by words.
 
@@ -51,6 +51,15 @@ unit more for every character that is cut into tokens.
 pairBudget : Int
 pairBudget =
     120000
+
+
+{-| The work that marking the changes inside all the lines, all the values or all
+the fields of one diff may take together, in the same unit. It is about a third of
+a second.
+-}
+sharedBudget : Int
+sharedBudget =
+    1000000
 
 
 {-| What cutting a text into tokens (and, for a long word, into characters) costs
@@ -408,7 +417,7 @@ the accents after it, an emoji and its skin tone, its variation selector and the
 emoji joined to it with a zero width joiner. Putting the clusters together gives the
 text again.
 
-    clusters "Ame\u{0301}lie" -- [ "A", "m", "e\u{0301}", "l", "i", "e" ]
+    clusters "Amélie" -- [ "A", "m", "e\u{0301}", "l", "i", "e" ]
 
 -}
 clusters : String -> List String
@@ -445,38 +454,52 @@ extendsCluster char =
         (code <= 0x036F)
             || (code >= 0x0483 && code <= 0x0489)
             || (code >= 0x0591 && code <= 0x05BD)
-            || code == 0x05BF
-            || code == 0x05C1
-            || code == 0x05C2
-            || code == 0x05C4
-            || code == 0x05C5
-            || code == 0x05C7
+            || code
+            == 0x05BF
+            || code
+            == 0x05C1
+            || code
+            == 0x05C2
+            || code
+            == 0x05C4
+            || code
+            == 0x05C5
+            || code
+            == 0x05C7
             || (code >= 0x0610 && code <= 0x061A)
             || (code >= 0x064B && code <= 0x065F)
-            || code == 0x0670
+            || code
+            == 0x0670
             || (code >= 0x06D6 && code <= 0x06DC)
             || (code >= 0x06DF && code <= 0x06E4)
-            || code == 0x06E7
-            || code == 0x06E8
+            || code
+            == 0x06E7
+            || code
+            == 0x06E8
             || (code >= 0x06EA && code <= 0x06ED)
             || (code >= 0x0900 && code <= 0x0903)
             || (code >= 0x093A && code <= 0x093C)
             || (code >= 0x093E && code <= 0x094F)
             || (code >= 0x0951 && code <= 0x0957)
-            || code == 0x0962
-            || code == 0x0963
-            || code == 0x0E31
+            || code
+            == 0x0962
+            || code
+            == 0x0963
+            || code
+            == 0x0E31
             || (code >= 0x0E34 && code <= 0x0E3A)
             || (code >= 0x0E47 && code <= 0x0E4E)
             || (code >= 0x1AB0 && code <= 0x1AFF)
             || (code >= 0x1DC0 && code <= 0x1DFF)
-            || code == 0x200C
-            || code == 0x200D
+            || code
+            == 0x200C
+            || code
+            == 0x200D
             || (code >= 0x20D0 && code <= 0x20FF)
             || (code >= 0xFE00 && code <= 0xFE0F)
             || (code >= 0xFE20 && code <= 0xFE2F)
-            || (code >= 0x1F3FB && code <= 0x1F3FF)
-            || (code >= 0xE0100 && code <= 0xE01EF)
+            || (code >= 0x0001F3FB && code <= 0x0001F3FF)
+            || (code >= 0x000E0100 && code <= 0x000E01EF)
 
 
 {-| The characters of two tokens compared. The result is used when the tokens

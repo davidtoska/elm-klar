@@ -28,7 +28,7 @@ The work is limited. The beginning and the end of the texts that are the same ar
 cut off first (two equal texts cost no more than reading them). When what is left
 is too different to compare in the given amount of work, the answer is a summary of
 both texts instead (`TooLarge`), never a wrong or a late diff. Marking what changed
-inside the lines has one budget for the whole diff (half of the given work): the
+inside the lines has one budget for the whole diff (`Inline.sharedBudget`): the
 changed lines that come after it is spent are marked as a whole.
 
 -}
@@ -253,7 +253,7 @@ diff options oldText newText =
                     case Myers.diff options.maxWork oldIds newIds of
                         Just runs ->
                             compared
-                                (toSegments (options.maxWork // 2)
+                                (toSegments Inline.sharedBudget
                                     old.lines
                                     new.lines
                                     oldMissingNewline
