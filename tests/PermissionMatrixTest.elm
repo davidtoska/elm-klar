@@ -10,6 +10,7 @@ import Expect
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar
 import Klar.Locale as Locale
 import Klar.PermissionMatrix as PermissionMatrix exposing (Change, Matrix)
 import Klar.Remote as Remote
@@ -1181,6 +1182,8 @@ lockedTests =
                         [ Selector.text "Administrator: Administrator always has every permission"
                         , Selector.containing [ Selector.class "klar-icon--lock" ]
                         ]
+        , test "a role column is wide enough for the word Administrator with its lock" <|
+            \_ -> Expect.equal True (String.contains "--_col-w: 132px" Klar.css)
         , test "the header and every cell of the column refer to the reason, and it is on the page" <|
             \_ ->
                 let

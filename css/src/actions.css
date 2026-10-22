@@ -101,6 +101,13 @@
 
 .klar-toggle-group { align-self: flex-start; }
 
+/* The words of the options are what the user chooses by, so a group that does not fit
+   goes onto a second line (six statuses on a phone were cut down to "D..", "Co..",
+   "Pi.."). The joined look of a button group is kept in each line. A full width group
+   shares one line and has its own rule below. */
+.klar-toggle-group { flex-wrap: wrap; }
+.klar-toggle-group:not(.klar-toggle-group--full) > .klar-button { flex: 0 0 auto; }
+
 .klar-toggle-group--full {
   display: flex;
   align-self: stretch;
@@ -109,7 +116,26 @@
 
 .klar-toggle-group--full > .klar-button { flex: 1 1 0; }
 
+/* A full width group shares the line equally. On a phone seven days get 44px each, and
+   with the padding of a button "Mon" was cut down to "M..": less room at the sides,
+   so that a short word keeps all of its letters. */
+.klar-toggle-group--full > .klar-button:not(.klar-button--icon-only) { padding-inline: var(--klar-space-1); }
+
 .klar-toggle-group--invalid .klar-button { --_border: var(--klar-danger); }
+
+/* Windows high contrast replaces the colors of a button: what is switched on must not
+   depend on a background. A frame inside the button marks it (an outline would be
+   taken by the focus ring). */
+@media (forced-colors: active) {
+  .klar-toggle-group .klar-button[aria-pressed="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 2px solid Highlight;
+    border-radius: 2px;
+    pointer-events: none;
+  }
+}
 
 /* ---- Split button ----------------------------------------------------- */
 

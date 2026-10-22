@@ -62,13 +62,13 @@ the place of the toolbar that is already there, in the same box. You hand that
 `toolbar` to `view`; it is always drawn, and while something is selected the bar
 covers it (the toolbar keeps its place, its size and its state, a search field
 keeps its text, but it cannot be reached with the keyboard or the mouse until the
-bar goes away). The place is as tall as the taller of the two. A list with no
-toolbar of its own can pass a quiet `Toolbar` with a label, such as the name of the
-list; without anything there to cover, the bar adds its own height when the first
-item is selected.
-
-Nothing is selected, nothing is drawn: with a count of zero (or less) you see only
-your toolbar. The bar asks for no focus when it appears.
+bar goes away). The place is as tall as the taller of the two, always: with a count
+of zero (or less) the bar is drawn all the same, out of sight and out of reach of the
+mouse, the keyboard and screen readers, as it would look for a whole page of ticked items
+(with the offer to select everything), so that its height is counted even when the bar
+wraps onto two lines in a narrow column. A list with no toolbar of its own should pass a
+quiet `Toolbar` with a label, such as the name of the list: the place is kept for the
+bar, and an empty one would leave a gap. The bar asks for no focus when it appears.
 
 ## Keyboard and announcements
 

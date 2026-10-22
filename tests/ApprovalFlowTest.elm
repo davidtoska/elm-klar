@@ -8,7 +8,9 @@ viewer gets, the overdue marker, the texts in two languages and the remote state
 import Expect
 import Fuzz exposing (Fuzzer)
 import Html exposing (Html)
+import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar
 import Klar.ApprovalFlow as ApprovalFlow
 import Klar.Avatar as Avatar
 import Klar.Locale as Locale
@@ -620,6 +622,29 @@ listTests =
             \_ ->
                 viewIt [] (ApprovalFlow.flow [])
                     |> H.has [ Selector.text "No approval is required" ]
+        , test "without an id the flow cannot be given focus" <|
+            \_ ->
+                viewIt [] creditNote
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.hasNot [ Selector.attribute (Attr.attribute "tabindex" "-1") ]
+                        , Query.hasNot [ Selector.id "credit-note-flow" ]
+                        ]
+        , test "with an id the flow can be given focus by `focus`, after the buttons that had it are gone, and is no tab stop" <|
+            \_ ->
+                viewIt [ ApprovalFlow.id "credit-note-flow" ] creditNote
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.tag "section", Selector.id "credit-note-flow", Selector.attribute (Attr.tabindex -1) ]
+        , test "focus is a command that is sent even when the flow is not on the page" <|
+            \_ ->
+                ApprovalFlow.focus "credit-note-flow" Retry
+                    |> (\cmd -> cmd /= Cmd.none)
+                    |> Expect.equal True
+        , test "the flow gets a visible focus ring when it is focused by program" <|
+            \_ ->
+                Klar.css
+                    |> String.contains ".klar-approval:focus-visible"
+                    |> Expect.equal True
         ]
 
 

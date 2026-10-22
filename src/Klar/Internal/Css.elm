@@ -1875,8 +1875,8 @@ css =
  .klar-sortable__empty{padding: var(--klar-space-4);border: 1px dashed var(--klar-border-strong);border-radius: var(--klar-radius);color: var(--klar-text-muted);text-align: center}
  @media (prefers-reduced-motion: reduce){.klar-sortable__item{transition: none}}
  @media (forced-colors: active){.klar-sortable__item--drop-before::before,.klar-sortable__item--drop-after::after{forced-color-adjust: none;background: Highlight}.klar-sortable__item--lifted{outline: 2px solid Highlight;outline-offset: -2px}}
- .klar-splitter{--klar-split-gutter: 8px;position: relative;display: flex;flex-direction: row;width: 100%;height: var(--klar-split-h,100%);min-width: 0;min-height: 0}
- .klar-splitter--stacked{flex-direction: column}
+ .klar-splitter{--klar-split-gutter: 8px;position: relative;display: flex;flex-direction: row;width: 100%;height: var(--klar-split-h,100%);min-width: 0;min-height: 0;overflow-x: auto;overflow-y: hidden}
+ .klar-splitter--stacked{flex-direction: column;overflow-x: hidden;overflow-y: auto}
  .klar-splitter--fill-rest{height: auto}
  .klar-splitter__pane{position: relative;flex: var(--klar-grow,1) 1 0px;min-width: var(--klar-min,0px);max-width: var(--klar-max,none);min-height: 0;overflow: auto}
  .klar-splitter--stacked > .klar-splitter__pane{min-width: 0;max-width: none;min-height: var(--klar-min,0px);max-height: var(--klar-max,none)}
@@ -1912,9 +1912,13 @@ css =
  .klar-toggle{min-width: 0;max-width: 100%}
  .klar-toggle-field{display: flex;flex-direction: column;gap: var(--klar-space-1);min-width: 0}
  .klar-toggle-group{align-self: flex-start}
+ .klar-toggle-group{flex-wrap: wrap}
+ .klar-toggle-group:not(.klar-toggle-group--full) > .klar-button{flex: 0 0 auto}
  .klar-toggle-group--full{display: flex;align-self: stretch;width: 100%}
  .klar-toggle-group--full > .klar-button{flex: 1 1 0}
+ .klar-toggle-group--full > .klar-button:not(.klar-button--icon-only){padding-inline: var(--klar-space-1)}
  .klar-toggle-group--invalid .klar-button{--_border: var(--klar-danger)}
+ @media (forced-colors: active){.klar-toggle-group .klar-button[aria-pressed="true"]::after{content: "";position: absolute;inset: 3px;border: 2px solid Highlight;border-radius: 2px;pointer-events: none}}
  .klar-split{position: relative;display: inline-flex;align-items: stretch;max-width: 100%;vertical-align: middle}
  .klar-split > .klar-button{flex: 0 1 auto;min-width: 0;border-top-right-radius: 0;border-bottom-right-radius: 0}
  .klar-split--single > .klar-button{border-radius: var(--klar-radius)}
@@ -1967,7 +1971,9 @@ css =
  .klar-bulk__under,.klar-bulk__bar{grid-area: 1 / 1;min-width: 0}
  .klar-bulk__under--covered{visibility: hidden}
  .klar-bulk__live{pointer-events: none}
- .klar-bulk__bar{display: flex;flex-wrap: wrap;align-items: center;align-content: center;gap: 6px var(--klar-space-3);padding: 6px var(--klar-space-2);background: var(--klar-primary-subtle);border: 1px solid var(--klar-primary-border);border-radius: var(--klar-radius-lg);color: var(--klar-blue-800);animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
+ .klar-bulk__bar{display: flex;flex-wrap: wrap;align-items: center;align-content: center;gap: 6px var(--klar-space-3);padding: 6px var(--klar-space-2);background: var(--klar-primary-subtle);border: 1px solid var(--klar-primary-border);border-radius: var(--klar-radius-lg);color: var(--klar-blue-800)}
+ .klar-bulk__bar:not(.klar-bulk__bar--reserved){animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
+ .klar-bulk__bar--reserved{visibility: hidden;pointer-events: none}
  .klar-bulk__count{flex: none;padding: 0 var(--klar-space-1);font-weight: var(--klar-weight-bold);white-space: nowrap}
  .klar-bulk__offer{display: flex;flex-wrap: wrap;align-items: center;min-width: 0}
  .klar-bulk__actions{display: flex;flex-wrap: wrap;align-items: center;justify-content: flex-end;gap: var(--klar-space-2);margin-left: auto;max-width: 100%}
@@ -2251,7 +2257,7 @@ css =
  .klar-transfer__buttons{display: flex;flex-direction: column;align-items: center;justify-content: center;gap: 6px}
  @container klar-transfer (max-width: 560px){.klar-transfer__panes{grid-template-columns: minmax(0,1fr)}.klar-transfer__buttons{flex-direction: row}.klar-transfer__buttons .klar-icon{transform: rotate(90deg)}}
  @media (forced-colors: active){.klar-tree-select__row--chosen,.klar-cascader__item--chosen,.klar-transfer__row--marked{outline: 2px solid Highlight;outline-offset: -2px}.klar-cascader__item--opened{outline: 1px solid CanvasText;outline-offset: -1px}.klar-tree-select__row.klar-select__option--highlighted,.klar-cascader__item.klar-select__option--highlighted,.klar-transfer__list:focus .klar-select__option--highlighted{outline: 2px dashed CanvasText;outline-offset: -2px}}
- .klar-permissions{--_row-h: var(--klar-row);--_cell-px: var(--klar-space-3);--_font: var(--klar-text-md);--_label-w: 240px;--_col-w: 124px;display: flex;flex-direction: column;min-width: 0;background: var(--klar-surface);border: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg);overflow: clip;font-size: var(--_font)}
+ .klar-permissions{--_row-h: var(--klar-row);--_cell-px: var(--klar-space-3);--_font: var(--klar-text-md);--_label-w: 240px;--_col-w: 132px;display: flex;flex-direction: column;min-width: 0;background: var(--klar-surface);border: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg);overflow: clip;font-size: var(--_font)}
  .klar-permissions--normal{--_row-h: var(--klar-row);--_cell-px: var(--klar-space-3)}
  .klar-permissions--compact,:where([data-klar-density="compact"]) .klar-permissions:where(:not(.klar-permissions--compact,.klar-permissions--comfortable)){--_row-h: var(--klar-row-compact);--_cell-px: var(--klar-space-2);--_font: var(--klar-text-sm);--_label-w: 210px;--_col-w: 108px}
  .klar-permissions--comfortable,:where([data-klar-density="comfortable"]) .klar-permissions:where(:not(.klar-permissions--compact,.klar-permissions--comfortable)){--_row-h: var(--klar-row-comfortable);--_cell-px: var(--klar-space-4)}
@@ -2319,6 +2325,7 @@ css =
  .klar-permissions__skeleton-row > :first-child{justify-self: start;width: 100%}
  .klar-permissions__skeleton-row--head{background: var(--klar-gray-50);border-bottom-color: var(--klar-border)}
  .klar-approval{--_marker: 24px;display: flex;flex-direction: column;gap: var(--klar-space-3);min-width: 0}
+ .klar-approval:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: 2px;border-radius: var(--klar-radius-lg)}
  .klar-approval__summary{display: inline-flex;align-items: center;gap: 6px;margin: 0;color: var(--klar-blue-700);font-weight: var(--klar-weight-bold)}
  .klar-approval__summary--approved{color: var(--klar-success)}
  .klar-approval__summary--rejected{color: var(--klar-danger)}
@@ -2373,6 +2380,9 @@ css =
  .klar-recurrence{min-width: 0;margin: 0;padding: 0;border: 0}
  .klar-recurrence__legend{display: block;padding: 0;margin-bottom: 6px}
  .klar-recurrence__body{display: flex;flex-direction: column;gap: var(--klar-space-3);min-width: 0}
+ .klar-recurrence .klar-segmented{flex-wrap: wrap}
+ .klar-recurrence .klar-segmented__item{flex: 0 0 auto}
+ .klar-recurrence .klar-segmented__label{overflow: visible;text-overflow: clip}
  .klar-recurrence__interval,.klar-recurrence__end-field{max-width: 260px}
  .klar-recurrence__weekdays,.klar-recurrence__by,.klar-recurrence__missing{min-width: 0}
  .klar-recurrence__end{display: flex;flex-direction: column;gap: var(--klar-space-2);min-width: 0}

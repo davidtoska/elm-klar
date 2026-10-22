@@ -103,7 +103,8 @@
 /* ---- Bulk bar -------------------------------------------------------------
    The toolbar and the bar share one grid cell: the cell is as big as the bigger
    of the two, so showing the bar moves nothing. The covered toolbar keeps its
-   place and its state but cannot be seen or reached.
+   place and its state but cannot be seen or reached; and with nothing selected the
+   bar is there, invisible (--reserved), to keep its place.
    ------------------------------------------------------------------------- */
 
 .klar-bulk {
@@ -142,9 +143,16 @@
   border: 1px solid var(--klar-primary-border);
   border-radius: var(--klar-radius-lg);
   color: var(--klar-blue-800);
-  animation: klar-fade-in var(--klar-dur) var(--klar-ease);
 }
 
+.klar-bulk__bar:not(.klar-bulk__bar--reserved) { animation: klar-fade-in var(--klar-dur) var(--klar-ease); }
+
+/* With nothing selected the bar is there all the same, as tall as it will be, but out of
+   sight: it keeps the place for it, so that showing it moves nothing below. */
+.klar-bulk__bar--reserved {
+  visibility: hidden;
+  pointer-events: none;
+}
 
 .klar-bulk__count {
   flex: none;

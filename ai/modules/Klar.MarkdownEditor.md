@@ -105,7 +105,10 @@ the selection back: the text that was selected stays selected, so a button press
 twice undoes itself. Bold, italic and link also have the keyboard shortcuts
 `Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac). Those, and `Ctrl Z`, `Ctrl Y` and
 `Ctrl Shift Z` while the text is exactly what the last button left (see below), are
-the only keys the text area takes over; every other key is the browser's.
+the only keys the text area takes over; every other key is the browser's. A key the
+text area takes over goes no further: when the application has a shortcut of its own on
+`Ctrl K` (a command palette), the cursor in the text gets the link and the palette does
+not open as well.
 
 **What cannot be done in plain Elm, and what is done about it.** A text area has a
 selection, and an application cannot read or write it without JavaScript. The editor

@@ -61,7 +61,10 @@ the selection back: the text that was selected stays selected, so a button press
 twice undoes itself. Bold, italic and link also have the keyboard shortcuts
 `Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac). Those, and `Ctrl Z`, `Ctrl Y` and
 `Ctrl Shift Z` while the text is exactly what the last button left (see below), are
-the only keys the text area takes over; every other key is the browser's.
+the only keys the text area takes over; every other key is the browser's. A key the
+text area takes over goes no further: when the application has a shortcut of its own on
+`Ctrl K` (a command palette), the cursor in the text gets the link and the palette does
+not open as well.
 
 **What cannot be done in plain Elm, and what is done about it.** A text area has a
 selection, and an application cannot read or write it without JavaScript. The editor
@@ -923,7 +926,14 @@ viewControl toMsg config words field state =
                , Events.on "select" (Decode.map (\r -> toMsg (Moved r.value r.selection)) reading)
                , Events.on "focusout" (Decode.map (\r -> toMsg (Moved r.value r.selection)) reading)
                , Internal.attrIf (not (config.disabled || config.readOnly))
-                    (Events.preventDefaultOn "keydown" (shortcutDecoder toMsg placeholders canUndo canRedo))
+                    -- a shortcut of the editor is handled completely: it goes no further, so
+                    -- the shortcut of the application on the same keys (Ctrl K opens a command
+                    -- palette) does not fire as well
+                    (Events.custom "keydown"
+                        (shortcutDecoder toMsg placeholders canUndo canRedo
+                            |> Decode.map (\( message, _ ) -> { message = message, stopPropagation = True, preventDefault = True })
+                        )
+                    )
                , Internal.attrMaybe Events.onFocus config.onFocus
                , Internal.attrMaybe Events.onBlur config.onBlur
                ]
@@ -978,7 +988,9 @@ readingDecoder =
 
 {-| Ctrl or Cmd with B, I or K are bold, italic and link; Z and Y undo and redo the
 last changes of the buttons while that is what the text is. Any other key is left to
-the browser: the handler fails, so the default is not prevented.
+the browser: the handler fails, so the default is not prevented. A key that is handled
+is not passed on either (see the call): an application that has Ctrl K for something of
+its own gets the link of the editor while the cursor is in the text.
 -}
 shortcutDecoder : (Msg -> msg) -> Edit.Placeholders -> Bool -> Bool -> Decoder ( msg, Bool )
 shortcutDecoder toMsg placeholders canUndo canRedo =

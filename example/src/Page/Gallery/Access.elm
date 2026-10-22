@@ -464,6 +464,7 @@ type Msg
     | RejectConfirmed
     | RejectCancelled
     | Decided Verdict (Maybe String) Time.Posix
+    | FlowFocused
     | FlowReset
 
 
@@ -586,10 +587,16 @@ update msg model =
         Decided verdict comment time ->
             case model.viewer of
                 Just user ->
-                    ( { model | users = Dict.insert (userKey user) { verdict = verdict, at = time, comment = comment } model.users }, Cmd.none )
+                    ( { model | users = Dict.insert (userKey user) { verdict = verdict, at = time, comment = comment } model.users }
+                      -- the buttons that had focus leave with the decision
+                    , ApprovalFlow.focus creditNoteId FlowFocused
+                    )
 
                 Nothing ->
                     ( model, Cmd.none )
+
+        FlowFocused ->
+            ( model, Cmd.none )
 
         FlowReset ->
             ( { model | users = initialDecisionsOfUsers, rejecting = False, reason = "" }, Cmd.none )
@@ -732,7 +739,13 @@ flowAttributes settings locale model =
     , ApprovalFlow.settings settings
     , ApprovalFlow.locale locale
     , ApprovalFlow.ariaLabel "Approval of credit note 2024-117"
+    , ApprovalFlow.id creditNoteId
     ]
+
+
+creditNoteId : String
+creditNoteId =
+    "credit-note-flow"
 
 
 staticAttributes : Settings -> Locale -> List (ApprovalFlow.Attribute User Msg)
@@ -899,6 +912,7 @@ flowCode =
     , ApprovalFlow.onReject AskWhy        -- your own dialog; send the reason with the decision
     , ApprovalFlow.now model.now
     , ApprovalFlow.settings settings
+    , ApprovalFlow.id "credit-note-flow"
     ]
     (ApprovalFlow.flow
         [ ApprovalFlow.step "Team lead" ApprovalFlow.all (approver ada) []
@@ -911,7 +925,13 @@ flowCode =
 -- the same answers, for a list or for the server
 ApprovalFlow.isApproved (ApprovalFlow.status flow)   -- ask it, never match it
 ApprovalFlow.currentStep flow                        -- Just 1
-ApprovalFlow.pendingApprovers flow"""
+ApprovalFlow.pendingApprovers flow
+
+-- the buttons leave with the decision, so give the focus to the flow in the same update
+Decided ->
+    ( { model | flow = record model.me model.flow }
+    , ApprovalFlow.focus "credit-note-flow" NoOp
+    )"""
 
 
 statusCode : String

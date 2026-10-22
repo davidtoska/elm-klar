@@ -5,6 +5,7 @@ list with fixed items that can be locked or emptied, and a list whose whole item
 can be dragged and that has buttons of its own.
 -}
 
+import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Badge as Badge
@@ -17,6 +18,7 @@ import Klar.Switch as Switch
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Showcase.Doc as Doc
+import Task
 
 
 
@@ -70,6 +72,7 @@ type Msg
     | ClearPlan
     | ResetPlan
     | MoveShipment String Int
+    | MovedButton
 
 
 init : Model
@@ -200,8 +203,13 @@ update msg model =
                         |> Maybe.withDefault 0
             in
             ( { model | shipments = Sortable.move { from = index, to = index + delta } model.shipments }
-            , Cmd.none
+            , -- the item is drawn in a new place, which takes the button that was pressed
+              -- with it (and its focus): put the focus back on it, for the keyboard
+              Dom.focus (moveButtonId number delta) |> Task.attempt (\_ -> MovedButton)
             )
+
+        MovedButton ->
+            ( model, Cmd.none )
 
 
 
@@ -396,7 +404,7 @@ shipmentsExample : Locale -> Model -> Html Msg
 shipmentsExample locale model =
     Doc.example
         { title = "The whole item as the handle, and buttons inside it"
-        , description = Just "With wholeItem the mouse can take hold of an item anywhere, except on its buttons and links, so the arrows work as buttons. A finger uses the grip only, so the rest of the item still scrolls the page. The arrows use Sortable.move: another way to reorder for people who cannot drag."
+        , description = Just "With wholeItem the mouse can take hold of an item anywhere, except on its buttons and links, so the arrows work as buttons. A finger uses the grip only, so the rest of the item still scrolls the page. The arrows use Sortable.move: another way to reorder for people who cannot drag. A moved item takes its buttons with it, and a button that is moved in the page loses the focus, so the update puts the focus back on it with Browser.Dom.focus."
         , code = Just """Sortable.view Sortable.stringIds
     ShipmentsMsg
     [ Sortable.wholeItem, Sortable.ariaLabel "Shipments" ]
@@ -415,10 +423,10 @@ shipmentsExample locale model =
         model.shipments
     )
 
--- the same move without dragging
+-- the same move without dragging; the button moves with its item, so give it the focus again
 MoveShipment number delta ->
     ( { model | shipments = Sortable.move { from = index, to = index + delta } model.shipments }
-    , Cmd.none
+    , Dom.focus (moveButtonId number delta) |> Task.attempt (\\_ -> NoOp)
     )"""
         }
         (Layout.stack [ Layout.gap 3 ]
@@ -432,12 +440,25 @@ MoveShipment number delta ->
         )
 
 
+moveButtonId : String -> Int -> String
+moveButtonId number delta =
+    let
+        direction =
+            if delta < 0 then
+                "up"
+
+            else
+                "down"
+    in
+    "move-" ++ number ++ "-" ++ direction
+
+
 shipmentRow : String -> Html Msg
 shipmentRow number =
     Layout.row [ Layout.gap 2, Layout.alignCenter ]
         [ Html.span [ Attr.class "klar-tabular" ] [ Html.text number ]
         , Badge.view [ Badge.tone Info ] "Ready to ship"
         , Layout.spacer
-        , Button.iconOnly [ Button.small, Button.ghost, Button.onClick (MoveShipment number -1) ] Icon.arrowUp ("Move " ++ number ++ " up")
-        , Button.iconOnly [ Button.small, Button.ghost, Button.onClick (MoveShipment number 1) ] Icon.arrowDown ("Move " ++ number ++ " down")
+        , Button.iconOnly [ Button.small, Button.ghost, Button.id (moveButtonId number -1), Button.onClick (MoveShipment number -1) ] Icon.arrowUp ("Move " ++ number ++ " up")
+        , Button.iconOnly [ Button.small, Button.ghost, Button.id (moveButtonId number 1), Button.onClick (MoveShipment number 1) ] Icon.arrowDown ("Move " ++ number ++ " down")
         ]
