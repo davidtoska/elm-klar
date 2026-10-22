@@ -8,11 +8,12 @@ It is published on package.elm-lang.org, so its public API is a promise: see
 ## Tech
 
 - Vanilla Elm (0.19.x, built with 0.19.3). The library depends only on the official
-  `elm/*` packages from the Elm team (core, html, browser, json, time today; `svg`, `file`,
-  `bytes`, `http`, `url`, `parser`, `regex` and `random` are allowed, added to `elm.json`
+  `elm/*` packages from the Elm team (core, html, browser, json, time, url and file today;
+  `file` only for `Klar.FileDrop`, which hands the application the `File` values; `svg`,
+  `bytes`, `http`, `parser`, `regex` and `random` are allowed, added to `elm.json`
   only when a component needs them). The library never knows HTTP (`elm/http` stays out,
-  see ROADMAP.md). No third-party Elm packages. Until `elm/url` is added, use
-  `Klar.Internal.percentEncode`.
+  see ROADMAP.md) and never reads or sends a `File`. No third-party Elm packages. Use
+  `Klar.Internal.percentEncode`, not `Url.percentEncode`.
 - No ports, no kernel code, no `Debug`, no JavaScript in the library or the example.
 - Vanilla CSS only. Sources in `css/src/*.css`; `npm run build:css` writes
   `css/klar.css` and the Elm module `src/Klar/Internal/Css.elm` that `Klar.stylesheet`

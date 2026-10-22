@@ -25,6 +25,7 @@ fields : Form step fields values -> fields
 init : Form step fields values -> State step
 set : Field c -> c -> State step -> State step
 get : Field c -> State step -> c
+rawFiles : Field (List FileDrop.FileInfo) -> State step -> List File.File
 rowFields : Field (Rows rowFields) -> State step -> List rowFields
 fillRows :
     Field (Rows rowFields)
@@ -47,6 +48,13 @@ problems : Locale.Locale -> Form step fields values -> State step -> List (Probl
 hasProblems : Form step fields values -> State step -> Bool
 outside : Form step fields values -> List (Problem step) -> State step -> State step
 problem : Field c -> String -> Problem step
+problemInRow :
+    Field (Rows rowFields)
+    -> Int
+    -> (rowFields -> Field c)
+    -> String
+    -> State step
+    -> Maybe (Problem step)
 rejected : List (Problem step) -> Form step fields values -> State step -> ( State step, Cmd Msg )
 reveal : Form step fields values -> State step -> ( State step, Cmd Msg )
 focus : Field c -> Cmd Msg
@@ -82,6 +90,12 @@ multiSelect :
 switch : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
 tagInput : View msg -> Field (List String) -> List (TagInput.Attribute msg) -> Html msg
 fileDrop : View msg -> Field (List FileDrop.FileInfo) -> List (FileDrop.Attribute msg) -> Html msg
+ruleBuilder :
+    View msg
+    -> Field Rule.Rule
+    -> List (Rule.Field ())
+    -> List (RuleBuilder.Attribute () msg)
+    -> Html msg
 addRow : View msg -> Field (Rows rowFields) -> List (Button.Attribute msg) -> String -> Html msg
 removeRow : View msg -> Field (Rows rowFields) -> Int -> List (Button.Attribute msg) -> Html msg
 stepper : View msg -> List (Stepper.Attribute msg) -> Html msg
@@ -263,9 +277,18 @@ that stays with it while it lives, so the DOM ids, the focus and the state of a
 select follow the row when another row is removed; "Contact 2" in the words is
 the position.
 
-**Things outside the form.** Something the model does not hold, such as the rule
-builder of a price rule, gives its problems to `outside`, and they are then in
-the summary, the stepper marks and `toValues` like any other.
+**A rule builder in a row.** `Spec.conditions` is the kind for the conditions of a
+rule, drawn with `ruleBuilder`. In a row of a group it sits next to the outcome of
+the rule, so "if the category is X and the quantity is above Y, give Z % off" is one
+sub-form (`conditions` and a `number`) and a list of them is `Spec.rows`: the state
+of each builder follows its row, and dirty, problems, the summary and the focus are
+the form's. A refused discount in the third rule is
+`Form.problemInRow f.priceRules 2 .discount message`.
+
+**Things outside the form.** Something the model does not hold, such as a rule
+builder on a page of its own, gives its problems to `outside` (point their `field`
+at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks and
+`toValues` like any other.
 
 ## Types
 
@@ -309,8 +332,8 @@ type alias Field control = Form.Core.Field control
 
 A handle to one field. The type says what the value looks like while it is
 edited: `String` for a text, `Maybe id` for a choice, `List id` for several,
-`Maybe Float` for a number, `Bool` for a switch, `List String` for tags and a
-list of files for files. Get the handles from `fields form`; there is no other
+`Maybe Float` for a number, `Bool` for a switch, `List String` for tags, a list of
+files for files and a `Rule` for conditions. Get the handles from `fields form`; there is no other
 way to make one.
 
 ### `Rows`
@@ -399,6 +422,21 @@ get : Field c -> State step -> c
 
 The value of a field as it is edited: `Nothing` for an empty select, `[]` for
 an empty multi select, the text as typed.
+
+### `rawFiles`
+
+```elm
+rawFiles : Field (List FileDrop.FileInfo) -> State step -> List File.File
+```
+
+The browser's `File` values of the files the user chose in a `files` field
+(the accepted ones, in order), for the request you make: the form holds the
+`FileInfo` (name, size, type) and the library never sends anything. A file
+loaded with `set` has none, so this is the list to upload.
+
+    Form.rawFiles f.contract model.form
+        |> List.map (Http.filePart "contract")
+        |> Http.multipartBody
 
 ### `rowFields`
 
@@ -576,6 +614,35 @@ The label and the step are filled in from the declaration. A field in a row has
 a handle for each row: `Form.rowFields f.contacts state`, then the row at the
 position the server named.
 
+### `problemInRow`
+
+```elm
+problemInRow :
+    Field (Rows rowFields)
+    -> Int
+    -> (rowFields -> Field c)
+    -> String
+    -> State step
+    -> Maybe (Problem step)
+```
+
+A message from the server for a field in a row of a repeating group, at the
+position the server counted (from 0, in the list it was sent). The handle of the
+row is found for you, so the mapping needs no `List.drop`. `Nothing` when the
+group has no row at that position, for example because the user has removed it
+since.
+
+    fromBackend : Backend.Problem -> Form.State Step -> Maybe (Form.Problem Step)
+    fromBackend p state =
+        case p.field of
+            Backend.ContactEmail position ->
+                Form.problemInRow f.contacts position .email p.message state
+
+            Backend.Name ->
+                Just (Form.problem f.name p.message)
+
+Hand the list to `rejected` (`List.filterMap` drops the `Nothing`s).
+
 ### `rejected`
 
 ```elm
@@ -586,8 +653,10 @@ Gives the form the problems of a failed save. Each is shown at its field
 and in the summary until that field is edited, and counts as a problem
 (`problems`, `toValues`) for as long. Every problem of the form shows from now
 on, the form moves to the step of the first problem (so that its summary is the
-one on screen), and the focus goes to the summary. A problem for a field the
-form does not have is ignored.
+one on screen), and the focus goes to the summary. On the review step (the last
+step, when it has no fields) the form stays: its summary lists every problem of
+every step, each with a button that goes there. A problem for a field the form
+does not have is ignored.
 
 The problems are stored whether or not the form is on screen. The `Cmd` focuses
 the summary of this form; when the summary is not on screen (the form is on
@@ -803,6 +872,29 @@ fileDrop : View msg -> Field (List FileDrop.FileInfo) -> List (FileDrop.Attribut
 A drop zone for a `files` field. The type and size limits and the number of
 files are the application's attributes (`FileDrop.accept`, `FileDrop.maxSize`,
 `FileDrop.maxFiles`); `one` does not limit the zone by itself.
+
+### `ruleBuilder`
+
+```elm
+ruleBuilder :
+    View msg
+    -> Field Rule.Rule
+    -> List (Rule.Field ())
+    -> List (RuleBuilder.Attribute () msg)
+    -> Html msg
+```
+
+A rule builder for a `conditions` field. The label, the language and the DOM
+ids are set by the form; the fields (what a rule can talk about, now with the
+options the user chooses among) are an argument, so a rule builder without fields
+cannot be drawn. The other settings (`RuleBuilder.maxDepth`, `RuleBuilder.json`)
+are the application's attributes.
+
+    Form.ruleBuilder v row.conditions (priceFields options) []
+
+Issues of the rule show on the node that has them once the step has been tried
+(`advance`, `reveal`, `rejected`); the summary leads to the control that needs
+attention.
 
 ### `addRow`
 

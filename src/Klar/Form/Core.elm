@@ -9,6 +9,7 @@ what an application sees.
 -}
 
 import Dict exposing (Dict)
+import File exposing (File)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Button as Button
@@ -1352,6 +1353,19 @@ an empty multi select, the text as typed.
 get : Field c -> State step -> c
 get (Field field) (State data) =
     field.fromData data
+
+
+{-| The browser's `File` values of the accepted files of a `files` field, for the
+request the application makes. A file loaded with `set` has none.
+-}
+rawFiles : Field (List FileDrop.FileInfo) -> State step -> List File
+rawFiles (Field field) (State data) =
+    case Dict.get field.key data.slots of
+        Just (SFiles state) ->
+            FileDrop.rawFiles state
+
+        _ ->
+            []
 
 
 {-| The handles of the rows a group has now, in order. Draw one card of fields

@@ -23,9 +23,13 @@ rule : State -> Rule.Rule
 setRule : Rule.Rule -> State -> State
 clear : State -> State
 
--- Issues
+-- Issues and focus
 showIssues : State -> State
 hideIssues : State -> State
+issues : Locale.Locale -> List (Rule.Field row) -> State -> List Rule.Issue
+focusId : List (Rule.Field row) -> State -> Int -> String
+focusNode : List (Rule.Field row) -> State -> Int -> Cmd Msg
+focusIssue : List (Rule.Field row) -> State -> Cmd Msg
 
 -- Attributes
 type Attribute row msg  -- opaque: no constructors are exposed
@@ -110,7 +114,28 @@ no fields and "is empty" take no value.
 around the control and a short message. A node shows its issues once the user
 has tried to fill it in (typed, picked, or left a value field), so a fresh,
 empty condition is not red. `showIssues` shows every issue at once, for example
-when the user tries to save.
+when the user tries to save. `issues` lists them for the application, and
+`focusIssue` (or `focusNode` for one node) moves the focus to the control that
+needs attention, so that a Save that finds an incomplete rule never leaves the
+user looking at a button. `focusId` is the DOM id of that control, for a
+`Form.Problem` that points into the builder: nothing is read from the page.
+
+**A rule with an outcome.** The builder only says _when_; what happens then (a
+discount, a label, a route) is the application's. In a form, declare it as a
+row: `Spec.conditions` and the outcome's own field in one sub-form, `Spec.rows`
+around it, and the form adds, removes, saves and checks the pairs (see
+[`Klar.Form`](Klar.Form.md)). Outside a form, keep one record per rule, with a number
+that stays with it when others are removed, and give each builder an id made from
+that number:
+
+    type alias PriceRule =
+        { key : Int
+        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
+        , discount : Maybe Float
+        }
+
+Draw the discount next to `RuleBuilder.view` in the same card, and focus the
+first unfinished builder with `focusIssue`.
 
 **Keyboard**: every control is reached with `Tab`. The pickers open with
 `Enter`, `Space` or `ArrowDown` and search as you type; "All" and "Any" switch
@@ -216,7 +241,7 @@ clear : State -> State
 Starts over with an empty rule. Unlike the "Reset" button of the toolbar it
 does not offer to undo.
 
-## Issues
+## Issues and focus
 
 ### `showIssues`
 
@@ -235,6 +260,60 @@ hideIssues : State -> State
 
 Hides the issues again until the user touches a node, for example after a
 successful save.
+
+### `issues`
+
+```elm
+issues : Locale.Locale -> List (Rule.Field row) -> State -> List Rule.Issue
+```
+
+Every issue the builder can show, for the fields given: the checks of
+`Rule.validate` and the two the builder adds (an operator that does not fit the
+field, a number of days that cannot be read). Each names the node it belongs to.
+It is what a form or a save button asks before it lets the rule through; the
+language is the one of the messages.
+
+    RuleBuilder.issues Locale.en orderFields model.rules
+    -- [ { nodeId = 2, message = "Enter a valid number" } ]
+
+### `focusId`
+
+```elm
+focusId : List (Rule.Field row) -> State -> Int -> String
+```
+
+The DOM id of the control that stands for a node when the focus has to go
+there: the first control a user fills in on a condition (the field picker when no
+field is chosen, then the operator or the first value), the "add condition"
+button of a group. Use it as the `field` of a `Form.Problem` that points at the
+node, so that the summary of a form moves the focus into the builder. Nothing
+needs to be read from the page: the id is made from the id given to `init`.
+A node that does not exist leads to the "add condition" button of the whole rule.
+
+### `focusNode`
+
+```elm
+focusNode : List (Rule.Field row) -> State -> Int -> Cmd Msg
+```
+
+Moves the focus to a node of the rule (see `focusId`). Map the command with
+the constructor you wrap the builder's messages in.
+
+    RuleBuilder.focusNode orderFields model.rules 2 |> Cmd.map RulesMsg
+
+Nothing happens while the builder is not on screen.
+
+### `focusIssue`
+
+```elm
+focusIssue : List (Rule.Field row) -> State -> Cmd Msg
+```
+
+Moves the focus to the first node that has an issue (see `issues`), or to
+the "add condition" button of the whole rule when there is none, for example
+when the user presses Save on an empty rule. Use it with `showIssues`:
+
+    ( RuleBuilder.showIssues rules, RuleBuilder.focusIssue orderFields rules |> Cmd.map RulesMsg )
 
 ## Attributes
 

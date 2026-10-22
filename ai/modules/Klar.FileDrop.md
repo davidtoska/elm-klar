@@ -23,6 +23,7 @@ update : Msg -> State -> ( State, Cmd Msg )
 type alias FileInfo = { name : String, size : Int, mime : String }
 type Problem = WrongType | TooLarge | TooMany | Duplicate
 files : State -> List FileInfo
+rawFiles : State -> List File.File
 rejected : State -> List ( FileInfo, Problem )
 hasProblems : State -> Bool
 isTouched : State -> Bool
@@ -59,8 +60,8 @@ locale : Locale.Locale -> Attribute msg
 Choose files by dropping them on a zone or with a "Choose files" button.
 
 Use when: a form where the choice of files matters and the application only needs their names, sizes and types.
-Do not use when: the file itself must be read or uploaded, which needs an upload built on `elm/file` in your application.
-Quick path: `init`, `update`, `view`, `files`
+Do not use when: you want the library to upload or read the file (it hands over the `File`; the request is yours).
+Quick path: `init`, `update`, `view`, `files`, `rawFiles`
 
     import Klar.FileDrop as FileDrop
 
@@ -94,13 +95,20 @@ Quick path: `init`, `update`, `view`, `files`
 The `String` given to `init` is the DOM id of the (hidden) file input, so there
 is no `id` attribute.
 
-**What it does not do: read or upload the file.** The browser's file objects are
-read from `change` and `drop` events as plain data (`name`, `size`, `type`)
-without `elm/file`, which this library does not use. So the application learns
-which files the user picked and can show them, check them and keep the list in
-its form, but there is nothing to send to a server. Use it for forms where the
-choice itself matters, or combine it with an upload built on `elm/file` in your
-application.
+**Reading and uploading are yours.** The library never knows HTTP, so it
+does not send the file. It gives you the browser's own `File` values (from
+[elm/file](https://package.elm-lang.org/packages/elm/file/latest/)) with
+`rawFiles`, and you read them (`File.toString`, `File.toBytes`) or send them in
+your request (`Http.filePart`, `Http.fileBody`). `files` is the plain
+`name`, `size` and `mime` of the same files, for showing them, checking them and
+keeping the list in a form.
+
+    -- the accepted files, ready for the request
+    FileDrop.rawFiles model.attachments -- List File
+
+A file you put in with `setFiles` (an attachment the server already has) is in
+`files` but has no `File`, so `rawFiles` can be shorter: it is the files the
+user chose in this session, which are the ones to upload.
 
 Every file is checked against `accept` (extensions like `.pdf`, types like
 `application/pdf` and groups like `image/*`), `maxSize` (bytes), `maxFiles` and
@@ -247,6 +255,21 @@ files : State -> List FileInfo
 
 The accepted files, in the order they were added. Files that failed a rule
 are not in this list; see `rejected`.
+
+### `rawFiles`
+
+```elm
+rawFiles : State -> List File.File
+```
+
+The browser's `File` values of the accepted files, in the order they were
+added, for reading them or sending them in a request. A file put in with
+`setFiles` has none, so this list is the files the user chose here and can be
+shorter than `files`. Nothing is read or sent by this library.
+
+    FileDrop.rawFiles model.attachments
+        |> List.map (Http.filePart "attachment")
+        |> Http.multipartBody
 
 ### `rejected`
 

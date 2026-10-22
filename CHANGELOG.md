@@ -83,6 +83,43 @@ The first release.
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
 
+### The seams of the form model (A0 round 3: R3O-003 to R3O-018)
+
+What the supplier onboarding application still had to write around the form (a second list
+for the price rules, focus targets read from the page, `{ nb, en }` records, a `List.drop`
+per server problem) is now the form's. Nothing was released before this, so it changes the
+first API and not a published one. Design note: `design/ROWS-EXTRAS.md`.
+
+- **`elm/file` is a dependency of the package** (for `Klar.FileDrop` alone; the library
+  still never knows HTTP). `FileDrop.rawFiles : State -> List File` and
+  `Form.rawFiles : Field (List FileInfo) -> State step -> List File` hand over the browser's
+  `File` values of the accepted files, so an application can read them or send them in
+  its own request. `FileInfo` and `Spec.files` are unchanged. `elm/file` needs `elm/core` 1.0.1 and
+  `elm/json` 1.1.0, so those are the lowest versions the package allows now. Every `elm.json` of an
+  application that compiles the library needs `elm/file` and `elm/bytes` too.
+- `Form.rejected` stays on the review step (the last step, when it has no fields) instead of
+  jumping to the first step with a problem, so the review's list of every problem, with
+  the buttons that go there, is on screen after a refused save (R3O-005).
+- `Spec.conditions` and `Form.ruleBuilder`: a rule builder as a field of the form, usually in
+  a row next to the outcome of the rule (a price rule is `conditions` and a `number`, a list of
+  them is `Spec.rows`). Add, remove, dirty, `fillRows`, `toValues`, the summary and the
+  focus are the form's. A `Problem.field` now is the control the focus goes to (inside the
+  rule builder for a rule), and a line of the summary carries its step (R3O-003, R3O-013).
+- `Form.problemInRow` finds the row of a server problem by the position the server counted
+  (R3O-018). `Form.rawFiles`, see above.
+- `RuleBuilder.issues`, `focusId`, `focusNode` and `focusIssue`: the issues the builder shows,
+  the DOM id of the control for a node, and the focus command; nothing is read from the
+  page. The container of the builder takes focus (R3O-006, R3O-007).
+- `Validate.matches` is `Validate.sameAs` (it was equality, not a pattern). New:
+  `Validate.digits n` and `Validate.url`. There is no pattern validator on purpose.
+  `Validate.custom` and `Validate.withMessage` take a `Locale -> String` like `Spec.rule` and
+  `Spec.withMessage`, not `{ nb, en }` (R3O-004, R3O-010).
+- `InlineEdit.failed` shows the detail the application gave the problem
+  (`Remote.withDetail`), after the title (R3O-008).
+- Documented: a step you draw yourself (a `Spec.step` with no fields in the middle, with a
+  compiling example), and that a `Card` inside a `Form.Layout.section` takes
+  `Card.headingLevel 3` (R3O-012, R3O-014).
+
 ### LeaveGuard and the browser's buttons (A0 round 2: R2O-008, 009, 010, 015, 019)
 
 The Back-button recipe of `Klar.LeaveGuard` looped forever and froze the tab: `Nav.forward 1`

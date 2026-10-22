@@ -791,10 +791,10 @@
         "init",
         "set",
         "get",
+        "rawFiles",
         "rowFields",
         "fillRows",
-        "toValues",
-        "isDirty"
+        "toValues"
       ],
       "related": [
         "Klar.Form.Layout",
@@ -844,6 +844,7 @@
       ],
       "related": [
         "Klar.Form",
+        "Klar.Rule",
         "Klar.Validate"
       ],
       "keywords": [
@@ -1265,7 +1266,7 @@
       "group": "Inputs",
       "purpose": "Choose files by dropping them on a zone or with a \"Choose files\" button.",
       "whenToUse": "a form where the choice of files matters and the application only needs their names, sizes and types.",
-      "whenNot": "the file itself must be read or uploaded, which needs an upload built on `elm/file` in your application.",
+      "whenNot": "you want the library to upload or read the file (it hands over the `File`; the request is yours).",
       "state": [
         "State"
       ],
@@ -1278,17 +1279,18 @@
         "init",
         "update",
         "view",
-        "files"
+        "files",
+        "rawFiles"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
         "files",
+        "rawFiles",
         "rejected",
         "hasProblems",
-        "isTouched",
-        "setFiles"
+        "isTouched"
       ],
       "related": [
         "Klar.AppShell",
@@ -4360,6 +4362,7 @@
         "Klar.Select",
         "Klar.DatePicker",
         "Klar.FilterBar",
+        "Klar.Form",
         "Klar.MultiSelect",
         "Klar.Rule"
       ],

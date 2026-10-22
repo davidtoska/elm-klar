@@ -25,7 +25,9 @@ email : Validator
 phone : Validator
 norwegianPhone : Validator
 integerBetween : Int -> Int -> Validator
-matches : String -> Validator
+sameAs : String -> Validator
+digits : Int -> Validator
+url : Validator
 oneOf : List String -> Validator
 date : Validator
 notInFuture : Date.Date -> Validator
@@ -33,8 +35,8 @@ notInFuture : Date.Date -> Validator
 -- Combining and customizing
 all : List Validator -> Validator
 when : Bool -> Validator -> Validator
-withMessage : { nb : String, en : String } -> Validator -> Validator
-custom : (String -> Bool) -> { nb : String, en : String } -> Validator
+withMessage : (Locale.Locale -> String) -> Validator -> Validator
+custom : (String -> Bool) -> (Locale.Locale -> String) -> Validator
 customWith : (Locale.Locale -> String -> Maybe String) -> Validator
 
 -- Dates as text
@@ -204,15 +206,42 @@ A whole number from `low` to `high`, both included.
 
     Validate.integerBetween 1 99
 
-### `matches`
+### `sameAs`
 
 ```elm
-matches : String -> Validator
+sameAs : String -> Validator
 ```
 
-The value must equal another value, like "repeat password".
+The value must be the same as another value, like "repeat password". It is
+equality, not a pattern: use `digits`, `url` or `custom` to check the shape of a
+value.
 
-    Validate.matches model.password
+    Validate.sameAs model.password
+
+### `digits`
+
+```elm
+digits : Int -> Validator
+```
+
+Exactly this many digits and nothing else, like an organisation number
+(`digits 9`). Spaces and dashes are not ignored: show the user the shape you
+want, or tidy the text before it gets here.
+
+    Validate.run Locale.en (Validate.digits 9) "91234567" -- Just "Enter 9 digits"
+
+### `url`
+
+```elm
+url : Validator
+```
+
+A web address that starts with `http://` or `https://`, followed by a host
+with a dot in it (`localhost` is fine too), an optional port and an optional
+path. No spaces. It checks the shape, not whether the page exists.
+
+    Validate.run Locale.en Validate.url "example.com"
+    -- Just "Enter an address that starts with http:// or https://"
 
 ### `oneOf`
 
@@ -272,23 +301,31 @@ required when SMS notifications are switched on.
 ### `withMessage`
 
 ```elm
-withMessage : { nb : String, en : String } -> Validator -> Validator
+withMessage : (Locale.Locale -> String) -> Validator -> Validator
 ```
 
-Replaces the message of a validator, in both languages.
+Replaces the message of a validator. The message is a function of the
+language, the same shape as `Spec.rule` and `Spec.withMessage` of the form model,
+so a custom rule is written one way everywhere.
 
-    Validate.required |> Validate.withMessage { nb = "Oppgi navn", en = "Enter a name" }
+    Validate.required
+        |> Validate.withMessage (\locale -> Locale.pick locale { nb = "Oppgi navn", en = "Enter a name" })
 
 ### `custom`
 
 ```elm
-custom : (String -> Bool) -> { nb : String, en : String } -> Validator
+custom : (String -> Bool) -> (Locale.Locale -> String) -> Validator
 ```
 
-A validator from a yes/no test and a message in both languages. The test
-sees the value as typed, also when it is empty.
+A validator from a yes/no test and a message. The test sees the value as
+typed, also when it is empty (in a form with `Spec.rules` a blank text never
+reaches it). The message is a function of the language, like every message of
+the form model. There is no pattern validator on purpose: a pattern is a string
+that can be wrong without the compiler knowing, so `digits`, `url`, `oneOf` and
+this function (a test written in Elm) cover what a pattern would.
 
-    Validate.custom (String.startsWith "ORD-") { nb = "Må starte med ORD-", en = "Must start with ORD-" }
+    Validate.custom (String.startsWith "ORD-")
+        (\locale -> Locale.pick locale { nb = "Må starte med ORD-", en = "Must start with ORD-" })
 
 ### `customWith`
 

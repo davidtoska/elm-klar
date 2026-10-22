@@ -1,7 +1,7 @@
 module Klar.Form exposing
     ( Form, State, Msg, Field, Rows, Problem, View
     , fields
-    , init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
+    , init, set, get, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
     , problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, goToProblem
     , currentStep, attempted, advance, back, goTo
     , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, summary
@@ -207,7 +207,7 @@ at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks a
 
 # Values and state
 
-@docs init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
+@docs init, set, get, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
 
 
 # Problems and focus
@@ -226,6 +226,7 @@ at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks a
 
 -}
 
+import File exposing (File)
 import Html exposing (Html)
 import Klar.Button as Button
 import Klar.FileDrop as FileDrop
@@ -369,6 +370,21 @@ an empty multi select, the text as typed.
 get : Field c -> State step -> c
 get =
     Core.get
+
+
+{-| The browser's `File` values of the files the user chose in a `files` field
+(the accepted ones, in order), for the request you make: the form holds the
+`FileInfo` (name, size, type) and the library never sends anything. A file
+loaded with `set` has none, so this is the list to upload.
+
+    Form.rawFiles f.contract model.form
+        |> List.map (Http.filePart "contract")
+        |> Http.multipartBody
+
+-}
+rawFiles : Field (List FileDrop.FileInfo) -> State step -> List File
+rawFiles =
+    Core.rawFiles
 
 
 {-| The handles of the rows a group has now, in order. Draw one card of fields
