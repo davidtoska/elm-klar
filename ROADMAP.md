@@ -164,9 +164,15 @@ inside it matters: A0 first, because what it finds changes A1 to A7.
 
 ### A0. Use it first
 
-**Status: first round done.** Three applications were built (`apps/`), 65 frictions are
-logged and grouped in [apps/EVALUATION.md](apps/EVALUATION.md). The list of fixes is A8.
-A second round, after A8, rebuilds the same applications to see the numbers move.
+**Status: three rounds done.** The applications were built three times (`apps/`, `apps/round2`,
+`apps/round3`); the evaluations are [apps/EVALUATION.md](apps/EVALUATION.md),
+[apps/ROUND2-EVALUATION.md](apps/ROUND2-EVALUATION.md) and
+[apps/ROUND3-EVALUATION.md](apps/ROUND3-EVALUATION.md). A1 (the AI documentation), A5 (types),
+A6 (no CSS), A7 (debts: overlay layer, performance, stale data, the form model, LeaveGuard)
+and most of A8 are built and merged; what is left is listed under "Next" in the round 3
+evaluation: one editing pass over the AI documents, global density and time zone, the
+server-mode helper, `RemoteView` focus, the last seams of the form model and the rule
+builder. After that the benchmark of A3 (`bench/`) is run once more and Phase B can start.
 
 The first step, before any documentation or renaming: build two or three real
 applications with Klar as it is, written by an AI from the documentation. Write down every
