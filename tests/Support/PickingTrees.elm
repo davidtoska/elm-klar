@@ -5,6 +5,7 @@ module Support.PickingTrees exposing
     , keysOf
     , nodesOf
     , specFuzzer
+    , subtree
     , wide
     )
 
@@ -120,3 +121,22 @@ wide : Int -> List (Node String)
 wide n =
     List.range 1 n
         |> List.map (\i -> Picking.leaf Picking.stringIds ("w" ++ String.fromInt i) ("Warehouse " ++ String.fromInt i))
+
+
+{-| A node and everything below it, parents before children.
+-}
+subtree : String -> Index String -> List String
+subtree key index =
+    case Index.get key index of
+        Just entry ->
+            key
+                :: (case entry.kids of
+                        Index.Kids keys ->
+                            List.concatMap (\k -> subtree k index) keys
+
+                        _ ->
+                            []
+                   )
+
+        Nothing ->
+            []

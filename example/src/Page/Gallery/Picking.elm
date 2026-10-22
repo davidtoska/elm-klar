@@ -311,14 +311,14 @@ update msg model =
                 ( site, cmd ) =
                     TreeSelect.update inner model.site
             in
-            requestZones (TreeSelect.loadRequests model.site site) { model | site = site } (Cmd.map SiteMsg cmd)
+            requestZones (TreeSelect.loadRequests site) { model | site = site } (Cmd.map SiteMsg cmd)
 
         SitesMsg inner ->
             let
                 ( sites, cmd ) =
                     TreeSelect.update inner model.sites
             in
-            requestZones (TreeSelect.loadRequests model.sites sites) { model | sites = sites } (Cmd.map SitesMsg cmd)
+            requestZones (TreeSelect.loadRequests sites) { model | sites = sites } (Cmd.map SitesMsg cmd)
 
         CatalogueMsg inner ->
             let
@@ -332,14 +332,14 @@ update msg model =
                 ( place, cmd ) =
                     Cascader.update inner model.place
             in
-            requestZones (Cascader.loadRequests model.place place) { model | place = place } (Cmd.map PlaceMsg cmd)
+            requestZones (Cascader.loadRequests place) { model | place = place } (Cmd.map PlaceMsg cmd)
 
         PlaceAnyMsg inner ->
             let
                 ( place, cmd ) =
                     Cascader.update inner model.placeAny
             in
-            requestZones (Cascader.loadRequests model.placeAny place) { model | placeAny = place } (Cmd.map PlaceAnyMsg cmd)
+            requestZones (Cascader.loadRequests place) { model | placeAny = place } (Cmd.map PlaceAnyMsg cmd)
 
         ProductsMsg inner ->
             let
@@ -475,7 +475,7 @@ SiteMsg inner ->
             TreeSelect.update inner model.site
     in
     -- the lazy nodes the user opened: mark them Loading and fetch them
-    requestZones (TreeSelect.loadRequests model.site site) { model | site = site } (Cmd.map SiteMsg cmd)
+    requestZones (TreeSelect.loadRequests site) { model | site = site } (Cmd.map SiteMsg cmd)
 
 TreeSelect.value model.site -- Maybe LocationId"""
                 }

@@ -9,15 +9,13 @@ module Klar.Picking.Index exposing
     , View
     , ancestors
     , build
-    , descendantKeys
     , empty
     , failureIndex
     , filter
     , findLabels
+    , followPath
     , get
     , isAncestorOf
-    , isOpen
-    , keysBelow
     , labelPath
     , lastRow
     , matches
@@ -279,6 +277,49 @@ findLabelsIn wanted nodes found =
                 findLabelsIn wanted rest below
 
 
+{-| The labels of a path of keys from the top down, found by walking only the
+nodes along the path (no index needed): `Nothing` when the keys are not a path of
+these nodes (a gap, the wrong order, a branch that is not loaded).
+-}
+followPath : List String -> List (Node id) -> Maybe (List String)
+followPath keys nodes =
+    case keys of
+        [] ->
+            Nothing
+
+        key :: rest ->
+            case firstWithKey key nodes of
+                Just node ->
+                    case rest of
+                        [] ->
+                            Just [ Picking.label node ]
+
+                        _ ->
+                            case Picking.children node of
+                                Remote.Loaded kids ->
+                                    followPath rest kids |> Maybe.map (\labels -> Picking.label node :: labels)
+
+                                _ ->
+                                    Nothing
+
+                Nothing ->
+                    Nothing
+
+
+firstWithKey : String -> List (Node id) -> Maybe (Node id)
+firstWithKey key nodes =
+    case nodes of
+        [] ->
+            Nothing
+
+        node :: rest ->
+            if Picking.key node == key then
+                Just node
+
+            else
+                firstWithKey key rest
+
+
 
 -- RELATIONS
 
@@ -318,35 +359,6 @@ labelPath key index =
 isAncestorOf : String -> String -> Index id -> Bool
 isAncestorOf ancestor key index =
     List.member ancestor (ancestors key index)
-
-
-childKeys : Entry id -> List String
-childKeys entry =
-    case entry.kids of
-        Kids keys ->
-            keys
-
-        _ ->
-            []
-
-
-{-| Every key below a node (not the node itself), parents before children.
--}
-descendantKeys : String -> Index id -> List String
-descendantKeys key index =
-    case get key index of
-        Just entry ->
-            List.concatMap (\child -> child :: descendantKeys child index) (childKeys entry)
-
-        Nothing ->
-            []
-
-
-{-| The key itself and every key below it.
--}
-keysBelow : String -> Index id -> List String
-keysBelow key index =
-    key :: descendantKeys key index
 
 
 

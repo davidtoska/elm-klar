@@ -518,7 +518,7 @@ effective index cover =
 
 subtreeOf : String -> Index.Index String -> Set String
 subtreeOf key index =
-    Set.fromList (Index.keysBelow key index)
+    Set.fromList (Trees.subtree key index)
 
 
 cleanNodes : Set String -> Index.Index String -> Set String
@@ -546,6 +546,36 @@ walk index picks =
         )
         Set.empty
         picks
+
+
+isClean : Index.Index String -> String -> Bool
+isClean index key =
+    Index.get key index |> Maybe.map (\e -> not e.disabled && not e.blocked) |> Maybe.withDefault False
+
+
+{-| The reference for "this clean node is checked": it is covered, or it has
+children and all of them are checked.
+-}
+refChecked : Index.Index String -> Set String -> String -> Bool
+refChecked index cover key =
+    Cover.isCovered index cover key
+        || (case Index.get key index |> Maybe.map .kids of
+                Just (Kids kids) ->
+                    List.all (refChecked index cover) kids
+
+                _ ->
+                    False
+           )
+
+
+{-| A cover as the application could set it from its code: any clean nodes.
+-}
+anyCover : Index.Index String -> List Int -> Set String
+anyCover index picks =
+    picks
+        |> List.filterMap (\pick -> List.drop (modBy (max 1 (List.length index.order)) pick) index.order |> List.head)
+        |> List.filter (isClean index)
+        |> Set.fromList
 
 
 noNesting : Index.Index String -> Set String -> Bool
@@ -713,6 +743,25 @@ coverTests =
                     in
                     Expect.equal [ "a" ] (Cover.leaves tree (Cover.check tree Set.empty "p"))
             ]
+        , test "a cover set from the code that is not in its shortest form still shows the right boxes" <|
+            \_ ->
+                let
+                    cover =
+                        Set.fromList [ "oslo", "bergen" ]
+                in
+                Expect.equal
+                    ( [ Checked, Checked, Partial, Unchecked ], [ "norway" ] )
+                    ( List.map (stateOf cover) [ "oslo", "norway", "europe", "sweden" ]
+                    , Set.toList (Cover.normalize index cover)
+                    )
+        , test "nested members are shown as the outer one and normalized to it" <|
+            \_ ->
+                let
+                    cover =
+                        Set.fromList [ "europe", "oslo" ]
+                in
+                Expect.equal ( [ Checked, Checked ], [ "europe" ] )
+                    ( List.map (stateOf cover) [ "oslo", "europe" ], Set.toList (Cover.normalize index cover) )
         , describe "properties on random trees"
             [ fuzz2 Trees.specFuzzer (Fuzz.list (Fuzz.intRange 0 200)) "the cover never has a member inside another member" <|
                 \spec picks ->
@@ -852,6 +901,57 @@ coverTests =
                                     && Cover.isCovered tree cover key
                             )
                         |> Expect.equal True
+            , fuzz2 Trees.specFuzzer (Fuzz.list (Fuzz.intRange 0 200)) "a cover from the code: a clean node shows a check exactly when it is covered or all its children are checked" <|
+                \spec picks ->
+                    let
+                        tree =
+                            Trees.indexOf spec
+
+                        cover =
+                            anyCover tree picks
+
+                        d =
+                            Cover.derive tree cover
+                    in
+                    tree.order
+                        |> List.filter (isClean tree)
+                        |> List.all (\key -> (Cover.stateOf tree cover d key == Checked) == refChecked tree cover key)
+                        |> Expect.equal True
+            , fuzz2 Trees.specFuzzer (Fuzz.list (Fuzz.intRange 0 200)) "normalizing keeps what is checked, has no nesting, is its own shortest form and has no complete parent" <|
+                \spec picks ->
+                    let
+                        tree =
+                            Trees.indexOf spec
+
+                        cover =
+                            anyCover tree picks
+
+                        shortest =
+                            Cover.normalize tree cover
+                    in
+                    Expect.all
+                        [ \_ -> Expect.equal True (noNesting tree shortest)
+                        , \_ -> Expect.equal shortest (Cover.normalize tree shortest)
+                        , \_ ->
+                            tree.order
+                                |> List.filter (isClean tree)
+                                |> List.all (\key -> refChecked tree cover key == refChecked tree shortest key)
+                                |> Expect.equal True
+                        , \_ ->
+                            tree.order
+                                |> List.filter (isClean tree)
+                                |> List.all
+                                    (\key ->
+                                        case Index.get key tree |> Maybe.map .kids of
+                                            Just (Kids kids) ->
+                                                not (List.all (\k -> Set.member k shortest) kids)
+
+                                            _ ->
+                                                True
+                                    )
+                                |> Expect.equal True
+                        ]
+                        ()
             , fuzz2 Trees.specFuzzer (Fuzz.intRange 0 200) "check then uncheck of one node on an empty cover gives the empty cover" <|
                 \spec pick ->
                     let

@@ -12964,6 +12964,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
 }
 
 .klar-tree-select__toggle {
+  position: relative;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -12972,6 +12973,13 @@ a.klar-md__placeholder:hover { border-style: solid; }
   height: 16px;
   border-radius: var(--klar-radius-sm);
   color: var(--klar-gray-500);
+}
+
+/* The arrow looks 16px and is hit like 24px (the target size of WCAG 2.2). */
+.klar-tree-select__toggle::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 
 .klar-tree-select__toggle:hover {
@@ -13125,8 +13133,13 @@ a.klar-md__placeholder:hover { border-style: solid; }
 /* The lists go side by side with the buttons between them, and are stacked
    (the buttons between them, pointing down and up) when the field is narrow:
    the width of the field decides, not the width of the window. */
+/* A size container has no width of its own, so it takes the one of its parent:
+   the field needs a parent that has a width (a block, a grid cell, a stretched
+   flex item). */
 .klar-transfer__box {
   container: klar-transfer / inline-size;
+  width: 100%;
+  min-width: 0;
 }
 
 .klar-transfer__panes {
@@ -13241,6 +13254,30 @@ a.klar-md__placeholder:hover { border-style: solid; }
 
   .klar-transfer__buttons .klar-icon {
     transform: rotate(90deg);
+  }
+}
+
+/* ---- Windows high contrast: what is chosen, opened or highlighted must not
+   depend on a background color -------------------------------------------- */
+
+@media (forced-colors: active) {
+  .klar-tree-select__row--chosen,
+  .klar-cascader__item--chosen,
+  .klar-transfer__row--marked {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .klar-cascader__item--opened {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .klar-tree-select__row.klar-select__option--highlighted,
+  .klar-cascader__item.klar-select__option--highlighted,
+  .klar-transfer__list:focus .klar-select__option--highlighted {
+    outline: 2px dashed CanvasText;
+    outline-offset: -2px;
   }
 }
 

@@ -66,6 +66,11 @@ what is left of it. A node that is `disabled` is never chosen: checking its pare
 chooses the nodes around it one by one, and the parent shows a check when all of
 them are chosen. To get the warehouses and not the regions, ask for `leaves`.
 
+That promise has one price: with a `disabled` node somewhere under "Europe", checking
+"Europe" cannot say `europe` (it would include the disabled node), so the value is
+one id for each part of Europe that has nothing disabled inside it, which can be
+many. Without disabled nodes below it, a checked branch is always one id.
+
 Typing in the search box filters the tree: it keeps the nodes that contain every
 word, with the nodes above them, opened and with the matching text highlighted.
 When the text is cleared the tree is as the user left it. Only nodes that are in
@@ -75,8 +80,8 @@ a tree of many thousands of nodes stays fast.
 
 Nodes can come from the backend: the top level as a `Remote` (`remote`), and the
 children of a node with `Picking.lazy`. When the user opens a lazy node that is
-`NotAsked`, `loadRequests` tells you which one, so that you can mark it `Loading`
-and fetch it; a failed branch shows the problem and a "Try again" button
+`NotAsked`, `loadRequests` names it (call it after every update), so that you can
+mark it `Loading` and fetch it; a failed branch shows the problem and a "Try again" button
 (`onRetryChildren`) and does not block the rest of the tree. Nothing else is
 loaded behind your back.
 
@@ -97,14 +102,17 @@ type-ahead.
 Accessibility: the field is a button with `role="combobox"` and
 `aria-haspopup="tree"`. The open popup is a `tree` of `treeitem` rows with
 `aria-level`, `aria-setsize`, `aria-posinset` and `aria-expanded`, and
-`aria-selected` (single) or `aria-checked` (multiple, with `mixed` for the dash).
-The counts under the tree are announced politely. The built-in text follows
+`aria-selected` (single) or `aria-checked` (multiple, with `mixed` for the dash, and
+`aria-multiselectable` on the tree). The counts under the tree are announced politely. The built-in text follows
 `locale` and is English by default (see [Klar.Locale](Klar-Locale)).
 
 Limits: a node must have a unique id in the whole tree, ids are compared through
 their key (see [Klar.Picking](Klar-Picking)), and a value that is not in the tree
 you give is shown as "Unknown value" unless you say how to write it (`valueText`)
-or give the component its node (`setNode`, `setNodes`).
+or give the component its node (`setNode`, `setNodes`). On the closed field of a
+multiple field Backspace removes the last chosen id, which can be a whole branch
+(the Select family does the same for its chips). Right-to-left languages are not
+supported: the arrow keys and the indents assume left-to-right text.
 
 
 # State
@@ -169,7 +177,7 @@ import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Search as Search
 import Klar.Spinner as Spinner
 import Klar.Tag as Tag
-import Klar.Theme as Theme exposing (Size(..))
+import Klar.Theme as Theme exposing (Size(..), Tone(..))
 import Klar.VirtualList as VirtualList
 import Set exposing (Set)
 
@@ -234,6 +242,7 @@ type alias Data id =
     , open : Bool
     , query : String
     , highlighted : Maybe Pos
+    , revealed : Bool
     , expanded : Set String
     , flips : Set String
     , chosen : Dict String (Chosen id)
@@ -291,6 +300,7 @@ init (Mode isMultiple) domId =
         , open = False
         , query = ""
         , highlighted = Nothing
+        , revealed = False
         , expanded = Set.empty
         , flips = Set.empty
         , chosen = Dict.empty
@@ -370,9 +380,12 @@ setNode node (State data) =
 
 {-| Replaces the chosen nodes of a multiple field from your code. Duplicates are
 dropped. The labels are looked up in the nodes when they are shown; use `setNodes`
-when they may not be among them. The value is taken as it is: `europe` and
-`oslo` together are two ids, and the field shows what that means (Oslo inside a
-checked Europe is simply checked).
+when they may not be among them. The value is taken as you give it as long as the
+field does not know the nodes (`europe` and `oslo` together are two ids, and the
+field draws what that means: Oslo inside a checked Europe is simply checked, and
+Norway with Oslo and Bergen checked is checked); once the field has seen the nodes
+(its popup has been open) it puts what you set in its shortest form, like what the
+user checks.
 
     TreeSelect.setValues siteIds [ europe, asia ] model.sites
 
@@ -381,7 +394,7 @@ setValues : Ids id -> List id -> State Multiple id -> State Multiple id
 setValues ids ids_ (State data) =
     State
         (refreshCached
-            (replaceChosen (List.map (\id -> { id = id, key = Picking.toKey ids id, label = Nothing }) ids_) data)
+            (normalizeCover (replaceChosen (List.map (\id -> { id = id, key = Picking.toKey ids id, label = Nothing }) ids_) data))
         )
 
 
@@ -390,7 +403,29 @@ their labels. Only the nodes themselves are used, not their children.
 -}
 setNodes : List (Node id) -> State Multiple id -> State Multiple id
 setNodes nodes_ (State data) =
-    State (refreshCached (replaceChosen (List.map fromNode nodes_) data))
+    State (refreshCached (normalizeCover (replaceChosen (List.map fromNode nodes_) data)))
+
+
+{-| Puts the chosen nodes in their shortest form, when the field knows the nodes
+(it does once its popup has been open). Without nodes the value is kept as it was
+given, and the boxes are drawn right all the same.
+-}
+normalizeCover : Data id -> Data id
+normalizeCover data =
+    case data.cache of
+        Just cache ->
+            let
+                shortest =
+                    Cover.normalize cache.index data.cover
+            in
+            if shortest == data.cover then
+                data
+
+            else
+                setCover cache.index shortest data
+
+        Nothing ->
+            data
 
 
 type alias Pick id =
@@ -496,11 +531,12 @@ close (State data) =
     )
 
 
-{-| The lazy nodes whose children the user just asked for, found by comparing the
-state before and after an update: the nodes that were opened and whose children
-are `NotAsked`. Usually zero or one; `*` on the keyboard can open several. Set
-the children of these nodes to `Loading` in your data and fetch them; the next
-time you build the nodes they hold the answer.
+{-| The lazy nodes whose children somebody is waiting for: the open nodes of the
+open popup whose children are `NotAsked`. Usually zero or one; `*` on the keyboard
+can open several. Call it after every `update` of the field. Set the children of
+the nodes it names to `Loading` in your data and fetch them; the next time you
+build the nodes they hold the answer. Asking again is harmless, because a node you
+have marked `Loading` is not named any more.
 
     SiteMsg inner ->
         let
@@ -508,38 +544,45 @@ time you build the nodes they hold the answer.
                 TreeSelect.update inner model.site
 
             requested =
-                TreeSelect.loadRequests model.site site
+                TreeSelect.loadRequests site
         in
         ( { model | site = site, zones = markLoading requested model.zones }
         , Cmd.batch (Cmd.map SiteMsg cmd :: List.map fetchZones requested)
         )
 
-Once a node is not `NotAsked` it is not requested again; after a failure the user
-retries with the button that `onRetryChildren` adds.
+The answer is worked out from the nodes of the last message the field got, so if
+you set a node back to `NotAsked` yourself (to load it again), you also fetch it
+yourself: the field asks again only after its next message. After a failure the
+user retries with the button that `onRetryChildren` adds.
 
 -}
-loadRequests : State mode id -> State mode id -> List id
-loadRequests (State before) (State after) =
-    case after.cache of
-        Just cache ->
-            Set.diff (openKeys after) (openKeys before)
-                |> Set.toList
+loadRequests : State mode id -> List id
+loadRequests (State data) =
+    case ( data.open, data.cache ) of
+        ( True, Just cache ) ->
+            cache.rows.rows
+                |> Array.toList
                 |> List.filterMap
-                    (\key ->
-                        case Index.get key cache.index of
-                            Just entry ->
-                                case entry.kids of
-                                    Unloaded ->
-                                        Just (Picking.id entry.node)
+                    (\entryRow ->
+                        case entryRow of
+                            LoadingRow r ->
+                                case Index.get r.parent cache.index of
+                                    Just entry ->
+                                        case entry.kids of
+                                            Unloaded ->
+                                                Just (Picking.id entry.node)
 
-                                    _ ->
+                                            _ ->
+                                                Nothing
+
+                                    Nothing ->
                                         Nothing
 
-                            Nothing ->
+                            _ ->
                                 Nothing
                     )
 
-        Nothing ->
+        _ ->
             []
 
 
@@ -575,10 +618,10 @@ type alias Env id =
 and the chosen nodes. The index is reused while the nodes are the same list.
 -}
 refreshWith : List (Node id) -> Data id -> Data id
-refreshWith nodes_ data =
+refreshWith nodes_ data0 =
     let
         ( index, reusable ) =
-            case data.cache of
+            case data0.cache of
                 Just cache ->
                     if cache.nodes == nodes_ then
                         ( cache.index, Just cache )
@@ -588,6 +631,11 @@ refreshWith nodes_ data =
 
                 Nothing ->
                     ( Index.build nodes_, Nothing )
+
+        -- a single field that opened before its nodes had arrived opens on its
+        -- value as soon as they have
+        data =
+            reveal index data0
 
         ( filterOf, filter ) =
             case reusable of
@@ -631,6 +679,32 @@ refreshWith nodes_ data =
                 , rows = rows
                 }
     }
+
+
+{-| An open single field shows its value: the nodes above it are opened and it is
+highlighted. It happens once for each time the popup opens, as soon as the nodes
+have the value (they may come from the backend after the popup opened).
+-}
+reveal : Index id -> Data id -> Data id
+reveal index data =
+    if data.revealed || not data.open || data.multiple then
+        data
+
+    else
+        case Dict.keys data.chosen of
+            key :: _ ->
+                if Index.get key index == Nothing then
+                    data
+
+                else
+                    { data
+                        | expanded = List.foldl Set.insert data.expanded (Index.ancestors key index)
+                        , highlighted = Just (AtNode key)
+                        , revealed = True
+                    }
+
+            [] ->
+                { data | revealed = True }
 
 
 refreshCached : Data id -> Data id
@@ -711,7 +785,7 @@ type Msg id
     | QueryChanged (Env id) String
     | Backspace (Env id)
     | Key (Env id) Move
-    | Hover Pos
+    | Hover (Env id) Pos
     | Choose (Env id) String
     | ToggleOpen (Env id) String
     | Remove String
@@ -807,11 +881,13 @@ step msg data =
             else
                 ( data, Cmd.none )
 
-        Hover pos ->
-            ( { data | highlighted = Just pos }, Cmd.none )
+        Hover env pos ->
+            -- the view hands over the nodes, so that after they changed the next
+            -- draw uses a cache that is up to date and not a new one for every row
+            ( { data | highlighted = Just pos } |> refreshFor env.nodes, Cmd.none )
 
         Choose env key ->
-            choose env key (refreshWith env.nodes data)
+            choose key (refreshWith env.nodes data)
 
         ToggleOpen env key ->
             ( setOpen (not (isOpenNow data key)) key (refreshWith env.nodes data) |> refreshCached, Cmd.none )
@@ -892,23 +968,18 @@ openWith : Env id -> String -> Data id -> ( Data id, Cmd (Msg id) )
 openWith env text data =
     let
         prepared =
-            refreshWith env.nodes { data | open = True, query = text, flips = Set.empty, highlighted = Nothing, list = VirtualList.reset data.list }
-
-        -- a single field opens on its value: the nodes above it are opened
-        revealed =
-            case ( data.multiple, prepared.cache, Dict.keys prepared.chosen ) of
-                ( False, Just cache, key :: _ ) ->
-                    if text == "" then
-                        { prepared | expanded = List.foldl Set.insert prepared.expanded (Index.ancestors key cache.index), highlighted = Just (AtNode key) }
-
-                    else
-                        prepared
-
-                _ ->
-                    prepared
+            refreshWith env.nodes
+                { data
+                    | open = True
+                    , query = text
+                    , flips = Set.empty
+                    , highlighted = Nothing
+                    , list = VirtualList.reset data.list
+                    , revealed = text /= ""
+                }
 
         final =
-            refreshCached revealed
+            prepared
 
         ( list, scroll ) =
             case highlightIndex env.canRetry final of
@@ -1188,10 +1259,10 @@ moveBy env move data =
                             stay
 
                 Enter ->
-                    chooseRow env current data
+                    chooseRow current data
 
                 Space ->
-                    chooseRow env current data
+                    chooseRow current data
 
         _ ->
             ( data, Cmd.none )
@@ -1243,11 +1314,11 @@ firstFrom accept direction from rows =
 
 {-| Enter or Space on the highlighted row.
 -}
-chooseRow : Env id -> Int -> Data id -> ( Data id, Cmd (Msg id) )
-chooseRow env current data =
+chooseRow : Int -> Data id -> ( Data id, Cmd (Msg id) )
+chooseRow current data =
     case data.cache |> Maybe.andThen (\cache -> Index.rowAt current cache.rows) of
         Just (NodeRow item) ->
-            choose env item.entry.key data
+            choose item.entry.key data
 
         _ ->
             ( data, Cmd.none )
@@ -1256,8 +1327,8 @@ chooseRow env current data =
 {-| A node was picked, with the pointer or the keyboard. A node that is disabled
 cannot be chosen, but it can be opened or closed.
 -}
-choose : Env id -> String -> Data id -> ( Data id, Cmd (Msg id) )
-choose _ key data =
+choose : String -> Data id -> ( Data id, Cmd (Msg id) )
+choose key data =
     case data.cache |> Maybe.andThen (\cache -> Index.get key cache.index |> Maybe.map (Tuple.pair cache)) of
         Just ( cache, entry ) ->
             if entry.disabled then
@@ -1498,7 +1569,8 @@ disabled value_ =
 
 {-| While `True` the field shows its value but does not let the user change it:
 the popup does not open, and there is no chevron or clear button. Unlike
-`disabled`, a read-only field can be focused. The default is `False`.
+`disabled`, a read-only field can be focused. The two are independent; with both
+set the field is disabled. The default is `False`.
 -}
 readOnly : Bool -> Attribute id msg
 readOnly value_ =
@@ -1650,38 +1722,48 @@ type Shown
 
 
 shownFor : Config id msg -> Dict String String -> List ( String, Chosen id ) -> List ( String, Chosen id, Shown )
-shownFor config found chosen =
-    List.map
-        (\( key, c ) ->
-            ( key
-            , c
-            , case c.label of
+shownFor config fresh chosen =
+    let
+        unlabelled c =
+            case config.nodes of
+                Loaded _ ->
+                    case config.valueText of
+                        Just toText ->
+                            Labelled (toText c.id)
+
+                        Nothing ->
+                            Unknown
+
+                Failed _ ->
+                    LoadFailed
+
+                _ ->
+                    NotLoadedYet
+
+        labelOf ( key, c ) =
+            -- the label that the nodes have now wins over the one remembered when
+            -- the node was chosen (the application may have renamed it)
+            case firstOf [ Dict.get key fresh, c.label ] of
                 Just text ->
                     Labelled text
 
                 Nothing ->
-                    case Dict.get key found of
-                        Just text ->
-                            Labelled text
+                    unlabelled c
+    in
+    List.map (\entry -> ( Tuple.first entry, Tuple.second entry, labelOf entry )) chosen
 
-                        Nothing ->
-                            case config.nodes of
-                                Loaded _ ->
-                                    case config.valueText of
-                                        Just toText ->
-                                            Labelled (toText c.id)
 
-                                        Nothing ->
-                                            Unknown
+firstOf : List (Maybe a) -> Maybe a
+firstOf options =
+    case options of
+        [] ->
+            Nothing
 
-                                Failed _ ->
-                                    LoadFailed
+        (Just found) :: _ ->
+            Just found
 
-                                _ ->
-                                    NotLoadedYet
-            )
-        )
-        chosen
+        Nothing :: rest ->
+            firstOf rest
 
 
 shownText : Texts -> Shown -> String
@@ -1701,26 +1783,69 @@ shownText t shown =
 
 
 {-| The chosen nodes in the order they were chosen, each with what the field
-shows for it. Labels of nodes the field has not seen are looked for in the tree
-(one walk, for the nodes that are needed).
+shows for it. The label is the one that the nodes you give have now (the
+application may have renamed a node since it was chosen): from the index when the
+field has one of exactly these nodes, otherwise by one walk of the tree that
+stops when everything is found. A field that has never seen the nodes (no popup
+was open) shows the label it remembers, and walks the tree only for a node it has
+no label for.
 -}
 resolveChosen : Config id msg -> Data id -> Int -> List ( String, Chosen id, Shown )
 resolveChosen config data limit =
     let
-        ordered =
-            Dict.toList data.chosen |> List.sortBy (Tuple.second >> .order)
+        shown =
+            Dict.toList data.chosen |> List.sortBy (Tuple.second >> .order) |> List.take limit
 
-        missing =
-            ordered
-                |> List.take limit
+        nodes_ =
+            Remote.withDefault [] config.nodes
+
+        wanted =
+            shown |> List.map Tuple.first |> Set.fromList
+
+        unlabelled =
+            shown
                 |> List.filter (\( _, c ) -> c.label == Nothing)
                 |> List.map Tuple.first
                 |> Set.fromList
 
-        found =
-            Index.findLabels missing (Remote.withDefault [] config.nodes)
+        fresh =
+            case data.cache of
+                Just cache ->
+                    if cache.nodes == nodes_ then
+                        wanted
+                            |> Set.toList
+                            |> List.filterMap (\key -> Index.get key cache.index |> Maybe.map (\entry -> ( key, entry.label )))
+                            |> Dict.fromList
+
+                    else
+                        Index.findLabels wanted nodes_
+
+                Nothing ->
+                    Index.findLabels unlabelled nodes_
     in
-    shownFor config found (List.take limit ordered)
+    shownFor config fresh shown
+
+
+{-| The path to a chosen node as a tooltip (several nodes can have the same
+label), when the field has an index of the nodes you give.
+-}
+pathOf : Config id msg -> Data id -> String -> Maybe String
+pathOf config data key =
+    case data.cache of
+        Just cache ->
+            if cache.nodes == Remote.withDefault [] config.nodes then
+                case Index.labelPath key cache.index of
+                    [] ->
+                        Nothing
+
+                    path ->
+                        Just (String.join " / " path)
+
+            else
+                Nothing
+
+        Nothing ->
+            Nothing
 
 
 viewControl : (Msg id -> msg) -> Config id msg -> Field.Config -> Texts -> Env id -> Data id -> Html msg
@@ -1968,7 +2093,7 @@ viewMultipleControl toMsg config t data controlClasses triggerAttributes openMsg
         chip ( key, _, status ) =
             case status of
                 Labelled text ->
-                    Html.span [ Internal.cls [ "klar-select__chip" ] ]
+                    Html.span [ Internal.cls [ "klar-select__chip" ], Attr.title (Maybe.withDefault text (pathOf config data key)) ]
                         [ Tag.view
                             ([ Tag.size tagSize, Tag.locale config.locale ]
                                 ++ (if interactive then
@@ -1985,18 +2110,31 @@ viewMultipleControl toMsg config t data controlClasses triggerAttributes openMsg
                     Html.span [ Internal.cls [ "klar-select__chip", "klar-select__chip--unknown" ] ]
                         [ Tag.view [ Tag.size tagSize, Tag.outline, Tag.locale config.locale ] (shownText t status) ]
 
+        -- the same chip as a Tag draws, with a remove button that is named for
+        -- what it does ("Clear the selection"), not "Remove 40 selected"
         summaryChip =
             Html.span [ Internal.cls [ "klar-select__chip" ] ]
-                [ Tag.view
-                    ([ Tag.size tagSize, Tag.locale config.locale ]
-                        ++ (if interactive then
-                                [ Tag.onRemove (toMsg Clear) ]
+                [ Html.span
+                    [ Internal.cls
+                        [ "klar-tag"
+                        , "klar-tag--" ++ Theme.toneSuffix Neutral
+                        , "klar-tag--" ++ Theme.sizeSuffix tagSize
+                        ]
+                    ]
+                    [ Html.span [ Internal.cls [ "klar-tag__label" ] ] [ Html.text (t.selected count) ]
+                    , if interactive then
+                        Html.button
+                            [ Internal.cls [ "klar-tag__remove" ]
+                            , Attr.type_ "button"
+                            , Attr.attribute "aria-label" t.clearChosen
+                            , Attr.title t.clearChosen
+                            , Events.onClick (toMsg Clear)
+                            ]
+                            [ Icon.sized Icon.ExtraSmall Icon.close ]
 
-                            else
-                                []
-                           )
-                    )
-                    (t.selected count)
+                      else
+                        Html.text ""
+                    ]
                 ]
 
         summary =
@@ -2073,8 +2211,9 @@ renderedRange count rowsVisible list =
         viewport =
             min (rowsVisible * rowHeight) (count * rowHeight)
 
+        -- the list keeps its scroll position inside its rows, so does this
         top =
-            VirtualList.scrollTop list
+            clamp 0 (toFloat (max 0 (count * rowHeight - viewport))) (VirtualList.scrollTop list)
 
         first =
             floor (top / toFloat rowHeight)
@@ -2360,6 +2499,7 @@ viewTree toMsg config t env data cache highlighted _ =
             , VirtualList.htmlAttrs
                 [ Internal.cls [ "klar-select__list", "klar-tree-select__tree" ]
                 , Attr.attribute "role" "tree"
+                , Internal.attrIf data.multiple (Attr.attribute "aria-multiselectable" "true")
                 , Internal.attrMaybe (Attr.attribute "aria-label") config.field.label
 
                 -- dragging the scrollbar must not take focus from the search box
@@ -2452,7 +2592,7 @@ viewFailedRow rc index r =
                                 Decode.fail "already highlighted"
 
                              else
-                                Decode.succeed (rc.toMsg (Hover (AtRetry r.parent)))
+                                Decode.succeed (rc.toMsg (Hover rc.env (AtRetry r.parent)))
                             )
                         ]
 
@@ -2593,7 +2733,7 @@ viewNodeRow rc index item =
                 Decode.fail "already highlighted"
 
              else
-                Decode.succeed (rc.toMsg (Hover (AtNode entry.key)))
+                Decode.succeed (rc.toMsg (Hover rc.env (AtNode entry.key)))
             )
         , Internal.onClickPrevent (rc.toMsg (Choose rc.env entry.key))
         ]

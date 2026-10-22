@@ -9,6 +9,7 @@ import Array
 import Expect
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Json.Encode as Encode
 import Klar.Cascader as Cascader
 import Klar.Cascader.Columns as Columns
 import Klar.Locale as Locale
@@ -121,6 +122,7 @@ suite =
         , lazyTests
         , localeAndSizeTests
         , logicTests
+        , reviewTests
         ]
 
 
@@ -706,7 +708,7 @@ lazyTests =
             opened areas |> sendTo areas "ArrowRight" |> sendTo areas "ArrowRight"
     in
     describe "lazy children"
-        [ test "opening a branch whose children are not asked for is reported by loadRequests" <|
+        [ test "an open branch whose children are not asked for is named by loadRequests, until the application marks it as loading" <|
             \_ ->
                 let
                     before =
@@ -714,9 +716,13 @@ lazyTests =
 
                     after =
                         before |> sendTo NotAsked "ArrowRight"
+
+                    marked =
+                        after |> sendTo Loading "Home"
                 in
-                Expect.equal ( [], [ "japan" ] ) ( Cascader.loadRequests field before, Cascader.loadRequests before after )
-        , test "a click on a branch that is not loaded is reported too, once" <|
+                Expect.equal [ [], [ "japan" ], [ "japan" ], [] ]
+                    [ Cascader.loadRequests before, Cascader.loadRequests after, Cascader.loadRequests after, Cascader.loadRequests marked ]
+        , test "a click on a branch that is not loaded is named too; when the popup is opened again the branches start closed" <|
             \_ ->
                 let
                     before =
@@ -727,8 +733,20 @@ lazyTests =
 
                     next =
                         feed (Drive.fire [ itemId 1 0 ] Event.click (withAreas NotAsked after)) after
+
+                    closed =
+                        next |> sendTo NotAsked "Escape"
+
+                    reopened =
+                        feed (Drive.fire [ Selector.id "place" ] (Drive.key "Enter") (withAreas NotAsked closed)) closed
                 in
-                Expect.equal ( [], [ "japan" ], [] ) ( Cascader.loadRequests before after, Cascader.loadRequests after next, Cascader.loadRequests next next )
+                Expect.all
+                    [ \_ ->
+                        Expect.equal [ [], [], [ "japan" ], [] ]
+                            [ Cascader.loadRequests before, Cascader.loadRequests after, Cascader.loadRequests next, Cascader.loadRequests closed ]
+                    , \_ -> Expect.equal ( True, [] ) ( Cascader.isOpen reopened, Cascader.loadRequests reopened )
+                    ]
+                    ()
         , test "a branch that is loading shows a loading row in its column; the other columns work" <|
             \_ ->
                 let
@@ -740,7 +758,7 @@ lazyTests =
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ attr "role" "treeitem", attr "aria-busy" "true" ] h)
-                    , \_ -> Expect.equal [] (Cascader.loadRequests (atJapan Loading) state)
+                    , \_ -> Expect.equal [] (Cascader.loadRequests state)
                     , \_ -> Expect.equal True (Drive.has [ itemId 1 0, attr "aria-expanded" "true" ] h)
                     ]
                     ()
@@ -918,6 +936,80 @@ logicTests =
                 Expect.all
                     [ \_ -> tree.order |> List.all (\key -> Columns.isValidPath tree (Index.pathTo key tree)) |> Expect.equal True
                     , \_ -> Expect.equal False (Columns.isValidPath tree (List.reverse tree.order |> List.take 2 |> List.reverse |> List.reverse |> (\keys -> "nope" :: keys)))
+                    ]
+                    ()
+        ]
+
+
+
+-- REVIEW FIXES
+
+
+reviewTests : Test
+reviewTests =
+    describe "after the review"
+        [ test "a popup that opened before the nodes arrived opens on the value when they have" <|
+            \_ ->
+                let
+                    value =
+                        Cascader.setValue ids [ "europe", "norway", "bergen" ] field
+
+                    waiting =
+                        Cascader.view CS [ Cascader.label "Place", Cascader.remote Loading ] value
+
+                    opened =
+                        feed (Drive.fire [ Selector.id "place" ] (Drive.key "Enter") waiting) value
+
+                    arrived =
+                        html [] opened
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ itemId 2 1, attr "aria-selected" "true", attr "aria-level" "3" ] arrived)
+                    , \_ -> Expect.equal (Just "place-c2-1") (activeId opened)
+                    ]
+                    ()
+        , test "a path whose nodes the application renamed is shown with the new labels" <|
+            \_ ->
+                let
+                    chosen =
+                        openField |> press "End" |> press "Enter"
+
+                    renamed =
+                        [ Picking.leaf ids "africa" "Africa (renamed)" ]
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-sr-only", Selector.text "Africa" ] (html [] chosen))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.class "klar-sr-only", Selector.text "Africa (renamed)" ] (Cascader.view CS [ Cascader.label "Place", Cascader.nodes renamed ] chosen))
+                    ]
+                    ()
+        , test "the labels of a path are found by walking only the nodes along it" <|
+            \_ ->
+                Expect.equal
+                    [ Just [ "Europe", "Norway", "Oslo" ], Nothing, Nothing, Nothing, Nothing ]
+                    [ Index.followPath [ "europe", "norway", "oslo" ] Trees.cities
+                    , Index.followPath [ "norway", "oslo" ] Trees.cities
+                    , Index.followPath [ "europe", "oslo" ] Trees.cities
+                    , Index.followPath [ "asia", "japan", "tokyo" ] Trees.cities
+                    , Index.followPath [] Trees.cities
+                    ]
+        , test "a key that is part of an input method composition is left alone" <|
+            \_ ->
+                let
+                    composing =
+                        Event.custom "keydown"
+                            (Encode.object
+                                [ ( "key", Encode.string "Enter" )
+                                , ( "ctrlKey", Encode.bool False )
+                                , ( "metaKey", Encode.bool False )
+                                , ( "altKey", Encode.bool False )
+                                , ( "shiftKey", Encode.bool False )
+                                , ( "isComposing", Encode.bool True )
+                                ]
+                            )
+                in
+                Expect.all
+                    [ \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "place-search" ] composing (html [] openField))
+                    , \_ -> Expect.notEqual Nothing (Drive.fire [ Selector.id "place-search" ] (Drive.key "Enter") (html [] openField))
                     ]
                     ()
         ]

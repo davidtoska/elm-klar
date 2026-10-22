@@ -2161,7 +2161,8 @@ css =
  .klar-tree-select__popup{min-width: 300px}
  .klar-tree-select--multiple .klar-tree-select__popup{min-width: 340px}
  .klar-tree-select__row{padding-left: calc(8px + var(--klar-depth,0) * 16px)}
- .klar-tree-select__toggle{display: inline-flex;flex: none;align-items: center;justify-content: center;width: 16px;height: 16px;border-radius: var(--klar-radius-sm);color: var(--klar-gray-500)}
+ .klar-tree-select__toggle{position: relative;display: inline-flex;flex: none;align-items: center;justify-content: center;width: 16px;height: 16px;border-radius: var(--klar-radius-sm);color: var(--klar-gray-500)}
+ .klar-tree-select__toggle::after{content: "";position: absolute;inset: -4px}
  .klar-tree-select__toggle:hover{background: var(--klar-gray-150);color: var(--klar-text)}
  .klar-tree-select__toggle .klar-icon{transition: transform var(--klar-dur-fast) var(--klar-ease)}
  .klar-tree-select__toggle--open .klar-icon{transform: rotate(90deg)}
@@ -2188,7 +2189,7 @@ css =
  .klar-cascader__result .klar-select__option-label{flex: 1 1 auto}
  .klar-transfer{min-width: 0;margin: 0;padding: 0;border: 0}
  .klar-transfer__legend{display: block;padding: 0;margin-bottom: 6px}
- .klar-transfer__box{container: klar-transfer / inline-size}
+ .klar-transfer__box{container: klar-transfer / inline-size;width: 100%;min-width: 0}
  .klar-transfer__panes{display: grid;grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);gap: 12px;align-items: stretch}
  .klar-transfer__pane{display: flex;flex-direction: column;min-width: 0;overflow: hidden;background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-radius: var(--klar-radius-lg)}
  .klar-transfer--invalid .klar-transfer__pane{border-color: var(--klar-danger)}
@@ -2207,6 +2208,7 @@ css =
  .klar-transfer__row--unknown .klar-select__option-label{color: var(--klar-text-muted);font-style: italic}
  .klar-transfer__buttons{display: flex;flex-direction: column;align-items: center;justify-content: center;gap: 6px}
  @container klar-transfer (max-width: 560px){.klar-transfer__panes{grid-template-columns: minmax(0,1fr)}.klar-transfer__buttons{flex-direction: row}.klar-transfer__buttons .klar-icon{transform: rotate(90deg)}}
+ @media (forced-colors: active){.klar-tree-select__row--chosen,.klar-cascader__item--chosen,.klar-transfer__row--marked{outline: 2px solid Highlight;outline-offset: -2px}.klar-cascader__item--opened{outline: 1px solid CanvasText;outline-offset: -1px}.klar-tree-select__row.klar-select__option--highlighted,.klar-cascader__item.klar-select__option--highlighted,.klar-transfer__list:focus .klar-select__option--highlighted{outline: 2px dashed CanvasText;outline-offset: -2px}}
  .klar-permissions{--_row-h: var(--klar-row);--_cell-px: var(--klar-space-3);--_font: var(--klar-text-md);--_label-w: 240px;--_col-w: 124px;display: flex;flex-direction: column;min-width: 0;background: var(--klar-surface);border: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg);overflow: clip;font-size: var(--_font)}
  .klar-permissions--normal{--_row-h: var(--klar-row);--_cell-px: var(--klar-space-3)}
  .klar-permissions--compact{--_row-h: var(--klar-row-compact);--_cell-px: var(--klar-space-2);--_font: var(--klar-text-sm);--_label-w: 210px;--_col-w: 108px}

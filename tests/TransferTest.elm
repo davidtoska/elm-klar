@@ -138,6 +138,7 @@ suite =
         , unknownTests
         , sourceTests
         , localeTests
+        , reviewTests
         ]
 
 
@@ -473,14 +474,14 @@ renderTests =
                         html [] field
                 in
                 Expect.all
-                    [ \_ -> Expect.equal True (Drive.has [ Selector.id "products-available-filter", attr "aria-label" "Filter Available" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-chosen-filter", attr "aria-label" "Filter Chosen" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Select all in Available" ] h)
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.id "products-available-filter", attr "aria-label" "Filter “Available”" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-chosen-filter", attr "aria-label" "Filter “Chosen”" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Select all in “Available”" ] h)
                     , \_ -> Expect.equal True (Drive.has [ Selector.text "0 of 5 selected" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move selected to Chosen" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move all to Chosen" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move selected to Available" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move all to Available" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move selected to “Chosen”" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move all shown to “Chosen”" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move selected to “Available”" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move all shown to “Available”" ] h)
                     ]
                     ()
         , test "the buttons are dimmed (and stay in the tab order) while there is nothing to move" <|
@@ -490,8 +491,8 @@ renderTests =
                         html [] field
                 in
                 Expect.all
-                    [ \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move selected to Chosen", attr "aria-disabled" "true" ] h)
-                    , \_ -> Expect.equal Nothing (Drive.fire [ attr "aria-label" "Move selected to Chosen" ] Event.click h)
+                    [ \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move selected to “Chosen”", attr "aria-disabled" "true" ] h)
+                    , \_ -> Expect.equal Nothing (Drive.fire [ attr "aria-label" "Move selected to “Chosen”" ] Event.click h)
                     ]
                     ()
         , test "the titles are the application's" <|
@@ -502,7 +503,7 @@ renderTests =
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ Selector.text "All products" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move all to In the promotion" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move all shown to “In the promotion”" ] h)
                     ]
                     ()
         , test "the label, hint and error are joined to the group" <|
@@ -565,7 +566,7 @@ markTests =
             \_ ->
                 let
                     all =
-                        fireOn [] [ attr "aria-label" "Select all in Available" ] (Event.check True) field
+                        fireOn [] [ attr "aria-label" "Select all in “Available”" ] (Event.check True) field
 
                     some =
                         clickRow "a" 0 field
@@ -574,7 +575,7 @@ markTests =
                     [ \_ -> Expect.equal True (Drive.has [ Selector.text "4 of 5 selected" ] (html [] all))
                     , \_ -> Expect.equal False (Drive.has [ Selector.id "products-a-3", attr "aria-selected" "true" ] (html [] all))
                     , \_ -> Expect.equal True (Drive.has [ Selector.class "klar-check--indeterminate" ] (html [] some))
-                    , \_ -> Expect.equal True (Drive.has [ Selector.text "0 of 5 selected" ] (html [] (fireOn [] [ attr "aria-label" "Select all in Available" ] (Event.check False) all)))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.text "0 of 5 selected" ] (html [] (fireOn [] [ attr "aria-label" "Select all in “Available”" ] (Event.check False) all)))
                     ]
                     ()
         , test "Space marks the highlighted row, ArrowDown moves it, Ctrl+A marks all" <|
@@ -616,7 +617,7 @@ moveTests =
             \_ ->
                 let
                     state =
-                        field |> clickRow "a" 0 |> clickRow "a" 2 |> button "Move selected to Chosen"
+                        field |> clickRow "a" 0 |> clickRow "a" 2 |> button "Move selected to “Chosen”"
 
                     h =
                         html [] state
@@ -624,7 +625,7 @@ moveTests =
                 Expect.all
                     [ \_ -> Expect.equal [ 1, 3 ] (Transfer.values state)
                     , \_ -> Expect.equal ( 3, 2 ) ( optionCount "available" h, optionCount "chosen" h )
-                    , \_ -> Expect.equal True (Drive.has [ attr "role" "status", attr "aria-live" "polite", Selector.text "2 items moved to Chosen" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "role" "status", attr "aria-live" "polite", Selector.text "2 items moved to “Chosen”" ] h)
                     , \_ -> Expect.equal True (Drive.has [ Selector.text "0 of 2 selected" ] h)
                     ]
                     ()
@@ -632,14 +633,14 @@ moveTests =
             \_ ->
                 let
                     there =
-                        field |> clickRow "a" 0 |> button "Move selected to Chosen"
+                        field |> clickRow "a" 0 |> button "Move selected to “Chosen”"
 
                     back =
-                        there |> clickRow "c" 0 |> button "Move selected to Available"
+                        there |> clickRow "c" 0 |> button "Move selected to “Available”"
                 in
                 Expect.all
-                    [ \_ -> Expect.equal True (Drive.has [ attr "role" "status", Selector.text "1 item moved to Chosen" ] (html [] there))
-                    , \_ -> Expect.equal True (Drive.has [ attr "role" "status", Selector.text "1 item moved to Available" ] (html [] back))
+                    [ \_ -> Expect.equal True (Drive.has [ attr "role" "status", Selector.text "1 item moved to “Chosen”" ] (html [] there))
+                    , \_ -> Expect.equal True (Drive.has [ attr "role" "status", Selector.text "1 item moved to “Available”" ] (html [] back))
                     , \_ -> Expect.equal [] (Transfer.values back)
                     ]
                     ()
@@ -647,10 +648,10 @@ moveTests =
             \_ ->
                 let
                     state =
-                        field |> clickRow "a" 0 |> fireOn [ Transfer.titles { available = "All", chosen = "Promo" } ] [ attr "aria-label" "Move selected to Promo" ] Event.click
+                        field |> clickRow "a" 0 |> fireOn [ Transfer.titles { available = "All", chosen = "Promo" } ] [ attr "aria-label" "Move selected to “Promo”" ] Event.click
                 in
                 Expect.equal True
-                    (Drive.has [ attr "role" "status", Selector.text "1 item moved to Promo" ]
+                    (Drive.has [ attr "role" "status", Selector.text "1 item moved to “Promo”" ]
                         (html [ Transfer.titles { available = "All", chosen = "Promo" } ] state)
                     )
         , test "a double click moves that one item" <|
@@ -664,19 +665,19 @@ moveTests =
             \_ ->
                 let
                     all =
-                        field |> button "Move all to Chosen"
+                        field |> button "Move all shown to “Chosen”"
 
                     locked =
-                        Transfer.setValues ids [ 4 ] field |> button "Move all to Chosen"
+                        Transfer.setValues ids [ 4 ] field |> button "Move all shown to “Chosen”"
 
                     back =
-                        all |> button "Move all to Available"
+                        all |> button "Move all shown to “Available”"
                 in
                 Expect.all
                     [ \_ -> Expect.equal [ 1, 2, 3, 5 ] (Transfer.values all)
                     , \_ -> Expect.equal [ 1, 2, 3, 4, 5 ] (Transfer.values locked)
                     , \_ -> Expect.equal [] (Transfer.values back)
-                    , \_ -> Expect.equal [ 4 ] (Transfer.values (Transfer.setValues ids [ 4, 1 ] field |> button "Move all to Available"))
+                    , \_ -> Expect.equal [ 4 ] (Transfer.values (Transfer.setValues ids [ 4, 1 ] field |> button "Move all shown to “Available”"))
                     ]
                     ()
         , test "the highlight goes to the row that took the place of the one that moved" <|
@@ -692,12 +693,12 @@ moveTests =
                     ()
         , test "a move that does nothing says nothing" <|
             \_ ->
-                Expect.equal False (Drive.has [ attr "role" "status", Selector.containing [ Selector.text "moved" ] ] (html [] (field |> button "Move selected to Chosen")))
+                Expect.equal False (Drive.has [ attr "role" "status", Selector.containing [ Selector.text "moved" ] ] (html [] (field |> button "Move selected to “Chosen”")))
         , test "the value can be compared before and after: the same set is the same value" <|
             \_ ->
                 let
                     a =
-                        field |> clickRow "a" 0 |> clickRow "a" 1 |> button "Move selected to Chosen"
+                        field |> clickRow "a" 0 |> clickRow "a" 1 |> button "Move selected to “Chosen”"
 
                     b =
                         field |> dblClickRow "a" 1 |> dblClickRow "a" 0
@@ -791,14 +792,14 @@ filterTests =
             \_ ->
                 let
                     state =
-                        field |> typeIn "available" "co" |> fireOn [] [ attr "aria-label" "Select all in Available" ] (Event.check True) |> button "Move selected to Chosen"
+                        field |> typeIn "available" "co" |> fireOn [] [ attr "aria-label" "Select all in “Available”" ] (Event.check True) |> button "Move selected to “Chosen”"
                 in
                 Expect.equal [ 1, 2 ] (Transfer.values state)
         , test "an item that is marked and hidden by the filter stays marked, and is not moved while hidden" <|
             \_ ->
                 let
                     state =
-                        field |> clickRow "a" 2 |> typeIn "available" "co" |> button "Move selected to Chosen"
+                        field |> clickRow "a" 2 |> typeIn "available" "co" |> button "Move selected to “Chosen”"
 
                     cleared =
                         state |> typeIn "available" ""
@@ -810,7 +811,7 @@ filterTests =
                     ()
         , test ">> moves what the filter shows, not the rest" <|
             \_ ->
-                field |> typeIn "available" "tea" |> button "Move all to Chosen" |> Transfer.values |> Expect.equal [ 3 ]
+                field |> typeIn "available" "tea" |> button "Move all shown to “Chosen”" |> Transfer.values |> Expect.equal [ 3 ]
         , test "a filter that matches nothing says so, and the clear button empties the filter" <|
             \_ ->
                 let
@@ -826,7 +827,7 @@ filterTests =
             \_ ->
                 let
                     state =
-                        field |> button "Move all to Chosen" |> typeIn "chosen" "tea"
+                        field |> button "Move all shown to “Chosen”" |> typeIn "chosen" "tea"
                 in
                 Expect.equal ( 1, 1 ) ( optionCount "chosen" (html [] state), optionCount "available" (html [] state) )
         ]
@@ -885,7 +886,7 @@ unknownTests =
             \_ ->
                 let
                     state =
-                        Transfer.setValues ids [ 99 ] field |> button "Move all to Available"
+                        Transfer.setValues ids [ 99 ] field |> button "Move all shown to “Available”"
                 in
                 Expect.equal ( [], 5 ) ( Transfer.values state, optionCount "available" (html [] state) )
         , test "valueText writes it" <|
@@ -906,7 +907,7 @@ unknownTests =
             \_ ->
                 let
                     state =
-                        Transfer.setValues ids [ 4, 1 ] field
+                        Transfer.setValues ids [ 1, 4 ] field
 
                     h =
                         html [] state
@@ -981,12 +982,160 @@ localeTests =
                         [ Transfer.locale Locale.nb ]
 
                     moved =
-                        field |> clickRow "a" 0 |> clickRow "a" 1 |> fireOn nb [ attr "aria-label" "Flytt markerte til Valgte" ] Event.click
+                        field |> clickRow "a" 0 |> clickRow "a" 1 |> fireOn nb [ attr "aria-label" "Flytt markerte til «Valgte»" ] Event.click
                 in
                 Expect.equal [ True, True, True, True ]
                     [ Drive.has [ Selector.text "Tilgjengelige" ] (html nb field)
                     , Drive.has [ Selector.text "0 av 5 markert" ] (html nb field)
-                    , Drive.has [ attr "aria-label" "Filtrer Tilgjengelige" ] (html nb field)
-                    , Drive.has [ attr "role" "status", Selector.text "2 elementer flyttet til Valgte" ] (html nb moved)
+                    , Drive.has [ attr "aria-label" "Filtrer «Tilgjengelige»" ] (html nb field)
+                    , Drive.has [ attr "role" "status", Selector.text "2 elementer flyttet til «Valgte»" ] (html nb moved)
                     ]
+        ]
+
+
+
+-- REVIEW FIXES
+
+
+reviewTests : Test
+reviewTests =
+    let
+        shiftKey name state =
+            fireOn [] [ Selector.id "products-available" ] (Drive.keyWith { ctrl = False, shift = True } name) state
+
+        markedCount state =
+            List.range 0 4
+                |> List.filter (\row -> Drive.has [ Selector.id ("products-a-" ++ String.fromInt row), attr "aria-selected" "true" ] (html [] state))
+                |> List.length
+
+        cursorAt state =
+            List.range 0 4
+                |> List.filter (\row -> Drive.has [ Selector.id "products-available", attr "aria-activedescendant" ("products-a-" ++ String.fromInt row) ] (html [] state))
+                |> List.head
+
+        watching =
+            fireOn [] [ attr "role" "group" ] (Event.custom "mouseenter" (Encode.object [])) field
+    in
+    describe "after the review"
+        [ test "the value does not change order when the user only looks, marks or filters" <|
+            \_ ->
+                let
+                    set =
+                        Transfer.setValues ids [ 5, 1 ] field
+                in
+                Expect.equal
+                    [ [ 5, 1 ], [ 5, 1 ], [ 5, 1 ], [ 5, 1 ] ]
+                    [ Transfer.values set
+                    , Transfer.values (clickRow "a" 0 set)
+                    , Transfer.values (typeIn "available" "co" set)
+                    , Transfer.values (pressIn "available" "ArrowDown" set)
+                    ]
+        , test "items that arrive after the ids were set do not change the value either" <|
+            \_ ->
+                let
+                    set =
+                        Transfer.setValues ids [ 5, 1 ] field
+
+                    afterArrival =
+                        fireOn [ Transfer.remote ids (Loaded products) ] [ Selector.id "products-a-1" ] Event.click set
+                in
+                Expect.equal [ 5, 1 ] (Transfer.values afterArrival)
+        , test "a move puts the chosen ids in the order of the items" <|
+            \_ ->
+                Expect.equal [ 1, 3, 5 ] (Transfer.setValues ids [ 5, 1 ] field |> dblClickRow "a" 1 |> Transfer.values)
+        , test "once the field has seen the items, ids that are set come out in the order of the items" <|
+            \_ ->
+                Expect.equal [ 1, 5 ] (Transfer.values (Transfer.setValues ids [ 5, 1 ] watching))
+        , test "looking at the field the first time works the lists out once, and not again" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.notEqual Nothing (Drive.fire [ attr "role" "group" ] (Event.custom "mouseenter" (Encode.object [])) (html [] field))
+                    , \_ -> Expect.notEqual Nothing (Drive.fire [ attr "role" "group" ] (Event.custom "focusin" (Encode.object [])) (html [] field))
+                    , \_ -> Expect.equal Nothing (Drive.fire [ attr "role" "group" ] (Event.custom "mouseenter" (Encode.object [])) (html [] watching))
+                    ]
+                    ()
+        , test "Enter in a filter box does not submit a form: it goes on to the list; so does ArrowDown" <|
+            \_ ->
+                let
+                    pressed name =
+                        Drive.fire [ Selector.id "products-available-filter" ] (Drive.key name) (html [] field)
+                in
+                Expect.all
+                    [ \_ -> Expect.notEqual Nothing (pressed "Enter")
+                    , \_ -> Expect.notEqual Nothing (pressed "ArrowDown")
+                    , \_ -> Expect.equal Nothing (pressed "x")
+                    ]
+                    ()
+        , test "Shift+Arrow shrinks the range when the direction turns, and keeps what was marked before" <|
+            \_ ->
+                let
+                    start =
+                        field |> clickRow "a" 2
+
+                    down2 =
+                        start |> shiftKey "ArrowDown" |> shiftKey "ArrowDown"
+
+                    back1 =
+                        down2 |> shiftKey "ArrowUp"
+                in
+                -- item 4 (row 3) is disabled and is never marked: rows 2 and 4 are the range
+                Expect.equal [ 1, 2, 1 ] [ markedCount start, markedCount down2, markedCount back1 ]
+        , test "a range that goes back over a row that was marked earlier leaves that mark alone" <|
+            \_ ->
+                let
+                    state =
+                        field |> clickRow "a" 1 |> clickRow "a" 0 |> shiftKey "ArrowDown" |> shiftKey "ArrowDown"
+                in
+                -- rows 0 and 1 were marked, the range 0..2 adds row 2; going back to row 1 takes row 2 away only
+                Expect.equal [ 3, 2 ] [ markedCount state, markedCount (shiftKey "ArrowUp" state) ]
+        , test "type-ahead skips an item that is disabled, as the arrows do" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.equal (Just 0) (cursorAt (field |> pressIn "available" "m"))
+                    , \_ -> Expect.equal (Just 4) (cursorAt (field |> pressIn "available" "s"))
+                    ]
+                    ()
+        , test "filtering is announced politely, so a screen reader hears how many items are shown" <|
+            \_ ->
+                let
+                    state =
+                        field |> typeIn "available" "co"
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ attr "role" "status", attr "aria-live" "polite", Selector.text "2 shown in “Available”" ] (html [] state))
+                    , \_ ->
+                        Expect.equal True
+                            (Drive.has [ attr "role" "status", Selector.text "2 vist i «Tilgjengelige»" ]
+                                (html [ Transfer.locale Locale.nb ] (fireOn [ Transfer.locale Locale.nb ] [ Selector.id "products-available-filter" ] (Event.input "co") field))
+                            )
+                    ]
+                    ()
+        , test "a title is quoted wherever it is part of a sentence" <|
+            \_ ->
+                let
+                    h =
+                        html [ Transfer.titles { available = "Stock", chosen = "On sale" } ] field
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move selected to “On sale”" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move all shown to “Stock”" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Select all in “Stock”" ] h)
+                    ]
+                    ()
+        , test "a key of an input method composition in a filter box is left alone" <|
+            \_ ->
+                let
+                    composing =
+                        Event.custom "keydown"
+                            (Encode.object
+                                [ ( "key", Encode.string "Enter" )
+                                , ( "ctrlKey", Encode.bool False )
+                                , ( "metaKey", Encode.bool False )
+                                , ( "altKey", Encode.bool False )
+                                , ( "shiftKey", Encode.bool False )
+                                , ( "isComposing", Encode.bool True )
+                                ]
+                            )
+                in
+                Expect.equal Nothing (Drive.fire [ Selector.id "products-available-filter" ] composing (html [] field))
         ]
