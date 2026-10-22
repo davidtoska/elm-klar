@@ -129,7 +129,9 @@ layout : { query : String, collapsed : Set String, maxRows : Int } -> List Item 
 layout options items =
     let
         words =
+            -- `String.words` of nothing is one empty word
             String.words (Internal.normalize options.query)
+                |> List.filter (\word -> word /= "")
 
         filtering =
             not (List.isEmpty words)
