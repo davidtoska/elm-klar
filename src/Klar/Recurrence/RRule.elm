@@ -461,7 +461,7 @@ dailyPattern every byDay =
 
         Just raw ->
             if every > 1 then
-                Err (Unsupported ("BYDAY with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)"))
+                Err (Unsupported "BYDAY with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)")
 
             else
                 weeklyPattern "FREQ=DAILY" (Just raw)

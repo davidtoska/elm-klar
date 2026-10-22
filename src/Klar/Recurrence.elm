@@ -73,9 +73,11 @@ There are no time zones in the official Elm packages, and a date does not
 shift between them. If the repeating thing has a time of day, your application
 attaches the time and its zone to each date the rule gives.
 
-**Limits.** No date after 31 December 9999 is ever produced, a result holds at
-most `maxOccurrences` dates, and the work is done period by period, not day by
-day: a yearly rule across a century is a hundred steps.
+**Limits.** No date after 31 December 9999 is ever produced (an `until` after
+that year is a `Problem`), a result holds at most `maxOccurrences` dates, an
+interval or a number of occurrences is at most 2 147 483 647 (a `Problem` above
+it, and when an RRULE gives a longer number), and the work is done period by
+period, not day by day: a yearly rule across a century is a hundred steps.
 
 
 # Building a rule
@@ -647,7 +649,6 @@ count window (Rule spec) =
 
             else
                 Just found
-
 
 
 {-| Whether the rule never ends (the end is `never`), however far its dates
