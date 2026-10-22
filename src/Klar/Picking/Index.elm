@@ -502,8 +502,16 @@ the matches and the nodes around them.
 rows : View -> Index id -> Rows id
 rows view index =
     let
+        top =
+            case view.filter of
+                Just f ->
+                    List.filter (\key -> Set.member key f.visible) index.roots
+
+                Nothing ->
+                    index.roots
+
         reversed =
-            emit view index index.roots []
+            emit view index top []
 
         ordered =
             List.reverse reversed
