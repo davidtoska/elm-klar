@@ -6,7 +6,7 @@ module Klar.Recurrence exposing
     , Option, every, ends, except
     , End, never, after, until
     , exceptions, withExceptions
-    , occurrences, between, next, isOccurrence, count, maxOccurrences
+    , occurrences, between, next, isOccurrence, count, isEndless, maxOccurrences
     , describe
     , toRRule, fromRRule
     )
@@ -73,9 +73,11 @@ There are no time zones in the official Elm packages, and a date does not
 shift between them. If the repeating thing has a time of day, your application
 attaches the time and its zone to each date the rule gives.
 
-**Limits.** No date after 31 December 9999 is ever produced, a result holds at
-most `maxOccurrences` dates, and the work is done period by period, not day by
-day: a yearly rule across a century is a hundred steps.
+**Limits.** No date after 31 December 9999 is ever produced (an `until` after
+that year is a `Problem`), a result holds at most `maxOccurrences` dates, an
+interval or a number of occurrences is at most 2 147 483 647 (a `Problem` above
+it, and when an RRULE gives a longer number), and the work is done period by
+period, not day by day: a yearly rule across a century is a hundred steps.
 
 
 # Building a rule
@@ -115,7 +117,7 @@ day: a yearly rule across a century is a hundred steps.
 
 # The dates
 
-@docs occurrences, between, next, isOccurrence, count, maxOccurrences
+@docs occurrences, between, next, isOccurrence, count, isEndless, maxOccurrences
 
 
 # In words
@@ -143,7 +145,10 @@ import Time
 
 
 {-| A rule for dates that repeat. It is always valid: make one with `rule` or
-`fromRRule`. Two rules that mean the same are equal with `==`.
+`fromRRule`. Rules are compared with `==`: the order of the options, of the
+weekdays and of the skipped dates does not matter, but two rules built from
+different patterns are different even when they give the same dates (every
+weekday of the week is not `daily`).
 -}
 type Rule
     = Rule Spec
@@ -189,7 +194,15 @@ rule repeats every time (every day, every week ...) and never ends.
         [ Recurrence.ends (Recurrence.until lastDayOf2027) ]
 
 A rule that cannot exist is an `Err` with the reason: `every 0`, `after 0`, a
-`monthlyOnDay 32`, a `yearlyOnDate Apr 31`. Nothing is clamped.
+`monthlyOnDay 32`, a `yearlyOnDate Apr 31`, an `every` or `after` above
+2 147 483 647, an `until` in a year after 9999. Nothing is clamped.
+
+The rule does not know its start date, and a start date that does not fit the
+rule (a weekly rule on Mondays started on a Tuesday) is not an occurrence here:
+the first date is the first one that fits. RFC 5545 says that `DTSTART` is the
+first instance even then, and leaves such a rule undefined, so a calendar that
+reads the RRULE of this rule with such a `DTSTART` may show one more date.
+Start the series on a date that fits, and the two agree.
 
 -}
 rule : Pattern -> List Option -> Result Problem Rule
@@ -420,7 +433,8 @@ last =
 
 
 {-| Repeat every n-th day, week, month or year instead of every one. The
-default is 1. A number below 1 makes `rule` return a `Problem`.
+default is 1. A number below 1, or above 2 147 483 647, makes `rule` return a
+`Problem`.
 
     Recurrence.every 2
 
@@ -469,7 +483,7 @@ never =
 
 
 {-| The rule ends after this many occurrences, counting the first. A number
-below 1 makes `rule` return a `Problem`.
+below 1, or above 2 147 483 647, makes `rule` return a `Problem`.
 
     Recurrence.after 10
 
@@ -480,7 +494,8 @@ after n =
 
 
 {-| The rule ends on this date, which is still an occurrence if it fits the
-rule.
+rule ("through" that day). A date after the year 9999 makes `rule` return a
+`Problem`, because no date after 31 December 9999 is ever given.
 -}
 until : Date -> End
 until date =
@@ -508,12 +523,7 @@ the RRULE, so it comes from elsewhere.
 -}
 withExceptions : List Date -> Rule -> Rule
 withExceptions dates (Rule spec) =
-    case Spec.make { spec | except = dates } of
-        Ok changed ->
-            Rule changed
-
-        Err _ ->
-            Rule spec
+    Rule (Spec.withExceptions dates spec)
 
 
 
@@ -533,8 +543,8 @@ maxOccurrences =
 are counted from `start`: "after 10 occurrences" ends with the tenth date from
 `start`, also when `from` is later.
 
-    Recurrence.occurrences { start = october20, from = october20, limit = 3 } weekly
-    --> the next three dates
+    Recurrence.occurrences { start = october20, from = october20, limit = 3 } rule
+    --> the first three dates of the rule, counted from October 20
 
 A `limit` of 0 or less gives no dates, and more than `maxOccurrences` counts as
 `maxOccurrences`. Nothing after 31 December 9999 is returned.
@@ -613,8 +623,8 @@ isOccurrence window (Rule spec) =
 
 
 {-| How many occurrences a rule that ends has in all, skipped dates left out.
-`Nothing` for a rule that never ends, and for one with more than
-`maxOccurrences`.
+`Nothing` when there is no number to give: the rule never ends (`isEndless`
+says so), or it has more than `maxOccurrences` dates.
 -}
 count : { start : Date } -> Rule -> Maybe Int
 count window (Rule spec) =
@@ -641,14 +651,27 @@ count window (Rule spec) =
                 Just found
 
 
+{-| Whether the rule never ends (the end is `never`), however far its dates
+reach.
+
+    Recurrence.rule Recurrence.daily [] |> Result.map Recurrence.isEndless
+    --> Ok True
+
+-}
+isEndless : Rule -> Bool
+isEndless (Rule spec) =
+    spec.end == Spec.Never
+
+
 
 -- WORDS
 
 
 {-| The rule in plain language, in the language of the locale: "Every day",
-"Every 2 weeks on Monday and Thursday", "On the last Friday of every month until
-31 December 2027", "Hver andre uke på mandag og torsdag". Weekday and month names
-and dates follow `Klar.Locale` and `Klar.Format`.
+"Every 2 weeks on Monday and Thursday", "On the last Friday of every month through
+31 December 2027", "Hver andre uke på mandag og torsdag". The last day of a rule
+that ends on a date is part of it, so the words say "through" and "til og med".
+Weekday and month names and dates follow `Klar.Locale` and `Klar.Format`.
 -}
 describe : Locale -> Rule -> String
 describe locale (Rule spec) =
@@ -669,6 +692,15 @@ for it, `BYMONTHDAY=-1` or `BYMONTHDAY=28,29,30;BYSETPOS=-1`.
 
 `fromRRule (toRRule rule)` is `Ok rule` for every rule without skipped dates.
 
+Two things to know before the text goes to a calendar. RFC 5545 counts the
+`DTSTART` of an event as its first instance even when it does not fit the rule
+(and calls the result undefined), but this library skips a start that does not
+fit: start the event on a date that is an occurrence, or the calendar may show
+one date more than `occurrences` does. And a date-only `UNTIL` is valid only
+when `DTSTART` is a date too: some calendars read `UNTIL=20271231` on an event
+with a time as midnight, which drops the last day. Give those the end as a
+moment yourself.
+
 -}
 toRRule : Rule -> String
 toRRule (Rule spec) =
@@ -679,10 +711,17 @@ toRRule (Rule spec) =
 order). It reads `FREQ` (`DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY`), `INTERVAL`,
 `COUNT`, `UNTIL` as a date (`20271231`), `BYDAY` (with a number as in `2TU` and
 `-1FR`, from the first to the fourth and the last), `BYMONTHDAY`, `BYMONTH` and
-the two forms of `BYSETPOS=-1` that `toRRule` writes.
+the two forms of `BYSETPOS=-1` that `toRRule` writes. Every number is at most
+2 147 483 647, and an `UNTIL` is a date before the year 10 000.
+
+Two forms are read as the rule they mean: `FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR` (any
+list of plain weekdays, without an interval) as a weekly rule on those days, and
+`BYMONTH=3;BYMONTHDAY=-1` as the last day of March every year. Both come out in
+their usual form when written again.
 
 Everything else is a `Problem` that names it and nothing is guessed: `HOURLY`,
-`BYWEEKNO`, a fifth Tuesday, several days of the month, `UNTIL` with a time. A
+`BYWEEKNO`, a fifth Tuesday, several days of the month, `UNTIL` with a time (the
+problem says to give the last day as a date). A
 rule needs the days in the text, since it has no start date to take them from,
 so a weekly rule without `BYDAY` is a `Problem` too. `WKST` is accepted when it
 cannot change the dates, and refused for a weekly rule every second week or

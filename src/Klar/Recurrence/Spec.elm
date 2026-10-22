@@ -5,9 +5,12 @@ module Klar.Recurrence.Spec exposing
     , Pattern(..)
     , Problem(..)
     , Spec
+    , largest
+    , lastYear
     , make
     , ordinalNumber
     , weekdayNumbers
+    , withExceptions
     )
 
 {-| The open data model behind `Klar.Recurrence`: a rule as plain data, and the
@@ -74,7 +77,10 @@ type End
 -}
 type Problem
     = IntervalTooSmall Int
+    | IntervalTooLarge
     | CountTooSmall Int
+    | CountTooLarge
+    | EndTooLate
     | DayOutOfRange Int
     | MonthOutOfRange Int
     | NoSuchDate Int Int
@@ -87,6 +93,24 @@ type Problem
     | Conflict String
 
 
+{-| The largest interval and the largest number of occurrences: 2 147 483 647,
+the largest 32-bit integer. A number that a person or a backend gives is never
+far from that, and every number up to it is exact in every Elm runtime, which
+`String.toInt` is not for a longer string of digits.
+-}
+largest : Int
+largest =
+    2147483647
+
+
+{-| The last year a date can have in a rule: 9999. It is the last year of the
+four-digit ISO form, and the dates a rule gives never go past its last day.
+-}
+lastYear : Int
+lastYear =
+    9999
+
+
 {-| The one way to get a `Spec`: checks the numbers, puts the lists in order
 and the missing-day choice in its canonical form.
 -}
@@ -94,6 +118,9 @@ make : Spec -> Result Problem Spec
 make spec =
     if spec.every < 1 then
         Err (IntervalTooSmall spec.every)
+
+    else if spec.every > largest then
+        Err IntervalTooLarge
 
     else
         case ( endProblem spec.end, patternProblem spec.pattern ) of
@@ -112,6 +139,13 @@ make spec =
                     }
 
 
+{-| The same rule with other skipped dates, in order and without duplicates.
+-}
+withExceptions : List Date -> Spec -> Spec
+withExceptions dates spec =
+    { spec | except = sortedUnique dates }
+
+
 endProblem : End -> Maybe Problem
 endProblem end =
     case end of
@@ -119,10 +153,20 @@ endProblem end =
             if n < 1 then
                 Just (CountTooSmall n)
 
+            else if n > largest then
+                Just CountTooLarge
+
             else
                 Nothing
 
-        _ ->
+        Until date ->
+            if Date.year date > lastYear then
+                Just EndTooLate
+
+            else
+                Nothing
+
+        Never ->
             Nothing
 
 

@@ -71,6 +71,19 @@ last day (the default) or skip the month. Below the fields a sentence says what
 the rule means, in the language of the field, and the next five dates follow; both
 are made by [Klar.Recurrence](Klar-Recurrence).
 
+**The end.** An end date before the start date is a problem (`EndBeforeStart`):
+the field has no `value` until it is changed, and says so under the fields. The
+number of times and the interval are whole numbers from 1 to 2 147 483 647, the
+same limits as in [Klar.Recurrence](Klar-Recurrence), so every rule that module
+accepts can be shown.
+
+**Skipped dates.** A rule can skip dates (`Recurrence.except`). The field does
+not add any, but it shows the ones a loaded rule has, each as a tag with a button
+that removes it, and a "Remove all" button; the keyboard focus moves to the next
+date, or back to the field. A skipped date that no longer fits the rule (a
+Tuesday in a rule that now repeats on Thursdays) stays in the list until it is
+removed: nothing is dropped behind the user's back.
+
 Everything is built from the components of this package, so the keyboard works
 as it does there: the arrow keys in the choice of frequency, the weekdays as
 check boxes, the spinbutton for the interval, the calendar of the date field. The
@@ -123,6 +136,7 @@ zone are not part of it; your application adds them to each date.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Keyed as Keyed
+import Klar.Button as Button
 import Klar.CheckboxGroup as CheckboxGroup
 import Klar.Date as Date exposing (Date)
 import Klar.DatePicker as DatePicker
@@ -137,6 +151,7 @@ import Klar.Recurrence.RRule as RRule
 import Klar.Recurrence.Spec as Spec
 import Klar.Recurrence.Words as Words
 import Klar.SegmentedControl as SegmentedControl
+import Klar.Tag as Tag
 import Klar.Theme exposing (Size(..))
 import Time
 
@@ -203,12 +218,12 @@ type Anchor
 
 intervalLimits : List (NumberInput.Attribute msg)
 intervalLimits =
-    [ NumberInput.min 1, NumberInput.max 999, NumberInput.decimals 0 ]
+    [ NumberInput.min 1, NumberInput.max (toFloat Spec.largest), NumberInput.decimals 0 ]
 
 
 countLimits : List (NumberInput.Attribute msg)
 countLimits =
-    [ NumberInput.min 1, NumberInput.max 9999, NumberInput.decimals 0 ]
+    [ NumberInput.min 1, NumberInput.max (toFloat Spec.largest), NumberInput.decimals 0 ]
 
 
 {-| A field that does not repeat. The `String` is the DOM id of the first control
@@ -282,12 +297,12 @@ build s =
             NotRepeating
 
         _ ->
-            case ( wholeNumber 999 (NumberInput.value s.interval), endOf s ) of
+            case ( wholeNumber (NumberInput.value s.interval), endOf s ) of
                 ( Nothing, _ ) ->
                     Incomplete NeedsInterval
 
-                ( Just _, Err missing ) ->
-                    Incomplete missing
+                ( Just _, Err found ) ->
+                    Incomplete found
 
                 ( Just every, Ok end ) ->
                     case
@@ -300,9 +315,9 @@ build s =
                         Ok rule ->
                             Complete rule
 
-                        Err _ ->
-                            -- every part was checked above, so this is not reached
-                            Incomplete NeedsInterval
+                        Err found ->
+                            -- what the field cannot check itself, such as an end in the year 10000
+                            Incomplete (Invalid found)
 
 
 endOf : Inner -> Result Problem Recurrence.End
@@ -312,7 +327,7 @@ endOf s =
             Ok Recurrence.never
 
         EndAfter ->
-            case wholeNumber 9999 (NumberInput.value s.count) of
+            case wholeNumber (NumberInput.value s.count) of
                 Just n ->
                     Ok (Recurrence.after n)
 
@@ -322,19 +337,23 @@ endOf s =
         EndOn ->
             case DatePicker.date s.endDate of
                 Just date ->
-                    Ok (Recurrence.until date)
+                    if Date.compare date s.start == LT then
+                        Err EndBeforeStart
+
+                    else
+                        Ok (Recurrence.until date)
 
                 Nothing ->
                     Err NeedsEndDate
 
 
-{-| A whole number from 1 up to a limit, or `Nothing`.
+{-| A whole number from 1 up to the largest that a rule takes, or `Nothing`.
 -}
-wholeNumber : Int -> Maybe Float -> Maybe Int
-wholeNumber limit maybe =
+wholeNumber : Maybe Float -> Maybe Int
+wholeNumber maybe =
     case maybe of
         Just number ->
-            if number >= 1 && number <= toFloat limit && number == toFloat (round number) then
+            if number >= 1 && number <= toFloat Spec.largest && number == toFloat (round number) then
                 Just (round number)
 
             else
@@ -385,9 +404,10 @@ withMissing s pattern =
             pattern
 
 
-{-| The rule the field holds: `Nothing` when the date does not repeat, and also
-while the form is not complete (see `problem`). The rule is counted from the
-start date of the field.
+{-| The rule the field holds. `Nothing` means that the date does not repeat, or
+that the form is not complete: ask `problem` to tell which (it is `Nothing` too
+when the date does not repeat). The rule is counted from the start date of the
+field.
 -}
 value : State -> Maybe Rule
 value (State s) =
@@ -400,10 +420,10 @@ value (State s) =
 
 
 {-| Why `value` is `Nothing` although the field repeats: a number that is
-missing or cannot be used, or an end date that is not chosen. `Nothing` when the
-field is complete, and when it does not repeat at all. Use it to stop a form from
-being saved; the field itself shows the message under its fields, and
-`problemText` gives it in words.
+missing or cannot be used, an end date that is not chosen, or an end date that is
+before the start date. `Nothing` when the field is complete, and when it does not
+repeat at all. Use it to stop a form from being saved; the field itself shows the
+message under its fields, and `problemText` gives it in words.
 -}
 problem : State -> Maybe Problem
 problem (State s) =
@@ -422,6 +442,8 @@ type Problem
     = NeedsInterval
     | NeedsCount
     | NeedsEndDate
+    | EndBeforeStart
+    | Invalid Recurrence.Problem
 
 
 {-| The problem in a sentence, in the language of the locale.
@@ -451,15 +473,27 @@ problemText lang found =
                 , en = "Choose the date it ends."
                 }
 
+        EndBeforeStart ->
+            Locale.pick lang
+                { nb = "Sluttdatoen er før startdatoen."
+                , en = "The end date is before the start date."
+                }
+
+        Invalid found_ ->
+            Recurrence.problemText lang found_
+
 
 {-| Shows a rule in the field, or "Does not repeat" for `Nothing`: for a rule
 loaded from a server. Everything the rule says is put in the inputs (the
 interval, the days, the end), and the dates it skips are kept. A text the user was
 typing is dropped.
 
-A day or weekday that the start date does not give (a monthly rule on the 15th
-with a start on the 20th) is offered as a choice of its own, so the field shows
-the rule as it is and never changes it.
+The field shows the rule as it is and never changes it. The day of a monthly or
+yearly rule is kept as the rule has it, also when it is the day of the start date:
+the choice is listed (once, with the choices that follow the start date) and
+`setStart` does not move it. A rule that is loaded with an end date before the
+start date has no `value` and the problem `EndBeforeStart` until one of them is
+changed.
 
     RecurrencePicker.setRule (Just rule) model.repeat
 
@@ -508,34 +542,16 @@ fill spec skipped s =
             { common | frequency = Weekly, weekdays = days, weekdaysChosen = True }
 
         Spec.MonthlyDay day missing ->
-            { common | frequency = Monthly, by = byOf s.start (AnchorDay (Date.month s.start) day), missing = missing }
+            { common | frequency = Monthly, by = Own (AnchorDay (Date.month s.start) day), missing = missing }
 
         Spec.MonthlyWeekday ordinal weekday ->
-            { common | frequency = Monthly, by = byOf s.start (AnchorNth ordinal weekday (Date.month s.start)) }
+            { common | frequency = Monthly, by = Own (AnchorNth ordinal weekday (Date.month s.start)) }
 
         Spec.YearlyDate month day missing ->
-            { common | frequency = Yearly, by = byOf s.start (AnchorDay month day), missing = missing }
+            { common | frequency = Yearly, by = Own (AnchorDay month day), missing = missing }
 
         Spec.YearlyWeekday ordinal weekday month ->
-            { common | frequency = Yearly, by = byOf s.start (AnchorNth ordinal weekday month) }
-
-
-{-| The choice that means this anchor: one that follows the start date when the
-start date gives the same, and a choice of its own otherwise.
--}
-byOf : Date -> Anchor -> By
-byOf startDate anchor =
-    if anchor == anchorFor startDate ByDay then
-        ByDay
-
-    else if anchor == anchorFor startDate ByNth then
-        ByNth
-
-    else if anchor == anchorFor startDate ByLast && endsMonth startDate then
-        ByLast
-
-    else
-        Own anchor
+            { common | frequency = Yearly, by = Own (AnchorNth ordinal weekday month) }
 
 
 {-| What a choice means for a start date.
@@ -550,7 +566,7 @@ anchorFor startDate by =
             AnchorNth (ordinalOfStart startDate) (Date.weekday startDate) (Date.month startDate)
 
         ByLast ->
-            if endsMonth startDate then
+            if offersLast startDate then
                 AnchorNth Spec.Last (Date.weekday startDate) (Date.month startDate)
 
             else
@@ -594,26 +610,50 @@ endsMonth date =
     Date.day date + 7 > Date.daysInMonth (Date.year date) (Date.month date)
 
 
-{-| The choices a monthly or yearly rule offers: the day, the n-th weekday, the
-last weekday when the start is the last one, and the rule's own day if it has
-one.
+{-| Whether "the last Tuesday" is a choice of its own: the start date is the last
+such weekday of its month and not also the fifth, which `ByNth` already says as
+"the last".
+-}
+offersLast : Date -> Bool
+offersLast date =
+    endsMonth date && ordinalOfStart date /= Spec.Last
+
+
+{-| The choices a monthly or yearly rule offers: the day, the n-th weekday and the
+last weekday when the start gives it. A rule that was loaded has its own choice,
+which stands in the place of the one that means the same, or comes last when the
+start gives none of them.
 -}
 choices : Inner -> List By
 choices s =
-    [ ByDay, ByNth ]
-        ++ (if endsMonth s.start && ordinalOfStart s.start /= Spec.Last then
-                [ ByLast ]
+    let
+        derived =
+            [ ByDay, ByNth ]
+                ++ (if offersLast s.start then
+                        [ ByLast ]
+
+                    else
+                        []
+                   )
+    in
+    case s.by of
+        Own anchor ->
+            if List.any (\by -> anchorFor s.start by == anchor) derived then
+                List.map
+                    (\by ->
+                        if anchorFor s.start by == anchor then
+                            Own anchor
+
+                        else
+                            by
+                    )
+                    derived
 
             else
-                []
-           )
-        ++ (case s.by of
-                Own anchor ->
-                    [ Own anchor ]
+                derived ++ [ Own anchor ]
 
-                _ ->
-                    []
-           )
+        _ ->
+            derived
 
 
 toWeekday : Int -> Time.Weekday
@@ -716,6 +756,8 @@ type Msg
     | EndChosen EndKind
     | CountMsg NumberInput.Msg
     | EndDateMsg DatePicker.Msg
+    | ExceptionRemoved Date
+    | ExceptionsCleared
     | Ignored
 
 
@@ -774,6 +816,35 @@ update msg (State s) =
                     DatePicker.update inner s.endDate
             in
             ( State { s | endDate = endDate, endDateVisited = True }, Cmd.map EndDateMsg cmd )
+
+        ExceptionRemoved date ->
+            let
+                remaining =
+                    List.filter (\other -> other /= date) s.exceptions
+
+                position =
+                    s.exceptions
+                        |> List.indexedMap Tuple.pair
+                        |> List.filter (\( _, other ) -> other == date)
+                        |> List.head
+                        |> Maybe.map Tuple.first
+                        |> Maybe.withDefault 0
+
+                -- the button of the date that took its place, else the one before, else the field
+                neighbour =
+                    case List.drop position remaining of
+                        next :: _ ->
+                            Just next
+
+                        [] ->
+                            List.head (List.reverse remaining)
+            in
+            ( State { s | exceptions = remaining }
+            , Internal.focus (Maybe.withDefault s.id (Maybe.map (removeId s.id) neighbour)) Ignored
+            )
+
+        ExceptionsCleared ->
+            ( State { s | exceptions = [] }, Internal.focus s.id Ignored )
 
         Ignored ->
             ( State s, Cmd.none )
@@ -942,6 +1013,8 @@ type alias Strings =
     , firstDates : String
     , andMore : String
     , noDates : String
+    , skipped : String
+    , removeAll : String
     }
 
 
@@ -969,6 +1042,8 @@ strings lang =
             , firstDates = "Første datoer"
             , andMore = "og flere"
             , noDates = "Ingen datoer passer til regelen."
+            , skipped = "Datoer som hoppes over"
+            , removeAll = "Fjern alle"
             }
         , en =
             { repeat = "Repeat"
@@ -991,6 +1066,8 @@ strings lang =
             , firstDates = "First dates"
             , andMore = "and more"
             , noDates = "No dates match the rule."
+            , skipped = "Skipped dates"
+            , removeAll = "Remove all"
             }
         }
 
@@ -1009,19 +1086,19 @@ everyWords lang frequency number =
     case frequency of
         Daily ->
             Locale.pick lang
-                { nb = { prefix = "Hver", unit = pick "dag" "dager" }
+                { nb = { prefix = "Hver", unit = "dag" }
                 , en = { prefix = "Every", unit = pick "day" "days" }
                 }
 
         Weekly ->
             Locale.pick lang
-                { nb = { prefix = "Hver", unit = pick "uke" "uker" }
+                { nb = { prefix = "Hver", unit = "uke" }
                 , en = { prefix = "Every", unit = pick "week" "weeks" }
                 }
 
         Monthly ->
             Locale.pick lang
-                { nb = { prefix = "Hver", unit = pick "måned" "måneder" }
+                { nb = { prefix = "Hver", unit = "måned" }
                 , en = { prefix = "Every", unit = pick "month" "months" }
                 }
 
@@ -1323,6 +1400,12 @@ visited s found =
         NeedsEndDate ->
             s.endDateVisited && not (DatePicker.isInvalid s.endDate)
 
+        EndBeforeStart ->
+            True
+
+        Invalid _ ->
+            True
+
 
 viewLegend : Field.Config -> String -> Html msg
 viewLegend field legendText =
@@ -1385,6 +1468,7 @@ viewBody toMsg config text built s =
             , missingQuestion config.locale s
                 |> Maybe.map (\question -> ( "missing", viewMissing toMsg config question s ))
             , onlyIf repeating ( "end", viewEnd toMsg config text s )
+            , onlyIf (repeating && not (List.isEmpty s.exceptions)) ( "skipped", viewSkipped toMsg config text s )
             , Just ( "summary", viewSummary config built s )
             , onlyIf repeating ( "preview", viewPreview config text built s )
             ]
@@ -1513,7 +1597,7 @@ start date moved and is not the last one any more.
 -}
 shownBy : Inner -> By
 shownBy s =
-    if s.by == ByLast && not (endsMonth s.start) then
+    if s.by == ByLast && not (offersLast s.start) then
         ByNth
 
     else
@@ -1588,7 +1672,6 @@ viewEnd toMsg config text s =
                                 [ DatePicker.view (\inner -> toMsg (EndDateMsg inner))
                                     ([ DatePicker.label text.endDate
                                      , DatePicker.labelHidden
-                                     , DatePicker.min s.start
                                      , DatePicker.size config.size
                                      , DatePicker.locale config.locale
                                      , DatePicker.disabled config.disabled
@@ -1616,7 +1699,12 @@ timesWord lang number =
             number |> Maybe.map round |> Maybe.withDefault 2
     in
     Locale.pick lang
-        { nb = "ganger"
+        { nb =
+            if n == 1 then
+                "gang"
+
+            else
+                "ganger"
         , en =
             if n == 1 then
                 "time"
@@ -1624,6 +1712,55 @@ timesWord lang number =
             else
                 "times"
         }
+
+
+{-| The dates that the rule skips, each with a button that takes it out, and a
+button that takes them all out. The dates that no longer fit the rule (a Tuesday
+skipped in a rule that has moved to Thursdays) stay in the list until they are
+removed: nothing is dropped behind the user's back.
+-}
+viewSkipped : (Msg -> msg) -> Config -> Strings -> Inner -> Html msg
+viewSkipped toMsg config text s =
+    Html.div
+        [ Internal.cls [ "klar-recurrence__skipped" ]
+        , Attr.attribute "role" "group"
+        , Attr.attribute "aria-labelledby" (s.id ++ "-skipped-title")
+        ]
+        [ Html.p
+            [ Internal.cls [ "klar-recurrence__skipped-title" ]
+            , Attr.id (s.id ++ "-skipped-title")
+            ]
+            [ Html.text text.skipped ]
+        , Html.ul [ Internal.cls [ "klar-recurrence__skipped-list" ] ]
+            (List.map
+                (\date ->
+                    Html.li [ Internal.cls [ "klar-recurrence__skipped-item" ] ]
+                        [ Tag.view
+                            ([ Tag.size config.size, Tag.locale config.locale ]
+                                ++ (if config.disabled then
+                                        []
+
+                                    else
+                                        [ Tag.onRemove (toMsg (ExceptionRemoved date))
+                                        , Tag.removeId (removeId s.id date)
+                                        ]
+                                   )
+                            )
+                            (Format.dateLong config.locale date)
+                        ]
+                )
+                s.exceptions
+            )
+        , Internal.viewIf (not config.disabled)
+            (Button.view [ Button.link, Button.small, Button.onClick (toMsg ExceptionsCleared) ] text.removeAll)
+        ]
+
+
+{-| The DOM id of the button that takes a skipped date out.
+-}
+removeId : String -> Date -> String
+removeId id date =
+    id ++ "-skip-" ++ Date.toIso date
 
 
 viewSummary : Config -> Built -> Inner -> Html msg

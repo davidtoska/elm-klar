@@ -35,6 +35,7 @@ type alias Model =
     , picker : RecurrencePicker.State
     , norwegian : RecurrencePicker.State
     , loaded : RecurrencePicker.State
+    , skipping : RecurrencePicker.State
     , chooser : Select.State Int
     }
 
@@ -44,6 +45,7 @@ type Msg
     | PickerMsg RecurrencePicker.Msg
     | NorwegianMsg RecurrencePicker.Msg
     | LoadedMsg RecurrencePicker.Msg
+    | SkippingMsg RecurrencePicker.Msg
     | ChooserMsg (Select.Msg Int)
 
 
@@ -62,6 +64,9 @@ init =
       , loaded =
             RecurrencePicker.init "recurrence-loaded" today
                 |> setExample 5
+      , skipping =
+            RecurrencePicker.init "recurrence-skipping" today
+                |> setExample 12
       , chooser = Select.init "recurrence-chooser" |> Select.setValue 2
       }
     , Cmd.none
@@ -115,6 +120,13 @@ update msg model =
             in
             ( { model | loaded = loaded }, Cmd.map LoadedMsg cmd )
 
+        SkippingMsg inner ->
+            let
+                ( skipping, cmd ) =
+                    RecurrencePicker.update inner model.skipping
+            in
+            ( { model | skipping = skipping }, Cmd.map SkippingMsg cmd )
+
         ChooserMsg inner ->
             let
                 ( chooser, cmd ) =
@@ -148,7 +160,7 @@ examples =
     , ( "A date every year", ok (Recurrence.yearlyOnDate Oct 20) [] )
     , ( "29 February", ok (Recurrence.yearlyOnDate Feb 29) [] )
     , ( "The third Tuesday of a month", ok (Recurrence.yearlyOnWeekday Recurrence.third Tue Oct) [] )
-    , ( "A skipped date", ok Recurrence.daily [ Recurrence.every 7, Recurrence.except [ Date.addDays 14 today ] ] )
+    , ( "A skipped date", ok Recurrence.daily [ Recurrence.every 7, Recurrence.except [ Date.addDays 14 today, Date.addDays 28 today ] ] )
     ]
 
 
@@ -230,6 +242,18 @@ fieldSection locale model =
                 , RecurrencePicker.locale Locale.nb
                 ]
                 model.norwegian
+            )
+        , Doc.example
+            { title = "Skipped dates"
+            , description = Just "A loaded rule that skips dates shows them as tags with a button each, and Remove all. The field never adds a skipped date, and it keeps one that no longer fits the rule until it is removed: switch the rule to monthly and the dates stay."
+            , code = Just "RecurrencePicker.setRule (Just rule) model.repeat   -- rule made with Recurrence.except [ ... ]"
+            }
+            (RecurrencePicker.view SkippingMsg
+                [ RecurrencePicker.label "Repeat"
+                , RecurrencePicker.today today
+                , RecurrencePicker.locale locale
+                ]
+                model.skipping
             )
         , Doc.example
             { title = "Read-only"

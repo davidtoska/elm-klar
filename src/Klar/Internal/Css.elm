@@ -2340,4 +2340,8 @@ css =
  .klar-recurrence__dates{display: grid;grid-template-columns: repeat(auto-fill,minmax(12rem,1fr));gap: var(--klar-space-1) var(--klar-space-4);margin: 0;padding: 0;list-style: none;font-variant-numeric: tabular-nums}
  .klar-recurrence__date{min-width: 0;color: var(--klar-text)}
  .klar-recurrence__more,.klar-recurrence__none{margin: 0;color: var(--klar-text-muted)}
+ .klar-recurrence__skipped{display: flex;flex-direction: column;align-items: flex-start;gap: var(--klar-space-1);min-width: 0}
+ .klar-recurrence__skipped-title{margin: 0;font-size: var(--klar-text-sm);font-weight: var(--klar-weight-medium);color: var(--klar-text-secondary)}
+ .klar-recurrence__skipped-list{display: flex;flex-wrap: wrap;gap: var(--klar-space-1) var(--klar-space-2);margin: 0;padding: 0;list-style: none}
+ .klar-recurrence__skipped-item{min-width: 0}
 """

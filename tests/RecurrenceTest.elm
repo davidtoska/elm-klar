@@ -23,6 +23,7 @@ suite =
         , limits
         , rrule
         , rruleRejects
+        , bounds
         , words
         , againstTheReference
         ]
@@ -595,13 +596,15 @@ rruleRejects =
         , rejects "FREQ=DAILY;INTERVAL=x" (CannotRead "INTERVAL=x")
         , rejects "FREQ=DAILY;COUNT=0" (CountTooSmall 0)
         , rejects "FREQ=DAILY;COUNT=3;UNTIL=20271231" (Conflict "COUNT and UNTIL")
-        , rejects "FREQ=DAILY;UNTIL=20271231T235959Z" (Unsupported "UNTIL=20271231T235959Z (only the date form, such as 20271231, is read)")
+        , rejects "FREQ=DAILY;UNTIL=20271231T235959Z" (Unsupported "UNTIL=20271231T235959Z (only a date, such as UNTIL=20271231, is read: give the last day as a date)")
         , rejects "FREQ=DAILY;UNTIL=20271331" (CannotRead "UNTIL=20271331")
         , rejects "FREQ=DAILY;UNTIL=2027" (CannotRead "UNTIL=2027")
         , rejects "FREQ=DAILY;FREQ=DAILY" (RepeatedPart "FREQ")
         , rejects "FREQ=DAILY;BYHOUR=9" (Unsupported "BYHOUR")
         , rejects "FREQ=DAILY;X-NOTE=1" (Unsupported "X-NOTE")
-        , rejects "FREQ=DAILY;BYDAY=MO" (Unsupported "BYDAY with FREQ=DAILY")
+        , rejects "FREQ=DAILY;INTERVAL=2;BYDAY=MO" (Unsupported "BYDAY with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)")
+        , rejects "FREQ=DAILY;BYDAY=1MO" (Unsupported "BYDAY=1MO with FREQ=DAILY")
+        , rejects "FREQ=DAILY;BYDAY=MO;BYMONTH=1" (Unsupported "BYMONTH with FREQ=DAILY")
         , rejects "FREQ=DAILY;BYSETPOS=1" (Unsupported "BYSETPOS with FREQ=DAILY")
         , rejects "FREQ=WEEKLY;BYDAY=1MO" (Unsupported "BYDAY=1MO with FREQ=WEEKLY")
         , rejects "FREQ=WEEKLY;BYDAY=XX" (CannotRead "BYDAY=XX")
@@ -625,10 +628,141 @@ rruleRejects =
         , rejects "FREQ=YEARLY;BYMONTH=13;BYMONTHDAY=1" (MonthOutOfRange 13)
         , rejects "FREQ=YEARLY;BYMONTH=1,2;BYMONTHDAY=1" (Unsupported "BYMONTH with several months")
         , rejects "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=31" (NoSuchDate 4 31)
-        , rejects "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=-1" (Unsupported "BYMONTHDAY=-1 with FREQ=YEARLY (the last day of a month)")
+        , rejects "FREQ=DAILY;INTERVAL=2147483648" IntervalTooLarge
+        , rejects "FREQ=DAILY;INTERVAL=99999999999999999999" IntervalTooLarge
+        , rejects "FREQ=DAILY;COUNT=2147483648" CountTooLarge
+        , rejects "FREQ=DAILY;COUNT=99999999999999999999" CountTooLarge
+        , rejects "FREQ=MONTHLY;BYMONTHDAY=99999999999999999999" (DayOutOfRange 999999999999)
+        , rejects "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=28,29,30,31;BYSETPOS=1" (Unsupported "BYSETPOS=1")
         , rejects "this is not a rule" (CannotRead "this is not a rule")
         , rejects "FREQ=DAILY\nCOUNT=3" (Unsupported "several lines (give only the value of the RRULE)")
         , rejects "DTSTART:20261020T090000Z" (Unsupported "DTSTART (the dates around the rule are not part of the RRULE)")
+        ]
+
+
+
+-- BOUNDS AND INTEROP
+
+
+bounds : Test
+bounds =
+    let
+        problem result =
+            case result of
+                Ok _ ->
+                    "no problem"
+
+                Err value ->
+                    Recurrence.problemText Locale.en value
+
+        read input =
+            text (Result.map Recurrence.toRRule (Recurrence.fromRRule input))
+    in
+    describe "bounds and interchange"
+        [ test "the largest interval and count are accepted and survive the RRULE" <|
+            \_ ->
+                Expect.equal (Ok "FREQ=DAILY;INTERVAL=2147483647;COUNT=2147483647")
+                    (rruleOf (build Recurrence.daily [ Recurrence.every 2147483647, Recurrence.ends (Recurrence.after 2147483647) ])
+                        |> Result.andThen read
+                    )
+        , test "one more is a problem, and is not clamped" <|
+            \_ ->
+                Expect.equal
+                    [ "How often it repeats cannot be more than 2147483647."
+                    , "The number of occurrences cannot be more than 2147483647."
+                    ]
+                    [ problem (Recurrence.rule Recurrence.daily [ Recurrence.every 2147483648 ])
+                    , problem (Recurrence.rule Recurrence.daily [ Recurrence.ends (Recurrence.after 2147483648) ])
+                    ]
+        , test "a huge number in an RRULE is a problem, not a different number" <|
+            \_ ->
+                Expect.equal
+                    (Err "How often it repeats cannot be more than 2147483647.")
+                    (read "FREQ=DAILY;INTERVAL=99999999999999999999")
+        , test "leading zeros do not make a number large" <|
+            \_ ->
+                Expect.equal (Ok "FREQ=DAILY;INTERVAL=7") (read "FREQ=DAILY;INTERVAL=0000000000000000007")
+        , test "a daily rule with the largest interval has its first date and no second" <|
+            \_ ->
+                Expect.equal (Ok [ "2026-10-20" ])
+                    (from (date 2026 10 20) 5 (build Recurrence.daily [ Recurrence.every 2147483647 ]))
+        , test "the largest interval of a weekly, monthly and yearly rule does not hang" <|
+            \_ ->
+                Expect.equal (Ok [ [ "2026-10-20" ], [ "2026-10-20" ], [ "2026-10-20" ] ])
+                    (combine
+                        [ from (date 2026 10 20) 5 (build (Recurrence.weekly Tue []) [ Recurrence.every 2147483647 ])
+                        , from (date 2026 10 20) 5 (build (Recurrence.monthlyOnDay 20) [ Recurrence.every 2147483647 ])
+                        , from (date 2026 10 20) 5 (build (Recurrence.yearlyOnDate Oct 20) [ Recurrence.every 2147483647 ])
+                        ]
+                    )
+        , test "an end date in the year 9999 is fine, and in the year 10000 is a problem" <|
+            \_ ->
+                Expect.equal
+                    [ "no problem", "The end date must be in the year 9999 or earlier." ]
+                    [ problem (Recurrence.rule Recurrence.daily [ Recurrence.ends (Recurrence.until (date 9999 12 31)) ])
+                    , problem (Recurrence.rule Recurrence.daily [ Recurrence.ends (Recurrence.until (date 10000 1 1)) ])
+                    ]
+        , test "the last possible end date goes through the RRULE and back" <|
+            \_ ->
+                Expect.equal (Ok "FREQ=DAILY;UNTIL=99991231")
+                    (rruleOf (build Recurrence.daily [ Recurrence.ends (Recurrence.until (date 9999 12 31)) ]) |> Result.andThen read)
+        , test "every weekday written as a daily rule with BYDAY is the weekly rule" <|
+            \_ ->
+                Expect.equal
+                    (Ok ( "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "Every weekday" ))
+                    (Recurrence.fromRRule "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR"
+                        |> Result.map (\rule -> ( Recurrence.toRRule rule, Recurrence.describe Locale.en rule ))
+                        |> Result.mapError (Recurrence.problemText Locale.en)
+                    )
+        , test "and equals the weekly rule that was built" <|
+            \_ ->
+                Expect.equal (build (Recurrence.weekly Mon [ Tue, Wed, Thu, Fri ]) [])
+                    (Recurrence.fromRRule "FREQ=DAILY;BYDAY=FR,MO,TU,WE,TH")
+        , test "the last day of a month, every year" <|
+            \_ ->
+                Expect.equal
+                    (Ok
+                        [ ( "FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=31", "Yearly on 31 March" )
+                        , ( "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=30", "Yearly on 30 April" )
+                        , ( "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=28,29;BYSETPOS=-1", "Yearly on 29 February (28 February in other years)" )
+                        ]
+                    )
+                    (combine
+                        (List.map
+                            (\input ->
+                                Recurrence.fromRRule input
+                                    |> Result.map (\rule -> ( Recurrence.toRRule rule, Recurrence.describe Locale.en rule ))
+                                    |> Result.mapError (Recurrence.problemText Locale.en)
+                            )
+                            [ "FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=-1"
+                            , "FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=-1"
+                            , "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1"
+                            ]
+                        )
+                    )
+        , test "the last day of February has the dates of the last day of February" <|
+            \_ ->
+                Expect.equal (Ok [ "2027-02-28", "2028-02-29", "2029-02-28" ])
+                    (case Recurrence.fromRRule "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1" of
+                        Ok rule ->
+                            Ok (iso (Recurrence.occurrences { start = date 2027 1 1, from = date 2027 1 1, limit = 3 } rule))
+
+                        Err problem_ ->
+                            Err (Recurrence.problemText Locale.en problem_)
+                    )
+        , test "isEndless tells a rule without an end from the others" <|
+            \_ ->
+                Expect.equal (Ok [ True, False, False ])
+                    (combine
+                        [ onRule Recurrence.isEndless (build Recurrence.daily [])
+                        , onRule Recurrence.isEndless (build Recurrence.daily [ Recurrence.ends (Recurrence.after 3) ])
+                        , onRule Recurrence.isEndless (build Recurrence.daily [ Recurrence.ends (Recurrence.until (date 2027 1 1)) ])
+                        ]
+                    )
+        , test "weekly on all seven days is its own rule, not daily" <|
+            \_ ->
+                Expect.notEqual (build Recurrence.daily [])
+                    (build (Recurrence.weekly Mon [ Tue, Wed, Thu, Fri, Sat, Sun ]) [])
         ]
 
 
@@ -668,7 +802,7 @@ words =
             \_ ->
                 Expect.equal
                     (Ok
-                        [ ( "Weekly on Monday", "Ukentlig på mandag" )
+                        [ ( "Weekly on Monday", "Hver mandag" )
                         , ( "Every 2 weeks on Monday and Thursday", "Hver andre uke på mandag og torsdag" )
                         , ( "Weekly on Monday, Wednesday and Friday", "Ukentlig på mandag, onsdag og fredag" )
                         ]
@@ -717,8 +851,8 @@ words =
                     (Ok
                         [ ( "On the last day of every month", "Siste dag i hver måned" )
                         , ( "Monthly on the 31st (months without it are skipped)", "Månedlig den 31. (måneder uten denne dagen hoppes over)" )
-                        , ( "Monthly on the 30th (the last day in shorter months)", "Månedlig den 30. (siste dag i kortere måneder)" )
-                        , ( "Every 2 months on the last day", "Hver andre måned på siste dag" )
+                        , ( "Monthly on the 30th (or the last day of shorter months)", "Månedlig den 30. (eller siste dag i kortere måneder)" )
+                        , ( "Every 2 months on the last day", "Hver andre måned den siste dagen" )
                         ]
                     )
                     (combine
@@ -733,7 +867,7 @@ words =
                 Expect.equal
                     (Ok
                         [ ( "On the second Tuesday of every month", "Den andre tirsdagen i hver måned" )
-                        , ( "On the last Friday of every month until 31 December 2027", "Den siste fredagen i hver måned til 31. desember 2027" )
+                        , ( "On the last Friday of every month through 31 December 2027", "Den siste fredagen i hver måned til og med 31. desember 2027" )
                         , ( "Every 2 months on the first Monday", "Hver andre måned den første mandagen" )
                         ]
                     )
@@ -748,8 +882,8 @@ words =
                 Expect.equal
                     (Ok
                         [ ( "Yearly on 20 October", "Årlig 20. oktober" )
-                        , ( "Every 2 years on 20 October", "Hvert andre år 20. oktober" )
-                        , ( "Yearly on 29 February (28 February in other years)", "Årlig 29. februar (28. februar andre år)" )
+                        , ( "Every 2 years on 20 October", "Hvert annet år 20. oktober" )
+                        , ( "Yearly on 29 February (28 February in other years)", "Årlig 29. februar (28. februar i år uten skuddag)" )
                         , ( "Yearly on 29 February (leap years only)", "Årlig 29. februar (bare skuddår)" )
                         , ( "On the third Tuesday of October every year", "Den tredje tirsdagen i oktober hvert år" )
                         , ( "Every 3 years on the last Friday of March", "Hvert tredje år den siste fredagen i mars" )
@@ -770,7 +904,7 @@ words =
                     (Ok
                         [ ( "Every day, once", "Hver dag, én gang" )
                         , ( "Every day, 10 times", "Hver dag, 10 ganger" )
-                        , ( "Every day until 31 December 2027", "Hver dag til 31. desember 2027" )
+                        , ( "Every day through 31 December 2027", "Hver dag til og med 31. desember 2027" )
                         , ( "Every day, except 1 date", "Hver dag, unntatt 1 dato" )
                         , ( "Every day, 5 times, except 2 dates", "Hver dag, 5 ganger, unntatt 2 datoer" )
                         ]
