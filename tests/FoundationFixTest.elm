@@ -541,8 +541,8 @@ cardHeadingTests =
                         |> Query.has [ Selector.tag expected, Selector.exactText "Recent activity" ]
     in
     describe "Card.headingLevel"
-        [ test "the default is an h3" <|
-            \_ -> titleOf [] |> Query.has [ Selector.tag "h3" ]
+        [ test "the default is an h2, the level under the h1 of a PageHeader" <|
+            \_ -> titleOf [] |> Query.has [ Selector.tag "h2" ]
         , levelTest 1 "h1"
         , levelTest 2 "h2"
         , levelTest 3 "h3"

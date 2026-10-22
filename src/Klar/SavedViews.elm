@@ -1,9 +1,9 @@
 module Klar.SavedViews exposing
     ( view
     , State, init, Msg, update
-    , SavedView, savedView, withNote, asDefault
-    , views, active, defaultView, revision, isOpen, setViews, setActive
-    , Attribute, current, label, locale, size, alignEnd
+    , SavedView, savedView, withNote, asDefault, asShared, withQuery
+    , views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
+    , Attribute, current, currentQuery, label, locale, size, alignEnd
     )
 
 {-| Named, saved filters ("views"): a dropdown button that lists the saved
@@ -12,8 +12,8 @@ rename and delete views (after an inline confirmation), mark one as the default
 view and reset to it.
 
 Use it next to a [Klar.FilterBar](Klar-FilterBar) or a
-[Klar.RuleBuilder](Klar-RuleBuilder). A view is a name and a
-[Klar.Rule](Klar-Rule) `Rule`.
+[Klar.RuleBuilder](Klar-RuleBuilder). a view is a name and a
+[Klar.Rule](Klar-Rule) `Rule`, and optionally a table query (see below).
 
     import Klar.Rule as Rule
     import Klar.SavedViews as SavedViews
@@ -63,6 +63,48 @@ view ..." saves, and the active view is marked "modified" when its rule differs
 from it. The button shows the name of the active view, or "Views" when there is
 none.
 
+**The whole query**: a view holds a rule, and it can also hold what the table next
+to the filters shows: the search text, the sort, the column filters and the page size
+(a [Table.Query](Klar-Table#Query)). Give `currentQuery (Table.query model.table)` to
+`view`: "Save current view ..." then saves it with the rule, "modified" compares it too,
+and `active` carries it in `.query`. Applying goes through the application like the
+rule: `Table.setQuery` (the page is always 1). Without `currentQuery` a view holds
+only the rule, and a view that holds no query leaves the table as it is.
+
+    -- after the user applied a view
+    case SavedViews.active views |> Maybe.andThen .query of
+        Just q ->
+            { next | table = Table.setQuery q next.table }
+
+        Nothing ->
+            next
+
+**Open the save form from a command or a shortcut**: `startSave` opens the list
+with the "Save current view" form open and focus in its name field, so that a
+command palette entry or a shortcut needs no dialog of your own. The form saves
+what `current` is, so give `current` to `view` (without it there is no form and
+the list just opens).
+
+
+    ( views, cmd ) =
+        SavedViews.startSave model.views
+
+    -- ( { model | views = views }, Cmd.map ViewsMsg cmd )
+
+**Shared views**: a view is shared when the application says so (`asShared`, or
+`isShared = True` in stored data); the list shows a "Shared" badge. Klar stores
+nothing, so who may see a view is the backend's business. A link to a view is a
+route of your own that names it, and `apply` is what that route does:
+
+    -- the link a "Copy link" button copies
+    "#/orders?view=" ++ Url.percentEncode name
+
+    -- when the route says view=name: marks it active and bumps `revision`
+    { model | views = SavedViews.apply name model.views }
+
+Compare `revision` after `apply` as after `update` and load the rule (and query)
+of `active`.
+
 **Keyboard**: `ArrowDown` on the button opens the list. `ArrowUp`, `ArrowDown`,
 `Home` and `End` move between the views, `Enter` applies the view that has focus,
 and `Escape` cancels a rename, a deletion or a save and otherwise closes the
@@ -82,17 +124,17 @@ text follows `locale`, which is English by default.
 
 # Defining views
 
-@docs SavedView, savedView, withNote, asDefault
+@docs SavedView, savedView, withNote, asDefault, asShared, withQuery
 
 
 # Reading and replacing the list
 
-@docs views, active, defaultView, revision, isOpen, setViews, setActive
+@docs views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
 
 
 # Attributes
 
-@docs Attribute, current, label, locale, size, alignEnd
+@docs Attribute, current, currentQuery, label, locale, size, alignEnd
 
 -}
 
@@ -106,6 +148,7 @@ import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Rule exposing (Rule)
 import Klar.RuleBuilder.Support as Support
+import Klar.Table as Table
 import Klar.TextInput as TextInput
 import Klar.Theme exposing (Size(..), Tone(..))
 
@@ -116,7 +159,9 @@ import Klar.Theme exposing (Size(..), Tone(..))
 
 {-| A named rule. The `name` identifies the view and must be unique, ignoring
 case. The `note` is a short description shown under the name. `isDefault` marks
-the view that "Reset" returns to; at most one view is the default.
+the view that "Reset" returns to; at most one view is the default. `isShared`
+is set by the application, and the list shows a badge for it. `query` is the search,
+sort, filters and page size of the table, when the view holds them.
 
 Make views with `savedView`, or build the record yourself, for example from
 stored data.
@@ -127,6 +172,8 @@ type alias SavedView =
     , rule : Rule
     , note : Maybe String
     , isDefault : Bool
+    , isShared : Bool
+    , query : Maybe Table.Query
     }
 
 
@@ -137,7 +184,7 @@ type alias SavedView =
 -}
 savedView : String -> Rule -> SavedView
 savedView name rule =
-    { name = name, rule = rule, note = Nothing, isDefault = False }
+    { name = name, rule = rule, note = Nothing, isDefault = False, isShared = False, query = Nothing }
 
 
 {-| Adds a short description, shown under the name in the list.
@@ -157,6 +204,28 @@ change the default in the list.
 asDefault : SavedView -> SavedView
 asDefault saved =
     { saved | isDefault = True }
+
+
+{-| Marks the view as shared (with colleagues, the team ...). The list shows a
+"Shared" badge. The application decides what that means and who may see the view.
+-}
+asShared : SavedView -> SavedView
+asShared saved =
+    { saved | isShared = True }
+
+
+{-| Gives the view a table query: search text, sort, column filters and page size
+(the page is not kept). Use it for views you make yourself; the ones the user saves
+get it from `currentQuery`.
+-}
+withQuery : Table.Query -> SavedView -> SavedView
+withQuery q saved =
+    { saved | query = Just (firstPage q) }
+
+
+firstPage : Table.Query -> Table.Query
+firstPage q =
+    { q | page = 1 }
 
 
 
@@ -326,6 +395,32 @@ setActive name (State s) =
         }
 
 
+{-| Applies the view with this name, as if the user had picked it: it becomes
+active and `revision` goes up, so the application loads its rule and query the
+way it does after `update`. Use it for a link that names a view. A name that is not
+in the list changes nothing.
+-}
+apply : String -> State -> State
+apply name (State s) =
+    if List.any (\saved -> saved.name == name) s.views then
+        State { s | active = Just name, revision = s.revision + 1, open = False, mode = Browsing }
+
+    else
+        State s
+
+
+{-| Opens the list with the form for saving the current view open, and moves focus
+to its name field. Use it for a command or a shortcut ("New saved view"); map the
+`Cmd` with your wrapper of the component's `Msg`. The form needs `current` in the
+attributes of `view`.
+-}
+startSave : State -> ( State, Cmd Msg )
+startSave (State s) =
+    ( State { s | open = True, mode = Saving { name = "", note = "", problem = Nothing } }
+    , Internal.focus (nameDomId s.id) NoOp
+    )
+
+
 find : String -> List SavedView -> Maybe SavedView
 find name list =
     list |> List.filter (\saved -> saved.name == name) |> List.head
@@ -365,13 +460,13 @@ type Msg
     | SaveStarted
     | NameTyped String
     | NoteTyped String
-    | SaveConfirmed Rule
+    | SaveConfirmed Rule (Maybe Table.Query)
     | RenameStarted String
     | RenameConfirmed
     | DeleteAsked String
     | DeleteConfirmed String
     | DefaultToggled String
-    | ActiveUpdated Rule
+    | ActiveUpdated Rule (Maybe Table.Query)
     | ModeCancelled
     | FocusItem Int
     | NoOp
@@ -432,7 +527,7 @@ update msg (State s) =
         NoteTyped text ->
             ( State { s | mode = mapForm (\form -> { form | note = text }) s.mode }, Cmd.none )
 
-        SaveConfirmed rule ->
+        SaveConfirmed rule query ->
             case s.mode of
                 Saving form ->
                     case checkName s.views Nothing form.name of
@@ -455,7 +550,7 @@ update msg (State s) =
                             in
                             ( State
                                 { s
-                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False } ]
+                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False, isShared = False, query = query } ]
                                     , active = Just name
                                     , open = False
                                     , mode = Browsing
@@ -565,14 +660,14 @@ update msg (State s) =
             , Cmd.none
             )
 
-        ActiveUpdated rule ->
+        ActiveUpdated rule query ->
             ( State
                 { s
                     | views =
                         List.map
                             (\saved ->
                                 if Just saved.name == s.active then
-                                    { saved | rule = rule }
+                                    { saved | rule = rule, query = orElse saved.query query }
 
                                 else
                                     saved
@@ -605,6 +700,16 @@ update msg (State s) =
 
         NoOp ->
             ( State s, Cmd.none )
+
+
+orElse : Maybe a -> Maybe a -> Maybe a
+orElse fallback maybe =
+    case maybe of
+        Just _ ->
+            maybe
+
+        Nothing ->
+            fallback
 
 
 open : Inner -> ( State, Cmd Msg )
@@ -719,6 +824,7 @@ type Attribute msg
 
 type alias Config =
     { current : Maybe Rule
+    , currentQuery : Maybe Table.Query
     , locale : Locale
     , label : Maybe String
     , alignEnd : Bool
@@ -730,6 +836,7 @@ configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { current = Nothing
+        , currentQuery = Nothing
         , locale = Locale.default
         , label = Nothing
         , alignEnd = False
@@ -746,6 +853,15 @@ views, not save them.
 current : Rule -> Attribute msg
 current rule =
     Attribute (\config -> { config | current = Just rule })
+
+
+{-| The query of the table next to the filters, `Table.query model.table`. A view
+that is saved holds it with the rule (the page is left out), and the active view is
+"modified" when its query differs from it. Without it views hold only the rule.
+-}
+currentQuery : Table.Query -> Attribute msg
+currentQuery q =
+    Attribute (\config -> { config | currentQuery = Just (firstPage q) })
 
 
 {-| The language of the component's own text: the button, the list and its
@@ -818,6 +934,13 @@ view toMsg attributes (State s) =
             case ( activeView, config.current ) of
                 ( Just saved, Just rule ) ->
                     not (Support.same saved.rule rule)
+                        || (case ( saved.query, config.currentQuery ) of
+                                ( Just held, Just now ) ->
+                                    held /= now
+
+                                _ ->
+                                    False
+                           )
 
                 _ ->
                     False
@@ -1048,6 +1171,11 @@ viewRow ctx index saved isActive navigation =
 
                       else
                         Html.text ""
+                    , if saved.isShared then
+                        Badge.view [ Badge.size Small ] t.sharedBadge
+
+                      else
+                        Html.text ""
                     , if isActive && ctx.modified then
                         Html.span [ Internal.cls [ "klar-savedviews__modified" ] ] [ Html.text t.modified ]
 
@@ -1111,7 +1239,7 @@ viewSaveArea ctx activeView =
                     , nameLabel = t.name
                     , form = form
                     , withNote = True
-                    , confirm = ctx.toMsg (SaveConfirmed rule)
+                    , confirm = ctx.toMsg (SaveConfirmed rule ctx.config.currentQuery)
                     , confirmLabel = t.save
                     }
                 ]
@@ -1133,7 +1261,7 @@ viewSaveArea ctx activeView =
                                 , icon = Icon.refresh
                                 , label = t.updateView saved.name
                                 , hint = Nothing
-                                , msg = ctx.toMsg (ActiveUpdated rule)
+                                , msg = ctx.toMsg (ActiveUpdated rule ctx.config.currentQuery)
                                 }
 
                         else
@@ -1241,6 +1369,7 @@ type alias Texts =
     , activeView : String
     , noViews : String
     , defaultBadge : String
+    , sharedBadge : String
     , modified : String
     , setDefault : String
     , unsetDefault : String
@@ -1272,6 +1401,7 @@ texts lang =
             , activeView = "Aktiv visning"
             , noViews = "Ingen lagrede visninger ennå. Lagre filteret du har nå for å finne det igjen."
             , defaultBadge = "Standard"
+            , sharedBadge = "Delt"
             , modified = "endret"
             , setDefault = "Bruk som standardvisning"
             , unsetDefault = "Ikke lenger standardvisning"
@@ -1298,6 +1428,7 @@ texts lang =
             , activeView = "Active view"
             , noViews = "No saved views yet. Save the current filter to find it again."
             , defaultBadge = "Default"
+            , sharedBadge = "Shared"
             , modified = "modified"
             , setDefault = "Use as default view"
             , unsetDefault = "No longer the default view"

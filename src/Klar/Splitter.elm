@@ -2,7 +2,7 @@ module Klar.Splitter exposing
     ( view, Pane, pane, minSize, maxSize, minPixels, maxPixels, collapsible
     , State, Msg, init, update, sizes, setSizes, isDragging
     , Share, percent, toPercent
-    , Attribute, stacked, height, locale
+    , Attribute, stacked, height, fillRest, locale
     )
 
 {-| Two or more panes side by side (or one above the other) that the user can make
@@ -94,7 +94,7 @@ folded away. Right-to-left languages are not mirrored yet.
 
 # Attributes
 
-@docs Attribute, stacked, height, locale
+@docs Attribute, stacked, height, fillRest, locale
 
 -}
 
@@ -241,6 +241,7 @@ type Attribute
 type alias Config =
     { stacked : Bool
     , height : Maybe Int
+    , fillRest : Bool
     , locale : Locale
     }
 
@@ -248,7 +249,7 @@ type alias Config =
 configure : List Attribute -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { stacked = False, height = Nothing, locale = Locale.default }
+        { stacked = False, height = Nothing, fillRest = False, locale = Locale.default }
         attributes
 
 
@@ -269,6 +270,23 @@ to divide anything.
 height : Int -> Attribute
 height pixels =
     Attribute (\config -> { config | height = Just (Basics.max 0 pixels) })
+
+
+{-| Makes the splitter as high as the room that is left in its parent, instead of
+as high as the parent (which must have a height of its own) or a number of pixels.
+Use it in a `Layout.stack [ Layout.fillRest ]`, so that a navigator beside a work
+area fills the window under the page header with no pixel height; see
+`Layout.fillRest`. It overrides `height`.
+
+    Layout.stack [ Layout.fillRest ]
+        [ PageHeader.view [ PageHeader.title "Stock" ]
+        , Splitter.view SplitterMsg [ Splitter.fillRest ] model.split panes
+        ]
+
+-}
+fillRest : Attribute
+fillRest =
+    Attribute (\config -> { config | fillRest = True })
 
 
 {-| The language of the built-in text: "Resize" in the name of a separator and the
@@ -492,14 +510,27 @@ view toMsg attributes (State s) panes =
 
               else
                 ""
+            , if config.fillRest then
+                "klar-fill-rest"
+
+              else
+                ""
+            , if config.fillRest then
+                "klar-splitter--fill-rest"
+
+              else
+                ""
             ]
          , Attr.id s.domId
          ]
-            ++ (case config.height of
-                    Just pixels ->
+            ++ (case ( config.fillRest, config.height ) of
+                    ( True, _ ) ->
+                        []
+
+                    ( False, Just pixels ) ->
                         [ Internal.styleVars [ ( "--klar-split-h", String.fromInt pixels ++ "px" ) ] ]
 
-                    Nothing ->
+                    ( False, Nothing ) ->
                         []
                )
             ++ (case activeSeparator of

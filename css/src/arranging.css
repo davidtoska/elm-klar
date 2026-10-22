@@ -260,6 +260,7 @@
 }
 
 .klar-splitter--stacked { flex-direction: column; }
+.klar-splitter--fill-rest { height: auto; }
 
 /* A pane shares the room that is left by its size (--klar-grow is a number: the
    panes' numbers add up to 100). It starts at nothing and grows, so the share is

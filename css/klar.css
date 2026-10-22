@@ -765,6 +765,7 @@ table {
 
 .klar-fill { width: 100%; }
 .klar-grow { flex: 1 1 0; min-width: 0; }
+.klar-fixed-w { flex: 0 0 var(--klar-fixed-w); width: var(--klar-fixed-w); max-width: 100%; min-width: 0; }
 .klar-fill-rest { flex: 1 1 auto; min-height: 0; }
 .klar-padded { padding: var(--klar-pad, 0); }
 .klar-spacer { flex: 1 1 auto; }
@@ -5794,6 +5795,7 @@ table {
 }
 
 .klar-app-shell__content:focus { outline: none; }
+.klar-app-shell__page:focus { outline: none; }
 
 .klar-app-shell__page {
   width: 100%;
@@ -9063,6 +9065,8 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
   min-height: 100%;
 }
 
+.klar-overlay-host__page:focus { outline: none; }
+
 .klar-overlay-host:focus {
   outline: none;
 }
@@ -9415,6 +9419,36 @@ html:has(.klar-modal-lock) {
   left: 0;
   right: 0;
   margin-inline: auto;
+}
+
+/* Beside a drawer they go to the other side of the window, at the bottom, so that the
+   title and the close button of the drawer stay in reach. On a narrow screen the
+   drawer fills the window and they are at the top again. */
+:root:has(.klar-modal--side.klar-modal--right) .klar-toasts {
+  top: auto;
+  bottom: var(--klar-space-4);
+  left: var(--klar-space-4);
+  right: auto;
+  margin-inline: 0;
+}
+
+:root:has(.klar-modal--side.klar-modal--left) .klar-toasts {
+  top: auto;
+  bottom: var(--klar-space-4);
+  left: auto;
+  right: var(--klar-space-4);
+  margin-inline: 0;
+}
+
+@media (max-width: 640px) {
+  :root:has(.klar-modal--side.klar-modal--right) .klar-toasts,
+  :root:has(.klar-modal--side.klar-modal--left) .klar-toasts {
+    top: var(--klar-space-4);
+    bottom: auto;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+  }
 }
 
 .klar-toast {
@@ -11193,6 +11227,7 @@ html:has(.klar-modal-lock) {
 }
 
 .klar-splitter--stacked { flex-direction: column; }
+.klar-splitter--fill-rest { height: auto; }
 
 /* A pane shares the room that is left by its size (--klar-grow is a number: the
    panes' numbers add up to 100). It starts at nothing and grows, so the share is

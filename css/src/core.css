@@ -179,6 +179,7 @@
 
 .klar-fill { width: 100%; }
 .klar-grow { flex: 1 1 0; min-width: 0; }
+.klar-fixed-w { flex: 0 0 var(--klar-fixed-w); width: var(--klar-fixed-w); max-width: 100%; min-width: 0; }
 .klar-fill-rest { flex: 1 1 auto; min-height: 0; }
 .klar-padded { padding: var(--klar-pad, 0); }
 .klar-spacer { flex: 1 1 auto; }

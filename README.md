@@ -115,7 +115,9 @@ view model =
 This program is mounted with `Elm.Main.init({ node: document.getElementById("app") })`,
 because `Browser.sandbox` and `Browser.element` need a node. A whole application with
 the `AppShell` is a `Browser.application` (or `Browser.document`) and is mounted with
-plain `Elm.Main.init()`; it also needs `elm/url` as a direct dependency. The complete
+plain `Elm.Main.init()`; it also needs `elm/url` as a direct dependency. The shell keeps
+its sidebar, drawer, side menu and skip link in one `AppShell.State`, so the wiring in
+your `update` is one `ShellMsg` branch that tells you when the route changed. The complete
 recipe, with `index.html`, is "Start here" in [USING.md](USING.md).
 
 Components are configured with a list of attributes, like `Html`. A component that

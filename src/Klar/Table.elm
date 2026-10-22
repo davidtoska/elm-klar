@@ -195,6 +195,14 @@ edge shows that columns are cut off. Put the columns that matter first (the firs
 be `pinned`), give the others a `minWidth`, and leave out what people rarely need
 with `hiddenByDefault`; with `columnChooser` they can add it.
 
+**How many columns fit.** The table never squeezes a column below its `minWidth`: 120
+pixels for text, 104 to 124 for numbers, dates and badges. Next to a 232 pixel
+sidebar a 1280 pixel window leaves about 1000 pixels, so eight or nine columns fit and
+the eleventh is behind the sideways scroll, with its footer sum. Plan for 1000 pixels:
+give the columns that carry the sums a short `width`, lower the `minWidth` of the
+others, and put what people rarely need behind `hiddenByDefault`. The shadow at the
+edge is the only hint the table gives; it does not count columns for you.
+
 
 # View
 
@@ -2667,9 +2675,12 @@ rowFilter keep =
 
 
 {-| How many filters outside the table are active (the ones behind `rowFilter`,
-or the ones you send to your backend). The table adds them to its own in the
-"N filters active" button, and uses the number to tell "no matches" (a filter
-hides the rows) from "no data".
+or the ones you send to your backend). The table uses the number to tell "no
+matches" (a filter hides the rows) from "no data". It draws nothing for them: the
+"N filters active" button counts the column filters of the table only, because
+outside filters have a display of their own (the chips of a
+[FilterBar](Klar-FilterBar)), and a second summary of the same filters only repeats
+it. Wire `onResetFilters` once, to clear both.
 -}
 activeExternalFilters : Int -> Attribute id row msg
 activeExternalFilters n =
@@ -2819,7 +2830,10 @@ file name, used as given (`"orders.csv"`).
 
 The menu offers all matching rows (client mode), the selected rows and the
 current page, the last two with a suffix in the file name (`orders-selected.csv`,
-`orders-page-2.csv`); in server mode only the current page is known. Hidden
+`orders-page-2.csv`). In server mode only the current page is known, so the
+selected rows are offered only while every selected row is on the page; when some
+are selected on other pages the menu says how many and offers the page only. Build
+that file from your backend (the ids are in `selectedIds`). Hidden
 columns and `notExported` columns are left out, and so are `custom` and
 `actions` columns unless they have `exportAs`. Text that a spreadsheet could run
 as a formula is made safe. See `csvSeparator` for the field separator.
@@ -3796,7 +3810,7 @@ hasTools ctx =
 -}
 activeFilterCount : Ctx row msg -> Int
 activeFilterCount ctx =
-    List.length (activeDrafts ctx.model) + ctx.config.externalFilters
+    List.length (activeDrafts ctx.model)
 
 
 selectionTotal : Ctx row msg -> Int
@@ -3955,8 +3969,6 @@ viewFilterSummary ctx activeCount =
                                                 )
                                     )
                             )
-                        , Internal.viewIf (ctx.config.externalFilters > 0)
-                            (Html.p [ Internal.cls [ "klar-table__popover-note" ] ] [ Html.text (ctx.t.externalFilters ctx.config.externalFilters) ])
                         ]
                     , Html.div [ Internal.cls [ "klar-table__popover-foot" ] ]
                         [ resetFiltersButton ctx [ Button.small, Button.ghost ] ctx.t.resetFilters FiltersCleared
@@ -4267,18 +4279,19 @@ exportOptions ctx popup filename =
             else
                 Nothing
 
-        selectedChoice =
-            if ctx.hasSelect && not (List.isEmpty selectedRows) then
-                -- in server mode only the current page is here, not every selected row
-                Just
-                    ( if ctx.config.server == Nothing then
-                        ctx.t.exportSelected
+        -- In server mode only the current page is here. A file of "the selected
+        -- rows" that lacks the ones on other pages would be wrong without a sign,
+        -- so it is offered only when every selected row is on this page.
+        offPage =
+            if ctx.config.server == Nothing then
+                0
 
-                      else
-                        ctx.t.exportSelectedOnPage
-                    , ctx.t.fileSelected
-                    , selectedRows
-                    )
+            else
+                max 0 (selectionTotal ctx - List.length selectedRows)
+
+        selectedChoice =
+            if ctx.hasSelect && not (List.isEmpty selectedRows) && offPage == 0 then
+                Just ( ctx.t.exportSelected, ctx.t.fileSelected, selectedRows )
 
             else
                 Nothing
@@ -4308,6 +4321,10 @@ exportOptions ctx popup filename =
     in
     [ Html.div [ Internal.cls [ "klar-table__popover-body", "klar-table__popover-body--flush" ] ]
         (List.indexedMap (\index ( title, suffix, someRows ) -> option index title suffix someRows) choices)
+    , Internal.viewIf (ctx.hasSelect && offPage > 0)
+        (Html.p [ Internal.cls [ "klar-table__popover-note" ] ]
+            [ Html.text (ctx.t.selectionOffPage offPage (selectionTotal ctx)) ]
+        )
     , Html.p [ Internal.cls [ "klar-table__popover-note", "klar-table__popover-note--foot" ] ]
         [ Html.text (ctx.t.exportNote (List.length exported) separator) ]
     ]

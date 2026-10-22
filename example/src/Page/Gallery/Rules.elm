@@ -98,6 +98,7 @@ type BenchMsg
     = BuilderMsg RuleBuilder.Msg
     | FiltersMsg FilterBar.Msg
     | ViewsMsg SavedViews.Msg
+    | NewViewAsked
 
 
 init : ( Model, Cmd Msg )
@@ -215,6 +216,7 @@ seededViews =
         |> SavedViews.asDefault
     , SavedViews.savedView "Urgent orders" urgent
         |> SavedViews.withNote "Checked every morning by the order desk"
+        |> SavedViews.asShared
     , SavedViews.savedView "Confirmed and urgent or large" preloaded
         |> SavedViews.withNote "The starting point of the workbench"
     , SavedViews.savedView "Not created in the last 90 days" notCreatedRecently
@@ -571,6 +573,14 @@ updateBench msg bench =
             else
                 ( { bench | filters = filters }, Cmd.map FiltersMsg cmd, Nothing )
 
+        NewViewAsked ->
+            -- What a command or a shortcut does: the list opens with the save form.
+            let
+                ( views, cmd ) =
+                    SavedViews.startSave bench.views
+            in
+            ( { bench | views = views }, Cmd.map ViewsMsg cmd, Nothing )
+
         ViewsMsg inner ->
             let
                 ( views, cmd ) =
@@ -867,12 +877,15 @@ viewBench :
 viewBench options bench =
     Layout.stack [ Layout.gap 4 ]
         [ Layout.stack [ Layout.gap 3, Layout.alignStart ]
-            [ SavedViews.view (ViewsMsg >> options.toMsg)
-                [ SavedViews.current bench.rule
-                , SavedViews.size Theme.Small
-                , SavedViews.locale options.locale
+            [ Layout.row [ Layout.gap 2, Layout.alignCenter ]
+                [ SavedViews.view (ViewsMsg >> options.toMsg)
+                    [ SavedViews.current bench.rule
+                    , SavedViews.size Theme.Small
+                    , SavedViews.locale options.locale
+                    ]
+                    bench.views
+                , Button.view [ Button.ghost, Button.small, Button.onClick (options.toMsg NewViewAsked) ] "New view ..."
                 ]
-                bench.views
             , FilterBar.view (FiltersMsg >> options.toMsg)
                 [ FilterBar.fields options.fields
                 , FilterBar.quick options.quick
