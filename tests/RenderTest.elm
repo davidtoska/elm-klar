@@ -1427,20 +1427,20 @@ tableTests =
                 \_ -> noneInTable [ attr "aria-busy" "true" ] (table [])
             , test "a table that is refreshing keeps its rows and is busy" <|
                 \_ ->
-                    table [ Table.refreshing True ]
+                    table [ Table.rows (Remote.refresh (Loaded Orders.curated)) ]
                         |> Expect.all
                             [ inTable [ Selector.tag "table" ] [ attr "aria-busy" "true", attr "aria-rowcount" "9" ]
                             , inTable [ Selector.id "orders-row-0" ] [ Selector.text "ORD-2001" ]
                             ]
             , test "and shows a progress line, and says so" <|
                 \_ ->
-                    table [ Table.refreshing True ]
+                    table [ Table.rows (Remote.refresh (Loaded Orders.curated)) ]
                         |> Expect.all
                             [ inTable [ Selector.class "klar-table__progress" ] [ attr "aria-hidden" "true" ]
                             , inTable [ attr "role" "status" ] [ Selector.text "Refreshing ..." ]
                             ]
             , test "refreshing is ignored while the first rows are loading" <|
-                \_ -> noneInTable [ Selector.class "klar-table__progress" ] (table [ Table.rows Loading, Table.refreshing True ])
+                \_ -> noneInTable [ Selector.class "klar-table__progress" ] (table [ Table.rows (Remote.refresh Loading) ])
             , test "the refresh button is busy while loading" <|
                 \_ -> inTable [ attr "aria-label" "Refresh" ] [ attr "aria-busy" "true" ] (table [ Table.rows Loading, Table.onRefresh Orders.Refreshed ])
             , test "everything that is named exists" <|

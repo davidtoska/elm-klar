@@ -5,7 +5,7 @@ import Html
 import Html.Attributes as Attr
 import Klar.Date as Date
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Remote exposing (Remote(..))
+import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Table as Table exposing (Direction(..), Filter(..))
 import Klar.Table.Csv as Csv
 import Support.Ids as Ids
@@ -670,6 +670,9 @@ serverModeTests =
         server =
             [ Table.server { total = 120 }, Table.rows (Loaded (generated 25)) ]
 
+        refreshingServer =
+            [ Table.server { total = 120 }, Table.rows (Remote.refresh (Loaded (generated 25))) ]
+
         page =
             List.range 3001 3025
 
@@ -711,8 +714,8 @@ serverModeTests =
         , test "while a new page is on its way the rows stay, dimmed, and the pagination stays" <|
             \_ ->
                 allOf
-                    [ root (Table.refreshing True :: server) [ Selector.class "klar-table--refreshing" ] start
-                    , element (Table.refreshing True :: server) (byId "orders-pagination") [] start
+                    [ root refreshingServer [ Selector.class "klar-table--refreshing" ] start
+                    , element refreshingServer (byId "orders-pagination") [] start
                     ]
         , test "while the first rows are loading the pagination is not there for a table that does not know its total" <|
             \_ -> noElement [ Table.rows Loading ] [ Selector.class "klar-pagination" ] start

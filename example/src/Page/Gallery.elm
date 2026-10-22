@@ -32,6 +32,7 @@ import Page.Gallery.Recurring as Recurring
 import Page.Gallery.Review as Review
 import Page.Gallery.Rules as Rules
 import Page.Gallery.Selects as Selects
+import Page.Gallery.StaleData as StaleData
 import Page.Gallery.Structured as Structured
 import Page.Gallery.Tables as Tables
 
@@ -62,6 +63,7 @@ type alias Model =
     , picking : Maybe Picking.Model
     , access : Maybe Access.Model
     , recurring : Maybe Recurring.Model
+    , staleData : Maybe StaleData.Model
     }
 
 
@@ -88,6 +90,7 @@ init =
     , picking = Nothing
     , access = Nothing
     , recurring = Nothing
+    , staleData = Nothing
     }
 
 
@@ -117,6 +120,7 @@ type Msg
     | PickingMsg Picking.Msg
     | AccessMsg Access.Msg
     | RecurringMsg Recurring.Msg
+    | StaleDataMsg StaleData.Msg
 
 
 {-| Creates the page for a section if it has not been visited yet. Call it when
@@ -184,6 +188,9 @@ ensure section model =
 
         Recurring ->
             create model.recurring Recurring.init (\page -> { model | recurring = page }) RecurringMsg model
+
+        StaleData ->
+            create model.staleData StaleData.init (\page -> { model | staleData = page }) StaleDataMsg model
 
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
@@ -261,6 +268,9 @@ update msg model =
 
         RecurringMsg inner ->
             step model.recurring (Recurring.update inner) (\page -> { model | recurring = page }) RecurringMsg model
+
+        StaleDataMsg inner ->
+            step model.staleData (StaleData.update inner) (\page -> { model | staleData = page }) StaleDataMsg model
 
 
 {-| Runs a page's update on its model, if the page exists.
@@ -351,6 +361,9 @@ view locale maybeSection model =
                 Recurring ->
                     show RecurringMsg (Recurring.view locale) model.recurring
 
+                StaleData ->
+                    show StaleDataMsg (StaleData.view locale) model.staleData
+
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
 show toMsg viewPage maybePage =
@@ -435,6 +448,9 @@ subscriptions maybeSection model =
 
                 Recurring ->
                     sub RecurringMsg Recurring.subscriptions model.recurring
+
+                StaleData ->
+                    sub StaleDataMsg StaleData.subscriptions model.staleData
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

@@ -961,12 +961,17 @@ viewTable : Locale -> Rule -> Bool -> Table.State OrderId -> Html Msg
 viewTable locale applied counting table =
     Table.view TableMsg
         [ Table.columns orderColumns
-        , Table.rows (Remote.Loaded Sample.orders)
+        , Table.rows
+            (if counting then
+                Remote.refresh (Remote.Loaded Sample.orders)
+
+             else
+                Remote.Loaded Sample.orders
+            )
         , Table.rowId orderRows .id
         , Table.rowFilter (Rule.matches Sample.today orderFields applied)
         , Table.activeExternalFilters (completeConditions orderFields applied)
         , Table.onResetFilters ResetAll
-        , Table.refreshing counting
         , Table.label "Orders"
         , Table.locale locale
         , Table.maxHeight 420
@@ -1069,10 +1074,9 @@ RuleBuilder.view BuilderMsg
 
 Table.view TableMsg
     [ Table.columns columns
-    , Table.rows (Remote.Loaded orders)
+    , Table.rows (Remote.refresh (Remote.Loaded orders)) -- dimmed while counting
     , Table.rowFilter (Rule.matches today orderFields model.rule)
     , Table.activeExternalFilters (Rule.conditionCount model.rule)
-    , Table.refreshing model.counting
     , Table.onResetFilters ResetAll
     ]
     model.table"""

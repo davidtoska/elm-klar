@@ -1,5 +1,5 @@
 module Klar.Alert exposing
-    ( view, viewWith
+    ( view, viewWith, stale
     , Attribute, tone, title, icon, actions, onDismiss
     , banner, compact
     , polite, locale
@@ -33,7 +33,7 @@ message that appears while the user is typing (an "unsaved changes" notice), add
 
 # Views
 
-@docs view, viewWith
+@docs view, viewWith, stale
 
 
 # Content
@@ -55,6 +55,7 @@ message that appears while the user is typing (an "unsaved changes" notice), add
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
@@ -243,6 +244,51 @@ viewWith attributes children =
             Nothing ->
                 Html.text ""
         ]
+
+
+{-| One notice for a page whose data is old because a refresh failed, so that
+nobody reads old numbers by mistake. Give it the names of the stale parts
+(`Remote.staleIn` makes them) and the message that tries again. With no names it
+shows nothing.
+
+    Alert.stale [ Alert.locale model.locale ]
+        Refresh
+        (List.concat
+            [ Remote.staleIn "orders" model.orders
+            , Remote.staleIn "figures" model.summary
+            ]
+        )
+
+The notice is a warning that screen readers announce politely. The attributes
+that make sense here are `locale`, `banner`, `compact` and `onDismiss`; the tone,
+the title, the icon and the actions are set by the notice.
+
+-}
+stale : List (Attribute msg) -> msg -> List String -> Html msg
+stale attributes retry names =
+    if List.isEmpty names then
+        Html.text ""
+
+    else
+        let
+            config =
+                configure attributes
+
+            pick nb en =
+                Locale.pick config.locale { nb = nb, en = en }
+        in
+        view
+            (attributes
+                ++ [ tone Warning
+                   , title (pick "Noen data er utdaterte" "Some data is out of date")
+                   , polite
+                   , actions [ Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick retry ] (pick "Prøv igjen" "Try again") ]
+                   ]
+            )
+            (pick "Siste oppdatering feilet. Viser forrige data for: " "The last refresh failed. Showing the previous data for: "
+                ++ String.join ", " names
+                ++ "."
+            )
 
 
 defaultIcon : Tone -> Icon

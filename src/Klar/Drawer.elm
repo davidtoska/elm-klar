@@ -57,6 +57,17 @@ disabled (a button replaced after an action), focus moves to the drawer itself.
 [Klar.Modal](Klar-Modal) and [Klar.Overlay](Klar-Overlay) explain all of this once,
 for every overlay.
 
+The details of a row usually load after the drawer opens. Give it the body of
+[Klar.RemoteView](Klar-RemoteView): a skeleton that screen readers hear, the
+failure with a retry, and old or refreshing data, with no `case` of your own.
+Focus that was on the retry button goes back into the drawer when the data
+arrives.
+
+    Drawer.view DrawerMsg
+        [ Drawer.title "Order 1042" ]
+        model.drawer
+        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+
 The drawer is as tall as the window. It is `medium` (480px) unless you say
 `small` (360px) or `large` (720px), and never wider than the window. The only
 built-in text is the label of the close button, which follows `locale`;

@@ -21,6 +21,7 @@ import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Remote as Remote exposing (Remote)
+import Klar.RemoteView as RemoteView
 import Klar.Search as Search
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
@@ -939,28 +940,31 @@ viewRemote locale model =
             , Button.view [ Button.icon Icon.inbox, Button.onClick (Requested NoOrders) ] "No orders"
             ]
         , Card.view [ Card.flush ]
-            [ case model.orders of
+            (case model.orders of
                 Remote.NotAsked ->
-                    EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.database, EmptyState.title "Nothing requested yet" ]
+                    [ EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.database, EmptyState.title "Nothing requested yet" ] ]
 
-                Remote.Loading ->
-                    Spinner.panel "Loading orders ..."
+                _ ->
+                    -- loading, failure with a retry, and the data: no `case` of ours
+                    RemoteView.view
+                        [ RemoteView.onRetry Retried, RemoteView.locale locale, RemoteView.loadingLabel "Loading orders" ]
+                        model.orders
+                        (\orders ->
+                            if List.isEmpty orders then
+                                [ EmptyState.view
+                                    [ EmptyState.icon Icon.inbox
+                                    , EmptyState.title "No orders to show"
+                                    , EmptyState.description "There are no orders yet."
+                                    , EmptyState.action (Button.view [ Button.onClick (Requested Works) ] "Load orders")
+                                    ]
+                                ]
 
-                Remote.Failed problem ->
-                    ErrorState.view [ ErrorState.onRetry Retried, ErrorState.locale locale ] problem
-
-                Remote.Loaded [] ->
-                    EmptyState.view
-                        [ EmptyState.icon Icon.inbox
-                        , EmptyState.title "No orders to show"
-                        , EmptyState.description "There are no orders yet."
-                        , EmptyState.action (Button.view [ Button.onClick (Requested Works) ] "Load orders")
-                        ]
-
-                Remote.Loaded orders ->
-                    Layout.stack [ Layout.gap 0 ]
-                        (List.intersperse Layout.divider (List.map viewOrderRow orders))
-            ]
+                            else
+                                [ Layout.stack [ Layout.gap 0 ]
+                                    (List.intersperse Layout.divider (List.map viewOrderRow orders))
+                                ]
+                        )
+            )
         ]
 
 

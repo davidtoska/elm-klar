@@ -187,6 +187,10 @@ addOne parent depth node acc =
                     Remote.Failed problem ->
                         ( LoadFailed problem, False, started )
 
+                    Remote.Kept _ ->
+                        -- `Picking.lazy` settles it into `Loaded`
+                        ( Unloaded, False, started )
+
             disabled =
                 Picking.isDisabled node
 

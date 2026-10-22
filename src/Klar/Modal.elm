@@ -61,6 +61,15 @@ built on this module, and [Klar.Popover](Klar-Popover), [Klar.Menu](Klar-Menu),
 [Klar.ContextMenu](Klar-ContextMenu) and [Klar.Toast](Klar-Toast) refer back
 to it instead of repeating them.
 
+A dialog that shows data from the backend (the record to edit, an order to
+review) takes its body from [Klar.RemoteView](Klar-RemoteView): the skeleton, the
+failure with a retry, and old or refreshing data, without a `case` of your own.
+
+    Modal.view ModalMsg
+        [ Modal.title "Order 1042" ]
+        model.dialog
+        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+
 
 # View
 

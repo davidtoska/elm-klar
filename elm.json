@@ -147,6 +147,7 @@
         ],
         "Data and utilities": [
             "Klar.Remote",
+            "Klar.RemoteView",
             "Klar.Search",
             "Klar.Format",
             "Klar.Shortcut"

@@ -688,7 +688,7 @@
 .klar-table--refreshing .klar-table__body .klar-table__cell,
 .klar-table--refreshing .klar-table__body .klar-check,
 .klar-table--refreshing .klar-table__body .klar-table__expand {
-  opacity: 0.5;
+  opacity: 0.8;
   transition: opacity var(--klar-dur) var(--klar-ease);
 }
 

@@ -38,11 +38,12 @@ type Section
     | Picking
     | Access
     | Recurring
+    | StaleData
 
 
 all : List Section
 all =
-    [ Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring ]
+    [ Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData ]
 
 
 slug : Section -> String
@@ -107,6 +108,9 @@ slug section =
 
         Recurring ->
             "recurrence"
+
+        StaleData ->
+            "old-data"
 
 
 fromSlug : String -> Maybe Section
@@ -177,6 +181,9 @@ title section =
         Recurring ->
             "Recurring dates"
 
+        StaleData ->
+            "Old and refreshing data"
+
 
 icon : Section -> Icon
 icon section =
@@ -241,6 +248,9 @@ icon section =
         Recurring ->
             Icon.refresh
 
+        StaleData ->
+            Icon.clock
+
 
 description : Section -> String
 description section =
@@ -304,6 +314,9 @@ description section =
 
         Recurring ->
             "Rules like every second Tuesday: occurrences, a plain-language description and a picker."
+
+        StaleData ->
+            "Data that is refreshed, or old because the last refresh failed: every data component draws it, from the Remote alone."
 
 
 {-| The components shown on each page.
@@ -370,6 +383,9 @@ components section =
 
         Recurring ->
             [ "Recurrence", "RecurrencePicker" ]
+
+        StaleData ->
+            [ "Remote", "RemoteView" ]
 
 
 componentCount : Int

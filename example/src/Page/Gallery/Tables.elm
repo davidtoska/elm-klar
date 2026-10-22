@@ -1708,6 +1708,19 @@ eventRow label text =
 -- VIEW: CLIENT MODE
 
 
+{-| Rows that are on their way again: the old ones stay, dimmed. The tables in
+this showcase keep a flag in their model; an application keeps the state in the
+`Remote` itself (`Remote.refresh` when it asks, `Remote.refreshWith` with the answer).
+-}
+whileRefreshing : Bool -> Remote a -> Remote a
+whileRefreshing busy rows =
+    if busy then
+        Remote.refresh rows
+
+    else
+        rows
+
+
 clientSection : Locale -> Client -> Html Msg
 clientSection locale client =
     Doc.section "Client mode: everything on"
@@ -1726,7 +1739,7 @@ clientSection locale client =
                     ]
                 , Table.view ClientTable
                     ([ Table.columns clientColumns
-                     , Table.rows client.orders
+                     , Table.rows (whileRefreshing client.refreshing client.orders)
                      , Table.rowId orderRows .id
                      , Table.rowLabel orderLabel
                      , Table.label "Orders"
@@ -1746,7 +1759,6 @@ clientSection locale client =
                      , Table.rowDisabled isCancelled
                      , Table.toolbarActions [ Button.view [ Button.primary, Button.icon Icon.plus, Button.onClick NewOrder ] "New order" ]
                      , Table.onRefresh Refresh
-                     , Table.refreshing client.refreshing
                      , Table.exportCsv "orders.csv"
                      , Table.columnChooser
                      , Table.densityToggle
@@ -1782,7 +1794,7 @@ clientCode =
         , Table.float (columnIds.total) "Total" 2 .total [ Table.filterRange, Table.footerSum ]
         , Table.text (columnIds.warehouse) "Warehouse" (.warehouse >> Api.Types.warehouseIdText) [ Table.hiddenByDefault ]
         ]
-    , Table.rows model.orders -- Remote (List Order), kept in the model
+    , Table.rows model.orders -- Remote (List Order), kept in the model; Remote.refresh dims the rows
     , Table.rowId orderRows .id
     , Table.rowLabel (.id >> orderIdText)
     , Table.searchable
@@ -1797,7 +1809,6 @@ clientCode =
     , Table.activeExternalFilters 1
     , Table.toolbarActions [ newOrderButton ]
     , Table.onRefresh Refresh
-    , Table.refreshing model.refreshing
     , Table.exportCsv "orders.csv"
     , Table.columnChooser
     , Table.densityToggle
@@ -1856,8 +1867,7 @@ serverSection locale server =
                 , Table.view ServerTable
                     [ Table.columns serverColumns
                     , Table.server { total = server.total }
-                    , Table.rows server.rows
-                    , Table.refreshing server.refreshing
+                    , Table.rows (whileRefreshing server.refreshing server.rows)
                     , Table.rowId orderRows .id
                     , Table.rowLabel orderLabel
                     , Table.label "Orders from the server"
@@ -1908,8 +1918,7 @@ TableMsg m ->
 Table.view TableMsg
     [ Table.columns columns -- give filterOptions in server mode
     , Table.server { total = model.total }
-    , Table.rows model.page -- Remote (List Order): only this page
-    , Table.refreshing model.fetching
+    , Table.rows model.page -- Remote (List Order): only this page; Remote.refresh keeps the old rows, dimmed
     , Table.onRetry Retry
     , Table.searchable
     ]
