@@ -673,8 +673,22 @@ update msg ((State state) as current) =
             )
 
         Reveal key count ->
+            let
+                before =
+                    revealedBefore key state.folds
+            in
             ( State { state | folds = Dict.insert key count state.folds }
-            , Internal.focus (foldDomId state.id key) Noop
+              -- the focus goes to the first row that appeared: the button that was
+              -- pressed is gone, and the button above (the fold that opened, far
+              -- up in a long run) would scroll the page back
+            , Internal.focus
+                (if before == 0 then
+                    foldDomId state.id key
+
+                 else
+                    rowDomId state.id key before
+                )
+                Noop
             )
 
         Hide key ->
@@ -704,6 +718,30 @@ changeDomId id index =
 foldDomId : String -> String -> String
 foldDomId id key =
     id ++ "-fold-" ++ key
+
+
+{-| The id of a row of a run of lines that was opened or of a hunk that was cut: only
+the rows where the next opening begins have one, and they are the rows `rowStep`,
+`2 * rowStep` and so on.
+-}
+rowDomId : String -> String -> Int -> String
+rowDomId id key index =
+    id ++ "-row-" ++ key ++ "-" ++ String.fromInt index
+
+
+{-| How many rows of a run of unchanged lines (key `f12`) or of a hunk (key `h12/14`) are
+drawn before the key is opened more: none for a fold, a whole `rowStep` for a hunk.
+-}
+revealedBefore : String -> Dict String Int -> Int
+revealedBefore key folds =
+    Dict.get key folds
+        |> Maybe.withDefault
+            (if String.startsWith "h" key then
+                rowStep
+
+             else
+                0
+            )
 
 
 
@@ -831,6 +869,8 @@ type alias Texts =
     , unchangedLines : Int -> String
     , hideUnchanged : Int -> String
     , showMoreUnchanged : Int -> Int -> String
+    , changedLinesShown : Int -> Int -> String
+    , showMoreChanged : Int -> Int -> String
     , showing : Int -> Int -> String
     , showMore : Int -> String
     , showAll : Int -> String
@@ -878,8 +918,8 @@ texts loc =
     , whitespaceIgnored = pick "Forskjeller i mellomrom ignoreres" "Differences in white space are ignored"
     , caseIgnored = pick "Store og små bokstaver regnes som like" "Upper and lower case count as the same"
     , lineEndsDiffer = pick "Linjeskiftene er ulike (Windows og Unix) og sammenlignes ikke" "The line endings differ (Windows and Unix) and are not compared"
-    , unified = pick "Samlet" "Unified"
-    , split = pick "Delt" "Split"
+    , unified = pick "Under hverandre" "Unified"
+    , split = pick "Side ved side" "Split"
     , layout = pick "Visning" "Layout"
     , previousChange = pick "Forrige endring" "Previous change"
     , nextChange = pick "Neste endring" "Next change"
@@ -896,14 +936,16 @@ texts loc =
     , unchangedLines = \n -> count n { one = pick "uendret linje" "unchanged line", other = pick "uendrede linjer" "unchanged lines" }
     , hideUnchanged = \n -> pick "Skjul " "Hide " ++ count n { one = pick "uendret linje" "unchanged line", other = pick "uendrede linjer" "unchanged lines" }
     , showMoreUnchanged = \more left -> pick ("Vis " ++ number more ++ " flere uendrede linjer (" ++ number left ++ " igjen)") ("Show " ++ number more ++ " more unchanged lines (" ++ number left ++ " left)")
+    , changedLinesShown = \shown total -> pick ("Viser " ++ number shown ++ " av " ++ number total ++ " endrede linjer") ("Showing " ++ number shown ++ " of " ++ number total ++ " changed lines")
+    , showMoreChanged = \more left -> pick ("Vis " ++ number more ++ " flere linjer (" ++ number left ++ " igjen)") ("Show " ++ number more ++ " more lines (" ++ number left ++ " left)")
     , showing = \shown total -> pick ("Viser " ++ number shown ++ " av " ++ number total ++ " endringer") ("Showing " ++ number shown ++ " of " ++ number total ++ " changes")
     , showMore = \n -> pick ("Vis " ++ number n ++ " flere") ("Show " ++ number n ++ " more")
     , showAll = \n -> pick ("Vis alle " ++ number n) ("Show all " ++ number n)
     , tooLarge = pick "For stor til å sammenligne linje for linje: viser et sammendrag" "Too large to compare line by line: showing a summary"
     , summaryOld = pick "Gammel tekst" "Old text"
     , summaryNew = pick "Ny tekst" "New text"
-    , summaryStart = pick "Like i begynnelsen" "The same at the start"
-    , summaryEnd = pick "Like på slutten" "The same at the end"
+    , summaryStart = pick "Like linjer i begynnelsen" "The same at the start"
+    , summaryEnd = pick "Like linjer på slutten" "The same at the end"
     , summaryOnlyOld = pick "Bare i den gamle teksten" "Only in the old text"
     , summaryOnlyNew = pick "Bare i den nye teksten" "Only in the new text"
     , summaryNote = pick "Linjene telles etter innholdet, uansett hvor de står: linjer som bare er flyttet regnes ikke som forskjellige." "Lines are counted by their text, wherever they stand: lines that only moved do not count as different."
@@ -1041,10 +1083,32 @@ render toMsg config state ((Diff diff) as whole) =
                             [ Attr.id s.id ]
 
                         else
+                            []
+                       )
+                    ++ (if hasRegion then
+                            []
+
+                        else
                             [ Attr.attribute "role" "group", Attr.attribute "aria-label" label ]
                        )
                 )
                 body
+
+        -- the name is on the box that scrolls when there is one that is a tab stop; a
+        -- viewer without one gets the name on the whole, and never on both
+        hasRegion =
+            case diff.content of
+                SummaryContent _ ->
+                    False
+
+                LinesContent _ ->
+                    not (isEmpty whole)
+
+                EntriesContent _ _ ->
+                    interactive
+                        && config.maxHeight
+                        /= Nothing
+                        && not (isEmpty whole && not config.unchangedFields)
     in
     case diff.content of
         SummaryContent summary ->
@@ -1418,11 +1482,19 @@ type Block
     | HunkBlock Lines.Hunk
 
 
-{-| An unopened run of unchanged lines is opened this many lines at a time.
+{-| A run of unchanged lines is opened this many lines at a time, and a hunk draws
+this many rows before the rest is hidden behind a button.
 -}
-foldStep : Int
-foldStep =
+rowStep : Int
+rowStep =
     500
+
+
+{-| A static view draws at most this many changes, and says how many it left out.
+-}
+mostStaticChanges : Int
+mostStaticChanges =
+    1000
 
 
 viewLines : Ctx msg -> String -> Lines.Compared -> Html msg
@@ -1486,8 +1558,8 @@ viewLines ctx label compared =
         ]
 
 
-{-| How many changes are drawn: the limit and what the user asked for, or all of
-them in a static view.
+{-| How many changes are drawn: the limit and what the user asked for, or as many as
+a static view draws.
 -}
 visibleChanges : Ctx msg -> Int
 visibleChanges ctx =
@@ -1500,7 +1572,7 @@ visibleChanges ctx =
             min ctx.changeCount (max ctx.config.maxChanges state.shown)
 
         Nothing ->
-            ctx.changeCount
+            min ctx.changeCount mostStaticChanges
 
 
 {-| The blocks that are drawn: the changes up to the limit with some unchanged
@@ -1601,7 +1673,7 @@ viewBlock ctx split compared block =
     case block of
         ContextBlock run ->
             ( "context-" ++ String.fromInt run.oldStart
-            , Html.tbody [ Internal.cls [ "klar-diff__context" ] ] (contextRows ctx split compared run.oldStart run.newStart 0 run.count)
+            , Html.tbody [ Internal.cls [ "klar-diff__context" ] ] (contextRows ctx split compared Nothing run.oldStart run.newStart 0 run.count)
             )
 
         FoldBlock fold ->
@@ -1614,6 +1686,24 @@ viewBlock ctx split compared block =
 
                 isCurrent =
                     state.current == Just hunk.index
+
+                key =
+                    hunkRowsKey hunk
+
+                -- a hunk of thousands of lines is cut, and says so
+                allowed =
+                    if ctx.interactive then
+                        revealedBefore key state.folds
+
+                    else
+                        rowStep
+
+                total =
+                    if split then
+                        max (List.length hunk.removed) (List.length hunk.added)
+
+                    else
+                        List.length hunk.removed + List.length hunk.added
             in
             ( "hunk-" ++ String.fromInt hunk.index
             , Html.tbody
@@ -1626,13 +1716,63 @@ viewBlock ctx split compared block =
                         ""
                     ]
                 ]
-                (if split then
-                    splitHunkRows ctx compared hunk
+                ((if split then
+                    splitHunkRows ctx key allowed hunk
 
-                 else
-                    unifiedHunkRows ctx compared hunk
+                  else
+                    unifiedHunkRows ctx key allowed hunk
+                 )
+                    ++ (if total > allowed then
+                            [ viewMoreRows ctx split key allowed total ]
+
+                        else
+                            []
+                       )
                 )
             )
+
+
+{-| The key of the rows of a hunk that are shown, in the state of the viewer: where the
+hunk starts, so that it is remembered for the same diff and forgotten for another.
+-}
+hunkRowsKey : Lines.Hunk -> String
+hunkRowsKey hunk =
+    "h" ++ String.fromInt (hunk.oldStart + 1) ++ "/" ++ String.fromInt (hunk.newStart + 1)
+
+
+{-| The row that tells that the rest of a hunk is not drawn, with the button that draws
+more of it (a static view cannot).
+-}
+viewMoreRows : Ctx msg -> Bool -> String -> Int -> Int -> Html msg
+viewMoreRows ctx split key shown total =
+    let
+        t =
+            ctx.t
+
+        left =
+            total - shown
+
+        step =
+            min left rowStep
+    in
+    Html.tr [ Internal.cls [ "klar-diff__fold-row" ] ]
+        [ Html.td [ Internal.cls [ "klar-diff__fold-cell", "klar-diff__fold-cell--more" ], Attr.colspan (columnCount split) ]
+            (Html.span [ Internal.cls [ "klar-diff__fold-note", "klar-tabular" ] ] [ Html.text (t.changedLinesShown shown total) ]
+                :: (case ctx.toMsg of
+                        Just toMsg ->
+                            [ Html.button
+                                [ Internal.cls [ "klar-diff__fold-button" ]
+                                , Attr.type_ "button"
+                                , Events.onClick (toMsg (Reveal key (shown + step)))
+                                ]
+                                [ Html.text (t.showMoreChanged step left) ]
+                            ]
+
+                        Nothing ->
+                            []
+                   )
+            )
+        ]
 
 
 columnCount : Bool -> Int
@@ -1647,8 +1787,8 @@ columnCount split =
 {-| The rows of unchanged lines `from` to `from + count` of a run that starts at the
 given lines.
 -}
-contextRows : Ctx msg -> Bool -> Lines.Compared -> Int -> Int -> Int -> Int -> List (Html msg)
-contextRows ctx split compared oldStart newStart from count =
+contextRows : Ctx msg -> Bool -> Lines.Compared -> Maybe String -> Int -> Int -> Int -> Int -> List (Html msg)
+contextRows ctx split compared opened oldStart newStart from count =
     List.range from (from + count - 1)
         |> List.map
             (\offset ->
@@ -1669,19 +1809,40 @@ contextRows ctx split compared oldStart newStart from count =
                         compared.newMissingNewline && newNumber == Array.length compared.new
                 in
                 if split then
-                    Html.tr [ Internal.cls [ "klar-diff__row" ] ]
+                    Html.tr (Internal.cls [ "klar-diff__row" ] :: openedRowAttributes ctx opened offset)
                         (sideCells ctx ContextRow (Just oldNumber) [ { text = text, changed = False } ] missing Nothing False
                             ++ sideCells ctx ContextRow (Just newNumber) [ { text = text, changed = False } ] missing Nothing True
                         )
 
                 else
-                    Html.tr [ Internal.cls [ "klar-diff__row" ] ]
+                    Html.tr (Internal.cls [ "klar-diff__row" ] :: openedRowAttributes ctx opened offset)
                         [ numberCell [] ContextRow (Just oldNumber)
                         , numberCell [] ContextRow (Just newNumber)
                         , markCell [] ctx ContextRow Nothing
                         , codeCell [] ctx ContextRow [ { text = text, changed = False } ] missing
                         ]
             )
+
+
+{-| The id that the focus goes to when a run of lines or a hunk is opened further: the
+row where the next rows begin, and only such a row, has one.
+-}
+openedRowAttributes : Ctx msg -> Maybe String -> Int -> List (Html.Attribute msg)
+openedRowAttributes ctx opened index =
+    case opened of
+        Just key ->
+            if ctx.interactive && index > 0 && modBy rowStep index == 0 then
+                let
+                    (State state) =
+                        ctx.state
+                in
+                [ Attr.id (rowDomId state.id key index), Attr.tabindex -1 ]
+
+            else
+                []
+
+        Nothing ->
+            []
 
 
 viewFold : Ctx msg -> Bool -> Lines.Compared -> { key : String, oldStart : Int, newStart : Int, hidden : Int, revealed : Int } -> Html msg
@@ -1732,7 +1893,7 @@ viewFold ctx split compared fold =
     in
     if fold.revealed == 0 then
         Html.tbody [ Internal.cls [ "klar-diff__fold" ] ]
-            [ foldRow (toggle False (Reveal fold.key (min fold.hidden foldStep)) (label fold.hidden)) ]
+            [ foldRow (toggle False (Reveal fold.key (min fold.hidden rowStep)) (label fold.hidden)) ]
 
     else
         let
@@ -1749,7 +1910,7 @@ viewFold ctx split compared fold =
                         ]
                     )
                 )
-                :: contextRows ctx split compared fold.oldStart fold.newStart 0 fold.revealed
+                :: contextRows ctx split compared (Just fold.key) fold.oldStart fold.newStart 0 fold.revealed
                 ++ (if left > 0 then
                         [ foldRow
                             (case ctx.toMsg of
@@ -1757,9 +1918,9 @@ viewFold ctx split compared fold =
                                     Html.button
                                         [ Internal.cls [ "klar-diff__fold-button" ]
                                         , Attr.type_ "button"
-                                        , Events.onClick (toMsg (Reveal fold.key (fold.revealed + min left foldStep)))
+                                        , Events.onClick (toMsg (Reveal fold.key (fold.revealed + min left rowStep)))
                                         ]
-                                        [ Html.text (t.showMoreUnchanged (min left foldStep) left) ]
+                                        [ Html.text (t.showMoreUnchanged (min left rowStep) left) ]
 
                                 Nothing ->
                                     Html.text ""
@@ -1940,23 +2101,30 @@ focusTarget ctx index =
         Nothing
 
 
-unifiedHunkRows : Ctx msg -> Lines.Compared -> Lines.Hunk -> List (Html msg)
-unifiedHunkRows ctx _ hunk =
+unifiedHunkRows : Ctx msg -> String -> Int -> Lines.Hunk -> List (Html msg)
+unifiedHunkRows ctx key allowed hunk =
     let
         target =
             focusTarget ctx hunk.index
 
-        row kind oldNumber newNumber line focus =
-            Html.tr [ Internal.cls [ "klar-diff__row" ] ]
+        row index kind oldNumber newNumber line focus =
+            Html.tr (Internal.cls [ "klar-diff__row" ] :: openedRowAttributes ctx (Just key) index)
                 [ numberCell [] kind oldNumber
                 , numberCell [] kind newNumber
                 , markCell [] ctx kind focus
                 , codeCell [] ctx kind line.parts line.missingNewline
                 ]
+
+        removed =
+            List.take allowed hunk.removed
+
+        added =
+            List.take (allowed - List.length removed) hunk.added
     in
     List.indexedMap
         (\i line ->
-            row RemovedRow
+            row i
+                RemovedRow
                 (Just line.number)
                 Nothing
                 line
@@ -1967,34 +2135,35 @@ unifiedHunkRows ctx _ hunk =
                     Nothing
                 )
         )
-        hunk.removed
+        removed
         ++ List.indexedMap
             (\i line ->
-                row AddedRow
+                row (List.length removed + i)
+                    AddedRow
                     Nothing
                     (Just line.number)
                     line
-                    (if i == 0 && List.isEmpty hunk.removed then
+                    (if i == 0 && List.isEmpty removed then
                         target
 
                      else
                         Nothing
                     )
             )
-            hunk.added
+            added
 
 
-splitHunkRows : Ctx msg -> Lines.Compared -> Lines.Hunk -> List (Html msg)
-splitHunkRows ctx _ hunk =
+splitHunkRows : Ctx msg -> String -> Int -> Lines.Hunk -> List (Html msg)
+splitHunkRows ctx key allowed hunk =
     let
         target =
             focusTarget ctx hunk.index
 
         removed =
-            Array.fromList hunk.removed
+            Array.fromList (List.take allowed hunk.removed)
 
         added =
-            Array.fromList hunk.added
+            Array.fromList (List.take allowed hunk.added)
 
         count =
             max (Array.length removed) (Array.length added)
@@ -2031,7 +2200,7 @@ splitHunkRows ctx _ hunk =
                         else
                             Nothing
                 in
-                Html.tr [ Internal.cls [ "klar-diff__row" ] ]
+                Html.tr (Internal.cls [ "klar-diff__row" ] :: openedRowAttributes ctx (Just key) j)
                     (side RemovedRow left leftFocus ++ side AddedRow right rightFocus)
             )
 
@@ -2274,7 +2443,15 @@ viewFooter : Ctx msg -> Html msg
 viewFooter ctx =
     case ctx.toMsg of
         Nothing ->
-            Html.text ""
+            -- a static view cannot show more: it says how many changes it left out
+            if visibleChanges ctx < ctx.changeCount then
+                Html.div [ Internal.cls [ "klar-diff__footer" ] ]
+                    [ Html.span [ Internal.cls [ "klar-diff__footer-text", "klar-tabular" ] ]
+                        [ Html.text (ctx.t.showing (visibleChanges ctx) ctx.changeCount) ]
+                    ]
+
+            else
+                Html.text ""
 
         Just toMsg ->
             let
