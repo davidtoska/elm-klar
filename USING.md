@@ -395,6 +395,11 @@ Drawer.view DrawerMsg [ Drawer.title "Order 1042" ] model.drawer
     (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 ```
 
+On a page or in a card, "Try again" is replaced by the skeleton and focus would fall to the
+page: give the body an `id` and move focus to it in the same `update` branch that asks again
+(`RemoteView.focus "order-body" NoOp`). A page that is only a `RemoteView` draws its title
+(`PageHeader`) outside it, so that there is one `h1` while it loads and when it fails.
+
 **Dialogs, drawers, toasts and the palette.** Each has a `State` in your model and a
 `view` that returns an `Overlay`. Give the list of them to the page; the layer does
 the rest:
@@ -526,6 +531,14 @@ Table.setSort [ ( customer, Table.Ascending ) ] state
 
 A server-mode table gives you a `Table.query`; `Table.columnName` turns the ids in
 it into the names your API knows.
+
+**A list on a server** (a table with a filter bar and saved views) is `Klar.ServerList`: one
+`State` and one `Msg` for the three, and no comparing, page reset or ticket in your code.
+`ServerList.update` returns a `Step` with the `request` to send (the table's `Query` and the
+filter bar's `Rule`; you make the call and answer with `ServerList.gotPage request result at`),
+the saved views to store, and a command. See `recipes/inbox`. For a bulk action or an export of
+everything that matches, `ServerList.target` gives the ids that were picked or the query, the
+rule and the exceptions.
 
 **Dom ids, once.** Every component with state takes a DOM id in `init`, and the
 ids must be unique on the page. Keep them in one module as named values (see the

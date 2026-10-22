@@ -73,6 +73,11 @@ type alias Group = { id : Int, combinator : Combinator, negated : Bool, children
 type Combinator = All | Any
 type alias Condition = { id : Int, field : String, operator : Operator, values : List String }
 emptyGroup : Rule
+is : String -> String -> Rule
+isAnyOf : String -> List String -> Rule
+when : String -> Operator -> List String -> Rule
+allOf : List Rule -> Rule
+anyOf : List Rule -> Rule
 
 -- Running a rule
 matches : Date.Date -> List (Field row) -> Rule -> row -> Bool
@@ -594,6 +599,60 @@ emptyGroup : Rule
 
 A group with nothing in it, with the id 0: the usual starting point of a
 rule. It matches every row.
+
+A rule written by hand, for a saved view or a preset, is shorter with these (they
+number the nodes themselves; the records above stay as they are):
+
+    Rule.allOf [ Rule.is "status" "open", Rule.when "total" Rule.GreaterOrEqual [ "1000" ] ]
+
+### `is`
+
+```elm
+is : String -> String -> Rule
+```
+
+"The field is this value": `when field Is [ value ]`.
+
+    Rule.is "status" "open"
+
+### `isAnyOf`
+
+```elm
+isAnyOf : String -> List String -> Rule
+```
+
+"The field is one of these values": `when field IsAnyOf values`.
+
+    Rule.isAnyOf "status" [ "received", "packed" ]
+
+### `when`
+
+```elm
+when : String -> Operator -> List String -> Rule
+```
+
+A test of one field with any operator and its operands, as a rule whose id is 0.
+It is a condition only: put it in `allOf` or `anyOf` to get the group that
+`FilterBar` and `SavedViews` expect.
+
+    Rule.when "total" Rule.GreaterOrEqual [ "1000" ]
+
+### `allOf`
+
+```elm
+allOf : List Rule -> Rule
+```
+
+A group where all of the rules must match. The nodes of the whole tree are
+numbered 0, 1, 2 ... from the top down, so the ids are unique.
+
+### `anyOf`
+
+```elm
+anyOf : List Rule -> Rule
+```
+
+A group where any of the rules may match. Numbered as `allOf` is.
 
 ## Running a rule
 

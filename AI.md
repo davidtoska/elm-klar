@@ -293,7 +293,7 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 - Data state from a backend, with old data kept while it refreshes: `Remote`. The body of a card, dialog or drawer from a `Remote`: `RemoteView`. Forgiving text matching and ranking: `Search`. Numbers, sizes, dates, money text: `Format`.
 
 **Rules, filters, change**
-- A condition tree as data (encode, decode, run on rows, describe): `Rule`. Edit one: `RuleBuilder`. Chips above a table: `FilterBar`. Named filters: `SavedViews`.
+- A condition tree as data (encode, decode, run on rows, describe): `Rule`. Edit one: `RuleBuilder`. Chips above a table: `FilterBar`. Named filters: `SavedViews`. A server-side list with all three and no glue: `ServerList`.
 - Text diff, JSON diff, record diff: `Diff`. Records side by side: `Compare`. Safe Markdown to HTML: `Markdown`. Edit Markdown with preview: `MarkdownEditor`.
 - Roles by permissions grid: `PermissionMatrix`. Approval steps and decisions: `ApprovalFlow`.
 

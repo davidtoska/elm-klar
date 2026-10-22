@@ -14,10 +14,14 @@ view : List (Attribute msg) -> Remote.Remote a -> (a -> List (Html msg)) -> List
 -- Attributes
 type Attribute msg  -- opaque: no constructors are exposed
 onRetry : msg -> Attribute msg
+id : String -> Attribute msg
 loadingLabel : String -> Attribute msg
 skeleton : Html msg -> Attribute msg
 zone : Time.Zone -> Attribute msg
 locale : Locale.Locale -> Attribute msg
+
+-- Focus
+focus : String -> msg -> Cmd msg
 ```
 
 ## Documentation
@@ -56,8 +60,25 @@ last refresh failed. An empty result is yours to draw, with
 The body is a list of nodes, so it fits wherever a list of children goes: the body
 of a `Card`, a `Modal` or a `Drawer`, or any `Html.div`. Inside a `Modal` or
 `Drawer`, focus that was on the retry button when the data reloads goes back into
-the dialog by itself; in a `Card` it falls to the page, so move it yourself
-(`Browser.Dom.focus`) if that matters.
+the dialog by itself; in a `Card` or on a page it falls to the page, unless the body
+has an `id` and you move focus to it when you start the new request:
+
+    RemoteView.view [ RemoteView.id "supplier", RemoteView.onRetry Retry ] model.supplier viewSupplier
+
+    Retry ->
+        ( { model | supplier = Remote.refresh model.supplier }
+        , Cmd.batch [ fetchSupplier, RemoteView.focus "supplier" NoOp ]
+        )
+
+**A page that is only a `RemoteView`** has no heading while the data loads or when the
+request failed, if the heading is part of the data. Draw the title of the page outside
+the body, from what you know before the data is there, and give the body no heading of
+its own: there is then one `h1` in every state.
+
+    Layout.stack []
+        [ PageHeader.view [ PageHeader.title (Remote.toMaybe model.supplier |> Maybe.map .name |> Maybe.withDefault "Supplier") ]
+        , Layout.stack [] (RemoteView.view [ RemoteView.onRetry Retry ] model.supplier viewDetails)
+        ]
 
 ### `view`
 
@@ -88,6 +109,16 @@ onRetry : msg -> Attribute msg
 The message sent by the "Try again" button, in the failure and in the marker
 of old data. The button is only shown for problems worth retrying (see
 `Remote.isRetryable`).
+
+### `id`
+
+```elm
+id : String -> Attribute msg
+```
+
+The DOM id of the body. With it, the body is drawn inside one element that is the
+same in every state (loading, failed, old data, data) and can take focus, so that
+`focus` has a place to put it. The id must be unique on the page.
 
 ### `loadingLabel`
 
@@ -123,3 +154,16 @@ locale : Locale.Locale -> Attribute msg
 
 The language of the built-in text ("Loading", "Try again", "Old data from").
 The default is `Locale.default`, which is English.
+
+## Focus
+
+### `focus`
+
+```elm
+focus : String -> msg -> Cmd msg
+```
+
+Moves keyboard focus to the body that has this `id`. Call it in the same
+`update` branch that starts the request again, so that focus is not lost when the
+retry button is replaced by the skeleton: the screen reader then reads "Loading",
+and a keyboard user stays on the page. The message is sent when it is done.

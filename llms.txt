@@ -42,6 +42,6 @@ Modules by group (each is ai/modules/Klar.<Name>.md):
 - Text and change: Markdown, MarkdownEditor, Diff, Compare
 - Access and approval: PermissionMatrix, ApprovalFlow
 - Data display: Stat, Chart, Timeline, Avatar, JsonViewer
-- Rules and filters: Rule, RuleBuilder, FilterBar, SavedViews
+- Rules and filters: Rule, RuleBuilder, FilterBar, SavedViews, ServerList
 - Data and utilities: Remote, RemoteView, Search, Format, Shortcut
 - Icon library: Icon.Library, Icon.Arrows, Icon.Business, Icon.Calendar, Icon.Communication, Icon.Data, Icon.Developer, Icon.Devices, Icon.Documents, Icon.Editor, Icon.Interface, Icon.Logistics, Icon.Media, Icon.Nature, Icon.People, Icon.Science

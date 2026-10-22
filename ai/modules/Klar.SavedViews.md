@@ -156,7 +156,10 @@ route of your own that names it, and `apply` is what that route does:
     { model | views = SavedViews.apply name model.views }
 
 Compare `revision` after `apply` as after `update` and load the rule (and query)
-of `active`.
+of `active`. (With [Klar.ServerList](Klar.ServerList.md), `ServerList.applyView name` does
+both.) There is no clipboard in pure Elm, so a "Copy link" is the link in a read-only
+[Klar.TextInput](Klar.TextInput.md) that the user selects (`TextInput.readOnly True`), shown
+in a dialog or a toast of your own.
 
 **Keyboard**: `ArrowDown` on the button opens the list. `ArrowUp`, `ArrowDown`,
 `Home` and `End` move between the views, `Enter` applies the view that has focus,

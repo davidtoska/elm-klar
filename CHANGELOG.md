@@ -49,6 +49,24 @@ The first release.
   `loading False` after `remote` used to hide the loading state and the failure). The
   command palette no longer says "No results" while a remote section is still on its way.
 
+- A list on a server in one module (`Klar.ServerList`, see `design/SERVER-LIST.md`): the table, the
+  filter bar and the saved views of a server-mode list, with the glue that every such list needs:
+  comparing the query and the rule, going back to page 1, dropping an "all matching"
+  selection that would mean other rows, loading an applied view, a ticket for each request and
+  late answers dropped. `update` returns the new state, a command, the `request` to send and the
+  views to store; the application keeps the request, the columns and the fields. `target` gives a
+  selection across pages as ids or "all matching" for a bulk action or an export. The recipe
+  `inbox` shrank from 277 to 141 lines of model, update and view, and the Fulfilment application
+  of A0 round 3 lost its `changed`, `viewsChanged`, `fetchNow`, ticket and `GotPage` (150
+  lines). `Table.dropAllMatching` drops an "all matching" selection when something outside the
+  table changes what it means.
+- `RemoteView.id` and `RemoteView.focus` keep keyboard focus on a body that is replaced by
+  its skeleton after "Try again"; the pattern for a page that is one `RemoteView` (the title
+  outside it, one `h1` in every state) is documented and tested.
+- `Toast.key` names a toast so that a new one replaces it, and `Toast.dismiss` takes it
+  away from `update` (a failure toast that is stale after a retry worked).
+- `Rule.is`, `Rule.isAnyOf`, `Rule.when`, `Rule.allOf` and `Rule.anyOf` write a rule by hand
+  without the records and the ids (saved views, presets).
 - The form model (`Klar.Form`, declared with `Klar.Form.Spec`, tested with `Klar.Form.Check`;
   see `design/FORM-MODEL.md`): a form declared once, with one state that owns every field's
   value, knows when it is dirty, loads and returns a record, and ties problems from the
