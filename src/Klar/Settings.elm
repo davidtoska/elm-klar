@@ -1,15 +1,16 @@
 module Klar.Settings exposing
-    ( Settings, default, withDensity, withZone, density, zone
+    ( Settings, default, withDensity, withZone, withTheme, withMode, density, zone, theme, mode
     , scope
     , time, dateTime, toDate
     )
 
 {-| What the application says once and every component follows: how tightly
-things are packed (the density) and the time zone of the times people read.
+things are packed (the density), the time zone of the times people read, and the
+theme and mode (light or dark) of the look.
 
 Use when: the application chooses a density or knows the time zone of its users, which is every application with a clock in it.
-Do not use when: you want the look of the components changed (colors, fonts, radius), which is done with the CSS custom properties described in `Klar.Theme`.
-Quick path: `default`, `withZone`, `withDensity`, `AppShell.settings`
+Do not use when: you want colors of your own; the application picks one of the ten themes of `Klar.Theme`, and nothing else.
+Quick path: `default`, `withZone`, `withDensity`, `withTheme`, `withMode`, `AppShell.settings`, `Klar.stylesheetFor`
 
     import Klar.AppShell as AppShell
     import Klar.Settings as Settings exposing (Settings)
@@ -56,7 +57,7 @@ off. With the zone given, the times are written as they are on the user's wall
 
 # Settings
 
-@docs Settings, default, withDensity, withZone, density, zone
+@docs Settings, default, withDensity, withZone, withTheme, withMode, density, zone, theme, mode
 
 
 # Where the density applies
@@ -75,7 +76,7 @@ import Klar.Date as Date exposing (Date)
 import Klar.Format as Format
 import Klar.Internal as Internal
 import Klar.Locale exposing (Locale)
-import Klar.Theme exposing (Density(..))
+import Klar.Theme as Theme exposing (Density(..), Mode(..), Theme)
 import Time
 
 
@@ -83,7 +84,7 @@ import Time
 -- SETTINGS
 
 
-{-| The settings of the application: a density and a time zone. The type is
+{-| The settings of the application: a density, a time zone, a theme and a mode. The type is
 opaque, so that more settings can be added without breaking your code. Keep one
 in your model.
 -}
@@ -91,6 +92,8 @@ type Settings
     = Settings
         { density : Density
         , zone : Maybe Time.Zone
+        , theme : Theme
+        , mode : Mode
         }
 
 
@@ -99,7 +102,7 @@ UTC and say so.
 -}
 default : Settings
 default =
-    Settings { density = Normal, zone = Nothing }
+    Settings { density = Normal, zone = Nothing, theme = Theme.klar, mode = Light }
 
 
 {-| How tightly rows, controls and cards are packed: `Compact`, `Normal` or
@@ -120,6 +123,42 @@ end in "UTC".
 withZone : Time.Zone -> Settings -> Settings
 withZone value (Settings data) =
     Settings { data | zone = Just value }
+
+
+{-| The theme of the application (one of the ten in [Klar.Theme](Klar-Theme)); the
+stylesheet is drawn with it by `Klar.stylesheetFor`. The default is `Theme.klar`.
+
+    Settings.withTheme Theme.ocean model.settings
+
+-}
+withTheme : Theme -> Settings -> Settings
+withTheme value (Settings data) =
+    Settings { data | theme = value }
+
+
+{-| Light, dark, or the choice of the operating system. The default is `Light`.
+Offer it to the person (a switch in the menu of the user), and keep it in the model.
+
+    Settings.withMode Dark model.settings
+
+-}
+withMode : Mode -> Settings -> Settings
+withMode value (Settings data) =
+    Settings { data | mode = value }
+
+
+{-| The theme in the settings.
+-}
+theme : Settings -> Theme
+theme (Settings data) =
+    data.theme
+
+
+{-| The mode in the settings.
+-}
+mode : Settings -> Mode
+mode (Settings data) =
+    data.mode
 
 
 {-| The density in the settings.

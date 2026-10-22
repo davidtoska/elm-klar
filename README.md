@@ -186,6 +186,25 @@ npm start       # builds the showcase and serves it on http://localhost:8000
 
 Press `Ctrl K` for the command palette and `?` for the keyboard shortcuts.
 
+## Themes
+
+There are ten themes, each in a light and a dark mode, and an application picks one
+(an internal application usually picks one for the company and leaves it):
+
+```elm
+Klar.stylesheetFor
+    (Settings.default
+        |> Settings.withTheme Theme.ocean
+        |> Settings.withMode Theme.System -- Light, Dark, or what the operating system says
+    )
+```
+
+Klar, Ocean, Teal, Indigo, Violet, Plum, Slate, Graphite, Sand and Contrast (high
+contrast). None is green, amber or red, so an accent is never mistaken for success,
+a warning or an error. The colors are computed in Elm and a test checks WCAG AA
+contrast for the pairs of the library in every generated palette (the default light look is the stylesheet itself). There are no colors
+of your own on purpose: a color picked by hand cannot be promised to keep the contrast.
+
 ## Styling
 
 `Klar.stylesheet` renders a `<style>` element with every rule of the library. It
@@ -196,7 +215,7 @@ forbids inline styles, link the same file instead:
 the tagged release), and leave out `Klar.stylesheet`.
 
 The look is made of design tokens, CSS custom properties that components use instead
-of fixed colors, sizes and radii. Redefine them after the library's CSS to restyle
+of fixed colors, sizes and radii. If a theme is not enough, redefine them after the library's CSS to restyle
 everything at once:
 
 ```css
@@ -216,7 +235,7 @@ use CSS anchor positioning where the browser has it, so they are never clipped b
 scrolling parent and flip when there is no room, and fall back to plain positioning
 where it does not. It was developed and tested in Chromium, with real key presses and
 pointer events. Firefox and Safari, touch screens, screen readers, high-contrast mode
-and a dark theme have not been tested systematically (there is no dark theme yet).
+and the dark modes have not been tested systematically (only in Chromium, on the showcase).
 
 ## Accessibility
 

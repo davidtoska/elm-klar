@@ -246,6 +246,14 @@ releases. M to set up, S to run.
 
 ### A4. Theming from the outside
 
+**Status: done in a smaller form (October 2026).** Ten themes with a light and a dark mode, chosen
+with `Settings.withTheme` and `Settings.withMode`, drawn by `Klar.stylesheetFor`; computed in Elm
+(`Klar.Internal.Palette`), contrast tested for every generated palette. Decided against: `Theme.make`
+and colors of your own (Klar is for applications inside a company: one of ten themes is enough, and a
+chosen color cannot be promised to keep the contrast), component tokens, and a theme lab. Not
+done: the avatar palette and the chart palette are not tuned per theme, and no theme has been
+looked at in Firefox or Safari. The text below is the original plan.
+
 The look today is liked and stays the default. What is new is that an application can
 change it with a typed value instead of hand-written CSS. The tokens (`--klar-*`) stay a
 documented, stable part of the API.

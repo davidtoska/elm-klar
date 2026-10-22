@@ -71,6 +71,10 @@
   --klar-text-disabled: var(--klar-gray-400);
   --klar-text-link: var(--klar-blue-600);
 
+  /* Code blocks are dark in every theme, light mode included. */
+  --klar-code-bg: var(--klar-gray-900);
+  --klar-code-text: var(--klar-gray-100);
+
   --klar-primary: var(--klar-blue-600);
   --klar-primary-hover: var(--klar-blue-700);
   --klar-primary-active: var(--klar-blue-800);

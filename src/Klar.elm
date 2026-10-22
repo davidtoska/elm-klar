@@ -1,4 +1,4 @@
-module Klar exposing (stylesheet, css)
+module Klar exposing (stylesheet, stylesheetFor, css)
 
 {-| **Klar** (Norwegian for "clear" and "ready") is a toolkit of interface
 components for data-intensive applications: tables with thousands of rows,
@@ -208,12 +208,15 @@ them again after Klar's CSS to restyle everything at once; they are listed in
 
 # The stylesheet
 
-@docs stylesheet, css
+@docs stylesheet, stylesheetFor, css
 
 -}
 
 import Html exposing (Html)
+import Klar.Internal as Internal
 import Klar.Internal.Css as Css
+import Klar.Settings as Settings exposing (Settings)
+import Klar.Theme as Theme
 
 
 {-| The stylesheet of the package as an element: render it once, anywhere in your
@@ -229,6 +232,23 @@ constant, so Elm skips it when it compares two renderings of the view.
 stylesheet : Html msg
 stylesheet =
     Html.node "style" [] [ Html.text Css.css ]
+
+
+{-| The stylesheet with the theme and the mode of the settings: the same element
+as `stylesheet` and, after it, the colors of the theme. Use this one when the
+application chooses a theme or lets the person choose light or dark.
+
+    Klar.stylesheetFor model.settings
+
+With the default settings it draws exactly what `stylesheet` does.
+
+-}
+stylesheetFor : Settings -> Html msg
+stylesheetFor settings =
+    Html.div [ Internal.cls [ "klar-settings" ] ]
+        [ stylesheet
+        , Theme.style (Settings.theme settings) (Settings.mode settings)
+        ]
 
 
 {-| The same rules as text. Use it where the ready-made element does not fit: to

@@ -95,8 +95,8 @@
 .klar-code-block {
   margin: 0;
   padding: var(--klar-space-3) var(--klar-space-4);
-  background: var(--klar-gray-900);
-  color: var(--klar-gray-100);
+  background: var(--klar-code-bg);
+  color: var(--klar-code-text);
   border-radius: var(--klar-radius-lg);
   font-family: var(--klar-font-mono);
   font-size: var(--klar-text-sm);

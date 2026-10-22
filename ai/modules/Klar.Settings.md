@@ -1,6 +1,6 @@
 # Klar.Settings
 
-What the application says once and every component follows: how tightly things are packed (the density) and the time zone of the times people read.
+What the application says once and every component follows: how tightly things are packed (the density), the time zone of the times people read, and the theme and mode (light or dark) of the look.
 
 Import: `import Klar.Settings as Settings` | Group: Foundations
 
@@ -14,8 +14,12 @@ type Settings  -- opaque: no constructors are exposed
 default : Settings
 withDensity : Theme.Density -> Settings -> Settings
 withZone : Time.Zone -> Settings -> Settings
+withTheme : Theme.Theme -> Settings -> Settings
+withMode : Theme.Mode -> Settings -> Settings
 density : Settings -> Theme.Density
 zone : Settings -> Time.Zone
+theme : Settings -> Theme.Theme
+mode : Settings -> Theme.Mode
 
 -- Where the density applies
 scope : Settings -> List (Html msg) -> Html msg
@@ -29,11 +33,12 @@ toDate : Settings -> Time.Posix -> Date.Date
 ## Documentation
 
 What the application says once and every component follows: how tightly
-things are packed (the density) and the time zone of the times people read.
+things are packed (the density), the time zone of the times people read, and the
+theme and mode (light or dark) of the look.
 
 Use when: the application chooses a density or knows the time zone of its users, which is every application with a clock in it.
-Do not use when: you want the look of the components changed (colors, fonts, radius), which is done with the CSS custom properties described in `Klar.Theme`.
-Quick path: `default`, `withZone`, `withDensity`, `AppShell.settings`
+Do not use when: you want colors of your own; the application picks one of the ten themes of `Klar.Theme`, and nothing else.
+Quick path: `default`, `withZone`, `withDensity`, `withTheme`, `withMode`, `AppShell.settings`, `Klar.stylesheetFor`
 
     import Klar.AppShell as AppShell
     import Klar.Settings as Settings exposing (Settings)
@@ -85,7 +90,7 @@ off. With the zone given, the times are written as they are on the user's wall
 type Settings  -- opaque: no constructors are exposed
 ```
 
-The settings of the application: a density and a time zone. The type is
+The settings of the application: a density, a time zone, a theme and a mode. The type is
 opaque, so that more settings can be added without breaking your code. Keep one
 in your model.
 
@@ -119,6 +124,28 @@ The time zone of the people who read the application, as the browser says it
 (`Time.here`). From now on the times Klar writes are in this zone and no longer
 end in "UTC".
 
+### `withTheme`
+
+```elm
+withTheme : Theme.Theme -> Settings -> Settings
+```
+
+The theme of the application (one of the ten in [Klar.Theme](Klar.Theme.md)); the
+stylesheet is drawn with it by `Klar.stylesheetFor`. The default is `Theme.klar`.
+
+    Settings.withTheme Theme.ocean model.settings
+
+### `withMode`
+
+```elm
+withMode : Theme.Mode -> Settings -> Settings
+```
+
+Light, dark, or the choice of the operating system. The default is `Light`.
+Offer it to the person (a switch in the menu of the user), and keep it in the model.
+
+    Settings.withMode Dark model.settings
+
 ### `density`
 
 ```elm
@@ -136,6 +163,22 @@ zone : Settings -> Time.Zone
 The time zone to format with, for the places where you write a time yourself
 (`Format.time (Settings.zone model.settings) posix`). It is UTC until `withZone`
 was called; prefer `time` and `dateTime`, which also say when the zone is not known.
+
+### `theme`
+
+```elm
+theme : Settings -> Theme.Theme
+```
+
+The theme in the settings.
+
+### `mode`
+
+```elm
+mode : Settings -> Theme.Mode
+```
+
+The mode in the settings.
 
 ## Where the density applies
 

@@ -37,7 +37,7 @@ import Klar.Shortcut as Shortcut exposing (Shortcut)
 import Klar.ShortcutHelp as ShortcutHelp
 import Klar.SideNav as SideNav
 import Klar.Text as Text
-import Klar.Theme exposing (Density(..), Tone(..))
+import Klar.Theme as Theme exposing (Density(..), Tone(..))
 import Klar.Toast as Toast
 import Page.Effect as Effect exposing (Effect(..))
 import Page.Gallery as Gallery
@@ -183,6 +183,8 @@ type Msg
     | ToastMsg Toast.Msg
     | SetLocale Locale
     | SetDensity Density
+    | SetTheme String
+    | SetColorMode String
     | SetZone ZoneChoice
     | ToggleLocale
       -- command palette
@@ -359,6 +361,12 @@ update msg model =
 
         SetDensity density ->
             ( { model | settings = Settings.withDensity density model.settings }, Cmd.none )
+
+        SetTheme key ->
+            ( { model | settings = Settings.withTheme (Theme.fromKey key |> Maybe.withDefault Theme.klar) model.settings }, Cmd.none )
+
+        SetColorMode key ->
+            ( { model | settings = Settings.withMode (colorModeFromKey key) model.settings }, Cmd.none )
 
         SetZone choice ->
             ( applyZone { model | zoneChoice = choice }, Cmd.none )
@@ -889,7 +897,7 @@ view model =
     , body =
         [ -- The stylesheet of the library. It is part of the package, so there is
           -- nothing to link or bundle.
-          Klar.stylesheet
+          Klar.stylesheetFor model.settings
         , AppShell.view
             ([ AppShell.state ShellMsg model.shell
              , AppShell.locale model.locale
@@ -980,7 +988,7 @@ topBarActions model =
     , viewZoneSwitch model
     , SegmentedControl.view
         [ SegmentedControl.ariaLabel "Language of the components"
-        , SegmentedControl.size Klar.Theme.Small
+        , SegmentedControl.size Theme.Small
         , SegmentedControl.options
             [ SegmentedControl.option "en" "EN"
             , SegmentedControl.option "nb" "NO"
@@ -1013,7 +1021,7 @@ viewDensitySwitch : Model -> Html Msg
 viewDensitySwitch model =
     SegmentedControl.view
         [ SegmentedControl.ariaLabel "Density of the components"
-        , SegmentedControl.size Klar.Theme.Small
+        , SegmentedControl.size Theme.Small
         , SegmentedControl.options
             [ SegmentedControl.option "compact" "Compact"
             , SegmentedControl.option "normal" "Normal"
@@ -1062,7 +1070,7 @@ viewZoneSwitch : Model -> Html Msg
 viewZoneSwitch model =
     SegmentedControl.view
         [ SegmentedControl.ariaLabel "Time zone of the times"
-        , SegmentedControl.size Klar.Theme.Small
+        , SegmentedControl.size Theme.Small
         , SegmentedControl.options
             [ SegmentedControl.option "browser" "Local"
             , SegmentedControl.option "utc" "UTC"
@@ -1231,6 +1239,37 @@ viewPalette model =
 -- DEVELOPER TOOLS
 
 
+themeOption : Theme.Theme -> Radio.Option
+themeOption theme =
+    Radio.option (Theme.key theme) (Theme.name theme)
+
+
+colorModeKey : Theme.Mode -> String
+colorModeKey mode =
+    case mode of
+        Theme.Light ->
+            "light"
+
+        Theme.Dark ->
+            "dark"
+
+        Theme.System ->
+            "system"
+
+
+colorModeFromKey : String -> Theme.Mode
+colorModeFromKey key =
+    case key of
+        "dark" ->
+            Theme.Dark
+
+        "system" ->
+            Theme.System
+
+        _ ->
+            Theme.Light
+
+
 viewTools : Model -> Overlay Msg
 viewTools model =
     let
@@ -1249,6 +1288,27 @@ viewTools model =
         [ Layout.stack [ Layout.gap 5 ]
             [ Alert.view [ Alert.tone Info, Alert.compact ]
                 "The backend is a synchronous dummy written in Elm. Every request still goes through a request/response layer with a delay, so you can see how the interface behaves when something goes wrong."
+            , Radio.view
+                [ Radio.label "Theme"
+                , Radio.hint "One of the ten themes of Klar.Theme. An internal application picks one and leaves it."
+                , Radio.horizontal
+                , Radio.options (List.map themeOption Theme.all)
+                , Radio.selected (Just (Theme.key (Settings.theme model.settings)))
+                , Radio.onSelect SetTheme
+                , Radio.id "tools-theme"
+                ]
+            , SegmentedControl.view
+                [ SegmentedControl.label "Mode"
+                , SegmentedControl.hint "System follows the operating system."
+                , SegmentedControl.options
+                    [ SegmentedControl.option "light" "Light"
+                    , SegmentedControl.option "dark" "Dark"
+                    , SegmentedControl.option "system" "System"
+                    ]
+                , SegmentedControl.selected (Just (colorModeKey (Settings.mode model.settings)))
+                , SegmentedControl.onSelect SetColorMode
+                , SegmentedControl.id "tools-color-mode"
+                ]
             , Radio.view
                 [ Radio.label "Network"
                 , Radio.hint "Applies to the next requests. Try Offline, then reload the data with the button below."

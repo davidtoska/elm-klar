@@ -7,8 +7,8 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar](Klar.md): Klar (Norwegian for "clear" and "ready") is a toolkit of interface components for data-intensive applications.
 ## Foundations
 
-- [Klar.Theme](Klar.Theme.md): The small shared vocabulary of the components: the color of a message (`Tone`), the size of a control (`Size`) and how tightly rows are packed (`Density`).
-- [Klar.Settings](Klar.Settings.md): What the application says once and every component follows: how tightly things are packed (the density) and the time zone of the times people read.
+- [Klar.Theme](Klar.Theme.md): The look of the application: ten themes, each in a light and a dark mode, and the small shared vocabulary of the components: the color of a message (`Tone`), the size of a control (`Size`) and how ...
+- [Klar.Settings](Klar.Settings.md): What the application says once and every component follows: how tightly things are packed (the density), the time zone of the times people read, and the theme and mode (light or dark) of the look.
 - [Klar.Locale](Klar.Locale.md): The language and the regional conventions of the text the library writes itself: placeholders such as "Search ...", the labels of icon buttons, month names, validation messages, number separators.
 - [Klar.Layout](Klar.Layout.md): Layout primitives: vertical stacks, horizontal rows and grids, with spacing from a fixed scale.
 - [Klar.Card](Klar.Card.md): A bordered surface that groups related content, with an optional header and footer.

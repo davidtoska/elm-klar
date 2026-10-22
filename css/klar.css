@@ -79,6 +79,10 @@
   --klar-text-disabled: var(--klar-gray-400);
   --klar-text-link: var(--klar-blue-600);
 
+  /* Code blocks are dark in every theme, light mode included. */
+  --klar-code-bg: var(--klar-gray-900);
+  --klar-code-text: var(--klar-gray-100);
+
   --klar-primary: var(--klar-blue-600);
   --klar-primary-hover: var(--klar-blue-700);
   --klar-primary-active: var(--klar-blue-800);
@@ -681,8 +685,8 @@ table {
 .klar-code-block {
   margin: 0;
   padding: var(--klar-space-3) var(--klar-space-4);
-  background: var(--klar-gray-900);
-  color: var(--klar-gray-100);
+  background: var(--klar-code-bg);
+  color: var(--klar-code-text);
   border-radius: var(--klar-radius-lg);
   font-family: var(--klar-font-mono);
   font-size: var(--klar-text-sm);

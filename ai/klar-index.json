@@ -18,6 +18,7 @@
       ],
       "mainFunctions": [
         "stylesheet",
+        "stylesheetFor",
         "css"
       ],
       "related": [
@@ -45,18 +46,28 @@
       "name": "Klar.Theme",
       "import": "import Klar.Theme as Theme",
       "group": "Foundations",
-      "purpose": "The small shared vocabulary of the components: the color of a message (`Tone`), the size of a control (`Size`) and how tightly rows are packed (`Density`).",
-      "whenToUse": "you give a component a tone, a size or a density, or write a component of your own that follows them.",
-      "whenNot": "the whole look should change, which a person does with the CSS custom properties of the stylesheet (see `Klar`), never the application code.",
+      "purpose": "The look of the application: ten themes, each in a light and a dark mode, and the small shared vocabulary of the components: the color of a message (`Tone`), the size of a control (`Size`) and how ...",
+      "whenToUse": "the application picks one of the ten themes, or a person picks the mode (light, dark or the system's); or you give a component a tone, a size or a density.",
+      "whenNot": "you want colors of your own. There is no way to make one on purpose: the themes are drawn so that every pair of colors in the library keeps WCAG AA contrast, which a color picked in a form would not.",
       "state": [],
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "Theme.ocean",
+        "Settings.withTheme",
+        "Settings.withMode",
+        "Klar.stylesheetFor"
+      ],
       "mainFunctions": [
-        "toneSuffix",
-        "sizeSuffix",
-        "densitySuffix"
+        "klar",
+        "ocean",
+        "teal",
+        "indigo",
+        "violet",
+        "plum",
+        "slate",
+        "graphite"
       ],
       "related": [
         "Klar.Settings"
@@ -69,11 +80,11 @@
         "density",
         "colors",
         "dark mode",
+        "application",
+        "themes",
+        "light",
         "small",
-        "shared",
-        "vocabulary",
-        "components",
-        "color"
+        "shared"
       ],
       "reference": "ai/modules/Klar.Theme.md"
     },
@@ -81,9 +92,9 @@
       "name": "Klar.Settings",
       "import": "import Klar.Settings as Settings",
       "group": "Foundations",
-      "purpose": "What the application says once and every component follows: how tightly things are packed (the density) and the time zone of the times people read.",
+      "purpose": "What the application says once and every component follows: how tightly things are packed (the density), the time zone of the times people read, and the theme and mode (light or dark) of the look.",
       "whenToUse": "the application chooses a density or knows the time zone of its users, which is every application with a clock in it.",
-      "whenNot": "you want the look of the components changed (colors, fonts, radius), which is done with the CSS custom properties described in `Klar.Theme`.",
+      "whenNot": "you want colors of your own; the application picks one of the ten themes of `Klar.Theme`, and nothing else.",
       "state": [],
       "msg": [],
       "ids": [],
@@ -92,19 +103,24 @@
         "default",
         "withZone",
         "withDensity",
-        "AppShell.settings"
+        "withTheme",
+        "withMode",
+        "AppShell.settings",
+        "Klar.stylesheetFor"
       ],
       "mainFunctions": [
         "default",
         "withDensity",
         "withZone",
+        "withTheme",
+        "withMode",
         "density",
         "zone",
-        "scope",
-        "time",
-        "dateTime"
+        "theme"
       ],
-      "related": [],
+      "related": [
+        "Klar.Theme"
+      ],
       "keywords": [
         "settings",
         "foundations",

@@ -8,6 +8,16 @@ computes the next version from the changes in the public API.
 
 The first release.
 
+- Ten themes, each in a light and a dark mode (`Klar.Theme`: `klar`, `ocean`, `teal`, `indigo`,
+  `violet`, `plum`, `slate`, `graphite`, `sand`, `contrast`). `Settings.withTheme` and
+  `Settings.withMode` (`Light`, `Dark`, `System`) choose, `Klar.stylesheetFor` draws, `Theme.style`
+  is the element on its own. The colors are computed in Elm (`Klar.Internal.Palette`) as
+  custom properties on `:root`, so the component CSS is unchanged and every token keeps its name;
+  `--klar-blue-*` is now the accent scale of the chosen theme. `tests/ThemeTest.elm` checks WCAG AA
+  for the pairs of the library in every generated palette (the default light look is the stylesheet itself). New tokens `--klar-code-bg` and
+  `--klar-code-text`: code blocks stay dark in every theme. There is no way to make a color of
+  your own.
+
 - About 90 components for data-intensive applications: a data table with client
   and server mode, searchable selects, pickers for dates, periods and times, a rule
   builder and filter bar, dialogs, drawers, toasts, a command palette, charts,

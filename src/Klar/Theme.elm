@@ -1,14 +1,18 @@
 module Klar.Theme exposing
-    ( Tone(..), Size(..), Density(..)
+    ( Theme, Mode(..)
+    , klar, ocean, teal, indigo, violet, plum, slate, graphite, sand, contrast
+    , all, name, key, fromKey, style
+    , Tone(..), Size(..), Density(..)
     , toneSuffix, sizeSuffix, densitySuffix
     )
 
-{-| The small shared vocabulary of the components: the color of a message
-(`Tone`), the size of a control (`Size`) and how tightly rows are packed
-(`Density`).
+{-| The look of the application: ten themes, each in a light and a dark mode, and
+the small shared vocabulary of the components: the color of a message (`Tone`),
+the size of a control (`Size`) and how tightly rows are packed (`Density`).
 
-Use when: you give a component a tone, a size or a density, or write a component of your own that follows them.
-Do not use when: the whole look should change, which a person does with the CSS custom properties of the stylesheet (see `Klar`), never the application code.
+Use when: the application picks one of the ten themes, or a person picks the mode (light, dark or the system's); or you give a component a tone, a size or a density.
+Do not use when: you want colors of your own. There is no way to make one on purpose: the themes are drawn so that every pair of colors in the library keeps WCAG AA contrast, which a color picked in a form would not.
+Quick path: `Theme.ocean`, `Settings.withTheme`, `Settings.withMode`, `Klar.stylesheetFor`
 
     import Klar.Badge as Badge
     import Klar.Button as Button
@@ -22,12 +26,44 @@ These are the only exposed custom types that components share. Everything else
 about the look of Klar lives in the stylesheet, as CSS custom properties.
 
 
-# Restyling
+# Themes
+
+There are ten, and an application chooses one (an internal application usually
+picks one for the company and leaves it): `klar` (the default blue), `ocean`,
+`teal`, `indigo`, `violet`, `plum`, `slate`, `graphite` (no color), `sand` (warm
+grays) and `contrast` (high contrast, for people who need it). None of them is
+green, amber or red, so an accent is never mistaken for success, a warning or an
+error. Each has a light and a dark mode; the mode is `Light`, `Dark` or `System`
+(follow the operating system). The choice lives in `Klar.Settings` and is drawn by
+`Klar.stylesheetFor`:
+
+    import Klar
+    import Klar.Settings as Settings
+    import Klar.Theme as Theme exposing (Mode(..))
+
+    settings =
+        Settings.default
+            |> Settings.withTheme Theme.ocean
+            |> Settings.withMode System
+
+    view model =
+        Html.div [] [ Klar.stylesheetFor model.settings, page ]
+
+A page that links `klar.css` instead of using `Klar.stylesheet` puts `Theme.style`
+after the link. The colors of a theme are computed in Elm
+and drawn as custom properties on `:root`, so there is one theme for the whole page.
+
+@docs Theme, Mode
+@docs klar, ocean, teal, indigo, violet, plum, slate, graphite, sand, contrast
+@docs all, name, key, fromKey, style
+
+
+# The tokens
 
 The stylesheet (see [`Klar.stylesheet`](Klar#stylesheet)) defines its design
 tokens on `:root`. A component never uses a literal color, spacing or radius, only
-`var(--klar-...)`, so redefining a token restyles every component at once. Put
-your own CSS after the library's, and redefine tokens where you need them, on
+`var(--klar-...)`, so redefining a token restyles every component at once. If you must, put
+your own CSS after the library's and redefine tokens where you need them, on
 `:root` for the whole page or on a container for part of it:
 
     :root {
@@ -59,7 +95,7 @@ The tokens you will use most:
     your own layers must sit between two of Klar's.
 
 The palette behind them (`--klar-gray-25` to `--klar-gray-900`, `--klar-blue-50`
-to `--klar-blue-900`, and the green, amber and red scales) is also a set of
+to `--klar-blue-900`, which is the accent scale of whatever theme is chosen, and the green, amber and red scales) is also a set of
 tokens. The default look is calm and light: gray, white and blue. The page
 `color-scheme` is `light`. Every token is defined in the `:root` block at the top
 of `css/klar.css` in the source of the package.
@@ -79,6 +115,171 @@ Success` is `"klar-badge--success"`.
 @docs toneSuffix, sizeSuffix, densitySuffix
 
 -}
+
+import Html exposing (Html)
+import Klar.Internal.Palette as Palette
+
+
+
+-- THEMES
+
+
+{-| One of the ten themes. The type is opaque: it is one of the values below.
+-}
+type Theme
+    = Theme Palette.Spec
+
+
+{-| Whether the page is light, dark, or follows the operating system.
+`System` is dark when the person has asked the system for a dark mode, and light
+otherwise. A page without a choice is `Light`.
+-}
+type Mode
+    = Light
+    | Dark
+    | System
+
+
+{-| The default: calm gray, white and blue.
+-}
+klar : Theme
+klar =
+    pick "klar"
+
+
+{-| Cyan blue.
+-}
+ocean : Theme
+ocean =
+    pick "ocean"
+
+
+{-| Blue green.
+-}
+teal : Theme
+teal =
+    pick "teal"
+
+
+{-| Deep blue.
+-}
+indigo : Theme
+indigo =
+    pick "indigo"
+
+
+{-| Blue violet.
+-}
+violet : Theme
+violet =
+    pick "violet"
+
+
+{-| Muted purple.
+-}
+plum : Theme
+plum =
+    pick "plum"
+
+
+{-| Steel: a blue so quiet that the page is almost gray.
+-}
+slate : Theme
+slate =
+    pick "slate"
+
+
+{-| No color at all, only grays.
+-}
+graphite : Theme
+graphite =
+    pick "graphite"
+
+
+{-| Warm, paper-like grays with a blue accent.
+-}
+sand : Theme
+sand =
+    pick "sand"
+
+
+{-| High contrast: black on white, or white on black, with strong borders. For
+people who need it, and a good choice for a wall display.
+-}
+contrast : Theme
+contrast =
+    pick "contrast"
+
+
+pick : String -> Theme
+pick wanted =
+    Palette.specs
+        |> List.filter (\spec -> spec.key == wanted)
+        |> List.head
+        |> Maybe.withDefault (Palette.Spec "klar" "Klar" 212 1 213 15 False True)
+        |> Theme
+
+
+{-| All ten, in the order to offer them in a list.
+
+    List.map Theme.name Theme.all -- [ "Klar", "Ocean", "Teal", ... ]
+
+-}
+all : List Theme
+all =
+    List.map Theme Palette.specs
+
+
+{-| The name to show a person: "Ocean".
+-}
+name : Theme -> String
+name (Theme spec) =
+    spec.name
+
+
+{-| A short stable text for a theme (`"ocean"`), to store a choice with
+(`fromKey` reads it back). The keys never change.
+-}
+key : Theme -> String
+key (Theme spec) =
+    spec.key
+
+
+{-| The theme with that key, if there is one. Use it on a stored choice, and fall
+back to `klar` on `Nothing`.
+-}
+fromKey : String -> Maybe Theme
+fromKey wanted =
+    all
+        |> List.filter (\theme -> key theme == wanted)
+        |> List.head
+
+
+{-| The `style` element that sets the colors of a theme in a mode. It is empty for
+`klar` in `Light`, because the stylesheet is that already. Put it after the
+stylesheet; `Klar.stylesheetFor` does both.
+-}
+style : Theme -> Mode -> Html msg
+style (Theme spec) mode =
+    let
+        light =
+            Palette.css (Palette.declarations spec False)
+
+        dark =
+            Palette.css (Palette.declarations spec True)
+
+        text =
+            case mode of
+                Light ->
+                    light
+
+                Dark ->
+                    dark
+
+                System ->
+                    light ++ "@media (prefers-color-scheme:dark){" ++ dark ++ "}"
+    in
+    Html.node "style" [] [ Html.text text ]
 
 
 {-| The meaning of a color: what a message, badge, tag or banner is about.

@@ -9,6 +9,7 @@ Import: `import Klar` | Group: Start here
 ```elm
 -- The stylesheet
 stylesheet : Html msg
+stylesheetFor : Settings.Settings -> Html msg
 css : String
 ```
 
@@ -231,6 +232,20 @@ constant, so Elm skips it when it compares two renderings of the view.
         { title = "Orders"
         , body = [ Klar.stylesheet, viewPage model ]
         }
+
+### `stylesheetFor`
+
+```elm
+stylesheetFor : Settings.Settings -> Html msg
+```
+
+The stylesheet with the theme and the mode of the settings: the same element
+as `stylesheet` and, after it, the colors of the theme. Use this one when the
+application chooses a theme or lets the person choose light or dark.
+
+    Klar.stylesheetFor model.settings
+
+With the default settings it draws exactly what `stylesheet` does.
 
 ### `css`
 
