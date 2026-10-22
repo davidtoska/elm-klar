@@ -61,6 +61,29 @@ suite =
                         ]
                         ()
             ]
+        , describe "a disabled group is inert"
+            [ test "the fieldset is inert, which stops links that look like buttons as well" <|
+                \_ ->
+                    ButtonGroup.view [ ButtonGroup.disabled True ]
+                        "Pages"
+                        [ Button.view [ Button.href "#/orders" ] "Orders", Button.view [ Button.href "#/products" ] "Products" ]
+                        |> Query.fromHtml
+                        |> Query.has [ Selector.tag "fieldset", Selector.attribute (Attr.attribute "inert" "") ]
+            , test "an enabled group is not, also after it was disabled and enabled again" <|
+                \_ ->
+                    Expect.all
+                        [ \_ -> group [] |> Query.fromHtml |> Query.hasNot [ Selector.attribute (Attr.attribute "inert" "") ]
+                        , \_ -> group [ ButtonGroup.disabled False ] |> Query.fromHtml |> Query.hasNot [ Selector.attribute (Attr.attribute "inert" "") ]
+                        , \_ -> group [ ButtonGroup.disabled True, ButtonGroup.disabled False ] |> Query.fromHtml |> Query.hasNot [ Selector.attribute (Attr.attribute "inert" "") ]
+                        ]
+                        ()
+            , test "the links are still links in the page, so a screen reader that skips inert content finds nothing to follow" <|
+                \_ ->
+                    ButtonGroup.view [ ButtonGroup.disabled True ] "Pages" [ Button.view [ Button.href "#/orders" ] "Orders" ]
+                        |> Query.fromHtml
+                        |> Query.find [ Selector.tag "a" ]
+                        |> Query.has [ Selector.attribute (Attr.href "#/orders") ]
+            ]
         , describe "size"
             [ test "a small or a large group says so in its class; a medium one does not, so a toolbar still sets the size" <|
                 \_ ->

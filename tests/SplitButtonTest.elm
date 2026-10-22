@@ -183,15 +183,33 @@ closedTests =
                 split [] closed
                     |> Query.fromHtml
                     |> ActionsQuery.absent [ role "menu" ]
-        , test "without items it is an ordinary button" <|
+        , test "without items it has no arrow and looks like an ordinary button" <|
             \_ ->
-                SplitButton.view SplitMsg [] { label = "Save", onClick = Save, items = [] } closed
+                noItems
                     |> Query.fromHtml
                     |> Expect.all
-                        [ Query.has [ Selector.tag "button", Selector.text "Save" ]
+                        [ Query.has [ Selector.class "klar-split--single" ]
                         , ActionsQuery.absent [ attribute "aria-haspopup" "menu" ]
+                        , ActionsQuery.count [ Selector.tag "button" ] >> Expect.equal 1
+                        , mainPart >> Query.has [ Selector.tag "button", Selector.text "Save" ]
                         ]
+        , test "the main button is the same element with and without items, so it keeps focus when items arrive" <|
+            \_ ->
+                -- Elm patches a node in place when the tag and the position stay the
+                -- same, and builds it again when they do not.
+                Expect.all
+                    [ \_ -> split [] closed |> Query.fromHtml |> Query.has [ Selector.tag "div", Selector.class "klar-split" ]
+                    , \_ -> noItems |> Query.fromHtml |> Query.has [ Selector.tag "div", Selector.class "klar-split" ]
+                    , \_ -> split [] closed |> Query.fromHtml |> mainPart |> Query.has [ Selector.tag "button", Selector.text "Save" ]
+                    , \_ -> noItems |> Query.fromHtml |> mainPart |> Query.has [ Selector.tag "button", Selector.text "Save" ]
+                    ]
+                    ()
         ]
+
+
+noItems : Html Msg
+noItems =
+    SplitButton.view SplitMsg [] { label = "Save", onClick = Save, items = [] } closed
 
 
 
@@ -434,17 +452,50 @@ inactiveTests =
                         , Query.has [ Selector.containing [ Selector.class "klar-spinner" ] ]
                         , Event.simulate Event.click >> Event.toResult >> Expect.err
                         ]
-        , test "while loading the arrow is off" <|
+        , test "while loading the arrow cannot be used, but it is aria-disabled and not disabled, so it keeps the focus" <|
             \_ ->
                 split [ SplitButton.loading True ] closed
                     |> Query.fromHtml
                     |> arrow
-                    |> Query.has [ Selector.disabled True ]
-        , test "while loading an open menu is hidden" <|
+                    |> Expect.all
+                        [ Query.has [ attribute "aria-disabled" "true", Selector.disabled False ]
+                        , Event.simulate Event.click >> Event.toResult >> Expect.err
+                        ]
+        , test "a menu that is open when loading starts stays open and drawn: the state is not faked" <|
             \_ ->
                 split [ SplitButton.loading True ] opened
                     |> Query.fromHtml
-                    |> ActionsQuery.absent [ role "menu" ]
+                    |> Expect.all
+                        [ ActionsQuery.count [ role "menuitem" ] >> Expect.equal 3
+                        , arrow >> Query.has [ attribute "aria-expanded" "true" ]
+                        , \_ -> SplitButton.isOpen opened |> Expect.equal True
+                        ]
+        , test "while loading or disabled no message can open a closed menu (the arrow of a loading button has the keyboard focus)" <|
+            \_ ->
+                let
+                    arrowDown attributes =
+                        split attributes closed
+                            |> Query.fromHtml
+                            |> arrow
+                            |> Event.simulate (keyDown { alt = False } "ArrowDown")
+                            |> Event.toResult
+                            |> afterwards closed
+                in
+                Expect.all
+                    [ \_ -> arrowDown [ SplitButton.loading True ] |> expectOk (Tuple.first >> SplitButton.isOpen >> Expect.equal False)
+                    , \_ -> arrowDown [ SplitButton.disabled True ] |> expectOk (Tuple.first >> SplitButton.isOpen >> Expect.equal False)
+                    , \_ -> arrowDown [] |> expectOk (Tuple.first >> SplitButton.isOpen >> Expect.equal True)
+                    ]
+                    ()
+        , test "while loading an open menu can still be closed" <|
+            \_ ->
+                split [ SplitButton.loading True ] opened
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-layer" ]
+                    |> Event.simulate (keyDown { alt = False } "Escape")
+                    |> Event.toResult
+                    |> afterwards opened
+                    |> expectOk (Tuple.first >> SplitButton.isOpen >> Expect.equal False)
         , test "while loading or disabled the keys that open the menu do nothing" <|
             \_ ->
                 let
@@ -471,7 +522,7 @@ inactiveTests =
                     ()
         , test "without items there is no menu to open with the keys" <|
             \_ ->
-                SplitButton.view SplitMsg [] { label = "Save", onClick = Save, items = [] } closed
+                noItems
                     |> Query.fromHtml
                     |> Event.simulate (keyDown { alt = False } "ArrowDown")
                     |> Event.toResult
@@ -481,7 +532,7 @@ inactiveTests =
                 split [ SplitButton.loading True, SplitButton.loading False ] closed
                     |> Query.fromHtml
                     |> arrow
-                    |> Query.has [ Selector.disabled False ]
+                    |> Query.hasNot [ attribute "aria-disabled" "true" ]
         , test "disabled turns off both parts" <|
             \_ ->
                 split [ SplitButton.disabled True ] closed
@@ -490,17 +541,12 @@ inactiveTests =
                         [ mainPart >> Query.has [ Selector.disabled True ]
                         , arrow >> Query.has [ Selector.disabled True ]
                         ]
-        , test "disabled hides an open menu too" <|
+        , test "a menu that is open when the button is disabled stays open until it is closed" <|
             \_ ->
                 split [ SplitButton.disabled True ] opened
                     |> Query.fromHtml
-                    |> ActionsQuery.absent [ role "menu" ]
-        , test "the menu comes back when the button is on again" <|
-            \_ ->
-                split [ SplitButton.disabled True, SplitButton.disabled False ] opened
-                    |> Query.fromHtml
-                    |> Query.find [ role "menu" ]
-                    |> Query.has [ role "menu" ]
+                    |> ActionsQuery.count [ role "menuitem" ]
+                    |> Expect.equal 3
         ]
 
 

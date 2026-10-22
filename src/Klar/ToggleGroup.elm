@@ -86,6 +86,7 @@ import Klar.Field as Field
 import Klar.Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Theme exposing (Size(..))
+import Klar.ToggleGroup.Ids as Ids
 import Klar.ToggleGroup.Selection as Selection
 
 
@@ -248,8 +249,11 @@ errorMaybe maybe =
 
 
 {-| The DOM id of the group; the ids of its label, hint and error start with it.
-Without one it is made from the label, so two groups with the same label on one
-page need an id each.
+Without one it is made from the label and the texts of the options, with a number
+worked out from them, so a label in any language (or an empty one) gives a valid id,
+and two groups with the same label and other options do not share one. Two groups
+with the same label and the same options on one page need an id each; the label,
+the hint and the error of the second would otherwise be found by the first.
 -}
 id : String -> Attribute
 id value =
@@ -327,7 +331,7 @@ render attributes label isOn messageFor options =
             configure attributes
 
         field =
-            ensureId label config.field
+            ensureId label options config.field
                 |> Field.setLabel label
 
         labelId =
@@ -398,12 +402,13 @@ viewOption config isOn messageFor (Option o) =
             Button.iconOnly attributes icon o.label
 
 
-{-| The id of the group: the one given, or one made from the label.
+{-| The id of the group: the one given, or one made from the label and the texts of
+the options (see `Klar.ToggleGroup.Ids`).
 -}
-ensureId : String -> Field.Config -> Field.Config
-ensureId label field =
+ensureId : String -> List (Option id) -> Field.Config -> Field.Config
+ensureId label options field =
     if field.id == "" then
-        Field.setId ("klar-toggle-" ++ Internal.sanitizeId (String.toLower label)) field
+        Field.setId (Ids.groupId label (List.map (\(Option o) -> o.label) options)) field
 
     else
         field

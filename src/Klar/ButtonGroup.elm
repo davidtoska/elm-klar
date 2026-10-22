@@ -30,11 +30,13 @@ use [Klar.ToggleGroup](Klar-ToggleGroup), and for a main action with a few
 alternatives [Klar.SplitButton](Klar-SplitButton). In a
 [Klar.Toolbar](Klar-Toolbar) the group takes the size of the bar, like a button.
 
-The group never wraps. It is a `fieldset`, so `disabled` turns off every button in
-it at once, and the buttons keep the size they have (`size` sets it for the
-buttons that have none of their own). A button with an `href` is a link, which
-`disabled` cannot switch off: it is dimmed and cannot be clicked, but the keyboard
-can still follow it.
+The group never wraps. It is a `fieldset` that is also `inert` while it is
+`disabled`, so `disabled` turns off every button in it at once, links that look
+like buttons (`Button.href`) included: nothing in a disabled group can be clicked,
+focused or activated with the keyboard. As with all inert content, screen readers
+skip a disabled group instead of announcing its buttons as dimmed, so say in text
+why an action is not available if that matters to the user. The buttons keep the
+size they have (`size` sets it for the buttons that have none of their own).
 
 
 # View
@@ -84,9 +86,10 @@ size value =
     Attribute (\config -> { config | size = value })
 
 
-{-| Turns off every button in the group (`fieldset` with `disabled`): they are
-dimmed, cannot be clicked and are skipped by Tab. The default is `False`. Pass a
-value from your model.
+{-| Turns off every button and link in the group (`fieldset` with `disabled` and
+`inert`): they are dimmed, cannot be clicked, are skipped by Tab and cannot be
+activated with the keyboard. A screen reader does not read inert content. The
+default is `False`. Pass a value from your model.
 -}
 disabled : Bool -> Attribute
 disabled value =
@@ -124,5 +127,8 @@ view attributes name children =
         , Attr.attribute "role" "group"
         , Attr.attribute "aria-label" name
         , Attr.disabled config.disabled
+
+        -- `disabled` stops form controls only; a link that looks like a button needs `inert`
+        , Internal.attrIf config.disabled (Attr.attribute "inert" "")
         ]
         children
