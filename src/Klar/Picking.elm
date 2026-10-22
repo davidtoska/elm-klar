@@ -13,6 +13,7 @@ as they are, so you never write the way back from a key to an id.
     import Klar.Picking as Picking
     import Klar.Remote as Remote exposing (Remote(..))
 
+
     -- how a RegionId is written as a key, once for the whole application
     regionIds : Picking.Ids RegionId
     regionIds =

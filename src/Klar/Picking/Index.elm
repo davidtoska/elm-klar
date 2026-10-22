@@ -277,7 +277,6 @@ findLabelsIn wanted nodes found =
                 findLabelsIn wanted rest below
 
 
-
 {-| The labels of a path of keys from the top down, found by walking only the
 nodes along the path (no index needed): `Nothing` when the keys are not a path of
 these nodes (a gap, the wrong order, a branch that is not loaded).
@@ -360,7 +359,6 @@ labelPath key index =
 isAncestorOf : String -> String -> Index id -> Bool
 isAncestorOf ancestor key index =
     List.member ancestor (ancestors key index)
-
 
 
 
