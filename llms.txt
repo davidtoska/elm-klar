@@ -26,7 +26,7 @@ The mental model in ten lines:
 Modules by group (each is ai/modules/Klar.<Name>.md):
 
 - Start here: Klar
-- Foundations: Theme, Settings, Locale, Layout, Card, Text, Icon
+- Foundations: Theme, Color, Settings, Locale, Layout, Card, Text, Icon
 - Actions: Button, Menu, ButtonGroup, ToggleGroup, SplitButton, Link, Kbd
 - Status and feedback: Badge, Tag, Alert, Spinner, Skeleton, Progress, EmptyState, ErrorState
 - Forms: Form, Form.Spec, Form.Layout, Form.Check, Field, Validate

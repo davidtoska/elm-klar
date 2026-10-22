@@ -1,6 +1,6 @@
 module Klar.Tag exposing
     ( view
-    , Attribute, tone, outline, size, icon
+    , Attribute, tone, color, outline, size, icon
     , onRemove, removeId, locale
     )
 
@@ -36,7 +36,7 @@ labels longer than 18 characters carry the whole text as a tooltip.
 
 # Attributes
 
-@docs Attribute, tone, outline, size, icon
+@docs Attribute, tone, color, outline, size, icon
 
 
 # Removing
@@ -48,6 +48,7 @@ labels longer than 18 characters carry the whole text as a tooltip.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Klar.Color exposing (Color)
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
@@ -64,6 +65,7 @@ type Attribute msg
 type alias Config msg =
     { tone : Tone
     , icon : Maybe Icon
+    , color : Maybe Color
     , onRemove : Maybe msg
     , removeId : Maybe String
     , outline : Bool
@@ -77,6 +79,7 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { tone = Neutral
         , icon = Nothing
+        , color = Nothing
         , onRemove = Nothing
         , removeId = Nothing
         , outline = False
@@ -92,6 +95,15 @@ configure attributes =
 tone : Tone -> Attribute msg
 tone value =
     Attribute (\config -> { config | tone = value })
+
+
+{-| A small dot in a color from your data before the label, for a tag that stands
+for a row with a color (a status, a team). The tag keeps its tone; the label must
+say what the color says.
+-}
+color : Color -> Attribute msg
+color value =
+    Attribute (\config -> { config | color = Just value })
 
 
 {-| A small icon before the label.
@@ -187,7 +199,8 @@ view attributes label =
                 ""
             ]
         ]
-        [ Internal.viewMaybe Icon.view config.icon
+        [ Internal.viewMaybe (\value -> Internal.markDot Nothing (Just value)) config.color
+        , Internal.viewMaybe Icon.view config.icon
         , Html.span [ Internal.cls [ "klar-tag__label" ], Internal.attrIf (String.length label > 18) (Attr.title label) ] [ Html.text label ]
         , case config.onRemove of
             Just msg ->

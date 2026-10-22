@@ -1,7 +1,7 @@
 module Klar.Select exposing
     ( State, init, Msg, update, view
     , value, setValue, setOption, clear, query, isOpen, open, close
-    , Option, option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption, filter
+    , Option, option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
     , Attribute, options, remote, serverSearch, onRetry
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale, settings
@@ -97,7 +97,7 @@ Options are plain records, shared with `MultiSelect` and `Autocomplete`. These
 are the helpers of [Klar.Select.Option](Klar-Select-Option) that a select needs,
 so one import is enough.
 
-@docs Option, option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption, filter
+@docs Option, option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
 
 
 # Attributes
@@ -124,6 +124,7 @@ control.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Klar.Color exposing (Color)
 import Klar.Field as Field
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
@@ -134,7 +135,7 @@ import Klar.Select.Match as Match
 import Klar.Select.Option as Option
 import Klar.Select.Popup as Popup
 import Klar.Settings as Settings exposing (Settings)
-import Klar.Theme as Theme exposing (Size(..))
+import Klar.Theme as Theme exposing (Size(..), Tone)
 import Klar.VirtualList as VirtualList
 
 
@@ -190,6 +191,31 @@ closed field shows it next to the label.
 withIcon : Icon -> Option id -> Option id
 withIcon =
     Option.withIcon
+
+
+{-| A dot in a status color before the label, in the list and in the closed field:
+`Success` green, `Warning` amber, `Danger` red. It follows the theme. The label must
+say the same, because a color alone is not read by everyone.
+
+    Select.option "late" "Delayed" |> Select.withTone Danger
+
+-}
+withTone : Tone -> Option id -> Option id
+withTone =
+    Option.withTone
+
+
+{-| A dot in a color from your data before the label, in the list and in the closed
+field. For options that come from a database, build each option from its row and
+give it the color of the row (see [Klar.Color](Klar-Color)):
+
+    Select.option row.id row.name
+        |> Select.withColor color
+
+-}
+withColor : Color -> Option id -> Option id
+withColor =
+    Option.withColor
 
 
 {-| Extra words that also match the option: synonyms, codes, old names. They are
@@ -1151,7 +1177,8 @@ viewControl toMsg config field t env ((State state) as current) =
             )
             (case selected of
                 Chosen opt ->
-                    [ Internal.viewMaybe (\icon -> Html.span [ Internal.cls [ "klar-select__value-icon" ] ] [ Icon.view icon ]) opt.icon
+                    [ Internal.markDot opt.tone opt.color
+                    , Internal.viewMaybe (\icon -> Html.span [ Internal.cls [ "klar-select__value-icon" ] ] [ Icon.view icon ]) opt.icon
                     , Html.span [ Internal.cls [ "klar-select__value" ] ] [ Html.text opt.label ]
                     ]
 

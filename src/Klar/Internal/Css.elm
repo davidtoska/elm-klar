@@ -210,6 +210,12 @@ css =
  .klar-status--success{--_c: var(--klar-green-500)}
  .klar-status--warning{--_c: var(--klar-amber-500)}
  .klar-status--danger{--_c: var(--klar-red-500)}
+ .klar-mark{--_c: var(--klar-gray-500);display: inline-block;flex: none;width: 8px;height: 8px;border-radius: 50%;background: var(--klar-mark,var(--_c));box-shadow: inset 0 0 0 1px var(--klar-tint-border)}
+ .klar-mark--primary,.klar-mark--info{--_c: var(--klar-blue-500)}
+ .klar-mark--success{--_c: var(--klar-green-500)}
+ .klar-mark--warning{--_c: var(--klar-amber-500)}
+ .klar-mark--danger{--_c: var(--klar-red-500)}
+ @media (forced-colors: active){.klar-mark{forced-color-adjust: none}}
  .klar-tag{--_fg: var(--klar-gray-800);--_bg: var(--klar-gray-100);--_border: var(--klar-gray-200);display: inline-flex;align-items: center;gap: 4px;max-width: 100%;height: 22px;padding: 0 4px 0 8px;background: var(--_bg);border: 1px solid var(--_border);border-radius: var(--klar-radius);color: var(--_fg);font-size: var(--klar-text-sm);line-height: 1;white-space: nowrap}
  .klar-tag--sm{height: 18px;padding-left: 6px;font-size: 11px}
  .klar-tag--lg{height: 26px;padding-left: 10px;font-size: var(--klar-text-md)}

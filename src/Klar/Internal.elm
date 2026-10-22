@@ -11,6 +11,7 @@ module Klar.Internal exposing
     , hasLatinLetters
     , heading
     , keyEvent
+    , markDot
     , noAttr
     , nonEmpty
     , normalize
@@ -42,7 +43,8 @@ import Html exposing (Attribute, Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode exposing (Decoder)
-import Klar.Theme exposing (Density(..))
+import Klar.Color as Color exposing (Color)
+import Klar.Theme as Theme exposing (Density(..), Tone)
 import Task
 
 
@@ -266,6 +268,32 @@ viewIf condition html =
 
     else
         Html.text ""
+
+
+{-| The small dot that marks an option or a tag: a color from the data when there
+is one, else the color of a tone, else nothing. It is for the eye only (`aria-hidden`):
+the label carries the meaning.
+-}
+markDot : Maybe Tone -> Maybe Color -> Html msg
+markDot tone color =
+    case ( color, tone ) of
+        ( Just value, _ ) ->
+            Html.span
+                [ cls [ "klar-mark" ]
+                , Attr.attribute "style" ("--klar-mark:" ++ Color.toHex value)
+                , Attr.attribute "aria-hidden" "true"
+                ]
+                []
+
+        ( Nothing, Just value ) ->
+            Html.span
+                [ cls [ "klar-mark", "klar-mark--" ++ Theme.toneSuffix value ]
+                , Attr.attribute "aria-hidden" "true"
+                ]
+                []
+
+        ( Nothing, Nothing ) ->
+            Html.text ""
 
 
 viewMaybe : (a -> Html msg) -> Maybe a -> Html msg

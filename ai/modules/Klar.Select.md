@@ -32,6 +32,8 @@ option : id -> String -> Option id
 withDescription : String -> Option id -> Option id
 withGroup : String -> Option id -> Option id
 withIcon : Icon.Icon -> Option id -> Option id
+withTone : Theme.Tone -> Option id -> Option id
+withColor : Color.Color -> Option id -> Option id
 withKeywords : List String -> Option id -> Option id
 disabledOption : Option id -> Option id
 mapOption : (a -> b) -> Option a -> Option b
@@ -365,6 +367,31 @@ withIcon : Icon.Icon -> Option id -> Option id
 
 An icon drawn before the label in the list. When the option is chosen, the
 closed field shows it next to the label.
+
+### `withTone`
+
+```elm
+withTone : Theme.Tone -> Option id -> Option id
+```
+
+A dot in a status color before the label, in the list and in the closed field:
+`Success` green, `Warning` amber, `Danger` red. It follows the theme. The label must
+say the same, because a color alone is not read by everyone.
+
+    Select.option "late" "Delayed" |> Select.withTone Danger
+
+### `withColor`
+
+```elm
+withColor : Color.Color -> Option id -> Option id
+```
+
+A dot in a color from your data before the label, in the list and in the closed
+field. For options that come from a database, build each option from its row and
+give it the color of the row (see [Klar.Color](Klar.Color.md)):
+
+    Select.option row.id row.name
+        |> Select.withColor color
 
 ### `withKeywords`
 

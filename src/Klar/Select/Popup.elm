@@ -1142,6 +1142,7 @@ viewItem config index ordinal opt =
             Internal.onClickPrevent (config.onPick opt)
         ]
         [ viewIndicator config.indicator isSelected inactive
+        , Internal.markDot opt.tone opt.color
         , Internal.viewMaybe (\icon -> Html.span [ Internal.cls [ "klar-select__option-icon" ] ] [ Icon.view icon ]) opt.icon
         , Html.span [ Internal.cls [ "klar-select__option-label" ] ] (Search.highlight config.query opt.label)
         , Internal.viewMaybe

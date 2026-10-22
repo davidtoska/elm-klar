@@ -1226,12 +1226,24 @@ viewControl toMsg config field t env (State state) =
             else
                 Internal.noAttr
 
+        chipMark opt =
+            case ( opt.color, opt.tone ) of
+                ( Just value, _ ) ->
+                    [ Tag.color value ]
+
+                ( Nothing, Just value ) ->
+                    [ Tag.tone value ]
+
+                ( Nothing, Nothing ) ->
+                    []
+
         chip item =
             case item of
                 Labelled opt ->
                     Html.span [ Internal.cls [ "klar-select__chip" ] ]
                         [ Tag.view
                             ([ Tag.size tagSize, Tag.locale config.locale ]
+                                ++ chipMark opt
                                 ++ (if interactive then
                                         [ Tag.onRemove (toMsg (Remove opt.value)) ]
 

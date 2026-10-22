@@ -89,6 +89,36 @@
       "reference": "ai/modules/Klar.Theme.md"
     },
     {
+      "name": "Klar.Color",
+      "import": "import Klar.Color as Color",
+      "group": "Foundations",
+      "purpose": "A color that comes from data: the color of a status, a category, a team, a customer.",
+      "whenToUse": "the color is a value of your data (a `Maybe String` code from a backend, a color in a record) and a component should show it.",
+      "whenNot": "the color means success, warning or danger; use a `Tone` (`Klar.Theme`), which follows the theme and the dark mode. Do not use it for the look of the application, which is the theme.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [
+        "hex",
+        "rgb"
+      ],
+      "mainFunctions": [
+        "rgb",
+        "hex",
+        "toHex"
+      ],
+      "related": [],
+      "keywords": [
+        "color",
+        "foundations",
+        "comes",
+        "status",
+        "category"
+      ],
+      "reference": "ai/modules/Klar.Color.md"
+    },
+    {
       "name": "Klar.Settings",
       "import": "import Klar.Settings as Settings",
       "group": "Foundations",
@@ -1787,10 +1817,10 @@
         "Klar.Remote",
         "Klar.Select.Option",
         "Klar.Autocomplete",
+        "Klar.Color",
         "Klar.MultiSelect",
         "Klar.Search",
-        "Klar.Theme",
-        "Klar.VirtualList"
+        "Klar.Theme"
       ],
       "keywords": [
         "select",
@@ -1828,9 +1858,10 @@
         "withDescription",
         "withGroup",
         "withIcon",
+        "withTone",
+        "withColor",
         "withKeywords",
-        "disabledOption",
-        "mapOption"
+        "disabledOption"
       ],
       "related": [
         "Klar.Autocomplete",

@@ -17,12 +17,16 @@ type alias Option id =
     , group : Maybe String
     , disabled : Bool
     , icon : Maybe Icon.Icon
+    , tone : Maybe Theme.Tone
+    , color : Maybe Color.Color
     , keywords : List String
     }
 option : id -> String -> Option id
 withDescription : String -> Option id -> Option id
 withGroup : String -> Option id -> Option id
 withIcon : Icon.Icon -> Option id -> Option id
+withTone : Theme.Tone -> Option id -> Option id
+withColor : Color.Color -> Option id -> Option id
 withKeywords : List String -> Option id -> Option id
 disabledOption : Option id -> Option id
 mapOption : (a -> b) -> Option a -> Option b
@@ -71,6 +75,8 @@ type alias Option id =
     , group : Maybe String
     , disabled : Bool
     , icon : Maybe Icon.Icon
+    , tone : Maybe Theme.Tone
+    , color : Maybe Color.Color
     , keywords : List String
     }
 ```
@@ -85,6 +91,8 @@ One choice in a list. It is plain data: make it with `option` and the
   - `group` lists the option under a heading, together with the options of the same group
   - `disabled` shows the option dimmed and keeps it from being chosen
   - `icon` is drawn before the label
+  - `tone` and `color` mark the option with a small dot before the label, a status color that
+    follows the theme or a color from your data (never both; the last one set wins)
   - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
 
 ### `option`
@@ -130,6 +138,38 @@ withIcon : Icon.Icon -> Option id -> Option id
 
 An icon drawn before the label of the option in the list. `Klar.Select` also
 shows it in the closed field next to the chosen label.
+
+### `withTone`
+
+```elm
+withTone : Theme.Tone -> Option id -> Option id
+```
+
+A small dot in a status color before the label: `Success` is green, `Warning`
+amber, `Danger` red. The color follows the theme and the dark mode. Use it for a
+status; for a color that is a value of your data use `withColor`. The label must
+say the same ("Delayed"), because a color alone is not read by everyone.
+
+    Option.option "late" "Delayed" |> Option.withTone Danger
+
+### `withColor`
+
+```elm
+withColor : Color.Color -> Option id -> Option id
+```
+
+A small dot in a color from your data before the label, in the list and in the
+closed field. It is how a select over rows of a database shows each row's own color: build the option from the
+row and give it the color of the row.
+
+    Option.option status.id status.name
+        |> (Color.hex status.color
+                |> Maybe.map Option.withColor
+                |> Maybe.withDefault identity
+           )
+
+The options may come from the server and change with every search; the color is part of the
+option, so it arrives with it. A chosen value keeps its color as long as the select has its option.
 
 ### `withKeywords`
 

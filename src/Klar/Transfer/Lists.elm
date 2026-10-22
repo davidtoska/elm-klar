@@ -186,6 +186,8 @@ unknownOption id text =
     , group = Nothing
     , disabled = False
     , icon = Nothing
+    , tone = Nothing
+    , color = Nothing
     , keywords = []
     }
 

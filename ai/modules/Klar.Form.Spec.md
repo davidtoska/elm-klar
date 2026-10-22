@@ -317,6 +317,10 @@ choice : Ids.Ids id -> String -> Spec (Maybe id) (Maybe id)
 One of the application's values, chosen in a `select`. Empty is `Nothing`.
 Add `required` to get the id itself.
 
+The options are given where the form is drawn (`Form.select`), so they may come from
+a database, each with its own color: `Select.withColor` and `Select.withTone` show a dot
+in the list and in the field.
+
 ### `choices`
 
 ```elm
@@ -324,7 +328,7 @@ choices : Ids.Ids id -> String -> Spec (List id) (List id)
 ```
 
 Several of the application's values, chosen in a `multiSelect`, in the order
-they were chosen. Empty is `[]`. Add `atLeast 1` to make it required.
+they were chosen. The chips show the color of an option that has one. Empty is `[]`. Add `atLeast 1` to make it required.
 
 ### `toggle`
 

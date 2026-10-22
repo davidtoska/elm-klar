@@ -139,7 +139,7 @@ buildingTests =
     in
     describe "building options"
         [ check "an option has a value and a label and nothing else"
-            { value = "acme", label = "Acme Supplies", description = Nothing, group = Nothing, disabled = False, icon = Nothing, keywords = [] }
+            { value = "acme", label = "Acme Supplies", description = Nothing, group = Nothing, disabled = False, icon = Nothing, tone = Nothing, color = Nothing, keywords = [] }
             plain
         , check "withDescription" { plain | description = Just "Berlin" } (Option.withDescription "Berlin" plain)
         , check "a second description replaces the first" (Just "Hamburg") (plain |> Option.withDescription "Berlin" |> Option.withDescription "Hamburg" |> .description)
@@ -161,7 +161,7 @@ buildingTests =
                 |> Option.disabledOption
                 |> .value
             )
-        , check "all together" { value = "acme", label = "Acme Supplies", description = Just "Berlin", group = Just "Preferred", disabled = False, icon = Nothing, keywords = [] } acme
+        , check "all together" { value = "acme", label = "Acme Supplies", description = Just "Berlin", group = Just "Preferred", disabled = False, icon = Nothing, tone = Nothing, color = Nothing, keywords = [] } acme
         , check "the order of the with functions does not matter"
             (plain |> Option.withDescription "d" |> Option.withGroup "g" |> Option.withKeywords [ "k" ] |> Option.disabledOption)
             (plain |> Option.disabledOption |> Option.withKeywords [ "k" ] |> Option.withGroup "g" |> Option.withDescription "d")
@@ -611,7 +611,7 @@ optionFuzzer : Fuzzer (Option String)
 optionFuzzer =
     Fuzz.map5
         (\label description group keywords disabled ->
-            { value = "", label = label, description = description, group = group, disabled = disabled, icon = Nothing, keywords = keywords }
+            { value = "", label = label, description = description, group = group, disabled = disabled, icon = Nothing, tone = Nothing, color = Nothing, keywords = keywords }
         )
         textFuzzer
         (Fuzz.maybe textFuzzer)

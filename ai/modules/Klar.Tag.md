@@ -15,6 +15,7 @@ view : List (Attribute msg) -> String -> Html msg
 -- Attributes
 type Attribute msg  -- opaque: no constructors are exposed
 tone : Theme.Tone -> Attribute msg
+color : Color.Color -> Attribute msg
 outline : Attribute msg
 size : Theme.Size -> Attribute msg
 icon : Icon.Icon -> Attribute msg
@@ -82,6 +83,16 @@ tone : Theme.Tone -> Attribute msg
 
 The color of the tag: `Neutral` (gray, the default), `Primary` or `Info`
 (blue), `Success`, `Warning` or `Danger`.
+
+### `color`
+
+```elm
+color : Color.Color -> Attribute msg
+```
+
+A small dot in a color from your data before the label, for a tag that stands
+for a row with a color (a status, a team). The tag keeps its tone; the label must
+say what the color says.
 
 ### `outline`
 

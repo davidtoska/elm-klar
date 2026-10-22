@@ -1,6 +1,6 @@
 module Klar.Select.Option exposing
     ( Option
-    , option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption
+    , option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption
     )
 
 {-| The option model shared by [Klar.Select](Klar-Select),
@@ -36,11 +36,13 @@ type of your own. To search a list of options the way a select does, use
 # Options
 
 @docs Option
-@docs option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption
+@docs option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption
 
 -}
 
+import Klar.Color exposing (Color)
 import Klar.Icon exposing (Icon)
+import Klar.Theme exposing (Tone)
 
 
 {-| One choice in a list. It is plain data: make it with `option` and the
@@ -53,6 +55,8 @@ import Klar.Icon exposing (Icon)
   - `group` lists the option under a heading, together with the options of the same group
   - `disabled` shows the option dimmed and keeps it from being chosen
   - `icon` is drawn before the label
+  - `tone` and `color` mark the option with a small dot before the label, a status color that
+    follows the theme or a color from your data (never both; the last one set wins)
   - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
 
 -}
@@ -63,6 +67,8 @@ type alias Option id =
     , group : Maybe String
     , disabled : Bool
     , icon : Maybe Icon
+    , tone : Maybe Tone
+    , color : Maybe Color
     , keywords : List String
     }
 
@@ -84,6 +90,8 @@ option value label =
     , group = Nothing
     , disabled = False
     , icon = Nothing
+    , tone = Nothing
+    , color = Nothing
     , keywords = []
     }
 
@@ -113,6 +121,38 @@ shows it in the closed field next to the chosen label.
 withIcon : Icon -> Option id -> Option id
 withIcon icon opt =
     { opt | icon = Just icon }
+
+
+{-| A small dot in a status color before the label: `Success` is green, `Warning`
+amber, `Danger` red. The color follows the theme and the dark mode. Use it for a
+status; for a color that is a value of your data use `withColor`. The label must
+say the same ("Delayed"), because a color alone is not read by everyone.
+
+    Option.option "late" "Delayed" |> Option.withTone Danger
+
+-}
+withTone : Tone -> Option id -> Option id
+withTone tone opt =
+    { opt | tone = Just tone, color = Nothing }
+
+
+{-| A small dot in a color from your data before the label, in the list and in the
+closed field. It is how a select over rows of a database shows each row's own color: build the option from the
+row and give it the color of the row.
+
+    Option.option status.id status.name
+        |> (Color.hex status.color
+                |> Maybe.map Option.withColor
+                |> Maybe.withDefault identity
+           )
+
+The options may come from the server and change with every search; the color is part of the
+option, so it arrives with it. A chosen value keeps its color as long as the select has its option.
+
+-}
+withColor : Color -> Option id -> Option id
+withColor color opt =
+    { opt | color = Just color, tone = Nothing }
 
 
 {-| Extra words that also match the option, for example a synonym, an old name
@@ -149,5 +189,7 @@ mapOption change opt =
     , group = opt.group
     , disabled = opt.disabled
     , icon = opt.icon
+    , tone = opt.tone
+    , color = opt.color
     , keywords = opt.keywords
     }

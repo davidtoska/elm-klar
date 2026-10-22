@@ -10,6 +10,7 @@ import Html exposing (Html)
 import Klar.Autocomplete as Autocomplete
 import Klar.Button as Button
 import Klar.Card as Card
+import Klar.Color as Color
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
@@ -18,7 +19,7 @@ import Klar.MultiSelect as MultiSelect
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select as Select exposing (Option)
 import Klar.Text as Text
-import Klar.Theme exposing (Size(..))
+import Klar.Theme exposing (Size(..), Tone(..))
 import Process
 import Showcase.Doc as Doc
 import Showcase.Sample as Sample
@@ -227,6 +228,8 @@ init =
                     , ( "sel-readonly", Select.setValue "SE" )
                     , ( "sel-small", identity )
                     , ( "sel-medium", Select.setValue "NO" )
+                    , ( "sel-traffic", Select.setValue "amber" )
+                    , ( "sel-teams", Select.setValue "sales" )
                     , ( "sel-large", identity )
                     , ( "sel-empty", identity )
                     , ( "sel-creatable", identity )
@@ -244,6 +247,7 @@ init =
                     [ ( "multi-orders", identity )
                     , ( "multi-cities", MultiSelect.setValues [ "Rotterdam", "Hamburg", "Gothenburg", "Chicago", "Singapore", "Sydney", "London" ] )
                     , ( "multi-limited", MultiSelect.setValues [ "NO" ] )
+                    , ( "multi-teams", MultiSelect.setValues [ "ops", "sales", "misc" ] )
                     , ( "multi-invalid", identity )
                     , ( "multi-disabled", MultiSelect.setValues [ "SE", "DK", "FI" ] )
                     , ( "multi-readonly", MultiSelect.setValues [ "NO", "IS" ] )
@@ -538,6 +542,7 @@ view locale model =
         }
         [ basics locale model
         , states locale model
+        , colors locale model
         , creating locale model
         , typedIds locale model
         , largeLists locale model
@@ -672,6 +677,103 @@ basics locale model =
                 ]
             )
         ]
+
+
+colors : Locale -> Model -> Html Msg
+colors locale model =
+    Doc.section "Colors"
+        "An option can carry a small colored dot, in the list, in the closed field and in the chips. A tone (Select.withTone) is a status color that follows the theme and the dark mode: green, amber, red. A color (Select.withColor) is a value of your data, for example the color of a row in a database; Color.hex checks the code, so a bad code is a Nothing you decide about. The label always says the same as the color, because color alone is not read by everyone."
+        [ Doc.example
+            { title = "Traffic light"
+            , description = Just "Three tones for a status. The dot follows the theme and the dark mode."
+            , code = Just trafficCode
+            }
+            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+                [ selectView "sel-traffic"
+                    locale
+                    model
+                    [ Select.label "Delivery status"
+                    , Select.options trafficOptions
+                    ]
+                ]
+            )
+        , Doc.example
+            { title = "Colors from the data"
+            , description = Just "The options are built from rows, as a database returns them, each with a color code that someone typed. The last row has a code that is not a color: it gets no dot, and the application is the one that knows."
+            , code = Just teamCode
+            }
+            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+                [ selectView "sel-teams"
+                    locale
+                    model
+                    [ Select.label "Team"
+                    , Select.options teamOptions
+                    , Select.clearable
+                    ]
+                , multiView "multi-teams"
+                    locale
+                    model
+                    [ MultiSelect.label "Teams (chips keep the color)"
+                    , MultiSelect.options teamOptions
+                    ]
+                ]
+            )
+        ]
+
+
+trafficOptions : List (Option String)
+trafficOptions =
+    [ Select.option "green" "On time" |> Select.withTone Success
+    , Select.option "amber" "At risk" |> Select.withTone Warning
+    , Select.option "red" "Delayed" |> Select.withTone Danger
+    , Select.option "none" "Not started" |> Select.withTone Neutral
+    ]
+
+
+{-| Rows as a database returns them: an id, a name and a color code.
+-}
+teamRows : List ( String, String, String )
+teamRows =
+    [ ( "ops", "Operations", "#2a9461" )
+    , ( "sales", "Sales", "#D6453A" )
+    , ( "people", "People", "#e0a31a" )
+    , ( "it", "IT", "#5f95d3" )
+    , ( "misc", "Miscellaneous", "not a color" )
+    ]
+
+
+teamOptions : List (Option String)
+teamOptions =
+    List.map teamOption teamRows
+
+
+teamOption : ( String, String, String ) -> Option String
+teamOption ( id, name, code ) =
+    case Color.hex code of
+        Just color ->
+            Select.option id name |> Select.withColor color
+
+        Nothing ->
+            Select.option id name
+
+
+trafficCode : String
+trafficCode =
+    """Select.option "green" "On time" |> Select.withTone Success
+Select.option "amber" "At risk" |> Select.withTone Warning
+Select.option "red" "Delayed" |> Select.withTone Danger"""
+
+
+teamCode : String
+teamCode =
+    """-- a row from the database: { id, name, color : String }
+teamOption row =
+    case Color.hex row.color of
+        Just color ->
+            Select.option row.id row.name |> Select.withColor color
+
+        Nothing ->
+            Select.option row.id row.name"""
 
 
 states : Locale -> Model -> Html Msg
