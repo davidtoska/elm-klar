@@ -666,7 +666,7 @@ pointerTests =
                 drive [ pressOnB, ( [], mouseMove 60 90 1 ), ( handleOf "b", key "ArrowDown" ) ] five
                     |> Expect.err
         , test "the click that ends a drag stops at the list; the click of a plain press goes on" <|
-            _ ->
+            \_ ->
                 let
                     stopsClick model =
                         rendered model
@@ -675,10 +675,10 @@ pointerTests =
                             |> isOk
                 in
                 Expect.equal
-                    [ Ok False, Ok True, False ]
+                    [ Ok False, Ok True, Ok False ]
                     [ drive [ pressOnB ] five |> Result.map stopsClick
                     , drive [ pressOnB, ( [], mouseMove 60 90 1 ) ] five |> Result.map stopsClick
-                    , stopsClick five
+                    , Ok (stopsClick five)
                     ]
         , test "only the main button presses" <|
             \_ ->

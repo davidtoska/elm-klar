@@ -71,8 +71,12 @@ apply msg model =
 
 send : List Selector -> ( String, Encode.Value ) -> Model -> Result String Model
 send selectors event model =
-    rendered model
-        |> Query.find selectors
+    (if List.isEmpty selectors then
+        rendered model
+
+     else
+        rendered model |> Query.find selectors
+    )
         |> Event.simulate event
         |> Event.toResult
         |> Result.map (\msg -> apply msg model)
@@ -391,64 +395,86 @@ mouseMove x buttons =
 
 pointerTests : Test
 pointerTests =
+    let
+        press kind =
+            send (separator 0) (pointerDown kind 0) twoPanes
+
+        pressAndMove =
+            press "mouse" |> Result.andThen (send [] (mouseMove 450 1))
+    in
     describe "pointer"
-        [ test "a press with the mouse starts a drag: one cursor for the window, no text selection" <|
+        [ test "a press with the mouse starts a drag, but nothing covers the window before the pointer moves" <|
             \_ ->
-                check (send (separator 0) (pointerDown "mouse" 0) twoPanes)
+                check (press "mouse")
                     [ \m -> Expect.equal True (Splitter.isDragging m.split)
                     , \m -> rendered m |> Query.has [ Selector.class "klar-splitter--dragging" ]
-                    , \m -> rendered m |> Query.findAll [ Selector.class "klar-splitter__layer" ] |> Query.count (Expect.equal 1)
+                    , \m -> rendered m |> Query.findAll [ Selector.class "klar-splitter__layer" ] |> Query.count (Expect.equal 0)
                     , \m -> rendered m |> Query.find (separator 0) |> Query.has [ Selector.class "klar-splitter__separator--active" ]
+                    ]
+        , test "once the pointer moves, a layer over the window gives one cursor and keeps the mouse from the page below" <|
+            \_ ->
+                check pressAndMove
+                    [ \m -> rendered m |> Query.findAll [ Selector.class "klar-splitter__layer" ] |> Query.count (Expect.equal 1)
+                    , \m -> Expect.equal True (Splitter.isDragging m.split)
                     ]
         , test "only the main button presses" <|
             \_ ->
                 Expect.equal False (isOk (send (separator 0) (pointerDown "mouse" 2) twoPanes))
-        , test "a finger is followed on the separator itself, not on a layer over the window" <|
+        , test "a finger is followed through the box, and no layer is put over the window" <|
             \_ ->
-                check (send (separator 0) (pointerDown "touch" 0) twoPanes)
+                let
+                    touchMove =
+                        Event.custom "pointermove" (Encode.object [ ( "pageX", Encode.float 450 ), ( "pageY", Encode.float 100 ), ( "buttons", Encode.int 1 ) ])
+                in
+                check (press "touch")
                     [ \m -> Expect.equal True (Splitter.isDragging m.split)
+                    , \m -> Expect.equal True (isOk (send [] touchMove m))
+                    , \m -> Expect.equal False (isOk (send [] (mouseMove 450 1) m))
                     , \m -> rendered m |> Query.findAll [ Selector.class "klar-splitter__layer" ] |> Query.count (Expect.equal 0)
-                    , \m ->
-                        Expect.equal True
-                            (isOk (send (separator 0) (Event.custom "pointermove" (Encode.object [ ( "pageX", Encode.float 450 ), ( "pageY", Encode.float 100 ), ( "buttons", Encode.int 1 ) ])) m))
-                    , \m -> Expect.equal False (isOk (send (separator 0) (mouseMove 450 1) m))
                     ]
+        , test "a finger that the browser takes over ends the drag and puts the sizes back" <|
+            \_ ->
+                press "touch"
+                    |> Result.andThen (send [] (Event.custom "pointermove" (Encode.object [ ( "pageX", Encode.float 450 ), ( "pageY", Encode.float 100 ), ( "buttons", Encode.int 1 ) ])))
+                    |> Result.andThen (send [] (Event.custom "pointercancel" (Encode.object [])))
+                    |> Result.map (\m -> ( Splitter.isDragging m.split, percentages m ))
+                    |> Expect.equal (Ok ( False, [ 40, 60 ] ))
         , test "the mouse is followed while the button is down, and the drag ends on release" <|
             \_ ->
-                send (separator 0) (pointerDown "mouse" 0) twoPanes
-                    |> Result.andThen (send (separator 0) (Event.custom "mouseup" (Encode.object [])))
+                press "mouse"
+                    |> Result.andThen (send [] (Event.custom "mouseup" (Encode.object [])))
                     |> Result.map (\m -> Splitter.isDragging m.split)
                     |> Expect.equal (Ok False)
         , test "a mouse button that was let go unseen ends the drag" <|
             \_ ->
-                send (separator 0) (pointerDown "mouse" 0) twoPanes
-                    |> Result.andThen (send (separator 0) (mouseMove 450 0))
+                press "mouse"
+                    |> Result.andThen (send [] (mouseMove 450 0))
                     |> Result.map (\m -> Splitter.isDragging m.split)
                     |> Expect.equal (Ok False)
         , test "Escape cancels a drag" <|
             \_ ->
-                send (separator 0) (pointerDown "mouse" 0) twoPanes
+                pressAndMove
                     |> Result.andThen (send (separator 0) (key "Escape"))
                     |> Result.map (\m -> Splitter.isDragging m.split)
                     |> Expect.equal (Ok False)
         , test "the keys of the separator wait while a drag goes on" <|
             \_ ->
-                send (separator 0) (pointerDown "mouse" 0) twoPanes
+                press "mouse"
                     |> Result.andThen (send (separator 0) (key "ArrowRight"))
                     |> Expect.err
-        , test "the click that ends a drag stops at the splitter" <|
+        , test "the click that ends a drag stops at the splitter; the click of a plain press goes on (so a double click works)" <|
             \_ ->
-                check (send (separator 0) (pointerDown "mouse" 0) twoPanes)
-                    [ \m ->
-                        rendered m
+                let
+                    stopsClick model =
+                        rendered model
                             |> Event.simulate (Event.custom "click" (Encode.object []))
                             |> Event.toResult
-                            |> Expect.ok
-                    , \_ ->
-                        rendered twoPanes
-                            |> Event.simulate (Event.custom "click" (Encode.object []))
-                            |> Event.toResult
-                            |> Expect.err
+                            |> isOk
+                in
+                Expect.equal [ Ok False, Ok True, Ok False ]
+                    [ press "mouse" |> Result.map stopsClick
+                    , pressAndMove |> Result.map stopsClick
+                    , Ok (stopsClick twoPanes)
                     ]
         , test "the mouse going down on a separator does not select text or start a native drag" <|
             \_ ->
