@@ -323,6 +323,12 @@ new ones.
 | Layout and density: a fixed width, fill the rest, `auto-fit`, one density that every component follows, sidebar width | M |
 | axe in `npm run check` on every showcase page | S |
 
+**Status of density and time zone: done** (see `design/SETTINGS.md`). `Klar.Settings` holds both; the shell
+(`AppShell.settings`) makes everything inside follow the density through the stylesheet, and the components
+that write a time take `settings` (the old `zone` attributes are gone); a time without a zone says "UTC".
+Locale is not in it (decision left open in the design note); a fixed width, `auto-fit` and the sidebar width
+of the A8 row were already there.
+
 **Status of the stale state and the `Remote`-aware containers: done** (see
 `design/STALE-DATA.md` and the CHANGELOG). `Remote` has a fifth state, `Kept`, made by
 `Remote.refresh` and `Remote.refreshWith`; `Table`, `Stat`, `Chart`, `Timeline`, `Tree`, the

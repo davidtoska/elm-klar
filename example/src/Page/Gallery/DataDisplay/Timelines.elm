@@ -154,6 +154,20 @@ Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
                 )
             )
         , Doc.example
+            { title = "Events of a day"
+            , description = Just "A delivery date or a deadline has a day and no time of day: it sits under its day and draws no clock time, and no \"00:00\". The others keep their time, in the zone chosen in the top bar."
+            , code = Just """Timeline.view [ Timeline.settings model.settings ]
+    [ Timeline.dayEvent "d1" deliveryDate "Delivery date"
+    , Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
+    ]"""
+            }
+            (Timeline.view
+                (Timeline.ariaLabel "Order log with a day event" :: common)
+                (Timeline.dayEvent "day-1" Sample.today "Planned delivery"
+                    :: List.take 2 orderEvents
+                )
+            )
+        , Doc.example
             { title = "Loading, empty and failed"
             , description = Just "The failed timeline retries: the backend is down on purpose, so it loads for a moment and fails again."
             , code = Just """Timeline.view [ Timeline.loading True ] []
