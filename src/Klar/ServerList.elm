@@ -2,9 +2,9 @@ module Klar.ServerList exposing
     ( State, Msg, Step, init, update, gotPage
     , viewTable, viewFilterBar, viewSavedViews
     , Request, Page, Ticket
-    , refresh, setViews, applyView, startSaveView
+    , refresh, clearFilters, setViews, applyView, startSaveView
     , rows, total, rule, query, savedViews, activeView
-    , table, mapTable
+    , table, mapTable, focus
     , Target(..), target
     )
 
@@ -153,7 +153,7 @@ the match count, the saved views' current rule and query.
 
 Each returns a `Step` like `update`.
 
-@docs refresh, setViews, applyView, startSaveView
+@docs refresh, clearFilters, setViews, applyView, startSaveView
 
 
 # Reading the state
@@ -163,7 +163,7 @@ Each returns a `Step` like `update`.
 
 # The table
 
-@docs table, mapTable
+@docs table, mapTable, focus
 
 
 # Selected rows
@@ -334,7 +334,7 @@ update msg (State before) =
             ask before Cmd.none
 
         ClearFilters ->
-            settle before { before | filterBar = FilterBar.clear before.filterBar, table = Table.clearFilters before.table } Cmd.none
+            clearFilters (State before)
 
 
 {-| The message for the answer to a `Request`: the rows of the page and the total, or
@@ -452,6 +452,15 @@ answer comes.
 refresh : State id row -> Step id row
 refresh (State inner) =
     ask inner Cmd.none
+
+
+{-| Takes away every filter: the chips of the filter bar, the column filters and the
+search of the table. The table's own "Reset filters" button does it too; use this for a
+command or a shortcut ("Clear filters").
+-}
+clearFilters : State id row -> Step id row
+clearFilters (State before) =
+    settle before { before | filterBar = FilterBar.clear before.filterBar, table = Table.clearFilters before.table } Cmd.none
 
 
 {-| Replaces the saved views, for example when they came from the backend after the
@@ -587,6 +596,17 @@ noticed; use it for what is not part of the query.
 mapTable : (Table.State id -> Table.State id) -> State id row -> State id row
 mapTable change (State inner) =
     State { inner | table = change inner.table }
+
+
+{-| Moves keyboard focus to the table. Use it when whatever had focus is gone: a bulk
+action that removed the selected rows takes the bulk bar and its buttons with it.
+
+    Cmd.map OrdersMsg (ServerList.focus model.orders)
+
+-}
+focus : State id row -> Cmd (Msg row)
+focus (State inner) =
+    Cmd.map TableMsg (Table.focus inner.table)
 
 
 
