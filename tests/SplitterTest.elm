@@ -335,7 +335,7 @@ keyboardTests =
         , test "keys with Ctrl, Alt or Meta are left to the browser" <|
             \_ ->
                 Expect.equal [ False, False, False ]
-                    (List.map (\flag -> isOk (send (separator 0) (keyWith [ ( flag, True) ] "ArrowRight") twoPanes)) [ "ctrl", "alt", "meta" ])
+                    (List.map (\flag -> isOk (send (separator 0) (keyWith [ ( flag, True ) ] "ArrowRight") twoPanes)) [ "ctrl", "alt", "meta" ])
         , test "Enter folds a pane that can fold, and opens it again" <|
             \_ ->
                 let

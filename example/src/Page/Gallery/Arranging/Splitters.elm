@@ -216,7 +216,7 @@ orderList selected =
             (\index order ->
                 ListItem.view
                     [ ListItem.secondary order.customer
-                    , ListItem.meta (order.city)
+                    , ListItem.meta order.city
                     , ListItem.selected (index == selected)
                     , ListItem.onClick (Select index)
                     ]

@@ -17,7 +17,6 @@ drawing, in a module of its own so that the whole path of a drag (a press, the b
 of the items arriving, the pointer moving, the drop) can be tested with the real
 messages. The public module wraps the state and the message in types of its own that
 nobody can take apart.
-
 -}
 
 import Browser.Dom as Dom

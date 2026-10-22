@@ -137,7 +137,8 @@ type Msg
 isFolded : Layout -> List Float -> Int -> Bool
 isFolded layout sizes index =
     (List.drop index layout.collapsible |> List.head |> Maybe.withDefault False)
-        && (List.drop index sizes |> List.head |> Maybe.withDefault 1) <= 1.0e-9
+        && (List.drop index sizes |> List.head |> Maybe.withDefault 1)
+        <= 1.0e-9
 
 
 {-| The limits of the panes in fractions of the room, for panes of these sizes. A
