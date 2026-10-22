@@ -1821,6 +1821,7 @@ css =
  .klar-md ol{list-style: decimal}
  .klar-md li::marker{color: var(--klar-text-muted)}
  .klar-md li + li{margin-top: 2px}
+ .klar-md li:has(> p) + li,.klar-md li + li:has(> p){margin-top: 4px}
  .klar-md li > :is(ul,ol){margin-top: 2px}
  .klar-md__task{list-style: none}
  .klar-md__task-label{position: relative;display: block}
@@ -1852,7 +1853,7 @@ css =
  a.klar-md__placeholder{color: var(--klar-text-link);text-decoration: none}
  a.klar-md__placeholder:hover{border-style: solid}
  .klar-md__notice{padding: var(--klar-space-2) var(--klar-space-3);background: var(--klar-warning-subtle);border: 1px solid var(--klar-warning-border);border-radius: var(--klar-radius);color: var(--klar-amber-700);font-size: var(--klar-text-sm)}
- .klar-mdeditor{--_line: 18px;--_pad: 8px;container-type: inline-size;display: flex;flex-direction: column;min-width: 0;background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-radius: var(--klar-radius);color: var(--klar-text);transition: border-color var(--klar-dur-fast) var(--klar-ease),box-shadow var(--klar-dur-fast) var(--klar-ease)}
+ .klar-mdeditor{--_line: 18px;--_pad: 8px;container-type: inline-size;width: 100%;min-width: 16em;display: flex;flex-direction: column;min-width: 0;background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-radius: var(--klar-radius);color: var(--klar-text);transition: border-color var(--klar-dur-fast) var(--klar-ease),box-shadow var(--klar-dur-fast) var(--klar-ease)}
  .klar-mdeditor:hover{border-color: var(--klar-gray-400)}
  .klar-mdeditor:focus-within{border-color: var(--klar-focus-color);box-shadow: var(--klar-focus-ring)}
  .klar-mdeditor--invalid{border-color: var(--klar-danger)}

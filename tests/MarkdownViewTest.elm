@@ -6,6 +6,7 @@ attributes of the view.
 
 import Expect
 import Html.Attributes as Attr
+import Json.Encode as Encode
 import Klar.Locale as Locale
 import Klar.Markdown as Markdown
 import Test exposing (Test, describe, test)
@@ -46,13 +47,13 @@ headingsTests =
             \_ ->
                 query [] "# Orders"
                     |> Query.find [ Selector.tag "h1" ]
-                    |> Query.has [ Selector.id "orders", Selector.text "Orders" ]
+                    |> Query.has [ Selector.id "md-orders", Selector.text "Orders" ]
         , test "the offset moves the levels down" <|
             \_ ->
                 query [ Markdown.headingOffset 2 ] "# A\n\n## B"
                     |> Expect.all
-                        [ Query.has [ Selector.tag "h3", Selector.id "a" ]
-                        , Query.has [ Selector.tag "h4", Selector.id "b" ]
+                        [ Query.has [ Selector.tag "h3", Selector.id "md-a" ]
+                        , Query.has [ Selector.tag "h4", Selector.id "md-b" ]
                         , Query.hasNot [ Selector.tag "h1" ]
                         , Query.hasNot [ Selector.tag "h2" ]
                         ]
@@ -60,9 +61,9 @@ headingsTests =
             \_ ->
                 query [ Markdown.headingOffset 5 ] "# A\n\n## B\n\n### C"
                     |> Expect.all
-                        [ Query.has [ Selector.tag "h6", Selector.id "a" ]
-                        , Query.has [ Selector.tag "h6", Selector.id "b" ]
-                        , Query.has [ Selector.tag "h6", Selector.id "c" ]
+                        [ Query.has [ Selector.tag "h6", Selector.id "md-a" ]
+                        , Query.has [ Selector.tag "h6", Selector.id "md-b" ]
+                        , Query.has [ Selector.tag "h6", Selector.id "md-c" ]
                         ]
         , test "the offset is at most five and at least nothing" <|
             \_ ->
@@ -75,8 +76,8 @@ headingsTests =
             \_ ->
                 query [ Markdown.headingOffset 1 ] "# A\n\n#### B"
                     |> Expect.all
-                        [ Query.has [ Selector.tag "h2", Selector.id "a" ]
-                        , Query.has [ Selector.tag "h3", Selector.id "b" ]
+                        [ Query.has [ Selector.tag "h2", Selector.id "md-a" ]
+                        , Query.has [ Selector.tag "h3", Selector.id "md-b" ]
                         ]
         , test "a prefix goes in front of every id" <|
             \_ ->
@@ -335,22 +336,51 @@ documentTests =
     describe "documents"
         [ test "the headings in order, with the ids of the elements" <|
             \_ ->
-                Markdown.headings document
+                Markdown.headings [] document
                     |> List.map (\heading -> ( Markdown.headingLevel heading, Markdown.headingText heading, Markdown.headingId heading ))
                     |> Expect.equal
-                        [ ( 1, "Orders", "orders" )
-                        , ( 2, "Open", "open" )
-                        , ( 3, "Open", "open-1" )
-                        , ( 4, "Open now", "open-now" )
+                        [ ( 1, "Orders", "md-orders" )
+                        , ( 2, "Open", "md-open" )
+                        , ( 3, "Open", "md-open-1" )
+                        , ( 4, "Open now", "md-open-now" )
                         ]
         , test "the ids in the list are the ids in the page" <|
             \_ ->
                 Query.fromHtml (Markdown.viewDocument [] document)
                     |> Expect.all
-                        (Markdown.headings document
+                        (Markdown.headings [] document
                             |> List.map Markdown.headingId
                             |> List.map (\id -> Query.has [ Selector.id id ])
                         )
+        , test "and with a prefix of your own" <|
+            \_ ->
+                Query.fromHtml (Markdown.viewDocument [ Markdown.idPrefix "answer-3-" ] document)
+                    |> Expect.all
+                        (Markdown.headings [ Markdown.idPrefix "answer-3-" ] document
+                            |> List.map Markdown.headingId
+                            |> List.map (\id -> Query.has [ Selector.id id ])
+                        )
+        , test "text cannot make an element with an id of the page" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> query [] "# main" |> Query.has [ Selector.id "md-main" ]
+                    , \_ -> query [] "# app" |> Query.hasNot [ Selector.id "app" ]
+                    , \_ -> query [] "# root\n\n# body" |> Query.hasNot [ Selector.id "root" ]
+                    ]
+                    ()
+        , test "a heading made of 45 mathematical letters is not cut in half" <|
+            \_ ->
+                let
+                    letter =
+                        "\u{1D49C}"
+
+                    heading =
+                        Markdown.headings [] (Markdown.parse ("# a" ++ String.repeat 45 letter))
+                            |> List.map Markdown.headingId
+                            |> String.concat
+                in
+                -- no half of a character: the id encodes to JSON without an escape of a half
+                Expect.equal False (String.contains "\\ud" (Encode.encode 0 (Encode.string heading)))
         , test "plain text without markup" <|
             \_ ->
                 Markdown.plainText (Markdown.parse "Ship **two** [orders](/o) `now`.\n\n- a\n- b\n\n| x | y |\n|---|---|\n| 1 | 2 |\n\n```\ncode\n```\n\n![chair](c.png)")

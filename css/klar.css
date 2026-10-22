@@ -10852,6 +10852,11 @@ html:has(.klar-modal-lock) {
 
 .klar-md li::marker { color: var(--klar-text-muted); }
 .klar-md li + li { margin-top: 2px; }
+
+/* A list becomes loose (its paragraphs get a `p`) when text arrives after a blank line:
+   the difference is a little room, so a text that grows does not visibly jump. */
+.klar-md li:has(> p) + li,
+.klar-md li + li:has(> p) { margin-top: 4px; }
 .klar-md li > :is(ul, ol) { margin-top: 2px; }
 
 /* A task: the check box sits where the bullet would be. */
@@ -11042,6 +11047,10 @@ a.klar-md__placeholder:hover { border-style: solid; }
   --_line: 18px;
   --_pad: 8px;
   container-type: inline-size;
+  /* a container with `inline-size` has no width of its own: in a place that is as wide as
+     its content (a flex item, an inline block) it would collapse */
+  width: 100%;
+  min-width: 16em;
   display: flex;
   flex-direction: column;
   min-width: 0;

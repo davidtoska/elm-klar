@@ -409,7 +409,7 @@ hosts : Test
 hosts =
     let
         view_ text =
-            Markdown.view [ Markdown.imagesFrom [ "cdn.example.com", " Images.Example.com " ] ] text
+            Markdown.view [ Markdown.imagesFrom (List.filterMap Markdown.imageHost [ "cdn.example.com", "Images.Example.com" ]) ] text
                 |> Query.fromHtml
 
         shown text =

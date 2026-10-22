@@ -566,13 +566,13 @@ shortcutOf : String -> String
 shortcutOf name =
     case name of
         "Bold" ->
-            " (Ctrl+B)"
+            " (Ctrl/Cmd+B)"
 
         "Italic" ->
-            " (Ctrl+I)"
+            " (Ctrl/Cmd+I)"
 
         "Link" ->
-            " (Ctrl+K)"
+            " (Ctrl/Cmd+K)"
 
         _ ->
             ""

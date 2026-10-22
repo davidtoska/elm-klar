@@ -246,11 +246,11 @@ scan final chars st =
                 _ ->
                     if (c == 'h' || c == 'H') && canStartUrl st.previous && not (inBracket st) then
                         case bareUrl chars st.budget of
-                            Just found ->
+                            Ok found ->
                                 scan final found.rest (setPrevious (lastChar found.url) (emit (Link { destination = found.url, title = "" } [ Text found.url ]) (spend found.spent st)))
 
-                            Nothing ->
-                                scan final rest (literal c st)
+                            Err spent ->
+                                scan final rest (literal c (spend spent st))
 
                     else
                         scan final rest (literal c st)
@@ -1134,7 +1134,12 @@ isEmailAddress text =
             False
 
 
-bareUrl : List Char -> Int -> Maybe { url : String, rest : List Char, spent : Int }
+{-| A plain address at the start of the characters, or what a failed look cost. The
+host must start at once (a letter, a digit or a character that is not ASCII): an
+address such as `http://(` is refused after eight characters and not after a look at
+everything that follows.
+-}
+bareUrl : List Char -> Int -> Result Int { url : String, rest : List Char, spent : Int }
 bareUrl chars budget =
     let
         start =
@@ -1151,26 +1156,26 @@ bareUrl chars budget =
                 0
     in
     if schemeLength == 0 then
-        Nothing
+        Err 1
 
     else
-        let
-            ( body, after, spent ) =
-                collectUrl (List.drop schemeLength chars) [] 0 (min budget Url.maxLength)
-
-            ( trimmed, rest ) =
-                trimUrl (occurrences '(' body) (occurrences ')' body) body after
-        in
-        case List.reverse trimmed of
+        case List.drop schemeLength chars of
             first :: _ ->
                 if isAlphaNumeric first || Char.toCode first > 0x7F then
-                    Just { url = String.fromList (List.take schemeLength chars) ++ String.fromList (List.reverse trimmed), rest = rest, spent = spent + schemeLength }
+                    let
+                        ( body, after, spent ) =
+                            collectUrl (List.drop schemeLength chars) [] 0 (min budget Url.maxLength)
+
+                        ( trimmed, rest ) =
+                            trimUrl (occurrences '(' body) (occurrences ')' body) body after
+                    in
+                    Ok { url = String.fromList (List.take schemeLength chars) ++ String.fromList (List.reverse trimmed), rest = rest, spent = spent + schemeLength }
 
                 else
-                    Nothing
+                    Err schemeLength
 
             [] ->
-                Nothing
+                Err schemeLength
 
 
 {-| The address up to white space or `<`: it comes back reversed, with what follows.

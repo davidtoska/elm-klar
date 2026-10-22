@@ -40,18 +40,24 @@ container decides, not the window, so an editor in a narrow column of a wide pag
 gets tabs. `tabbed` and `sideBySide` fix the layout. The preview is the view of
 [Klar.Markdown](Klar-Markdown), so everything that is true there is true here: raw
 HTML is shown as text, links are checked, images are not loaded unless you say so
-with `preview`. The preview follows the text as it is typed; for a text of more than
+with `preview`; the ids of its headings start with the id of the editor and `-md-`, so
+that text written in the editor cannot make an element with the id of the label or
+the hint of the field. The preview follows the text as it is typed; for a text of more than
 8,000 characters it waits for a pause of a quarter of a second, so typing never
 waits for it, and says that it is catching up (`aria-busy`). It is not announced to
 screen readers, which would be noise.
+
+The editor needs a width: it is as wide as the place it is in, and in a container that
+is as wide as its content (a flex item without a width, an inline block, a table
+cell) it falls back to a minimum of 16em. Give such a place a width.
 
 **The toolbar** has bold, italic, code, link, heading, quote, bullet list, numbered
 list and task list. They act on the selection, or on the lines it touches, and give
 the selection back: the text that was selected stays selected, so a button pressed
 twice undoes itself. Bold, italic and link also have the keyboard shortcuts
-`Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac), and they are the only keys the
-text area takes over. `Ctrl Z` and `Ctrl Y` are the browser's, with one exception
-described below.
+`Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac). Those, and `Ctrl Z`, `Ctrl Y` and
+`Ctrl Shift Z` while the text is exactly what the last button left (see below), are
+the only keys the text area takes over; every other key is the browser's.
 
 **What cannot be done in plain Elm, and what is done about it.** A text area has a
 selection, and an application cannot read or write it without JavaScript. The editor
@@ -114,7 +120,6 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import Klar.Button as Button
 import Klar.Field as Field
-import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Icon.Editor as EditorIcon
 import Klar.Internal as Internal
@@ -236,11 +241,13 @@ setValue text (State state) =
 
 
 {-| Moves the keyboard focus to the text area, for example when a dialog with the
-editor opens. Map the command with your message constructor.
+editor opens. When the editor has tabs and the Preview tab is shown, the Write tab
+is shown first, because a text area that is not shown cannot take the focus. Map the
+command with your message constructor.
 -}
 focus : State -> Cmd Msg
-focus (State state) =
-    Internal.focus state.id Noop
+focus _ =
+    Task.perform (\_ -> Focus) (Task.succeed ())
 
 
 
@@ -267,6 +274,7 @@ type Msg
     | Redo
     | Settled Int
     | TabsMsg Tabs.Msg
+    | Focus
     | Noop
 
 
@@ -334,6 +342,9 @@ update msg (State state) =
                     Tabs.update tabsMsg state.tabs
             in
             ( State { state | tabs = tabs }, Cmd.map TabsMsg cmd )
+
+        Focus ->
+            ( State { state | tabs = Tabs.setActive "write" state.tabs }, Internal.focus state.id Noop )
 
         Noop ->
             ( State state, Cmd.none )
@@ -625,11 +636,12 @@ sideBySide =
 
 
 {-| Attributes for the preview, which is a [Klar.Markdown](Klar-Markdown) view:
-`Markdown.images`, `Markdown.headingOffset` and the others. Its `locale` is the one
-of the editor. Define the list once (a constant) and the preview is not redrawn
-while the text waits for its pause.
+`Markdown.images`, `Markdown.imagesFrom`, `Markdown.headingOffset` and the others.
+The `locale` and the `idPrefix` of the preview are the editor's own, and a
+`Markdown.locale` or `Markdown.idPrefix` in this list wins over them. Define the list
+once (a constant) and the preview is not redrawn while the text waits for its pause.
 
-    MarkdownEditor.preview [ Markdown.imagesFrom [ "cdn.example.com" ] ]
+    MarkdownEditor.preview [ Markdown.imagesFrom hosts ]
 
 -}
 preview : List Markdown.Attribute -> Attribute msg
@@ -674,7 +686,6 @@ type alias Texts =
     , views : String
     , nothing : String
     , linkText : String
-    , supported : String
     , tooLong : Int -> String
     , counted : Int -> Int -> String
     }
@@ -701,12 +712,11 @@ texts lang =
     , views = pick "Skriv eller forhåndsvis" "Write or preview"
     , nothing = pick "Ingenting å forhåndsvise ennå." "Nothing to preview yet."
     , linkText = pick "tekst" "text"
-    , supported = pick "Markdown støttes" "Markdown is supported"
     , tooLong =
         \over ->
             pick
-                ("Teksten er " ++ Format.int lang over ++ " tegn for lang.")
-                ("The text is " ++ Format.int lang over ++ " characters too long.")
+                ("Teksten er " ++ String.fromInt over ++ " tegn for lang.")
+                ("The text is " ++ String.fromInt over ++ " characters too long.")
     , counted =
         \length limit ->
             pick
@@ -1037,8 +1047,8 @@ viewToolbar toMsg words id inactive =
                 , Button.disabled inactive
                 , Button.title
                     (case shortcut of
-                        Just keys ->
-                            name ++ " (" ++ keys ++ ")"
+                        Just key ->
+                            name ++ " (Ctrl/Cmd+" ++ key ++ ")"
 
                         Nothing ->
                             name
@@ -1056,10 +1066,10 @@ viewToolbar toMsg words id inactive =
     in
     Toolbar.view [ Toolbar.ariaLabel words.formatting, Toolbar.small, Toolbar.plain ]
         [ Toolbar.group
-            [ button Bold Icon.bold words.bold (Just "Ctrl+B")
-            , button Italic Icon.italic words.italic (Just "Ctrl+I")
+            [ button Bold Icon.bold words.bold (Just "B")
+            , button Italic Icon.italic words.italic (Just "I")
             , button Code Icon.code words.code Nothing
-            , button Link Icon.link words.link (Just "Ctrl+K")
+            , button Link Icon.link words.link (Just "K")
             ]
         , Toolbar.separator
         , Toolbar.group
@@ -1137,13 +1147,18 @@ viewPreview config words state =
             Html.p [ Internal.cls [ "klar-mdeditor__empty" ] ] [ Html.text words.nothing ]
 
           else
-            Lazy.lazy3 previewOf config.locale config.preview state.document
+            Lazy.lazy4 previewOf config.locale (state.id ++ "-md-") config.preview state.document
         ]
 
 
-previewOf : Locale -> List Markdown.Attribute -> Markdown.Document -> Html msg
-previewOf lang attributes document =
-    Markdown.viewDocument (Markdown.locale lang :: attributes) document
+{-| The preview: the ids of its headings start with the id of the editor, so that the
+text of the user cannot make an element with the id of a part of the field (the hint
+that `aria-describedby` points at, the text area itself). The attributes of the
+application come later and so win.
+-}
+previewOf : Locale -> String -> List Markdown.Attribute -> Markdown.Document -> Html msg
+previewOf lang prefix attributes document =
+    Markdown.viewDocument (Markdown.idPrefix prefix :: Markdown.locale lang :: attributes) document
 
 
 viewHelp : Locale -> Html msg

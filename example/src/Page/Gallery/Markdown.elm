@@ -207,13 +207,13 @@ documentSection : Locale -> Model -> Html Msg
 documentSection locale model =
     let
         headings =
-            Markdown.headings model.document
+            Markdown.headings [ Markdown.idPrefix idPrefix ] model.document
 
         entry heading =
             Button.view
                 [ Button.link
                 , Button.small
-                , Button.onClick (ScrollTo (idPrefix ++ Markdown.headingId heading))
+                , Button.onClick (ScrollTo (Markdown.headingId heading))
                 ]
                 (String.repeat (Markdown.headingLevel heading - 1) "\u{2003}" ++ Markdown.headingText heading)
     in
@@ -227,7 +227,7 @@ documentSection locale model =
         Markdown.parse model.text
 in
 Layout.row [ Layout.gap 4 ]
-    [ Layout.stack [] (List.map tocEntry (Markdown.headings document))
+    [ Layout.stack [] (List.map tocEntry (Markdown.headings [ Markdown.idPrefix "doc-" ] document))
     , Markdown.viewDocument [ Markdown.idPrefix "doc-" ] document
     ]"""
             }
@@ -318,7 +318,7 @@ safetySection locale model =
 
 -- images from anywhere, or from the hosts you trust
 Markdown.view [ Markdown.images ] text
-Markdown.view [ Markdown.imagesFrom [ "cdn.example.com" ] ] text"""
+Markdown.view [ Markdown.imagesFrom (List.filterMap Markdown.imageHost [ "cdn.example.com" ]) ] text"""
             }
             (Layout.stack [ Layout.gap 4 ]
                 [ Layout.grid [ Layout.minColumn 320, Layout.gap 4 ]
@@ -437,7 +437,7 @@ optionsSection =
               }
             , { name = "Markdown.headings"
               , type_ = "Document -> List Heading"
-              , description = "Level, text and id of every heading, for a table of contents. Ids are unique in the document: intro, intro-1."
+              , description = "Level, text and id of every heading, for a table of contents. Ids are unique in the document and start with the idPrefix: md-intro, md-intro-1."
               }
             , { name = "Markdown.plainText"
               , type_ = "Document -> String"
@@ -449,11 +449,11 @@ optionsSection =
               }
             , { name = "Markdown.images / imagesFrom"
               , type_ = "Attribute / List String -> Attribute"
-              , description = "Load images from anywhere, or from the hosts listed. Default: an image is a link with its description."
+              , description = "Load images from anywhere, or from the hosts made with imageHost. Default: an image is a link with its description."
               }
             , { name = "Markdown.idPrefix"
               , type_ = "String -> Attribute"
-              , description = "Text before every heading id, for a page with several documents."
+              , description = "Text before every heading id (default md-), for a page with several documents. Text from others cannot make an element with an id of the page."
               }
             , { name = "MarkdownEditor.maxLength"
               , type_ = "Int -> Attribute msg"
