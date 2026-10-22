@@ -945,6 +945,11 @@ table {
   --_fg: var(--klar-text-link);
   --_border: transparent;
   height: auto;
+
+  /* A link button is a control on its own, not a link in a sentence: the target
+     is at least 24 by 24 px (WCAG 2.2, 2.5.8). */
+  min-width: 24px;
+  min-height: 24px;
   padding: 0;
   font-weight: var(--klar-weight);
 }

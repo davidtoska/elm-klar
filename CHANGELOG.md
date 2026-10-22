@@ -480,3 +480,8 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   request to the backend. Picking an item now gives focus back to the opener like `Escape` (it
   closes first and sends the item's message after, so a message that moves focus, such as one that
   opens a dialog, wins; the page was left with focus on `body`).
+- `Tree`: the "Try again" of a failed branch (and every link-style `Button`) is a target of at least
+  24 by 24 px (it was 19 px high; axe `target-size`, WCAG 2.2). A lazy tree still searches only the
+  nodes it has: the docs now say so in one line and how to search the backend (watch `query`); a
+  typed request value like `loadRequests` was the larger option and would only move the same code
+  into the application.

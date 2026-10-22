@@ -33,6 +33,18 @@ suite =
                         |> Query.has [ Selector.text Klar.css ]
             , test "is not empty" <|
                 \_ -> Expect.greaterThan 100000 (String.length Klar.css)
+            , test "a link button is a target of at least 24 by 24 px (WCAG 2.2, the Try again of a Tree branch)" <|
+                \_ ->
+                    Klar.css
+                        |> String.split ".klar-button--link{"
+                        |> List.drop 1
+                        |> List.head
+                        |> Maybe.map (String.split "}" >> List.head >> Maybe.withDefault "")
+                        |> Maybe.withDefault ""
+                        |> Expect.all
+                            [ String.contains "min-height: 24px" >> Expect.equal True
+                            , String.contains "min-width: 24px" >> Expect.equal True
+                            ]
             , test "has as many opening as closing braces" <|
                 \_ -> Expect.equal (count "{" Klar.css) (count "}" Klar.css)
             , test "defines the tokens" <|

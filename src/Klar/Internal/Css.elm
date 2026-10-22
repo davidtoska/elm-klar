@@ -152,7 +152,7 @@ css =
  .klar-button--ghost{--_bg: transparent;--_fg: var(--klar-text-secondary);--_border: transparent}
  .klar-button--ghost:hover{--_bg: var(--klar-gray-100);--_fg: var(--klar-text)}
  .klar-button--ghost:active{--_bg: var(--klar-gray-150)}
- .klar-button--link{--_bg: transparent;--_fg: var(--klar-text-link);--_border: transparent;height: auto;padding: 0;font-weight: var(--klar-weight)}
+ .klar-button--link{--_bg: transparent;--_fg: var(--klar-text-link);--_border: transparent;height: auto;min-width: 24px;min-height: 24px;padding: 0;font-weight: var(--klar-weight)}
  .klar-button--link:hover{text-decoration: underline}
  .klar-button--secondary[aria-pressed="true"],.klar-button--ghost[aria-pressed="true"]{--_bg: var(--klar-primary-subtle);--_fg: var(--klar-primary);--_border: var(--klar-primary-border)}
  .klar-button--secondary[aria-pressed="true"]:hover,.klar-button--ghost[aria-pressed="true"]:hover{--_bg: var(--klar-primary-subtle-hover);--_fg: var(--klar-primary-hover)}
