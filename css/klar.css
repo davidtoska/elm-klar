@@ -2905,6 +2905,50 @@ table {
   pointer-events: none;
 }
 
+/* ---- A list of rows of its own (VirtualList.list) ----------------------- */
+
+.klar-vlist--list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+  box-sizing: content-box;
+}
+
+.klar-vlist--list:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+/* Every row is as high as the list says (--klar-vlist-row): what does not fit is cut. */
+.klar-vlist__item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--klar-vlist-row);
+  overflow: hidden;
+  border-bottom: 1px solid var(--klar-border-subtle);
+  list-style: none;
+}
+
+.klar-vlist__item > .klar-list-item { flex: 1 1 auto; min-height: 0; }
+.klar-vlist__item .klar-list-item__main { min-height: 0; height: 100%; }
+
+.klar-vlist--interactive .klar-vlist__item { cursor: pointer; }
+.klar-vlist--interactive .klar-vlist__item:hover { background: var(--klar-surface-hover); }
+
+.klar-vlist__item--selected,
+.klar-vlist--interactive .klar-vlist__item--selected:hover { background: var(--klar-primary-subtle); }
+
+/* The active row is marked while the list has the focus. */
+.klar-vlist--list:focus-visible .klar-vlist__item--active {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
 /* The pinned section heading is a sticky first child that takes no room:
    it sits on top of the first visible row while the rows scroll under it. */
 .klar-vlist__pinned {
@@ -5034,8 +5078,25 @@ table {
 
 .klar-table__foot .klar-table__cell--pinned { z-index: calc(var(--klar-z-sticky) + 3); }
 
+/* A total is never cut with an ellipsis: when a sum does not fit next to its label
+   the label stays on one line and the sum on the next (and a number wider than
+   the column breaks only as the last resort). */
+.klar-table__foot .klar-table__cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  padding-block: var(--klar-space-1);
+  line-height: var(--klar-leading-tight);
+}
+.klar-table__foot .klar-table__td--right .klar-table__cell { justify-content: flex-end; }
+.klar-table__foot .klar-table__td--center .klar-table__cell { justify-content: center; }
+.klar-table__foot .klar-table__aggregate { max-width: 100%; overflow-wrap: anywhere; }
+
 .klar-table__aggregate-label {
-  margin-right: 6px;
   font-size: var(--klar-text-xs);
   font-weight: var(--klar-weight-bold);
   letter-spacing: 0.04em;
@@ -5061,6 +5122,36 @@ table {
   gap: var(--klar-space-2);
   font-size: var(--klar-text-sm);
   color: var(--klar-text-muted);
+}
+
+/* The rows in view of a long table, in the place of the page controls. */
+.klar-table__footer-range {
+  font-size: var(--klar-text-sm);
+  color: var(--klar-text-muted);
+}
+
+/* ---- A table that scrolls (Table.virtual) ------------------------------- */
+
+/* Only the rows in view are drawn, and the room of the others is one empty row
+   above and one below. For that to be exact, every row is as high as the table
+   says (--_row-h is set on the table), so a long value is cut, not wrapped. */
+.klar-table__spacer-body td {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Every chunk of rows is a body of its own, and each of them has a last row. */
+.klar-table--virtual .klar-table__body > tr:last-child > .klar-table__td {
+  border-bottom-color: var(--klar-border-subtle);
+}
+
+.klar-table--virtual .klar-table__td--wrap .klar-table__cell {
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--klar-leading-tight);
 }
 
 /* ---- Popovers (filters, columns, export) -------------------------------- */

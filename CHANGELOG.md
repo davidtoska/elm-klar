@@ -155,3 +155,67 @@ decision. Compiling every doc example (A1) and the larger items of A8 (the form
 model, the overlay layer) are later work. A decision for the owner to check: the
 `Form.section` default of `h2` (inside a `Card`, whose title is an `h3`, an `h2` is
 legal for axe, but a purist would want `h4`).
+
+### Data-dense performance (A8)
+
+50 000 rows are a normal case now. The cause of the slowness, found by profiling in
+Chrome, was not the sorting but the work around it: each message turned every row into
+text again (the search text of all columns, the sort keys, number formatting), and a page
+change sorted the 50 000 rows again. Measured in headless Chrome on a development build
+(median of three, including two animation frames, which are about 33 ms of every
+number) with 50 000 generated rows of 7 columns, before and after on the same machine:
+
+| | before | after |
+|---|---|---|
+| a key in the search box of a client-mode `Table` | 200 to 220 ms | 60 to 75 ms |
+| a sort click (text column, number column) | 110 to 180, 70 to 120 ms | 25 to 45 ms |
+| a page change in a sorted table | 105 to 150 ms | 27 to 30 ms |
+| `Search.scorePrepared` over 50 000 texts of 230 characters, any query | 80 to 200 ms | 30 to 115 ms |
+| preparing the rows, once, when they arrive | none | 0.4 to 0.6 s |
+
+- New: `Table.prepareRows : Locale -> List (Column row msg) -> Array row -> Rows row`
+  and `Table.preparedRows : Remote (Rows row) -> Attribute id row msg`. The rows are
+  prepared once, when they arrive: the table keeps for each row the text that the search
+  looks in, for each sortable column the rows in ascending and descending order, and the
+  sums of the footers. It no longer turns every value into text on every message, and a
+  page change no longer sorts again (S-008). `Table.rowsArray : Rows row -> Array row`
+  gives the same `Array` to the rest of the page, so that the application holds one
+  collection for the table and for a `VirtualList` (S-019). `Table.rows` with a `List` is
+  unchanged and as fast as before. Rows prepared for other columns or another locale are
+  shown correctly, and as slowly as a `List`. While a search or a filter is active the
+  table still goes through the search texts of every row on each view (a few
+  milliseconds at 50 000 rows); with none, a view costs the page.
+- New: `Table.virtual`. A long table scrolls instead of paging and draws only the
+  rows in view, one height (the density's), with the header and the totals in view
+  (S-009). Client mode has no pages then; server mode keeps its pagination and draws
+  the rows of the page that are in view. The rows come and go in chunks of 16, each a
+  `tbody` of its own, so that scrolling a few rows moves none and the keyboard focus
+  stays. Arrow keys, PageUp and PageDown (a screenful), Home, End and Space work over all
+  the rows; the scroll area is a tab stop while the row with the tab stop is not
+  drawn. The checkbox in the header selects all matching rows. There are no expanded
+  rows and no wrapped text in such a table. The docs say when to page and when to scroll.
+- New: `VirtualList.list`, with `VirtualList.density`, `VirtualList.onSelect`,
+  `VirtualList.selected` and `VirtualList.active`. The list makes its own `ul` and `li`,
+  with the row height from the density (so the application writes no style and needs
+  no height, S-002 and S-007), `aria-posinset` and `aria-setsize` on every row, and the
+  keys of a list box over `aria-activedescendant`: one tab stop, not one for every row,
+  ArrowDown and ArrowUp, Home, End, PageDown and PageUp, Enter and Space (S-014).
+  `ListItem.content` is a `ListItem` row without the `li` and without anything to
+  click, for the rows of such a list. `VirtualList.view` and `viewGrouped` remain
+  for the select components, which draw their own options.
+- `Search`: every exact match is a match of the word inside the text, so that is asked
+  first and a text that lacks the word is not asked about its start and its words; a text
+  that lacks one of the letters of a query cannot match loosely, and `String.contains`
+  tests that natively before the typo-tolerant walk, so a rare word no longer costs a
+  walk per text (S-010). Scores and ranking are unchanged (fuzz tests compare them with
+  the plain scoring on random corpora).
+- A footer sum is no longer cut with an ellipsis: the label stays on one line and the sum
+  goes on the next when they do not fit (F-009).
+- S-023 (a column that is hidden in a narrow table): not added. The table already
+  scrolls sideways with a shadow at the cut edge; the docs now say how to arrange the
+  columns for a narrow place (`pinned`, `minWidth`, `hiddenByDefault` with
+  `columnChooser`) instead of a new attribute.
+- The bulk bar no longer goes through every matching row on each view of a client-mode
+  table: it needs the keys of the matching rows only when the selection is as large as
+  the matching rows, or when the user asks for them, and it counts the selected rows
+  that a search or a filter hides only when the search or a filter leaves rows out.

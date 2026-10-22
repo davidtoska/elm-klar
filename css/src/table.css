@@ -742,8 +742,25 @@
 
 .klar-table__foot .klar-table__cell--pinned { z-index: calc(var(--klar-z-sticky) + 3); }
 
+/* A total is never cut with an ellipsis: when a sum does not fit next to its label
+   the label stays on one line and the sum on the next (and a number wider than
+   the column breaks only as the last resort). */
+.klar-table__foot .klar-table__cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  padding-block: var(--klar-space-1);
+  line-height: var(--klar-leading-tight);
+}
+.klar-table__foot .klar-table__td--right .klar-table__cell { justify-content: flex-end; }
+.klar-table__foot .klar-table__td--center .klar-table__cell { justify-content: center; }
+.klar-table__foot .klar-table__aggregate { max-width: 100%; overflow-wrap: anywhere; }
+
 .klar-table__aggregate-label {
-  margin-right: 6px;
   font-size: var(--klar-text-xs);
   font-weight: var(--klar-weight-bold);
   letter-spacing: 0.04em;
@@ -769,6 +786,36 @@
   gap: var(--klar-space-2);
   font-size: var(--klar-text-sm);
   color: var(--klar-text-muted);
+}
+
+/* The rows in view of a long table, in the place of the page controls. */
+.klar-table__footer-range {
+  font-size: var(--klar-text-sm);
+  color: var(--klar-text-muted);
+}
+
+/* ---- A table that scrolls (Table.virtual) ------------------------------- */
+
+/* Only the rows in view are drawn, and the room of the others is one empty row
+   above and one below. For that to be exact, every row is as high as the table
+   says (--_row-h is set on the table), so a long value is cut, not wrapped. */
+.klar-table__spacer-body td {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Every chunk of rows is a body of its own, and each of them has a last row. */
+.klar-table--virtual .klar-table__body > tr:last-child > .klar-table__td {
+  border-bottom-color: var(--klar-border-subtle);
+}
+
+.klar-table--virtual .klar-table__td--wrap .klar-table__cell {
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--klar-leading-tight);
 }
 
 /* ---- Popovers (filters, columns, export) -------------------------------- */

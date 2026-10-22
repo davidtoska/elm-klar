@@ -564,6 +564,15 @@ css =
  .klar-container--align-start{margin-inline: 0;padding-inline: 0}
  .klar-vlist{position: relative;overflow-x: hidden;overflow-y: auto;overscroll-behavior: contain;outline: none}
  .klar-vlist__spacer{pointer-events: none}
+ .klar-vlist--list{margin: 0;padding: 0;list-style: none;background: var(--klar-surface);border: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg);box-sizing: content-box}
+ .klar-vlist--list:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: -2px}
+ .klar-vlist__item{display: flex;flex-direction: column;justify-content: center;box-sizing: border-box;height: var(--klar-vlist-row);overflow: hidden;border-bottom: 1px solid var(--klar-border-subtle);list-style: none}
+ .klar-vlist__item > .klar-list-item{flex: 1 1 auto;min-height: 0}
+ .klar-vlist__item .klar-list-item__main{min-height: 0;height: 100%}
+ .klar-vlist--interactive .klar-vlist__item{cursor: pointer}
+ .klar-vlist--interactive .klar-vlist__item:hover{background: var(--klar-surface-hover)}
+ .klar-vlist__item--selected,.klar-vlist--interactive .klar-vlist__item--selected:hover{background: var(--klar-primary-subtle)}
+ .klar-vlist--list:focus-visible .klar-vlist__item--active{outline: 2px solid var(--klar-focus-color);outline-offset: -2px}
  .klar-vlist__pinned{position: sticky;top: 0;z-index: 1;height: 0}
  .klar-vlist__pinned--active{height: var(--klar-vlist-row);margin-bottom: calc(-1 * var(--klar-vlist-row))}
  .klar-select,.klar-autocomplete{width: 100%}
@@ -874,10 +883,18 @@ css =
  @media (prefers-reduced-motion: reduce){.klar-table__progress::after{width: 100%;opacity: 0.5;animation: none}}
  .klar-table__foot .klar-table__td{position: sticky;bottom: 0;z-index: calc(var(--klar-z-sticky) + 1);background: var(--klar-gray-50);border-top: 1px solid var(--klar-border);border-bottom: 0;font-weight: var(--klar-weight-medium)}
  .klar-table__foot .klar-table__cell--pinned{z-index: calc(var(--klar-z-sticky) + 3)}
- .klar-table__aggregate-label{margin-right: 6px;font-size: var(--klar-text-xs);font-weight: var(--klar-weight-bold);letter-spacing: 0.04em;text-transform: uppercase;color: var(--klar-text-muted)}
+ .klar-table__foot .klar-table__cell{display: flex;flex-wrap: wrap;align-items: baseline;column-gap: 6px;overflow: visible;text-overflow: clip;white-space: nowrap;padding-block: var(--klar-space-1);line-height: var(--klar-leading-tight)}
+ .klar-table__foot .klar-table__td--right .klar-table__cell{justify-content: flex-end}
+ .klar-table__foot .klar-table__td--center .klar-table__cell{justify-content: center}
+ .klar-table__foot .klar-table__aggregate{max-width: 100%;overflow-wrap: anywhere}
+ .klar-table__aggregate-label{font-size: var(--klar-text-xs);font-weight: var(--klar-weight-bold);letter-spacing: 0.04em;text-transform: uppercase;color: var(--klar-text-muted)}
  .klar-table__aggregate{font-variant-numeric: tabular-nums}
  .klar-table__footer{display: flex;align-items: center;flex: none;min-height: calc(var(--klar-control-sm) + var(--klar-space-4));padding: var(--klar-space-2) var(--klar-space-3);border-top: 1px solid var(--klar-border);background: var(--klar-surface)}
  .klar-table__footer-loading{display: inline-flex;align-items: center;gap: var(--klar-space-2);font-size: var(--klar-text-sm);color: var(--klar-text-muted)}
+ .klar-table__footer-range{font-size: var(--klar-text-sm);color: var(--klar-text-muted)}
+ .klar-table__spacer-body td{padding: 0;border: 0;background: transparent}
+ .klar-table--virtual .klar-table__body > tr:last-child > .klar-table__td{border-bottom-color: var(--klar-border-subtle)}
+ .klar-table--virtual .klar-table__td--wrap .klar-table__cell{padding: 0;white-space: nowrap;overflow: hidden;text-overflow: ellipsis;line-height: var(--klar-leading-tight)}
  .klar-table__popover{display: flex;flex-direction: column;width: 288px;max-width: calc(100vw - 16px);padding: 0;overflow: hidden;outline: none;color: var(--klar-text);font-size: var(--klar-text-md);font-weight: var(--klar-weight);line-height: var(--klar-leading);text-align: left;white-space: normal;cursor: default}
  @position-try --klar-table-pop-below{position-area: bottom span-all;margin: 4px 0}
  @position-try --klar-table-pop-above{position-area: top span-all;margin: 4px 0}

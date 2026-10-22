@@ -19,6 +19,50 @@
   pointer-events: none;
 }
 
+/* ---- A list of rows of its own (VirtualList.list) ----------------------- */
+
+.klar-vlist--list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+  box-sizing: content-box;
+}
+
+.klar-vlist--list:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+/* Every row is as high as the list says (--klar-vlist-row): what does not fit is cut. */
+.klar-vlist__item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--klar-vlist-row);
+  overflow: hidden;
+  border-bottom: 1px solid var(--klar-border-subtle);
+  list-style: none;
+}
+
+.klar-vlist__item > .klar-list-item { flex: 1 1 auto; min-height: 0; }
+.klar-vlist__item .klar-list-item__main { min-height: 0; height: 100%; }
+
+.klar-vlist--interactive .klar-vlist__item { cursor: pointer; }
+.klar-vlist--interactive .klar-vlist__item:hover { background: var(--klar-surface-hover); }
+
+.klar-vlist__item--selected,
+.klar-vlist--interactive .klar-vlist__item--selected:hover { background: var(--klar-primary-subtle); }
+
+/* The active row is marked while the list has the focus. */
+.klar-vlist--list:focus-visible .klar-vlist__item--active {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
 /* The pinned section heading is a sticky first child that takes no room:
    it sits on top of the first visible row while the rows scroll under it. */
 .klar-vlist__pinned {

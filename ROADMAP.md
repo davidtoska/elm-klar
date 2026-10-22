@@ -305,6 +305,19 @@ new ones.
 | Layout and density: a fixed width, fill the rest, `auto-fit`, one density that every component follows, sidebar width | M |
 | axe in `npm run check` on every showcase page | S |
 
+**Status of data-dense performance: done in the library, to be measured again in the
+second round.** Cause found by profiling in Chrome: every message turned every row into
+text again (the search text, the sort keys, number formatting), and a page change sorted
+the 50 000 rows again. Now `Table.prepareRows` keeps the search texts, the sorted order of
+each sortable column and the footer sums with the rows, `Table.virtual` scrolls instead of
+paging and draws only the rows in view, `VirtualList.list` owns its rows and is a list box
+for the keyboard, and `Search` tests the letters of a typo-tolerant query natively before
+it walks a text. 50 000 rows of 7 columns: search, sort and page each under 100 ms
+including two animation frames (see CHANGELOG.md for the numbers). Not done: S-023 (a
+column hidden below a width) became documentation, and the filtered rows are still found
+again on each view while a search is active (a scan of the search texts, a few
+milliseconds at 50 000 rows).
+
 Second round of A0 after these: rebuild the three applications and compare compile errors,
 iterations, `KLAR GAP` lines and behaviour bugs with the first round.
 

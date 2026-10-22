@@ -11,7 +11,8 @@ module Klar.Table exposing
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
     , refreshing, onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
-    , pageSizes, unpaged, zebra, maxHeight, fillHeight
+    , pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
+    , Rows, prepareRows, rowsArray, preparedRows
     , Column, text, int, float, date, maybeDate, badge, status, bool, custom, actions
     , ColumnAttribute, width, minWidth, alignRight, alignCenter, pinned, hiddenByDefault, alwaysVisible, wrap, noTooltip, cell, hint
     , sortText, sortNumber, sortMaybeNumber, sortDate, sortWith, unsortable
@@ -31,7 +32,8 @@ orders, customers, shipments. For a short list of things to open, see
 
 A table works in one of two modes. In **client mode** you give it all the rows
 and it searches, filters, sorts and paginates them itself. Only the current page
-is turned into HTML, so thousands of rows are fine.
+is turned into HTML. Thousands of rows are fine, and tens of thousands are too once
+the rows are prepared (see "Many rows" below).
 
     import Klar.Button as Button
     import Klar.Menu as Menu
@@ -161,13 +163,37 @@ Name the table with `label`; the page controls in its footer are named after it
 too ("Pages of Orders"), so that two tables on a page can be told apart.
 `rowLabel` names a row for screen readers ("Select Ada Lovelace" on its checkbox).
 
-**Performance.** Client mode searches, filters and sorts inside `view`. Sort keys
-are computed once per row, a missing sort or filter costs nothing, and only the
-current page is turned into HTML (`unpaged` turns every matching row into HTML).
-That work is repeated each time `view` runs. If the rest of your page changes
-often, put the table in a function of the rows and the `State` and call it with
-`Html.Lazy.lazy2`. The rows must come straight from your model, not be rebuilt in
-`view`, for Elm to see that they did not change.
+**Many rows.** Client mode searches, filters and sorts inside `view`: sort keys
+are made once per row, a missing sort or filter costs nothing, and only the
+current page is turned into HTML. That is quick for a few thousand rows and slow
+for tens of thousands, because every value is turned into text again each time. So
+for many rows, make the work once, when the rows arrive, and keep the result in your
+model instead of the `List`:
+
+    Loaded orders ->
+        { model | orders = Loaded (Table.prepareRows locale columns (Array.fromList orders)) }
+
+    Table.preparedRows model.orders
+
+The table then has, for every row, the text that the search looks in and, for every
+sortable column, the rows in order. A keystroke in the search box, a sort click and
+a page change each take a few milliseconds with 50 000 rows, as with 500, and a
+page change does not sort again. Search and sorting need no other rows than
+these; `rowsArray` gives the `Array` to the other parts of the page that want the
+rows, such as [Klar.VirtualList](Klar-VirtualList), so that the page keeps one
+collection. If the rows change (an order is edited), prepare them again.
+
+**Paging or scrolling.** Use pages (the default) when people search, filter and
+sort to find a few rows, and when a row can hold anything: details that expand, text
+that wraps, a menu. Use `virtual` when people read a long table by scrolling, jump to
+its end or go through it with the keyboard: only the rows in view are drawn, every
+row is the height of the density, and the header and the totals stay in view. Do not
+use `unpaged` for many rows: it turns every row into HTML.
+
+**Narrow places.** A table in a narrow card scrolls sideways, and a shadow at the
+edge shows that columns are cut off. Put the columns that matter first (the first can
+be `pinned`), give the others a `minWidth`, and leave out what people rarely need
+with `hiddenByDefault`; with `columnChooser` they can add it.
 
 
 # View
@@ -236,7 +262,15 @@ a saved view.
 
 # Pagination and layout
 
-@docs pageSizes, unpaged, zebra, maxHeight, fillHeight
+@docs pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
+
+
+# Many rows
+
+Prepared rows are made once for a list of rows that arrives or changes (see "Many
+rows" at the top).
+
+@docs Rows, prepareRows, rowsArray, preparedRows
 
 
 # Columns
@@ -270,6 +304,7 @@ a saved view.
 
 -}
 
+import Array exposing (Array)
 import Browser.Dom as Dom
 import Dict exposing (Dict)
 import Html exposing (Html)
@@ -286,6 +321,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Window as Window
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Pagination as Pagination
@@ -294,6 +330,7 @@ import Klar.Search as Search
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Table.Csv as Csv
+import Klar.Table.Index as Index exposing (Index)
 import Klar.Table.Sort as Sorting
 import Klar.Table.Texts as Texts exposing (Texts)
 import Klar.Tag as Tag
@@ -480,6 +517,7 @@ type alias Model =
     , optionQuery : String
     , rowMenu : Maybe ( String, Menu.State )
     , activeRow : Int
+    , scroll : Float
     }
 
 
@@ -530,6 +568,7 @@ init tableId =
         , optionQuery = ""
         , rowMenu = Nothing
         , activeRow = 0
+        , scroll = 0
         }
 
 
@@ -897,6 +936,8 @@ type Msg
     | ColumnsReset
     | RowFocused Int
     | FocusRow Int String
+    | FocusVirtualRow Int String Window.Geometry
+    | Scrolled Float
     | RetryClicked
     | FirstPageClicked
 
@@ -907,7 +948,39 @@ debounce, so map it back with your own constructor: `Cmd.map TableMsg cmd`.
 -}
 update : Msg -> State id -> ( State id, Cmd Msg )
 update msg (State model) =
-    Tuple.mapFirst State (step msg model)
+    let
+        ( next, cmd ) =
+            step msg model
+    in
+    -- sorting and searching start at the top of a table that scrolls
+    if model.scroll > 0 && next.scroll == 0 then
+        ( State next, Cmd.batch [ cmd, scrollTo model.id 0 ] )
+
+    else
+        ( State next, cmd )
+
+
+{-| Scrolls the scroll area to this offset, and then focuses the row. In that order:
+focus in a row that is out of view makes the browser scroll, and the window of
+drawn rows then moves a second time while the row has the focus. The row is drawn
+already (the offset is in the model), and when it gets the focus it is in view.
+-}
+scrollThenFocus : String -> Float -> String -> Cmd Msg
+scrollThenFocus tableId top rowDomIdValue =
+    Dom.getViewportOf (scrollDomId tableId)
+        |> Task.andThen (\viewport -> Dom.setViewportOf (scrollDomId tableId) viewport.viewport.x top)
+        |> Task.andThen (\_ -> Dom.focus rowDomIdValue |> Task.onError (\_ -> Dom.focus (scrollDomId tableId)))
+        |> Task.attempt (\_ -> NoOp)
+
+
+{-| Scrolls the table's scroll area to this offset from the top, keeping its
+horizontal position.
+-}
+scrollTo : String -> Float -> Cmd Msg
+scrollTo tableId top =
+    Dom.getViewportOf (scrollDomId tableId)
+        |> Task.andThen (\viewport -> Dom.setViewportOf (scrollDomId tableId) viewport.viewport.x top)
+        |> Task.attempt (\_ -> NoOp)
 
 
 step : Msg -> Model -> ( Model, Cmd Msg )
@@ -917,10 +990,10 @@ step msg model =
             ( model, Cmd.none )
 
         SortClicked colId multi ->
-            ( { model | sort = nextSort multi colId model.sort, page = 1, activeRow = 0 }, Cmd.none )
+            ( { model | sort = nextSort multi colId model.sort, page = 1, activeRow = 0, scroll = 0 }, Cmd.none )
 
         PageChanged n ->
-            ( { model | page = max 1 n, activeRow = 0, rowMenu = Nothing }, Cmd.none )
+            ( { model | page = max 1 n, activeRow = 0, scroll = 0, rowMenu = Nothing }, Cmd.none )
 
         PageSizeChanged size ->
             let
@@ -930,7 +1003,7 @@ step msg model =
                 firstIndex =
                     (max 1 model.page - 1) * model.pageSize
             in
-            ( { model | pageSize = newSize, page = firstIndex // newSize + 1, activeRow = 0 }, Cmd.none )
+            ( { model | pageSize = newSize, page = firstIndex // newSize + 1, activeRow = 0, scroll = 0 }, Cmd.none )
 
         SearchChanged value delay ->
             schedule delay { model | searchInput = value }
@@ -1113,6 +1186,19 @@ step msg model =
         FocusRow index domId ->
             ( { model | activeRow = index }, Internal.focus domId NoOp )
 
+        FocusVirtualRow index domId geometry ->
+            -- the row may not be drawn yet: scroll first, so that it is when focus arrives
+            let
+                top =
+                    Window.scrollToRow geometry model.scroll index
+            in
+            ( { model | activeRow = index, scroll = top }
+            , scrollThenFocus model.id top domId
+            )
+
+        Scrolled top ->
+            ( { model | scroll = max 0 top }, Cmd.none )
+
         RetryClicked ->
             -- "Try again" is replaced by skeleton rows while the answer is on
             -- its way: focus waits on the table instead of falling to the page
@@ -1120,7 +1206,7 @@ step msg model =
 
         FirstPageClicked ->
             -- the same for "Go to the first page" in the empty page: rows replace it
-            ( { model | page = 1, activeRow = 0, rowMenu = Nothing }, Internal.focus (scrollDomId model.id) NoOp )
+            ( { model | page = 1, activeRow = 0, scroll = 0, rowMenu = Nothing }, Internal.focus (scrollDomId model.id) NoOp )
 
 
 {-| Where focus goes after a filter was removed. The control that removed it
@@ -1267,6 +1353,7 @@ commit model =
             , search = newSearch
             , page = 1
             , activeRow = 0
+            , scroll = 0
             , selection = dropAllMatching model.selection
         }
 
@@ -1543,18 +1630,19 @@ searchTest loc searched value =
             Nothing
 
         words ->
-            Just
-                (\row ->
-                    let
-                        haystack =
-                            searched
-                                |> List.map (\col -> col.value loc row)
-                                |> String.join "\n"
-                                |> String.replace "\u{00A0}" " "
-                                |> fold
-                    in
-                    List.all (\word -> String.contains word haystack) words
-                )
+            Just (\row -> List.all (\word -> String.contains word (searchText loc searched row)) words)
+
+
+{-| The text of a row that the search looks in: the values of the searched
+columns, one on each line, in lower case and without accents.
+-}
+searchText : Locale -> List (ColumnConfig row msg) -> row -> String
+searchText loc searched row =
+    searched
+        |> List.map (\col -> col.value loc row)
+        |> String.join "\n"
+        |> String.replace "\u{00A0}" " "
+        |> fold
 
 
 {-| The same as `Search.normalize` (lower case, accents folded), but the slow
@@ -2234,7 +2322,7 @@ type Attribute id row msg
 
 type alias Config row msg =
     { columns : List (Column row msg)
-    , rows : Remote (List row)
+    , rows : Remote (Source row)
     , rowId : Maybe (row -> String)
     , rowLabel : Maybe (row -> String)
     , server : Maybe Int
@@ -2263,6 +2351,7 @@ type alias Config row msg =
     , densityToggle : Bool
     , pageSizes : List Int
     , paged : Bool
+    , virtual : Bool
     , multiSort : Bool
     , zebra : Bool
     , maxHeight : Maybe Int
@@ -2304,6 +2393,7 @@ configure attributes =
         , densityToggle = False
         , pageSizes = [ 10, 25, 50, 100 ]
         , paged = True
+        , virtual = False
         , multiSort = False
         , zebra = False
         , maxHeight = Nothing
@@ -2311,6 +2401,22 @@ configure attributes =
         , emptyState = []
         }
         attributes
+        |> finish
+
+
+{-| What follows from the attributes together, whatever their order: a long
+table has no pages in client mode, and rows of one height have no details.
+-}
+finish : Config row msg -> Config row msg
+finish config =
+    if config.virtual then
+        { config
+            | paged = config.paged && config.server /= Nothing
+            , expandedRow = Nothing
+        }
+
+    else
+        config
 
 
 {-| The columns of the table, left to right. Make them with `text`, `int`,
@@ -2331,7 +2437,139 @@ Without `rows` the table shows the loading skeleton.
 -}
 rows : Remote (List row) -> Attribute id row msg
 rows value =
-    Attribute (\config -> { config | rows = value })
+    Attribute (\config -> { config | rows = Remote.map FromList value })
+
+
+{-| The rows of a client-mode table that has thousands of them, as `Rows` made
+once with `prepareRows` (see "Performance" at the top). It does what `rows` does,
+and the search and the sorting no longer format every value again on each message.
+-}
+preparedRows : Remote (Rows row) -> Attribute id row msg
+preparedRows value =
+    Attribute (\config -> { config | rows = Remote.map FromRows value })
+
+
+{-| Rows that the table has worked on in advance: for each row the text the search
+looks in, and for each sortable column the rows in order. Make them once, when the
+rows arrive or change, and keep them in your model instead of the `Array`; give
+them to the table with `preparedRows`.
+
+    Loaded orders ->
+        { model | orders = Loaded (Table.prepareRows locale columns orders) }
+
+They are made for one locale and one list of columns. A table that is given other
+columns or another locale shows the right rows all the same, but works them out
+again on every message, as `rows` does.
+
+-}
+type Rows row
+    = Rows
+        { array : Array row
+        , locale : Locale
+        , columnIds : List String
+        , searchIds : List String
+        , index : Index
+        }
+
+
+type Source row
+    = FromList (List row)
+    | FromRows (Rows row)
+
+
+{-| Prepares the rows for a table with these columns in this locale (the `Locale`
+you give to `locale`). Take the same columns you give to `columns`. Every sortable
+column is sorted once here, so this takes about as long as sorting by each column
+would, a few hundred milliseconds for 50 000 rows, and a table that is given
+the result never has to sort again.
+-}
+prepareRows : Locale -> List (Column row msg) -> Array row -> Rows row
+prepareRows loc givenColumns array =
+    let
+        allColumns =
+            List.map (\(Column col) -> col) givenColumns
+
+        searched =
+            (case init "" of
+                State model ->
+                    visibleColumns model allColumns
+            )
+                |> List.filter .searchable
+    in
+    Rows
+        { array = array
+        , locale = loc
+        , columnIds = List.map .id allColumns
+        , searchIds = List.map .id searched
+        , index =
+            Index.build array
+                { search =
+                    if List.isEmpty searched then
+                        Nothing
+
+                    else
+                        Just (searchText loc searched)
+                , sorts = List.filterMap (\col -> sortKeyOf loc col |> Maybe.map (Tuple.pair col.id)) allColumns
+                , totals =
+                    List.filterMap
+                        (\col ->
+                            case ( col.footer, col.number ) of
+                                ( Just FooterSum, Just toNumber ) ->
+                                    Just ( col.id, toNumber )
+
+                                ( Just FooterAverage, Just toNumber ) ->
+                                    Just ( col.id, toNumber )
+
+                                _ ->
+                                    Nothing
+                        )
+                        allColumns
+                }
+        }
+
+
+{-| The rows of prepared rows, to give to other parts of the page that want an
+`Array` too, such as [Klar.VirtualList](Klar-VirtualList). It costs nothing.
+-}
+rowsArray : Rows row -> Array row
+rowsArray (Rows prep) =
+    prep.array
+
+
+sourceList : Source row -> List row
+sourceList source =
+    case source of
+        FromList list ->
+            list
+
+        FromRows (Rows prep) ->
+            Array.toList prep.array
+
+
+sourceArray : Source row -> Array row
+sourceArray source =
+    case source of
+        FromList list ->
+            Array.fromList list
+
+        FromRows (Rows prep) ->
+            prep.array
+
+
+{-| The prepared rows, if they were made for this locale and these columns.
+-}
+usablePrepared : Locale -> List (ColumnConfig row msg) -> Source row -> Maybe (Rows row)
+usablePrepared loc allColumns source =
+    case source of
+        FromRows ((Rows prep) as prepared) ->
+            if prep.locale == loc && prep.columnIds == List.map .id allColumns then
+                Just prepared
+
+            else
+                Nothing
+
+        FromList _ ->
+            Nothing
 
 
 {-| A stable, unique id for each row, such as a database id. Selection, expanded
@@ -2637,6 +2875,25 @@ unpaged =
     Attribute (\config -> { config | paged = False })
 
 
+{-| Shows the rows in one long list that scrolls, instead of in pages, and draws
+only the rows that are in view. Use it for tables with thousands of rows that people
+read by scrolling; a table that people page through, or whose rows differ in
+height, is better with pages (see "Paging or scrolling" at the top).
+
+All rows are one height, the one of the table's `density`. A row that is `wrap`ped
+or `expandedRow`s do not make it taller: the cell is cut with an ellipsis, and the
+details are not available. The table is as high as `maxHeight` (480 pixels without
+it) and the header and the totals row stay in view. The keyboard works as in a
+paged table, and PageUp and PageDown move by a screenful. In server mode the
+pagination stays, and `virtual` only draws the rows of the current page that are
+in view, so a page can be a few hundred rows.
+
+-}
+virtual : Attribute id row msg
+virtual =
+    Attribute (\config -> { config | virtual = True })
+
+
 {-| Lets the user sort by several columns: Shift-clicking a header adds that
 column as the next sort level (or cycles its direction in place), and the
 headers show the order as small numbers. A plain click sorts by that column
@@ -2694,8 +2951,12 @@ emptyState value =
 
 type alias Data row =
     { status : DataStatus
-    , matching : List row
     , pageRows : List row
+    , pageAll : List row
+    , first : Int
+    , rowCount : Int
+    , matchingRows : () -> List row
+    , totals : String -> Maybe Index.Totals
     , total : Int
     , available : Int
     , page : Int
@@ -2718,8 +2979,12 @@ process config model allColumns visible =
     let
         nothing =
             { status = Waiting
-            , matching = []
             , pageRows = []
+            , pageAll = []
+            , first = 0
+            , rowCount = 0
+            , matchingRows = \_ -> []
+            , totals = \_ -> Nothing
             , total = Maybe.withDefault 0 config.server
             , available = Maybe.withDefault 0 config.server
             , page = max 1 model.page
@@ -2728,16 +2993,38 @@ process config model allColumns visible =
             }
     in
     case config.rows of
-        Remote.Loaded allRows ->
+        Remote.Loaded source ->
             case config.server of
                 Just total ->
                     let
                         ( current, count, offset ) =
                             pageWindow config model total
+
+                        allRows =
+                            sourceList source
+
+                        rowTotal =
+                            List.length allRows
+
+                        shown =
+                            if config.virtual then
+                                Window.window virtualWindow (virtualGeometry config model rowTotal) model.scroll
+
+                            else
+                                { first = 0, end = rowTotal, before = 0, after = 0 }
                     in
                     { status = Ready
-                    , matching = allRows
-                    , pageRows = allRows
+                    , pageRows =
+                        if config.virtual then
+                            allRows |> List.drop shown.first |> List.take (shown.end - shown.first)
+
+                        else
+                            allRows
+                    , pageAll = allRows
+                    , first = shown.first
+                    , rowCount = rowTotal
+                    , matchingRows = \_ -> allRows
+                    , totals = \_ -> Nothing
                     , total = total
                     , available = total
                     , page = current
@@ -2746,38 +3033,291 @@ process config model allColumns visible =
                     }
 
                 Nothing ->
-                    let
-                        matching =
-                            allRows
-                                |> keepMatching config model allColumns visible Nothing
-                                |> sortRows config model allColumns
-
-                        total =
-                            List.length matching
-
-                        ( current, count, offset ) =
-                            pageWindow config model total
-                    in
-                    { status = Ready
-                    , matching = matching
-                    , pageRows =
-                        if config.paged then
-                            matching |> List.drop offset |> List.take (max 1 model.pageSize)
-
-                        else
-                            matching
-                    , total = total
-                    , available = List.length allRows
-                    , page = current
-                    , pageCount = count
-                    , offset = offset
-                    }
+                    processClient config model allColumns visible source
 
         Remote.Failed problem ->
             { nothing | status = Failed problem }
 
         _ ->
             nothing
+
+
+{-| Client mode: finds the matching rows as positions in the array of rows (see
+`Klar.Table.Index`), and takes the rows of the current page from them. With
+prepared rows the search texts and the sorted orders are there already.
+-}
+processClient : Config row msg -> Model -> List (ColumnConfig row msg) -> List (ColumnConfig row msg) -> Source row -> Data row
+processClient config model allColumns visible source =
+    let
+        loc =
+            config.locale
+
+        array =
+            sourceArray source
+
+        rowAt position =
+            Array.get position array
+
+        onPosition test position =
+            case rowAt position of
+                Just row ->
+                    test row
+
+                Nothing ->
+                    False
+
+        prepared =
+            usablePrepared loc allColumns source
+
+        searched =
+            List.filter .searchable visible
+
+        words =
+            searchWords model.search
+
+        indexedSearch =
+            case prepared of
+                Just (Rows prep) ->
+                    prep.searchIds == List.map .id searched
+
+                Nothing ->
+                    False
+
+        searchFallback =
+            if indexedSearch then
+                []
+
+            else
+                searchTest loc searched model.search |> Maybe.map (onPosition >> List.singleton) |> Maybe.withDefault []
+
+        columnTests =
+            model.filters
+                |> Dict.toList
+                |> List.filterMap (\( colId, f ) -> findColumn colId allColumns |> Maybe.map (\col -> onPosition (filterTest loc col f)))
+
+        tests =
+            List.concat
+                [ searchFallback
+                , config.rowFilter |> Maybe.map (onPosition >> List.singleton) |> Maybe.withDefault []
+                , columnTests
+                ]
+
+        matches =
+            Index.matching
+                (Maybe.map (\(Rows prep) -> prep.index) prepared)
+                { count = Array.length array
+                , words =
+                    if indexedSearch then
+                        words
+
+                    else
+                        []
+                , tests = tests
+                , levels = sortLevels loc prepared rowAt model.sort allColumns
+                }
+
+        total =
+            Index.matchCount matches
+
+        ( current, count, offset ) =
+            pageWindow config model total
+
+        rowsOf positions =
+            List.filterMap rowAt positions
+
+        shown =
+            Window.window virtualWindow (virtualGeometry config model total) model.scroll
+
+        pageRows =
+            if config.virtual then
+                rowsOf (Index.pageIndices shown.first (shown.end - shown.first) matches)
+
+            else if config.paged then
+                rowsOf (Index.pageIndices offset (max 1 model.pageSize) matches)
+
+            else
+                rowsOf (Index.allIndices matches)
+    in
+    { status = Ready
+    , pageRows = pageRows
+    , pageAll =
+        if config.virtual then
+            []
+
+        else
+            pageRows
+    , first =
+        if config.virtual then
+            shown.first
+
+        else
+            0
+    , rowCount =
+        if config.virtual then
+            total
+
+        else
+            List.length pageRows
+    , matchingRows = \_ -> rowsOf (Index.allIndices matches)
+    , totals =
+        case prepared of
+            Just (Rows prep) ->
+                -- the sums over every row are the sums over the matching rows when none is left out
+                if total == Array.length array then
+                    \id -> Index.totalsOf id prep.index
+
+                else
+                    \_ -> Nothing
+
+            Nothing ->
+                \_ -> Nothing
+    , total = total
+    , available = Array.length array
+    , page = current
+    , pageCount = count
+    , offset = offset
+    }
+
+
+{-| The levels of the sort, for `Index.matching`. A single level on a column that
+the prepared rows have the order of is read from the index; the others are
+worked out from the rows.
+-}
+sortLevels :
+    Locale
+    -> Maybe (Rows row)
+    -> (Int -> Maybe row)
+    -> List ( String, Direction )
+    -> List (ColumnConfig row msg)
+    -> List Index.Level
+sortLevels loc prepared rowAt levels allColumns =
+    let
+        chosen =
+            levels
+                |> List.filterMap
+                    (\( colId, direction ) ->
+                        findColumn colId allColumns
+                            |> Maybe.andThen
+                                (\col ->
+                                    if isSortable col then
+                                        Just ( col, direction == Descending )
+
+                                    else
+                                        Nothing
+                                )
+                    )
+
+        computed ( col, descending ) =
+            case col.sortBy of
+                SortByComparator comparator ->
+                    Index.Compared descending
+                        (\a b ->
+                            case ( rowAt a, rowAt b ) of
+                                ( Just rowA, Just rowB ) ->
+                                    comparator rowA rowB
+
+                                _ ->
+                                    EQ
+                        )
+
+                _ ->
+                    Index.Keyed descending
+                        (\position ->
+                            case ( rowAt position, sortKeyOf loc col ) of
+                                ( Just row, Just toKey ) ->
+                                    toKey row
+
+                                _ ->
+                                    Sorting.Missing
+                        )
+    in
+    case ( chosen, prepared ) of
+        ( [ ( col, descending ) ], Just (Rows prep) ) ->
+            if Index.hasRanks col.id prep.index then
+                [ Index.Ranked col.id descending ]
+
+            else
+                [ computed ( col, descending ) ]
+
+        _ ->
+            List.map computed chosen
+
+
+{-| The rows of a table that scrolls are one height, the one of its density
+(`--klar-row-compact`, `--klar-row` and `--klar-row-comfortable`).
+-}
+rowPx : Density -> Int
+rowPx spacing =
+    case spacing of
+        Compact ->
+            28
+
+        Normal ->
+            36
+
+        Comfortable ->
+            46
+
+
+{-| The sticky header (`--_head-h`).
+-}
+headPx : Density -> Int
+headPx spacing =
+    case spacing of
+        Compact ->
+            28
+
+        _ ->
+            36
+
+
+{-| How many rows are drawn beyond the ones in view, above and below, and in how
+many rows at a time the drawn rows change (each chunk is a `tbody` of its own,
+so that scrolling a few rows moves none of them and the keyboard focus stays).
+-}
+virtualWindow : { overscan : Int, chunk : Int }
+virtualWindow =
+    { overscan = 4, chunk = 16 }
+
+
+{-| The height of a table that scrolls without `maxHeight`.
+-}
+defaultVirtualHeight : Int
+defaultVirtualHeight =
+    480
+
+
+{-| What the window arithmetic needs for this table: the room the rows are seen in
+is the scroll area less the header.
+-}
+virtualGeometry : Config row msg -> Model -> Int -> Window.Geometry
+virtualGeometry config model count =
+    let
+        -- the totals row stays in view at the bottom and covers a row's room (a sum that
+        -- does not fit on one line takes a second line, so it is a little taller)
+        footPx =
+            if List.any (\(Column col) -> hasFooter col) config.columns then
+                rowPx model.density + 4
+
+            else
+                0
+
+        area =
+            case config.maxHeight of
+                Just px ->
+                    px
+
+                Nothing ->
+                    if config.fillHeight then
+                        1000
+
+                    else
+                        defaultVirtualHeight
+    in
+    { rowHeight = rowPx model.density
+    , viewport = max (rowPx model.density) (area - headPx model.density - footPx)
+    , count = count
+    }
 
 
 pageWindow : Config row msg -> Model -> Int -> ( Int, Int, Int )
@@ -2846,17 +3386,29 @@ sortLevel loc direction col =
             direction == Descending
     in
     case col.sortBy of
-        SortByValue ->
-            Just (Sorting.ByKey descending (\row -> Sorting.textKey loc (col.value loc row)))
-
-        SortByText toText ->
-            Just (Sorting.ByKey descending (\row -> Sorting.textKey loc (toText row)))
-
-        SortByNumber toNumber ->
-            Just (Sorting.ByKey descending (\row -> Sorting.numberKey (toNumber row)))
-
         SortByComparator comparator ->
             Just (Sorting.ByComparator descending comparator)
+
+        _ ->
+            sortKeyOf loc col |> Maybe.map (Sorting.ByKey descending)
+
+
+{-| The sort key of a row in this column, for the columns that sort by a key.
+-}
+sortKeyOf : Locale -> ColumnConfig row msg -> Maybe (row -> Sorting.Key)
+sortKeyOf loc col =
+    case col.sortBy of
+        SortByValue ->
+            Just (\row -> Sorting.textKey loc (col.value loc row))
+
+        SortByText toText ->
+            Just (\row -> Sorting.textKey loc (toText row))
+
+        SortByNumber toNumber ->
+            Just (\row -> Sorting.numberKey (toNumber row))
+
+        SortByComparator _ ->
+            Nothing
 
         NotSortable ->
             Nothing
@@ -2967,6 +3519,7 @@ type alias Ctx row msg =
     , activeRow : Int
     , rowCount : Int
     , pageKeys : List String
+    , geometry : Window.Geometry
     }
 
 
@@ -3042,7 +3595,7 @@ view toMsg attributes (State model) =
             isJust config.rowActions
 
         rowCount =
-            List.length data.pageRows
+            data.rowCount
 
         isDisabled row =
             case config.rowDisabled of
@@ -3053,7 +3606,7 @@ view toMsg attributes (State model) =
                     False
 
         pageKeys =
-            data.pageRows
+            data.pageAll
                 |> List.indexedMap (\i row -> ( keyOf (data.offset + i) row, isDisabled row ))
                 |> List.filter (\( _, disabled ) -> not disabled)
                 |> List.map Tuple.first
@@ -3119,6 +3672,7 @@ view toMsg attributes (State model) =
                     0
             , rowCount = rowCount
             , pageKeys = pageKeys
+            , geometry = virtualGeometry config model rowCount
             }
     in
     Html.div
@@ -3145,8 +3699,14 @@ view toMsg attributes (State model) =
 
               else
                 ""
+            , if config.virtual then
+                "klar-table--virtual"
+
+              else
+                ""
             ]
         , Attr.id model.id
+        , Internal.attrIf config.virtual (Internal.styleVars [ ( "--_row-h", Internal.px ctx.geometry.rowHeight ) ])
         ]
         [ viewToolbar ctx
         , viewFrame ctx
@@ -3674,8 +4234,8 @@ exportOptions ctx popup filename =
 
         selectedRows =
             case ( ctx.config.rows, ctx.config.server ) of
-                ( Remote.Loaded allRows, Nothing ) ->
-                    allRows
+                ( Remote.Loaded source, Nothing ) ->
+                    sourceList source
                         |> List.indexedMap Tuple.pair
                         |> List.filter (\( index, row ) -> isPicked ctx.model.selection (ctx.keyOf index row))
                         |> List.map Tuple.second
@@ -3702,7 +4262,7 @@ exportOptions ctx popup filename =
 
         allChoice =
             if ctx.config.server == Nothing then
-                Just ( ctx.t.exportAll, "", ctx.data.matching )
+                Just ( ctx.t.exportAll, "", ctx.data.matchingRows () )
 
             else
                 Nothing
@@ -3786,19 +4346,9 @@ viewBulkBar ctx =
             ctx.config.server == Nothing
 
         -- client mode: what "select all N matching" selects (matching rows that are not disabled)
-        selectableMatching =
-            if clientMode then
-                ctx.data.matching
-                    |> List.indexedMap (\index row -> ( ctx.keyOf index row, rowIsDisabled ctx.config row ))
-                    |> List.filter (\( _, disabled ) -> not disabled)
-                    |> List.map Tuple.first
-
-            else
-                []
-
         selectableTotal =
             if clientMode then
-                List.length selectableMatching
+                selectableCount ctx
 
             else
                 ctx.data.total
@@ -3809,7 +4359,12 @@ viewBulkBar ctx =
                     Set.isEmpty except
 
                 Picked keys ->
-                    clientMode && selectableTotal > 0 && List.all (\key -> Set.member key keys) selectableMatching
+                    clientMode
+                        && selectableTotal
+                        > 0
+                        && Set.size keys
+                        >= selectableTotal
+                        && (everyRowCanBeSelected ctx || List.all (\key -> Set.member key keys) (selectableKeys ctx))
 
         note value =
             Html.span [ Internal.cls [ "klar-table__bulk-note" ] ] [ Html.text value ]
@@ -3822,11 +4377,12 @@ viewBulkBar ctx =
         hiddenCount =
             case ( ctx.model.selection, ctx.config.server, ctx.config.rowId ) of
                 ( Picked keys, Nothing, Just toId ) ->
-                    let
-                        visibleSelected =
-                            ctx.data.matching |> List.filter (\row -> Set.member (toId row) keys) |> List.length
-                    in
-                    Set.size keys - visibleSelected
+                    if Set.isEmpty keys || ctx.data.total == ctx.data.available then
+                        -- no row is left out, so none of the selected rows is out of sight
+                        0
+
+                    else
+                        Set.size keys - (ctx.data.matchingRows () |> List.filter (\row -> Set.member (toId row) keys) |> List.length)
 
                 ( Picked keys, Just _, _ ) ->
                     Set.size keys - List.length (List.filter (\key -> Set.member key keys) ctx.pageKeys)
@@ -3859,7 +4415,7 @@ viewBulkBar ctx =
                     [ Button.link
                     , Button.onClick
                         (if clientMode then
-                            ctx.toMsg (MatchingSelected selectableMatching)
+                            ctx.toMsg (MatchingSelected (selectableKeys ctx))
 
                          else
                             ctx.toMsg AllMatchingPicked
@@ -3901,6 +4457,76 @@ viewBulkBar ctx =
                    ]
             )
         ]
+
+
+{-| A client-mode table that scrolls: there are no pages, so the checkbox in
+the header and the bulk bar speak of all the matching rows.
+-}
+isLongClientTable : Ctx row msg -> Bool
+isLongClientTable ctx =
+    ctx.config.virtual && ctx.config.server == Nothing
+
+
+{-| The keys of the matching rows that can be selected. It goes through every
+matching row: ask for it when the user acts, or when a selection is there to be
+counted, and not on every view.
+-}
+selectableKeys : Ctx row msg -> List String
+selectableKeys ctx =
+    ctx.data.matchingRows ()
+        |> List.indexedMap (\index row -> ( ctx.keyOf index row, rowIsDisabled ctx.config row ))
+        |> List.filter (\( _, disabled ) -> not disabled)
+        |> List.map Tuple.first
+
+
+{-| Does every row of the table match, and can every one be selected? Then as many
+selected keys as rows mean that all rows are selected, and the bulk bar need not
+go through the rows to see it.
+-}
+everyRowCanBeSelected : Ctx row msg -> Bool
+everyRowCanBeSelected ctx =
+    ctx.data.total == ctx.data.available && not (isJust ctx.config.rowDisabled)
+
+
+{-| How many matching rows can be selected. Without `rowDisabled` that is all of them.
+-}
+selectableCount : Ctx row msg -> Int
+selectableCount ctx =
+    if isJust ctx.config.rowDisabled then
+        List.length (selectableKeys ctx)
+
+    else
+        ctx.data.total
+
+
+{-| For the checkbox in the header of a table that scrolls: are all the matching
+rows selected, and if not, are some?
+-}
+matchingSelectionState : Ctx row msg -> ( Bool, Bool )
+matchingSelectionState ctx =
+    let
+        selected =
+            case ctx.model.selection of
+                Picked keys ->
+                    if Set.isEmpty keys then
+                        0
+
+                    else if ctx.data.total == ctx.data.available then
+                        Set.size keys
+
+                    else
+                        ctx.data.matchingRows ()
+                            |> List.indexedMap (\index row -> ctx.keyOf index row)
+                            |> List.filter (\key -> Set.member key keys)
+                            |> List.length
+
+                AllPicked except ->
+                    max 0 (ctx.data.total - Set.size except)
+
+        all =
+            selected > 0 && selected >= selectableCount ctx
+    in
+    ( all, selected > 0 && not all )
 
 
 rowIsDisabled : Config row msg -> row -> Bool
@@ -4090,7 +4716,19 @@ viewFrame ctx =
              -- Not a tab stop: only a place for focus to wait (see RetryClicked).
              -- A table with nothing to focus in it is left alone: Chrome makes
              -- such a scroll area focusable, so it can be scrolled with the keys.
-             , Internal.attrIf (hasFocusableContent ctx) (Attr.tabindex -1)
+             -- One that scrolls is a tab stop while the row that Tab should reach
+             -- is not drawn, and hands the focus to that row.
+             , Internal.attrIf (hasFocusableContent ctx)
+                (Attr.tabindex
+                    (if activeRowHidden ctx then
+                        0
+
+                     else
+                        -1
+                    )
+                )
+             , Internal.attrIf (config.virtual && activeRowHidden ctx) (Events.on "focus" (activeRowRequested ctx))
+             , Internal.attrIf config.virtual (Events.on "scroll" (Decode.map (Scrolled >> ctx.toMsg) (Decode.at [ "target", "scrollTop" ] Decode.float)))
              , case scrollVars ctx of
                 [] ->
                     Internal.noAttr
@@ -4106,31 +4744,70 @@ viewFrame ctx =
                             []
                    )
             )
-            [ Html.table
-                [ Internal.cls [ "klar-table__table" ]
-                , Internal.styleVars [ ( "min-width", Internal.px (tableMinWidth ctx) ) ]
-                , Internal.attrMaybe (Attr.attribute "aria-label") config.label
-                , Attr.attribute "aria-rowcount"
-                    (if ctx.data.status == Ready then
-                        String.fromInt (ctx.data.total + 1)
+            [ let
+                tableAttributes =
+                    [ Internal.cls [ "klar-table__table" ]
+                    , Internal.styleVars [ ( "min-width", Internal.px (tableMinWidth ctx) ) ]
+                    , Internal.attrMaybe (Attr.attribute "aria-label") config.label
+                    , Attr.attribute "aria-rowcount"
+                        (if ctx.data.status == Ready then
+                            String.fromInt (ctx.data.total + 1)
 
-                     else
-                        "-1"
-                    )
-                , Attr.attribute "aria-colcount" (String.fromInt ctx.colCount)
-                , Internal.attrIf busy (Attr.attribute "aria-busy" "true")
-                ]
-                [ viewColgroup ctx
-                , viewHead ctx
-                , viewBody ctx
-                , viewFoot ctx
-                ]
+                         else
+                            "-1"
+                        )
+                    , Attr.attribute "aria-colcount" (String.fromInt ctx.colCount)
+                    , Internal.attrIf busy (Attr.attribute "aria-busy" "true")
+                    ]
+
+                parts =
+                    List.concat
+                        [ [ ( "colgroup", viewColgroup ctx ), ( "head", viewHead ctx ) ]
+                        , viewBodies ctx
+                        , [ ( "foot", viewFoot ctx ) ]
+                        ]
+              in
+              if config.virtual then
+                -- the chunks of rows come and go at the ends, and keys keep the others where they are
+                Html.Keyed.node "table" tableAttributes parts
+
+              else
+                Html.table tableAttributes (List.map Tuple.second parts)
             ]
         , Html.div [ Internal.cls [ "klar-table__edge", "klar-table__edge--start" ], Attr.attribute "aria-hidden" "true" ] []
         , Html.div [ Internal.cls [ "klar-table__edge", "klar-table__edge--end" ], Attr.attribute "aria-hidden" "true" ] []
         , Internal.viewIf (config.refreshing && ctx.data.status == Ready)
             (Html.div [ Internal.cls [ "klar-table__progress" ], Attr.attribute "aria-hidden" "true" ] [])
         ]
+
+
+{-| In a table that scrolls: is the row that has the tab stop out of the drawn rows?
+-}
+activeRowHidden : Ctx row msg -> Bool
+activeRowHidden ctx =
+    ctx.config.virtual
+        && ctx.interactiveRows
+        && ctx.data.status
+        == Ready
+        && ctx.data.rowCount
+        > 0
+        && (ctx.activeRow < ctx.data.first || ctx.activeRow >= ctx.data.first + List.length ctx.data.pageRows)
+
+
+{-| The scroll area itself got the focus (Tab reached it): focus goes on to the row
+that has the tab stop, which is scrolled into view first.
+-}
+activeRowRequested : Ctx row msg -> Decoder msg
+activeRowRequested ctx =
+    Decode.at [ "target", "id" ] Decode.string
+        |> Decode.andThen
+            (\targetId ->
+                if targetId == scrollDomId ctx.model.id then
+                    Decode.succeed (ctx.toMsg (FocusVirtualRow ctx.activeRow (rowDomId ctx.model.id ctx.activeRow) ctx.geometry))
+
+                else
+                    Decode.fail "not the scroll area"
+            )
 
 
 {-| Fixed columns keep their width; the others share the rest and each gets
@@ -4224,7 +4901,11 @@ scrollVars ctx =
                 [ ( "max-height", Internal.px px ) ]
 
             Nothing ->
-                []
+                if ctx.config.virtual && not ctx.config.fillHeight then
+                    [ ( "max-height", Internal.px defaultVirtualHeight ) ]
+
+                else
+                    []
         , if coveredLeft > 0 then
             [ ( "--_pin-w", Internal.px coveredLeft ) ]
 
@@ -4370,11 +5051,16 @@ viewHead ctx =
         pageSelected =
             List.filter (isPicked ctx.model.selection) ctx.pageKeys
 
-        allOn =
-            not (List.isEmpty ctx.pageKeys) && List.length pageSelected == List.length ctx.pageKeys
+        ( allOn, someOn ) =
+            if isLongClientTable ctx then
+                matchingSelectionState ctx
 
-        someOn =
-            not allOn && not (List.isEmpty pageSelected)
+            else
+                let
+                    all =
+                        not (List.isEmpty ctx.pageKeys) && List.length pageSelected == List.length ctx.pageKeys
+                in
+                ( all, not all && not (List.isEmpty pageSelected) )
     in
     Html.thead [ Internal.cls [ "klar-table__head" ] ]
         [ Html.tr [ Attr.attribute "aria-rowindex" "1" ]
@@ -4390,8 +5076,24 @@ viewHead ctx =
                             , Checkbox.ariaLabel t.selectPage
                             , Checkbox.checked allOn
                             , Checkbox.indeterminate someOn
-                            , Checkbox.disabled (List.isEmpty ctx.pageKeys || ctx.data.status /= Ready)
-                            , Checkbox.onCheck (\value -> ctx.toMsg (RowsSelected ctx.pageKeys value))
+                            , Checkbox.disabled
+                                ((if isLongClientTable ctx then
+                                    ctx.data.total == 0
+
+                                  else
+                                    List.isEmpty ctx.pageKeys
+                                 )
+                                    || ctx.data.status
+                                    /= Ready
+                                )
+                            , Checkbox.onCheck
+                                (\value ->
+                                    if isLongClientTable ctx then
+                                        ctx.toMsg (RowsSelected (selectableKeys ctx) value)
+
+                                    else
+                                        ctx.toMsg (RowsSelected ctx.pageKeys value)
+                                )
                             ]
                         ]
                     ]
@@ -4752,8 +5454,8 @@ viewFilterContent ctx col =
                             let
                                 numbers =
                                     case ctx.config.rows of
-                                        Remote.Loaded allRows ->
-                                            List.filterMap toNumber allRows
+                                        Remote.Loaded source ->
+                                            List.filterMap toNumber (sourceList source)
 
                                         _ ->
                                             []
@@ -4830,8 +5532,8 @@ filterValues ctx col =
                     let
                         source =
                             case ctx.config.rows of
-                                Remote.Loaded allRows ->
-                                    allRows
+                                Remote.Loaded rowSource ->
+                                    sourceList rowSource
 
                                 _ ->
                                     []
@@ -4875,8 +5577,8 @@ viewChoiceFilter ctx col =
         -- how many rows each value would add, given the other filters and the search
         counts =
             case ( ctx.config.server, ctx.config.rows ) of
-                ( Nothing, Remote.Loaded allRows ) ->
-                    allRows
+                ( Nothing, Remote.Loaded source ) ->
+                    sourceList source
                         |> keepMatching ctx.config ctx.model ctx.allColumns ctx.visible (Just col.id)
                         |> List.foldl
                             (\row dict ->
@@ -4978,9 +5680,76 @@ viewBody ctx =
 
                 else
                     ctx.data.pageRows
-                        |> List.indexedMap (viewRowAndDetail ctx)
+                        |> List.indexedMap (\i row -> viewRowAndDetail ctx (ctx.data.first + i) row)
                         |> List.concat
         )
+
+
+{-| The bodies of the table: one, or for a table that scrolls the empty room
+above the rows in view, the rows in chunks of a `tbody` each, and the empty room
+below them.
+-}
+viewBodies : Ctx row msg -> List ( String, Html msg )
+viewBodies ctx =
+    if ctx.config.virtual && ctx.data.status == Ready && not (List.isEmpty ctx.data.pageRows) then
+        let
+            after =
+                ctx.data.rowCount - ctx.data.first - List.length ctx.data.pageRows
+
+            chunk =
+                virtualWindow.chunk
+
+            chunks =
+                ctx.data.pageRows
+                    |> List.indexedMap (\i row -> ( ctx.data.first + i, row ))
+                    |> List.foldr
+                        (\( index, row ) groups ->
+                            case groups of
+                                ( number, members ) :: rest ->
+                                    if number == index // chunk then
+                                        ( number, ( index, row ) :: members ) :: rest
+
+                                    else
+                                        ( index // chunk, [ ( index, row ) ] ) :: groups
+
+                                [] ->
+                                    [ ( index // chunk, [ ( index, row ) ] ) ]
+                        )
+                        []
+        in
+        List.concat
+            [ spacerBody ctx "top" ctx.data.first
+            , List.map
+                (\( number, members ) ->
+                    ( "chunk-" ++ String.fromInt number
+                    , Html.Keyed.node "tbody"
+                        [ Internal.cls [ "klar-table__body" ] ]
+                        (List.concatMap (\( index, row ) -> viewRowAndDetail ctx index row) members)
+                    )
+                )
+                chunks
+            , spacerBody ctx "bottom" after
+            ]
+
+    else
+        [ ( "body", viewBody ctx ) ]
+
+
+{-| The room of the rows of a table that scrolls that are not drawn.
+-}
+spacerBody : Ctx row msg -> String -> Int -> List ( String, Html msg )
+spacerBody ctx place count =
+    if count <= 0 then
+        []
+
+    else
+        [ ( "spacer-" ++ place
+          , Html.tbody [ Internal.cls [ "klar-table__spacer-body" ], Attr.attribute "aria-hidden" "true" ]
+                [ Html.tr [ Internal.styleVars [ ( "height", Internal.px (count * ctx.geometry.rowHeight) ) ] ]
+                    [ Html.td [ Attr.colspan ctx.colCount ] [] ]
+                ]
+          )
+        ]
 
 
 {-| A click on the retry button (the error state has no other control).
@@ -5614,10 +6383,23 @@ rowKeyMsg ctx info key shift =
     let
         focusRow target =
             if target >= 0 && target < ctx.rowCount && target /= info.index then
-                Just (ctx.toMsg (FocusRow target (rowDomId ctx.model.id target)))
+                if ctx.config.virtual then
+                    Just (ctx.toMsg (FocusVirtualRow target (rowDomId ctx.model.id target) ctx.geometry))
+
+                else
+                    Just (ctx.toMsg (FocusRow target (rowDomId ctx.model.id target)))
 
             else
                 Just (ctx.toMsg NoOp)
+
+        -- ten rows at a time, or a screenful when the table scrolls; otherwise the
+        -- page scrolls away from the focused row
+        jump =
+            if ctx.config.virtual then
+                Window.rowsPerScreen ctx.geometry
+
+            else
+                10
     in
     case key of
         "ArrowDown" ->
@@ -5632,12 +6414,11 @@ rowKeyMsg ctx info key shift =
         "End" ->
             focusRow (ctx.rowCount - 1)
 
-        -- ten rows at a time; otherwise the page scrolls away from the focused row
         "PageDown" ->
-            focusRow (min (ctx.rowCount - 1) (info.index + 10))
+            focusRow (min (ctx.rowCount - 1) (info.index + jump))
 
         "PageUp" ->
-            focusRow (max 0 (info.index - 10))
+            focusRow (max 0 (info.index - jump))
 
         "Enter" ->
             case info.click of
@@ -5732,10 +6513,14 @@ startsOnControl depth =
 
 viewFoot : Ctx row msg -> Html msg
 viewFoot ctx =
-    if ctx.data.status /= Ready || not (List.any hasFooter ctx.visible) || List.isEmpty ctx.data.matching then
+    if ctx.data.status /= Ready || not (List.any hasFooter ctx.visible) || ctx.data.total == 0 then
         Html.text ""
 
     else
+        let
+            matched =
+                ctx.data.matchingRows
+        in
         Html.tfoot [ Internal.cls [ "klar-table__foot" ] ]
             [ Html.tr []
                 (List.concat
@@ -5743,7 +6528,7 @@ viewFoot ctx =
                     , List.indexedMap
                         (\index col ->
                             Html.td [ Internal.cls (dataCellClasses ctx index col), pinStyle ctx index ]
-                                [ Html.div [ Internal.cls [ "klar-table__cell" ] ] (footerContent ctx index col) ]
+                                [ Html.div [ Internal.cls [ "klar-table__cell" ] ] (footerContent ctx matched index col) ]
                         )
                         ctx.visible
                     , if ctx.hasMenu then
@@ -5756,8 +6541,8 @@ viewFoot ctx =
             ]
 
 
-footerContent : Ctx row msg -> Int -> ColumnConfig row msg -> List (Html msg)
-footerContent ctx index col =
+footerContent : Ctx row msg -> (() -> List row) -> Int -> ColumnConfig row msg -> List (Html msg)
+footerContent ctx matched index col =
     let
         t =
             ctx.t
@@ -5765,10 +6550,23 @@ footerContent ctx index col =
         numbers () =
             case col.number of
                 Just toNumber ->
-                    List.filterMap toNumber ctx.data.matching
+                    List.filterMap toNumber (matched ())
 
                 Nothing ->
                     []
+
+        -- the sum and the count, kept by prepared rows while no row is left out
+        totals () =
+            case ctx.data.totals col.id of
+                Just kept ->
+                    kept
+
+                Nothing ->
+                    let
+                        values =
+                            numbers ()
+                    in
+                    { sum = List.sum values, count = List.length values }
 
         aggregate name value =
             [ Html.span [ Internal.cls [ "klar-table__aggregate-label" ] ] [ Html.text name ]
@@ -5777,21 +6575,21 @@ footerContent ctx index col =
     in
     case col.footer of
         Just FooterSum ->
-            aggregate t.sum (formatNumber ctx.loc col.decimals (List.sum (numbers ())))
+            aggregate t.sum (formatNumber ctx.loc col.decimals (totals ()).sum)
 
         Just FooterAverage ->
             let
-                values =
-                    numbers ()
+                kept =
+                    totals ()
             in
-            if List.isEmpty values then
+            if kept.count == 0 then
                 aggregate t.average "–"
 
             else
-                aggregate t.average (Format.decimal ctx.loc (max 1 col.decimals) (List.sum values / toFloat (List.length values)))
+                aggregate t.average (Format.decimal ctx.loc (max 1 col.decimals) (kept.sum / toFloat kept.count))
 
         Just (FooterCustom summarize) ->
-            [ Html.text (summarize ctx.data.matching) ]
+            [ Html.text (summarize (matched ())) ]
 
         Nothing ->
             if index == 0 then
@@ -5815,7 +6613,11 @@ on screen; the other pages can still be tried.
 viewFooter : Ctx row msg -> Html msg
 viewFooter ctx =
     if not ctx.config.paged then
-        Html.text ""
+        if ctx.config.virtual then
+            viewRange ctx
+
+        else
+            Html.text ""
 
     else
         let
@@ -5852,6 +6654,31 @@ viewFooter ctx =
 
                 else
                     viewPagination ctx Nothing
+
+
+{-| The rows in view of a long table, "Showing 1-24 of 50,000 rows". It is
+for the eye only: the live region of the table does not repeat it while the
+user scrolls, and every row says its place (`aria-rowindex`).
+-}
+viewRange : Ctx row msg -> Html msg
+viewRange ctx =
+    if ctx.data.status /= Ready || ctx.data.total == 0 then
+        Html.text ""
+
+    else
+        let
+            top =
+                Window.clampScroll ctx.geometry ctx.model.scroll
+
+            -- the rows that are in view in full
+            first =
+                clamp 1 ctx.data.total (ceiling (top / toFloat ctx.geometry.rowHeight) + 1)
+
+            last =
+                clamp first ctx.data.total (floor ((top + toFloat ctx.geometry.viewport) / toFloat ctx.geometry.rowHeight))
+        in
+        Html.div [ Internal.cls [ "klar-table__footer" ], Attr.attribute "aria-hidden" "true" ]
+            [ Html.span [ Internal.cls [ "klar-table__footer-range", "klar-tabular" ] ] [ Html.text (ctx.t.summary first last ctx.data.total) ] ]
 
 
 {-| `summary` replaces the range text (a loading message, or nothing).
