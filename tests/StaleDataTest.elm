@@ -15,6 +15,7 @@ import Klar.Locale as Locale
 import Klar.Overlay as Overlay
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.RemoteView as RemoteView
+import Klar.Settings as Settings
 import Klar.Stat as Stat
 import Klar.Table as Table
 import Klar.Timeline as Timeline
@@ -206,7 +207,11 @@ components =
         , test "the table speaks Norwegian when asked" <|
             \_ -> orders oldOrders [ Table.locale Locale.nb ] |> Query.has [ text "Gamle data fra kl. 14:05" ]
         , test "the zone decides the time" <|
-            \_ -> orders oldOrders [ Table.zone (Time.customZone 120 []) ] |> Query.has [ text "Old data from 16:05" ]
+            \_ -> orders oldOrders [ Table.settings (Settings.withZone (Time.customZone 120 []) Settings.default) ] |> Query.has [ text "Old data from 16:05" ]
+        , test "a zone that was never given says so: the time ends in UTC" <|
+            \_ -> orders oldOrders [] |> Query.has [ text "Old data from 14:05 UTC" ]
+        , test "a known zone, even UTC, does not" <|
+            \_ -> orders oldOrders [ Table.settings (Settings.withZone Time.utc Settings.default) ] |> Query.hasNot [ text "UTC" ]
         , test "a tile shows the old number with the time, and is a plain block with its retry" <|
             \_ ->
                 html (tile [ Stat.remote stale (\n -> [ Stat.int n ]), Stat.onClick Retry ])
@@ -225,7 +230,7 @@ components =
         , test "a sparkline says it in its label" <|
             \_ ->
                 html (Chart.sparkline [ Chart.remote stale ] [ 1, 2, 3 ])
-                    |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Trend: 3 points, 1 - 3, 3. Old data from 14:05") ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Trend: 3 points, 1 - 3, 3. Old data from 14:05 UTC") ]
         , test "a timeline marks old data" <|
             \_ ->
                 html (history [ Timeline.onRetry Retry ])

@@ -638,7 +638,8 @@ toolbarActions html =
 
 
 {-| The height of the rows: `Compact`, `Normal` (the default) or `Comfortable`, the same as
-[Klar.Table](Klar-Table) (see [Klar.Theme](Klar-Theme)).
+[Klar.Table](Klar-Table) (see [Klar.Theme](Klar-Theme)). Without it the rows follow the
+density of the application (`Klar.Settings`).
 -}
 density : Density -> Attribute role permission msg
 density value =

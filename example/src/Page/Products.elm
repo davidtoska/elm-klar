@@ -425,6 +425,7 @@ viewCategories context model =
                     [ Tree.ariaLabel "Product categories"
                     , Tree.allowEmptySelection
                     , Tree.locale context.locale
+                    , Tree.settings context.settings
                     , Tree.compact
                     , Tree.filterBox
                     , Tree.filterPlaceholder "Find a category ..."

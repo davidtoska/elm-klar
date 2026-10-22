@@ -5,7 +5,7 @@ module Klar.ApprovalFlow exposing
     , Status, status, isInProgress, isApproved, isRejected
     , StepStatus, stepStatuses, stepIsWaiting, stepIsInProgress, stepIsApproved, stepIsRejected, stepIsSkipped
     , currentStep, pendingApprovers
-    , Attribute, viewer, onApprove, onReject, now, zone, horizontal, ariaLabel, onRetry, locale
+    , Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale
     )
 
 {-| The approval process of one item: an ordered list of steps, each with one or
@@ -43,7 +43,7 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
         , ApprovalFlow.onApprove Approve
         , ApprovalFlow.onReject AskWhyRejected
         , ApprovalFlow.now model.now
-        , ApprovalFlow.zone model.zone
+        , ApprovalFlow.settings model.settings
         ]
         (creditNoteFlow model.deadline)
 
@@ -108,7 +108,7 @@ the reason of a rejection, the request to the server and the new decision are
 yours. A reject message is the place to open a comment field; when the answer
 comes back, put it in the decision (`rejected { at = ..., comment = ... }`).
 
-**Times** are shown in the `zone` you give and in the format of `locale`, with
+**Times** are shown in the zone of the `settings` you give (`Klar.Settings`, UTC and marked as such if you give none) and in the format of `locale`, with
 [Klar.Format](Klar-Format). The built-in text (statuses, rules, "Overdue", the
 buttons) is English unless you set `locale`. Names and comments come from you.
 
@@ -139,7 +139,7 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 
 # Attributes
 
-@docs Attribute, viewer, onApprove, onReject, now, zone, horizontal, ariaLabel, onRetry, locale
+@docs Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale
 
 -}
 
@@ -157,6 +157,7 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Theme exposing (Size(..), Tone(..))
 import Time
@@ -612,7 +613,7 @@ type Attribute approver msg
 
 type alias Config approver msg =
     { locale : Locale
-    , zone : Time.Zone
+    , settings : Settings
     , now : Maybe Time.Posix
     , horizontal : Bool
     , label : Maybe String
@@ -627,7 +628,7 @@ configure : List (Attribute approver msg) -> Config approver msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { locale = Locale.default
-        , zone = Time.utc
+        , settings = Settings.default
         , now = Nothing
         , horizontal = False
         , label = Nothing
@@ -676,13 +677,16 @@ now time =
     Attribute (\config -> { config | now = Just time })
 
 
-{-| The time zone for the times of decisions and deadlines. The default is UTC, so
-you will usually want the user's own zone: get it with `Time.here` when the
-application starts and keep it in your model.
+{-| The settings of the application (`Klar.Settings`): the time zone of the times
+of decisions and deadlines. Without it the times are written in UTC and end in
+"UTC".
+
+    ApprovalFlow.settings model.settings
+
 -}
-zone : Time.Zone -> Attribute approver msg
-zone value =
-    Attribute (\config -> { config | zone = value })
+settings : Settings -> Attribute approver msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| Lays the steps out side by side, for a wide and short strip. The default is
@@ -1186,7 +1190,7 @@ timeElement env time =
                         []
                )
         )
-        [ Html.text (Format.dateTime config.locale config.zone time) ]
+        [ Html.text (Settings.dateTime config.locale config.settings time) ]
 
 
 isoTime : Time.Posix -> String

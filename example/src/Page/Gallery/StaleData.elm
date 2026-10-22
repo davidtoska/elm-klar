@@ -31,6 +31,7 @@ import Klar.Remote as Remote exposing (Remote(..))
 import Klar.RemoteView as RemoteView
 import Klar.SegmentedControl as SegmentedControl
 import Klar.Select as Select
+import Klar.Settings exposing (Settings)
 import Klar.Stat as Stat
 import Klar.Switch as Switch
 import Klar.Table as Table
@@ -139,7 +140,6 @@ type alias Model =
     { data : Remote World
     , mode : Maybe Mode
     , failing : Bool
-    , zone : Time.Zone
     , table : Table.State String
     , tree : Tree.State String
     , select : Select.State String
@@ -157,7 +157,6 @@ type Msg
     | FailingToggled Bool
     | Refresh
     | Answered Time.Posix
-    | GotZone Time.Zone
     | TableMsg Table.Msg
     | TreeMsg Tree.Msg
     | SelectMsg (Select.Msg String)
@@ -179,7 +178,6 @@ init =
     ( { data = settle Fresh
       , mode = Just Fresh
       , failing = False
-      , zone = Time.utc
       , table = Table.init "stale-orders"
       , tree = Tree.init "stale-regions" |> Tree.setExpanded Tree.stringIds [ "North", "South" ]
       , select = Select.init "stale-select"
@@ -190,7 +188,7 @@ init =
       , palette = CommandPalette.init "stale-palette"
       , lastPick = ""
       }
-    , Time.here |> Task.perform GotZone
+    , Cmd.none
     )
 
 
@@ -281,9 +279,6 @@ update msg model =
                         Ok (world (revision + 1))
             in
             ( { model | data = Remote.refreshWith model.data answer now, mode = Nothing }, Cmd.none )
-
-        GotZone zone ->
-            ( { model | zone = zone }, Cmd.none )
 
         TableMsg inner ->
             let
@@ -393,8 +388,8 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Settings -> Locale -> Model -> Html Msg
+view settings locale model =
     Overlay.host
         { attributes = []
         , page =
@@ -404,13 +399,13 @@ view locale model =
                 }
                 [ controls model
                 , Alert.stale [ Alert.locale locale ] Refresh (Remote.staleIn "orders, figures, chart, history, regions and options" model.data)
-                , Doc.section "Tables and tiles" "" [ tableExample locale model, tilesExample locale model ]
-                , Doc.section "Charts and history" "" [ chartExample locale model, timelineExample locale model ]
-                , Doc.section "Trees and lists of options" "" [ treeExample locale model, optionsExample locale model ]
-                , Doc.section "Cards, drawers, dialogs and the palette" "" [ cardExample locale model, overlayButtons ]
+                , Doc.section "Tables and tiles" "" [ tableExample settings locale model, tilesExample settings locale model ]
+                , Doc.section "Charts and history" "" [ chartExample settings locale model, timelineExample settings locale model ]
+                , Doc.section "Trees and lists of options" "" [ treeExample settings locale model, optionsExample settings locale model ]
+                , Doc.section "Cards, drawers, dialogs and the palette" "" [ cardExample settings locale model, overlayButtons ]
                 ]
             ]
-        , overlays = overlays locale model
+        , overlays = overlays settings locale model
         }
 
 
@@ -437,13 +432,13 @@ card title content =
     Doc.example { title = title, description = Nothing, code = Nothing } content
 
 
-tableExample : Locale -> Model -> Html Msg
-tableExample locale model =
+tableExample : Settings -> Locale -> Model -> Html Msg
+tableExample settings locale model =
     card "Table"
         (Table.view TableMsg
             [ Table.label "Orders"
             , Table.locale locale
-            , Table.zone model.zone
+            , Table.settings settings
             , Table.columns
                 [ Table.text (Table.columnId "id") "Order" .id []
                 , Table.text (Table.columnId "customer") "Customer" .customer []
@@ -458,14 +453,14 @@ tableExample locale model =
         )
 
 
-tilesExample : Locale -> Model -> Html Msg
-tilesExample locale model =
+tilesExample : Settings -> Locale -> Model -> Html Msg
+tilesExample settings locale model =
     let
         tile label toAttributes =
             Stat.view
                 [ Stat.label label
                 , Stat.locale locale
-                , Stat.zone model.zone
+                , Stat.settings settings
                 , Stat.onRetry Refresh
                 , Stat.remote model.data toAttributes
                 ]
@@ -478,8 +473,8 @@ tilesExample locale model =
         )
 
 
-chartExample : Locale -> Model -> Html Msg
-chartExample locale model =
+chartExample : Settings -> Locale -> Model -> Html Msg
+chartExample settings locale model =
     let
         remoteChart =
             Chart.remote model.data
@@ -492,24 +487,24 @@ chartExample locale model =
             [ Chart.line
                 [ Chart.title "Sales per day"
                 , Chart.locale locale
-                , Chart.zone model.zone
+                , Chart.settings settings
                 , Chart.onRetry Refresh
                 , Chart.height 160
                 , remoteChart
                 ]
                 [ Chart.series "Sales" values ]
-            , Chart.sparkline [ Chart.ariaLabel "Sales trend", Chart.locale locale, Chart.zone model.zone, remoteChart ] values
+            , Chart.sparkline [ Chart.ariaLabel "Sales trend", Chart.locale locale, Chart.settings settings, remoteChart ] values
             ]
         )
 
 
-timelineExample : Locale -> Model -> Html Msg
-timelineExample locale model =
+timelineExample : Settings -> Locale -> Model -> Html Msg
+timelineExample settings locale model =
     card "Timeline"
         (Timeline.view
             [ Timeline.ariaLabel "Order history"
             , Timeline.locale locale
-            , Timeline.zone model.zone
+            , Timeline.settings settings
             , Timeline.onRetry Refresh
             , Timeline.remote model.data
             , Timeline.compact
@@ -521,13 +516,13 @@ timelineExample locale model =
         )
 
 
-treeExample : Locale -> Model -> Html Msg
-treeExample locale model =
+treeExample : Settings -> Locale -> Model -> Html Msg
+treeExample settings locale model =
     card "Tree"
         (Tree.viewRemote TreeMsg
             [ Tree.ariaLabel "Regions"
             , Tree.locale locale
-            , Tree.zone model.zone
+            , Tree.settings settings
             , Tree.onReload Refresh
             ]
             model.tree
@@ -542,8 +537,8 @@ treeExample locale model =
         )
 
 
-optionsExample : Locale -> Model -> Html Msg
-optionsExample locale model =
+optionsExample : Settings -> Locale -> Model -> Html Msg
+optionsExample settings locale model =
     let
         options =
             Remote.map (\w -> List.map (\( value, label ) -> Select.option value label) w.warehouses) model.data
@@ -553,7 +548,7 @@ optionsExample locale model =
             [ Select.view SelectMsg
                 [ Select.label "Warehouse"
                 , Select.locale locale
-                , Select.zone model.zone
+                , Select.settings settings
                 , Select.remote options
                 , Select.onRetry Refresh
                 ]
@@ -561,7 +556,7 @@ optionsExample locale model =
             , MultiSelect.view MultiMsg
                 [ MultiSelect.label "Warehouses"
                 , MultiSelect.locale locale
-                , MultiSelect.zone model.zone
+                , MultiSelect.settings settings
                 , MultiSelect.remote options
                 , MultiSelect.onRetry Refresh
                 ]
@@ -569,7 +564,7 @@ optionsExample locale model =
             , Autocomplete.view AutoMsg
                 [ Autocomplete.label "Find a warehouse"
                 , Autocomplete.locale locale
-                , Autocomplete.zone model.zone
+                , Autocomplete.settings settings
                 , Autocomplete.suggestions options
                 , Autocomplete.onRetry Refresh
                 ]
@@ -580,11 +575,11 @@ optionsExample locale model =
 
 {-| The body is one line: no `case`, no skeleton.
 -}
-detail : Locale -> Model -> List (Html Msg)
-detail locale model =
+detail : Settings -> Locale -> Model -> List (Html Msg)
+detail settings locale model =
     RemoteView.view
         [ RemoteView.locale locale
-        , RemoteView.zone model.zone
+        , RemoteView.settings settings
         , RemoteView.onRetry Refresh
         , RemoteView.loadingLabel "Loading order"
         ]
@@ -601,10 +596,10 @@ detail locale model =
         )
 
 
-cardExample : Locale -> Model -> Html Msg
-cardExample locale model =
+cardExample : Settings -> Locale -> Model -> Html Msg
+cardExample settings locale model =
     card "Card"
-        (Card.view [ Card.title "Order", Card.headingLevel 3 ] (detail locale model))
+        (Card.view [ Card.title "Order", Card.headingLevel 3 ] (detail settings locale model))
 
 
 overlayButtons : Html Msg
@@ -618,25 +613,25 @@ overlayButtons =
         )
 
 
-overlays : Locale -> Model -> List (Overlay Msg)
-overlays locale model =
+overlays : Settings -> Locale -> Model -> List (Overlay Msg)
+overlays settings locale model =
     [ Drawer.view DrawerMsg
         [ Drawer.title "Order"
         , Drawer.locale locale
         , Drawer.footer [ Button.view [ Button.onClick CloseDrawer ] "Close" ]
         ]
         model.drawer
-        (detail locale model)
+        (detail settings locale model)
     , Modal.view ModalMsg
         [ Modal.title "Order"
         , Modal.locale locale
         , Modal.footer [ Button.view [ Button.onClick CloseModal ] "Close" ]
         ]
         model.modal
-        (detail locale model)
+        (detail settings locale model)
     , CommandPalette.view PaletteMsg
         [ CommandPalette.locale locale
-        , CommandPalette.zone model.zone
+        , CommandPalette.settings settings
         , CommandPalette.sections
             [ CommandPalette.remote "Orders"
                 (Remote.map (\w -> List.map (\order -> CommandPalette.item order.id (Picked order.id)) w.orders) model.data)

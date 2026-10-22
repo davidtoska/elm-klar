@@ -10,6 +10,7 @@
         ],
         "Foundations": [
             "Klar.Theme",
+            "Klar.Settings",
             "Klar.Locale",
             "Klar.Layout",
             "Klar.Card",

@@ -7,7 +7,7 @@ module Klar.Tree exposing
     , selected, selectedId, select, setSelected, checked, setChecked, clearChecked
     , focused, focusNode, query, setQuery
     , loadRequests, onLoadChildren, onRetry, onReload
-    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
+    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, settings
     )
 
 {-| A tree view for hierarchies: regions and warehouses, folders, product
@@ -161,7 +161,7 @@ selected and checked nodes come back in your own type:
 
 # Attributes
 
-@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
+@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, settings
 
 -}
 
@@ -183,6 +183,7 @@ import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.TextInput as TextInput
@@ -190,7 +191,6 @@ import Klar.Theme as Theme exposing (Size(..), Tone)
 import Process
 import Set exposing (Set)
 import Task
-import Time
 
 
 
@@ -1109,7 +1109,7 @@ type alias Config id msg =
     , maxChildren : Int
     , emptyText : Maybe String
     , locale : Locale
-    , zone : Time.Zone
+    , settings : Settings
     }
 
 
@@ -1131,7 +1131,7 @@ configure attributes =
         , maxChildren = 300
         , emptyText = Nothing
         , locale = Locale.default
-        , zone = Time.utc
+        , settings = Settings.default
         }
         attributes
 
@@ -1240,7 +1240,9 @@ onReload msg =
     Attribute (\config -> { config | onReload = Just msg })
 
 
-{-| Shorter rows (24px instead of 28px): for dense layouts and side panels.
+{-| Shorter rows (24px instead of 28px): for dense layouts and side panels. A tree
+in an application with a compact density (`Klar.Settings`) is already compact; this
+makes just this tree compact.
 -}
 compact : Attribute id msg
 compact =
@@ -1272,6 +1274,17 @@ emptyText text =
     Attribute (\config -> { config | emptyText = Just text })
 
 
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Tree.settings model.settings
+
+-}
+settings : Settings -> Attribute id msg
+settings given =
+    Attribute (\config -> { config | settings = given })
+
+
 {-| The language of the built-in text (the filter box, "Loading ...", "Load",
 "Try again", "No items", "No matches", "Show N more") and of the numbers. The
 default is `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
@@ -1279,14 +1292,6 @@ default is `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
 locale : Locale -> Attribute id msg
 locale value =
     Attribute (\config -> { config | locale = value })
-
-
-{-| The time zone of the time in "Old data from 14:05", the marker of data that
-is `Kept` after a failed refresh. The default is UTC.
--}
-zone : Time.Zone -> Attribute id msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 
@@ -1775,7 +1780,7 @@ viewRemote toMsg attributes state data =
                 , Freshness.busyAttr freshness
                 ]
                 [ Freshness.notice
-                    { locale = config.locale, zone = config.zone, onRetry = config.onReload, inline = False }
+                    { locale = config.locale, settings = config.settings, onRetry = config.onReload, inline = False }
                     freshness
                 , view toMsg attributes state nodes
                 ]
@@ -2242,7 +2247,7 @@ viewChildren env depth parentId parentValue children =
                 notice =
                     Freshness.notice
                         { locale = env.config.locale
-                        , zone = env.config.zone
+                        , settings = env.config.settings
                         , onRetry = Maybe.map (\toApp -> toApp parentValue) env.config.onRetry
                         , inline = True
                         }

@@ -113,6 +113,10 @@ type Size
 (36px, the default) or `Comfortable` (46px). A table shows more rows in the same
 space when it is compact, and is easier to hit with a finger when it is
 comfortable.
+
+The application says its density once, in its [Klar.Settings](Klar-Settings), and
+every component follows it; a component that is given a density of its own keeps it.
+
 -}
 type Density
     = Compact

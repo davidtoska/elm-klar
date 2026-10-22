@@ -10,6 +10,7 @@ import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Remote exposing (Problem)
+import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Klar.Timeline as Timeline
@@ -73,11 +74,11 @@ update failing msg model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Settings -> Locale -> Model -> Html Msg
+view settings locale model =
     let
         common =
-            [ Timeline.locale locale, Timeline.now Sample.now ]
+            [ Timeline.locale locale, Timeline.settings settings, Timeline.now Sample.now ]
 
         loadMoreFailure =
             case model.moreFailed of
@@ -150,6 +151,20 @@ Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
                             else
                                 event
                         )
+                )
+            )
+        , Doc.example
+            { title = "Events of a day"
+            , description = Just "A delivery date or a deadline has a day and no time of day: it sits under its day and draws no clock time, and no \"00:00\". The others keep their time, in the zone chosen in the top bar."
+            , code = Just """Timeline.view [ Timeline.settings model.settings ]
+    [ Timeline.dayEvent "d1" deliveryDate "Delivery date"
+    , Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
+    ]"""
+            }
+            (Timeline.view
+                (Timeline.ariaLabel "Order log with a day event" :: common)
+                (Timeline.dayEvent "day-1" Sample.today "Planned delivery"
+                    :: List.take 2 orderEvents
                 )
             )
         , Doc.example

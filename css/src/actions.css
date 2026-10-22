@@ -146,7 +146,8 @@
 /* The arrow is a little narrower than a square button. It has no text: Klar.Menu
    draws an empty label before the chevron. */
 .klar-split > .klar-menu .klar-button {
-  width: calc(var(--klar-control) * 0.85);
+  /* never narrower than the 24px that a target needs, in a compact density too */
+  width: max(24px, calc(var(--klar-control) * 0.85));
   padding: 0;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;

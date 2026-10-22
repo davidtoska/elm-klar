@@ -1,6 +1,6 @@
 module Klar.RemoteView exposing
     ( view
-    , Attribute, onRetry, id, loadingLabel, skeleton, zone, locale
+    , Attribute, onRetry, id, loadingLabel, skeleton, locale, settings
     , focus
     )
 
@@ -63,7 +63,7 @@ its own: there is then one `h1` in every state.
 
 # Attributes
 
-@docs Attribute, onRetry, id, loadingLabel, skeleton, zone, locale
+@docs Attribute, onRetry, id, loadingLabel, skeleton, locale, settings
 
 
 # Focus
@@ -79,8 +79,8 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
-import Time
 
 
 {-| A setting of the body. Make them with the functions below and pass a list to
@@ -95,15 +95,15 @@ type alias Config msg =
     , id : Maybe String
     , loadingLabel : Maybe String
     , skeleton : Maybe (Html msg)
-    , zone : Time.Zone
     , locale : Locale
+    , settings : Settings
     }
 
 
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { onRetry = Nothing, id = Nothing, loadingLabel = Nothing, skeleton = Nothing, zone = Time.utc, locale = Locale.default }
+        { onRetry = Nothing, id = Nothing, loadingLabel = Nothing, skeleton = Nothing, locale = Locale.default, settings = Settings.default }
         attributes
 
 
@@ -151,11 +151,15 @@ skeleton html =
     Attribute (\config -> { config | skeleton = Just html })
 
 
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    RemoteView.settings model.settings
+
 -}
-zone : Time.Zone -> Attribute msg
-zone value =
-    Attribute (\config -> { config | zone = value })
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text ("Loading", "Try again", "Old data from").
@@ -219,7 +223,7 @@ body attributes data toBody =
                         , Freshness.busyAttr freshness
                         ]
                         (Freshness.notice
-                            { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                             freshness
                             :: toBody value
                         )

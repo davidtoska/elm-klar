@@ -1,7 +1,7 @@
 module Klar.Format exposing
     ( int, decimal, percent, currency, plural
     , bytes, duration
-    , date, dateLong, time, dateTime, iso8601, relative
+    , date, dateShort, dateLong, time, dateTime, iso8601, relative
     )
 
 {-| Formatting numbers, sizes, dates and times for people, in the conventions of
@@ -57,7 +57,7 @@ until more languages are added.
 
 # Dates and times
 
-@docs date, dateLong, time, dateTime, iso8601, relative
+@docs date, dateShort, dateLong, time, dateTime, iso8601, relative
 
 -}
 
@@ -569,6 +569,23 @@ date locale value =
     Locale.pick locale
         { nb = pad2 (Date.day value) ++ "." ++ pad2 (Date.month value) ++ "." ++ String.padLeft 4 '0' (String.fromInt (Date.year value))
         , en = Date.toIso value
+        }
+
+
+{-| The day and the month as short as a label can be, for the axis of a chart or
+a narrow column: `21 Sep` in English and `21. sep.` in Norwegian. There is no year,
+so use it where the year is obvious from the context.
+
+    Format.dateShort Locale.en september21 -- "21 Sep"
+
+    Format.dateShort Locale.nb september21 -- "21. sep."
+
+-}
+dateShort : Locale -> Date -> String
+dateShort locale value =
+    Locale.pick locale
+        { nb = String.fromInt (Date.day value) ++ ". " ++ Locale.monthShort locale (Date.month value) ++ "."
+        , en = String.fromInt (Date.day value) ++ " " ++ Locale.monthShort locale (Date.month value)
         }
 
 

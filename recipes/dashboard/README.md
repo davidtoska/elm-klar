@@ -13,6 +13,7 @@ The pattern:
    `Tree.viewRemote`) and an `onRetry` message for that panel only.
 3. Changing the period or retrying calls `Remote.refresh` on the panel and sends the request; the answer goes in with `Remote.refreshWith panel result time`. Data that is there stays (dimmed), a failed refresh keeps it as old data ("Old data from 14:05"), and a panel with no data shows its skeleton or failure. `Alert.stale` with `Remote.staleIn` gives one notice for the page. The message carries
    the period it was asked for, and an answer for another period is dropped.
-4. Use `Chart.remote` alone: `Chart.loading` after it silently cancels it. Read data with `Remote.toMaybe`, not a `case` on `Loaded`, so old data counts.
+4. The zone of "Old data from 14:05" is in the model's `Klar.Settings` (`Time.here` at the start, `Settings.withZone`) and each panel is given it (`Stat.settings`, `Chart.settings`, `Timeline.settings`).
+5. Use `Chart.remote` alone: `Chart.loading` after it silently cancels it. Read data with `Remote.toMaybe`, not a `case` on `Loaded`, so old data counts.
 
 The Activity panel fails on its first request and the order status panel fails for 90 days, on purpose.

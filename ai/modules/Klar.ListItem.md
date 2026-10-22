@@ -50,7 +50,7 @@ emptyTitle : String -> ListAttribute msg
 emptyDescription : String -> ListAttribute msg
 emptyIcon : Icon.Icon -> ListAttribute msg
 locale : Locale.Locale -> ListAttribute msg
-zone : Time.Zone -> ListAttribute msg
+settings : Settings.Settings -> ListAttribute msg
 ```
 
 ## Documentation
@@ -326,7 +326,8 @@ No thin lines between the rows. By default the rows are divided.
 compact : ListAttribute msg
 ```
 
-Tighter rows: less padding and a smaller box around the `icon`.
+Tighter rows: less padding and a smaller box around the `icon`. Lists follow a
+compact density of the application (`Klar.Settings`) without it.
 
 ### `bordered`
 
@@ -432,10 +433,13 @@ The language of the built-in text of `remote`: the default title of the empty
 state ("Nothing to show" in English) and the "Try again" button. The default is
 `Locale.default`, which is English.
 
-### `zone`
+### `settings`
 
 ```elm
-zone : Time.Zone -> ListAttribute msg
+settings : Settings.Settings -> ListAttribute msg
 ```
 
-The time zone of the time in "Old data from 14:05". The default is UTC.
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    ListItem.settings model.settings

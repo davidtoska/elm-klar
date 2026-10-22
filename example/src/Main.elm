@@ -32,11 +32,12 @@ import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Radio as Radio
 import Klar.Remote as Remote exposing (Remote)
 import Klar.SegmentedControl as SegmentedControl
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Shortcut as Shortcut exposing (Shortcut)
 import Klar.ShortcutHelp as ShortcutHelp
 import Klar.SideNav as SideNav
 import Klar.Text as Text
-import Klar.Theme exposing (Tone(..))
+import Klar.Theme exposing (Density(..), Tone(..))
 import Klar.Toast as Toast
 import Page.Effect as Effect exposing (Effect(..))
 import Page.Gallery as Gallery
@@ -72,7 +73,9 @@ type alias Model =
     { key : Nav.Key
     , route : Route
     , locale : Locale
-    , zone : Time.Zone
+    , settings : Settings
+    , zoneChoice : ZoneChoice
+    , browserZone : Maybe Time.Zone
     , today : Date
     , backend : Api.Backend
     , shell : AppShell.State String
@@ -98,7 +101,7 @@ init _ url key =
             Route.fromUrl url
 
         context =
-            { locale = Locale.default, today = Sample.today }
+            { locale = Locale.default, today = Sample.today, settings = Settings.default }
 
         backend =
             Api.init
@@ -118,7 +121,9 @@ init _ url key =
             { key = key
             , route = route
             , locale = Locale.default
-            , zone = Time.utc
+            , settings = Settings.default
+            , zoneChoice = Browser
+            , browserZone = Nothing
             , today = Sample.today
             , backend = backend3
             , shell = AppShell.init { id = shellId, key = key } |> AppShell.setPage menu (routeKey route)
@@ -157,7 +162,7 @@ shellId =
 
 pageContext : Model -> Effect.Context
 pageContext model =
-    { locale = model.locale, today = model.today }
+    { locale = model.locale, today = model.today, settings = model.settings }
 
 
 
@@ -177,6 +182,8 @@ type Msg
     | ShortcutMsg Shortcut.Msg
     | ToastMsg Toast.Msg
     | SetLocale Locale
+    | SetDensity Density
+    | SetZone ZoneChoice
     | ToggleLocale
       -- command palette
     | OpenPalette
@@ -275,7 +282,7 @@ update msg model =
             -- The time zone is the visitor's, but the day is the one the dummy backend
             -- pretends it is (see `Backend.Generate.today`): the data is made relative to
             -- it, so "overdue" means the same thing on every load and in every page.
-            ( { model | zone = zone }, Cmd.none )
+            ( applyZone { model | browserZone = Just zone }, Cmd.none )
 
         GoTo route ->
             -- A shortcut or the command palette must not throw away an order
@@ -349,6 +356,12 @@ update msg model =
 
         SetLocale locale ->
             ( { model | locale = locale }, Cmd.none )
+
+        SetDensity density ->
+            ( { model | settings = Settings.withDensity density model.settings }, Cmd.none )
+
+        SetZone choice ->
+            ( applyZone { model | zoneChoice = choice }, Cmd.none )
 
         ToggleLocale ->
             ( { model
@@ -880,6 +893,7 @@ view model =
         , AppShell.view
             ([ AppShell.state ShellMsg model.shell
              , AppShell.locale model.locale
+             , AppShell.settings model.settings
              , AppShell.brand (AppShell.brandLink { name = "Klar", href = Route.path Overview, logo = Just (Icon.sized Icon.Large Icon.layers) })
              , AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries menu, SideNav.locale model.locale ] model.shell)
              , AppShell.onSearch OpenPalette
@@ -942,7 +956,7 @@ viewPage model =
         Components maybeSlug ->
             plain
                 (Html.map GalleryMsg
-                    (Gallery.view model.locale (maybeSlug |> Maybe.andThen Catalog.fromSlug) model.gallery)
+                    (Gallery.view model.settings model.locale (maybeSlug |> Maybe.andThen Catalog.fromSlug) model.gallery)
                 )
 
         NotFound ->
@@ -962,7 +976,9 @@ viewPage model =
 
 topBarActions : Model -> List (Html Msg)
 topBarActions model =
-    [ SegmentedControl.view
+    [ viewDensitySwitch model
+    , viewZoneSwitch model
+    , SegmentedControl.view
         [ SegmentedControl.ariaLabel "Language of the components"
         , SegmentedControl.size Klar.Theme.Small
         , SegmentedControl.options
@@ -986,6 +1002,123 @@ topBarActions model =
         Icon.keyboard
         "Keyboard shortcuts (?)"
     ]
+
+
+{-| The two settings of the application, in the top bar of every page: how tightly
+the components are packed, and the time zone of the times they write. Nothing on
+a page is told about either: the shell carries the density, and the zone is in
+the `Moment`s that the pages make with the settings.
+-}
+viewDensitySwitch : Model -> Html Msg
+viewDensitySwitch model =
+    SegmentedControl.view
+        [ SegmentedControl.ariaLabel "Density of the components"
+        , SegmentedControl.size Klar.Theme.Small
+        , SegmentedControl.options
+            [ SegmentedControl.option "compact" "Compact"
+            , SegmentedControl.option "normal" "Normal"
+            , SegmentedControl.option "comfortable" "Roomy"
+            ]
+        , SegmentedControl.selected (Just (densityCode (Settings.density model.settings)))
+        , SegmentedControl.onSelect (densityFromCode >> SetDensity)
+        ]
+
+
+densityCode : Density -> String
+densityCode density =
+    case density of
+        Compact ->
+            "compact"
+
+        Normal ->
+            "normal"
+
+        Comfortable ->
+            "comfortable"
+
+
+densityFromCode : String -> Density
+densityFromCode code =
+    case code of
+        "compact" ->
+            Compact
+
+        "comfortable" ->
+            Comfortable
+
+        _ ->
+            Normal
+
+
+{-| Where the visitor is, or somewhere else, to see the times move.
+-}
+type ZoneChoice
+    = Browser
+    | Utc
+    | Tokyo
+
+
+viewZoneSwitch : Model -> Html Msg
+viewZoneSwitch model =
+    SegmentedControl.view
+        [ SegmentedControl.ariaLabel "Time zone of the times"
+        , SegmentedControl.size Klar.Theme.Small
+        , SegmentedControl.options
+            [ SegmentedControl.option "browser" "Local"
+            , SegmentedControl.option "utc" "UTC"
+            , SegmentedControl.option "tokyo" "Tokyo"
+            ]
+        , SegmentedControl.selected
+            (Just
+                (case model.zoneChoice of
+                    Browser ->
+                        "browser"
+
+                    Utc ->
+                        "utc"
+
+                    Tokyo ->
+                        "tokyo"
+                )
+            )
+        , SegmentedControl.onSelect (zoneFromCode >> SetZone)
+        ]
+
+
+zoneFromCode : String -> ZoneChoice
+zoneFromCode code =
+    case code of
+        "utc" ->
+            Utc
+
+        "tokyo" ->
+            Tokyo
+
+        _ ->
+            Browser
+
+
+{-| Puts the chosen zone into the settings. `Browser` waits for `Time.here`: until
+it has answered, the settings have no zone and every time says "UTC".
+-}
+applyZone : Model -> Model
+applyZone model =
+    let
+        settings =
+            case ( model.zoneChoice, model.browserZone ) of
+                ( Browser, Just zone ) ->
+                    Settings.withZone zone model.settings
+
+                ( Browser, Nothing ) ->
+                    model.settings
+
+                ( Utc, _ ) ->
+                    Settings.withZone Time.utc model.settings
+
+                ( Tokyo, _ ) ->
+                    Settings.withZone (Time.customZone 540 []) model.settings
+    in
+    { model | settings = settings }
 
 
 toolsOpenerId : String

@@ -4,6 +4,7 @@ module Klar.Internal exposing
     , attrMaybe
     , classes
     , cls
+    , densityAttr
     , ensureVisible
     , focus
     , focusFirst
@@ -41,6 +42,7 @@ import Html exposing (Attribute, Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode exposing (Decoder)
+import Klar.Theme exposing (Density(..))
 import Task
 
 
@@ -89,6 +91,22 @@ attrMaybe toAttr maybe =
 
         Nothing ->
             noAttr
+
+
+{-| The mark that the density of the settings leaves on an element, which the
+stylesheet follows: nothing for `Normal`.
+-}
+densityAttr : Density -> Attribute msg
+densityAttr value =
+    case value of
+        Compact ->
+            Attr.attribute "data-klar-density" "compact"
+
+        Normal ->
+            noAttr
+
+        Comfortable ->
+            Attr.attribute "data-klar-density" "comfortable"
 
 
 {-| Sets CSS custom properties / inline declarations in one `style` attribute.

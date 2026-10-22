@@ -194,7 +194,8 @@ A thin line under every row.
 compact : Attribute
 ```
 
-Tighter vertical spacing between the rows, for dense detail views.
+Tighter vertical spacing between the rows, for dense detail views. It follows a
+compact density of the application (`Klar.Settings`) without it.
 
 ### `locale`
 

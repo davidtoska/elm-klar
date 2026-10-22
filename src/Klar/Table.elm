@@ -6,10 +6,10 @@ module Klar.Table exposing
     , Query, Direction(..), Filter(..), query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
     , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection, dropAllMatching
     , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
-    , Attribute, columns, rows, rowId, rowLabel, server, label, locale
+    , Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
-    , zone, onRefresh, onRetry, emptyState
+    , onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
     , pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
     , Rows, prepareRows, rowsArray, preparedRows
@@ -376,7 +376,7 @@ a saved view.
 
 # Basic attributes
 
-@docs Attribute, columns, rows, rowId, rowLabel, server, label, locale
+@docs Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
 
 
 # Search, filters and sorting
@@ -391,7 +391,7 @@ a saved view.
 
 # Loading and empty states
 
-@docs zone, onRefresh, onRetry, emptyState
+@docs onRefresh, onRetry, emptyState
 
 
 # Toolbar and export
@@ -467,6 +467,7 @@ import Klar.Menu as Menu
 import Klar.Pagination as Pagination
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Table.Csv as Csv
@@ -479,7 +480,6 @@ import Klar.Theme as Theme exposing (Density(..), Tone)
 import Process
 import Set exposing (Set)
 import Task
-import Time
 
 
 
@@ -874,6 +874,8 @@ clearFilters (State model) =
 
 {-| The row density: `Compact`, `Normal` (the default) or `Comfortable`, from
 [Klar.Theme](Klar-Theme). The user changes it with the buttons of `densityToggle`.
+A table whose density was not set (or is `Normal`) follows the density of the
+application (`Klar.Settings`); a `Compact` or `Comfortable` table keeps its own.
 -}
 density : State id -> Density
 density (State model) =
@@ -2479,6 +2481,7 @@ type alias Config row msg =
     , server : Maybe Int
     , label : Maybe String
     , locale : Locale
+    , settings : Settings
     , searchable : Bool
     , searchPlaceholder : Maybe String
     , searchDebounce : Maybe Int
@@ -2496,7 +2499,6 @@ type alias Config row msg =
     , onRefresh : Maybe msg
     , refreshing : Bool
     , freshness : Freshness
-    , zone : Time.Zone
     , onRetry : Maybe msg
     , export : Maybe String
     , csvSeparator : Maybe Char
@@ -2523,6 +2525,7 @@ configure attributes =
         , server = Nothing
         , label = Nothing
         , locale = Locale.default
+        , settings = Settings.default
         , searchable = False
         , searchPlaceholder = Nothing
         , searchDebounce = Nothing
@@ -2540,7 +2543,6 @@ configure attributes =
         , onRefresh = Nothing
         , refreshing = False
         , freshness = Freshness.Fresh
-        , zone = Time.utc
         , onRetry = Nothing
         , export = Nothing
         , csvSeparator = Nothing
@@ -2792,6 +2794,17 @@ label value =
     Attribute (\config -> { config | label = Just value })
 
 
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Table.settings model.settings
+
+-}
+settings : Settings -> Attribute id row msg
+settings given =
+    Attribute (\config -> { config | settings = given })
+
+
 {-| The language of the built-in text, and the conventions that go with it:
 number and date formats, the alphabetical order of text columns and the default
 CSV separator. The default is `Locale.default`, which is English; see
@@ -2968,13 +2981,6 @@ shows a spinner while the rows are refreshing (`Remote.refresh`) or loading.
 onRefresh : msg -> Attribute id row msg
 onRefresh msg =
     Attribute (\config -> { config | onRefresh = Just msg })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> Attribute id row msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 {-| The message to send when the user clicks "Try again" in the error state, which
@@ -3892,7 +3898,7 @@ view toMsg attributes (State model) =
                 -- the retry button goes away when the data is fresh: focus waits on the table
                 Html.div [ Events.on "click" (retryClicked ctx) ]
                     [ Freshness.notice
-                        { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                         config.freshness
                     ]
 

@@ -207,6 +207,7 @@ const SYNONYMS = {
   'Klar.Stepper': ['wizard', 'steps', 'multi-step', 'progress'],
   'Klar.Locale': ['language', 'norwegian', 'english', 'translation', 'i18n'],
   'Klar.Theme': ['tone', 'size', 'density', 'colors', 'dark mode'],
+  'Klar.Settings': ['density', 'compact', 'comfortable', 'time zone', 'zone', 'settings', 'utc'],
   'Klar.Format': ['numbers', 'currency', 'dates', 'text'],
   'Klar.Shortcut': ['keyboard', 'keys', 'hotkey'],
   'Klar.VirtualList': ['long list', 'scroll', 'virtual'],

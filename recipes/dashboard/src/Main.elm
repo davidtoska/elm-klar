@@ -24,6 +24,7 @@ import Klar.Layout as Layout
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.SegmentedControl as SegmentedControl
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Stat as Stat
 import Klar.Timeline as Timeline
 import Klar.Tree as Tree
@@ -71,6 +72,7 @@ type alias Model =
     , activity : Remote (List Activity)
     , activityAttempts : Int
     , tree : Tree.State RegionId
+    , settings : Settings
     }
 
 
@@ -88,6 +90,7 @@ type Msg
     | RetryStale
     | Retry Panel
     | TreeMsg Tree.Msg
+    | GotZone Time.Zone
 
 
 type Answer
@@ -120,9 +123,10 @@ init =
             , activity = Loading
             , activityAttempts = 0
             , tree = Tree.init "regions"
+            , settings = Settings.default
             }
     in
-    ( model, loadAll model )
+    ( model, Cmd.batch [ loadAll model, Task.perform GotZone Time.here ] )
 
 
 regionIds : Tree.Ids RegionId
@@ -243,6 +247,9 @@ update msg model =
                     }
             in
             ( reloaded, loadAll reloaded )
+
+        GotZone zone ->
+            ( { model | settings = Settings.withZone zone model.settings }, Cmd.none )
 
         TreeMsg m ->
             let
@@ -390,17 +397,20 @@ viewStats : Model -> List (Html Msg)
 viewStats model =
     [ Stat.view
         [ Stat.label "Orders"
+        , Stat.settings model.settings
         , Stat.remote model.summary (\s -> [ Stat.int s.orders ])
         , Stat.onRetry (Retry SummaryPanel)
         ]
     , Stat.view
         [ Stat.label "Revenue"
+        , Stat.settings model.settings
         , Stat.remote model.summary
             (\s -> [ Stat.compact s.revenue, Stat.change { current = s.revenue, previous = s.previousRevenue } ])
         , Stat.onRetry (Retry SummaryPanel)
         ]
     , Stat.view
         [ Stat.label "Late"
+        , Stat.settings model.settings
         , Stat.remote model.summary (\s -> [ Stat.decimal 1 s.lateShare, Stat.unit "%" ])
         , Stat.lowerIsBetter
         , Stat.onRetry (Retry SummaryPanel)
@@ -413,16 +423,16 @@ viewSales model =
     -- remote and onRetry only: `Chart.loading` after `Chart.remote` would cancel it
     case Remote.toMaybe model.sales of
         Just sales ->
-            Chart.line [ Chart.categories sales.labels, Chart.remote model.sales, Chart.onRetry (Retry SalesPanel) ]
+            Chart.line [ Chart.categories sales.labels, Chart.settings model.settings, Chart.remote model.sales, Chart.onRetry (Retry SalesPanel) ]
                 [ Chart.series "This period" sales.thisPeriod, Chart.series "Last period" sales.lastPeriod |> Chart.dashed ]
 
         _ ->
-            Chart.line [ Chart.remote model.sales, Chart.onRetry (Retry SalesPanel) ] []
+            Chart.line [ Chart.settings model.settings, Chart.remote model.sales, Chart.onRetry (Retry SalesPanel) ] []
 
 
 viewStatuses : Model -> Html Msg
 viewStatuses model =
-    Chart.donut [ Chart.remote model.statuses, Chart.onRetry (Retry StatusesPanel) ]
+    Chart.donut [ Chart.settings model.settings, Chart.remote model.statuses, Chart.onRetry (Retry StatusesPanel) ]
         (List.map (\( name, share ) -> Chart.segment name share) (Remote.withDefault [] model.statuses))
 
 
@@ -446,7 +456,7 @@ toNode (Region id name children) =
 viewActivity : Model -> Html Msg
 viewActivity model =
     Timeline.view
-        [ Timeline.zone Time.utc
+        [ Timeline.settings model.settings
         , Timeline.now (Time.millisToPosix 1760000100000)
         , Timeline.remote model.activity
         , Timeline.onRetry (Retry ActivityPanel)

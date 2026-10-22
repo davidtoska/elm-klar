@@ -185,7 +185,8 @@ along the bottom edge and a colored bar at the left edge.
 compact : Attribute msg
 ```
 
-Tighter padding and smaller text, for alerts inside forms and tables.
+Tighter padding and smaller text, for alerts inside forms and tables. Alerts
+follow a compact density of the application (`Klar.Settings`) without it.
 
 ## Accessibility and text
 

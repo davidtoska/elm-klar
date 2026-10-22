@@ -13,6 +13,7 @@ import Klar.ApprovalFlow as ApprovalFlow
 import Klar.Avatar as Avatar
 import Klar.Locale as Locale
 import Klar.Remote as Remote
+import Klar.Settings as Settings
 import Support.FlowHtml as H
 import Test exposing (Test, describe, fuzz, fuzz2, test)
 import Test.Html.Query as Query
@@ -897,8 +898,12 @@ detailTests =
                     |> H.has [ Selector.tag "time", H.attr "title" "7 days ago" ]
         , test "the time zone moves the time shown" <|
             \_ ->
-                viewIt [ ApprovalFlow.zone (Time.customZone 120 []) ] creditNote
+                viewIt [ ApprovalFlow.settings (Settings.withZone (Time.customZone 120 []) Settings.default) ] creditNote
                     |> H.has [ Selector.text "2024-03-12 16:05" ]
+        , test "a zone that was never given says so: the time ends in UTC" <|
+            \_ ->
+                viewIt [] creditNote
+                    |> H.has [ Selector.text "2024-03-12 14:05 UTC" ]
         , test "the avatar next to a name is decorative, so the name is not read twice" <|
             \_ ->
                 viewIt [] creditNote

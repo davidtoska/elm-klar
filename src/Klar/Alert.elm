@@ -158,7 +158,8 @@ banner =
     Attribute (\config -> { config | banner = True })
 
 
-{-| Tighter padding and smaller text, for alerts inside forms and tables.
+{-| Tighter padding and smaller text, for alerts inside forms and tables. Alerts
+follow a compact density of the application (`Klar.Settings`) without it.
 -}
 compact : Attribute msg
 compact =

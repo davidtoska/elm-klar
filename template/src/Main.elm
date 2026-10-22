@@ -19,11 +19,13 @@ import Klar.Icon as Icon
 import Klar.Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Settings
 import Klar.SideNav as SideNav
 import Klar.Table as Table
 import Klar.Toast as Toast
 import Process
 import Task
+import Time
 import Url exposing (Url)
 
 
@@ -50,6 +52,7 @@ type alias Model =
     , orders : Remote (List Order)
     , clearDialog : ConfirmDialog.State
     , toasts : Toast.State Msg
+    , settings : Klar.Settings.Settings
     }
 
 
@@ -64,6 +67,7 @@ type Msg
     | ConfirmClear
     | CancelClear
     | Cleared
+    | GotZone Time.Zone
 
 
 main : Program () Model Msg
@@ -90,8 +94,9 @@ init _ url key =
       , orders = Loading
       , clearDialog = ConfirmDialog.init "clear-dialog"
       , toasts = Toast.init
+      , settings = Klar.Settings.default
       }
-    , fetchOrders
+    , Cmd.batch [ fetchOrders, Task.perform GotZone Time.here ]
     )
 
 
@@ -118,6 +123,9 @@ clearOrders =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GotZone zone ->
+            ( { model | settings = Klar.Settings.withZone zone model.settings }, Cmd.none )
+
         ShellMsg m ->
             let
                 ( shell, cmd, address ) =
@@ -214,6 +222,7 @@ view model =
         [ Klar.stylesheet
         , AppShell.view
             [ AppShell.state ShellMsg model.shell
+            , AppShell.settings model.settings
             , AppShell.brand (AppShell.brandLink { name = "Acme Operations", href = "#/", logo = Nothing })
             , AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
             , AppShell.overlays (overlays model)
@@ -253,7 +262,8 @@ viewPage model =
                         ]
                     ]
                 , Table.view TableMsg
-                    [ Table.columns
+                    [ Table.settings model.settings
+                    , Table.columns
                         [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
                         , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
                         , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]

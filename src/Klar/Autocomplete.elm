@@ -1,9 +1,9 @@
 module Klar.Autocomplete exposing
     ( State, init, Msg, update, view
     , text, setText, picked, isOpen
-    , Attribute, options, suggestions, onRetry, onEnter, zone
+    , Attribute, options, suggestions, onRetry, onEnter
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale
+    , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale, settings
     )
 
 {-| A text field with suggestions. Unlike [Klar.Select](Klar-Select) the user may
@@ -77,7 +77,7 @@ follow `locale` and are English by default (see [Klar.Locale](Klar-Locale)).
 
 Pass attributes to `view` in a list; later ones win over earlier ones.
 
-@docs Attribute, options, suggestions, onRetry, onEnter, zone
+@docs Attribute, options, suggestions, onRetry, onEnter
 
 
 # Field
@@ -90,7 +90,7 @@ control.
 
 # Behavior and looks
 
-@docs placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale
+@docs placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale, settings
 
 -}
 
@@ -106,10 +106,10 @@ import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select.Match as Match
 import Klar.Select.Option as Option exposing (Option)
 import Klar.Select.Popup as Popup
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..))
 import Klar.VirtualList as VirtualList
-import Time
 
 
 
@@ -350,7 +350,6 @@ type alias Config msg =
     { field : Field.Config
     , source : Source
     , freshness : Freshness
-    , zone : Time.Zone
     , placeholder : String
     , minChars : Int
     , clearable : Bool
@@ -360,6 +359,7 @@ type alias Config msg =
     , visibleRows : Int
     , prefixIcon : Maybe Icon
     , locale : Locale
+    , settings : Settings
     , onRetry : Maybe msg
     , onEnter : Maybe msg
     }
@@ -371,7 +371,6 @@ configure attributes =
         { field = Field.empty
         , source = Local []
         , freshness = Freshness.Fresh
-        , zone = Time.utc
         , placeholder = ""
         , minChars = 1
         , clearable = False
@@ -381,6 +380,7 @@ configure attributes =
         , visibleRows = 8
         , prefixIcon = Nothing
         , locale = Locale.default
+        , settings = Settings.default
         , onRetry = Nothing
         , onEnter = Nothing
         }
@@ -428,13 +428,6 @@ suggestions data =
             Freshness.settle data
     in
     Attribute (\config -> { config | source = FromApp current, freshness = freshness })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> Attribute msg
-zone value_ =
-    Attribute (\config -> { config | zone = value_ })
 
 
 {-| The message to send when the user presses the "Try again" button of the error
@@ -596,6 +589,17 @@ by default.
 prefixIcon : Icon -> Attribute msg
 prefixIcon icon =
     Attribute (\config -> { config | prefixIcon = Just icon })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Autocomplete.settings model.settings
+
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text: "No suggestions", "Loading ...", the
@@ -1014,7 +1018,7 @@ viewPopup toMsg config t id list highlighted query retry content =
             in
             popup
                 [ Freshness.notice
-                    { locale = config.locale, zone = config.zone, onRetry = Nothing, inline = False }
+                    { locale = config.locale, settings = config.settings, onRetry = Nothing, inline = False }
                     config.freshness
                 , if rows.grouped then
                     VirtualList.viewGrouped (ListMsg >> toMsg)

@@ -1,7 +1,7 @@
 module Klar.Timeline exposing
     ( view
-    , Event, event, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
-    , Attribute, zone, now, compact, ungrouped, ariaLabel, maxHeight, locale
+    , Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
+    , Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, locale
     , onLoadMore, loadingMore, moreFailed, hasMore
     , loading, failed, onRetry, remote, skeletonRows, emptyTitle, emptyDescription
     )
@@ -12,12 +12,13 @@ Use when: a history of events is shown newest first, grouped by day, such as an 
 Do not use when: the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`.
 
     import Klar.Icon as Icon
+    import Klar.Settings as Settings
     import Klar.Text as Text
     import Klar.Theme exposing (Tone(..))
     import Klar.Timeline as Timeline
 
     Timeline.view
-        [ Timeline.zone model.zone
+        [ Timeline.settings model.settings
         , Timeline.now model.now
         , Timeline.onLoadMore LoadMore
         , Timeline.loadingMore model.loadingMore
@@ -31,15 +32,17 @@ Do not use when: the events are rules and decisions of an approval process, use 
             |> Timeline.withDescription "Parcel handed to the carrier at warehouse B."
         ]
 
-Here `model.zone` is a `Time.Zone`, `model.now` and the times of the events
-(`shippedAt`, `delayedAt`) are `Time.Posix` values.
+Here `model.settings` is the `Klar.Settings` of the application, and `model.now`,
+`shippedAt` and `delayedAt` are `Time.Posix` values. The clock times and the day an
+event belongs to are those of the zone in the settings (UTC, with "UTC" after the
+time, until the application has given it).
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
 share a heading, so give them sorted by time. The headings are `h3` elements.
-Times and days are shown in the `zone` you give the timeline, which is UTC unless
-you set it. Give the timeline `now` and the headings say "Today" and
-"Yesterday". A thin gray line connects the markers of a day; a marker is an icon
+Something that happened on a day, with no time of day (a delivery date, a
+deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
+timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
 in the tone of the event, or a dot. The marker is decoration only (hidden from
 screen readers), so the title of an event must say what its color means.
 
@@ -62,12 +65,12 @@ set `locale`.
 
 # Events
 
-@docs Event, event, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
+@docs Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
 
 
 # Look and time
 
-@docs Attribute, zone, now, compact, ungrouped, ariaLabel, maxHeight, locale
+@docs Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, locale
 
 
 # Loading more
@@ -95,6 +98,7 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
@@ -112,9 +116,14 @@ type Event msg
     = Event (EventData msg)
 
 
+type When
+    = At Time.Posix
+    | OnDay Date
+
+
 type alias EventData msg =
     { id : String
-    , time : Time.Posix
+    , when : When
     , title : String
     , description : Maybe String
     , tone : Tone
@@ -138,9 +147,27 @@ sentence case.
 -}
 event : String -> Time.Posix -> String -> Event msg
 event id time title =
+    eventWhen id (At time) title
+
+
+{-| An event that happened on a day, with no time of day: a delivery date, a
+deadline, an invoice date. It sits under the heading of its day and no time is
+written next to it (there is no "00:00"). Give the events sorted, and put the
+day events of a day together with the timed events of that day.
+
+    Timeline.dayEvent "ev-77" invoiceDate "Invoice dated"
+
+-}
+dayEvent : String -> Date -> String -> Event msg
+dayEvent id day title =
+    eventWhen id (OnDay day) title
+
+
+eventWhen : String -> When -> String -> Event msg
+eventWhen id when title =
     Event
         { id = id
-        , time = time
+        , when = when
         , title = title
         , description = Nothing
         , tone = Neutral
@@ -227,7 +254,7 @@ type State
 
 type alias Config msg =
     { locale : Locale
-    , zone : Time.Zone
+    , settings : Settings
     , now : Maybe Time.Posix
     , compact : Bool
     , grouped : Bool
@@ -251,7 +278,7 @@ configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { locale = Locale.default
-        , zone = Time.utc
+        , settings = Settings.default
         , now = Nothing
         , compact = False
         , grouped = True
@@ -272,6 +299,18 @@ configure attributes =
         attributes
 
 
+{-| The settings of the application (`Klar.Settings`): the time zone of the clock
+times and of the day an event belongs to, and of "Old data from 14:05". Without it
+the times are written in UTC and end in "UTC".
+
+    Timeline.settings model.settings
+
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
+
+
 {-| The language of the built-in text ("Show details", "Load more", "Today",
 "Yesterday", the footer and so on) and of the dates. The default is
 `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
@@ -279,15 +318,6 @@ configure attributes =
 locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
-
-
-{-| The time zone that decides the clock times and which day an event belongs
-to. The default is UTC, so you will usually want the user's own zone: get it with
-`Time.here` when the application starts and keep it in your model.
--}
-zone : Time.Zone -> Attribute msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 {-| The current time. It lets the day headings say "Today" and "Yesterday" and
@@ -352,7 +382,7 @@ themselves are passed to `view` as usual. `NotAsked` and `Loading` show the
 skeleton, `Failed` shows the problem and `Loaded` shows the events. Data that is
 `Kept` stays on the screen: dimmed and busy while it is refreshed, and with
 "Old data from 14:05" and a retry (`onRetry`) when the last refresh failed. The
-time is shown in the `zone` of the timeline.
+time is in the zone of the settings.
 
     Timeline.view [ Timeline.remote model.history ]
         (List.map toEvent (Remote.withDefault [] model.history))
@@ -514,10 +544,10 @@ texts loc =
 
 
 {-| The timeline. Events are shown in the order given; events that follow each
-other on the same day (in the `zone` of the timeline) share a day heading, so
+other on the same day (in the zone of the settings) share a day heading, so
 sort them by time first.
 
-    Timeline.view [ Timeline.zone model.zone ] (List.map toEvent model.history)
+    Timeline.view [ Timeline.settings model.settings ] (List.map toEvent model.history)
 
 -}
 view : List (Attribute msg) -> List (Event msg) -> Html msg
@@ -576,7 +606,7 @@ view attributes events =
 
         notice =
             Freshness.notice
-                { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                 config.freshness
     in
     case state of
@@ -612,7 +642,7 @@ view attributes events =
                     [ notice
                     , if config.grouped then
                         Html.div [ Internal.cls [ "klar-timeline__days" ] ]
-                            (List.map (viewDay config) (groupByDay config.zone events))
+                            (List.map (viewDay config) (groupByDay config.settings events))
 
                       else
                         viewList config events
@@ -636,13 +666,18 @@ failureView config problem =
 -- DAYS
 
 
-groupByDay : Time.Zone -> List (Event msg) -> List ( Date, List (Event msg) )
-groupByDay timeZone events =
+groupByDay : Settings -> List (Event msg) -> List ( Date, List (Event msg) )
+groupByDay given events =
     List.foldr
         (\((Event data) as current) groups ->
             let
                 day =
-                    Date.fromPosix timeZone data.time
+                    case data.when of
+                        At moment ->
+                            Settings.toDate given moment
+
+                        OnDay value ->
+                            value
             in
             case groups of
                 ( groupDay, items ) :: rest ->
@@ -671,7 +706,7 @@ viewDay config ( day, events ) =
         relativeName =
             case config.now of
                 Just current ->
-                    case Date.diffDays day (Date.fromPosix config.zone current) of
+                    case Date.diffDays day (Settings.toDate config.settings current) of
                         0 ->
                             Just t.today
 
@@ -715,26 +750,33 @@ viewEvent config (Event data) =
         t =
             texts config.locale
 
-        clock =
-            Format.time config.zone data.time
-
-        tooltip =
-            Format.dateTime config.locale config.zone data.time
-                ++ (case config.now of
-                        Just current ->
-                            "  ·  " ++ Format.relative config.locale current data.time
-
-                        Nothing ->
-                            ""
-                   )
-
         timeElement className =
-            Html.time
-                [ Internal.cls [ className, "klar-tabular" ]
-                , Attr.attribute "datetime" (isoTime data.time)
-                , Attr.title tooltip
-                ]
-                [ Html.text clock ]
+            case data.when of
+                At moment ->
+                    Html.time
+                        [ Internal.cls [ className, "klar-tabular" ]
+                        , Attr.attribute "datetime" (isoTime moment)
+                        , Attr.title
+                            (Settings.dateTime config.locale config.settings moment
+                                ++ (case config.now of
+                                        Just current ->
+                                            "  ·  " ++ Format.relative config.locale current moment
+
+                                        Nothing ->
+                                            ""
+                                   )
+                            )
+                        ]
+                        [ Html.text (Settings.time config.settings moment) ]
+
+                OnDay day ->
+                    -- A day has no clock: the cell stays, so the columns line up.
+                    Html.span
+                        [ Internal.cls [ className ]
+                        , Attr.attribute "aria-hidden" "true"
+                        , Attr.title (Format.date config.locale day)
+                        ]
+                        []
 
         marker =
             Html.span

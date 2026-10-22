@@ -10,6 +10,7 @@ import Html.Lazy
 import Klar.Checkbox as Checkbox
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
+import Klar.Settings exposing (Settings)
 import Page.Gallery.DataDisplay.Avatars as Avatars
 import Page.Gallery.DataDisplay.Charts as Charts
 import Page.Gallery.DataDisplay.Json as Json
@@ -128,8 +129,8 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Settings -> Locale -> Model -> Html Msg
+view settings locale model =
     Doc.page
         { title = "Data display"
         , description = "Components that show data: trees, timelines, key figures, charts, avatars, progress, list items and a JSON viewer. Each of them has loading, failed and empty states where that makes sense. The built-in texts follow the language switch in the top bar."
@@ -143,7 +144,7 @@ view locale model =
                 ]
             ]
         , Html.map TreesMsg (Trees.view locale model.trees)
-        , Html.map TimelinesMsg (Timelines.view locale model.timelines)
+        , Html.map TimelinesMsg (Timelines.view settings locale model.timelines)
         , Html.map StatsMsg (Stats.view locale model.stats)
 
         -- Sections that only depend on the language and on a few flags are not

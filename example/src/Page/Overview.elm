@@ -21,6 +21,7 @@ import Klar.ListItem as ListItem
 import Klar.Locale as Locale
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Stat as Stat
 import Klar.Theme exposing (Tone(..))
@@ -123,12 +124,14 @@ viewSummary context summary =
                 [ Stat.label "Open orders"
                 , Stat.icon Icon.clipboard
                 , Stat.locale context.locale
+                , Stat.settings context.settings
                 , Stat.remote summary (\s -> [ Stat.int s.open, Stat.caption ("of " ++ Format.int context.locale s.orders ++ " orders") ])
                 ]
             , Stat.view
                 [ Stat.label "Overdue"
                 , Stat.icon Icon.warning
                 , Stat.locale context.locale
+                , Stat.settings context.settings
                 , Stat.remote summary
                     (\s ->
                         [ Stat.int s.overdue
@@ -147,12 +150,14 @@ viewSummary context summary =
                 [ Stat.label "Revenue, last 30 days"
                 , Stat.icon Icon.trendUp
                 , Stat.locale context.locale
+                , Stat.settings context.settings
                 , Stat.remote summary (\s -> [ Stat.compact s.revenue, Stat.unit "USD", Stat.caption "orders that are not cancelled" ])
                 ]
             , Stat.view
                 [ Stat.label "On-time delivery"
                 , Stat.icon Icon.clock
                 , Stat.locale context.locale
+                , Stat.settings context.settings
                 , Stat.remote summary (\s -> [ Stat.value (Format.percent context.locale 1 s.onTimeRate), Stat.caption "delivered on or before the due date" ])
                 ]
             ]
@@ -206,6 +211,7 @@ perDayChart context summary =
         , Chart.maxLabels 6
         , Chart.includeZero True
         , Chart.locale context.locale
+        , Chart.settings context.settings
         ]
         [ Chart.series "Orders" (List.map (Tuple.second >> toFloat) summary.perDay) ]
 
@@ -222,6 +228,7 @@ statusChart context summary =
         , Chart.centerLabel (Format.int context.locale summary.orders)
         , Chart.centerCaption "orders"
         , Chart.locale context.locale
+        , Chart.settings context.settings
         ]
         (List.map
             (\( status, n ) ->
@@ -240,6 +247,7 @@ countryChart context summary =
         , Chart.horizontal
         , Chart.valueLabels
         , Chart.locale context.locale
+        , Chart.settings context.settings
         , Chart.valueFormat (\amount -> Format.currency context.locale "$" 0 amount)
         ]
         [ Chart.series "Revenue" (List.map Tuple.second summary.revenueByCountry) ]
@@ -253,6 +261,7 @@ onTimeGauge context summary =
         , Chart.thresholds [ ( 80, Danger ), ( 90, Warning ), ( 100, Success ) ]
         , Chart.unit "%"
         , Chart.locale context.locale
+        , Chart.settings context.settings
         ]
         (summary.onTimeRate * 100)
 
@@ -278,6 +287,7 @@ activity context summary =
         -- The dummy backend pretends it is this moment, so "Today" and
         -- "Yesterday" mean the same as in its data.
         , Timeline.now Generate.now
+        , Timeline.settings context.settings
         , Timeline.compact
         , Timeline.ariaLabel "Recent activity"
         , Timeline.locale context.locale

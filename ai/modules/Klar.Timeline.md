@@ -15,6 +15,7 @@ view : List (Attribute msg) -> List (Event msg) -> Html msg
 -- Events
 type Event msg  -- opaque: no constructors are exposed
 event : String -> Time.Posix -> String -> Event msg
+dayEvent : String -> Date.Date -> String -> Event msg
 withDescription : String -> Event msg -> Event msg
 withTone : Theme.Tone -> Event msg -> Event msg
 withIcon : Icon.Icon -> Event msg -> Event msg
@@ -24,7 +25,7 @@ withDetails : Html msg -> Event msg -> Event msg
 
 -- Look and time
 type Attribute msg  -- opaque: no constructors are exposed
-zone : Time.Zone -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 now : Time.Posix -> Attribute msg
 compact : Attribute msg
 ungrouped : Attribute msg
@@ -56,12 +57,13 @@ Use when: a history of events is shown newest first, grouped by day, such as an 
 Do not use when: the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`.
 
     import Klar.Icon as Icon
+    import Klar.Settings as Settings
     import Klar.Text as Text
     import Klar.Theme exposing (Tone(..))
     import Klar.Timeline as Timeline
 
     Timeline.view
-        [ Timeline.zone model.zone
+        [ Timeline.settings model.settings
         , Timeline.now model.now
         , Timeline.onLoadMore LoadMore
         , Timeline.loadingMore model.loadingMore
@@ -75,15 +77,17 @@ Do not use when: the events are rules and decisions of an approval process, use 
             |> Timeline.withDescription "Parcel handed to the carrier at warehouse B."
         ]
 
-Here `model.zone` is a `Time.Zone`, `model.now` and the times of the events
-(`shippedAt`, `delayedAt`) are `Time.Posix` values.
+Here `model.settings` is the `Klar.Settings` of the application, and `model.now`,
+`shippedAt` and `delayedAt` are `Time.Posix` values. The clock times and the day an
+event belongs to are those of the zone in the settings (UTC, with "UTC" after the
+time, until the application has given it).
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
 share a heading, so give them sorted by time. The headings are `h3` elements.
-Times and days are shown in the `zone` you give the timeline, which is UTC unless
-you set it. Give the timeline `now` and the headings say "Today" and
-"Yesterday". A thin gray line connects the markers of a day; a marker is an icon
+Something that happened on a day, with no time of day (a delivery date, a
+deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
+timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
 in the tone of the event, or a dot. The marker is decoration only (hidden from
 screen readers), so the title of an event must say what its color means.
 
@@ -107,10 +111,10 @@ view : List (Attribute msg) -> List (Event msg) -> Html msg
 ```
 
 The timeline. Events are shown in the order given; events that follow each
-other on the same day (in the `zone` of the timeline) share a day heading, so
+other on the same day (in the zone of the settings) share a day heading, so
 sort them by time first.
 
-    Timeline.view [ Timeline.zone model.zone ] (List.map toEvent model.history)
+    Timeline.view [ Timeline.settings model.settings ] (List.map toEvent model.history)
 
 ## Events
 
@@ -138,6 +142,19 @@ between renders (use the id from your database, not the position in the list).
 It keeps the DOM stable when the list changes, for example when a page of older
 events is added. The title is the headline of the event: a few words, in
 sentence case.
+
+### `dayEvent`
+
+```elm
+dayEvent : String -> Date.Date -> String -> Event msg
+```
+
+An event that happened on a day, with no time of day: a delivery date, a
+deadline, an invoice date. It sits under the heading of its day and no time is
+written next to it (there is no "00:00"). Give the events sorted, and put the
+day events of a day together with the timed events of that day.
+
+    Timeline.dayEvent "ev-77" invoiceDate "Invoice dated"
 
 ### `withDescription`
 
@@ -212,15 +229,17 @@ type Attribute msg  -- opaque: no constructors are exposed
 A setting of a timeline. Make them with the functions below and pass a list
 to `view`; later attributes win over earlier ones.
 
-### `zone`
+### `settings`
 
 ```elm
-zone : Time.Zone -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 ```
 
-The time zone that decides the clock times and which day an event belongs
-to. The default is UTC, so you will usually want the user's own zone: get it with
-`Time.here` when the application starts and keep it in your model.
+The settings of the application (`Klar.Settings`): the time zone of the clock
+times and of the day an event belongs to, and of "Old data from 14:05". Without it
+the times are written in UTC and end in "UTC".
+
+    Timeline.settings model.settings
 
 ### `now`
 
@@ -376,7 +395,7 @@ themselves are passed to `view` as usual. `NotAsked` and `Loading` show the
 skeleton, `Failed` shows the problem and `Loaded` shows the events. Data that is
 `Kept` stays on the screen: dimmed and busy while it is refreshed, and with
 "Old data from 14:05" and a retry (`onRetry`) when the last refresh failed. The
-time is shown in the `zone` of the timeline.
+time is in the zone of the settings.
 
     Timeline.view [ Timeline.remote model.history ]
         (List.map toEvent (Remote.withDefault [] model.history))

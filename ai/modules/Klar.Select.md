@@ -43,7 +43,6 @@ options : List (Option id) -> Attribute id msg
 remote : Remote.Remote (List (Option id)) -> Attribute id msg
 serverSearch : Attribute id msg
 onRetry : msg -> Attribute id msg
-zone : Time.Zone -> Attribute id msg
 
 -- Field
 label : String -> Attribute id msg
@@ -65,6 +64,7 @@ readOnly : Bool -> Attribute id msg
 size : Theme.Size -> Attribute id msg
 visibleRows : Int -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
 ## Documentation
@@ -492,14 +492,6 @@ access, not found ...) nothing is retried, and Enter does nothing.
 
     Select.onRetry ReloadCountries
 
-### `zone`
-
-```elm
-zone : Time.Zone -> Attribute id msg
-```
-
-The time zone of the time in "Old data from 14:05". The default is UTC.
-
 ## Field
 
 The label, hint and error around the select work the same in every Klar form
@@ -680,3 +672,14 @@ readers. The default is `Locale.default`, which is English. See
 [Klar.Locale](Klar.Locale.md).
 
     Select.locale Locale.nb
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute id msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Select.settings model.settings

@@ -78,6 +78,7 @@ rowLabel : (row -> String) -> Attribute id row msg
 server : { total : Int } -> Attribute id row msg
 label : String -> Attribute id row msg
 locale : Locale.Locale -> Attribute id row msg
+settings : Settings.Settings -> Attribute id row msg
 
 -- Search, filters and sorting
 searchable : Attribute id row msg
@@ -98,7 +99,6 @@ rowTone : (row -> Maybe Theme.Tone) -> Attribute id row msg
 rowDisabled : (row -> Bool) -> Attribute id row msg
 
 -- Loading and empty states
-zone : Time.Zone -> Attribute id row msg
 onRefresh : msg -> Attribute id row msg
 onRetry : msg -> Attribute id row msg
 emptyState : List (EmptyState.Attribute msg) -> Attribute id row msg
@@ -1006,6 +1006,8 @@ density : State id -> Theme.Density
 
 The row density: `Compact`, `Normal` (the default) or `Comfortable`, from
 [Klar.Theme](Klar.Theme.md). The user changes it with the buttons of `densityToggle`.
+A table whose density was not set (or is `Normal`) follows the density of the
+application (`Klar.Settings`); a `Compact` or `Comfortable` table keeps its own.
 
 ### `setDensity`
 
@@ -1114,6 +1116,17 @@ The language of the built-in text, and the conventions that go with it:
 number and date formats, the alphabetical order of text columns and the default
 CSV separator. The default is `Locale.default`, which is English; see
 [Klar.Locale](Klar.Locale.md).
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute id row msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Table.settings model.settings
 
 ## Search, filters and sorting
 
@@ -1294,14 +1307,6 @@ and controls you draw yourself (`actions`, `cell`, `custom`) are yours to
 disable.
 
 ## Loading and empty states
-
-### `zone`
-
-```elm
-zone : Time.Zone -> Attribute id row msg
-```
-
-The time zone of the time in "Old data from 14:05". The default is UTC.
 
 ### `onRefresh`
 

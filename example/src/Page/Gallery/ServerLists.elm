@@ -29,6 +29,7 @@ import Klar.Rule as Rule
 import Klar.SavedViews as SavedViews
 import Klar.SegmentedControl as SegmentedControl
 import Klar.ServerList as ServerList
+import Klar.Settings as Settings
 import Klar.Switch as Switch
 import Klar.Table as Table
 import Klar.Text as Text
@@ -434,7 +435,7 @@ inbox locale model =
             , Table.rowId Table.stringIds .id
             , Table.label "Orders"
             , Table.locale locale
-            , Table.zone model.zone
+            , Table.settings (Settings.withZone model.zone Settings.default)
             , Table.searchable
             , Table.selectable
             , Table.bulkActions [ Button.view [ Button.small, Button.icon Icon.download, Button.onClick ExportAll ] "Export all selected ..." ]
@@ -474,7 +475,7 @@ supplier locale model =
                 , RemoteView.onRetry SupplierRetry
                 , RemoteView.loadingLabel "Loading supplier"
                 , RemoteView.locale locale
-                , RemoteView.zone model.zone
+                , RemoteView.settings (Settings.withZone model.zone Settings.default)
                 ]
                 model.supplier
                 (\name -> [ Text.paragraph name ])

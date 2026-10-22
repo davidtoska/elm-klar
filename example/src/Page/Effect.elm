@@ -23,6 +23,7 @@ import Html exposing (Html)
 import Klar.Date exposing (Date)
 import Klar.Locale exposing (Locale)
 import Klar.Overlay exposing (Overlay)
+import Klar.Settings exposing (Settings)
 import Klar.Theme exposing (Tone)
 import Route exposing (Route)
 
@@ -30,6 +31,7 @@ import Route exposing (Route)
 type alias Context =
     { locale : Locale
     , today : Date
+    , settings : Settings
     }
 
 

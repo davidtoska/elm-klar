@@ -35,7 +35,8 @@
   --_cell-px: var(--klar-space-3);
 }
 
-.klar-permissions--compact {
+.klar-permissions--compact,
+:where([data-klar-density="compact"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_font: var(--klar-text-sm);
@@ -43,7 +44,8 @@
   --_col-w: 108px;
 }
 
-.klar-permissions--comfortable {
+.klar-permissions--comfortable,
+:where([data-klar-density="comfortable"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_cell-px: var(--klar-space-4);
 }

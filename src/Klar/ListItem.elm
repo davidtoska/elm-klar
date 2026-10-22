@@ -3,7 +3,7 @@ module Klar.ListItem exposing
     , secondary, meta, icon, avatar, leading, trailing, accent
     , onClick, href, selected, disabled, id, label
     , list, ListAttribute, listLabel, undivided, compact, bordered, maxHeight
-    , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, zone
+    , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, settings
     )
 
 {-| A dense list row, and the list that holds the rows.
@@ -72,7 +72,7 @@ goes into it is `content`, the row without the `li` and without anything to clic
 
 # Data from a backend
 
-@docs remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, zone
+@docs remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, settings
 
 -}
 
@@ -88,9 +88,9 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Tone)
-import Time
 
 
 
@@ -488,7 +488,7 @@ type alias ListConfig msg =
     , emptyIcon : Icon
     , skeletonRows : Int
     , locale : Locale
-    , zone : Time.Zone
+    , settings : Settings
     }
 
 
@@ -506,7 +506,7 @@ configureList attributes =
         , emptyIcon = Icon.inbox
         , skeletonRows = 4
         , locale = Locale.default
-        , zone = Time.utc
+        , settings = Settings.default
         }
         attributes
 
@@ -518,7 +518,8 @@ undivided =
     ListAttribute (\config -> { config | divided = False })
 
 
-{-| Tighter rows: less padding and a smaller box around the `icon`.
+{-| Tighter rows: less padding and a smaller box around the `icon`. Lists follow a
+compact density of the application (`Klar.Settings`) without it.
 -}
 compact : ListAttribute msg
 compact =
@@ -592,6 +593,17 @@ skeletonRows n =
     ListAttribute (\config -> { config | skeletonRows = clamp 1 20 n })
 
 
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    ListItem.settings model.settings
+
+-}
+settings : Settings -> ListAttribute msg
+settings given =
+    ListAttribute (\config -> { config | settings = given })
+
+
 {-| The language of the built-in text of `remote`: the default title of the empty
 state ("Nothing to show" in English) and the "Try again" button. The default is
 `Locale.default`, which is English.
@@ -599,13 +611,6 @@ state ("Nothing to show" in English) and the "Try again" button. The default is
 locale : Locale -> ListAttribute msg
 locale value =
     ListAttribute (\config -> { config | locale = value })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> ListAttribute msg
-zone value =
-    ListAttribute (\config -> { config | zone = value })
 
 
 {-| The container of the rows: a `ul` with the role `list`. Its children are rows
@@ -705,7 +710,7 @@ remote attributes toRow data =
                             , Freshness.busyAttr freshness
                             ]
                             [ Freshness.notice
-                                { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                                 freshness
                             , list attributes (List.map toRow items)
                             ]
