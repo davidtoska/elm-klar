@@ -765,6 +765,7 @@ table {
 
 .klar-fill { width: 100%; }
 .klar-grow { flex: 1 1 0; min-width: 0; }
+.klar-fixed-w { flex: 0 0 var(--klar-fixed-w); width: var(--klar-fixed-w); max-width: 100%; min-width: 0; }
 .klar-fill-rest { flex: 1 1 auto; min-height: 0; }
 .klar-padded { padding: var(--klar-pad, 0); }
 .klar-spacer { flex: 1 1 auto; }
@@ -11193,6 +11194,7 @@ html:has(.klar-modal-lock) {
 }
 
 .klar-splitter--stacked { flex-direction: column; }
+.klar-splitter--fill-rest { height: auto; }
 
 /* A pane shares the room that is left by its size (--klar-grow is a number: the
    panes' numbers add up to 100). It starts at nothing and grows, so the share is

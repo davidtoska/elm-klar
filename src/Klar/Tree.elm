@@ -7,7 +7,7 @@ module Klar.Tree exposing
     , selected, selectedId, select, setSelected, checked, setChecked, clearChecked
     , focused, focusNode, query, setQuery
     , loadRequests, onLoadChildren, onRetry, onReload
-    , Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
     )
 
 {-| A tree view for hierarchies: regions and warehouses, folders, product
@@ -63,7 +63,9 @@ into the tree and `Escape` clears the filter. With the mouse, a click selects, t
 arrow in front of a node opens and closes it, and a double click activates (or,
 without `onActivate`, opens or closes the node).
 
-Selection: single by default; `multiSelect` allows `Ctrl`+click to add and
+Selection: single by default (a tree that filters something else adds
+`allowEmptySelection`, so that a click on the selected node clears it); `multiSelect`
+allows `Ctrl`+click to add and
 `Shift`+click for a range. With `checkboxes` every node has a tri-state
 checkbox, and a click on a row toggles it: checking a parent checks everything
 below it, and a parent with some children checked shows a dash. `checked`
@@ -153,7 +155,7 @@ selected and checked nodes come back in your own type:
 
 # Attributes
 
-@docs Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
 
 -}
 
@@ -691,6 +693,7 @@ setQuery text (State s) =
 
 type ClickMode
     = Replace
+    | ReplaceOrClear
     | Toggle
     | Range
 
@@ -972,6 +975,13 @@ applyClick id mode visible s =
         Replace ->
             { s | selected = Set.singleton id, anchor = Just id, focused = Just id }
 
+        ReplaceOrClear ->
+            if s.selected == Set.singleton id then
+                { s | selected = Set.empty, anchor = Just id, focused = Just id }
+
+            else
+                { s | selected = Set.singleton id, anchor = Just id, focused = Just id }
+
         Toggle ->
             { s
                 | selected =
@@ -1049,6 +1059,7 @@ type Attribute id msg
 type alias Config id msg =
     { label : Maybe String
     , multiSelect : Bool
+    , allowEmptySelection : Bool
     , checkboxes : Bool
     , filterBox : Bool
     , filterPlaceholder : Maybe String
@@ -1069,6 +1080,7 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { label = Nothing
         , multiSelect = False
+        , allowEmptySelection = False
         , checkboxes = False
         , filterBox = False
         , filterPlaceholder = Nothing
@@ -1102,6 +1114,21 @@ Read the result with `selected`. It does not change how clicks work in a tree wi
 multiSelect : Attribute id msg
 multiSelect =
     Attribute (\config -> { config | multiSelect = True })
+
+
+{-| A click on the selected node (or `Space`, or `Enter` without `onActivate`) selects
+nothing, so the selection can go back to "no node", the normal state of a tree that
+filters something else ("all locations"). Without it a selected node stays selected
+until another is chosen (or `setSelected` clears it). In a `multiSelect` tree a plain
+click on the only selected node clears it too; `Ctrl`+click toggles as before. The
+node loses `aria-selected="true"` and its highlight, and keeps the focus.
+
+    Tree.view TreeMsg [ Tree.allowEmptySelection, Tree.ariaLabel "Locations" ] nodes state
+
+-}
+allowEmptySelection : Attribute id msg
+allowEmptySelection =
+    Attribute (\config -> { config | allowEmptySelection = True })
 
 
 {-| A tri-state checkbox on every node. Checking a parent checks all the leaves
@@ -1878,6 +1905,13 @@ viewNode env depth parent index total ((Node n) as node) =
             else
                 Click n.id mode env.selectableIds
 
+        plainClick =
+            if config.allowEmptySelection then
+                ReplaceOrClear
+
+            else
+                Replace
+
         clickDecoder =
             Decode.map3
                 (\ctrl meta shift ->
@@ -1885,7 +1919,7 @@ viewNode env depth parent index total ((Node n) as node) =
                         env.toMsg (ToggleCheck terminals (not allChecked) n.id)
 
                     else if not config.multiSelect then
-                        env.toMsg (selectMsg Replace)
+                        env.toMsg (selectMsg plainClick)
 
                     else if shift then
                         env.toMsg (selectMsg Range)
@@ -1894,7 +1928,7 @@ viewNode env depth parent index total ((Node n) as node) =
                         env.toMsg (selectMsg Toggle)
 
                     else
-                        env.toMsg (selectMsg Replace)
+                        env.toMsg (selectMsg plainClick)
                 )
                 (Decode.field "ctrlKey" Decode.bool)
                 (Decode.field "metaKey" Decode.bool)
@@ -2320,6 +2354,13 @@ keyBindings env nodeId =
                 _ ->
                     Nothing
 
+        plainSelect =
+            if env.config.allowEmptySelection then
+                ReplaceOrClear
+
+            else
+                Replace
+
         selectKey mode =
             if env.config.checkboxes then
                 held (ToggleCheck (checkTargets env nodeId) (not (allCheckedFor env nodeId)) nodeId)
@@ -2346,10 +2387,10 @@ keyBindings env nodeId =
                             env.toMsg Noop
 
                     else
-                        selectKey Replace
+                        selectKey plainSelect
 
                 ( Nothing, Nothing ) ->
-                    selectKey Replace
+                    selectKey plainSelect
     in
     List.filterMap identity
         [ Just ( "ArrowDown", env.toMsg (Step 1 env.visibleIds) )
@@ -2395,7 +2436,7 @@ keyBindings env nodeId =
                     Toggle
 
                  else
-                    Replace
+                    plainSelect
                 )
             )
         , if env.config.multiSelect && not env.config.checkboxes then

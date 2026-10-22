@@ -1,6 +1,6 @@
 module Klar.Layout exposing
     ( stack, row, grid, container
-    , Attribute, gap, padding, fill, grow, fillRest, maxWidth, maxHeight
+    , Attribute, gap, padding, fill, grow, width, fillRest, maxWidth, maxHeight
     , alignStart, alignCenter, alignEnd, alignStretch, alignBaseline, justifyCenter, justifyEnd, justifyBetween, wrap
     , columns, minColumn
     , spacer, divider, dividerLabelled
@@ -41,7 +41,7 @@ numbers are rounded down to the step below (7 becomes 6, 9 becomes 8, 11 becomes
 
 # Spacing and size
 
-@docs Attribute, gap, padding, fill, grow, fillRest, maxWidth, maxHeight
+@docs Attribute, gap, padding, fill, grow, width, fillRest, maxWidth, maxHeight
 
 
 # Alignment
@@ -80,6 +80,7 @@ type alias Config =
     , padding : Int
     , fill : Bool
     , grow : Bool
+    , width : Maybe Int
     , fillRest : Bool
     , columns : Maybe Int
     , minColumn : Maybe Int
@@ -97,6 +98,7 @@ defaults =
     , padding = 0
     , fill = False
     , grow = False
+    , width = Nothing
     , fillRest = False
     , columns = Nothing
     , minColumn = Nothing
@@ -224,6 +226,22 @@ to a fixed sidebar.
 grow : Attribute msg
 grow =
     Attribute (\config -> { config | grow = True })
+
+
+{-| Gives the element a fixed width in pixels, and lets it keep that width in a `row`
+(it does not grow or shrink), so that the part next to it can `grow`: a tree, a filter
+panel or a list beside the main area. On a screen narrower than the width it shrinks
+to the width of its parent. At least 16 pixels.
+
+    Layout.row [ Layout.gap 4, Layout.alignStart ]
+        [ Layout.stack [ Layout.width 240 ] [ locationTree ]
+        , Layout.stack [ Layout.grow ] [ table ]
+        ]
+
+-}
+width : Int -> Attribute msg
+width px =
+    Attribute (\config -> { config | width = Just (max 16 px) })
 
 
 {-| Makes a `stack` as tall as the room that is left in its parent, and hands
@@ -426,6 +444,7 @@ commonAttributes block extra config =
                         Nothing
                     , config.maxWidth |> Maybe.map (\w -> ( "--klar-max-w", String.fromInt w ++ "px" ))
                     , config.maxHeight |> Maybe.map (\h -> ( "--klar-max-h", String.fromInt h ++ "px" ))
+                    , config.width |> Maybe.map (\w -> ( "--klar-fixed-w", String.fromInt w ++ "px" ))
                     ]
     in
     [ Internal.cls
@@ -452,6 +471,11 @@ commonAttributes block extra config =
             ""
         , if config.grow then
             "klar-grow"
+
+          else
+            ""
+        , if config.width /= Nothing then
+            "klar-fixed-w"
 
           else
             ""

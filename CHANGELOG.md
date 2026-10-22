@@ -246,3 +246,13 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   was the smallest bridge: no JSON payload, no second state; the page is not kept. Views built
   without `currentQuery` hold only the rule, as before. The `SavedView` record has two new fields
   (`isShared`, `query`); build it with `savedView`.
+- `Tree.allowEmptySelection` (R2S-008): a click on the selected node, `Space`, or `Enter`
+  (without `onActivate`) selects nothing, for a tree that filters something else ("all
+  locations"). Chosen over a documented `setSelected []` recipe because the keyboard and
+  `aria-selected` then follow the same rule as the mouse, and over "always deselectable"
+  because a navigation tree must not lose its current page. Off by default.
+- `Layout.width px` (R2S-003): a fixed-width column next to a `grow` one in a `row` (a tree, a
+  filter panel beside a table); it keeps its width and shrinks to its parent on a narrow
+  screen. `Layout.fillRest` was already there (A8). `Splitter.fillRest`: the splitter is as
+  high as the room that is left in its parent, so it needs no pixel height inside a
+  `Layout.stack [ Layout.fillRest ]`.

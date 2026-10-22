@@ -111,6 +111,7 @@ css =
  .klar-scroll:focus-visible{outline-offset: -2px}
  .klar-fill{width: 100%}
  .klar-grow{flex: 1 1 0;min-width: 0}
+ .klar-fixed-w{flex: 0 0 var(--klar-fixed-w);width: var(--klar-fixed-w);max-width: 100%;min-width: 0}
  .klar-fill-rest{flex: 1 1 auto;min-height: 0}
  .klar-padded{padding: var(--klar-pad,0)}
  .klar-spacer{flex: 1 1 auto}
@@ -1858,6 +1859,7 @@ css =
  @media (forced-colors: active){.klar-sortable__item--drop-before::before,.klar-sortable__item--drop-after::after{forced-color-adjust: none;background: Highlight}.klar-sortable__item--lifted{outline: 2px solid Highlight;outline-offset: -2px}}
  .klar-splitter{--klar-split-gutter: 8px;position: relative;display: flex;flex-direction: row;width: 100%;height: var(--klar-split-h,100%);min-width: 0;min-height: 0}
  .klar-splitter--stacked{flex-direction: column}
+ .klar-splitter--fill-rest{height: auto}
  .klar-splitter__pane{position: relative;flex: var(--klar-grow,1) 1 0px;min-width: var(--klar-min,0px);max-width: var(--klar-max,none);min-height: 0;overflow: auto}
  .klar-splitter--stacked > .klar-splitter__pane{min-width: 0;max-width: none;min-height: var(--klar-min,0px);max-height: var(--klar-max,none)}
  .klar-splitter__pane--folded{min-width: 0;min-height: 0;overflow: hidden;visibility: hidden}
