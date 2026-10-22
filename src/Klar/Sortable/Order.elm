@@ -8,6 +8,7 @@ module Klar.Sortable.Order exposing
     , indexOf
     , indicator
     , move
+    , place
     )
 
 {-| The pure part of `Klar.Sortable`: moving one element of a list, the limits that
@@ -21,6 +22,8 @@ when the move is done (the list without it, with it put back at that index). A
 element) to the length of the list (after the last one).
 
 -}
+
+import Set
 
 
 {-| A box on the page, in page coordinates (what `Browser.Dom.getElement` gives).
@@ -66,6 +69,116 @@ move from to list =
 
             [] ->
                 list
+
+
+{-| Puts the element with the key `source` of a list where a drop put it among the
+elements that were drawn, which need not be all the elements of the list (a filter
+may hide some, others may have come or gone since). `drawn` is the keys of the drawn
+elements as they are after the drop and `index` is the place of `source` in them.
+
+The element goes right behind the nearest of the drawn elements above its new place
+that is still in the list, and when there is none, right in front of the nearest one
+below it. Elements that were not drawn stay where they are in relation to each
+other. When no other drawn element is left in the list, `index` is used as an index
+of the list itself, kept inside it. The first element with the key is the one that
+moves; a key that is not in the list changes nothing.
+
+    place identity "a" 2 [ "c", "e", "a" ] [ "a", "b", "c", "d", "e" ]
+        --> [ "b", "c", "d", "e", "a" ]
+
+When the drawn elements are all the elements, this is `move`.
+
+-}
+place : (a -> String) -> String -> Int -> List String -> List a -> List a
+place toKey source index drawn list =
+    let
+        keys =
+            List.map toKey list
+    in
+    case indexOf source keys of
+        Nothing ->
+            list
+
+        Just at ->
+            case List.drop at list of
+                moved :: after ->
+                    let
+                        rest =
+                            List.take at list ++ after
+
+                        restKeys =
+                            List.map toKey rest
+
+                        present =
+                            Set.fromList restKeys
+
+                        total =
+                            List.length drawn
+
+                        keyAt i =
+                            if i < 0 || i >= total then
+                                Nothing
+
+                            else
+                                List.head (List.drop i drawn)
+                                    |> Maybe.andThen
+                                        (\key ->
+                                            if Set.member key present then
+                                                Just key
+
+                                            else
+                                                Nothing
+                                        )
+
+                        -- the nearest surviving neighbour above, else the nearest below
+                        above =
+                            surviving (\away -> keyAt (index - away)) 1 total
+
+                        below =
+                            surviving (\away -> keyAt (index + away)) 1 total
+
+                        insertAt position =
+                            List.take position rest ++ moved :: List.drop position rest
+                    in
+                    case ( above, below ) of
+                        ( Just key, _ ) ->
+                            case indexOf key restKeys of
+                                Just found ->
+                                    insertAt (found + 1)
+
+                                Nothing ->
+                                    list
+
+                        ( Nothing, Just key ) ->
+                            case indexOf key restKeys of
+                                Just found ->
+                                    insertAt found
+
+                                Nothing ->
+                                    list
+
+                        ( Nothing, Nothing ) ->
+                            move at index list
+
+                [] ->
+                    list
+
+
+{-| The first key that a search outward from a place finds, trying each distance from
+1 to `limit`.
+-}
+surviving : (Int -> Maybe String) -> Int -> Int -> Maybe String
+surviving keyAt away limit =
+    if away > limit then
+        Nothing
+
+    else
+        case keyAt away of
+            Just key ->
+                Just key
+
+            Nothing ->
+                surviving keyAt (away + 1) limit
 
 
 {-| The lowest and the highest index the element at `index` can have when the

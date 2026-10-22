@@ -46,6 +46,16 @@ own (`StepId`), written as text once with `itemIds`, so no `String` ids leak int
 your code. Draw the items with whatever `Html` you like: the component wraps each in
 a list item with a handle.
 
+Dragging is not for everybody, and the guidelines for accessibility ask for another way
+than a movement with the pointer (WCAG 2.5.7). The keyboard is one. For a person who
+uses a pointer and cannot drag, give each item "Move up" and "Move down" buttons that
+use `move`, which moves an item the same way and keeps it inside the list:
+
+    MoveUp index ->
+        ( { model | steps = Sortable.move { from = index, to = index - 1 } model.steps }
+        , Cmd.none
+        )
+
 Use it for a short list whose order matters: the steps of a pick sequence, the
 filters of a saved view, a chip list. For a table whose columns can be moved, use
 [Klar.Table](Klar-Table); for a tree, [Klar.Tree](Klar-Tree). An item that is
@@ -69,7 +79,7 @@ subscription: while the mouse drags, a transparent layer over the window receive
 the events (and gives the window one cursor and no text selection), and a mouse that
 is let go outside the window cancels the drag when it comes back. With `wholeItem` the
 mouse can also take hold of the item anywhere except on buttons, links and fields; a
-finger always uses the handle, so the rest of the item still scrolls the page.
+finger or a pen always uses the handle, so the rest of the item still scrolls the page.
 
 Screen readers: the handle is named after the item (the label you give to `item`),
 described as "sortable item" and told how to use it. A live region owned by the
@@ -83,8 +93,10 @@ picked it up, and where it would land. Nothing else; the order is yours.
 Limits: lists are drawn in full (there is no windowing), so keep them to a few
 hundred items. A drag with the pointer does not scroll the page or a box around the
 list; the keyboard path scrolls the window, not a scrolling box. Right-to-left
-languages are not mirrored yet. If your list changes while an item is held, the drop
-is cancelled instead of moving the item to a place that no longer means the same.
+languages are not mirrored yet. If the list that is drawn changes while an item is
+held, the drop is cancelled instead of moving the item to a place that no longer
+means the same; an item that is taken out of the list while it is held is let go
+(the next time a handle gets the focus or is pressed, the state forgets it).
 
 
 # View
@@ -363,20 +375,20 @@ texts loc =
         \isHorizontal ->
             if isHorizontal then
                 pick
-                    "Trykk mellomrom eller Enter for å løfte elementet. Bruk deretter piltastene venstre og høyre for å flytte det, Home og End for å hoppe til endene, mellomrom eller Enter for å slippe det og Escape for å avbryte."
-                    "Press Space or Enter to pick up this item. Then use the Left and Right arrow keys to move it, Home and End to jump to the ends, Space or Enter to drop it, and Escape to cancel."
+                    "Trykk mellomrom eller Enter for å løfte. Bruk deretter piltastene venstre og høyre for å flytte, mellomrom eller Enter for å slippe, Escape for å avbryte."
+                    "Press Space or Enter to pick up. Then use the Left and Right arrow keys to move, Space or Enter to drop, Escape to cancel."
 
             else
                 pick
-                    "Trykk mellomrom eller Enter for å løfte elementet. Bruk deretter piltastene opp og ned for å flytte det, Home og End for å hoppe til endene, mellomrom eller Enter for å slippe det og Escape for å avbryte."
-                    "Press Space or Enter to pick up this item. Then use the Up and Down arrow keys to move it, Home and End to jump to the ends, Space or Enter to drop it, and Escape to cancel."
+                    "Trykk mellomrom eller Enter for å løfte. Bruk deretter piltastene opp og ned for å flytte, mellomrom eller Enter for å slippe, Escape for å avbryte."
+                    "Press Space or Enter to pick up. Then use the Up and Down arrow keys to move, Space or Enter to drop, Escape to cancel."
     , fixed = pick "Fast plassering" "Fixed position"
     , empty = pick "Ingen elementer" "No items"
     , itemFallback = pick "Elementet" "The item"
-    , pickedUp = \label position total -> label ++ pick " løftet, posisjon " " picked up, position " ++ place position total ++ "."
+    , pickedUp = \label position total -> label ++ pick " er løftet, posisjon " " picked up, position " ++ place position total ++ "."
     , movedTo = \position total -> pick "Flyttet til posisjon " "Moved to position " ++ place position total ++ "."
     , atLimit = \position total -> pick "Posisjon " "Position " ++ place position total ++ pick ". Kan ikke flyttes lenger." ". It cannot move further."
-    , dropped = \label position total -> label ++ pick " sluppet på posisjon " " dropped at position " ++ place position total ++ "."
+    , dropped = \label position total -> label ++ pick " er sluppet på posisjon " " dropped at position " ++ place position total ++ "."
     , cancelled = \label position total -> pick "Avbrutt. " "Cancelled. " ++ label ++ pick " er tilbake på posisjon " " is back at position " ++ place position total ++ "."
     }
 
@@ -408,7 +420,9 @@ init domId =
 
 {-| The id of the item that is held (picked up with the keyboard, or dragged past
 the first few pixels), or `Nothing`. Use it to show that something is going on, or
-to hold back a refresh of the list.
+to hold back a refresh of the list. When the item has been taken out of your list
+meanwhile it is still named here until the state forgets it (see the limits above),
+though the page no longer shows it as held.
 -}
 lifted : Ids id -> State id -> Maybe id
 lifted (Ids ids) (State s) =
@@ -451,28 +465,36 @@ update (Msg msg) (State s) =
 
 
 {-| Puts your list in the order the user just chose. Give it the state before and
-the state after an `update`, and your list; it moves the dropped item to its new
-place and returns the list unchanged when nothing was dropped between the two
-states. It finds the item with the id function you give (`.id`), so it also works
-when your list is longer or shorter than the one that was drawn.
+the state after the same `update` call, and your list.
 
     Sortable.reorder steps .id model.sortable sortable model.steps
+
+When the user dropped an item in that `update`, the item moves to its new place and
+the rest of the list stays as it is; otherwise the list is returned unchanged. The
+two states must be those of one call: a drop is only applied when exactly one drop
+happened between them, so a state that you kept from an earlier `update`, or the
+same state twice, changes nothing and cannot move an item twice.
+
+The list does not have to be the list that was drawn. The item is found by the id
+function you give (`.id`; the first one when a list holds the same id twice). It is
+put right behind the item that is above its new place among the items that were
+drawn, or, at the top, right in front of the one below it. Items that were not
+drawn (a filter hides them) keep their places in relation to each other, and an
+item that has gone from your list in the meantime is skipped for the nearest one
+that is still there. So hiding some items with a filter, or adding and removing
+items while the user holds one, never puts the dropped item somewhere else than
+among its new neighbours.
 
 -}
 reorder : Ids id -> (a -> id) -> State id -> State id -> List a -> List a
 reorder (Ids ids) toId (State before) (State after) list =
-    if after.drops == before.drops then
+    if after.drops /= before.drops + 1 then
         list
 
     else
         case after.last of
-            Just drop_ ->
-                case Order.indexOf drop_.key (List.map (\element -> ids.toKey (toId element)) list) of
-                    Just index ->
-                        Order.move index drop_.to list
-
-                    Nothing ->
-                        list
+            Just landing ->
+                Order.place (\element -> ids.toKey (toId element)) landing.key landing.to landing.placed list
 
             Nothing ->
                 list
@@ -510,7 +532,7 @@ An empty list draws the `emptyText`. Reordering needs the same `Ids` in `reorder
 
 -}
 view : Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
-view ids toMsg attributes (State s) items =
+view ids toMsg attributes (State drawn) items =
     let
         send =
             toMsg << Msg
@@ -529,6 +551,21 @@ view ids toMsg attributes (State s) items =
 
         flags =
             List.map .fixed entries
+
+        -- An item that is held and was taken out of the list meanwhile is not held
+        -- any more as far as the page is concerned (no cursor, no lifted look); the
+        -- state forgets it the next time a handle gets the focus or is pressed.
+        s =
+            case drawn.session of
+                Just session ->
+                    if List.member session.source keys then
+                        drawn
+
+                    else
+                        { drawn | session = Nothing }
+
+                Nothing ->
+                    drawn
 
         layout key =
             { source = key, order = keys, fixed = flags, horizontal = config.horizontal }
@@ -644,6 +681,21 @@ viewEntry toMsg config t s keys layout marker index entry =
         movable =
             not entry.fixed && not config.disabled
 
+        -- The handle that has just been dropped or cancelled gets the focus back at
+        -- once, and the screen reader reads it out. The long instructions would cut
+        -- or double what the live region says, so this one handle goes without them
+        -- until something else happens.
+        justFinished =
+            case ( s.session, s.note ) of
+                ( Nothing, Just (Dropped key _ _) ) ->
+                    key == entry.key
+
+                ( Nothing, Just (Cancelled key _ _) ) ->
+                    key == entry.key
+
+                _ ->
+                    False
+
         handle =
             if entry.fixed then
                 Html.span
@@ -662,7 +714,7 @@ viewEntry toMsg config t s keys layout marker index entry =
                      , Attr.disabled config.disabled
                      , Attr.attribute "aria-label" entry.label
                      , Attr.attribute "aria-roledescription" t.roleDescription
-                     , Attr.attribute "aria-describedby" (Machine.helpDomId s.domId)
+                     , Internal.attrIf (not justFinished) (Attr.attribute "aria-describedby" (Machine.helpDomId s.domId))
                      , Attr.attribute "aria-pressed"
                         (if isHeld then
                             "true"
@@ -677,6 +729,7 @@ viewEntry toMsg config t s keys layout marker index entry =
                             else
                                 [ handleKeys toMsg config.horizontal keys layout mine
                                 , Events.on "blur" (Decode.succeed (toMsg (Machine.Blurred entry.key)))
+                                , Events.on "focus" (Decode.succeed (toMsg (Machine.Focused keys)))
                                 ]
                            )
                     )
@@ -963,7 +1016,7 @@ pointerDown whole toMsg layout =
                         ( toMsg (Machine.Press layout (deviceOf kind) page client), True )
                     )
                     (guard primaryButton)
-                    (guard (Decode.field "target" (reachesHandle (not whole || kind == "touch") 0)))
+                    (guard (Decode.field "target" (reachesHandle (not whole || kind /= "mouse") 0)))
                     (pointDecoder "pageX" "pageY")
                     (pointDecoder "clientX" "clientY")
             )
