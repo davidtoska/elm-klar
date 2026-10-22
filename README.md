@@ -29,9 +29,10 @@ Table.view TableMsg
   money and checksum-checked identifiers, a rule builder and filter bar, dialogs and
   drawers, toasts, a command palette, charts, trees, timelines, drag-to-reorder lists,
   resizable panes, diffs, a safe Markdown renderer and the frame of an application.
-* **Plain Elm, plain CSS.** The package depends on `elm/core`, `elm/html`,
-  `elm/browser`, `elm/json` and `elm/time`, and on nothing else. No ports,
-  no JavaScript, no `elm/svg`, no external fonts, no CDN.
+* **Plain Elm, plain CSS.** The package depends only on official `elm/*` packages:
+  `core`, `html`, `browser`, `json`, `time`, `url` and `file` (`file` only for
+  `Klar.FileDrop`). No ports, no JavaScript, no `elm/svg`, no `elm/http`, no external
+  fonts, no CDN.
 * **Zero setup.** The stylesheet is part of the package: put `Klar.stylesheet` in your
   view and you are done.
 * **Every state, always.** Components that show data from a backend take a `Remote`
@@ -135,7 +136,7 @@ every module has an example.
 
 | | Modules |
 | --- | --- |
-| **Foundations** | `Theme`, `Locale`, `Layout`, `Card`, `Text`, `Icon` |
+| **Foundations** | `Theme`, `Settings`, `Locale`, `Layout`, `Card`, `Text`, `Icon` |
 | **Icon library** | 500 icons in one style: `Icon` and `Icon.Library`, plus `Icon.Arrows`, `Icon.Business`, `Icon.Data`, `Icon.Documents`, `Icon.Logistics` and more (see [ICONS.md](ICONS.md)) |
 | **Actions** | `Button`, `Menu`, `ButtonGroup`, `ToggleGroup`, `SplitButton`, `Link`, `Kbd` |
 | **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
@@ -143,8 +144,8 @@ every module has an example.
 | **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
 | **Choosing** | `Select`, `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
-| **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree` |
-| **Overlays** | `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
+| **Tables and lists** | `Table`, `ServerList`, `Pagination`, `ListItem`, `Tree` |
+| **Overlays** | `Overlay`, `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
 | **Arranging** | `Sortable`, `Splitter` |
@@ -153,7 +154,7 @@ every module has an example.
 | **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
 | **Data display** | `Stat`, `Chart` (line, bar, donut, gauge, meter, sparkline), `Timeline`, `Avatar`, `JsonViewer` |
 | **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews` |
-| **Data and utilities** | `Remote`, `Search`, `Format`, `Shortcut` |
+| **Data and utilities** | `Remote`, `RemoteView`, `Search`, `Format`, `Shortcut` |
 
 All of them are under `Klar.`, for example `Klar.Table`. The API reference is on
 [package.elm-lang.org](https://package.elm-lang.org/packages/davidtoska/elm-klar/latest/).

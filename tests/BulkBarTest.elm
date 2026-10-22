@@ -415,12 +415,13 @@ offerTests =
 
 offerProperties : Test
 offerProperties =
+    -- With nothing selected the offer is drawn only in the reserved, hidden bar (see "with nothing selected").
     describe "the offer, for any numbers"
-        [ fuzz3 (Fuzz.intRange 0 400) (Fuzz.intRange -5 400) (Fuzz.intRange 0 60) "is there exactly when the page is selected and there is more to select" <|
+        [ fuzz3 (Fuzz.intRange 1 400) (Fuzz.intRange -5 400) (Fuzz.intRange 0 60) "is there exactly when the page is selected and there is more to select" <|
             \selected total onPage ->
                 let
                     shouldOffer =
-                        selected > 0 && onPage > 0 && selected >= onPage && total >= 1 && total > selected
+                        onPage > 0 && selected >= onPage && total >= 1 && total > selected
 
                     html =
                         bar [ everything total onPage ] selected
@@ -430,11 +431,11 @@ offerProperties =
 
                 else
                     H.none [ offerButton ] html
-        , fuzz3 (Fuzz.intRange 0 400) (Fuzz.intRange -5 400) (Fuzz.intRange 0 60) "the inactive button is there exactly when everything that matches is selected and it was more than a page" <|
+        , fuzz3 (Fuzz.intRange 1 400) (Fuzz.intRange -5 400) (Fuzz.intRange 0 60) "the inactive button is there exactly when everything that matches is selected and it was more than a page" <|
             \selected total onPage ->
                 let
                     taken =
-                        selected > 0 && onPage > 0 && selected >= onPage && total >= 1 && total == selected && total > onPage
+                        onPage > 0 && selected >= onPage && total >= 1 && total == selected && total > onPage
 
                     html =
                         bar [ everything total onPage ] selected

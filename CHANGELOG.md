@@ -28,10 +28,11 @@ The first release.
   RRULE in and out); `Klar.PermissionMatrix` and `Klar.ApprovalFlow`. No new package
   dependency was added for any of them.
 - Built-in text in English and Norwegian Bokmål (`Klar.Locale`).
-- `Klar.Form.Model` (a prototype, see `design/FORM-MODEL.md`): a form declared once, with
-  one state that owns every field's value, knows when it is dirty, loads and returns a
-  record, and ties problems from the server to fields. Text, number, one choice, several
-  choices and switches so far. `Select.mapOption` gives an option another kind of value.
+- `Klar.Form` (with `Klar.Form.Spec`, `Klar.Form.Layout` and `Klar.Form.Check`; see
+  `design/FORM-MODEL.md`): a form declared once, with one state that owns every field's
+  value, knows when it is dirty, loads and returns a record, and ties problems from the
+  server to fields. Text, long text, number, choices, switches, tags, files, steps and
+  repeating rows. `Select.mapOption` gives an option another kind of value.
 - Refreshing and old data (see `design/STALE-DATA.md`). `Remote` has a fifth state,
   `Kept`, made only by `Remote.refresh` (the request leaves: the data stays) and
   `Remote.refreshWith` (the answer, good or bad, with its time), so "refreshing, showing
