@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Accordion as Accordion
 import Klar.AppShell as AppShell
+import Klar.Locale as Locale
 import Klar.PageHeader as PageHeader
 import Klar.SideNav as SideNav
 import Klar.Stepper as Stepper
@@ -675,6 +676,18 @@ appShellTests =
                     |> Expect.all
                         [ Query.find wideToggle >> Query.has [ attr "aria-controls" "app-sidebar" ]
                         , Query.find [ Selector.id "app-sidebar" ] >> Query.has [ Selector.text "menu" ]
+                        ]
+        , test "the sidebar is an aside landmark with a name, in the language of the shell" <|
+            \_ ->
+                shell []
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.find [ Selector.tag "aside" ] >> Query.has [ attr "aria-label" "Sidebar" ]
+                        , \_ ->
+                            shell [ AppShell.locale Locale.nb ]
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.tag "aside" ]
+                                |> Query.has [ attr "aria-label" "Sidepanel" ]
                         ]
         , test "the menu button says that the drawer is closed" <|
             \_ ->

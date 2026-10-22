@@ -285,3 +285,20 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   `Overlay.host`; it has the id `klar-page-start` and `tabindex="-1"`), not to `body`. The next
   `Tab` starts in the content instead of at the top of the window. The palette had no fallback
   at all when it was opened without an opener.
+- `AppShell` wiring (R2S-010): the 45 lines every application wrote (`LinkClicked`, `UrlChanged`,
+  `ToggleDrawer`, `CloseDrawer`, `SkipToContent`, `SideNavMsg`, the drawer and collapsed flags,
+  `resetScroll`, `focusMenuButton`, `focusContent`) are one `AppShell.State page` and one
+  `AppShell.Msg`. `init { id, key }` and `setPage entries page` make and update the state;
+  `AppShell.state ShellMsg shell` is the one attribute that wires the toggles and the skip link,
+  `AppShell.sideNav` draws the side menu with the shell's state (the page is current, it follows
+  the collapsed flag, groups open on `setPage`), `onUrlRequest` and `onUrlChange` replace the two
+  `Browser.application` constructors, and `update` returns `( state, Cmd Msg, Maybe Url )`: the
+  `Url` is the single place where the application learns of a route change (the drawer is already
+  closed, the content already scrolled to the top, and focus already on the content if the
+  page was chosen in the drawer). `toggleSidebar` is for a `[` shortcut and `goToContent` for a
+  command that replaced the page. A click that must be held back (a `LeaveGuard`) uses an own
+  `onUrlRequest` message and `Nav.pushUrl`, as before. `SideNav.focusCurrent` focuses the link that
+  `SideNav.reveal` was last called with. The attributes of the frame stay (they draw the
+  gallery's demo and serve a shell that keeps its flags itself), but the docs now start with the
+  state. `elm/url` is a direct dependency of the package for this (`Url` in `update`); Klar still
+  never uses its `percentEncode`.

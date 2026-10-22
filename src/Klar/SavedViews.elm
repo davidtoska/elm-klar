@@ -1,10 +1,9 @@
 module Klar.SavedViews exposing
     ( view
     , State, init, Msg, update
-    , SavedView, savedView, withNote, asDefault
-    , views, active, defaultView, revision, isOpen, setViews, setActive
-    , Attribute, current, label, locale, size, alignEnd
-    , apply, asShared, currentQuery, startSave, withQuery
+    , SavedView, savedView, withNote, asDefault, asShared, withQuery
+    , views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
+    , Attribute, current, currentQuery, label, locale, size, alignEnd
     )
 
 {-| Named, saved filters ("views"): a dropdown button that lists the saved
@@ -125,17 +124,17 @@ text follows `locale`, which is English by default.
 
 # Defining views
 
-@docs SavedView, savedView, withNote, asDefault
+@docs SavedView, savedView, withNote, asDefault, asShared, withQuery
 
 
 # Reading and replacing the list
 
-@docs views, active, defaultView, revision, isOpen, setViews, setActive
+@docs views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
 
 
 # Attributes
 
-@docs Attribute, current, label, locale, size, alignEnd
+@docs Attribute, current, currentQuery, label, locale, size, alignEnd
 
 -}
 

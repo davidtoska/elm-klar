@@ -1,5 +1,6 @@
 module Klar.AppShell exposing
-    ( view, Attribute
+    ( State, init, setPage, Msg, update, state, sideNav, onUrlRequest, onUrlChange, toggleSidebar, goToContent
+    , view, Attribute
     , brand, brandLink, onSearch, searchPlaceholder, searchShortcut, actions, userName, userRole, userAvatar, userMenu, banner
     , sidebar, sidebarCollapsed, onToggleSidebar, drawerOpen, onToggleDrawer, onCloseDrawer, focusMenuButton
     , contentMaxWidth, contentPadding, resetScroll
@@ -13,39 +14,87 @@ module Klar.AppShell exposing
 that scrolls on its own. Use it as the root of the `view` of a
 `Browser.application`.
 
-The shell keeps no state. You tell it what to draw (the brand, the sidebar, the
-user, whether the sidebar is collapsed or the drawer is open) and it sends your
-messages when the user clicks a toggle, the search field or the skip link. The
-parts normally come from other modules: a [Klar.SideNav](Klar-SideNav) for the
+You tell the shell what to draw (the brand, the sidebar, the user) and an
+`AppShell.State` keeps what the user changes in it: whether the sidebar is collapsed
+or the drawer is open, the side menu and the current page. The parts normally come
+from other modules: a [Klar.SideNav](Klar-SideNav) for the
 sidebar, a [Klar.Menu](Klar-Menu) for the user menu and a
 [Klar.PageHeader](Klar-PageHeader) at the top of every page.
 
 A small application, "Acme Operations", with the pages Orders, Customers and
-Reports needs this model and these messages:
+Reports needs this model and these messages. The shell keeps the sidebar, the drawer,
+the side menu and the skip link in one `AppShell.State`, and all its messages are one
+`AppShell.Msg`:
 
     type alias Model =
         { page : Page
-        , sideNav : SideNav.State Page -- SideNav.init "main-nav"
+        , shell : AppShell.State Page
         , userMenu : Menu.State -- Menu.init "user-menu"
-        , sidebarCollapsed : Bool -- icons only, on wide screens
-        , drawerOpen : Bool -- the sidebar drawer, on narrow screens
         }
 
     type Msg
-        = SideNavMsg SideNav.Msg
+        = ShellMsg AppShell.Msg
         | UserMenuMsg Menu.Msg
-        | ToggleSidebar
-        | ToggleDrawer
-        | CloseDrawer
-        | SkipToContent
-        | OpenSearch
         | SignOut
-        | LinkClicked Browser.UrlRequest
-        | UrlChanged Url
-        | NoOp
+        | OpenSearch
 
-The view is one `AppShell.view`. The first list holds the parts of the frame, the
-second the content of the current page:
+    main : Program () Model Msg
+    main =
+        Browser.application
+            { init = init
+            , view = view
+            , update = update
+            , subscriptions = \_ -> Sub.none
+            , onUrlRequest = AppShell.onUrlRequest ShellMsg
+            , onUrlChange = AppShell.onUrlChange ShellMsg
+            }
+
+    init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
+    init _ url key =
+        let
+            page =
+                pageFromUrl url
+        in
+        ( { page = page
+          , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
+          , userMenu = Menu.init "user-menu"
+          }
+        , Cmd.none
+        )
+
+The one place that learns of a route change is the third part of `AppShell.update`,
+the address:
+
+    update : Msg -> Model -> ( Model, Cmd Msg )
+    update msg model =
+        case msg of
+            ShellMsg m ->
+                let
+                    ( shell, cmd, changed ) =
+                        AppShell.update m model.shell
+                in
+                case changed of
+                    Just url ->
+                        let
+                            page =
+                                pageFromUrl url
+                        in
+                        ( { model | page = page, shell = AppShell.setPage navigation page shell }
+                        , Cmd.map ShellMsg cmd
+                        )
+
+                    Nothing ->
+                        ( { model | shell = shell }, Cmd.map ShellMsg cmd )
+
+            ...
+
+That is all the wiring of the frame: a link is followed (`pushUrl`, or `load` for
+an address elsewhere), a new address closes the drawer and scrolls the content to
+the top, the sidebar toggle, the drawer, the skip link and the focus that goes with
+each (the current link when the drawer opens, the menu button when it closes, the
+content after the page was chosen in the drawer) are done for you. The view is one
+`AppShell.view`. The first list holds the parts of the frame, the second the
+content of the current page:
 
     import Browser
     import Klar.AppShell as AppShell
@@ -53,16 +102,12 @@ second the content of the current page:
     import Klar.Menu as Menu
     import Klar.SideNav as SideNav
 
-    shellId : String
-    shellId =
-        "app-shell"
-
     view : Model -> Browser.Document Msg
     view model =
         { title = "Acme Operations"
         , body =
             [ AppShell.view
-                [ AppShell.id shellId
+                [ AppShell.state ShellMsg model.shell
                 , AppShell.brand
                     (AppShell.brandLink
                         { name = "Acme Operations"
@@ -71,18 +116,7 @@ second the content of the current page:
                         }
                     )
                 , AppShell.sidebar
-                    (SideNav.view SideNavMsg
-                        [ SideNav.entries navigation
-                        , SideNav.current model.page
-                        , SideNav.collapsed model.sidebarCollapsed
-                        ]
-                        model.sideNav
-                    )
-                , AppShell.sidebarCollapsed model.sidebarCollapsed
-                , AppShell.onToggleSidebar ToggleSidebar
-                , AppShell.drawerOpen model.drawerOpen
-                , AppShell.onToggleDrawer ToggleDrawer
-                , AppShell.onCloseDrawer CloseDrawer
+                    (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
                 , AppShell.onSearch OpenSearch
                 , AppShell.userName "Ada Lovelace"
                 , AppShell.userRole "Operations manager"
@@ -95,7 +129,6 @@ second the content of the current page:
                         model.userMenu
                     )
                 , AppShell.contentMaxWidth 1280
-                , AppShell.onSkipToContent SkipToContent
                 ]
                 [ viewPage model ]
             ]
@@ -119,49 +152,22 @@ second the content of the current page:
 
 `Page` (here `Orders | Customers | Reports`) is also the key type of the menu,
 `pageToString` writes a page as text (see `SideNav.keys`), and `pageFromUrl` and
-`viewPage` stand for your own routing and page views.
+`viewPage` stand for your own routing and page views. `elm/url` must be a direct
+dependency of the application, as for every `Browser.application`.
 
-The shell never moves keyboard focus by itself, so the branches of `update` that
-belong to it end with a command from this module. `NoOp` is a message that does
-nothing; the commands send it when they are done.
+A command that replaces the page (the palette opened an order, a shortcut went to
+another page) loses the element that had focus; send it to the content with
+`AppShell.goToContent`. A shortcut that hides the sidebar is `AppShell.toggleSidebar`.
+When a click on a link must be held back (a `LeaveGuard` asks about unsaved changes),
+give `Browser.application` your own `onUrlRequest` message and call `Nav.pushUrl`
+yourself when the click may go on; everything else stays as above.
 
-    ToggleSidebar ->
-        ( { model | sidebarCollapsed = not model.sidebarCollapsed }, Cmd.none )
-
-    ToggleDrawer ->
-        if model.drawerOpen then
-            ( { model | drawerOpen = False }
-            , AppShell.focusMenuButton shellId NoOp
-            )
-
-        else
-            ( { model | drawerOpen = True }
-            , SideNav.focusLink pageKeys model.page model.sideNav NoOp
-            )
-
-    CloseDrawer ->
-        ( { model | drawerOpen = False }
-        , AppShell.focusMenuButton shellId NoOp
-        )
-
-    SkipToContent ->
-        ( model, AppShell.focusContent shellId NoOp )
-
-    UrlChanged url ->
-        ( { model | page = pageFromUrl url, drawerOpen = False }
-        , Cmd.batch
-            [ AppShell.resetScroll shellId NoOp
-            , if model.drawerOpen then
-                AppShell.focusContent shellId NoOp
-
-              else
-                Cmd.none
-            ]
-        )
-
-The `SideNavMsg` and `UserMenuMsg` branches are the usual wiring of those two
-components, and `LinkClicked` is the usual `Browser.application` message for a
-click on a link.
+**Wiring it yourself.** `AppShell.state` and `sideNav` are made of the attributes
+below (`id`, `sidebarCollapsed`, `onToggleSidebar`, `drawerOpen`, `onToggleDrawer`,
+`onCloseDrawer`, `onSkipToContent`) and the commands `focusMenuButton`, `focusContent`
+and `resetScroll`. They are there for a shell that keeps its flags in a model of its
+own, and for showing one in a gallery; the shell never moves keyboard focus by
+itself, so the branches of such an `update` end with one of these commands.
 
 **Layout.** The shell fills the viewport and the page itself never scrolls: the
 top bar stays in place, the sidebar scrolls if it is long, and the content area
@@ -221,6 +227,11 @@ buttons) follows `locale`, English by default. The shell also puts the matching
 change without JavaScript.
 
 
+# Wiring: one state, one message
+
+@docs State, init, setPage, Msg, update, state, sideNav, onUrlRequest, onUrlChange, toggleSidebar, goToContent
+
+
 # View
 
 @docs view, Attribute
@@ -262,7 +273,9 @@ change without JavaScript.
 
 -}
 
+import Browser
 import Browser.Dom as Dom
+import Browser.Navigation as Nav
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
@@ -272,8 +285,10 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay exposing (Overlay)
+import Klar.SideNav as SideNav
 import Klar.Text as Text
 import Task
+import Url exposing (Url)
 
 
 
@@ -695,6 +710,273 @@ resetScroll : String -> msg -> Cmd msg
 resetScroll shellId done =
     Dom.setViewportOf (contentId shellId) 0 0
         |> Task.attempt (\_ -> done)
+
+
+
+-- STATE
+
+
+{-| What the shell remembers for you: whether the sidebar is collapsed to icons,
+whether the sidebar drawer is open, the state of the side menu (its open groups) and
+the page it shows as current. `page` is the key type of the side menu (see
+`SideNav.keys`), a custom type of your own such as `Orders | Customers | Reports`.
+Keep one in your model, make it with `init`, and give it to `state` and `sideNav`.
+-}
+type State page
+    = State
+        { id : String
+        , key : Nav.Key
+        , sideNav : SideNav.State page
+        , current : Maybe page
+        , collapsed : Bool
+        , drawerOpen : Bool
+        }
+
+
+{-| A shell with the sidebar open, the drawer closed and no page current. The `id` is
+the DOM id of the shell, unique on the page; the ids inside it (`-content`, `-sidebar`,
+`-search`, `-menu`) and the side menu (`-nav`) start with it. The `key` is the one
+`Browser.application` gave to your `init`: the shell pushes the address of a link with
+it, so you do not write the `LinkClicked` branch.
+
+    AppShell.init { id = "app-shell", key = key }
+
+-}
+init : { id : String, key : Nav.Key } -> State page
+init options =
+    State
+        { id = options.id
+        , key = options.key
+        , sideNav = SideNav.init (options.id ++ "-nav")
+        , current = Nothing
+        , collapsed = False
+        , drawerOpen = False
+        }
+
+
+{-| Tells the shell which page is current: the link of the side menu that is marked
+and gets focus when the drawer opens. It also opens the groups that contain it. Pass
+the same entries you give to `sideNav`. Call it when the application starts and when
+the route changes; this is the one call a route change needs.
+
+    AppShell.setPage navigation Orders model.shell
+
+-}
+setPage : List (SideNav.Entry page msg) -> page -> State page -> State page
+setPage entries page (State inner) =
+    State
+        { inner
+            | current = Just page
+            , sideNav = SideNav.reveal page entries inner.sideNav
+        }
+
+
+{-| The messages of the shell: its toggles, the skip link, the side menu and the
+address of the page. Wrap it in one constructor of your own, `ShellMsg`.
+-}
+type Msg
+    = UrlRequested Browser.UrlRequest
+    | UrlChanged Url
+    | SideNavMsg SideNav.Msg
+    | ToggleSidebar
+    | ToggleDrawer
+    | CloseDrawer
+    | SkipToContent
+    | WidthKnown Float
+    | NoOp
+
+
+{-| Handles every message of the shell and returns the commands it needs: the
+sidebar and the drawer open and close, a drawer that opens sends focus to the current
+link, one that closes gives it back to the menu button, the skip link goes to the
+content, a link is followed, and a new address closes the drawer, scrolls the content
+to the top and, when the page was chosen in the drawer, moves focus to the content.
+
+The third part is the one place where the application learns that the route changed:
+it is the address, once, after the browser has changed it (a link, the Back button, a
+`pushUrl` of yours). Answer it with your routing and `setPage`.
+
+    ShellMsg m ->
+        let
+            ( shell, cmd, changed ) =
+                AppShell.update m model.shell
+
+            next =
+                { model | shell = shell }
+        in
+        case changed of
+            Just url ->
+                enter (routeFromUrl url) next |> addCmd (Cmd.map ShellMsg cmd)
+
+            Nothing ->
+                ( next, Cmd.map ShellMsg cmd )
+
+-}
+update : Msg -> State page -> ( State page, Cmd Msg, Maybe Url )
+update msg (State inner) =
+    case msg of
+        UrlRequested (Browser.Internal url) ->
+            ( State inner, Nav.pushUrl inner.key (Url.toString url), Nothing )
+
+        UrlRequested (Browser.External href) ->
+            ( State inner, Nav.load href, Nothing )
+
+        UrlChanged url ->
+            ( State { inner | drawerOpen = False }
+            , Cmd.batch
+                [ resetScroll inner.id NoOp
+
+                -- Chosen in the drawer: it closes and its link loses focus, so the
+                -- new page gets it.
+                , if inner.drawerOpen then
+                    focusContent inner.id NoOp
+
+                  else
+                    Cmd.none
+                ]
+            , Just url
+            )
+
+        SideNavMsg m ->
+            let
+                ( menu, cmd ) =
+                    SideNav.update m inner.sideNav
+            in
+            ( State { inner | sideNav = menu }, Cmd.map SideNavMsg cmd, Nothing )
+
+        ToggleSidebar ->
+            ( State { inner | collapsed = not inner.collapsed }, Cmd.none, Nothing )
+
+        ToggleDrawer ->
+            if inner.drawerOpen then
+                update CloseDrawer (State inner)
+
+            else
+                -- The links come after the whole top bar: take the keyboard to the
+                -- current page instead of making it tab there.
+                ( State { inner | drawerOpen = True }
+                , SideNav.focusCurrent inner.sideNav NoOp
+                , Nothing
+                )
+
+        CloseDrawer ->
+            -- The links of a closed drawer cannot hold focus: give it to the button.
+            ( State { inner | drawerOpen = False }, focusMenuButton inner.id NoOp, Nothing )
+
+        SkipToContent ->
+            ( State inner, focusContent inner.id NoOp, Nothing )
+
+        WidthKnown pixels ->
+            update
+                (if pixels < 900 then
+                    ToggleDrawer
+
+                 else
+                    ToggleSidebar
+                )
+                (State inner)
+
+        NoOp ->
+            ( State inner, Cmd.none, Nothing )
+
+
+{-| The shell's own parts of the frame, in one attribute: its id, the toggles of the
+sidebar and the drawer, whether they are open, and the skip link with its answer.
+Give it first in the list of `view`. Without it the shell has no state: use the
+single attributes of the next sections to wire one yourself.
+
+    AppShell.view [ AppShell.state ShellMsg model.shell, AppShell.brand brand ] [ page ]
+
+-}
+state : (Msg -> msg) -> State page -> Attribute msg
+state toMsg (State inner) =
+    Attribute
+        (\config ->
+            { config
+                | id = inner.id
+                , collapsed = inner.collapsed
+                , drawerOpen = inner.drawerOpen
+                , onToggleSidebar = Just (toMsg ToggleSidebar)
+                , onToggleDrawer = Just (toMsg ToggleDrawer)
+                , onCloseDrawer = Just (toMsg CloseDrawer)
+                , onSkip = Just (toMsg SkipToContent)
+            }
+        )
+
+
+{-| The side menu, to put in the `sidebar` (alone, or with other things under it). It
+is a [`SideNav.view`](Klar-SideNav#view) with the state the shell keeps: the page from
+`setPage` is the current one, it is collapsed with the sidebar, and its messages are
+the shell's. Give it the `entries` and any other attribute of `SideNav`.
+
+    AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
+
+-}
+sideNav : (Msg -> msg) -> List (SideNav.Attribute page msg) -> State page -> Html msg
+sideNav toMsg attributes (State inner) =
+    SideNav.view (\m -> toMsg (SideNavMsg m))
+        (SideNav.collapsed inner.collapsed
+            :: (case inner.current of
+                    Just page ->
+                        [ SideNav.current page ]
+
+                    Nothing ->
+                        []
+               )
+            ++ attributes
+        )
+        inner.sideNav
+
+
+{-| What to give `Browser.application` as `onUrlRequest`, with your constructor of the
+shell's message: a click on a link is followed (a link inside the application with
+`pushUrl`, an address elsewhere with `load`). Use your own message instead when a click
+must be held back, for example by a [`LeaveGuard`](Klar-LeaveGuard), and call
+`Nav.pushUrl` yourself when it may go on.
+
+    Browser.application
+        { onUrlRequest = AppShell.onUrlRequest ShellMsg
+        , onUrlChange = AppShell.onUrlChange ShellMsg
+        , ...
+        }
+
+-}
+onUrlRequest : (Msg -> msg) -> Browser.UrlRequest -> msg
+onUrlRequest toMsg request =
+    toMsg (UrlRequested request)
+
+
+{-| What to give `Browser.application` as `onUrlChange`: see `onUrlRequest`. `update`
+reports the address.
+-}
+onUrlChange : (Msg -> msg) -> Url -> msg
+onUrlChange toMsg url =
+    toMsg (UrlChanged url)
+
+
+{-| Collapses the sidebar to icons on a wide shell (900px or more) and opens or closes
+the drawer on a narrow one: what a shortcut such as `[` should do. The shell does not
+know its width, so it asks the browser, and the answer comes back as a message of the
+shell.
+
+    ( model, Cmd.map ShellMsg (AppShell.toggleSidebar model.shell) )
+
+-}
+toggleSidebar : State page -> Cmd Msg
+toggleSidebar _ =
+    Dom.getViewport |> Task.perform (\viewport -> WidthKnown viewport.viewport.width)
+
+
+{-| Moves keyboard focus to the content area: the answer to the skip link, and what
+to do when a page has been replaced by a command, because the element that had
+focus went with the old page.
+
+    Cmd.map ShellMsg (AppShell.goToContent model.shell)
+
+-}
+goToContent : State page -> Cmd Msg
+goToContent (State inner) =
+    focusContent inner.id NoOp
 
 
 

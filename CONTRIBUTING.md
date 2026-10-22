@@ -52,8 +52,9 @@ its dependencies that `elm.json` allows (check both before a release, see
 ## The rules
 
 1. **Official packages only**: `elm/core`, `elm/html`, `elm/browser`, `elm/json`,
-   `elm/time`. No `elm/url` (its `percentEncode` throws on half of an emoji; use
-   `Klar.Internal.percentEncode`), no `elm/svg`, no `elm/http`, no `elm/file`. No ports, no
+   `elm/time`, and `elm/url` for `Klar.AppShell` alone (the `Url` of a route change; never
+   its `percentEncode`, which throws on half of an emoji: use `Klar.Internal.percentEncode`),
+   no `elm/svg`, no `elm/http`, no `elm/file`. No ports, no
    kernel code, no `Debug`. If you think you need JavaScript, you do not: see
    "Tricks" below. (Elm tuples have at most three elements: use records.)
 2. **The library never imports from an application.** The `example/` application
