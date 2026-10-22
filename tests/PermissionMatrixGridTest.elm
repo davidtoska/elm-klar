@@ -169,7 +169,8 @@ isPermissionRow row =
 
 itemFuzz : Fuzzer (List Grid.Item)
 itemFuzz =
-    Fuzz.listOfLengthBetween 0 30
+    Fuzz.listOfLengthBetween 0
+        30
         (Fuzz.map2 (\label group -> ( label, group ))
             (Fuzz.oneOfValues [ "View orders", "Edit orders", "Adjust stock", "Cancel", "Export", "Ångström", "" ])
             (Fuzz.oneOfValues [ Nothing, Just "Orders", Just "Stock", Just "Reports" ])

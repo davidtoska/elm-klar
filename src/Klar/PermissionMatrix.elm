@@ -651,6 +651,7 @@ type alias Texts =
     , access : Access -> String
     , accessTitle : Access -> String
     , inheritedWord : String
+    , inheritedPlain : String
     , inheritedFrom : String -> String
     , lockedWord : String
     , changedWord : String
@@ -704,6 +705,7 @@ texts loc =
                 Denied ->
                     pick "Nektet" "Denied"
     , inheritedWord = pick "Arvet" "Inherited"
+    , inheritedPlain = pick "arvet" "inherited"
     , inheritedFrom = \source -> pick ("arvet fra " ++ source) ("inherited from " ++ source)
     , lockedWord = pick "låst" "locked"
     , changedWord = pick "ulagret endring" "unsaved change"
@@ -1722,7 +1724,7 @@ cellName t roleName permissionName (Cell data) isLocked changed =
     , Just permissionName
     , Just (t.access data.access)
     , if data.inherited then
-        Just (Maybe.withDefault t.inheritedWord (Maybe.map t.inheritedFrom data.source))
+        Just (Maybe.withDefault t.inheritedPlain (Maybe.map t.inheritedFrom data.source))
 
       else
         Nothing
@@ -1766,7 +1768,7 @@ announcement env =
                                 roleInfo.label
                                 data.access
                                 (if data.inherited then
-                                    Just (Maybe.withDefault t.inheritedWord (Maybe.map t.inheritedFrom data.source))
+                                    Just (Maybe.withDefault t.inheritedPlain (Maybe.map t.inheritedFrom data.source))
 
                                  else
                                     Nothing
