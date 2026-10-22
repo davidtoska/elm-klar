@@ -439,7 +439,9 @@ publishedIbans =
     , "FK88 SC12 3456 7890 12"
     , "MN12 1234 1234 5678 9123"
     , "OM81 0180 0000 0129 9123 456"
-    , "DZ58 0002 1000 0111 3000 0005 70"
+    , "BI42 1000 0100 0100 0033 2045 181"
+    , "HN88 CABF 0000 0000 0002 5000 5469"
+    , "YE15 CBYE 0001 0188 6123 4567 8912 34"
     ]
 
 
@@ -540,6 +542,52 @@ ibanChecksumTests =
                         )
                     |> List.length
                     |> Expect.atMost 2
+        , test "the check digits 00, 01 and 99 are refused: ISO 13616 uses 02 to 98, and modulo 97 those three are 97, 98 and 02" <|
+            \_ ->
+                let
+                    made =
+                        List.range 0 3000
+                            |> List.map (\n -> ibanFor "NO" (String.padLeft 11 '0' (String.fromInt n)))
+
+                    aliasOf iban =
+                        case String.slice 2 4 iban of
+                            "97" ->
+                                Just ("NO00" ++ String.dropLeft 4 iban)
+
+                            "98" ->
+                                Just ("NO01" ++ String.dropLeft 4 iban)
+
+                            "02" ->
+                                Just ("NO99" ++ String.dropLeft 4 iban)
+
+                            _ ->
+                                Nothing
+
+                    aliases =
+                        List.filterMap aliasOf made
+
+                    -- the plain calculation, as the standard describes it, without the rule about the check digits
+                    remainderIsOne iban =
+                        String.foldl
+                            (\c remainder ->
+                                if Char.isDigit c then
+                                    modBy 97 (remainder * 10 + (Char.toCode c - 48))
+
+                                else
+                                    modBy 97 (remainder * 100 + (Char.toCode c - 55))
+                            )
+                            0
+                            (String.dropLeft 4 iban ++ String.left 4 iban)
+                            == 1
+                in
+                Expect.all
+                    [ \_ -> Expect.equal [] (List.filter (not << Checksum.mod97) made)
+                    , \_ -> Expect.atLeast 30 (List.length aliases)
+                    , \_ -> Expect.equal [] (List.filter (not << remainderIsOne) aliases)
+                    , \_ -> Expect.equal [] (List.filter Checksum.mod97 aliases)
+                    , \_ -> Expect.equal True (List.all (\iban -> issueOf Iban iban /= Nothing) aliases)
+                    ]
+                    ()
         , test "text that is not capital letters and digits is wrong" <|
             \_ ->
                 [ "", "NO93", "no9386011117947", "NO93 8601 1117 947", "NO9386011117947!", "NO93860111179é7" ]
@@ -598,6 +646,12 @@ ibanTableTests =
             \_ ->
                 Expect.equal [ Just 15, Just 22, Just 24, Just 18, Just 18, Just 22, Nothing, Nothing ]
                     (List.map IbanTable.lengthOf [ "NO", "DE", "SE", "DK", "FI", "GB", "US", "XX" ])
+        , test "Burundi, Honduras and Yemen are in the registry, and Algeria is not" <|
+            \_ ->
+                Expect.equal [ Just 27, Just 28, Just 30, Nothing ]
+                    (List.map IbanTable.lengthOf [ "BI", "HN", "YE", "DZ" ])
+        , test "the registry has 89 countries" <|
+            \_ -> Expect.equal 89 (List.length IbanTable.countries)
         ]
 
 
@@ -620,7 +674,7 @@ readingTests =
                 Expect.equal [ "", "" ] [ (Shape.read Iban " - . ").value, (Shape.read organisation "   ").value ]
         , test "a letter in a field for digits is not dropped: it is remembered" <|
             \_ ->
-                Expect.equal { value = "974760673", rejected = Just ( 'x', Shape.ExpectDigit ) } (Shape.read organisation "974 760 67x3")
+                Expect.equal { value = "974760673", rejected = Just ( 'x', Shape.ExpectDigit ), trunkZero = False } (Shape.read organisation "974 760 67x3")
         , test "only the first character that does not belong is remembered" <|
             \_ ->
                 (Shape.read organisation "9a7b").rejected
@@ -779,6 +833,37 @@ phoneTests =
                     , Shape.display Phone "+47"
                     , Shape.display Phone "+4"
                     ]
+        , test "Norwegian service numbers, which begin with 8, are written like mobile numbers" <|
+            \_ ->
+                Expect.equal [ "+47 800 30 000", "+47 800 3", "+47 22 12 34 56" ]
+                    [ Shape.display Phone "+4780030000", Shape.display Phone "+478003", Shape.display Phone "+4722123456" ]
+        , test "the national zero in parentheses is not read: a (0) after the country code is an error, and the text stays as typed" <|
+            \_ ->
+                let
+                    british =
+                        "+44 (0)20 7946 0958"
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Shape.read Phone british).trunkZero
+                    , \_ -> Expect.equal (Just Shape.LeaveOutTrunkZero) (issueOf Phone british)
+                    , \_ -> Expect.equal british (Shape.afterTyping Phone { typed = british, caret = String.length british })
+                    , \_ -> Expect.equal british (Shape.afterLeaving Phone british)
+                    , \_ -> Expect.equal False (complete Phone british)
+                    , \_ -> Expect.equal True (Shape.isFinal Shape.LeaveOutTrunkZero)
+                    ]
+                    ()
+        , test "also when it is written with other spaces, or after a Norwegian code" <|
+            \_ ->
+                [ "+47 (0) 912 34 567", "+47(0)91234567", "+47 ( 0 ) 912 34 567", "+44 (0)", "+358 (0)40 123 4567" ]
+                    |> List.filter (\text -> issueOf Phone text /= Just Shape.LeaveOutTrunkZero)
+                    |> Expect.equal []
+        , test "without the (0) the same number is fine" <|
+            \_ ->
+                Expect.equal [ Nothing, Nothing, Nothing ]
+                    [ issueOf Phone "+44 20 7946 0958", issueOf Phone "+44 (20) 7946 0958", issueOf Phone "+47 (912) 34 567" ]
+        , test "a (0) is only a problem in a phone number" <|
+            \_ ->
+                Expect.equal [ False, False ] [ (Shape.read organisation "(0)").trunkZero, (Shape.read Iban "NO(0)").trunkZero ]
         , test "the other Norwegian numbers in pairs" <|
             \_ ->
                 Expect.equal [ "+47 22 12 34 56", "+47 22 1" ] [ Shape.display Phone "+4722123456", Shape.display Phone "+47221" ]
@@ -1027,7 +1112,7 @@ issueTests =
                     , issueOf Iban "N"
                     , issueOf Iban "1"
                     ]
-        , test "what more typing can not fix is final, and what is only unfinished is not" <|
+        , test "what more typing cannot fix is final, and what is only unfinished is not" <|
             \_ ->
                 Expect.equal [ True, True, True, True, True, False, False, False, True, False, True ]
                     [ Shape.isFinal (Shape.Unexpected 'x' Shape.ExpectDigit)
@@ -1090,6 +1175,15 @@ patternTests =
                 [ "AB-####", "SKU-####", "##1", "#a", "\\A#", "\\1#" ]
                     |> List.filterMap Shape.parsePattern
                     |> Expect.equal []
+        , test "a letter of any alphabet that has capitals is nothing, as a fixed character: the user would have to type it" <|
+            \_ ->
+                [ "å#", "#Å", "é-#", "#ß", "ж#", "ø##", "#ñ", "Ω#" ]
+                    |> List.filterMap Shape.parsePattern
+                    |> Expect.equal []
+        , test "but signs and punctuation of any kind are fixed characters" <|
+            \_ ->
+                Expect.equal (List.repeat 6 True)
+                    (List.map (\pattern -> Shape.parsePattern pattern /= Nothing) [ "§#", "€#", "#·#", "#–#", "(#)", "#%" ])
         , test "a control character is nothing" <|
             \_ ->
                 Expect.equal [ Nothing, Nothing ] [ Shape.parsePattern "#\t#", Shape.parsePattern "#\n#" ]

@@ -59,12 +59,19 @@ digits 10 to 35, and the number that comes out must leave the remainder 1 when d
 by 97. The number is too large for a computer's whole numbers, so the remainder is
 taken as the digits come, which gives the same answer.
 
+ISO 13616 allows the check digits 02 to 98 only. Modulo 97 the digits 00, 01 and 99 are
+the same as 97, 98 and 02, so the remainder can come out right with them: an IBAN with
+one of those is wrong, however the rest looks.
+
 `False` for text with anything but capital letters and digits in it.
 
 -}
 mod97 : String -> Bool
 mod97 iban =
     if String.length iban < 5 || not (String.all (\c -> Char.isDigit c || (Char.isAlpha c && Char.isUpper c)) iban) then
+        False
+
+    else if List.member (String.slice 2 4 iban) [ "00", "01", "99" ] then
         False
 
     else

@@ -1,6 +1,6 @@
 module Klar.Money exposing
     ( Money, fromMinor, fromMajorAndMinor, zero, toMinor, currencyOf
-    , Currency, currency, currencyCode, decimals, symbol, allCurrencies
+    , Currency, currency, currencyCode, decimals, symbol, isActive, allCurrencies
     , nok, sek, dkk, isk, eur, usd, gbp, chf, jpy, cad, aud, cny
     , add, subtract, sum, multiply, percentOf, fraction, allocate, split, negate, abs
     , compare, isZero, isPositive, isNegative
@@ -36,8 +36,10 @@ number that is not money.
 `Err`, not 20 of something. The currency is a value (`Money.nok`, or
 `Money.currency "KWD"` for a code that comes from data) and not a phantom type,
 because the currency of an invoice is only known when the program runs. Every
-active ISO 4217 code is there, with its number of decimals: two for NOK and USD,
-none for JPY, three for KWD.
+currency of the active ISO 4217 list is there (`allCurrencies`), with its number of
+decimals, which is two for NOK and USD, none for JPY and three for KWD. The two that ended most
+recently, the Netherlands Antillean guilder (ANG) and the Bulgarian lev (BGN), can
+still be read from old data with `currency` and are not active (`isActive`).
 
 **Rounding is what a person does by hand.** Whenever an amount has to be rounded
 (a percentage of an amount, a ratio) a half goes away from zero: 0.5 øre becomes 1,
@@ -46,7 +48,8 @@ your back. Text with too many decimals (`parse`) is refused, and `parseRounded`
 rounds it when you ask.
 
 **Splitting never loses a unit.** `allocate` and `split` give out the minor units
-that do not divide evenly one by one, so the parts add up to the amount.
+that do not divide evenly one by one, so the parts add up to the amount. They, and
+`fraction`, are exact for any numbers in the range below: the working never leaves it.
 
 **Whole numbers up to 9 007 199 254 740 991 minor units** (90 trillion in the main
 unit of a currency with two decimals) are exact in every browser. Beyond that
@@ -54,8 +57,10 @@ Elm's `Int` silently gives wrong answers, so an amount outside that range cannot
 made: `fromMinor` says `Nothing`, and a calculation that leaves the range says
 `Err`.
 
-Amounts can be compared with `==`, and `Dict` keys or `Set` members are fine: two
-amounts are equal when the currency and the number of minor units are.
+Amounts can be compared with `==`: two amounts are equal when the currency and the
+number of minor units are. A `Money` is not `comparable`, so it cannot be a `Dict` key
+or a `Set` member; use `( currencyCode (currencyOf amount), toMinor amount )` for that.
+Sort with `List.sortWith Money.compare`.
 
 The built-in texts (`problemText`, the number format) follow a
 [Klar.Locale](Klar-Locale).
@@ -68,7 +73,7 @@ The built-in texts (`problemText`, the number format) follow a
 
 # Currencies
 
-@docs Currency, currency, currencyCode, decimals, symbol, allCurrencies
+@docs Currency, currency, currencyCode, decimals, symbol, isActive, allCurrencies
 
 @docs nok, sek, dkk, isk, eur, usd, gbp, chf, jpy, cad, aud, cny
 
@@ -94,7 +99,6 @@ The built-in texts (`problemText`, the number format) follow a
 
 -}
 
-import Dict exposing (Dict)
 import Klar.Format as Format
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money.Arithmetic as Arithmetic
@@ -189,8 +193,11 @@ type Currency
 
 
 {-| The currency with an ISO 4217 code such as `"NOK"`; lower case and spaces around
-the code are fine. `Nothing` for a code that is not in the list of active currencies
-(`allCurrencies`).
+the code are fine. `Nothing` for a code that is not an ISO 4217 currency. The active
+currencies (`allCurrencies`) are found, and so are the two that ended most recently,
+the Netherlands Antillean guilder (`"ANG"`, replaced by `"XCG"` on 2025-03-31) and the
+Bulgarian lev (`"BGN"`, ended with Bulgaria's joining of the euro on 2026-01-01), so
+that old data can be read. Check `isActive` before you offer one of them in a choice.
 
     Money.currency "kwd" |> Maybe.map Money.decimals -- Just 3
 
@@ -231,13 +238,22 @@ symbol (Currency details) =
     Currencies.symbolOf details.code
 
 
-{-| Every active ISO 4217 currency, sorted by code, for a list to choose a currency
-from. Precious metals, test codes and units of account that have no minor unit are
-not in it.
+{-| Every currency of the active ISO 4217 list, sorted by code, for a list to choose a
+currency from. It follows the list that SIX, the maintenance agency, published on
+2026-09-17. Withdrawn currencies, precious metals, test codes and units of account that
+have no minor unit are not in it.
 -}
 allCurrencies : List Currency
 allCurrencies =
     List.map (\entry -> Currency { code = entry.code, decimals = entry.decimals }) Currencies.entries
+
+
+{-| Is the currency on the active ISO 4217 list? `False` for a currency that was
+withdrawn and can only be read from old data: `Money.currency "BGN"` gives one.
+-}
+isActive : Currency -> Bool
+isActive (Currency details) =
+    Currencies.isActive details.code
 
 
 {-| Norwegian krone.
@@ -333,7 +349,7 @@ is beyond what whole numbers hold exactly.
 
     Money.add a b -- Ok (a and b added)
 
-    Money.add tenNok tenEur -- Err (can not mix NOK and EUR)
+    Money.add tenNok tenEur -- Err (Cannot mix NOK and EUR)
 
 -}
 add : Money -> Money -> Result Problem Money
@@ -394,10 +410,11 @@ percentOf percent amount =
 is rounded half away from zero to the minor unit, so 2.5 øre becomes 3 and -2.5
 becomes -3. The numerator may be negative; the denominator must be above zero.
 
-The working keeps everything exact: it does not multiply the amount by the
-numerator first, so only the result, and the numerator times the denominator, must
-stay inside the range of whole numbers. The VAT inside a price that includes it, at
-25 percent, is `Money.fraction 25 125 price`.
+The working keeps everything exact: it never forms the product of the amount and the
+numerator, which could be far beyond the range of whole numbers, so any numerator and
+denominator in that range work, such as an exchange rate written as a ratio of two
+large whole numbers, and only the result must stay inside the range. The VAT inside a
+price that includes it, at 25 percent, is `Money.fraction 25 125 price`.
 
 `Err` when the denominator is not above zero, or when a number is out of range.
 
@@ -429,9 +446,11 @@ each, to the parts with the biggest fractions, and to the earlier part when two 
 equal. A part with the weight 0 gets nothing. A negative amount is divided the same
 way, so the parts of -100.00 are -33.34, -33.33 and -33.33.
 
-`Err` when there are no weights, when one is negative, when they all are 0, or when
-the weights are so large (they add up to many millions) that the working leaves the
-range of whole numbers.
+The shares are exact for any weights, however large, as long as the weights add up to
+no more than 9 007 199 254 740 991 (the range of whole numbers, 90 trillion in the main
+unit of a currency with two decimals); they are scaled with exact arithmetic, never by
+a product that could leave the range. `Err` when there are no weights, when one is
+negative, when they all are 0, or when they add up to more than that.
 
 -}
 allocate : List Int -> Money -> Result Problem (List Money)
@@ -454,7 +473,7 @@ allocate weights (Money cur minor) =
                 Err NoShares
 
             else
-                Err OutOfRange
+                Err SharesTooLarge
 
 
 {-| An amount in equal parts, the first parts a minor unit larger when it does not
@@ -552,7 +571,9 @@ amount, for more decimals than the currency has (`100,505` NOK: use `parseRounde
 to round it; `100,500` is fine, it is the same amount), for separators that cannot
 be read (`1.2.3`), for a comma before three digits in English in a currency with
 three decimals (`1,234` KWD could be a thousand or one and a bit), for an amount of
-another currency (`$100` in a NOK field) and for an amount out of range.
+another currency (`$100` in a NOK field) and for an amount out of range. Thousands are
+grouped by three: the Indian grouping `1,23,456` is not read, and is refused as unclear
+(write `123456` or `123,456`).
 
     Money.parse Locale.nb Money.nok "1 234,50" -- Ok 1234.50 NOK
 
@@ -747,7 +768,7 @@ amountText locale parts =
 {-| The amount with its code, the way `Klar.Format.currency` writes an amount: the
 number format of the language, a real minus sign, and no-break spaces so that an
 amount never breaks over two lines. The code is the same in every language, so it
-can not be mistaken for another currency.
+cannot be mistaken for another currency.
 
     Money.toString Locale.nb price -- "1 234,50 NOK"
 
@@ -876,10 +897,11 @@ type Problem
     | OutOfRange
     | DifferentCurrencies Currency Currency
     | NoShares
+    | SharesTooLarge
     | BadFraction
 
 
-{-| A problem in words, in the language: "NOK has 2 decimals", "Can not mix NOK and
+{-| A problem in words, in the language: "NOK has 2 decimals", "Cannot mix NOK and
 EUR". It is meant for a person who typed an amount and for a log.
 
     Money.parse Locale.en Money.nok "12.505"
@@ -894,7 +916,7 @@ problemText locale problem =
             Locale.pick locale { nb = "Skriv inn et beløp", en = "Enter an amount" }
 
         NotAnAmount ->
-            Locale.pick locale { nb = "Må være et beløp", en = "Must be an amount" }
+            Locale.pick locale { nb = "Må være et gyldig beløp", en = "Must be an amount" }
 
         TooManyDecimals cur ->
             let
@@ -925,14 +947,20 @@ problemText locale problem =
 
         DifferentCurrencies first second ->
             Locale.pick locale
-                { nb = "Kan ikke blande " ++ currencyCode first ++ " og " ++ currencyCode second
-                , en = "Can not mix " ++ currencyCode first ++ " and " ++ currencyCode second
+                { nb = "Kan ikke legge sammen " ++ currencyCode first ++ " og " ++ currencyCode second
+                , en = "Cannot mix " ++ currencyCode first ++ " and " ++ currencyCode second
                 }
 
         NoShares ->
             Locale.pick locale
                 { nb = "Trenger minst én andel, ingen negative og ikke alle lik 0"
                 , en = "Needs at least one share, none negative, and not all 0"
+                }
+
+        SharesTooLarge ->
+            Locale.pick locale
+                { nb = "Andelene summerer til mer enn det som kan deles nøyaktig"
+                , en = "The shares add up to more than can be divided exactly"
                 }
 
         BadFraction ->

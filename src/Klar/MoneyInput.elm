@@ -1,7 +1,7 @@
 module Klar.MoneyInput exposing
     ( view, Attribute
     , State, Msg, init, update
-    , value, setValue, currency, setCurrency, setLimits, reset, touch, isValid, isTouched
+    , value, setValue, currencyOf, setCurrency, setLimits, reset, touch, isValid, isTouched
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , min, max, allowNegative
     , alignRight, placeholder, size
@@ -114,7 +114,7 @@ The built-in texts (the errors) and the number format follow `locale`.
 
 # The amount
 
-@docs value, setValue, currency, setCurrency, setLimits, reset, touch, isValid, isTouched
+@docs value, setValue, currencyOf, setCurrency, setLimits, reset, touch, isValid, isTouched
 
 
 # Label, hint and error
@@ -151,6 +151,7 @@ import Klar.Field as Field
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money as Money exposing (Currency, Money)
+import Klar.Money.Currencies as Currencies
 import Klar.Theme as Theme exposing (Size(..))
 
 
@@ -180,9 +181,11 @@ type alias Fields =
     , touched : Bool
     , focused : Bool
 
-    -- what the field last saw in the attributes of the view, so that `isValid` is
-    -- right while the user is still typing
-    , rules : Rules
+    -- what the field last saw in the attributes of the view (or was told by
+    -- `setLimits`), so that `isValid` is right while the user is still typing;
+    -- `Nothing` until it has seen them: then it does not judge the amount by
+    -- rules it does not know
+    , rules : Maybe Rules
     }
 
 
@@ -202,6 +205,14 @@ noRules =
     { locale = Locale.default, min = Nothing, max = Nothing, negative = False }
 
 
+{-| The rules the field has seen, or the plain ones (English, no limits, no negative
+amounts) for the little it needs them for before it has seen any.
+-}
+rulesOf : Fields -> Rules
+rulesOf state =
+    Maybe.withDefault noRules state.rules
+
+
 {-| An empty field for amounts in a currency. The `String` is the DOM id of the
 input; it must be unique on the page, because the label, hint and error point at it.
 To start with an amount, use `setValue`.
@@ -219,7 +230,7 @@ init id cur =
         , problem = Nothing
         , touched = False
         , focused = False
-        , rules = noRules
+        , rules = Nothing
         }
 
 
@@ -235,8 +246,8 @@ value (State state) =
 
 {-| The currency of the field.
 -}
-currency : State -> Currency
-currency (State state) =
+currencyOf : State -> Currency
+currencyOf (State state) =
     state.currency
 
 
@@ -270,7 +281,7 @@ setCurrency cur (State state) =
     else
         case ( state.draft, state.value ) of
             ( Just raw, _ ) ->
-                State (withDraft state.rules { state | currency = cur } raw)
+                State (readDraft (rulesOf state).locale { state | currency = cur } raw)
 
             ( Nothing, Just money ) ->
                 case Money.fromDecimalString cur (Money.toDecimalString money) of
@@ -278,7 +289,7 @@ setCurrency cur (State state) =
                         State { state | currency = cur, value = Just moved, problem = Nothing }
 
                     Err _ ->
-                        State (withDraft state.rules { state | currency = cur } (writtenAmount state.rules.locale money))
+                        State (readDraft (rulesOf state).locale { state | currency = cur } (writtenAmount (rulesOf state).locale money))
 
             ( Nothing, Nothing ) ->
                 State { state | currency = cur }
@@ -291,7 +302,12 @@ never changed.
 
 A field learns its limits by itself when the user focuses, types in or leaves it. This
 is for an amount that you put in with `setValue` before that, such as one loaded from
-a server, and for limits that change while the field is on the screen.
+a server, and for limits that change while the field is on the screen. Until the field
+has learned its limits, in one way or the other, `isValid` does not judge the amount by
+them: a credit note that you load into a field that has `allowNegative` is never
+reported invalid because the field has not heard of `allowNegative` yet. It is not
+reported invalid for a limit it does not know either, so give a loaded amount its
+`setLimits` to have it checked.
 
     price : List (MoneyInput.Attribute Msg)
     price =
@@ -303,6 +319,13 @@ a server, and for limits that change while the field is on the screen.
         |> MoneyInput.isValid
     --> False
 
+    -- and with allowNegative among the attributes, a credit note is fine
+    MoneyInput.init "line-credit" Money.nok
+        |> MoneyInput.setLimits [ MoneyInput.allowNegative ]
+        |> MoneyInput.setValue (Money.fromMinor Money.nok -500)
+        |> MoneyInput.isValid
+    --> True
+
 -}
 setLimits : List (Attribute msg) -> State -> State
 setLimits attributes (State state) =
@@ -311,9 +334,9 @@ setLimits attributes (State state) =
             configure attributes
 
         rules =
-            state.rules
+            rulesOf state
     in
-    State { state | rules = { rules | min = config.min, max = config.max, negative = config.negative } }
+    State { state | rules = Just { rules | min = config.min, max = config.max, negative = config.negative } }
 
 
 {-| Empties the field and forgets that the user has been in it (`isTouched` is
@@ -343,10 +366,19 @@ to do.
 An empty field counts as valid: for an amount that is required, also check `value`
 for `Nothing`.
 
+The field judges the amount by the limits it knows: the attributes it saw in a message of
+the view, or the ones of `setLimits`. An amount that was put in with `setValue` and has
+not been given limits is only checked for being an amount.
+
 -}
 isValid : State -> Bool
 isValid (State state) =
-    state.problem == Nothing && limitProblem state.currency state.rules state.value == Nothing
+    case state.rules of
+        Nothing ->
+            state.problem == Nothing
+
+        Just rules ->
+            state.problem == Nothing && limitProblem state.currency rules state.value == Nothing
 
 
 {-| `True` once the user has left the field or pressed Enter in it, or `touch` was
@@ -383,7 +415,7 @@ update msg (State state) =
             ( State (withDraft rules state raw), Cmd.none )
 
         Focused rules ->
-            ( State { state | focused = True, rules = rules }, Cmd.none )
+            ( State { state | focused = True, rules = Just rules }, Cmd.none )
 
         Committed rules ->
             -- the field was left
@@ -399,16 +431,23 @@ text is no amount and no problem.
 -}
 withDraft : Rules -> Fields -> String -> Fields
 withDraft rules state raw =
+    readDraft rules.locale { state | rules = Just rules } raw
+
+
+{-| Reads a text in a language and keeps it as the text of the field.
+-}
+readDraft : Locale -> Fields -> String -> Fields
+readDraft lang state raw =
     if String.trim raw == "" then
-        { state | draft = Just raw, value = Nothing, problem = Nothing, rules = rules }
+        { state | draft = Just raw, value = Nothing, problem = Nothing }
 
     else
-        case Money.parse rules.locale state.currency raw of
+        case Money.parse lang state.currency raw of
             Ok money ->
-                { state | draft = Just raw, value = Just money, problem = Nothing, rules = rules }
+                { state | draft = Just raw, value = Just money, problem = Nothing }
 
             Err problem ->
-                { state | draft = Just raw, value = Nothing, problem = Just problem, rules = rules }
+                { state | draft = Just raw, value = Nothing, problem = Just problem }
 
 
 {-| The field was left (or Enter was pressed): the text becomes a written amount.
@@ -419,7 +458,7 @@ commit : Rules -> Fields -> Fields
 commit rules state =
     let
         seen =
-            { state | touched = True, rules = rules }
+            { state | touched = True, rules = Just rules }
     in
     case state.draft of
         Nothing ->
@@ -918,13 +957,15 @@ hasTooManyDecimals lang cur raw =
 
 
 {-| Letters and other characters that no amount is written with, apart from the ones
-in the currency's own code and symbols (someone may be typing `NOK 100`).
+in the marks that `Money.parse` takes away around an amount of this currency (its code,
+its symbol and the other ways it is written): someone may be typing `NOK 100`, `RMB 100`
+or `Mex$ 100`. It is the same list that reading uses, so the two cannot disagree.
 -}
 hasForeignCharacters : Currency -> String -> Bool
 hasForeignCharacters cur raw =
     let
         written =
-            String.toLower (Money.currencyCode cur ++ Money.symbol cur ++ "kr.")
+            String.toLower (String.concat (Currencies.marks (Money.currencyCode cur)))
     in
     raw
         |> String.filter (\c -> not (c == ' ' || c == '\u{00A0}' || c == '\u{202F}' || c == '\u{2009}' || c == '\t' || c == '\'' || c == '’'))
@@ -956,7 +997,7 @@ limitText config cur limit =
     in
     case limit of
         IsNegative ->
-            pick "Kan ikke være negativ" "Must not be negative"
+            pick "Beløpet kan ikke være negativt" "Must not be negative"
 
         LimitInOtherCurrency other ->
             pick
@@ -977,7 +1018,7 @@ limitText config cur limit =
 
                 ( Nothing, Just high ) ->
                     pick
-                        ("Må være høyst " ++ shown high ++ unit)
+                        ("Må være maksimalt " ++ shown high ++ unit)
                         ("Must be at most " ++ shown high ++ unit)
 
                 ( Nothing, Nothing ) ->

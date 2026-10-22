@@ -12429,7 +12429,7 @@ html:has(.klar-modal-lock) {
   font-variant-numeric: tabular-nums;
 }
 
-.klar-money__control--end { text-align: right; }
+.klar-money__control--end { text-align: end; }
 
 /* The code of the currency, always in view at the end of the field. */
 .klar-money__currency {

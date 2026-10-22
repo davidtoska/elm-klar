@@ -213,7 +213,7 @@ viewIdentifiers locale model =
         "The field writes the groups while the user types, and says what is wrong in words: the length of the IBAN of the country, the check digit, a character that does not belong. Separators can be typed or left out. Letters in a field for digits are not dropped; they stay and are reported. The value is Nothing until the identifier is complete and its check digits are right. Try the IBANs NO93 8601 1117 947 and DE89 3704 0044 0532 0130 00, and the organisation number 974 760 673. Errors that more typing cannot fix show at once; an unfinished value is an error when the field is left. An edit in the middle of the text is kept as typed until you type at the end or leave the field."
         [ Doc.example
             { title = "IBAN"
-            , description = Just "All the countries of the IBAN registry, each with its length. The check digits are tested with modulus 97."
+            , description = Just "The countries of the SWIFT IBAN registry, each with its length (a country that joined recently may be missing). The check digits are tested with modulus 97."
             , code = Just ibanCode
             }
             (Layout.stack [ Layout.gap 2 ]
@@ -466,7 +466,7 @@ negativeCode =
 viewSharing : Locale -> Model -> Html Msg
 viewSharing locale model =
     Doc.section "Exact arithmetic"
-        "Splitting an amount never loses a minor unit, and a percentage is rounded half away from zero, as a person does by hand. Money of different currencies can not be added: that is an Err, not a wrong sum."
+        "Splitting an amount never loses a minor unit, and a percentage is rounded half away from zero, as a person does by hand. Money of different currencies cannot be added: that is an Err, not a wrong sum."
         [ Doc.example
             { title = "Split an amount"
             , description = Just "100.00 in three is 33.34, 33.33 and 33.33: the unit that does not divide goes to the first part. The parts always add up to the amount."
@@ -543,4 +543,4 @@ Money.percentOf 25 amount
     --> Ok 25.00                     -- half away from zero
 
 Money.add nokAmount eurAmount
-    --> Err (Can not mix NOK and EUR)"""
+    --> Err (Cannot mix NOK and EUR)"""

@@ -69,12 +69,13 @@ type Checksum
 
 
 {-| What was read from the text: the characters that are the value (without separators,
-letters in capitals), and the first character that does not belong, with what was
-expected in its place.
+letters in capitals), the first character that does not belong, with what was expected
+in its place, and whether a phone number has the national `(0)` after its country code.
 -}
 type alias Reading =
     { value : String
     , rejected : Maybe ( Char, Expected )
+    , trunkZero : Bool
     }
 
 
@@ -98,6 +99,7 @@ type Issue
     | UnknownIbanCountry String
     | WrongNationalLength { callingCode : String, want : Int, have : Int }
     | NeedsCountryCode
+    | LeaveOutTrunkZero
     | WrongCheckDigit
     | WrongIbanCheck
 
@@ -140,7 +142,19 @@ read shape raw =
     in
     { value = String.fromList (List.reverse scanned.kept)
     , rejected = scanned.rejected
+    , trunkZero = shape == Phone && hasTrunkZero raw
     }
+
+
+{-| A phone number written with the national zero in parentheses after the country code,
+`+44 (0)20 7946 0958`, which means "dial the 0 only from inside the country". The
+parentheses are separators and would be dropped, which leaves the 0 in the number: a
+wrong number that looks right. It is not read: the field keeps the text as typed and says
+what to do.
+-}
+hasTrunkZero : String -> Bool
+hasTrunkZero raw =
+    String.contains "(0)" (String.filter (\c -> not (List.member c [ ' ', '\u{00A0}', '\u{202F}', '\u{2009}', '\t' ])) raw)
 
 
 scan : Shape -> Char -> Scan -> Scan
@@ -400,11 +414,20 @@ afterTyping shape { typed, caret } =
         atEnd =
             caret < 0 || caret >= String.length typed
     in
-    if reading.rejected /= Nothing || not atEnd then
+    if isVerbatim reading || not atEnd then
         typed
 
     else
         display shape reading.value
+
+
+{-| Text that is shown exactly as typed, because something in it is wrong in a way that
+writing it in groups would hide: a character that does not belong, or a phone number
+with the national `(0)` in it.
+-}
+isVerbatim : Reading -> Bool
+isVerbatim reading =
+    reading.rejected /= Nothing || reading.trunkZero
 
 
 {-| The text of the field after the field was left, or Enter was pressed: written in
@@ -416,7 +439,7 @@ afterLeaving shape text =
         reading =
             read shape text
     in
-    if reading.rejected /= Nothing then
+    if isVerbatim reading then
         text
 
     else
@@ -437,7 +460,10 @@ issue shape reading =
             Just (Unexpected c expected)
 
         Nothing ->
-            if reading.value == "" then
+            if reading.trunkZero then
+                Just LeaveOutTrunkZero
+
+            else if reading.value == "" then
                 Nothing
 
             else
@@ -569,7 +595,7 @@ text is not complete.
 -}
 isComplete : Shape -> Reading -> Bool
 isComplete shape reading =
-    reading.value /= "" && reading.rejected == Nothing && lengthIssue shape reading.value == Nothing
+    reading.value /= "" && not (isVerbatim reading) && lengthIssue shape reading.value == Nothing
 
 
 {-| Can no more typing fix it? A character that does not belong, text that is too long
@@ -599,6 +625,9 @@ isFinal found =
 
         NeedsCountryCode ->
             False
+
+        LeaveOutTrunkZero ->
+            True
 
         WrongCheckDigit ->
             True
@@ -689,7 +718,7 @@ keyboard shape =
 {-| Reads a pattern: `#` is a digit, `@` a letter, `*` a letter or a digit, and any
 other character is shown by the field and not part of the value (a hyphen, a space, a
 point). A backslash makes the next character one of those fixed ones, so `\#` is a
-hash sign. Letters and digits can not be fixed characters, because the user would
+hash sign. Letters and digits cannot be fixed characters, because the user would
 have to type them.
 
 `Nothing` for a pattern without a slot, one that ends in a backslash, one with a
@@ -741,11 +770,21 @@ parseSlots chars =
 
 literal : Char -> Maybe Slot
 literal c =
-    if Char.toCode c < 32 || Char.isAlphaNum c then
+    if Char.toCode c < 32 || Char.isAlphaNum c || isCasedLetter c then
         Nothing
 
     else
         Just (Literal c)
+
+
+{-| A letter of an alphabet that has capitals (`å`, `é`, `ß`, `ж`): it is not one of
+the ASCII letters that a slot takes, and a fixed character cannot be one either, because
+the user would have to type it. A letter and its capital differ, which tells without a
+table of alphabets.
+-}
+isCasedLetter : Char -> Bool
+isCasedLetter c =
+    Char.toUpper c /= Char.toLower c
 
 
 {-| The pattern of the postal codes of a country, by its ISO 3166 code in capitals.

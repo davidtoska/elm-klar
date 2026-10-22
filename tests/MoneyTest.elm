@@ -82,6 +82,28 @@ anyMinor =
         (Fuzz.intRange 0 999999)
 
 
+{-| A weight of any size up to 1.8 \* 10^15: five of them still add up inside the exact
+range. (The fuzzers of the test library stay within 32 bits by themselves.)
+-}
+bigWeight : Fuzzer Int
+bigWeight =
+    Fuzz.map2 (\high low -> high * 1000000 + low) (Fuzz.intRange 0 1799999999) (Fuzz.intRange 0 999998)
+
+
+anyMinorMagnitude : Fuzzer Int
+anyMinorMagnitude =
+    Fuzz.map Basics.abs anyMinor
+
+
+{-| `a * b = whole * c + left`, compared modulo a prime of about a million: every product
+is below 10^12, so nothing leaves the exact range, and the three primes together make a
+mistake in the arithmetic under test all but certain to show.
+-}
+productHolds : Int -> Int -> Int -> Int -> Int -> Int -> Bool
+productHolds prime a b c whole left =
+    modBy prime (modBy prime a * modBy prime b) == modBy prime (modBy prime whole * modBy prime c + modBy prime left)
+
+
 smallMinor : Fuzzer Int
 smallMinor =
     Fuzz.intRange -100000000000 100000000000
@@ -181,12 +203,57 @@ tableTests =
                     |> Expect.equal []
         , test "a code in lower case, with spaces around it, is found" <|
             \_ -> Expect.equal (Just Money.nok) (Money.currency "  nok ")
-        , test "codes that are not active currencies are not found" <|
+        , test "codes that are not currencies of the list, or were withdrawn long ago, are not found" <|
             \_ ->
                 [ "", "NO", "NORK", "XXX", "XAU", "BTC", "HRK", "LTL", "ZWL", "CUC", "SLL" ]
                     |> List.filterMap Money.currency
                     |> List.length
                     |> Expect.equal 0
+        , test "the Arab Accounting Dinar is active and has two decimals" <|
+            \_ ->
+                Expect.equal ( Just 2, Just True )
+                    ( Money.currency "XAD" |> Maybe.map Money.decimals
+                    , Money.currency "XAD" |> Maybe.map Money.isActive
+                    )
+        , test "the currencies that ended in 2025 are not in the list to choose from" <|
+            \_ ->
+                Money.allCurrencies
+                    |> List.map Money.currencyCode
+                    |> List.filter (\code -> List.member code [ "ANG", "BGN" ])
+                    |> Expect.equal []
+        , test "but they can still be read from old data, and are not active" <|
+            \_ ->
+                Expect.equal [ ( Just 2, Just False ), ( Just 2, Just False ) ]
+                    [ ( Money.currency "BGN" |> Maybe.map Money.decimals, Money.currency "BGN" |> Maybe.map Money.isActive )
+                    , ( Money.currency "ANG" |> Maybe.map Money.decimals, Money.currency "ang" |> Maybe.map Money.isActive )
+                    ]
+        , test "an amount in a withdrawn currency can be made and written" <|
+            \_ ->
+                case Money.currency "BGN" of
+                    Just lev ->
+                        Money.parse Locale.en lev "BGN 12.50"
+                            |> Result.map (Money.toString Locale.en)
+                            |> Expect.equal (Ok ("BGN" ++ nbsp ++ "12.50"))
+
+                    Nothing ->
+                        Expect.fail "BGN should be readable"
+        , test "every active currency is active, and the named ones too" <|
+            \_ ->
+                Money.allCurrencies
+                    |> List.filter (not << Money.isActive)
+                    |> List.length
+                    |> Expect.equal 0
+        , test "the active and the withdrawn currencies are different codes, with sane exponents" <|
+            \_ ->
+                let
+                    codes =
+                        List.map .code (Currencies.entries ++ Currencies.withdrawn)
+                in
+                Expect.equal ( List.length codes, [], [] )
+                    ( Set.size (Set.fromList codes)
+                    , List.filter (\entry -> entry.decimals < 0 || entry.decimals > 4) Currencies.withdrawn
+                    , List.filter (\entry -> String.length entry.code /= 3) Currencies.withdrawn
+                    )
         , test "a symbol is a symbol, and a code is the symbol of a currency that has none" <|
             \_ ->
                 Expect.equal [ "kr", "$", "€", "£", "¥", "CHF", "BHD" ]
@@ -216,13 +283,13 @@ constructionTests =
                     [ Money.fromMinor Money.nok maxMinor /= Nothing
                     , Money.fromMinor Money.nok -maxMinor /= Nothing
                     ]
-        , test "one more than the largest exact amount can not" <|
+        , test "one more than the largest exact amount cannot" <|
             \_ ->
                 Expect.equal [ Nothing, Nothing ]
                     [ Money.fromMinor Money.nok (maxMinor + 1)
                     , Money.fromMinor Money.nok (Basics.negate maxMinor - 1)
                     ]
-        , test "numbers that are no numbers can not be made into an amount" <|
+        , test "numbers that are no numbers cannot be made into an amount" <|
             \_ ->
                 Expect.equal [ Nothing, Nothing, Nothing ]
                     [ Money.fromMinor Money.nok (round (0 / 0))
@@ -440,11 +507,13 @@ parsingTests =
             , refuses Locale.en Money.nok "0x10" "Must be an amount"
             , refuses Locale.en Money.nok "١٢٣" "Must be an amount"
             ]
-        , describe "separators that can not be read"
+        , describe "separators that cannot be read"
             [ refuses Locale.en Money.nok "1.2.3" "The separators are unclear: write the amount with one decimal separator"
             , refuses Locale.en Money.nok "1,2,3" "The separators are unclear: write the amount with one decimal separator"
             , refuses Locale.en Money.nok "1,234,56" "The separators are unclear: write the amount with one decimal separator"
             , refuses Locale.en Money.nok "1.23.456" "The separators are unclear: write the amount with one decimal separator"
+            , refuses Locale.en Money.nok "1,23,456" "The separators are unclear: write the amount with one decimal separator"
+            , refuses Locale.nb Money.nok "12,34,567.50" "The separators are unclear: write the amount with one decimal separator"
             , refuses Locale.en Money.nok "12.345,67.8" "The separators are unclear: write the amount with one decimal separator"
             , refuses Locale.en Money.nok "1,23.45" "The separators are unclear: write the amount with one decimal separator"
             , refuses Locale.en Money.nok "1.234.5,-" "The separators are unclear: write the amount with one decimal separator"
@@ -676,7 +745,7 @@ arithmeticTests =
         , test "adding amounts in different currencies is refused, in both orders and for subtract" <|
             \_ ->
                 Expect.equal
-                    [ Err "Can not mix NOK and EUR", Err "Can not mix EUR and NOK", Err "Can not mix NOK and EUR" ]
+                    [ Err "Cannot mix NOK and EUR", Err "Cannot mix EUR and NOK", Err "Cannot mix NOK and EUR" ]
                     [ minorOf (Money.add (amount Money.nok 1000) (amount Money.eur 1000))
                     , minorOf (Money.add (amount Money.eur 1000) (amount Money.nok 1000))
                     , minorOf (Money.subtract (amount Money.nok 1000) (amount Money.eur 1000))
@@ -686,7 +755,7 @@ arithmeticTests =
                 Money.add (amount Money.nok 1000) (amount Money.eur 1000)
                     |> Result.mapError (Money.problemText Locale.nb)
                     |> Result.map Money.toMinor
-                    |> Expect.equal (Err "Kan ikke blande NOK og EUR")
+                    |> Expect.equal (Err "Kan ikke legge sammen NOK og EUR")
         , test "two currencies with the same decimals are still different" <|
             \_ ->
                 Expect.equal True (Result.toMaybe (Money.add (amount Money.usd 1) (amount Money.eur 1)) == Nothing)
@@ -715,7 +784,7 @@ arithmeticTests =
             , test "of several amounts" <|
                 \_ -> Expect.equal (Ok 600) (minorOf (Money.sum Money.nok [ amount Money.nok 100, amount Money.nok 200, amount Money.nok 300 ]))
             , test "is refused when one amount is in another currency" <|
-                \_ -> Expect.equal (Err "Can not mix NOK and EUR") (minorOf (Money.sum Money.nok [ amount Money.nok 100, amount Money.eur 200 ]))
+                \_ -> Expect.equal (Err "Cannot mix NOK and EUR") (minorOf (Money.sum Money.nok [ amount Money.nok 100, amount Money.eur 200 ]))
             , test "of amounts in another currency than the one given is refused" <|
                 \_ -> Expect.equal True (Result.toMaybe (Money.sum Money.nok [ amount Money.eur 200 ]) == Nothing)
             , fuzz (Fuzz.list smallMinor) "equals the sum of the minor units" <|
@@ -820,8 +889,17 @@ fractionTests =
                     [ minorOf (Money.percentOf 101 (amount Money.nok maxMinor))
                     , minorOf (Money.fraction 3 2 (amount Money.nok -maxMinor))
                     ]
-        , test "a numerator and denominator whose product leaves the exact range are refused" <|
-            \_ -> Expect.equal (Err "The amount is too large") (minorOf (Money.fraction 4000000000000 5000000000000 (amount Money.nok 99999999999)))
+        , test "a numerator and denominator that are large are exact: the product of the amount and the numerator is never formed" <|
+            \_ ->
+                Expect.equal
+                    [ Ok 79999999999, Ok 750000000000, Ok 3002399751580330, Ok 9007199254740990, Ok 1, Ok 4503599627370496 ]
+                    [ minorOf (Money.fraction 4000000000000 5000000000000 (amount Money.nok 99999999999))
+                    , minorOf (Money.fraction 3000000000000000 4000000000000000 (amount Money.nok 1000000000000))
+                    , minorOf (Money.fraction 1 3 (amount Money.nok maxMinor))
+                    , minorOf (Money.fraction 9007199254740990 9007199254740991 (amount Money.nok maxMinor))
+                    , minorOf (Money.fraction 9007199254740991 9007199254740990 (amount Money.nok 1))
+                    , minorOf (Money.fraction 4503599627370496 9007199254740991 (amount Money.nok maxMinor))
+                    ]
         , fuzz3 (Fuzz.intRange 0 1000000000) (Fuzz.intRange 0 1000) (Fuzz.intRange 1 1000) "equals the exact value rounded half up, for amounts with a known answer" <|
             \minor numerator denominator ->
                 let
@@ -922,12 +1000,66 @@ allocationTests =
                     , Result.toMaybe (Money.split -3 (amount Money.nok 100)) == Nothing
                     , Result.toMaybe (Money.split 100001 (amount Money.nok 100)) == Nothing
                     ]
-        , test "weights so large that the working leaves the exact range are refused" <|
+        , test "weights that add up to more than the exact range are refused, with a reason of their own" <|
             \_ ->
-                Expect.equal [ Err "The amount is too large", Err "The amount is too large" ]
+                Expect.equal (List.repeat 2 (Err "The shares add up to more than can be divided exactly"))
                     [ allocated [ 5000000000000000, 5000000000000000 ] 100
-                    , allocated [ 1000000000, 1000000000 ] 99999999999999
+                    , allocated [ maxMinor, 1 ] 100
                     ]
+        , test "weights that are large are exact, whatever the amount: they are not limited to some tens of millions" <|
+            \_ ->
+                Expect.equal
+                    [ Ok [ 333333333, 666666667 ]
+                    , Ok [ 50000000000000, 49999999999999 ]
+                    , Ok [ maxMinor - 1, 1 ]
+                    , Ok [ 4503599627370496, 4503599627370495 ]
+                    , Ok [ 2, 3, 5 ]
+                    , Ok [ 0, 100 ]
+                    ]
+                    [ allocated [ 100000000, 200000000 ] 1000000000
+                    , allocated [ 1000000000, 1000000000 ] 99999999999999
+                    , allocated [ maxMinor - 1, 1 ] maxMinor
+                    , allocated [ 4503599627370495, 4503599627370496 ] maxMinor |> Result.map List.reverse
+                    , allocated [ 1000000000000000, 1500000000000000, 2500000000000000 ] 10
+                    , allocated [ 0, 9007199254740991 ] 100
+                    ]
+        , test "the shares of large weights are as the shares of their small equivalents" <|
+            \_ ->
+                Expect.equal (allocated [ 1, 2, 3, 4 ] 1000001) (allocated [ 1000000000, 2000000000, 3000000000, 4000000000 ] 1000001)
+        , fuzz2 anyMinor (Fuzz.listOfLengthBetween 1 5 bigWeight) "with weights of any size that add up inside the range, the parts add up to the amount" <|
+            \minor weights ->
+                case Money.allocate weights (amount Money.nok minor) of
+                    Ok parts ->
+                        Expect.equal minor (List.sum (List.map Money.toMinor parts))
+
+                    Err _ ->
+                        -- only weights that are all zero (five of 1.8 * 10^15 add up to 9 * 10^15)
+                        Expect.equal 0 (List.sum weights)
+        , fuzz2 anyMinor (Fuzz.listOfLengthBetween 2 5 (Fuzz.map (\weight -> weight + 1) bigWeight)) "a part is the whole of its share or one more, also for large weights" <|
+            \minor weights ->
+                case Money.allocate weights (amount Money.nok minor) of
+                    Ok parts ->
+                        let
+                            total =
+                                List.sum weights
+
+                            shares =
+                                List.map (\weight -> Arithmetic.mulDivMod (Basics.abs minor) weight total) weights
+
+                            fits ( part, share ) =
+                                case share of
+                                    Just ( whole, _ ) ->
+                                        Basics.abs (Money.toMinor part) - whole >= 0 && Basics.abs (Money.toMinor part) - whole <= 1
+
+                                    Nothing ->
+                                        False
+                        in
+                        List.map2 Tuple.pair parts shares
+                            |> List.filter (not << fits)
+                            |> Expect.equal []
+
+                    Err _ ->
+                        Expect.fail "weights that add up inside the range are possible"
         , test "many parts" <|
             \_ ->
                 case Money.split 10000 (amount Money.nok 1234567) of
@@ -1088,6 +1220,55 @@ rangeTests =
                     , Arithmetic.fromDigits "-12"
                     , Arithmetic.fromDigits "12345678901234567"
                     ]
+        , test "a * b / c with a product far beyond the exact range: known answers" <|
+            \_ ->
+                Expect.equal
+                    [ Just ( 9007199254740990, 0 )
+                    , Just ( 4503599627370495, 0 )
+                    , Just ( 9007199254740988, 2 )
+                    , Just ( 0, 0 )
+                    , Nothing
+                    ]
+                    [ Arithmetic.mulDivMod maxMinor 9007199254740990 maxMinor
+                    , Arithmetic.mulDivMod maxMinor 4503599627370495 maxMinor
+                    , Arithmetic.mulDivMod 9007199254740990 9007199254740989 9007199254740991
+                    , Arithmetic.mulDivMod 0 maxMinor 7
+                    , Arithmetic.mulDivMod maxMinor maxMinor 1
+                    ]
+        , fuzz3 anyMinorMagnitude anyMinorMagnitude anyMinorMagnitude "mulDivMod: the whole and the rest put the product together again (checked modulo three primes), the rest is below the divisor" <|
+            \a b c0 ->
+                let
+                    -- a divisor of at least 1, and a factor no larger than it, so that the answer fits
+                    c =
+                        remainderBy maxMinor c0 + 1
+
+                    factor =
+                        remainderBy (c + 1) b
+                in
+                case Arithmetic.mulDivMod a factor c of
+                    Just ( whole, left ) ->
+                        Expect.all
+                            [ \_ -> Expect.equal True (left >= 0 && left < c)
+                            , \_ -> Expect.equal True (whole >= 0 && whole <= a)
+                            , \_ -> Expect.equal [] (List.filter (\prime -> not (productHolds prime a factor c whole left)) [ 999983, 1000003, 999979 ])
+                            ]
+                            ()
+
+                    Nothing ->
+                        Expect.fail "the answer of a factor no larger than the divisor fits"
+        , fuzz3 anyMinorMagnitude anyMinorMagnitude anyMinorMagnitude "mulDivMod: when the answer fits, the same holds; when not, it is really too large" <|
+            \a b c0 ->
+                let
+                    c =
+                        remainderBy maxMinor c0 + 1
+                in
+                case Arithmetic.mulDivMod a b c of
+                    Just ( whole, left ) ->
+                        Expect.equal [] (List.filter (\prime -> not (productHolds prime a b c whole left)) [ 999983, 1000003, 999979 ])
+
+                    Nothing ->
+                        -- a * b / c is beyond 9 * 10^15, to within the error of floating point
+                        Expect.atLeast 8.9e15 (toFloat a * toFloat b / toFloat c)
         , fuzz anyMinor "fromDigits agrees with the number it was written from" <|
             \minor ->
                 Expect.equal (Just (Basics.abs minor)) (Arithmetic.fromDigits (String.fromInt (Basics.abs minor)))
