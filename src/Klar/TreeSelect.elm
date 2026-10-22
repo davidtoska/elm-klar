@@ -66,6 +66,11 @@ what is left of it. A node that is `disabled` is never chosen: checking its pare
 chooses the nodes around it one by one, and the parent shows a check when all of
 them are chosen. To get the warehouses and not the regions, ask for `leaves`.
 
+That promise has one price: with a `disabled` node somewhere under "Europe", checking
+"Europe" cannot say `europe` (it would include the disabled node), so the value is
+one id for each part of Europe that has nothing disabled inside it, which can be
+many. Without disabled nodes below it, a checked branch is always one id.
+
 Typing in the search box filters the tree: it keeps the nodes that contain every
 word, with the nodes above them, opened and with the matching text highlighted.
 When the text is cleared the tree is as the user left it. Only nodes that are in
@@ -75,8 +80,8 @@ a tree of many thousands of nodes stays fast.
 
 Nodes can come from the backend: the top level as a `Remote` (`remote`), and the
 children of a node with `Picking.lazy`. When the user opens a lazy node that is
-`NotAsked`, `loadRequests` tells you which one, so that you can mark it `Loading`
-and fetch it; a failed branch shows the problem and a "Try again" button
+`NotAsked`, `loadRequests` names it (call it after every update), so that you can
+mark it `Loading` and fetch it; a failed branch shows the problem and a "Try again" button
 (`onRetryChildren`) and does not block the rest of the tree. Nothing else is
 loaded behind your back.
 
@@ -97,14 +102,17 @@ type-ahead.
 Accessibility: the field is a button with `role="combobox"` and
 `aria-haspopup="tree"`. The open popup is a `tree` of `treeitem` rows with
 `aria-level`, `aria-setsize`, `aria-posinset` and `aria-expanded`, and
-`aria-selected` (single) or `aria-checked` (multiple, with `mixed` for the dash).
-The counts under the tree are announced politely. The built-in text follows
+`aria-selected` (single) or `aria-checked` (multiple, with `mixed` for the dash, and
+`aria-multiselectable` on the tree). The counts under the tree are announced politely. The built-in text follows
 `locale` and is English by default (see [Klar.Locale](Klar-Locale)).
 
 Limits: a node must have a unique id in the whole tree, ids are compared through
 their key (see [Klar.Picking](Klar-Picking)), and a value that is not in the tree
 you give is shown as "Unknown value" unless you say how to write it (`valueText`)
-or give the component its node (`setNode`, `setNodes`).
+or give the component its node (`setNode`, `setNodes`). On the closed field of a
+multiple field Backspace removes the last chosen id, which can be a whole branch
+(the Select family does the same for its chips). Right-to-left languages are not
+supported: the arrow keys and the indents assume left-to-right text.
 
 
 # State
@@ -234,6 +242,7 @@ type alias Data id =
     , open : Bool
     , query : String
     , highlighted : Maybe Pos
+    , revealed : Bool
     , expanded : Set String
     , flips : Set String
     , chosen : Dict String (Chosen id)
@@ -291,6 +300,7 @@ init (Mode isMultiple) domId =
         , open = False
         , query = ""
         , highlighted = Nothing
+        , revealed = False
         , expanded = Set.empty
         , flips = Set.empty
         , chosen = Dict.empty
@@ -370,9 +380,12 @@ setNode node (State data) =
 
 {-| Replaces the chosen nodes of a multiple field from your code. Duplicates are
 dropped. The labels are looked up in the nodes when they are shown; use `setNodes`
-when they may not be among them. The value is taken as it is: `europe` and
-`oslo` together are two ids, and the field shows what that means (Oslo inside a
-checked Europe is simply checked).
+when they may not be among them. The value is taken as you give it as long as the
+field does not know the nodes (`europe` and `oslo` together are two ids, and the
+field draws what that means: Oslo inside a checked Europe is simply checked, and
+Norway with Oslo and Bergen checked is checked); once the field has seen the nodes
+(its popup has been open) it puts what you set in its shortest form, like what the
+user checks.
 
     TreeSelect.setValues siteIds [ europe, asia ] model.sites
 
@@ -381,7 +394,7 @@ setValues : Ids id -> List id -> State Multiple id -> State Multiple id
 setValues ids ids_ (State data) =
     State
         (refreshCached
-            (replaceChosen (List.map (\id -> { id = id, key = Picking.toKey ids id, label = Nothing }) ids_) data)
+            (normalizeCover (replaceChosen (List.map (\id -> { id = id, key = Picking.toKey ids id, label = Nothing }) ids_) data))
         )
 
 
@@ -390,7 +403,29 @@ their labels. Only the nodes themselves are used, not their children.
 -}
 setNodes : List (Node id) -> State Multiple id -> State Multiple id
 setNodes nodes_ (State data) =
-    State (refreshCached (replaceChosen (List.map fromNode nodes_) data))
+    State (refreshCached (normalizeCover (replaceChosen (List.map fromNode nodes_) data)))
+
+
+{-| Puts the chosen nodes in their shortest form, when the field knows the nodes
+(it does once its popup has been open). Without nodes the value is kept as it was
+given, and the boxes are drawn right all the same.
+-}
+normalizeCover : Data id -> Data id
+normalizeCover data =
+    case data.cache of
+        Just cache ->
+            let
+                shortest =
+                    Cover.normalize cache.index data.cover
+            in
+            if shortest == data.cover then
+                data
+
+            else
+                setCover cache.index shortest data
+
+        Nothing ->
+            data
 
 
 type alias Pick id =
@@ -583,10 +618,10 @@ type alias Env id =
 and the chosen nodes. The index is reused while the nodes are the same list.
 -}
 refreshWith : List (Node id) -> Data id -> Data id
-refreshWith nodes_ data =
+refreshWith nodes_ data0 =
     let
         ( index, reusable ) =
-            case data.cache of
+            case data0.cache of
                 Just cache ->
                     if cache.nodes == nodes_ then
                         ( cache.index, Just cache )
@@ -596,6 +631,11 @@ refreshWith nodes_ data =
 
                 Nothing ->
                     ( Index.build nodes_, Nothing )
+
+        -- a single field that opened before its nodes had arrived opens on its
+        -- value as soon as they have
+        data =
+            reveal index data0
 
         ( filterOf, filter ) =
             case reusable of
@@ -639,6 +679,32 @@ refreshWith nodes_ data =
                 , rows = rows
                 }
     }
+
+
+{-| An open single field shows its value: the nodes above it are opened and it is
+highlighted. It happens once for each time the popup opens, as soon as the nodes
+have the value (they may come from the backend after the popup opened).
+-}
+reveal : Index id -> Data id -> Data id
+reveal index data =
+    if data.revealed || not data.open || data.multiple then
+        data
+
+    else
+        case Dict.keys data.chosen of
+            key :: _ ->
+                if Index.get key index == Nothing then
+                    data
+
+                else
+                    { data
+                        | expanded = List.foldl Set.insert data.expanded (Index.ancestors key index)
+                        , highlighted = Just (AtNode key)
+                        , revealed = True
+                    }
+
+            [] ->
+                { data | revealed = True }
 
 
 refreshCached : Data id -> Data id
@@ -902,23 +968,18 @@ openWith : Env id -> String -> Data id -> ( Data id, Cmd (Msg id) )
 openWith env text data =
     let
         prepared =
-            refreshWith env.nodes { data | open = True, query = text, flips = Set.empty, highlighted = Nothing, list = VirtualList.reset data.list }
-
-        -- a single field opens on its value: the nodes above it are opened
-        revealed =
-            case ( data.multiple, prepared.cache, Dict.keys prepared.chosen ) of
-                ( False, Just cache, key :: _ ) ->
-                    if text == "" then
-                        { prepared | expanded = List.foldl Set.insert prepared.expanded (Index.ancestors key cache.index), highlighted = Just (AtNode key) }
-
-                    else
-                        prepared
-
-                _ ->
-                    prepared
+            refreshWith env.nodes
+                { data
+                    | open = True
+                    , query = text
+                    , flips = Set.empty
+                    , highlighted = Nothing
+                    , list = VirtualList.reset data.list
+                    , revealed = text /= ""
+                }
 
         final =
-            refreshCached revealed
+            prepared
 
         ( list, scroll ) =
             case highlightIndex env.canRetry final of
@@ -1508,7 +1569,8 @@ disabled value_ =
 
 {-| While `True` the field shows its value but does not let the user change it:
 the popup does not open, and there is no chevron or clear button. Unlike
-`disabled`, a read-only field can be focused. The default is `False`.
+`disabled`, a read-only field can be focused. The two are independent; with both
+set the field is disabled. The default is `False`.
 -}
 readOnly : Bool -> Attribute id msg
 readOnly value_ =
@@ -2146,8 +2208,9 @@ renderedRange count rowsVisible list =
         viewport =
             min (rowsVisible * rowHeight) (count * rowHeight)
 
+        -- the list keeps its scroll position inside its rows, so does this
         top =
-            VirtualList.scrollTop list
+            clamp 0 (toFloat (max 0 (count * rowHeight - viewport))) (VirtualList.scrollTop list)
 
         first =
             floor (top / toFloat rowHeight)
@@ -2433,6 +2496,7 @@ viewTree toMsg config t env data cache highlighted _ =
             , VirtualList.htmlAttrs
                 [ Internal.cls [ "klar-select__list", "klar-tree-select__tree" ]
                 , Attr.attribute "role" "tree"
+                , Internal.attrIf data.multiple (Attr.attribute "aria-multiselectable" "true")
                 , Internal.attrMaybe (Attr.attribute "aria-label") config.field.label
 
                 -- dragging the scrollbar must not take focus from the search box

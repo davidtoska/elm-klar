@@ -1999,8 +1999,12 @@ renderedRange count rowsVisible list =
         viewport =
             min (rowsVisible * rowHeight) (count * rowHeight)
 
+        -- the list keeps its scroll position inside its rows, so does this
+        top =
+            clamp 0 (toFloat (max 0 (count * rowHeight - viewport))) (VirtualList.scrollTop list)
+
         first =
-            floor (VirtualList.scrollTop list / toFloat rowHeight)
+            floor (top / toFloat rowHeight)
 
         visible =
             ceiling (toFloat viewport / toFloat rowHeight) + 1
