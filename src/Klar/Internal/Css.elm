@@ -1918,11 +1918,11 @@ css =
  .klar-status-page__detail-name{font-weight: var(--klar-weight-medium)}
  .klar-status-page__value{font-family: var(--klar-font-mono);color: var(--klar-text-secondary);-webkit-user-select: all;user-select: all}
  .klar-bulk{position: relative;display: grid;grid-template-columns: minmax(0,1fr);min-width: 0}
+ .klar-bulk:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: 2px;border-radius: var(--klar-radius-lg)}
  .klar-bulk__under,.klar-bulk__bar{grid-area: 1 / 1;min-width: 0}
  .klar-bulk__under--covered{visibility: hidden}
  .klar-bulk__live{pointer-events: none}
  .klar-bulk__bar{display: flex;flex-wrap: wrap;align-items: center;align-content: center;gap: 6px var(--klar-space-3);padding: 6px var(--klar-space-2);background: var(--klar-primary-subtle);border: 1px solid var(--klar-primary-border);border-radius: var(--klar-radius-lg);color: var(--klar-blue-800);animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
- .klar-bulk__bar:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: -2px}
  .klar-bulk__count{flex: none;padding: 0 var(--klar-space-1);font-weight: var(--klar-weight-bold);white-space: nowrap}
  .klar-bulk__offer{display: flex;flex-wrap: wrap;align-items: center;min-width: 0}
  .klar-bulk__actions{display: flex;flex-wrap: wrap;align-items: center;justify-content: flex-end;gap: var(--klar-space-2);margin-left: auto;max-width: 100%}

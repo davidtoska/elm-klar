@@ -328,6 +328,26 @@ referenceTests =
             \_ ->
                 page [] (StatusPage.fromProblem (Remote.problem Remote.server |> Remote.withCode "503"))
                     |> H.inside [ Selector.class "klar-status-page__value" ] [ Selector.text "503" ]
+        , test "a blank reference draws nothing, like a blank title" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> page [ StatusPage.reference "" ] StatusPage.serverError |> H.none [ Selector.class "klar-status-page__meta" ]
+                    , \_ -> page [ StatusPage.reference "   " ] StatusPage.serverError |> H.none [ Selector.class "klar-status-page__meta" ]
+                    , \_ -> page [ StatusPage.reference "" ] StatusPage.serverError |> H.none [ Selector.text "Reference" ]
+                    , \_ -> page [ StatusPage.reference "" ] StatusPage.serverError |> H.none [ Selector.tag "code" ]
+                    ]
+                    ()
+        , test "a blank reference does not hide the code of the problem" <|
+            \_ ->
+                page [ StatusPage.reference "" ] (StatusPage.fromProblem (Remote.problem Remote.server |> Remote.withCode "503"))
+                    |> Expect.all
+                        [ H.count 1 [ Selector.class "klar-status-page__value" ]
+                        , H.none [ Selector.text "Reference" ]
+                        ]
+        , test "a blank code of a problem draws nothing either" <|
+            \_ ->
+                page [] (StatusPage.fromProblem (Remote.problem Remote.server |> Remote.withCode ""))
+                    |> H.none [ Selector.class "klar-status-page__meta" ]
         , test "a reference that is a long unbroken word stays inside the meta line" <|
             \_ ->
                 page [ StatusPage.reference (String.repeat 200 "x") ] StatusPage.serverError
@@ -500,15 +520,35 @@ iconAndToneTests =
 focusTests : Test
 focusTests =
     describe "focus"
-        [ test "without an id the title cannot take focus" <|
-            \_ -> page [] StatusPage.success |> H.none [ Selector.id "order-created-title" ]
-        , test "the id is on the page and the title can take focus" <|
+        [ test "without an id nothing can take focus" <|
+            \_ ->
+                page [] StatusPage.success
+                    |> Expect.all
+                        [ H.none [ Selector.attribute (Attr.tabindex -1) ]
+                        , H.none [ Selector.id "order-created" ]
+                        ]
+        , test "the title has the id and can take focus" <|
             \_ ->
                 page [ StatusPage.id "order-created" ] StatusPage.success
                     |> Expect.all
-                        [ H.has [ Selector.id "order-created" ]
-                        , H.inside [ Selector.id "order-created-title" ] [ Selector.tag "h1", Selector.attribute (Attr.tabindex -1) ]
+                        [ H.inside [ Selector.id "order-created" ] [ Selector.tag "h1", Selector.attribute (Attr.tabindex -1) ]
+                        , H.count 1 [ Selector.attribute (Attr.tabindex -1) ]
                         ]
+        , test "the id of the title is exactly the text given, so that focusTitle can be given the same text" <|
+            \_ ->
+                page [ StatusPage.id "x" ] StatusPage.notFound
+                    |> H.inside [ Selector.id "x" ] [ heading ]
+        , test "with a blank title the page itself has the id and can take focus, so that there is always something to find" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> page [ StatusPage.id "order-created", StatusPage.title "" ] StatusPage.success |> H.has [ Selector.id "order-created", Selector.attribute (Attr.tabindex -1), Selector.class "klar-status-page" ]
+                    , \_ -> page [ StatusPage.id "order-created", StatusPage.title "  " ] StatusPage.success |> H.has [ Selector.id "order-created", Selector.attribute (Attr.tabindex -1) ]
+                    ]
+                    ()
+        , test "the id is only in one place: on the title when there is one" <|
+            \_ ->
+                page [ StatusPage.id "order-created" ] StatusPage.success
+                    |> H.count 1 [ Selector.id "order-created" ]
         , test "focusTitle is a command" <|
             \_ -> Expect.notEqual Cmd.none (StatusPage.focusTitle "order-created" Done)
         ]

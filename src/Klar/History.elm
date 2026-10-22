@@ -69,7 +69,8 @@ one, also after typing a change and undoing it, so it is the dirty flag of the f
 
 The controls (`controls`) are two icon buttons and a polite live region: after an undo
 a screen reader says "Undid: Changed quantity", after a redo "Redid: Changed quantity".
-They are the only visible part of this module.
+The next change to the history, of any kind, takes the announcement away again. They are
+the only visible part of this module.
 
 
 # History
@@ -197,6 +198,7 @@ withLimit limit (History state) =
             | limit = kept
             , past = past
             , future = List.take (kept - List.length past) state.future
+            , moved = Nothing
         }
 
 
@@ -315,7 +317,7 @@ even if it has the same key. Call it when the field loses focus.
 -}
 endBurst : History key a -> History key a
 endBurst (History state) =
-    History { state | burst = Nothing }
+    History { state | burst = Nothing, moved = Nothing }
 
 
 
@@ -402,7 +404,7 @@ one undo goes back to what was saved.
 -}
 markSaved : History key a -> History key a
 markSaved (History state) =
-    History { state | saved = state.present, burst = Nothing }
+    History { state | saved = state.present, burst = Nothing, moved = Nothing }
 
 
 {-| Is the present value equal to the saved one? It is, right after `init`,
@@ -492,20 +494,25 @@ showShortcuts =
     Attribute (\config -> { config | showShortcuts = True })
 
 
-undoKeys : Shortcut.Keys
+undoKeys : List Shortcut.Keys
 undoKeys =
-    Shortcut.mod (Shortcut.char 'z')
+    [ Shortcut.mod (Shortcut.char 'z') ]
 
 
-redoKeys : Shortcut.Keys
+{-| `Ctrl Shift Z`, and `Ctrl Y`, which is what Windows applications use.
+-}
+redoKeys : List Shortcut.Keys
 redoKeys =
-    Shortcut.mod (Shortcut.shift (Shortcut.char 'z'))
+    [ Shortcut.mod (Shortcut.shift (Shortcut.char 'z'))
+    , Shortcut.mod (Shortcut.char 'y')
+    ]
 
 
-{-| The two shortcuts, `Ctrl Z` for undo and `Ctrl Shift Z` for redo (`Cmd` on a Mac),
-listed in the group "Edit" of the shortcut sheet. Add them to the list you give
-to [Klar.Shortcut](Klar-Shortcut); see the top of this section for the fields that
-are typed in.
+{-| The shortcuts: `Ctrl Z` for undo, and `Ctrl Shift Z` and `Ctrl Y` (the Windows
+convention) for redo; `Cmd` instead of `Ctrl` on a Mac. They are listed in the group
+"Edit" of the shortcut sheet, redo twice, once for each pair of keys. Add them to the
+list you give to [Klar.Shortcut](Klar-Shortcut); see the top of this section for the
+fields that are typed in.
 -}
 shortcuts : Locale -> { onUndo : msg, onRedo : msg } -> List (Shortcut msg)
 shortcuts language messages =
@@ -513,18 +520,19 @@ shortcuts language messages =
         group =
             Locale.pick language { nb = "Redigering", en = "Edit" }
     in
-    [ Shortcut.shortcut undoKeys group (Locale.pick language { nb = "Angre", en = "Undo" }) messages.onUndo
-    , Shortcut.shortcut redoKeys group (Locale.pick language { nb = "Gjør om", en = "Redo" }) messages.onRedo
-    ]
+    List.map (\keys -> Shortcut.shortcut keys group (Locale.pick language { nb = "Angre", en = "Undo" }) messages.onUndo) undoKeys
+        ++ List.map (\keys -> Shortcut.shortcut keys group (Locale.pick language { nb = "Gjør om", en = "Redo" }) messages.onRedo) redoKeys
 
 
 {-| Two icon buttons, "Undo" and "Redo", and a polite live region. The buttons are
 named after the step they would take: "Undo: Changed quantity". They stay in place and
 in the tab order when there is nothing to do (`aria-disabled`), so a user who undoes
 everything does not lose focus; they do nothing then. After an undo or a redo the live
-region says what happened, "Undid: Changed quantity", once and politely; it is
-empty after anything else. The live region is always on the page, as it must be to
-be heard.
+region says what happened, "Undid: Changed quantity", once and politely. It is empty
+again after the next change to the history: an edit, `endBurst`, `markSaved`,
+`withLimit`, `clear` or `reset`. (An edit that equals the present value, and an undo or
+redo with nothing to do, change nothing and leave it as it was.) The live region is
+always on the page, as it must be to be heard.
 
     History.controls [] { onUndo = UndoPressed, onRedo = RedoPressed } model.history
 
@@ -548,14 +556,14 @@ controls attributes messages ((History state) as history) =
 
         withHint name keys =
             if config.showShortcuts then
-                name ++ " (" ++ String.join " " (List.map (String.join "+") (Shortcut.keycaps keys)) ++ ")"
+                name ++ " (" ++ String.join ", " (List.map keyCaps keys) ++ ")"
 
             else
                 name
 
         hintAttributes keys =
             if config.showShortcuts then
-                [ Button.htmlAttrs [ Attr.attribute "aria-keyshortcuts" (ariaKeys keys) ] ]
+                [ Button.htmlAttrs [ Attr.attribute "aria-keyshortcuts" (String.join " " (List.map ariaKeys keys)) ] ]
 
             else
                 []
@@ -608,6 +616,15 @@ controls attributes messages ((History state) as history) =
                 )
             ]
         ]
+
+
+{-| "Ctrl+Shift+Z" for the tooltip.
+-}
+keyCaps : Shortcut.Keys -> String
+keyCaps keys =
+    Shortcut.keycaps keys
+        |> List.map (String.join "+")
+        |> String.join " "
 
 
 {-| `aria-keyshortcuts` names the keys the way `KeyboardEvent.key` does.
