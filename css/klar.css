@@ -10904,6 +10904,13 @@ html:has(.klar-modal-lock) {
   min-width: 0;
 }
 
+/* Focused by BulkBar.focus after the bar has taken itself away. */
+.klar-bulk:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 2px;
+  border-radius: var(--klar-radius-lg);
+}
+
 .klar-bulk__under,
 .klar-bulk__bar {
   grid-area: 1 / 1;
@@ -10929,8 +10936,6 @@ html:has(.klar-modal-lock) {
   animation: klar-fade-in var(--klar-dur) var(--klar-ease);
 }
 
-/* Focused after "Select all N matching", which is replaced by the new count. */
-.klar-bulk__bar:focus-visible { outline: 2px solid var(--klar-focus-color); outline-offset: -2px; }
 
 .klar-bulk__count {
   flex: none;

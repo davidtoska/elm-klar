@@ -302,8 +302,8 @@ update msg model =
             )
 
         SelectEverything ->
-            -- the button the user pressed is replaced by the new count: the bar takes focus
-            ( { model | everything = True, outcome = Nothing }, BulkBar.focus "flow-bulk" NoOp )
+            -- the button the user pressed stays where it is, as an inactive button: no focus to move
+            ( { model | everything = True, outcome = Nothing }, Cmd.none )
 
         ClearSelection ->
             clearSelection model Nothing
@@ -443,13 +443,13 @@ update msg model =
             )
 
 
-{-| Clearing the selection removes the bar and the button that has focus: the list
-takes it.
+{-| Clearing the selection removes the bar and the button that has focus: the box
+that the toolbar and the bar share, which is always on the page, takes it.
 -}
 clearSelection : Model -> Maybe String -> ( Model, Cmd Msg )
 clearSelection model outcome =
     ( { model | picked = Set.empty, everything = False, outcome = outcome }
-    , Task.attempt (\_ -> NoOp) (Dom.focus "flow-orders")
+    , BulkBar.focus "flow-bulk" NoOp
     )
 
 
@@ -643,7 +643,7 @@ bulkSection locale model =
         "Appears when a selection is not empty: the count, the actions for it and Clear selection. It does not push anything: the bar takes the place of the toolbar, in the same box, and the toolbar underneath keeps its state (type in the search field, then select a row). The count is announced politely by one region that is always on the page. It never takes focus by itself, and Escape does nothing here: whether Escape clears is the application's decision."
         [ Doc.example
             { title = "A selectable list of orders"
-            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Clear selection and Delete give focus back to the list; Select all moves focus to the bar so that Tab reaches the actions."
+            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Select all stays in its place as an inactive button, so focus is never lost. Clear selection and Delete take the bar away with the button that has focus, and the update calls BulkBar.focus: focus goes to the toolbar box, and Tab reaches its first control."
             , code = Just bulkCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -682,9 +682,7 @@ bulkSection locale model =
                     , Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Deleted ] "Delete"
                     ]
                 , Html.div
-                    [ Attr.id "flow-orders"
-                    , Attr.tabindex -1
-                    , Attr.style "border" "1px solid var(--klar-border)"
+                    [ Attr.style "border" "1px solid var(--klar-border)"
                     , Attr.style "border-radius" "var(--klar-radius-lg)"
                     , Attr.style "background" "var(--klar-surface)"
                     ]
@@ -1008,12 +1006,14 @@ bulkCode =
     , Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Deleted ] "Delete"
     ]
 
--- the buttons of the bar are gone in the next frame: keep focus in the page
+-- the bar and its focused button are gone in the next frame: the box that the toolbar
+-- and the bar share is always on the page and takes focus
 ClearSelection ->
-    ( { model | picked = Set.empty }, Task.attempt (always NoOp) (Dom.focus "orders-list") )
+    ( { model | picked = Set.empty }, BulkBar.focus "orders-bulk" NoOp )
 
+-- the "Select all" button stays where it is (inactive): nothing to move
 SelectEverything ->
-    ( { model | everything = True }, BulkBar.focus "orders-bulk" NoOp )"""
+    ( { model | everything = True }, Cmd.none )"""
 
 
 guardCode : String
