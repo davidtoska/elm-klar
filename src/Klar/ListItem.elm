@@ -3,7 +3,7 @@ module Klar.ListItem exposing
     , secondary, meta, icon, avatar, leading, trailing, accent
     , onClick, href, selected, disabled, id, label
     , list, ListAttribute, listLabel, undivided, compact, bordered, maxHeight
-    , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale
+    , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, settings
     )
 
 {-| A dense list row, and the list that holds the rows.
@@ -72,7 +72,7 @@ goes into it is `content`, the row without the `li` and without anything to clic
 
 # Data from a backend
 
-@docs remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale
+@docs remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, settings
 
 -}
 
@@ -86,6 +86,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
@@ -488,6 +489,7 @@ type alias ListConfig msg =
     , emptyIcon : Icon
     , skeletonRows : Int
     , locale : Locale
+    , settings : Settings
     }
 
 
@@ -505,6 +507,7 @@ configureList attributes =
         , emptyIcon = Icon.inbox
         , skeletonRows = 4
         , locale = Locale.default
+        , settings = Settings.default
         }
         attributes
 
@@ -588,6 +591,16 @@ default is 4, and the value is kept between 1 and 20.
 skeletonRows : Int -> ListAttribute msg
 skeletonRows n =
     ListAttribute (\config -> { config | skeletonRows = clamp 1 20 n })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    ListItem.settings model.settings
+-}
+settings : Settings -> ListAttribute msg
+settings given =
+    ListAttribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text of `remote`: the default title of the empty
@@ -696,7 +709,7 @@ remote attributes toRow data =
                             , Freshness.busyAttr freshness
                             ]
                             [ Freshness.notice
-                                { locale = config.locale, onRetry = config.onRetry, inline = False }
+                                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                                 freshness
                             , list attributes (List.map toRow items)
                             ]

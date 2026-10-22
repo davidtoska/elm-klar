@@ -6,7 +6,7 @@ module Klar.Table exposing
     , Query, Direction(..), Filter(..), query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
     , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection
     , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
-    , Attribute, columns, rows, rowId, rowLabel, server, label, locale
+    , Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
     , onRefresh, onRetry, emptyState
@@ -246,7 +246,7 @@ a saved view.
 
 # Basic attributes
 
-@docs Attribute, columns, rows, rowId, rowLabel, server, label, locale
+@docs Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
 
 
 # Search, filters and sorting
@@ -332,6 +332,7 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Internal.Window as Window
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Pagination as Pagination
@@ -2339,6 +2340,7 @@ type alias Config row msg =
     , server : Maybe Int
     , label : Maybe String
     , locale : Locale
+    , settings : Settings
     , searchable : Bool
     , searchPlaceholder : Maybe String
     , searchDebounce : Maybe Int
@@ -2382,6 +2384,7 @@ configure attributes =
         , server = Nothing
         , label = Nothing
         , locale = Locale.default
+        , settings = Settings.default
         , searchable = False
         , searchPlaceholder = Nothing
         , searchDebounce = Nothing
@@ -2648,6 +2651,16 @@ scrolling area a labelled region for screen readers.
 label : String -> Attribute id row msg
 label value =
     Attribute (\config -> { config | label = Just value })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Table.settings model.settings
+-}
+settings : Settings -> Attribute id row msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text, and the conventions that go with it:
@@ -3743,7 +3756,7 @@ view toMsg attributes (State model) =
                 -- the retry button goes away when the data is fresh: focus waits on the table
                 Html.div [ Events.on "click" (retryClicked ctx) ]
                     [ Freshness.notice
-                        { locale = config.locale, onRetry = config.onRetry, inline = False }
+                        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                         config.freshness
                     ]
 

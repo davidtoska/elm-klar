@@ -1,6 +1,6 @@
 module SettingsTest exposing (suite)
 
-{-| The settings of the application: the zone that a `Moment` carries, the density
+{-| The settings of the application: the zone of the times, the density
 that the shell and `scope` leave on the page, and the small things that came with
 them (`Format.dateShort`, `Timeline.dayEvent`, `Stat.money`, `Chart.dates`).
 -}
@@ -50,17 +50,17 @@ oslo =
 
 zones : Test
 zones =
-    describe "the zone of a moment"
+    describe "the zone"
         [ test "a zone that was never given writes the time in UTC and says so" <|
-            \_ -> Expect.equal "14:05 UTC" (Settings.time (Settings.at Settings.default posix))
+            \_ -> Expect.equal "14:05 UTC" (Settings.time Settings.default posix)
         , test "a zone that was given writes the time as it is on the wall" <|
-            \_ -> Expect.equal "15:05" (Settings.time (Settings.at oslo posix))
+            \_ -> Expect.equal "15:05" (Settings.time oslo posix)
         , test "the date and the time follow the zone and the language" <|
             \_ ->
                 Expect.equal
                     [ "2024-03-12 15:05", "12.03.2024 15:05" ]
-                    [ Settings.dateTime Locale.en (Settings.at oslo posix)
-                    , Settings.dateTime Locale.nb (Settings.at oslo posix)
+                    [ Settings.dateTime Locale.en oslo posix
+                    , Settings.dateTime Locale.nb oslo posix
                     ]
         , test "the day is the day of the zone, which may be the next one" <|
             \_ ->
@@ -73,11 +73,9 @@ zones =
                 in
                 Expect.equal
                     ( "2024-03-12", "2024-03-13" )
-                    ( Date.toIso (Settings.toDate (Settings.at Settings.default lateEvening))
-                    , Date.toIso (Settings.toDate (Settings.at zone lateEvening))
+                    ( Date.toIso (Settings.toDate Settings.default lateEvening)
+                    , Date.toIso (Settings.toDate zone lateEvening)
                     )
-        , test "the moment keeps the point in time" <|
-            \_ -> Expect.equal posix (Settings.toPosix (Settings.at oslo posix))
         , test "the zone for the places that write a time themselves is UTC until it is given" <|
             \_ ->
                 Expect.equal
@@ -143,10 +141,10 @@ dayEvents : Test
 dayEvents =
     let
         view events =
-            Timeline.view [] events |> Query.fromHtml
+            Timeline.view [ Timeline.settings oslo ] events |> Query.fromHtml
 
         timed =
-            Timeline.event "a" (Settings.at oslo posix) "Order shipped"
+            Timeline.event "a" posix "Order shipped"
 
         delivered =
             Timeline.dayEvent "b" september21 "Delivery date"
@@ -162,7 +160,7 @@ dayEvents =
                         ]
         , test "it sits under the heading of its day" <|
             \_ -> view [ delivered ] |> Query.has [ Selector.tag "h3", Selector.containing [ Selector.text "21 September 2026" ] ]
-        , test "a timed event of the same list still writes its time, in the zone of its moment" <|
+        , test "a timed event of the same list still writes its time, in the zone of the settings" <|
             \_ -> view [ timed, delivered ] |> Query.has [ Selector.tag "time", Selector.text "15:05" ]
         , test "events of the same day in the same zone share a heading" <|
             \_ ->

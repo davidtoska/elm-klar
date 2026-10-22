@@ -3,7 +3,7 @@ module Klar.MultiSelect exposing
     , values, setValues, setOptions, clear, query, isOpen, open, close
     , Attribute, options, remote, serverSearch, onRetry
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale
+    , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale, settings
     , maxSelected, maxVisibleChips
     )
 
@@ -104,7 +104,7 @@ control.
 
 # Behavior and looks
 
-@docs placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale
+@docs placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale, settings
 
 
 # Limits and chips
@@ -123,6 +123,7 @@ import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select.Option as Option exposing (Option)
@@ -600,6 +601,7 @@ type alias Config id msg =
     , size : Size
     , visibleRows : Int
     , locale : Locale
+    , settings : Settings
     , onRetry : Maybe msg
     , maxSelected : Maybe Int
     , maxVisibleChips : Maybe Int
@@ -623,6 +625,7 @@ configure attributes =
         , size = Medium
         , visibleRows = 8
         , locale = Locale.default
+        , settings = Settings.default
         , onRetry = Nothing
         , maxSelected = Nothing
         , maxVisibleChips = Nothing
@@ -857,6 +860,16 @@ row each.
 visibleRows : Int -> Attribute id msg
 visibleRows n =
     Attribute (\config -> { config | visibleRows = clamp 3 20 n })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    MultiSelect.settings model.settings
+-}
+settings : Settings -> Attribute id msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text: the placeholders, the search box, the
@@ -1574,7 +1587,7 @@ viewPopup toMsg config t env (State state) =
                 Html.div
                     [ Internal.cls [ Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
                     [ Freshness.notice
-                        { locale = config.locale, onRetry = config.onRetry, inline = False }
+                        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                         config.freshness
                     , list
                     , Popup.viewFooter status actions

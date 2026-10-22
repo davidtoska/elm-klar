@@ -2,7 +2,7 @@ module Klar.Chart exposing
     ( line, bar, donut, gauge, meter, sparkline
     , Series, series, seriesMaybe, withColor, withTone, dashed
     , Segment, segment, segmentColor, segmentTone
-    , Attribute, title, description, ariaLabel, size, height, tone, locale, unit, valueFormat
+    , Attribute, title, description, ariaLabel, size, height, tone, locale, settings, unit, valueFormat
     , categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
     , centerLabel, centerCaption, range, thresholds
     , loading, failed, onRetry, remote, emptyText
@@ -94,7 +94,7 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Attributes
 
-@docs Attribute, title, description, ariaLabel, size, height, tone, locale, unit, valueFormat
+@docs Attribute, title, description, ariaLabel, size, height, tone, locale, settings, unit, valueFormat
 
 
 # Line and bar charts
@@ -123,6 +123,7 @@ import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
@@ -289,6 +290,7 @@ type alias Config msg =
     , valueFormat : Maybe (Float -> String)
     , unit : String
     , locale : Locale
+    , settings : Settings
     , tone : Maybe Tone
     , busy : Bool
     , failure : Maybe Problem
@@ -326,6 +328,7 @@ configure attributes =
         , valueFormat = Nothing
         , unit = ""
         , locale = Locale.default
+        , settings = Settings.default
         , tone = Nothing
         , busy = False
         , failure = Nothing
@@ -523,6 +526,16 @@ is set.
 unit : String -> Attribute msg
 unit text =
     Attribute (\config -> { config | unit = text })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Chart.settings model.settings
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text ("No data to show", "Line chart",
@@ -807,7 +820,7 @@ withState config kind placeholderHeight hasData body =
                             , Freshness.busyAttr config.freshness
                             ]
                             [ Freshness.notice
-                                { locale = config.locale, onRetry = config.onRetry, inline = False }
+                                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
                                 config.freshness
                             , body ()
                             ]
@@ -3048,7 +3061,7 @@ sparkline attributes rawValues =
                     described =
                         case config.freshness of
                             Freshness.Stale value ->
-                                summary ++ ". " ++ Freshness.text config.locale value.at
+                                summary ++ ". " ++ Freshness.text config.locale config.settings value.at
 
                             _ ->
                                 summary

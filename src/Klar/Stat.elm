@@ -3,7 +3,7 @@ module Klar.Stat exposing
     , Attribute, label, value, int, decimal, compact, money, unit, caption, icon
     , delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
-    , size, flat, onClick, locale
+    , size, flat, onClick, locale, settings
     , loading, failed, onRetry, remote
     )
 
@@ -89,7 +89,7 @@ only its retry button is a control).
 
 # Look and behavior
 
-@docs size, flat, onClick, locale
+@docs size, flat, onClick, locale, settings
 
 
 # Loading and failure
@@ -107,6 +107,7 @@ import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money as Money exposing (Money)
 import Klar.Remote as Remote exposing (Problem, Remote)
@@ -157,6 +158,7 @@ type alias Config msg =
     , failure : Maybe Problem
     , freshness : Freshness
     , locale : Locale
+    , settings : Settings
     }
 
 
@@ -183,6 +185,7 @@ configure attributes =
         , failure = Nothing
         , freshness = Freshness.Fresh
         , locale = Locale.default
+        , settings = Settings.default
         }
         attributes
 
@@ -485,6 +488,16 @@ remote data toAttributes =
         )
 
 
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Stat.settings model.settings
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
+
+
 {-| The language of the built-in text ("Loading", "Try again" and the hidden
 "increase" and "decrease") and of the number format. The default is
 `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
@@ -587,7 +600,7 @@ view attributes =
                         , Internal.viewMaybe (\text -> Html.span [ Internal.cls [ "klar-stat__caption" ] ] [ Html.text text ]) config.caption
                         , viewTrend config
                         , Freshness.notice
-                            { locale = config.locale, onRetry = config.onRetry, inline = True }
+                            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = True }
                             config.freshness
                         ]
             ]

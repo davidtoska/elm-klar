@@ -4,7 +4,7 @@ module Klar.CommandPalette exposing
     , open, close, isOpen, openedFrom, query, setQuery
     , Item, item, withDescription, withIcon, withShortcut, withKeywords, withId
     , Section, section, remote, onRetry, emptyText
-    , Attribute, sections, recent, placeholder, label, noResults, locale
+    , Attribute, sections, recent, placeholder, label, noResults, locale, settings
     )
 
 {-| A command palette: one search box, usually opened with `Ctrl K`, for commands
@@ -177,7 +177,7 @@ closed would otherwise answer into the next opening, under an empty query.
 
 # Attributes
 
-@docs Attribute, sections, recent, placeholder, label, noResults, locale
+@docs Attribute, sections, recent, placeholder, label, noResults, locale, settings
 
 -}
 
@@ -192,6 +192,7 @@ import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem, Remote(..))
@@ -626,6 +627,7 @@ type alias Config msg =
     , label : Maybe String
     , noResults : Maybe String
     , locale : Locale
+    , settings : Settings
     }
 
 
@@ -638,6 +640,7 @@ configure attributes =
         , label = Nothing
         , noResults = Nothing
         , locale = Locale.default
+        , settings = Settings.default
         }
         attributes
 
@@ -679,6 +682,16 @@ remote section that is empty has its own text, see `emptyText`.
 noResults : String -> Attribute msg
 noResults value =
     Attribute (\config -> { config | noResults = Just value })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    CommandPalette.settings model.settings
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in texts: the placeholder, the footer, the heading
@@ -826,7 +839,7 @@ buildBlocks config text =
                               , body =
                                     (case Tuple.second (Freshness.settle data.remote) of
                                         Freshness.Stale old ->
-                                            [ EmptyBody (Freshness.text config.locale old.at) ]
+                                            [ EmptyBody (Freshness.text config.locale config.settings old.at) ]
 
                                         _ ->
                                             []

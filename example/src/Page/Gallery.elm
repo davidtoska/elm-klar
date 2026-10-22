@@ -12,6 +12,7 @@ mechanical.
 
 import Html exposing (Html)
 import Klar.Locale exposing (Locale)
+import Klar.Settings exposing (Settings)
 import Page.Gallery.Access as Access
 import Page.Gallery.Actions as Actions
 import Page.Gallery.Arranging as Arranging
@@ -293,8 +294,8 @@ step existing change store toMsg model =
 -- VIEW
 
 
-view : Locale -> Maybe Section -> Model -> Html Msg
-view locale maybeSection model =
+view : Settings -> Locale -> Maybe Section -> Model -> Html Msg
+view settings locale maybeSection model =
     case maybeSection of
         Nothing ->
             Html.map IndexMsg (Index.view locale model.index)
@@ -329,7 +330,7 @@ view locale maybeSection model =
                     show NavigationMsg (Navigation.view locale) model.navigation
 
                 DataDisplay ->
-                    show DataDisplayMsg (DataDisplay.view locale) model.dataDisplay
+                    show DataDisplayMsg (DataDisplay.view settings locale) model.dataDisplay
 
                 Rules ->
                     show RulesMsg (Rules.view locale) model.rules
@@ -356,13 +357,13 @@ view locale maybeSection model =
                     show PickingMsg (Picking.view locale) model.picking
 
                 Access ->
-                    show AccessMsg (Access.view locale) model.access
+                    show AccessMsg (Access.view settings locale) model.access
 
                 Recurring ->
                     show RecurringMsg (Recurring.view locale) model.recurring
 
                 StaleData ->
-                    show StaleDataMsg (StaleData.view locale) model.staleData
+                    show StaleDataMsg (StaleData.view settings locale) model.staleData
 
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg

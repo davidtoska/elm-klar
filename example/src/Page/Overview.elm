@@ -24,6 +24,7 @@ import Klar.Remote as Remote exposing (Remote)
 import Klar.Skeleton as Skeleton
 import Klar.Stat as Stat
 import Klar.Theme exposing (Tone(..))
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Timeline as Timeline
 import Page.Effect as Effect exposing (Context, Effect(..))
 import Route
@@ -277,20 +278,20 @@ activity context summary =
 
         -- The dummy backend pretends it is this moment, so "Today" and
         -- "Yesterday" mean the same as in its data.
-        , Timeline.now Generate.now
+        , Timeline.now (Settings.at context.settings Generate.now)
         , Timeline.compact
         , Timeline.ariaLabel "Recent activity"
         , Timeline.locale context.locale
         ]
         (summary
             |> Remote.toMaybe
-            |> Maybe.map (.activity >> List.map activityEvent)
+            |> Maybe.map (.activity >> List.map (activityEvent context.settings))
             |> Maybe.withDefault []
         )
 
 
-activityEvent : Activity -> Timeline.Event Msg
-activityEvent item =
+activityEvent : Settings -> Activity -> Timeline.Event Msg
+activityEvent settings item =
     let
         ( title, tone, icon ) =
             case item.kind of
@@ -306,7 +307,7 @@ activityEvent item =
                 OrderCancelled ->
                     ( "Order " ++ Types.orderIdText item.orderId ++ " cancelled", Danger, Icon.close )
     in
-    Timeline.event (Types.orderIdText item.orderId ++ "-" ++ Types.activityKey item.kind) item.at title
+    Timeline.event (Types.orderIdText item.orderId ++ "-" ++ Types.activityKey item.kind) (Settings.at settings item.at) title
         |> Timeline.withTone tone
         |> Timeline.withIcon icon
         |> Timeline.withDescription item.customer

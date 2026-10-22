@@ -7,7 +7,7 @@ module Klar.Tree exposing
     , selected, selectedId, select, setSelected, checked, setChecked, clearChecked
     , focused, focusNode, query, setQuery
     , loadRequests, onLoadChildren, onRetry, onReload
-    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, settings
     )
 
 {-| A tree view for hierarchies: regions and warehouses, folders, product
@@ -161,7 +161,7 @@ selected and checked nodes come back in your own type:
 
 # Attributes
 
-@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, settings
 
 -}
 
@@ -180,6 +180,7 @@ import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
@@ -1109,6 +1110,7 @@ type alias Config id msg =
     , maxChildren : Int
     , emptyText : Maybe String
     , locale : Locale
+    , settings : Settings
     }
 
 
@@ -1130,6 +1132,7 @@ configure attributes =
         , maxChildren = 300
         , emptyText = Nothing
         , locale = Locale.default
+        , settings = Settings.default
         }
         attributes
 
@@ -1268,6 +1271,16 @@ maxChildren n =
 emptyText : String -> Attribute id msg
 emptyText text =
     Attribute (\config -> { config | emptyText = Just text })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Tree.settings model.settings
+-}
+settings : Settings -> Attribute id msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text (the filter box, "Loading ...", "Load",
@@ -1765,7 +1778,7 @@ viewRemote toMsg attributes state data =
                 , Freshness.busyAttr freshness
                 ]
                 [ Freshness.notice
-                    { locale = config.locale, onRetry = config.onReload, inline = False }
+                    { locale = config.locale, settings = config.settings, onRetry = config.onReload, inline = False }
                     freshness
                 , view toMsg attributes state nodes
                 ]
@@ -2232,6 +2245,7 @@ viewChildren env depth parentId parentValue children =
                 notice =
                     Freshness.notice
                         { locale = env.config.locale
+                        , settings = env.config.settings
                         , onRetry = Maybe.map (\toApp -> toApp parentValue) env.config.onRetry
                         , inline = True
                         }

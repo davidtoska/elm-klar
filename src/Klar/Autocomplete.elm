@@ -3,7 +3,7 @@ module Klar.Autocomplete exposing
     , text, setText, picked, isOpen
     , Attribute, options, suggestions, onRetry, onEnter
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale
+    , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale, settings
     )
 
 {-| A text field with suggestions. Unlike [Klar.Select](Klar-Select) the user may
@@ -90,7 +90,7 @@ control.
 
 # Behavior and looks
 
-@docs placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale
+@docs placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale, settings
 
 -}
 
@@ -101,6 +101,7 @@ import Klar.Field as Field
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select.Match as Match
@@ -359,6 +360,7 @@ type alias Config msg =
     , visibleRows : Int
     , prefixIcon : Maybe Icon
     , locale : Locale
+    , settings : Settings
     , onRetry : Maybe msg
     , onEnter : Maybe msg
     }
@@ -379,6 +381,7 @@ configure attributes =
         , visibleRows = 8
         , prefixIcon = Nothing
         , locale = Locale.default
+        , settings = Settings.default
         , onRetry = Nothing
         , onEnter = Nothing
         }
@@ -587,6 +590,16 @@ by default.
 prefixIcon : Icon -> Attribute msg
 prefixIcon icon =
     Attribute (\config -> { config | prefixIcon = Just icon })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Autocomplete.settings model.settings
+-}
+settings : Settings -> Attribute msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text: "No suggestions", "Loading ...", the
@@ -1005,7 +1018,7 @@ viewPopup toMsg config t id list highlighted query retry content =
             in
             popup
                 [ Freshness.notice
-                    { locale = config.locale, onRetry = Nothing, inline = False }
+                    { locale = config.locale, settings = config.settings, onRetry = Nothing, inline = False }
                     config.freshness
                 , if rows.grouped then
                     VirtualList.viewGrouped (ListMsg >> toMsg)

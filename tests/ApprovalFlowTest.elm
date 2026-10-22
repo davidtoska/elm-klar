@@ -13,7 +13,7 @@ import Klar.ApprovalFlow as ApprovalFlow
 import Klar.Avatar as Avatar
 import Klar.Locale as Locale
 import Klar.Remote as Remote
-import Klar.Settings as Settings exposing (Moment, Settings)
+import Klar.Settings as Settings
 import Support.FlowHtml as H
 import Test exposing (Test, describe, fuzz, fuzz2, test)
 import Test.Html.Query as Query
@@ -518,34 +518,19 @@ person id =
     }
 
 
-utc : Settings
-utc =
-    Settings.withZone Time.utc Settings.default
-
-
-march12 : Moment
+march12 : Time.Posix
 march12 =
-    inZone utc march12Posix
-
-
-inZone : Settings -> Time.Posix -> Moment
-inZone =
-    Settings.at
-
-
-march12Posix : Time.Posix
-march12Posix =
     Time.millisToPosix 1710252300000
 
 
-march14 : Moment
+march14 : Time.Posix
 march14 =
-    inZone utc (Time.millisToPosix 1710417600000)
+    Time.millisToPosix 1710417600000
 
 
-march20 : Moment
+march20 : Time.Posix
 march20 =
-    inZone utc (Time.millisToPosix 1710925200000)
+    Time.millisToPosix 1710925200000
 
 
 {-| Step 1 approved by Ada, step 2 waits for Grace or Alan (due 14 March), step 3
@@ -553,15 +538,10 @@ waits for Edsger.
 -}
 creditNote : ApprovalFlow.Flow Int
 creditNote =
-    creditNoteIn utc
-
-
-creditNoteIn : Settings -> ApprovalFlow.Flow Int
-creditNoteIn settings =
     ApprovalFlow.flow
         [ ApprovalFlow.step "Team lead"
             ApprovalFlow.all
-            (ApprovalFlow.approver 1 (ApprovalFlow.approved { at = Just (inZone settings march12Posix), comment = Just "Matches the return." }))
+            (ApprovalFlow.approver 1 (ApprovalFlow.approved { at = Just march12, comment = Just "Matches the return." }))
             []
         , ApprovalFlow.step "Finance"
             ApprovalFlow.any
@@ -918,11 +898,11 @@ detailTests =
                     |> H.has [ Selector.tag "time", H.attr "title" "7 days ago" ]
         , test "the time zone moves the time shown" <|
             \_ ->
-                viewIt [] (creditNoteIn (Settings.withZone (Time.customZone 120 []) Settings.default))
+                viewIt [ ApprovalFlow.settings (Settings.withZone (Time.customZone 120 []) Settings.default) ] creditNote
                     |> H.has [ Selector.text "2024-03-12 16:05" ]
         , test "a zone that was never given says so: the time ends in UTC" <|
             \_ ->
-                viewIt [] (creditNoteIn Settings.default)
+                viewIt [] creditNote
                     |> H.has [ Selector.text "2024-03-12 14:05 UTC" ]
         , test "the avatar next to a name is decorative, so the name is not read twice" <|
             \_ ->

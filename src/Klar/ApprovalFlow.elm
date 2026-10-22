@@ -5,7 +5,7 @@ module Klar.ApprovalFlow exposing
     , Status, status, isInProgress, isApproved, isRejected
     , StepStatus, stepStatuses, stepIsWaiting, stepIsInProgress, stepIsApproved, stepIsRejected, stepIsSkipped
     , currentStep, pendingApprovers
-    , Attribute, viewer, onApprove, onReject, now, horizontal, ariaLabel, onRetry, locale
+    , Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale
     )
 
 {-| The approval process of one item: an ordered list of steps, each with one or
@@ -16,9 +16,8 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
 
     import Klar.ApprovalFlow as ApprovalFlow
     import Klar.Avatar as Avatar
-    import Klar.Settings as Settings exposing (Moment)
 
-    creditNoteFlow : Moment -> ApprovalFlow.Flow UserId
+    creditNoteFlow : Time.Posix -> ApprovalFlow.Flow UserId
     creditNoteFlow deadline =
         ApprovalFlow.flow
             [ ApprovalFlow.step "Team lead"
@@ -43,9 +42,10 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
         [ ApprovalFlow.viewer (Just model.me)
         , ApprovalFlow.onApprove Approve
         , ApprovalFlow.onReject AskWhyRejected
-        , ApprovalFlow.now (Settings.at model.settings model.now)
+        , ApprovalFlow.now model.now
+        , ApprovalFlow.settings model.settings
         ]
-        (creditNoteFlow (Settings.at model.settings model.deadline))
+        (creditNoteFlow model.deadline)
 
     personOf : UserId -> Avatar.Entry
     personOf id =
@@ -98,10 +98,8 @@ wide, short strip.
 
 **Overdue.** Give the step a due time (`withDue`) and the flow the current time
 (`now`), and an unfinished current step past its due time says "Overdue". The
-component never reads the clock itself: keep a `Time.Posix` in your model and update
-it, for example with `Time.every`. Every time here is a `Moment`, made with the
-`Klar.Settings` of the application (`Settings.at model.settings posix`), so the
-zone is stated once and cannot be forgotten.
+component never reads the clock itself: keep `Time.Posix` in your model and update
+it, for example with `Time.every`.
 
 **Deciding.** When `viewer` is one of the approvers who still has to decide on the
 current step, the step shows "Approve" and "Reject" buttons, as far as you gave
@@ -110,7 +108,7 @@ the reason of a rejection, the request to the server and the new decision are
 yours. A reject message is the place to open a comment field; when the answer
 comes back, put it in the decision (`rejected { at = ..., comment = ... }`).
 
-**Times** are shown in the zone of their `Moment` and in the format of `locale`, with
+**Times** are shown in the zone of the `settings` you give (`Klar.Settings`, UTC and marked as such if you give none) and in the format of `locale`, with
 [Klar.Format](Klar-Format). The built-in text (statuses, rules, "Overdue", the
 buttons) is English unless you set `locale`. Names and comments come from you.
 
@@ -141,7 +139,7 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 
 # Attributes
 
-@docs Attribute, viewer, onApprove, onReject, now, horizontal, ariaLabel, onRetry, locale
+@docs Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale
 
 -}
 
@@ -158,8 +156,8 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Remote as Remote exposing (Remote)
-import Klar.Settings as Settings exposing (Moment)
 import Klar.Skeleton as Skeleton
 import Klar.Theme exposing (Size(..), Tone(..))
 import Time
@@ -190,7 +188,7 @@ type alias StepData approver =
     , quorum : Quorum
     , first : Approver approver
     , rest : List (Approver approver)
-    , due : Maybe Moment
+    , due : Maybe Time.Posix
     }
 
 
@@ -220,7 +218,7 @@ type Decision
 
 
 type alias Details =
-    { at : Maybe Moment
+    { at : Maybe Time.Posix
     , comment : Maybe String
     }
 
@@ -263,7 +261,7 @@ step title quorum first rest =
 in progress or waiting, and marks the current step "Overdue" once the `now` of
 the viewer is later. Without it a step has no deadline.
 -}
-withDue : Moment -> Step approver -> Step approver
+withDue : Time.Posix -> Step approver -> Step approver
 withDue time (Step data) =
     Step { data | due = Just time }
 
@@ -307,7 +305,7 @@ if anything (a blank comment counts as none).
     ApprovalFlow.approved { at = Just time, comment = Just "Matches the return." }
 
 -}
-approved : { at : Maybe Moment, comment : Maybe String } -> Decision
+approved : { at : Maybe Time.Posix, comment : Maybe String } -> Decision
 approved details =
     DecisionApproved (tidy details)
 
@@ -319,7 +317,7 @@ presses "Reject".
     ApprovalFlow.rejected { at = Just time, comment = Just "The amount is wrong." }
 
 -}
-rejected : { at : Maybe Moment, comment : Maybe String } -> Decision
+rejected : { at : Maybe Time.Posix, comment : Maybe String } -> Decision
 rejected details =
     DecisionRejected (tidy details)
 
@@ -615,7 +613,8 @@ type Attribute approver msg
 
 type alias Config approver msg =
     { locale : Locale
-    , now : Maybe Moment
+    , settings : Settings
+    , now : Maybe Time.Posix
     , horizontal : Bool
     , label : Maybe String
     , viewer : Maybe approver
@@ -629,6 +628,7 @@ configure : List (Attribute approver msg) -> Config approver msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { locale = Locale.default
+        , settings = Settings.default
         , now = Nothing
         , horizontal = False
         , label = Nothing
@@ -672,9 +672,21 @@ onReject msg =
 carry a tooltip such as "3 days ago". Without it nothing is marked overdue. The
 viewer does not read the clock: keep the value in your model and update it.
 -}
-now : Moment -> Attribute approver msg
+now : Time.Posix -> Attribute approver msg
 now time =
     Attribute (\config -> { config | now = Just time })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the times
+of decisions and deadlines. Without it the times are written in UTC and end in
+"UTC".
+
+    ApprovalFlow.settings model.settings
+
+-}
+settings : Settings -> Attribute approver msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| Lays the steps out side by side, for a wide and short strip. The default is
@@ -783,7 +795,7 @@ texts loc =
 stands. The first argument turns one of your approvers into a name and, if you
 have one, the URL of a picture; the name is shown next to a small avatar.
 
-    ApprovalFlow.view personOf [ ApprovalFlow.viewer (Just model.me) ] (creditNoteFlow (Settings.at model.settings model.deadline))
+    ApprovalFlow.view personOf [ ApprovalFlow.viewer (Just model.me) ] (creditNoteFlow model.deadline)
 
 A flow without steps shows "No approval is required".
 
@@ -1033,7 +1045,7 @@ viewStep env index (Step data) state =
         isOverdue =
             case ( data.due, env.config.now ) of
                 ( Just due, Just current ) ->
-                    state == StepInProgress && Time.posixToMillis (Settings.toPosix current) > Time.posixToMillis (Settings.toPosix due)
+                    state == StepInProgress && Time.posixToMillis current > Time.posixToMillis due
 
                 _ ->
                     False
@@ -1143,7 +1155,7 @@ viewStep env index (Step data) state =
         ]
 
 
-viewDue : Env approver msg -> Bool -> Moment -> Html msg
+viewDue : Env approver msg -> Bool -> Time.Posix -> Html msg
 viewDue env isOverdue due =
     Html.span
         [ Internal.cls
@@ -1160,25 +1172,25 @@ viewDue env isOverdue due =
         ]
 
 
-timeElement : Env approver msg -> Moment -> Html msg
-timeElement env moment =
+timeElement : Env approver msg -> Time.Posix -> Html msg
+timeElement env time =
     let
         config =
             env.config
     in
     Html.time
         ([ Internal.cls [ "klar-approval__time", "klar-tabular" ]
-         , Attr.attribute "datetime" (isoTime (Settings.toPosix moment))
+         , Attr.attribute "datetime" (isoTime time)
          ]
             ++ (case config.now of
                     Just current ->
-                        [ Attr.title (Format.relative config.locale (Settings.toPosix current) (Settings.toPosix moment)) ]
+                        [ Attr.title (Format.relative config.locale current time) ]
 
                     Nothing ->
                         []
                )
         )
-        [ Html.text (Settings.dateTime config.locale moment) ]
+        [ Html.text (Settings.dateTime config.locale config.settings time) ]
 
 
 isoTime : Time.Posix -> String
