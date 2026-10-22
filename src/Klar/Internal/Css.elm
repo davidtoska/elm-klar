@@ -878,6 +878,10 @@ css =
  .klar-table__aggregate{font-variant-numeric: tabular-nums}
  .klar-table__footer{display: flex;align-items: center;flex: none;min-height: calc(var(--klar-control-sm) + var(--klar-space-4));padding: var(--klar-space-2) var(--klar-space-3);border-top: 1px solid var(--klar-border);background: var(--klar-surface)}
  .klar-table__footer-loading{display: inline-flex;align-items: center;gap: var(--klar-space-2);font-size: var(--klar-text-sm);color: var(--klar-text-muted)}
+ .klar-table__footer-range{font-size: var(--klar-text-sm);color: var(--klar-text-muted)}
+ .klar-table__spacer-body td{padding: 0;border: 0;background: transparent}
+ .klar-table--virtual .klar-table__body > tr:last-child > .klar-table__td{border-bottom-color: var(--klar-border-subtle)}
+ .klar-table--virtual .klar-table__td--wrap .klar-table__cell{padding: 0;white-space: nowrap;overflow: hidden;text-overflow: ellipsis;line-height: var(--klar-leading-tight)}
  .klar-table__popover{display: flex;flex-direction: column;width: 288px;max-width: calc(100vw - 16px);padding: 0;overflow: hidden;outline: none;color: var(--klar-text);font-size: var(--klar-text-md);font-weight: var(--klar-weight);line-height: var(--klar-leading);text-align: left;white-space: normal;cursor: default}
  @position-try --klar-table-pop-below{position-area: bottom span-all;margin: 4px 0}
  @position-try --klar-table-pop-above{position-area: top span-all;margin: 4px 0}

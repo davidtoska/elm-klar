@@ -12,7 +12,7 @@ module Klar.Table exposing
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
     , refreshing, onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
-    , pageSizes, unpaged, zebra, maxHeight, fillHeight
+    , pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
     , Column, text, int, float, date, maybeDate, badge, status, bool, custom, actions
     , ColumnAttribute, width, minWidth, alignRight, alignCenter, pinned, hiddenByDefault, alwaysVisible, wrap, noTooltip, cell, hint
     , sortText, sortNumber, sortMaybeNumber, sortDate, sortWith, unsortable
@@ -237,7 +237,7 @@ a saved view.
 
 # Pagination and layout
 
-@docs pageSizes, unpaged, zebra, maxHeight, fillHeight
+@docs pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
 
 
 # Columns
@@ -288,6 +288,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Window as Window
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Pagination as Pagination
@@ -483,6 +484,7 @@ type alias Model =
     , optionQuery : String
     , rowMenu : Maybe ( String, Menu.State )
     , activeRow : Int
+    , scroll : Float
     }
 
 
@@ -533,6 +535,7 @@ init tableId =
         , optionQuery = ""
         , rowMenu = Nothing
         , activeRow = 0
+        , scroll = 0
         }
 
 
@@ -900,6 +903,8 @@ type Msg
     | ColumnsReset
     | RowFocused Int
     | FocusRow Int String
+    | FocusVirtualRow Int String Window.Geometry
+    | Scrolled Float
     | RetryClicked
     | FirstPageClicked
 
@@ -910,7 +915,39 @@ debounce, so map it back with your own constructor: `Cmd.map TableMsg cmd`.
 -}
 update : Msg -> State id -> ( State id, Cmd Msg )
 update msg (State model) =
-    Tuple.mapFirst State (step msg model)
+    let
+        ( next, cmd ) =
+            step msg model
+    in
+    -- sorting and searching start at the top of a table that scrolls
+    if model.scroll > 0 && next.scroll == 0 then
+        ( State next, Cmd.batch [ cmd, scrollTo model.id 0 ] )
+
+    else
+        ( State next, cmd )
+
+
+{-| Scrolls the scroll area to this offset, and then focuses the row. In that order:
+focus in a row that is out of view makes the browser scroll, and the window of
+drawn rows then moves a second time while the row has the focus. The row is drawn
+already (the offset is in the model), and when it gets the focus it is in view.
+-}
+scrollThenFocus : String -> Float -> String -> Cmd Msg
+scrollThenFocus tableId top rowDomIdValue =
+    Dom.getViewportOf (scrollDomId tableId)
+        |> Task.andThen (\viewport -> Dom.setViewportOf (scrollDomId tableId) viewport.viewport.x top)
+        |> Task.andThen (\_ -> Dom.focus rowDomIdValue |> Task.onError (\_ -> Dom.focus (scrollDomId tableId)))
+        |> Task.attempt (\_ -> NoOp)
+
+
+{-| Scrolls the table's scroll area to this offset from the top, keeping its
+horizontal position.
+-}
+scrollTo : String -> Float -> Cmd Msg
+scrollTo tableId top =
+    Dom.getViewportOf (scrollDomId tableId)
+        |> Task.andThen (\viewport -> Dom.setViewportOf (scrollDomId tableId) viewport.viewport.x top)
+        |> Task.attempt (\_ -> NoOp)
 
 
 step : Msg -> Model -> ( Model, Cmd Msg )
@@ -920,7 +957,7 @@ step msg model =
             ( model, Cmd.none )
 
         SortClicked colId multi ->
-            ( { model | sort = nextSort multi colId model.sort, page = 1, activeRow = 0 }, Cmd.none )
+            ( { model | sort = nextSort multi colId model.sort, page = 1, activeRow = 0, scroll = 0 }, Cmd.none )
 
         PageChanged n ->
             ( { model | page = max 1 n, activeRow = 0, rowMenu = Nothing }, Cmd.none )
@@ -1116,6 +1153,19 @@ step msg model =
         FocusRow index domId ->
             ( { model | activeRow = index }, Internal.focus domId NoOp )
 
+        FocusVirtualRow index domId geometry ->
+            -- the row may not be drawn yet: scroll first, so that it is when focus arrives
+            let
+                top =
+                    Window.scrollToRow geometry model.scroll index
+            in
+            ( { model | activeRow = index, scroll = top }
+            , scrollThenFocus model.id top domId
+            )
+
+        Scrolled top ->
+            ( { model | scroll = max 0 top }, Cmd.none )
+
         RetryClicked ->
             -- "Try again" is replaced by skeleton rows while the answer is on
             -- its way: focus waits on the table instead of falling to the page
@@ -1270,6 +1320,7 @@ commit model =
             , search = newSearch
             , page = 1
             , activeRow = 0
+            , scroll = 0
             , selection = dropAllMatching model.selection
         }
 
@@ -2267,6 +2318,7 @@ type alias Config row msg =
     , densityToggle : Bool
     , pageSizes : List Int
     , paged : Bool
+    , virtual : Bool
     , multiSort : Bool
     , zebra : Bool
     , maxHeight : Maybe Int
@@ -2308,6 +2360,7 @@ configure attributes =
         , densityToggle = False
         , pageSizes = [ 10, 25, 50, 100 ]
         , paged = True
+        , virtual = False
         , multiSort = False
         , zebra = False
         , maxHeight = Nothing
@@ -2315,6 +2368,22 @@ configure attributes =
         , emptyState = []
         }
         attributes
+        |> finish
+
+
+{-| What follows from the attributes together, whatever their order: a long
+table has no pages in client mode, and rows of one height have no details.
+-}
+finish : Config row msg -> Config row msg
+finish config =
+    if config.virtual then
+        { config
+            | paged = config.paged && config.server /= Nothing
+            , expandedRow = Nothing
+        }
+
+    else
+        config
 
 
 {-| The columns of the table, left to right. Make them with `text`, `int`,
@@ -2773,6 +2842,24 @@ unpaged =
     Attribute (\config -> { config | paged = False })
 
 
+{-| Shows the rows in one long list that scrolls, instead of in pages, and draws
+only the rows that are in view. Use it for tables with thousands of rows that people
+read by scrolling; a table that people page through, or whose rows differ in
+height, is better with pages (see "Paging or scrolling" at the top).
+
+All rows are one height, the one of the table's `density`. A row that is `wrap`ped
+or `expandedRow`s do not make it taller: the cell is cut with an ellipsis, and the
+details are not available. The table is as high as `maxHeight` (480 pixels without
+it) and the header and the totals row stay in view. The keyboard works as in a
+paged table, and PageUp and PageDown move by a screenful. In server mode the
+pagination stays, and `virtual` only draws the rows of the current page that are
+in view, so a page can be a few hundred rows.
+-}
+virtual : Attribute id row msg
+virtual =
+    Attribute (\config -> { config | virtual = True })
+
+
 {-| Lets the user sort by several columns: Shift-clicking a header adds that
 column as the next sort level (or cycles its direction in place), and the
 headers show the order as small numbers. A plain click sorts by that column
@@ -2831,6 +2918,9 @@ emptyState value =
 type alias Data row =
     { status : DataStatus
     , pageRows : List row
+    , pageAll : List row
+    , first : Int
+    , rowCount : Int
     , matchingRows : () -> List row
     , totals : String -> Maybe Index.Totals
     , total : Int
@@ -2856,6 +2946,9 @@ process config model allColumns visible =
         nothing =
             { status = Waiting
             , pageRows = []
+            , pageAll = []
+            , first = 0
+            , rowCount = 0
             , matchingRows = \_ -> []
             , totals = \_ -> Nothing
             , total = Maybe.withDefault 0 config.server
@@ -2875,9 +2968,27 @@ process config model allColumns visible =
 
                         allRows =
                             sourceList source
+
+                        rowTotal =
+                            List.length allRows
+
+                        shown =
+                            if config.virtual then
+                                Window.window virtualWindow (virtualGeometry config model rowTotal) model.scroll
+
+                            else
+                                { first = 0, end = rowTotal, before = 0, after = 0 }
                     in
                     { status = Ready
-                    , pageRows = allRows
+                    , pageRows =
+                        if config.virtual then
+                            allRows |> List.drop shown.first |> List.take (shown.end - shown.first)
+
+                        else
+                            allRows
+                    , pageAll = allRows
+                    , first = shown.first
+                    , rowCount = rowTotal
                     , matchingRows = \_ -> allRows
                     , totals = \_ -> Nothing
                     , total = total
@@ -2979,14 +3090,40 @@ processClient config model allColumns visible source =
 
         rowsOf positions =
             List.filterMap rowAt positions
+
+        shown =
+            Window.window virtualWindow (virtualGeometry config model total) model.scroll
+
+        pageRows =
+            if config.virtual then
+                rowsOf (Index.pageIndices shown.first (shown.end - shown.first) matches)
+
+            else if config.paged then
+                rowsOf (Index.pageIndices offset (max 1 model.pageSize) matches)
+
+            else
+                rowsOf (Index.allIndices matches)
     in
     { status = Ready
-    , pageRows =
-        if config.paged then
-            rowsOf (Index.pageIndices offset (max 1 model.pageSize) matches)
+    , pageRows = pageRows
+    , pageAll =
+        if config.virtual then
+            []
 
         else
-            rowsOf (Index.allIndices matches)
+            pageRows
+    , first =
+        if config.virtual then
+            shown.first
+
+        else
+            0
+    , rowCount =
+        if config.virtual then
+            total
+
+        else
+            List.length pageRows
     , matchingRows = \_ -> rowsOf (Index.allIndices matches)
     , totals =
         case prepared of
@@ -3070,6 +3207,82 @@ sortLevels loc prepared rowAt levels allColumns =
 
         _ ->
             List.map computed chosen
+
+
+{-| The rows of a table that scrolls are one height, the one of its density
+(`--klar-row-compact`, `--klar-row` and `--klar-row-comfortable`).
+-}
+rowPx : Density -> Int
+rowPx spacing =
+    case spacing of
+        Compact ->
+            28
+
+        Normal ->
+            36
+
+        Comfortable ->
+            46
+
+
+{-| The sticky header (`--_head-h`).
+-}
+headPx : Density -> Int
+headPx spacing =
+    case spacing of
+        Compact ->
+            28
+
+        _ ->
+            36
+
+
+{-| How many rows are drawn beyond the ones in view, above and below, and in how
+many rows at a time the drawn rows change (each chunk is a `tbody` of its own,
+so that scrolling a few rows moves none of them and the keyboard focus stays).
+-}
+virtualWindow : { overscan : Int, chunk : Int }
+virtualWindow =
+    { overscan = 4, chunk = 16 }
+
+
+{-| The height of a table that scrolls without `maxHeight`.
+-}
+defaultVirtualHeight : Int
+defaultVirtualHeight =
+    480
+
+
+{-| What the window arithmetic needs for this table: the room the rows are seen in
+is the scroll area less the header.
+-}
+virtualGeometry : Config row msg -> Model -> Int -> Window.Geometry
+virtualGeometry config model count =
+    let
+        -- the totals row stays in view at the bottom and covers a row's room
+        footPx =
+            if List.any (\(Column col) -> hasFooter col) config.columns then
+                rowPx model.density
+
+            else
+                0
+
+        area =
+            case config.maxHeight of
+                Just px ->
+                    px
+
+                Nothing ->
+                    if config.fillHeight then
+                        1000
+
+                    else
+                        defaultVirtualHeight
+    in
+    { rowHeight = rowPx model.density
+    , viewport = max (rowPx model.density) (area - headPx model.density - footPx)
+    , count = count
+    }
 
 
 pageWindow : Config row msg -> Model -> Int -> ( Int, Int, Int )
@@ -3271,6 +3484,7 @@ type alias Ctx row msg =
     , activeRow : Int
     , rowCount : Int
     , pageKeys : List String
+    , geometry : Window.Geometry
     }
 
 
@@ -3346,7 +3560,7 @@ view toMsg attributes (State model) =
             isJust config.rowActions
 
         rowCount =
-            List.length data.pageRows
+            data.rowCount
 
         isDisabled row =
             case config.rowDisabled of
@@ -3357,7 +3571,7 @@ view toMsg attributes (State model) =
                     False
 
         pageKeys =
-            data.pageRows
+            data.pageAll
                 |> List.indexedMap (\i row -> ( keyOf (data.offset + i) row, isDisabled row ))
                 |> List.filter (\( _, disabled ) -> not disabled)
                 |> List.map Tuple.first
@@ -3423,6 +3637,7 @@ view toMsg attributes (State model) =
                     0
             , rowCount = rowCount
             , pageKeys = pageKeys
+            , geometry = virtualGeometry config model rowCount
             }
     in
     Html.div
@@ -3449,8 +3664,14 @@ view toMsg attributes (State model) =
 
               else
                 ""
+            , if config.virtual then
+                "klar-table--virtual"
+
+              else
+                ""
             ]
         , Attr.id model.id
+        , Internal.attrIf config.virtual (Internal.styleVars [ ( "--_row-h", Internal.px ctx.geometry.rowHeight ) ])
         ]
         [ viewToolbar ctx
         , viewFrame ctx
@@ -4090,19 +4311,9 @@ viewBulkBar ctx =
             ctx.config.server == Nothing
 
         -- client mode: what "select all N matching" selects (matching rows that are not disabled)
-        selectableMatching =
-            if clientMode then
-                ctx.data.matchingRows ()
-                    |> List.indexedMap (\index row -> ( ctx.keyOf index row, rowIsDisabled ctx.config row ))
-                    |> List.filter (\( _, disabled ) -> not disabled)
-                    |> List.map Tuple.first
-
-            else
-                []
-
         selectableTotal =
             if clientMode then
-                List.length selectableMatching
+                selectableCount ctx
 
             else
                 ctx.data.total
@@ -4113,7 +4324,12 @@ viewBulkBar ctx =
                     Set.isEmpty except
 
                 Picked keys ->
-                    clientMode && selectableTotal > 0 && List.all (\key -> Set.member key keys) selectableMatching
+                    clientMode
+                        && selectableTotal
+                        > 0
+                        && Set.size keys
+                        >= selectableTotal
+                        && List.all (\key -> Set.member key keys) (selectableKeys ctx)
 
         note value =
             Html.span [ Internal.cls [ "klar-table__bulk-note" ] ] [ Html.text value ]
@@ -4126,11 +4342,12 @@ viewBulkBar ctx =
         hiddenCount =
             case ( ctx.model.selection, ctx.config.server, ctx.config.rowId ) of
                 ( Picked keys, Nothing, Just toId ) ->
-                    let
-                        visibleSelected =
-                            ctx.data.matchingRows () |> List.filter (\row -> Set.member (toId row) keys) |> List.length
-                    in
-                    Set.size keys - visibleSelected
+                    if Set.isEmpty keys || ctx.data.total == ctx.data.available then
+                        -- no row is left out, so none of the selected rows is out of sight
+                        0
+
+                    else
+                        Set.size keys - (ctx.data.matchingRows () |> List.filter (\row -> Set.member (toId row) keys) |> List.length)
 
                 ( Picked keys, Just _, _ ) ->
                     Set.size keys - List.length (List.filter (\key -> Set.member key keys) ctx.pageKeys)
@@ -4163,7 +4380,7 @@ viewBulkBar ctx =
                     [ Button.link
                     , Button.onClick
                         (if clientMode then
-                            ctx.toMsg (MatchingSelected selectableMatching)
+                            ctx.toMsg (MatchingSelected (selectableKeys ctx))
 
                          else
                             ctx.toMsg AllMatchingPicked
@@ -4205,6 +4422,67 @@ viewBulkBar ctx =
                    ]
             )
         ]
+
+
+{-| A client-mode table that scrolls: there are no pages, so the checkbox in
+the header and the bulk bar speak of all the matching rows.
+-}
+isLongClientTable : Ctx row msg -> Bool
+isLongClientTable ctx =
+    ctx.config.virtual && ctx.config.server == Nothing
+
+
+{-| The keys of the matching rows that can be selected. It goes through every
+matching row: ask for it when the user acts, or when a selection is there to be
+counted, and not on every view.
+-}
+selectableKeys : Ctx row msg -> List String
+selectableKeys ctx =
+    ctx.data.matchingRows ()
+        |> List.indexedMap (\index row -> ( ctx.keyOf index row, rowIsDisabled ctx.config row ))
+        |> List.filter (\( _, disabled ) -> not disabled)
+        |> List.map Tuple.first
+
+
+{-| How many matching rows can be selected. Without `rowDisabled` that is all of them.
+-}
+selectableCount : Ctx row msg -> Int
+selectableCount ctx =
+    if isJust ctx.config.rowDisabled then
+        List.length (selectableKeys ctx)
+
+    else
+        ctx.data.total
+
+
+{-| For the checkbox in the header of a table that scrolls: are all the matching
+rows selected, and if not, are some?
+-}
+matchingSelectionState : Ctx row msg -> ( Bool, Bool )
+matchingSelectionState ctx =
+    let
+        selected =
+            case ctx.model.selection of
+                Picked keys ->
+                    if Set.isEmpty keys then
+                        0
+
+                    else if ctx.data.total == ctx.data.available then
+                        Set.size keys
+
+                    else
+                        ctx.data.matchingRows ()
+                            |> List.indexedMap (\index row -> ctx.keyOf index row)
+                            |> List.filter (\key -> Set.member key keys)
+                            |> List.length
+
+                AllPicked except ->
+                    max 0 (ctx.data.total - Set.size except)
+
+        all =
+            selected > 0 && selected >= selectableCount ctx
+    in
+    ( all, selected > 0 && not all )
 
 
 rowIsDisabled : Config row msg -> row -> Bool
@@ -4394,7 +4672,19 @@ viewFrame ctx =
              -- Not a tab stop: only a place for focus to wait (see RetryClicked).
              -- A table with nothing to focus in it is left alone: Chrome makes
              -- such a scroll area focusable, so it can be scrolled with the keys.
-             , Internal.attrIf (hasFocusableContent ctx) (Attr.tabindex -1)
+             -- One that scrolls is a tab stop while the row that Tab should reach
+             -- is not drawn, and hands the focus to that row.
+             , Internal.attrIf (hasFocusableContent ctx)
+                (Attr.tabindex
+                    (if activeRowHidden ctx then
+                        0
+
+                     else
+                        -1
+                    )
+                )
+             , Internal.attrIf (config.virtual && activeRowHidden ctx) (Events.on "focus" (activeRowRequested ctx))
+             , Internal.attrIf config.virtual (Events.on "scroll" (Decode.map (Scrolled >> ctx.toMsg) (Decode.at [ "target", "scrollTop" ] Decode.float)))
              , case scrollVars ctx of
                 [] ->
                     Internal.noAttr
@@ -4410,31 +4700,68 @@ viewFrame ctx =
                             []
                    )
             )
-            [ Html.table
-                [ Internal.cls [ "klar-table__table" ]
-                , Internal.styleVars [ ( "min-width", Internal.px (tableMinWidth ctx) ) ]
-                , Internal.attrMaybe (Attr.attribute "aria-label") config.label
-                , Attr.attribute "aria-rowcount"
-                    (if ctx.data.status == Ready then
-                        String.fromInt (ctx.data.total + 1)
+            [ let
+                tableAttributes =
+                    [ Internal.cls [ "klar-table__table" ]
+                    , Internal.styleVars [ ( "min-width", Internal.px (tableMinWidth ctx) ) ]
+                    , Internal.attrMaybe (Attr.attribute "aria-label") config.label
+                    , Attr.attribute "aria-rowcount"
+                        (if ctx.data.status == Ready then
+                            String.fromInt (ctx.data.total + 1)
 
-                     else
-                        "-1"
-                    )
-                , Attr.attribute "aria-colcount" (String.fromInt ctx.colCount)
-                , Internal.attrIf busy (Attr.attribute "aria-busy" "true")
-                ]
-                [ viewColgroup ctx
-                , viewHead ctx
-                , viewBody ctx
-                , viewFoot ctx
-                ]
+                         else
+                            "-1"
+                        )
+                    , Attr.attribute "aria-colcount" (String.fromInt ctx.colCount)
+                    , Internal.attrIf busy (Attr.attribute "aria-busy" "true")
+                    ]
+
+                parts =
+                    List.concat
+                        [ [ ( "colgroup", viewColgroup ctx ), ( "head", viewHead ctx ) ]
+                        , viewBodies ctx
+                        , [ ( "foot", viewFoot ctx ) ]
+                        ]
+              in
+              if config.virtual then
+                -- the chunks of rows come and go at the ends, and keys keep the others where they are
+                Html.Keyed.node "table" tableAttributes parts
+
+              else
+                Html.table tableAttributes (List.map Tuple.second parts)
             ]
         , Html.div [ Internal.cls [ "klar-table__edge", "klar-table__edge--start" ], Attr.attribute "aria-hidden" "true" ] []
         , Html.div [ Internal.cls [ "klar-table__edge", "klar-table__edge--end" ], Attr.attribute "aria-hidden" "true" ] []
         , Internal.viewIf (config.refreshing && ctx.data.status == Ready)
             (Html.div [ Internal.cls [ "klar-table__progress" ], Attr.attribute "aria-hidden" "true" ] [])
         ]
+
+
+{-| In a table that scrolls: is the row that has the tab stop out of the drawn rows?
+-}
+activeRowHidden : Ctx row msg -> Bool
+activeRowHidden ctx =
+    ctx.config.virtual
+        && ctx.interactiveRows
+        && ctx.data.status == Ready
+        && ctx.data.rowCount > 0
+        && (ctx.activeRow < ctx.data.first || ctx.activeRow >= ctx.data.first + List.length ctx.data.pageRows)
+
+
+{-| The scroll area itself got the focus (Tab reached it): focus goes on to the row
+that has the tab stop, which is scrolled into view first.
+-}
+activeRowRequested : Ctx row msg -> Decoder msg
+activeRowRequested ctx =
+    Decode.at [ "target", "id" ] Decode.string
+        |> Decode.andThen
+            (\targetId ->
+                if targetId == scrollDomId ctx.model.id then
+                    Decode.succeed (ctx.toMsg (FocusVirtualRow ctx.activeRow (rowDomId ctx.model.id ctx.activeRow) ctx.geometry))
+
+                else
+                    Decode.fail "not the scroll area"
+            )
 
 
 {-| Fixed columns keep their width; the others share the rest and each gets
@@ -4528,7 +4855,11 @@ scrollVars ctx =
                 [ ( "max-height", Internal.px px ) ]
 
             Nothing ->
-                []
+                if ctx.config.virtual && not ctx.config.fillHeight then
+                    [ ( "max-height", Internal.px defaultVirtualHeight ) ]
+
+                else
+                    []
         , if coveredLeft > 0 then
             [ ( "--_pin-w", Internal.px coveredLeft ) ]
 
@@ -4674,11 +5005,16 @@ viewHead ctx =
         pageSelected =
             List.filter (isPicked ctx.model.selection) ctx.pageKeys
 
-        allOn =
-            not (List.isEmpty ctx.pageKeys) && List.length pageSelected == List.length ctx.pageKeys
+        ( allOn, someOn ) =
+            if isLongClientTable ctx then
+                matchingSelectionState ctx
 
-        someOn =
-            not allOn && not (List.isEmpty pageSelected)
+            else
+                let
+                    all =
+                        not (List.isEmpty ctx.pageKeys) && List.length pageSelected == List.length ctx.pageKeys
+                in
+                ( all, not all && not (List.isEmpty pageSelected) )
     in
     Html.thead [ Internal.cls [ "klar-table__head" ] ]
         [ Html.tr [ Attr.attribute "aria-rowindex" "1" ]
@@ -4694,8 +5030,24 @@ viewHead ctx =
                             , Checkbox.ariaLabel t.selectPage
                             , Checkbox.checked allOn
                             , Checkbox.indeterminate someOn
-                            , Checkbox.disabled (List.isEmpty ctx.pageKeys || ctx.data.status /= Ready)
-                            , Checkbox.onCheck (\value -> ctx.toMsg (RowsSelected ctx.pageKeys value))
+                            , Checkbox.disabled
+                                ((if isLongClientTable ctx then
+                                    ctx.data.total == 0
+
+                                  else
+                                    List.isEmpty ctx.pageKeys
+                                 )
+                                    || ctx.data.status
+                                    /= Ready
+                                )
+                            , Checkbox.onCheck
+                                (\value ->
+                                    if isLongClientTable ctx then
+                                        ctx.toMsg (RowsSelected (selectableKeys ctx) value)
+
+                                    else
+                                        ctx.toMsg (RowsSelected ctx.pageKeys value)
+                                )
                             ]
                         ]
                     ]
@@ -5282,9 +5634,76 @@ viewBody ctx =
 
                 else
                     ctx.data.pageRows
-                        |> List.indexedMap (viewRowAndDetail ctx)
+                        |> List.indexedMap (\i row -> viewRowAndDetail ctx (ctx.data.first + i) row)
                         |> List.concat
         )
+
+
+{-| The bodies of the table: one, or for a table that scrolls the empty room
+above the rows in view, the rows in chunks of a `tbody` each, and the empty room
+below them.
+-}
+viewBodies : Ctx row msg -> List ( String, Html msg )
+viewBodies ctx =
+    if ctx.config.virtual && ctx.data.status == Ready && not (List.isEmpty ctx.data.pageRows) then
+        let
+            after =
+                ctx.data.rowCount - ctx.data.first - List.length ctx.data.pageRows
+
+            chunk =
+                virtualWindow.chunk
+
+            chunks =
+                ctx.data.pageRows
+                    |> List.indexedMap (\i row -> ( ctx.data.first + i, row ))
+                    |> List.foldr
+                        (\( index, row ) groups ->
+                            case groups of
+                                ( number, members ) :: rest ->
+                                    if number == index // chunk then
+                                        ( number, ( index, row ) :: members ) :: rest
+
+                                    else
+                                        ( index // chunk, [ ( index, row ) ] ) :: groups
+
+                                [] ->
+                                    [ ( index // chunk, [ ( index, row ) ] ) ]
+                        )
+                        []
+        in
+        List.concat
+            [ spacerBody ctx "top" ctx.data.first
+            , List.map
+                (\( number, members ) ->
+                    ( "chunk-" ++ String.fromInt number
+                    , Html.Keyed.node "tbody"
+                        [ Internal.cls [ "klar-table__body" ] ]
+                        (List.concatMap (\( index, row ) -> viewRowAndDetail ctx index row) members)
+                    )
+                )
+                chunks
+            , spacerBody ctx "bottom" after
+            ]
+
+    else
+        [ ( "body", viewBody ctx ) ]
+
+
+{-| The room of the rows of a table that scrolls that are not drawn.
+-}
+spacerBody : Ctx row msg -> String -> Int -> List ( String, Html msg )
+spacerBody ctx place count =
+    if count <= 0 then
+        []
+
+    else
+        [ ( "spacer-" ++ place
+          , Html.tbody [ Internal.cls [ "klar-table__spacer-body" ], Attr.attribute "aria-hidden" "true" ]
+                [ Html.tr [ Internal.styleVars [ ( "height", Internal.px (count * ctx.geometry.rowHeight) ) ] ]
+                    [ Html.td [ Attr.colspan ctx.colCount ] [] ]
+                ]
+          )
+        ]
 
 
 {-| A click on the retry button (the error state has no other control).
@@ -5918,10 +6337,23 @@ rowKeyMsg ctx info key shift =
     let
         focusRow target =
             if target >= 0 && target < ctx.rowCount && target /= info.index then
-                Just (ctx.toMsg (FocusRow target (rowDomId ctx.model.id target)))
+                if ctx.config.virtual then
+                    Just (ctx.toMsg (FocusVirtualRow target (rowDomId ctx.model.id target) ctx.geometry))
+
+                else
+                    Just (ctx.toMsg (FocusRow target (rowDomId ctx.model.id target)))
 
             else
                 Just (ctx.toMsg NoOp)
+
+        -- ten rows at a time, or a screenful when the table scrolls; otherwise the
+        -- page scrolls away from the focused row
+        jump =
+            if ctx.config.virtual then
+                Window.rowsPerScreen ctx.geometry
+
+            else
+                10
     in
     case key of
         "ArrowDown" ->
@@ -5936,12 +6368,11 @@ rowKeyMsg ctx info key shift =
         "End" ->
             focusRow (ctx.rowCount - 1)
 
-        -- ten rows at a time; otherwise the page scrolls away from the focused row
         "PageDown" ->
-            focusRow (min (ctx.rowCount - 1) (info.index + 10))
+            focusRow (min (ctx.rowCount - 1) (info.index + jump))
 
         "PageUp" ->
-            focusRow (max 0 (info.index - 10))
+            focusRow (max 0 (info.index - jump))
 
         "Enter" ->
             case info.click of
@@ -6136,7 +6567,11 @@ on screen; the other pages can still be tried.
 viewFooter : Ctx row msg -> Html msg
 viewFooter ctx =
     if not ctx.config.paged then
-        Html.text ""
+        if ctx.config.virtual then
+            viewRange ctx
+
+        else
+            Html.text ""
 
     else
         let
@@ -6173,6 +6608,27 @@ viewFooter ctx =
 
                 else
                     viewPagination ctx Nothing
+
+
+{-| The rows in view of a long table, "Showing 1-24 of 50,000 rows". It is
+for the eye only: the live region of the table does not repeat it while the
+user scrolls, and every row says its place (`aria-rowindex`).
+-}
+viewRange : Ctx row msg -> Html msg
+viewRange ctx =
+    if ctx.data.status /= Ready || ctx.data.total == 0 then
+        Html.text ""
+
+    else
+        let
+            first =
+                clamp 1 ctx.data.total (floor (ctx.model.scroll / toFloat ctx.geometry.rowHeight) + 1)
+
+            last =
+                min ctx.data.total (first + Window.rowsPerScreen ctx.geometry - 1)
+        in
+        Html.div [ Internal.cls [ "klar-table__footer" ], Attr.attribute "aria-hidden" "true" ]
+            [ Html.span [ Internal.cls [ "klar-table__footer-range", "klar-tabular" ] ] [ Html.text (ctx.t.summary first last ctx.data.total) ] ]
 
 
 {-| `summary` replaces the range text (a loading message, or nothing).

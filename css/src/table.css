@@ -771,6 +771,36 @@
   color: var(--klar-text-muted);
 }
 
+/* The rows in view of a long table, in the place of the page controls. */
+.klar-table__footer-range {
+  font-size: var(--klar-text-sm);
+  color: var(--klar-text-muted);
+}
+
+/* ---- A table that scrolls (Table.virtual) ------------------------------- */
+
+/* Only the rows in view are drawn, and the room of the others is one empty row
+   above and one below. For that to be exact, every row is as high as the table
+   says (--_row-h is set on the table), so a long value is cut, not wrapped. */
+.klar-table__spacer-body td {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Every chunk of rows is a body of its own, and each of them has a last row. */
+.klar-table--virtual .klar-table__body > tr:last-child > .klar-table__td {
+  border-bottom-color: var(--klar-border-subtle);
+}
+
+.klar-table--virtual .klar-table__td--wrap .klar-table__cell {
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--klar-leading-tight);
+}
+
 /* ---- Popovers (filters, columns, export) -------------------------------- */
 
 .klar-table__popover {

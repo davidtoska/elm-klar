@@ -11,6 +11,7 @@ import Klar.Button as Button
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Switch as Switch
 import Klar.Table as Table
 import Showcase.Doc as Doc
 
@@ -106,36 +107,55 @@ warehouses =
 
 type alias Model =
     { items : Remote (Table.Rows Item)
+    , list : Remote (List Item)
     , prepared : Bool
-    , table : Table.State Int
+    , paged : Table.State Int
+    , scrolling : Table.State Int
     }
 
 
 init : Model
 init =
     { items = Remote.NotAsked
+    , list = Remote.NotAsked
     , prepared = True
-    , table = Table.init "large-items"
+    , paged = Table.init "large-paged"
+    , scrolling = Table.init "large-scrolling"
     }
 
 
 type Msg
     = Load Locale
-    | TableMsg Table.Msg
+    | PreparedToggled Bool
+    | PagedMsg Table.Msg
+    | ScrollingMsg Table.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Load locale ->
-            ( { model | items = Remote.Loaded (Table.prepareRows locale columns (Array.fromList (generate rowCount))) }, Cmd.none )
-
-        TableMsg inner ->
             let
-                ( table, cmd ) =
-                    Table.update inner model.table
+                generated =
+                    generate rowCount
             in
-            ( { model | table = table }, Cmd.map TableMsg cmd )
+            ( { model
+                | items = Remote.Loaded (Table.prepareRows locale columns (Array.fromList generated))
+                , list = Remote.Loaded generated
+              }
+            , Cmd.none
+            )
+
+        PreparedToggled value ->
+            ( { model | prepared = value }, Cmd.none )
+
+        PagedMsg inner ->
+            Table.update inner model.paged
+                |> Tuple.mapBoth (\table -> { model | paged = table }) (Cmd.map PagedMsg)
+
+        ScrollingMsg inner ->
+            Table.update inner model.scrolling
+                |> Tuple.mapBoth (\table -> { model | scrolling = table }) (Cmd.map ScrollingMsg)
 
 
 
@@ -159,23 +179,64 @@ columns =
     ]
 
 
+rowsAttribute : Model -> Table.Attribute Int Item msg
+rowsAttribute model =
+    if model.prepared then
+        Table.preparedRows model.items
+
+    else
+        Table.rows model.list
+
+
 view : Locale -> Model -> Html Msg
 view locale model =
     Doc.section "50 000 rows"
-        "A table over 50 000 generated rows."
+        "A table over 50 000 generated rows. The rows are prepared once, when they are loaded, and sorting, searching and paging then work on what is prepared."
         [ Doc.example
-            { title = "Table, client mode", description = Nothing, code = Nothing }
-            (Layout.stack [ Layout.gap 3 ]
+            { title = "Load"
+            , description = Just "The rows are made here, in the example, by a small generator. Turn the switch off to hand the table a plain list instead, and feel the difference."
+            , code = Nothing
+            }
+            (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                 [ Button.view [ Button.onClick (Load locale) ] "Load 50 000 rows"
-                , Table.view TableMsg
-                    [ Table.columns columns
-                    , Table.preparedRows model.items
-                    , Table.rowId itemIds .id
-                    , Table.searchable
-                    , Table.label "Items"
-                    , Table.locale locale
+                , Switch.view
+                    [ Switch.label "Prepared rows"
+                    , Switch.checked model.prepared
+                    , Switch.onToggle PreparedToggled
                     ]
-                    model.table
                 ]
+            )
+        , Doc.example
+            { title = "Paged"
+            , description = Just "Pages of 25 rows: the way to read a table that people search and sort."
+            , code = Nothing
+            }
+            (Table.view PagedMsg
+                [ Table.columns columns
+                , rowsAttribute model
+                , Table.rowId itemIds .id
+                , Table.searchable
+                , Table.label "Items, in pages"
+                , Table.locale locale
+                ]
+                model.paged
+            )
+        , Doc.example
+            { title = "Scrolling"
+            , description = Just "The same rows in one list that scrolls, with the header and the totals in view. Only the rows in view are drawn. Click a row, then use the arrow keys, PageUp, PageDown, Home and End."
+            , code = Nothing
+            }
+            (Table.view ScrollingMsg
+                [ Table.columns columns
+                , rowsAttribute model
+                , Table.rowId itemIds .id
+                , Table.virtual
+                , Table.searchable
+                , Table.selectable
+                , Table.densityToggle
+                , Table.label "Items, scrolling"
+                , Table.locale locale
+                ]
+                model.scrolling
             )
         ]
