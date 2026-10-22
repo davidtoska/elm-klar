@@ -10785,7 +10785,277 @@ html:has(.klar-modal-lock) {
 
 /* ==== actions.css ==== */
 
-/* ButtonGroup, ToggleGroup, SplitButton, Link, Kbd. */
+/* ==========================================================================
+   Actions: ButtonGroup, ToggleGroup, SplitButton, Link, Kbd.
+   ========================================================================== */
+
+/* ---- Button group ---------------------------------------------------- */
+
+/* Joined buttons: shared borders, only the outer corners rounded. The group is a
+   fieldset (so that `disabled` reaches every button), reset to a plain box. It
+   never wraps. A child may be a wrapper (the anchor of a menu button), so the
+   rules read "the first and the last child, or the button inside it". */
+.klar-btn-group {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  max-width: 100%;
+  min-width: 0;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  vertical-align: middle;
+}
+
+.klar-btn-group > * { flex: 0 1 auto; min-width: 0; }
+.klar-btn-group > * + * { margin-left: -1px; }
+
+.klar-btn-group .klar-button { border-radius: 0; }
+
+.klar-btn-group > .klar-button:first-child,
+.klar-btn-group > :first-child .klar-button {
+  border-top-left-radius: var(--klar-radius);
+  border-bottom-left-radius: var(--klar-radius);
+}
+
+.klar-btn-group > .klar-button:last-child,
+.klar-btn-group > :last-child .klar-button {
+  border-top-right-radius: var(--klar-radius);
+  border-bottom-right-radius: var(--klar-radius);
+}
+
+/* One ring per button, always in front of its neighbors: a button that is
+   pointed at, pressed or focused is lifted over the shared borders. */
+.klar-btn-group .klar-button:hover,
+.klar-btn-group .klar-button[aria-pressed="true"] { position: relative; z-index: 1; }
+.klar-btn-group .klar-button:focus-visible { position: relative; z-index: 2; }
+
+/* Two solid buttons side by side would melt into one: a pale line between. */
+.klar-btn-group > .klar-button--primary + .klar-button--primary:not(:focus-visible),
+.klar-btn-group > .klar-button--danger + .klar-button--danger:not(:focus-visible) {
+  border-left-color: color-mix(in srgb, var(--klar-white) 40%, transparent);
+}
+
+/* The size of the buttons that have none of their own (a toolbar sets the same
+   custom property). A small or large button keeps its size. */
+.klar-btn-group--sm { --klar-control: var(--klar-control-sm); }
+.klar-btn-group--lg { --klar-control: var(--klar-control-lg); }
+
+.klar-btn-group--sm .klar-button--md:not(.klar-button--icon-only) {
+  padding: 0 8px;
+  font-size: var(--klar-text-sm);
+  gap: 5px;
+}
+
+.klar-btn-group--lg .klar-button--md:not(.klar-button--icon-only) {
+  padding: 0 16px;
+  font-size: var(--klar-text-lg);
+}
+
+/* A fieldset that is disabled turns its buttons off; a link that looks like a
+   button is not a form control, so it is dimmed here. */
+.klar-btn-group--disabled .klar-button {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.klar-btn-group--disabled a.klar-button { pointer-events: none; }
+
+/* ---- Toggle group ----------------------------------------------------- */
+
+/* The outer element of a group. It is not a .klar-field itself, so a toolbar does not
+   give it the 240px that it gives a text field. */
+.klar-toggle {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.klar-toggle-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.klar-toggle-group { align-self: flex-start; }
+
+.klar-toggle-group--full {
+  display: flex;
+  align-self: stretch;
+  width: 100%;
+}
+
+.klar-toggle-group--full > .klar-button { flex: 1 1 0; }
+
+.klar-toggle-group--invalid .klar-button { --_border: var(--klar-danger); }
+
+/* ---- Split button ----------------------------------------------------- */
+
+/* A button joined to a small arrow that opens a menu. The menu is the one of
+   Klar.Menu inside the arrow's wrapper; the whole split button is its anchor, so
+   the menu is as wide as the split button at least and ends where it ends. */
+.klar-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.klar-split > .klar-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.klar-split > .klar-menu {
+  position: static;
+  display: flex;
+  flex: none;
+  margin-left: -1px;
+}
+
+.klar-split > .klar-menu .klar-button {
+  padding: 0 7px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* The arrow has no text: Klar.Menu draws an empty label before the chevron. */
+.klar-split > .klar-menu .klar-button__label { display: none; }
+
+.klar-split--sm > .klar-menu .klar-button { padding: 0 5px; }
+.klar-split--lg > .klar-menu .klar-button { padding: 0 10px; }
+
+.klar-split .klar-button:hover,
+.klar-split .klar-button[aria-expanded="true"] { position: relative; z-index: 1; }
+.klar-split .klar-button:focus-visible { position: relative; z-index: 2; }
+
+/* A solid button next to its arrow keeps a pale line between the two. */
+.klar-split > .klar-button--primary + .klar-menu .klar-button:not(:focus-visible),
+.klar-split > .klar-button--danger + .klar-menu .klar-button:not(:focus-visible) {
+  border-left-color: color-mix(in srgb, var(--klar-white) 40%, transparent);
+}
+
+/* While the main part is busy the arrow is off, but it is not dimmed: the
+   spinner is what says "wait". */
+.klar-split--loading > .klar-menu .klar-button[disabled] {
+  opacity: 1;
+  cursor: progress;
+}
+
+@supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
+  .klar-split {
+    anchor-name: --klar-anchor;
+    anchor-scope: --klar-anchor;
+  }
+
+  .klar-split > .klar-menu {
+    anchor-name: none;
+    anchor-scope: none;
+  }
+}
+
+/* ---- Link ------------------------------------------------------------- */
+
+/* The base look (link color, underline) is .klar-link in core.css. */
+
+.klar-link--inline:visited {
+  color: color-mix(in srgb, var(--klar-primary) 70%, var(--klar-gray-700));
+}
+
+.klar-link--standalone { text-decoration: none; }
+.klar-link--standalone:hover { text-decoration: underline; }
+
+.klar-link--current,
+.klar-link--current:visited {
+  color: var(--klar-text);
+  font-weight: var(--klar-weight-bold);
+  text-decoration: none;
+}
+
+.klar-link--disabled,
+.klar-link--disabled:hover {
+  color: var(--klar-text-disabled);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+.klar-link__icon,
+.klar-link__external {
+  display: inline-flex;
+  flex: none;
+  vertical-align: -0.15em;
+}
+
+.klar-link__icon { margin-right: 0.35em; }
+.klar-link__external { margin-left: 0.3em; }
+
+.klar-link--truncate {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.klar-link--truncate .klar-link__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Kbd -------------------------------------------------------------- */
+
+/* The key cap itself is .klar-kbd in core.css. */
+
+.klar-keys {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.klar-keys__caps {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.klar-keys__then {
+  font-size: var(--klar-text-sm);
+  color: var(--klar-text-muted);
+}
+
+.klar-keys--sm .klar-kbd {
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 10.5px;
+}
+
+/* In a sentence: the caps follow the text around them and do not make the
+   line taller. */
+.klar-keys--inline,
+.klar-keys--inline .klar-keys__caps,
+.klar-keys--inline .klar-kbd-combo {
+  display: inline;
+  vertical-align: baseline;
+}
+
+.klar-keys--inline .klar-kbd {
+  display: inline-block;
+  height: auto;
+  min-width: 0;
+  padding: 0.05em 0.4em;
+  font-size: 0.85em;
+  line-height: 1.35;
+}
+
+.klar-keys--inline .klar-kbd + .klar-kbd { margin-left: 0.25em; }
+.klar-keys--inline .klar-keys__then { margin: 0 0.35em; font-size: 0.9em; }
 
 /* ==== flow.css ==== */
 
