@@ -8,8 +8,11 @@ It is published on package.elm-lang.org, so its public API is a promise: see
 ## Tech
 
 - Vanilla Elm (0.19.x, built with 0.19.3). The library depends only on the official
-  `elm/*` packages (core, html, browser, json, time). No third-party Elm packages,
-  no `elm/svg`, no `elm/http`, no `elm/file`, no `elm/url` (use `Klar.Internal.percentEncode`).
+  `elm/*` packages from the Elm team (core, html, browser, json, time today; `svg`, `file`,
+  `bytes`, `http`, `url`, `parser`, `regex` and `random` are allowed, added to `elm.json`
+  only when a component needs them). The library never knows HTTP (`elm/http` stays out,
+  see ROADMAP.md). No third-party Elm packages. Until `elm/url` is added, use
+  `Klar.Internal.percentEncode`.
 - No ports, no kernel code, no `Debug`, no JavaScript in the library or the example.
 - Vanilla CSS only. Sources in `css/src/*.css`; `npm run build:css` writes
   `css/klar.css` and the Elm module `src/Klar/Internal/Css.elm` that `Klar.stylesheet`
@@ -17,6 +20,9 @@ It is published on package.elm-lang.org, so its public API is a promise: see
 - `example/` is the showcase: a SINGLE PAGE APP (hash routing) with a dummy backend
   written in Elm (`Backend.*`, synchronous functions behind the request/response layer
   `Api`). It imports only exposed `Klar.*` modules (`npm run check:example-imports`).
+- Icons are Elm values (`Icon.fromSvg`), not CSS rules: `src/Klar/Icon.elm` (everyday set, by hand)
+  and `src/Klar/Icon/*.elm` (generated from Lucide by `scripts/generate-icons.mjs`, spec in
+  `scripts/icons-spec.mjs`; see `ICONS.md`). Never edit the generated modules.
 - English everywhere: documentation, comments, README, example. The components' built-in
   text comes in English and Norwegian Bokmål through `Klar.Locale` (default English).
 - Domain-neutral examples: orders, customers, products, warehouses. Nothing about the
