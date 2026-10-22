@@ -1721,8 +1721,8 @@ type Shown
     | Unknown
 
 
-shownFor : Config id msg -> (String -> Maybe String) -> Dict String String -> List ( String, Chosen id ) -> List ( String, Chosen id, Shown )
-shownFor config current found chosen =
+shownFor : Config id msg -> Dict String String -> List ( String, Chosen id ) -> List ( String, Chosen id, Shown )
+shownFor config fresh chosen =
     let
         unlabelled c =
             case config.nodes of
@@ -1743,7 +1743,7 @@ shownFor config current found chosen =
         labelOf ( key, c ) =
             -- the label that the nodes have now wins over the one remembered when
             -- the node was chosen (the application may have renamed it)
-            case firstOf [ current key, c.label, Dict.get key found ] of
+            case firstOf [ Dict.get key fresh, c.label ] of
                 Just text ->
                     Labelled text
 
@@ -1783,44 +1783,47 @@ shownText t shown =
 
 
 {-| The chosen nodes in the order they were chosen, each with what the field
-shows for it. Labels of nodes the field has not seen are looked for in the tree
-(one walk, for the nodes that are needed).
+shows for it. The label is the one that the nodes you give have now (the
+application may have renamed a node since it was chosen): from the index when the
+field has one of exactly these nodes, otherwise by one walk of the tree that
+stops when everything is found. A field that has never seen the nodes (no popup
+was open) shows the label it remembers, and walks the tree only for a node it has
+no label for.
 -}
 resolveChosen : Config id msg -> Data id -> Int -> List ( String, Chosen id, Shown )
 resolveChosen config data limit =
     let
-        ordered =
-            Dict.toList data.chosen |> List.sortBy (Tuple.second >> .order)
+        shown =
+            Dict.toList data.chosen |> List.sortBy (Tuple.second >> .order) |> List.take limit
 
-        missing =
-            ordered
-                |> List.take limit
+        nodes_ =
+            Remote.withDefault [] config.nodes
+
+        wanted =
+            shown |> List.map Tuple.first |> Set.fromList
+
+        unlabelled =
+            shown
                 |> List.filter (\( _, c ) -> c.label == Nothing)
                 |> List.map Tuple.first
                 |> Set.fromList
 
-        found =
-            Index.findLabels missing (Remote.withDefault [] config.nodes)
+        fresh =
+            case data.cache of
+                Just cache ->
+                    if cache.nodes == nodes_ then
+                        wanted
+                            |> Set.toList
+                            |> List.filterMap (\key -> Index.get key cache.index |> Maybe.map (\entry -> ( key, entry.label )))
+                            |> Dict.fromList
+
+                    else
+                        Index.findLabels wanted nodes_
+
+                Nothing ->
+                    Index.findLabels unlabelled nodes_
     in
-    shownFor config (currentLabel config data) found (List.take limit ordered)
-
-
-{-| The label that the nodes you give now have for a key, when the field has an
-index of exactly these nodes (it has one once the popup was open); no walk of the
-tree on a draw.
--}
-currentLabel : Config id msg -> Data id -> String -> Maybe String
-currentLabel config data key =
-    case data.cache of
-        Just cache ->
-            if cache.nodes == Remote.withDefault [] config.nodes then
-                Index.get key cache.index |> Maybe.map .label
-
-            else
-                Nothing
-
-        Nothing ->
-            Nothing
+    shownFor config fresh shown
 
 
 {-| The path to a chosen node as a tooltip (several nodes can have the same

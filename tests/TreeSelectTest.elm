@@ -9,6 +9,7 @@ import Expect
 import Fuzz
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Json.Encode as Encode
 import Klar.Locale as Locale
 import Klar.Picking as Picking exposing (Node)
 import Klar.Remote as Remote exposing (Remote(..))
@@ -117,6 +118,7 @@ suite =
         , multipleTests
         , localeTests
         , largeTests
+        , reviewTests
         ]
 
 
@@ -569,7 +571,7 @@ lazyTests =
             opened zones |> (\s -> feedWith zones s "ArrowRight") |> (\s -> feedWith zones s "ArrowRight")
     in
     describe "lazy children"
-        [ test "opening a node whose children are not asked for is reported by loadRequests" <|
+        [ test "an open node whose children are not asked for is named by loadRequests, until the application marks it as loading" <|
             \_ ->
                 let
                     before =
@@ -577,8 +579,35 @@ lazyTests =
 
                     after =
                         feedWith NotAsked before "ArrowRight"
+
+                    marked =
+                        feedWith Loading after "Home"
                 in
-                Expect.equal ( [], [ "japan" ] ) ( TreeSelect.loadRequests singleField before, TreeSelect.loadRequests before after )
+                Expect.equal [ [], [ "japan" ], [ "japan" ], [] ]
+                    [ TreeSelect.loadRequests before, TreeSelect.loadRequests after, TreeSelect.loadRequests after, TreeSelect.loadRequests marked ]
+        , test "it is named again when the popup is opened again and the node is still not asked for" <|
+            \_ ->
+                let
+                    after =
+                        goToJapan NotAsked |> (\s -> feedWith NotAsked s "ArrowRight")
+
+                    closed =
+                        feedWith NotAsked after "Escape"
+
+                    reopened =
+                        feed (Drive.fire [ Selector.id "site" ] (Drive.key "Enter") (withZones NotAsked closed)) closed
+                in
+                Expect.equal ( [], [ "japan" ] ) ( TreeSelect.loadRequests closed, TreeSelect.loadRequests reopened )
+        , test "a node that the application set back to not asked is named at the next message" <|
+            \_ ->
+                let
+                    loaded =
+                        goToJapan NotAsked |> (\s -> feedWith NotAsked s "ArrowRight") |> (\s -> feedWith (Loaded []) s "Home")
+
+                    reset =
+                        feedWith NotAsked loaded "End"
+                in
+                Expect.equal [ "japan" ] (TreeSelect.loadRequests reset)
         , test "a node that is loading shows a loading row and nothing else is blocked" <|
             \_ ->
                 let
@@ -590,7 +619,7 @@ lazyTests =
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ attr "role" "treeitem", attr "aria-busy" "true" ] h)
-                    , \_ -> Expect.equal [] (TreeSelect.loadRequests (goToJapan Loading) state)
+                    , \_ -> Expect.equal [] (TreeSelect.loadRequests state)
                     , \_ -> Expect.equal True (Drive.has [ rowId 1, attr "aria-expanded" "true" ] h)
                     ]
                     ()
@@ -1002,6 +1031,154 @@ largeTests =
 
                             Nothing ->
                                 Expect.pass
+                    ]
+                    ()
+        ]
+
+
+
+-- REVIEW FIXES
+
+
+reviewTests : Test
+reviewTests =
+    let
+        sendTo name state =
+            feed (Drive.fire [ Selector.id "site-search" ] (Drive.key name) (html [] state)) state
+    in
+    describe "after the review"
+        [ test "a cover set from the code shows the right boxes: Norway is checked when Oslo and Bergen are" <|
+            \_ ->
+                let
+                    state =
+                        TreeSelect.setValues ids [ "oslo", "bergen" ] multipleField |> openByKey |> sendTo "ArrowRight"
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ rowId 1, attr "aria-checked" "true" ] (html [] state))
+                    , \_ -> Expect.equal True (Drive.has [ rowId 0, attr "aria-checked" "mixed" ] (html [] state))
+                    ]
+                    ()
+        , test "opening a field does not change a value that was set from the code" <|
+            \_ ->
+                let
+                    before =
+                        TreeSelect.setValues ids [ "oslo", "bergen" ] multipleField
+
+                    after =
+                        before |> openByKey |> sendTo "ArrowDown" |> sendTo "Escape"
+                in
+                Expect.equal (TreeSelect.values before) (TreeSelect.values after)
+        , test "once the field knows the nodes, what is set from the code is put in its shortest form" <|
+            \_ ->
+                let
+                    seen =
+                        multipleField |> openByKey |> sendTo "Escape"
+                in
+                Expect.equal [ "norway" ] (TreeSelect.values (TreeSelect.setValues ids [ "oslo", "bergen" ] seen))
+        , test "the pointer moves the highlight, with the nodes handed over" <|
+            \_ ->
+                let
+                    open =
+                        openByKey singleField
+
+                    hovered =
+                        feed (Drive.fire [ rowId 2 ] (Event.custom "mousemove" (Encode.object [])) (html [] open)) open
+                in
+                Expect.equal (Just "site-row-2") (activeRow hovered)
+        , test "a chip has the path of its node as a tooltip, for nodes that have the same label" <|
+            \_ ->
+                let
+                    seen =
+                        TreeSelect.setValues ids [ "oslo" ] multipleField |> openByKey |> sendTo "Escape"
+                in
+                Expect.equal True (Drive.has [ Selector.class "klar-select__chip", attr "title" "Europe / Norway / Oslo" ] (html [] seen))
+        , test "the summary chip has a button of its own, named for what it does" <|
+            \_ ->
+                let
+                    state =
+                        TreeSelect.setValues ids (List.range 1 5 |> List.map (\k -> "w" ++ String.fromInt k)) multipleField
+
+                    v extra =
+                        TreeSelect.view TS ([ TreeSelect.label "Site", TreeSelect.nodes (Trees.wide 8) ] ++ extra) state
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-tag__remove", attr "aria-label" "Clear the selection" ] (v []))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.class "klar-tag__remove", attr "aria-label" "Fjern alle valgte" ] (v [ TreeSelect.locale Locale.nb ]))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.text "5 selected" ] (v []))
+                    ]
+                    ()
+        , test "the tree of a multiple field says so, the tree of a single field does not" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ attr "role" "tree", attr "aria-multiselectable" "true" ] (html [] (openByKey multipleField)))
+                    , \_ -> Expect.equal False (Drive.has [ attr "aria-multiselectable" "true" ] (html [] (openByKey singleField)))
+                    ]
+                    ()
+        , test "a popup that opened before the nodes arrived opens on the value when they have" <|
+            \_ ->
+                let
+                    waiting =
+                        TreeSelect.view TS [ TreeSelect.label "Site", TreeSelect.remote Loading ] (TreeSelect.setValue ids "oslo" singleField)
+
+                    opened =
+                        feed (Drive.fire [ Selector.id "site" ] (Drive.key "Enter") waiting) (TreeSelect.setValue ids "oslo" singleField)
+
+                    arrived =
+                        html [] opened
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ rowId 2, attr "aria-selected" "true", attr "aria-level" "3" ] arrived)
+                    , \_ -> Expect.equal (Just "site-row-2") (activeRow opened)
+                    ]
+                    ()
+        , test "a node that the application renamed is shown with its new label once the field has seen the nodes" <|
+            \_ ->
+                let
+                    chosen =
+                        openByKey singleField |> sendTo "End" |> sendTo "Enter"
+
+                    renamed =
+                        [ Picking.leaf ids "africa" "Africa (renamed)" ]
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.text "Africa" ] (html [] chosen))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.text "Africa (renamed)" ] (TreeSelect.view TS [ TreeSelect.label "Site", TreeSelect.nodes renamed ] chosen))
+                    ]
+                    ()
+        , test "a key that is part of an input method composition is left alone" <|
+            \_ ->
+                let
+                    open =
+                        openByKey singleField
+
+                    composing =
+                        Event.custom "keydown"
+                            (Encode.object
+                                [ ( "key", Encode.string "Enter" )
+                                , ( "ctrlKey", Encode.bool False )
+                                , ( "metaKey", Encode.bool False )
+                                , ( "altKey", Encode.bool False )
+                                , ( "shiftKey", Encode.bool False )
+                                , ( "isComposing", Encode.bool True )
+                                ]
+                            )
+
+                    code229 =
+                        Event.custom "keydown"
+                            (Encode.object
+                                [ ( "key", Encode.string "Enter" )
+                                , ( "ctrlKey", Encode.bool False )
+                                , ( "metaKey", Encode.bool False )
+                                , ( "altKey", Encode.bool False )
+                                , ( "shiftKey", Encode.bool False )
+                                , ( "keyCode", Encode.int 229 )
+                                ]
+                            )
+                in
+                Expect.all
+                    [ \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "site-search" ] composing (html [] open))
+                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "site-search" ] code229 (html [] open))
+                    , \_ -> Expect.notEqual Nothing (Drive.fire [ Selector.id "site-search" ] (Drive.key "Enter") (html [] open))
                     ]
                     ()
         ]
