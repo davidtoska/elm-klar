@@ -1,7 +1,13 @@
 module Klar.Recurrence.Spec exposing
-    ( Spec, Pattern(..), Missing(..), Ordinal(..), End(..), Problem(..)
+    ( End(..)
+    , Missing(..)
+    , Ordinal(..)
+    , Pattern(..)
+    , Problem(..)
+    , Spec
     , make
-    , weekdayNumbers, ordinalNumber
+    , ordinalNumber
+    , weekdayNumbers
     )
 
 {-| The open data model behind `Klar.Recurrence`: a rule as plain data, and the

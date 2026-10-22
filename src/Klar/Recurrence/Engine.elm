@@ -97,14 +97,24 @@ collect window spec =
         stepper =
             periods spec startE
 
-        firstPeriod =
-            case spec.end of
-                -- the count starts at the first date, so every period is visited
-                After _ ->
-                    0
+        -- "after n" counts from the first date, so the dates of the periods
+        -- that are jumped over must be counted too: where a rule can say how
+        -- many they are without visiting them (every day, every week) it does,
+        -- and otherwise the walk starts at the first period
+        ( firstPeriod, alreadySeen ) =
+            case ( spec.end, stepper.before ) of
+                ( After _, Just countBefore ) ->
+                    let
+                        k =
+                            stepper.first fromE
+                    in
+                    ( k, countBefore k )
+
+                ( After _, Nothing ) ->
+                    ( 0, 0 )
 
                 _ ->
-                    stepper.first fromE
+                    ( stepper.first fromE, 0 )
 
         walk k seen emitted found =
             let
@@ -148,7 +158,7 @@ collect window spec =
         []
 
     else
-        walk firstPeriod 0 0 []
+        walk firstPeriod alreadySeen 0 []
 
 
 type Step
@@ -165,13 +175,15 @@ type alias Period =
 type alias Periods =
     { first : Int -> Int
     , at : Int -> Period
+    , before : Maybe (Int -> Int)
     }
 
 
 {-| The periods of a rule: `at k` is the k-th period (from 0) with the day
 number of its first day and the dates in it that match, in order, and
 `first from` the number of the first period that can hold a date on or after
-`from` (a day number not before the start).
+`from` (a day number not before the start). `before k`, where a rule can tell,
+is how many dates the periods before the k-th hold.
 -}
 periods : Spec -> Int -> Periods
 periods spec startE =
@@ -201,6 +213,7 @@ periods spec startE =
     case spec.pattern of
         Daily ->
             { first = \fromE -> max 0 (ceilDiv (fromE - startE) every)
+            , before = Just identity
             , at =
                 \k ->
                     let
@@ -212,6 +225,19 @@ periods spec startE =
 
         Weekly days ->
             { first = \fromE -> max 0 (ceilDiv (weekIndex fromE - weekOfStart) every)
+            , before =
+                let
+                    inFirstWeek =
+                        List.length (List.filter (\weekday -> weekday >= weekdayOf startE) days)
+                in
+                Just
+                    (\k ->
+                        if k == 0 then
+                            0
+
+                        else
+                            inFirstWeek + (k - 1) * List.length days
+                    )
             , at =
                 \k ->
                     let
@@ -225,6 +251,7 @@ periods spec startE =
 
         MonthlyDay day missing ->
             { first = \fromE -> max 0 (ceilDiv (monthIndexOf fromE - startMonth) every)
+            , before = Nothing
             , at =
                 \k ->
                     let
@@ -238,6 +265,7 @@ periods spec startE =
 
         MonthlyWeekday ordinal weekday ->
             { first = \fromE -> max 0 (ceilDiv (monthIndexOf fromE - startMonth) every)
+            , before = Nothing
             , at =
                 \k ->
                     let
@@ -251,6 +279,7 @@ periods spec startE =
 
         YearlyDate month day missing ->
             { first = \fromE -> max 0 (ceilDiv (yearOf fromE - startYear) every)
+            , before = Nothing
             , at =
                 \k ->
                     let
@@ -264,6 +293,7 @@ periods spec startE =
 
         YearlyWeekday ordinal weekday month ->
             { first = \fromE -> max 0 (ceilDiv (yearOf fromE - startYear) every)
+            , before = Nothing
             , at =
                 \k ->
                     let
