@@ -532,3 +532,14 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   toast 1, confirmation 8, drawer 3 and dialog 25 nodes; after, none. `prefers-reduced-motion`
   already set the durations to 0. The fades of the accordion body, the table and the bulk bar are
   unchanged.
+- Keeping saved views (T09): `SavedViews.encode` and `SavedViews.decoder` write and read one
+  `SavedView` as JSON, and `Table.encodeQuery` and `Table.queryDecoder` a `Table.Query`, so an
+  application keeps its views wherever it likes (Klar still stores nothing and has no JavaScript).
+  Both are versioned (`"v": 1`): the decoders take what is missing from an empty query or the
+  usual flags, ignore fields they do not know, leave out a filter they do not know and refuse a
+  newer version, so a text kept for a year still reads. A query that is there but unreadable fails
+  the view instead of being dropped, because the view would then apply to another table than the one
+  that was saved. The builder wrote this by hand (the search and the sort only, no filters,
+  no page size). `SavedViews`' list stays a non-modal `dialog`: it holds text fields and a
+  confirmation, which a menu may not; the docs say why, and axe is clean with the list open, a
+  deletion to confirm, a rename and the save form.

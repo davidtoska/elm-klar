@@ -2,6 +2,7 @@ module Klar.SavedViews exposing
     ( view
     , State, init, Msg, update
     , SavedView, savedView, withNote, asDefault, asShared, withQuery
+    , encode, decoder
     , views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
     , Attribute, current, currentQuery, label, locale, size, alignEnd
     )
@@ -112,6 +113,14 @@ both.) There is no clipboard in pure Elm, so a "Copy link" is the link in a read
 [Klar.TextInput](Klar-TextInput) that the user selects (`TextInput.readOnly True`), shown
 in a dialog or a toast of your own.
 
+**A dialog, not a menu**: the list holds forms (the name of a new view, a rename, the
+confirmation of a deletion), and a menu may not hold text fields. It is a non-modal
+dialog, `role="dialog"` named "Saved views", opened by a button with
+`aria-haspopup="dialog"` and `aria-expanded`; the page behind stays usable, focus
+goes to the active view, `Escape` closes it and gives focus back to the button, and
+leaving it with `Tab` closes it. Checked with axe (wcag2a to wcag22aa and best
+practice) with the list open, with a deletion to confirm, a rename and the save form.
+
 **Keyboard**: `ArrowDown` on the button opens the list. `ArrowUp`, `ArrowDown`,
 `Home` and `End` move between the views, `Enter` applies the view that has focus,
 and `Escape` cancels a rename, a deletion or a save and otherwise closes the
@@ -134,6 +143,23 @@ text follows `locale`, which is English by default.
 @docs SavedView, savedView, withNote, asDefault, asShared, withQuery
 
 
+## Keeping the views
+
+The library keeps nothing. `encode` and `decoder` write and read one view as JSON, so
+the application can keep its list wherever it keeps user settings: its backend, the
+address, a cookie that it sets through a port of its own.
+
+    -- the list, as text
+    Encode.encode 0 (Encode.list SavedViews.encode (SavedViews.views model.views))
+
+    -- and back (a text that does not read gives no views)
+    Decode.decodeString (Decode.list SavedViews.decoder) text
+        |> Result.withDefault []
+        |> (\stored -> SavedViews.setViews stored model.views)
+
+@docs encode, decoder
+
+
 # Reading and replacing the list
 
 @docs views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
@@ -148,12 +174,14 @@ text follows `locale`, which is English by default.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Rule exposing (Rule)
+import Klar.Rule as Rule exposing (Rule)
 import Klar.RuleBuilder.Support as Support
 import Klar.Table as Table
 import Klar.TextInput as TextInput
@@ -182,6 +210,70 @@ type alias SavedView =
     , isShared : Bool
     , query : Maybe Table.Query
     }
+
+
+{-| One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags and
+the table query (`Table.encodeQuery`) when it has one. It carries a version, `"v": 1`.
+-}
+encode : SavedView -> Encode.Value
+encode saved =
+    Encode.object
+        [ ( "v", Encode.int 1 )
+        , ( "name", Encode.string saved.name )
+        , ( "rule", Rule.encode saved.rule )
+        , ( "note", Maybe.map Encode.string saved.note |> Maybe.withDefault Encode.null )
+        , ( "default", Encode.bool saved.isDefault )
+        , ( "shared", Encode.bool saved.isShared )
+        , ( "query", Maybe.map Table.encodeQuery saved.query |> Maybe.withDefault Encode.null )
+        ]
+
+
+{-| Reads what `encode` wrote. The name (not empty) and the rule are required; the note,
+the flags and the query may be missing, a field it does not know is ignored, and a version
+newer than 1 is refused. A query that is there but cannot be read (see
+`Table.queryDecoder`) fails the view: silently dropping it would apply the rule alone
+and show another table than the one that was saved. The rule is read as `Rule.decoder`
+reads it.
+
+    Decode.decodeString SavedViews.decoder text
+
+-}
+decoder : Decoder SavedView
+decoder =
+    Decode.oneOf [ Decode.field "v" Decode.int, Decode.succeed 1 ]
+        |> Decode.andThen
+            (\version ->
+                if version > 1 then
+                    Decode.fail ("This view was written by a newer version (v" ++ String.fromInt version ++ ")")
+
+                else
+                    Decode.map6 SavedView
+                        (Decode.field "name" Decode.string
+                            |> Decode.andThen
+                                (\name ->
+                                    if String.isEmpty (String.trim name) then
+                                        Decode.fail "A view needs a name"
+
+                                    else
+                                        Decode.succeed name
+                                )
+                        )
+                        (Decode.field "rule" Rule.decoder)
+                        (Decode.oneOf [ Decode.field "note" (Decode.nullable Decode.string), Decode.succeed Nothing ])
+                        (Decode.oneOf [ Decode.field "default" Decode.bool, Decode.succeed False ])
+                        (Decode.oneOf [ Decode.field "shared" Decode.bool, Decode.succeed False ])
+                        (Decode.maybe (Decode.field "query" Decode.value)
+                            |> Decode.andThen
+                                (\present ->
+                                    case present of
+                                        Nothing ->
+                                            Decode.succeed Nothing
+
+                                        Just _ ->
+                                            Decode.field "query" (Decode.nullable Table.queryDecoder)
+                                )
+                        )
+            )
 
 
 {-| A view with a name and a rule, no note, not the default.
