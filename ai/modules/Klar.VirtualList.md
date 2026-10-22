@@ -64,6 +64,10 @@ viewportHeight : { a | rowHeight : Int, height : Int, count : Int } -> Int
 A list of thousands of rows that draws only the rows in view, and is a
 list box for the keyboard.
 
+Use when: a long, plain list of equal rows that people scan and pick from, such as a search result or 50 000 products.
+Do not use when: the records have columns to sort, filter and compare (`Klar.Table` with `virtual`) or the list is short (`Klar.ListItem`).
+Quick path: `init`, `update`, `list`, `active`
+
 Use it for a long, plain list of equal rows that people scan and pick from: a
 search result, an inbox, 50 000 products. For records with columns that people
 sort, filter and compare, use [Klar.Table](Klar.Table.md) with `virtual`; for a short

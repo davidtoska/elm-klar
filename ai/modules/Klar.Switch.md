@@ -38,6 +38,9 @@ An on/off switch for a setting that takes effect at once ("Email
 notifications"). Use a [Klar.Checkbox](Klar.Checkbox.md) instead when the choice is
 part of a form that is saved with a button.
 
+Use when: an on/off setting that takes effect at once, such as email notifications.
+Do not use when: the choice is part of a form that is saved with a button (`Klar.Checkbox`).
+
     import Klar.Switch as Switch
 
     Switch.view

@@ -12,6 +12,7 @@ Types: `Attribute`
 -- Views
 view : List (Attribute msg) -> String -> Html msg
 viewWith : List (Attribute msg) -> List (Html msg) -> Html msg
+stale : List (Attribute msg) -> msg -> List String -> Html msg
 
 -- Content
 type Attribute msg  -- opaque: no constructors are exposed
@@ -34,6 +35,9 @@ locale : Locale.Locale -> Attribute msg
 
 Inline messages that tell the user something important in the context where
 it matters: information, success, a warning or an error.
+
+Use when: the user must see an important message in the place where it matters.
+Do not use when: the message should disappear by itself (as `Klar.Toast`).
 
     import Html
     import Klar.Alert as Alert
@@ -83,6 +87,29 @@ text.
         , Text.link { href = "#/shipping", label = "shipping rules" }
         , Html.text " for details."
         ]
+
+### `stale`
+
+```elm
+stale : List (Attribute msg) -> msg -> List String -> Html msg
+```
+
+One notice for a page whose data is old because a refresh failed, so that
+nobody reads old numbers by mistake. Give it the names of the stale parts
+(`Remote.staleIn` makes them) and the message that tries again. With no names it
+shows nothing.
+
+    Alert.stale [ Alert.locale model.locale ]
+        Refresh
+        (List.concat
+            [ Remote.staleIn "orders" model.orders
+            , Remote.staleIn "figures" model.summary
+            ]
+        )
+
+The notice is a warning that screen readers announce politely. The attributes
+that make sense here are `locale`, `banner`, `compact` and `onDismiss`; the tone,
+the title, the icon and the actions are set by the notice.
 
 ## Content
 

@@ -57,6 +57,10 @@ locale : Locale.Locale -> Attribute msg
 
 A search field that waits until the user stops typing.
 
+Use when: a list is filtered or searched as the user types and you want one message when the typing pauses.
+Do not use when: you need an ordinary text field (use `Klar.TextInput`) or suggestions to pick from (use `Klar.Autocomplete`).
+Quick path: `init`, `update`, `view`, `committed`
+
     import Klar.Remote as Remote exposing (Remote)
     import Klar.SearchInput as SearchInput
 

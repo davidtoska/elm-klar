@@ -46,6 +46,10 @@ Quick filters above a table: the conditions that are on, shown as chips
 ("Status is Paid"), an "Add filter" button that opens a small editor (field,
 operator, value), and optional preset pills like "Unpaid".
 
+Use when: users filter a table with a few quick conditions shown as chips and presets.
+Do not use when: users need nested groups of conditions (use `Klar.RuleBuilder`).
+Quick path: `init`, `update`, `view`, `rule`
+
     import Klar.FilterBar as FilterBar
     import Klar.Rule as Rule
 
@@ -101,8 +105,10 @@ is not added, and the editor says what is missing. A chip whose condition is not
 complete (possible after `setRule`) says so in its tooltip and does not filter.
 
 **Keyboard**: `Tab` moves through the pills, chips and buttons, and `Enter` or
-`Space` on a chip opens its editor. In the editor `Enter` in a value field
-applies, `Escape` closes it without applying and gives focus back to the chip or
+`Space` on a chip opens its editor. In the editor `Enter` in a text, number or
+choice field applies; in a date field `Enter` takes the date that was typed (and a
+second `Enter` opens the calendar), so apply a date filter with its "Add" (or "Apply") button.
+`Escape` closes it without applying and gives focus back to the chip or
 the add button (`Escape` in an open picker closes only the picker), and moving
 focus out of the editor closes it too.
 

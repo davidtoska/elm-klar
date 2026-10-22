@@ -97,7 +97,7 @@ rowTone : (row -> Maybe Theme.Tone) -> Attribute id row msg
 rowDisabled : (row -> Bool) -> Attribute id row msg
 
 -- Loading and empty states
-refreshing : Bool -> Attribute id row msg
+zone : Time.Zone -> Attribute id row msg
 onRefresh : msg -> Attribute id row msg
 onRetry : msg -> Attribute id row msg
 emptyState : List (EmptyState.Attribute msg) -> Attribute id row msg
@@ -207,9 +207,11 @@ footerAverage : ColumnAttribute row msg
 A data table for records: search, column filters, sorting, selection with
 bulk actions, row actions, expandable rows, CSV export and pagination.
 
-Use it when people have to find, compare and act on many rows of the same kind:
-orders, customers, shipments. For a short list of things to open, see
-[Klar.ListItem](Klar.ListItem.md); for a long, plain list of equal rows,
+Use when: people have to find, compare and act on many rows of the same kind: orders, customers, shipments.
+Do not use when: you show a short list of things to open (as `Klar.ListItem`) or a long, plain list of equal rows (as `Klar.VirtualList`).
+Quick path: `init`, `update`, `view`, `columns`, `rows`, `rowId`
+
+See also [Klar.ListItem](Klar.ListItem.md) and
 [Klar.VirtualList](Klar.VirtualList.md). The page controls in the footer are
 [Klar.Pagination](Klar.Pagination.md).
 
@@ -282,7 +284,6 @@ that match, and the table only records what the user asks for. Compare
         [ Table.columns columns
         , Table.server { total = model.total }
         , Table.rows model.page -- Remote (List Order): the current page only
-        , Table.refreshing model.fetching -- keep the old rows, dimmed, meanwhile
         , Table.onRetry Retry
         ]
         model.table
@@ -377,6 +378,14 @@ use `unpaged` for many rows: it turns every row into HTML.
 edge shows that columns are cut off. Put the columns that matter first (the first can
 be `pinned`), give the others a `minWidth`, and leave out what people rarely need
 with `hiddenByDefault`; with `columnChooser` they can add it.
+
+**How many columns fit.** The table never squeezes a column below its `minWidth`: 120
+pixels for text, 104 to 124 for numbers, dates and badges. Next to a 232 pixel
+sidebar a 1280 pixel window leaves about 1000 pixels, so eight or nine columns fit and
+the eleventh is behind the sideways scroll, with its footer sum. Plan for 1000 pixels:
+give the columns that carry the sums a short `width`, lower the `minWidth` of the
+others, and put what people rarely need behind `hiddenByDefault`. The shadow at the
+edge is the only hint the table gives; it does not count columns for you.
 
 ## View
 
@@ -900,6 +909,12 @@ button (see `onRetry`), and `Loaded []` shows the empty state (see
 `emptyState`). In server mode these are the rows of the current page only.
 Without `rows` the table shows the loading skeleton.
 
+Rows that are `Kept` stay on the screen. While they are refreshed (the next page
+in server mode, a refresh button: `Remote.refresh`) they are dimmed, with a
+progress line under the header, and screen readers hear "Refreshing ...". When the
+last refresh failed they carry the marker "Old data from 14:05" with a retry
+button (`onRetry`).
+
 ### `rowId`
 
 ```elm
@@ -1011,9 +1026,12 @@ activeExternalFilters : Int -> Attribute id row msg
 ```
 
 How many filters outside the table are active (the ones behind `rowFilter`,
-or the ones you send to your backend). The table adds them to its own in the
-"N filters active" button, and uses the number to tell "no matches" (a filter
-hides the rows) from "no data".
+or the ones you send to your backend). The table uses the number to tell "no
+matches" (a filter hides the rows) from "no data". It draws nothing for them: the
+"N filters active" button counts the column filters of the table only, because
+outside filters have a display of their own (the chips of a
+[FilterBar](Klar.FilterBar.md)), and a second summary of the same filters only repeats
+it. Wire `onResetFilters` once, to clear both.
 
 ### `onResetFilters`
 
@@ -1135,17 +1153,13 @@ disable.
 
 ## Loading and empty states
 
-### `refreshing`
+### `zone`
 
 ```elm
-refreshing : Bool -> Attribute id row msg
+zone : Time.Zone -> Attribute id row msg
 ```
 
-Pass `True` while new data is on its way and you still hold the old rows
-(the next page in server mode, a manual refresh): the rows stay, dimmed, with a
-progress line under the header, and screen readers hear "Refreshing ...". It
-only applies to `Loaded` rows; while `rows` is `Loading` the skeleton is shown
-instead. The default is `False`.
+The time zone of the time in "Old data from 14:05". The default is UTC.
 
 ### `onRefresh`
 
@@ -1154,7 +1168,7 @@ onRefresh : msg -> Attribute id row msg
 ```
 
 Adds a refresh button to the toolbar that sends this message. The button
-shows a spinner while the table is `refreshing` or its rows are loading.
+shows a spinner while the rows are refreshing (`Remote.refresh`) or loading.
 
 ### `onRetry`
 
@@ -1207,7 +1221,10 @@ file name, used as given (`"orders.csv"`).
 
 The menu offers all matching rows (client mode), the selected rows and the
 current page, the last two with a suffix in the file name (`orders-selected.csv`,
-`orders-page-2.csv`); in server mode only the current page is known. Hidden
+`orders-page-2.csv`). In server mode only the current page is known, so the
+selected rows are offered only while every selected row is on the page; when some
+are selected on other pages the menu says how many and offers the page only. Build
+that file from your backend (the ids are in `selectedIds`). Hidden
 columns and `notExported` columns are left out, and so are `custom` and
 `actions` columns unless they have `exportAs`. Text that a spreadsheet could run
 as a formula is made safe. See `csvSeparator` for the field separator.

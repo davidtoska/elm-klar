@@ -68,12 +68,16 @@ failed : Remote.Problem -> Attribute msg
 onRetry : msg -> Attribute msg
 remote : Remote.Remote a -> Attribute msg
 emptyText : String -> Attribute msg
+zone : Time.Zone -> Attribute msg
 ```
 
 ## Documentation
 
 Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart
 or SVG package.
+
+Use when: numbers are shown as a trend, a comparison of categories, parts of a whole or one value against a scale.
+Do not use when: the progress of a task is shown, use `Klar.Progress`.
 
     import Klar.Chart as Chart
     import Klar.Theme exposing (Tone(..))
@@ -637,9 +641,14 @@ chart.
 loading : Bool -> Attribute msg
 ```
 
-While `True` a skeleton of about the same height replaces the chart, and
-screen readers hear "Loading chart" (a sparkline becomes a skeleton line that is
-marked as busy). Pass a field of your model. Default: `False`.
+Shows a skeleton of about the same height in place of the chart while `True`,
+and screen readers hear "Loading chart" (a sparkline becomes a skeleton line that
+is marked as busy). Pass a field of your model. Default: `False`.
+
+`loading`, `failed` and `remote` only add up: a chart is busy when any of them
+says so, and shows a failure when any of them has one, whatever the order. So
+`Chart.remote model.sales` followed by `Chart.loading False` keeps the loading
+and the failure that `remote` set.
 
 ### `failed`
 
@@ -658,9 +667,10 @@ it shows a dash with the title of the problem as its tooltip.
 onRetry : msg -> Attribute msg
 ```
 
-The message sent by the "Try again" button in the failure state. The button is
-only shown when the problem is worth retrying (see `Klar.Remote.isRetryable` in
-[Klar.Remote](Klar.Remote.md)); a sparkline has none.
+The message sent by the "Try again" button in the failure state and in the
+marker of old data. The button is only shown when the problem is worth retrying
+(see `Klar.Remote.isRetryable` in [Klar.Remote](Klar.Remote.md)); a sparkline has
+none.
 
 ### `remote`
 
@@ -668,9 +678,11 @@ only shown when the problem is worth retrying (see `Klar.Remote.isRetryable` in
 remote : Remote.Remote a -> Attribute msg
 ```
 
-Takes loading and failure from a `Remote`. The data itself is passed to the
-chart as usual. `NotAsked` and `Loading` show the skeleton, `Failed` shows the
-problem and `Loaded` shows the chart.
+Takes loading, failure, refreshing and old data from a `Remote`. The data
+itself is passed to the chart as usual. `NotAsked` and `Loading` show the
+skeleton, `Failed` shows the problem and `Loaded` shows the chart. Data that is
+`Kept` stays on the screen: dimmed and busy while it is refreshed, and with the
+marker "Old data from 14:05" and a retry when the last refresh failed.
 
     Chart.line [ Chart.remote model.sales ] (Remote.withDefault [] model.sales)
 
@@ -686,3 +698,11 @@ The text of the empty state, shown when there is nothing to draw: no series,
 no values, or a donut whose slices add up to 0. The default is "No data to show".
 A sparkline uses it as its accessible label. A gauge and a meter always have a
 value, so they never show it.
+
+### `zone`
+
+```elm
+zone : Time.Zone -> Attribute msg
+```
+
+The time zone of the time in "Old data from 14:05". The default is UTC.

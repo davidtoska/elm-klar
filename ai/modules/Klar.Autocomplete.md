@@ -28,6 +28,7 @@ options : List (Select.Option.Option String) -> Attribute msg
 suggestions : Remote.Remote (List (Select.Option.Option String)) -> Attribute msg
 onRetry : msg -> Attribute msg
 onEnter : msg -> Attribute msg
+zone : Time.Zone -> Attribute msg
 
 -- Field
 label : String -> Attribute msg
@@ -56,6 +57,10 @@ A text field with suggestions. Unlike [Klar.Select](Klar.Select.md) the user may
 type anything: the suggestions only help. Use it for free text that often
 repeats earlier values (a city, a company name, a product title), and `Select`
 when only listed values are valid.
+
+Use when: free text that often repeats earlier values, such as a city or a company name, where the suggestions only help.
+Do not use when: only listed values are valid (`Klar.Select`).
+Quick path: `init`, `update`, `view`, `text`, `picked`
 
     import Klar.Autocomplete as Autocomplete
     import Klar.Select as Select
@@ -260,6 +265,10 @@ component does not filter them; the typed text is highlighted in them. Fetch
 when `Autocomplete.text` changes. The list is hidden while the data is
 `NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, an
 error on `Failed` (see `onRetry`), and "No suggestions" on `Loaded []`.
+Suggestions that are `Kept` stay in the list: dimmed and busy while they are
+refreshed, and with "Old data from 14:05" at the top of the list when the last
+refresh failed (the list is not a place for a button: the focus stays in the
+field, so use the notice of the page for the retry).
 
     Autocomplete.suggestions model.citySuggestions
 
@@ -291,6 +300,14 @@ suggestion is a state change instead: compare `Autocomplete.picked` before and
 after to react to it.
 
     Autocomplete.onEnter SearchSubmitted
+
+### `zone`
+
+```elm
+zone : Time.Zone -> Attribute msg
+```
+
+The time zone of the time in "Old data from 14:05". The default is UTC.
 
 ## Field
 

@@ -45,6 +45,10 @@ alignEnd : Attribute msg
 A dropdown menu opened from a button. Used for actions that do not deserve
 their own button: row actions, "more", user menus.
 
+Use when: a few actions do not deserve their own buttons: row actions, "more", user menus.
+Do not use when: the popup holds any content (as `Klar.Popover`), opens on right-click (as `Klar.ContextMenu`) or has a main action (as `Klar.SplitButton`).
+Quick path: `init`, `update`, `view`, `isOpen`
+
 Where a [Klar.Popover](Klar.Popover.md) holds any content, a menu is a list of
 actions that closes as soon as one is picked. For a menu that opens where the
 user right-clicks, use a [Klar.ContextMenu](Klar.ContextMenu.md).

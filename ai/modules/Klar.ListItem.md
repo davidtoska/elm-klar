@@ -50,13 +50,15 @@ emptyTitle : String -> ListAttribute msg
 emptyDescription : String -> ListAttribute msg
 emptyIcon : Icon.Icon -> ListAttribute msg
 locale : Locale.Locale -> ListAttribute msg
+zone : Time.Zone -> ListAttribute msg
 ```
 
 ## Documentation
 
-A dense list row, and the list that holds the rows. Use it for records such
-as orders, tickets and files, as a menu of things to open, or as a master list
-next to a detail pane.
+A dense list row, and the list that holds the rows.
+
+Use when: the application shows records such as orders, tickets and files, a menu of things to open, or a master list next to a detail pane.
+Do not use when: people must search, sort and act on many rows of one kind (as `Klar.Table`).
 
     import Klar.ListItem as ListItem
 
@@ -359,7 +361,9 @@ A list of records from the backend. `toRow` turns one record into a row,
 usually with `view`. While the data is `NotAsked` or `Loading` the list shows
 placeholder rows (`skeletonRows`), a `Failed` shows an error state with a retry
 button (`onRetry`), an empty list shows an empty state (`emptyTitle`) and
-otherwise the rows are shown in a `list`.
+otherwise the rows are shown in a `list`. Data that is `Kept` stays: dimmed and
+busy while it is refreshed, and under "Old data from 14:05" with a retry
+(`onRetry`) when the last refresh failed.
 
     ListItem.remote [ ListItem.onRetry ReloadOrders ] viewOrder model.orders
 
@@ -427,3 +431,11 @@ locale : Locale.Locale -> ListAttribute msg
 The language of the built-in text of `remote`: the default title of the empty
 state ("Nothing to show" in English) and the "Try again" button. The default is
 `Locale.default`, which is English.
+
+### `zone`
+
+```elm
+zone : Time.Zone -> ListAttribute msg
+```
+
+The time zone of the time in "Old data from 14:05". The default is UTC.

@@ -50,10 +50,9 @@ locale : Locale.Locale -> Attribute msg
 Short notifications that appear in a corner of the window, stack up and go
 away by themselves: "Order saved", "Could not send the invoice".
 
-Use a toast for feedback about something the user just did, which needs no
-decision. For a message that has to stay on the page use a
-[Klar.Alert](Klar.Alert.md), and for a question a
-[Klar.ConfirmDialog](Klar.ConfirmDialog.md).
+Use when: the user needs feedback about something they just did, which needs no decision.
+Do not use when: a message must stay on the page (use `Klar.Alert`) or the user must answer a question (use `Klar.ConfirmDialog`).
+Quick path: `init`, `push`, `update`, `view`, `dismissAll`
 
     -- model:   toasts : Toast.State Msg       (Toast.init)
 
@@ -92,8 +91,8 @@ The state holds the application's messages, hence `State msg`.
 Render the stack once, always, near the root of the application: it is the live
 region that screen readers listen to. Put it in the list of overlays of
 [`Overlay.host`](Klar.Overlay.md#host), so that the toasts stay usable while a dialog
-is open: they move to the top of the window and `Tab` reaches them after the
-footer of the dialog. New toasts are announced politely, without interrupting what the screen
+is open: they move out of the corner (to the top of the window, or to the other side
+of a drawer) and `Tab` reaches them after the footer of the dialog. New toasts are announced politely, without interrupting what the screen
 reader is saying; a `danger` toast is announced at once (`role="alert"`). Every
 toast has a close button, and one with an action has a button for it; both can
 be reached with `Tab`.
@@ -109,8 +108,10 @@ Put it in the list of overlays of [`Overlay.host`](Klar.Overlay.md#host) (or
 `AppShell.overlays`), always, even when there are no toasts: it is the live region
 screen readers listen to. Of the attributes only `locale` has an effect here.
 
-While a dialog or drawer is open the stack moves to the top of the window, so that
-it never covers the footer buttons, and it becomes the last stop of the dialog's
+While a dialog is open the stack moves to the top of the window, so that it never
+covers the footer buttons; beside a drawer it goes to the bottom of the other side of
+the window, so that the title and the close button of the drawer stay in reach (on a
+narrow screen, where the drawer fills the window, it is at the top). It becomes the last stop of the dialog's
 `Tab` loop: after the footer, `Tab` goes through the toasts (the action and the
 close button of each) and then to the first element of the dialog again.
 

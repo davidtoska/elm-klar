@@ -47,12 +47,16 @@ loading : Bool -> Attribute msg
 failed : Remote.Problem -> Attribute msg
 onRetry : msg -> Attribute msg
 remote : Remote.Remote a -> (a -> List (Attribute msg)) -> Attribute msg
+zone : Time.Zone -> Attribute msg
 ```
 
 ## Documentation
 
 A KPI tile: one number with its label, the change since last time, a short
 note and optionally a trend line.
+
+Use when: a headline number is read at a glance on a dashboard or at the top of a page.
+Do not use when: there are several label and value pairs, use `Klar.DescriptionList`, or one value against a scale, use `gauge` or `meter` from `Klar.Chart`.
 
     import Klar.Stat as Stat
 
@@ -365,6 +369,11 @@ While `True` the tile shows a skeleton in place of the number, the change and
 the trend, and tells screen readers that it is loading. The label stays, so the
 layout does not jump. Pass a field of your model. Default: `False`.
 
+`loading`, `failed` and `remote` only add up: a tile is busy when any of them says
+so, and shows a failure when any of them has one, whatever the order. So
+`Stat.remote model.shipments f` followed by `Stat.loading False` keeps what
+`remote` set.
+
 ### `failed`
 
 ```elm
@@ -395,7 +404,9 @@ remote : Remote.Remote a -> (a -> List (Attribute msg)) -> Attribute msg
 Takes the content of the tile from a `Remote`. While the data is `NotAsked`
 or `Loading` the tile shows a skeleton, on `Failed` it shows the problem, and
 when the data has arrived it applies the attributes that the function returns
-for it.
+for it. Data that is `Kept` stays on the tile: dimmed and busy while it is
+refreshed, and with "Old data from 14:05" and a retry (`onRetry`) when the last
+refresh failed. A tile with that retry is a plain block, like a failed tile.
 
     Stat.view
         [ Stat.label "Shipments"
@@ -404,3 +415,11 @@ for it.
 
 Attributes that do not depend on the data, such as `label`, belong next to
 `remote` in the list.
+
+### `zone`
+
+```elm
+zone : Time.Zone -> Attribute msg
+```
+
+The time zone of the time in "Old data from 14:05". The default is UTC.

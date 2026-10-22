@@ -21,6 +21,7 @@ gap : Int -> Attribute msg
 padding : Int -> Attribute msg
 fill : Attribute msg
 grow : Attribute msg
+width : Int -> Attribute msg
 fillRest : Attribute msg
 maxWidth : Int -> Attribute msg
 maxHeight : Int -> Attribute msg
@@ -50,6 +51,9 @@ dividerLabelled : String -> Html msg
 
 Layout primitives: vertical stacks, horizontal rows and grids, with spacing
 from a fixed scale.
+
+Use when: you arrange content in stacks, rows, grids or a page column with spacing from the design scale.
+Do not use when: you need a frame for a whole application (as `Klar.AppShell`) or a grouped surface (as `Klar.Card`).
 
     import Klar.Layout as Layout
     import Klar.Text as Text
@@ -178,6 +182,22 @@ to a fixed sidebar.
     Layout.row [ Layout.gap 4, Layout.alignStart ]
         [ sidebar
         , Layout.stack [ Layout.grow ] [ content ]
+        ]
+
+### `width`
+
+```elm
+width : Int -> Attribute msg
+```
+
+Gives the element a fixed width in pixels, and lets it keep that width in a `row`
+(it does not grow or shrink), so that the part next to it can `grow`: a tree, a filter
+panel or a list beside the main area. On a screen narrower than the width it shrinks
+to the width of its parent. At least 16 pixels.
+
+    Layout.row [ Layout.gap 4, Layout.alignStart ]
+        [ Layout.stack [ Layout.width 240 ] [ locationTree ]
+        , Layout.stack [ Layout.grow ] [ table ]
         ]
 
 ### `fillRest`

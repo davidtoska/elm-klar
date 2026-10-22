@@ -53,6 +53,10 @@ locale : Locale.Locale -> Attribute msg
 A text area for Markdown with a toolbar and a live preview: the editor of a
 note, a description, a comment, or the instruction to a language model.
 
+Use when: the user writes Markdown and should see the result as it is typed.
+Do not use when: the text is only shown, use `Klar.Markdown`, or when plain text is enough, use `Klar.TextArea`.
+Quick path: `init`, `update`, `view`, `value`
+
     import Klar.MarkdownEditor as MarkdownEditor
 
     -- model: description : MarkdownEditor.State

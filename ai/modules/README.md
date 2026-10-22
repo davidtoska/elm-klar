@@ -34,8 +34,10 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.ErrorState](Klar.ErrorState.md): What to show when a request failed: a clear title, the reason, and a button to try again when trying again can help.
 ## Forms
 
-- [Klar.Form](Klar.Form.md): The layout of a form and the parts around it.
-- [Klar.Form.Model](Klar.Form.Model.md): A form declared once: its fields in order, each with a label and its rules.
+- [Klar.Form](Klar.Form.md): A form as one value: the text and choices of every field, which fields the user has left, what the server refused, the rows of a repeating group, the step the user is on, and whether anything has ...
+- [Klar.Form.Spec](Klar.Form.Spec.md): The declaration of a form: its fields in order, each with a label and its rules, grouped in steps.
+- [Klar.Form.Layout](Klar.Form.Layout.md): The layout of a form and the parts around it.
+- [Klar.Form.Check](Klar.Form.Check.md): Tests for a form: what an `elm-test` file needs to be sure that a declaration is right, in one line each.
 - [Klar.Field](Klar.Field.md): The wrapper around a form control: a label, a required or optional mark, a hint and an error message, joined to the control for screen readers.
 - [Klar.Validate](Klar.Validate.md): Pure, composable validators for text values.
 ## Inputs
@@ -61,6 +63,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 
 - [Klar.Select](Klar.Select.md): A single select with a search box, for lists from a handful to many thousands of options.
 - [Klar.Select.Option](Klar.Select.Option.md): The option model shared by Klar.Select, Klar.MultiSelect and Klar.Autocomplete.
+- [Klar.Ids](Klar.Ids.md): How the application's own id type is written as text and read back, once.
 - [Klar.MultiSelect](Klar.MultiSelect.md): Choose several values from a searchable list.
 - [Klar.Autocomplete](Klar.Autocomplete.md): A text field with suggestions.
 - [Klar.VirtualList](Klar.VirtualList.md): A list of thousands of rows that draws only the rows in view, and is a list box for the keyboard.
@@ -88,7 +91,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 
 - [Klar.Overlay](Klar.Overlay.md): The layer above the page: dialogs, drawers, the command palette, the shortcut sheet and the toasts.
 - [Klar.Modal](Klar.Modal.md): A dialog on top of the page, for work that needs the user's full attention: editing a record, a form with several fields, a step of a wizard.
-- [Klar.ConfirmDialog](Klar.ConfirmDialog.md): The "are you sure?" dialog, with the whole life of the request it guards:
+- [Klar.ConfirmDialog](Klar.ConfirmDialog.md): The "are you sure?" dialog, with the whole life of the request it guards.
 - [Klar.Drawer](Klar.Drawer.md): A panel that slides in from the side of the window: the details of a row in a list, a form with many filters, anything the user wants to see next to the page they came from.
 - [Klar.Toast](Klar.Toast.md): Short notifications that appear in a corner of the window, stack up and go away by themselves: "Order saved", "Could not send the invoice".
 - [Klar.Popover](Klar.Popover.md): A small panel anchored to a button, with any content: a quick filter, a few settings, a short form, an explanation with a link.
@@ -117,7 +120,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 
 - [Klar.StatusPage](Klar.StatusPage.md): A page that stands for a whole result: "Order created", "No access", "Page not found", "Something went wrong on our side", "Down for maintenance".
 - [Klar.BulkBar](Klar.BulkBar.md): The bar of actions for the items the user has selected: "12 selected: Export, Delete".
-- [Klar.LeaveGuard](Klar.LeaveGuard.md): Asks "Leave without saving?" when the user navigates away inside the application while something is not saved.
+- [Klar.LeaveGuard](Klar.LeaveGuard.md): Asks "Leave without saving?" when the user leaves a page with unsaved work: by a link, by your own code and by the browser's Back and Forward buttons.
 - [Klar.History](Klar.History.md): Undo and redo for a form or an editor: a value, the values it had before and the values it had before you undid them.
 ## Text and change
 
@@ -145,6 +148,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 ## Data and utilities
 
 - [Klar.Remote](Klar.Remote.md): The state of data that comes from a backend: not asked for yet, loading, failed, or here.
+- [Klar.RemoteView](Klar.RemoteView.md): The body of a card, a dialog or a drawer that shows one piece of remote data: a loading skeleton that screen readers hear, the failure with a retry, and the data, old or being refreshed.
 - [Klar.Search](Klar.Search.md): Text matching for search fields, selects and command palettes: forgiving about case and accents, and ranked, so the best match comes first.
 - [Klar.Format](Klar.Format.md): Formatting numbers, sizes, dates and times for people, in the conventions of a `Locale`.
 - [Klar.Shortcut](Klar.Shortcut.md): Global keyboard shortcuts for the whole application, including sequences of two keys such as `g` then `m`.

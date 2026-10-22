@@ -97,6 +97,9 @@ for (const m of modules) {
 
 ${header}{-| ${m.title}: ${m.icons.length} icons.
 
+Use when: you need an icon of this theme for a component that takes an Icon.
+Do not use when: the everyday icon exists in \`Klar.Icon\`, or you want to browse all icons (\`Klar.Icon.Library\`).
+
     import Klar.Icon as Icon
     import Klar.Icon.${m.module} as ${m.module}
 
@@ -131,6 +134,9 @@ ${body}`;
 const library = `module Klar.Icon.Library exposing (Group, all, groups, count)
 
 ${header}{-| The whole icon library in one place, for galleries, pickers and tests.
+
+Use when: you need a gallery, a picker or a test that goes through every icon.
+Do not use when: the application only shows some icons (import them from their modules, or \`Klar.Icon\` for the everyday set).
 
 Each group is a module: \`Klar.Icon\` has the everyday icons, and the other modules
 (\`Klar.Icon.Arrows\`, \`Klar.Icon.Business\` and so on) hold the rest. Using this

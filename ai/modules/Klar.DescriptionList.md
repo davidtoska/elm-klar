@@ -34,6 +34,9 @@ locale : Locale.Locale -> Attribute
 
 Label and value pairs for detail views, rendered as a semantic `dl`.
 
+Use when: the application shows the facts about one thing, such as an order, a customer or a shipment.
+Do not use when: there are many things of the same kind to compare or sort, use `Klar.Table`.
+
     import Klar.Badge as Badge
     import Klar.DescriptionList as DescriptionList
     import Klar.Theme exposing (Tone(..))

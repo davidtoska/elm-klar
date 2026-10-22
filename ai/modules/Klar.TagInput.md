@@ -55,6 +55,10 @@ locale : Locale.Locale -> Attribute msg
 
 Free-form tags: type a word, press Enter or comma, get a chip.
 
+Use when: the user enters a list of free words, such as keywords or e-mail addresses.
+Do not use when: the tags come from a fixed list (use `Klar.MultiSelect`).
+Quick path: `init`, `update`, `view`, `tags`
+
     import Klar.Locale as Locale
     import Klar.TagInput as TagInput
     import Klar.Validate as Validate

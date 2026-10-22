@@ -33,6 +33,9 @@ platformFromUserAgent : String -> Platform
 Keyboard keys as key caps, for hints and documentation: "Ctrl K",
 "Shift Enter", or a sequence such as "G then O".
 
+Use when: a hint or help text must show a keyboard shortcut as key caps.
+Do not use when: you need to listen to the shortcut (as `Klar.Shortcut`) or list all shortcuts (as `Klar.ShortcutHelp`).
+
     import Klar.Kbd as Kbd
     import Klar.Shortcut as Shortcut
 

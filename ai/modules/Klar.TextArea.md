@@ -55,6 +55,9 @@ locale : Locale.Locale -> Attribute msg
 
 A multi-line text field with a label, a hint and an error message.
 
+Use when: you need text of several lines, such as a note or a description.
+Do not use when: one line is enough (use `Klar.TextInput`).
+
     import Klar.TextArea as TextArea
 
     TextArea.view

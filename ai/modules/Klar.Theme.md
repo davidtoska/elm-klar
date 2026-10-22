@@ -26,6 +26,9 @@ The small shared vocabulary of the components: the color of a message
 (`Tone`), the size of a control (`Size`) and how tightly rows are packed
 (`Density`).
 
+Use when: you give a component a tone, a size or a density, or write a component of your own that follows them.
+Do not use when: you want to restyle the look, which is done with the CSS custom properties of the stylesheet (see `Klar`).
+
     import Klar.Badge as Badge
     import Klar.Button as Button
     import Klar.Theme exposing (Size(..), Tone(..))

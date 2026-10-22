@@ -33,6 +33,9 @@ scroll : Attribute
 A horizontal bar of grouped actions: the strip above a table, the actions of
 an editor, or the bulk actions that appear when rows are selected.
 
+Use when: a row of grouped actions is needed above a table or an editor, or for bulk actions on selected rows.
+Do not use when: you need a single list of actions in a dropdown (use `Klar.Menu`).
+
     import Klar.Button as Button
     import Klar.Icon as Icon
     import Klar.TextInput as TextInput

@@ -31,8 +31,8 @@ id : String -> Option
 Short hints that appear when the pointer rests on an element or the keyboard
 focuses it. There is no state and there are no messages: it is all CSS.
 
-Use a tooltip to explain an icon-only button, to show a keyboard shortcut or to
-say why something is unavailable. Do not hide information the user needs in one.
+Use when: an icon-only button, a keyboard shortcut or an unavailable control needs a short hint on hover or focus.
+Do not use when: the user needs the information to proceed (put it in the page, or use `Klar.Popover` for richer content).
 
     import Klar.Tooltip as Tooltip
 

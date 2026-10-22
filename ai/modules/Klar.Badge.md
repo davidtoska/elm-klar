@@ -29,6 +29,9 @@ size : Theme.Size -> Attribute
 Small read-only labels for state and metadata, such as "Paid" or
 "Overdue", and round number badges.
 
+Use when: the user must read a state or a count, such as "Paid", "Overdue" or a number.
+Do not use when: the label is something the user picked and can remove (as `Klar.Tag`).
+
     import Klar.Badge as Badge
     import Klar.Theme exposing (Tone(..))
 

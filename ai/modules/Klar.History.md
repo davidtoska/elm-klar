@@ -50,6 +50,10 @@ shortcuts : Locale.Locale -> { onUndo : msg, onRedo : msg } -> List (Shortcut.Sh
 Undo and redo for a form or an editor: a value, the values it had before and
 the values it had before you undid them.
 
+Use when: a form or an editor needs undo and redo, or a dirty check against the last saved value.
+Do not use when: only a "leave without saving" question is needed, use `Klar.LeaveGuard`.
+Quick path: `init`, `record`, `undo`, `redo`, `isAtSavedPoint`, `controls`
+
     import Klar.History as History exposing (History)
 
     type Field

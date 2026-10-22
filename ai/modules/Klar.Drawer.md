@@ -60,9 +60,9 @@ A panel that slides in from the side of the window: the details of a row in
 a list, a form with many filters, anything the user wants to see next to the
 page they came from.
 
-Use a [Klar.Modal](Klar.Modal.md) for a task that has to be finished before
-anything else, a [Klar.ConfirmDialog](Klar.ConfirmDialog.md) for a yes-or-no
-question and a [Klar.Popover](Klar.Popover.md) for a small panel next to a button.
+Use when: the user looks at details or a form next to the page they came from, such as the details of a row in a list.
+Do not use when: the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`) or the panel is small and next to a button (use `Klar.Popover`).
+Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.Button as Button
     import Klar.Drawer as Drawer
@@ -103,6 +103,17 @@ makes it `inert`. If the element that has focus inside the drawer is removed or
 disabled (a button replaced after an action), focus moves to the drawer itself.
 [Klar.Modal](Klar.Modal.md) and [Klar.Overlay](Klar.Overlay.md) explain all of this once,
 for every overlay.
+
+The details of a row usually load after the drawer opens. Give it the body of
+[Klar.RemoteView](Klar.RemoteView.md): a skeleton that screen readers hear, the
+failure with a retry, and old or refreshing data, with no `case` of your own.
+Focus that was on the retry button goes back into the drawer when the data
+arrives.
+
+    Drawer.view DrawerMsg
+        [ Drawer.title "Order 1042" ]
+        model.drawer
+        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 The drawer is as tall as the window. It is `medium` (480px) unless you say
 `small` (360px) or `large` (720px), and never wider than the window. The only

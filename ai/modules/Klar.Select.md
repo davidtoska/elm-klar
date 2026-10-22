@@ -43,6 +43,7 @@ options : List (Option id) -> Attribute id msg
 remote : Remote.Remote (List (Option id)) -> Attribute id msg
 serverSearch : Attribute id msg
 onRetry : msg -> Attribute id msg
+zone : Time.Zone -> Attribute id msg
 
 -- Field
 label : String -> Attribute id msg
@@ -72,6 +73,10 @@ A single select with a search box, for lists from a handful to many
 thousands of options. Use it when only listed values are valid; for free text
 with suggestions use [Klar.Autocomplete](Klar.Autocomplete.md), and to choose
 several values [Klar.MultiSelect](Klar.MultiSelect.md).
+
+Use when: exactly one value is chosen from a list of a handful to many thousands of options, and only listed values are valid.
+Do not use when: the user may type anything (`Klar.Autocomplete`) or several values are chosen (`Klar.MultiSelect`).
+Quick path: `init`, `update`, `view`, `value`
 
     import Klar.Select as Select
 
@@ -439,7 +444,9 @@ remote : Remote.Remote (List (Option id)) -> Attribute id msg
 Options from the backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)).
 The list shows loading rows while the data is `Loading` or `NotAsked`, a compact
 error with a retry button on `Failed` (see `onRetry`), the empty state on
-`Loaded []`, and the options on `Loaded`.
+`Loaded []`, and the options on `Loaded`. Options that are `Kept` stay in the
+list: dimmed and busy while they are refreshed, and with "Old data from 14:05"
+and a retry (`onRetry`) at the top of the list when the last refresh failed.
 
     Select.remote model.countries
 
@@ -484,6 +491,14 @@ Enter in the search box sends the message as well. For other problems (no
 access, not found ...) nothing is retried, and Enter does nothing.
 
     Select.onRetry ReloadCountries
+
+### `zone`
+
+```elm
+zone : Time.Zone -> Attribute id msg
+```
+
+The time zone of the time in "Old data from 14:05". The default is UTC.
 
 ## Field
 

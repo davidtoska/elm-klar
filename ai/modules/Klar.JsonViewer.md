@@ -42,6 +42,10 @@ locale : Locale.Locale -> Attribute
 A collapsible tree for looking at JSON: an API response, a stored document,
 a request body.
 
+Use when: the application shows a JSON value, such as an API response or a stored document, that the user needs to explore.
+Do not use when: a short snippet is enough (`codeBlock` of `Klar.Text`).
+Quick path: `init`, `update`, `view`
+
     import Json.Decode as Decode
     import Klar.JsonViewer as JsonViewer
 

@@ -45,6 +45,9 @@ id : String -> Attribute
 A row of toggle buttons for choices that can be on or off: "Bold / Italic /
 Underline", the statuses to show in a list, the days of the week.
 
+Use when: the user turns options on or off in a compact row, such as "Bold / Italic / Underline" or a set of statuses.
+Do not use when: exactly one view is always chosen (as `Klar.SegmentedControl`) or each choice needs an explanation (as `Klar.CheckboxGroup` or `Klar.Radio`).
+
     import Klar.Icon as Icon
     import Klar.ToggleGroup as ToggleGroup
 

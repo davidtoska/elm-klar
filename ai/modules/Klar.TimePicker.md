@@ -68,7 +68,11 @@ name : String -> Attribute
 
 A 24-hour time field: type `14:30` or pick a time from a list.
 
-It holds a time of day only. For a date and a time together use
+Use when: the user enters a time of day only, such as an order cut-off.
+Do not use when: the user enters a date and a time together (as `Klar.DateTimePicker`).
+Quick path: `init`, `update`, `view`, `time`
+
+It holds a time of day only. For a date and a time together see
 [Klar.DateTimePicker](Klar.DateTimePicker.md).
 
     import Klar.TimePicker as TimePicker

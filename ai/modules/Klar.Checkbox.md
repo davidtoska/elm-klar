@@ -35,6 +35,9 @@ id : String -> Attribute msg
 
 A checkbox, with a label or bare.
 
+Use when: a yes or no choice that is saved together with the rest of a form, or a bare box in a table row.
+Do not use when: the setting takes effect at once (`Klar.Switch`) or several related choices share one label (`Klar.CheckboxGroup`).
+
     import Klar.Checkbox as Checkbox
 
     Checkbox.view

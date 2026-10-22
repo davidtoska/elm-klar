@@ -47,6 +47,9 @@ disabled : Bool -> Attribute msg
 A row of joined options where exactly one is chosen: a switch between
 views ("List" / "Grid"), periods ("Day" / "Week" / "Month") or modes.
 
+Use when: a few short options that switch what the page shows, such as List or Grid, or Day, Week and Month.
+Do not use when: the options need a sentence of explanation (`Klar.Radio`), there are many (`Klar.Select`) or panels of content are switched (`Klar.Tabs`).
+
     import Klar.Icon as Icon
     import Klar.SegmentedControl as SegmentedControl
 

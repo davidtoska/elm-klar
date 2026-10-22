@@ -40,6 +40,10 @@ update : Msg -> State -> ( State, Cmd Msg )
 The path to the current page: links separated by chevrons, where the last item
 is the current page.
 
+Use when: the user must see where the current page sits in the application, as a trail of links.
+Do not use when: you need the main navigation (use `Klar.SideNav`) or sections within one page (use `Klar.Tabs`).
+Quick path: `init`, `update`, `view`
+
     import Klar.Breadcrumbs as Breadcrumbs
 
     -- model: crumbs : Breadcrumbs.State

@@ -47,6 +47,10 @@ withoutPanels : Attribute
 Tabs that switch between views of the same thing: the overview of an order,
 its history and its files.
 
+Use when: the user switches between views of the same thing, such as the overview, history and files of an order.
+Do not use when: sections should open and close in place (use `Klar.Accordion`) or the user moves through ordered steps (use `Klar.Stepper`).
+Quick path: `init`, `update`, `view`, `panel`, `active`, `setActive`
+
 The component is stateful: it owns which tab is active and which tab has
 keyboard focus. The application reads the active tab with `active` and compares
 it before and after an update to react, for instance to change the URL. To set

@@ -37,6 +37,7 @@ toPercent : Share -> Float
 type Attribute  -- opaque: no constructors are exposed
 stacked : Attribute
 height : Int -> Attribute
+fillRest : Attribute
 locale : Locale.Locale -> Attribute
 ```
 
@@ -45,6 +46,10 @@ locale : Locale.Locale -> Attribute
 Two or more panes side by side (or one above the other) that the user can make
 larger and smaller by moving the separators between them, with the mouse, a finger
 or the keyboard.
+
+Use when: the user should resize a master and its detail, a navigator beside a work area or an editor above a preview.
+Do not use when: the layout is fixed, use `Klar.Layout`, or when sections only open and close, use `Klar.Accordion`.
+Quick path: `init`, `update`, `view`, `sizes`
 
     import Klar.Splitter as Splitter
 
@@ -345,6 +350,23 @@ The height of the splitter in pixels. Without it the splitter is as high as its
 parent, which must then have a height of its own; a splitter inside a pane of
 another splitter does not need one. A `stacked` splitter needs a height to be able
 to divide anything.
+
+### `fillRest`
+
+```elm
+fillRest : Attribute
+```
+
+Makes the splitter as high as the room that is left in its parent, instead of
+as high as the parent (which must have a height of its own) or a number of pixels.
+Use it in a `Layout.stack [ Layout.fillRest ]`, so that a navigator beside a work
+area fills the window under the page header with no pixel height; see
+`Layout.fillRest`. It overrides `height`.
+
+    Layout.stack [ Layout.fillRest ]
+        [ PageHeader.view [ PageHeader.title "Stock" ]
+        , Splitter.view SplitterMsg [ Splitter.fillRest ] model.split panes
+        ]
 
 ### `locale`
 

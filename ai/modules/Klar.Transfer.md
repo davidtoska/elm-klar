@@ -52,10 +52,13 @@ locale : Locale.Locale -> Attribute id msg
 ## Documentation
 
 Two lists side by side, "Available" and "Chosen", and a way to move items
-from one to the other: the way to assign many things to one thing, such as
-products to a promotion, users to a group or columns to an export. For picking a
-few values from a list use [Klar.MultiSelect](Klar.MultiSelect.md), for values in a
-hierarchy [Klar.TreeSelect](Klar.TreeSelect.md).
+from one to the other.
+
+Use when: the user assigns many things to one thing, such as products to a promotion, users to a group or columns to an export.
+Do not use when: the user picks a few values from a list (as `Klar.MultiSelect`) or values in a hierarchy (as `Klar.TreeSelect`).
+Quick path: `init`, `update`, `view`, `options`, `values`
+
+See also [Klar.MultiSelect](Klar.MultiSelect.md) and [Klar.TreeSelect](Klar.TreeSelect.md).
 
     import Klar.Picking as Picking
     import Klar.Select as Select

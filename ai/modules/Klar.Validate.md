@@ -46,6 +46,10 @@ parseDate : String -> Maybe Date.Date
 Pure, composable validators for text values. A validator returns the
 problem as a message in the given `Locale`, or `Nothing` when the value is fine.
 
+Use when: you check text values by hand and want messages in the user's language.
+Do not use when: you declare a form with `Klar.Form.Spec`, which takes the same validators as its rules.
+Quick path: `run`, `firstError`, `collect`, `errorFor`
+
     import Klar.Locale exposing (Locale(..))
     import Klar.Validate as Validate
 
@@ -68,7 +72,7 @@ in the order given:
         ]
 
 The `field` of an `Error` is the DOM id of the control, so
-[`Form.errorSummary`](Klar.Form.md) can move focus to it.
+[`FormLayout.errorSummary`](Klar.Form.Layout.md) can move focus to it.
 
 The messages are built in; use `withMessage` to say it your way. Lengths are
 counted the way Elm counts them (`String.length`), in UTF-16 units.

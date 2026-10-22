@@ -46,6 +46,7 @@ expandGroup : Keys key -> key -> State key -> State key
 collapseGroup : Keys key -> key -> State key -> State key
 reveal : key -> List (Entry key msg) -> State key -> State key
 focusLink : Keys key -> key -> State key -> msg -> Cmd msg
+focusCurrent : State key -> msg -> Cmd msg
 update : Msg -> State key -> ( State key, Cmd Msg )
 ```
 
@@ -53,6 +54,10 @@ update : Msg -> State key -> ( State key, Cmd Msg )
 
 Vertical navigation for the sidebar of an application: sections, links with
 icons and counts, and groups that open and close.
+
+Use when: the sidebar needs vertical navigation with sections, links, counts and groups that open and close.
+Do not use when: you need tabs inside a page (use `Klar.Tabs`) or the path to the current page (use `Klar.Breadcrumbs`).
+Quick path: `init`, `update`, `view`, `reveal`
 
     import Klar.Icon as Icon
     import Klar.SideNav as SideNav
@@ -404,7 +409,8 @@ reveal : key -> List (Entry key msg) -> State key -> State key
 Opens every group that contains the entry with this key, groups inside groups
 included, so that the entry is visible; other open groups stay open. Pass the
 same entries you give to `entries`, and call it when the application starts and
-when the route changes from somewhere else.
+when the route changes from somewhere else. The state also remembers this entry as
+the current one, for `focusCurrent`.
 
     SideNav.reveal "reports-monthly" menu model.sideNav
 
@@ -420,6 +426,17 @@ closed group, say). The message is sent when it is done, whether the link was
 found or not, so use one that changes nothing.
 
     SideNav.focusLink SideNav.stringKeys "orders" model.sideNav NoOp
+
+### `focusCurrent`
+
+```elm
+focusCurrent : State key -> msg -> Cmd msg
+```
+
+Moves keyboard focus to the link that `reveal` was last called with, the current
+page, without needing its key: `AppShell` uses it when the sidebar drawer opens.
+Does nothing before `reveal`, or when the link is not on the page. The message is sent
+when it is done.
 
 ### `update`
 

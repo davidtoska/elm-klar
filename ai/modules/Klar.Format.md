@@ -32,6 +32,9 @@ relative : Locale.Locale -> Time.Posix -> Time.Posix -> String
 Formatting numbers, sizes, dates and times for people, in the conventions of
 a `Locale`.
 
+Use when: the application shows numbers, sizes, dates or times to people.
+Do not use when: the text is a machine format (use `iso8601` for a date in data, or the plain value).
+
     import Klar.Format as Format
     import Klar.Locale exposing (Locale(..))
 
@@ -126,11 +129,23 @@ An amount of money. The first argument after the locale is what to show for
 the currency, a symbol or a code, as you want it written. English puts it in
 front of the number, Norwegian after it.
 
+An ISO 4217 code that has a well-known symbol is written with the symbol (`"USD"`
+becomes `$`, `"EUR"` `€`, `"NOK"` `kr`; the table is the one `Klar.Money` uses). Any other
+text is written as given, and a text that ends in a letter (a code, `"kr"`) is
+separated from the number by a non-breaking space, so that it never reads
+`USD645.15`.
+
     Format.currency Locale.en "$" 2 1234.5 -- "$1,234.50"
+
+    Format.currency Locale.en "USD" 2 645.15 -- "$645.15"
+
+    Format.currency Locale.en "CHF" 2 645.15 -- "CHF 645.15" (non-breaking space)
 
     Format.currency Locale.en "$" 2 -3 -- "−$3.00"
 
     Format.currency Locale.nb "kr" 2 1234.5 -- "1 234,50 kr"
+
+    Format.currency Locale.nb "NOK" 2 1234.5 -- "1 234,50 kr"
 
     Format.currency Locale.en "JPY " 0 1500 -- "JPY 1,500"
 

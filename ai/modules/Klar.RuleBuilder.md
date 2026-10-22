@@ -51,6 +51,10 @@ actions : List (Html msg) -> Attribute row msg
 A visual editor for rules: groups of conditions that the user builds,
 rearranges and reads as a sentence, drawn with thin gray connector lines.
 
+Use when: users need the full power of nested "all of" and "any of" groups of conditions.
+Do not use when: a row of filter chips above a table is enough (use `Klar.FilterBar`).
+Quick path: `init`, `update`, `view`, `rule`
+
 It edits a [Klar.Rule](Klar.Rule.md) `Rule` and never sees your rows: the
 application runs the rule with `Rule.matches` and passes the number of matching
 rows with `matchCount`. Use it when users need the full power of nested "all

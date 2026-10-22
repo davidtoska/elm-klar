@@ -21,6 +21,10 @@ It is calm, small-typed and exact, and it never leaves the user wondering what
 state the data is in. It is plain Elm and plain CSS: besides the official `elm/*`
 packages it needs nothing, and it has no ports and no JavaScript.
 
+Use when: you start any application with Klar, to put its stylesheet on the page once.
+Do not use when: you only need a component, which has its own module (as `Klar.Button`).
+Quick path: `stylesheet`
+
 ## Start here
 
 Install the package, then render the stylesheet once, anywhere in your view:
@@ -111,12 +115,19 @@ named with `Table.columnId`, and the same advice holds: name it once.
 **Data from a backend.** Components that show data take a [Klar.Remote](Klar.Remote.md)
 (`NotAsked | Loading | Loaded a | Failed Problem`) and draw the loading skeleton, the failure
 with a retry button and the empty state themselves. A screen is correct in every
-state without you writing the four cases every time.
+state without you writing the four cases every time. Data you already have stays on
+the screen while it is refreshed (`Remote.refresh`), and when a refresh fails it is
+marked "Old data from 14:05" with a retry (`Remote.refreshWith`), in every data
+component. The body of a card, dialog or drawer does the same with
+[Klar.RemoteView](Klar.RemoteView.md).
 
 **Forms.** Every input accepts the same field attributes (`label`, `hint`, `error`,
 `required` ...) and wraps itself in a [Klar.Field](Klar.Field.md). Validators in
-[Klar.Validate](Klar.Validate.md) are plain functions; [Klar.Form](Klar.Form.md) lays out
-sections, shows an error summary and the state of the submit.
+[Klar.Validate](Klar.Validate.md) are plain functions. [Klar.Form](Klar.Form.md) holds a whole
+form in one state (declared once with [Klar.Form.Spec](Klar.Form.Spec.md)): the values, the
+rows of a repeating group, the step, what the server refused and whether anything changed.
+[Klar.Form.Layout](Klar.Form.Layout.md) lays out sections, shows an error summary and the state
+of the submit, for a form you wire by hand.
 
 **Language.** Built-in text (placeholders, labels read by screen readers, month
 names) is English by default and Norwegian Bokmål with `locale Locale.nb`; see
@@ -151,7 +162,9 @@ them again after Klar's CSS to restyle everything at once; they are listed in
     [Klar.Alert](Klar.Alert.md), [Klar.Spinner](Klar.Spinner.md),
     [Klar.Skeleton](Klar.Skeleton.md), [Klar.Progress](Klar.Progress.md),
     [Klar.EmptyState](Klar.EmptyState.md), [Klar.ErrorState](Klar.ErrorState.md)
-  - **Forms and inputs**: [Klar.Form](Klar.Form.md), [Klar.Field](Klar.Field.md),
+  - **Forms and inputs**: [Klar.Form](Klar.Form.md), [Klar.Form.Spec](Klar.Form.Spec.md),
+    [Klar.Form.Layout](Klar.Form.Layout.md), [Klar.Form.Check](Klar.Form.Check.md),
+    [Klar.Ids](Klar.Ids.md), [Klar.Field](Klar.Field.md),
     [Klar.Validate](Klar.Validate.md), [Klar.TextInput](Klar.TextInput.md),
     [Klar.TextArea](Klar.TextArea.md), [Klar.NumberInput](Klar.NumberInput.md),
     [Klar.PasswordInput](Klar.PasswordInput.md), [Klar.SearchInput](Klar.SearchInput.md),
@@ -198,7 +211,8 @@ them again after Klar's CSS to restyle everything at once; they are listed in
   - **Rules and filters**: [Klar.Rule](Klar.Rule.md),
     [Klar.RuleBuilder](Klar.RuleBuilder.md), [Klar.FilterBar](Klar.FilterBar.md),
     [Klar.SavedViews](Klar.SavedViews.md)
-  - **Data and utilities**: [Klar.Remote](Klar.Remote.md), [Klar.Search](Klar.Search.md),
+  - **Data and utilities**: [Klar.Remote](Klar.Remote.md), [Klar.RemoteView](Klar.RemoteView.md),
+    [Klar.Search](Klar.Search.md),
     [Klar.Format](Klar.Format.md), [Klar.Shortcut](Klar.Shortcut.md)
 
 ## The stylesheet

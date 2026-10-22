@@ -62,6 +62,10 @@ locale : Locale.Locale -> Attribute msg
 A password field with a "show password" button and an optional strength
 meter.
 
+Use when: the user types a password and may want to see it, or you want to show its strength.
+Do not use when: the text is not secret (use `Klar.TextInput`).
+Quick path: `init`, `update`, `view`
+
     import Klar.PasswordInput as PasswordInput
 
     type alias Model =

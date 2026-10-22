@@ -31,14 +31,14 @@ Do not read `docs.json`, `src/`, `example/` or `apps/`. Everything you need is i
   Klar never sends a request. You turn the result into a `Remote` (`Remote.fromResult`).
 - **Your ids are your own types.** `Table.rowIds { toKey, fromKey }` once, then `Table.selectedIds`
   returns `List OrderId`. The same for `Tree.nodeIds`, `SideNav.keys`, `Select.option id label`,
-  `Picking.ids`, `Fm.ids`. Never pass a bare `String` where an id belongs. A table column is a
+  `Picking.ids`, `Klar.Ids` (`Ids.make`, once). Never pass a bare `String` where an id belongs. A table column is a
   `Table.columnId "total"`, named once.
 - **Overlays go in one list.** `Modal`, `Drawer`, `ConfirmDialog`, `CommandPalette`, `ShortcutHelp` and `Toast`
   return an `Overlay`. Give the list to `AppShell.overlays` (or `Overlay.host`). The layer makes the page inert, keeps
   the toasts reachable and returns focus to the opener. You write no focus code.
 - **Dates are `Klar.Date`** (no time zone, no 31 February), money is `Klar.Money` (minor units), text you write
   yourself is plain `String`, built-in text follows `Locale.en` or `Locale.nb`.
-- **A form is `Klar.Form.Model`**: declare it once, keep one `Fm.State`, get the record back with `Fm.toValues`.
+- **A form is `Klar.Form`**: declare it once with `Klar.Form.Spec`, keep one `Form.State` and one `Form.Msg`, get the record back with `Form.toValues`.
 - **Navigation is hash routes** in a `Browser.application`: `AppShell` + `SideNav`, a `Page` type of your own.
 
 ## The standard application
@@ -265,7 +265,7 @@ pageFromUrl url =
 5. **Overlays go in the overlay list**, always, also while closed. Give the opener an id (`Button.id`) and pass it to `open`.
 6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. If you feel you need it, find the module in the table below.
 7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** A `Time.Posix` is needed once, for today.
-8. **Forms use `Klar.Form.Model`** (and `Klar.Form` for the frame). Server problems go in with `Fm.rejected`; do not keep a second copy of field values.
+8. **Forms use `Klar.Form`** (declared with `Klar.Form.Spec`, framed with `Klar.Form.Layout`). Server problems go in with `Form.rejected`, steps with `Form.advance`; do not keep a second copy of field values or of the problems.
 9. **Server mode is the same four steps everywhere**: compare the query before and after `update`, reset the page to 1 when a filter changed, debounce, and ticket the answer so a late one is dropped. See `recipes/inbox`.
 10. **When Klar lacks something, say so.** Write the best honest version, put a comment `-- KLAR GAP: what is missing` above it, and carry on. Do not copy a component, wrap it in your own CSS or import an internal module.
 
@@ -290,7 +290,7 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 **Tables, lists and data**
 - Records with search, sort, filters, selection, paging, 50 000 rows, server mode: `Table` (`Table.virtual` for scrolling). Page controls alone: `Pagination`. A dense row with title, meta, actions: `ListItem`. A very long plain list: `VirtualList`. Hierarchy: `Tree`.
 - KPI number: `Stat`. Line, bar, donut, gauge, sparkline: `Chart`. History of events: `Timeline`. Person or system badge: `Avatar`. A JSON value: `JsonViewer`.
-- Data state from a backend: `Remote`. Forgiving text matching and ranking: `Search`. Numbers, sizes, dates, money text: `Format`.
+- Data state from a backend, with old data kept while it refreshes: `Remote`. The body of a card, dialog or drawer from a `Remote`: `RemoteView`. Forgiving text matching and ranking: `Search`. Numbers, sizes, dates, money text: `Format`.
 
 **Rules, filters, change**
 - A condition tree as data (encode, decode, run on rows, describe): `Rule`. Edit one: `RuleBuilder`. Chips above a table: `FilterBar`. Named filters: `SavedViews`.
@@ -298,7 +298,7 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 - Roles by permissions grid: `PermissionMatrix`. Approval steps and decisions: `ApprovalFlow`.
 
 **Forms and inputs**
-- The whole form (fields, rules, dirty, server problems): `Form.Model`. Its frame (sections, grid, buttons, error summary, submit state): `Form`. The wrapper of one control (label, hint, error): `Field`. Validators: `Validate`.
+- The whole form (fields, dirty, server problems, steps, rows): `Form`; its declaration: `Form.Spec`; its tests: `Form.Check`. The frame (sections, grid, buttons, submit state): `Form.Layout`. The wrapper of one control (label, hint, error): `Field`. Validators: `Validate`. How your id type is written as text, once: `Ids`.
 - Text: `TextInput`, `TextArea`, `PasswordInput`, `SearchInput` (waits for a pause), `TagInput`, `InlineEdit` (click to edit), `MaskedInput` (IBAN, postal code, phone). Number: `NumberInput`, `Slider`. Money: `Money`, `MoneyInput`. Files: `FileDrop`.
 - Choose: `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `SegmentedControl` (one of a few). `Select` (one of many, searchable; `Select.Option` is its option type), `MultiSelect`, `Autocomplete` (suggestions), `TreeSelect`, `Cascader` (a path through levels), `Transfer` (two lists), `Picking` (the node type the last three share).
 
@@ -306,28 +306,21 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 - The date type: `Date`. A date field: `DatePicker`. A period: `DateRangePicker`. Time: `TimePicker`. Both: `DateTimePicker`. A month with marks: `Calendar`. "Every second Tuesday": `Recurrence` with `RecurrencePicker`.
 
 ## Common traps
+## Common traps
 
-Found while building three applications twice; each one is checked against the current source.
+Found while building three applications twice. Those the library has fixed since are gone; each one left is checked against the current source.
 
-- **Attribute order is free, but the last of a kind wins, and some pairs overlap.** `Chart.remote r` then `Chart.loading False` cancels the loading and failed state; `Stat.loading`, `Stat.failed` and `Stat.remote` do the same. Use only `remote`.
-- **`Fm.rules [ Validate.custom ... ]` runs on empty text**, although the docs say an empty text passes every validator. An optional field with a `custom` rule shows its error when empty: let the function accept `""`.
-- **`Format.currency Locale.en "USD" 2 645.15` is `USD645.15`.** What you pass is written as is: use `"USD "` or a symbol.
-- **`Card` titles are `h3`, `PageHeader` titles are `h1`.** Use `Card.headingLevel 2` under a page header or axe reports heading order.
-- **Content in `AppShell.sidebar` besides the `SideNav` is outside every landmark** (axe `region`). Keep it minimal.
+- **Attribute order is free, but the last of a kind wins.** Give a component its data once: `Chart.remote`, `Stat.remote`, `Table.rows` take a `Remote`, including its old data (`Kept`). Do not add `loading` or `failed` next to them.
+- **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs or after it failed). A `case` on a `Remote` needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a refresh with `Remote.refresh` and finish it with `Remote.refreshWith old result now`; do not write a failed refresh over good data.
 - **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
-- **A drawer or dialog opened by a shortcut or the palette has no opener**; closing it leaves focus on `body`. Move focus yourself once with `Table.focus` or `AppShell.focusContent`.
-- **`Remote` has no stale state.** Do not store a failed refresh into the `Remote` that shows good data: keep the old `Loaded`, use `Table.refreshing True` while it runs, and toast the failure. Mark the gap `-- KLAR GAP:` if you need an "old data" badge.
-- **Server-mode `Table.exportCsv` exports only the selected rows of the current page**, though the selection survives paging.
-- **`Table.activeExternalFilters n` draws a "n filter active" button** next to the search; its reset calls `onResetFilters`. Wire it to clear the filter bar.
+- **Focus returns to an opener only if it has an id.** `Button.id` for a button that opens a dialog; a link or row without an id returns focus to the last element that had one, which may be elsewhere (`LeaveGuard` "Stay" too).
+- **Server-mode `Table.exportCsv` offers the selection only while every selected row is on the page.** Export from the backend for a selection that spans pages.
+- **`Table.activeExternalFilters n`** only tells "no matches" from "no data"; wire `onResetFilters` once to clear the filter bar and the table's own filters.
 - **11 columns do not fit next to the sidebar at 1280 px**; the footer sums can end up behind a scroll. Set `minWidth`, `hiddenByDefault` or a narrower column.
-- **A single-select `Tree` cannot be cleared by clicking.** Add an "All" button that calls `Tree.setSelected ids []`.
-- **`Layout` cannot give a child a fixed width** (only `fill`, `grow`, `fillRest`, `maxWidth`), and `Splitter` needs a pixel height.
-- **`SavedViews` stores the `Rule` only** (not the search or sort of the table) and its save form opens only from its own button.
-- **`LeaveGuard`: do not copy the Back-button recipe from its docs.** It can loop forever (`Nav.forward 1` triggers `onUrlChange` at once). Guard `LinkClicked` only, as `recipes/multi-step` does. Focus after "Stay" returns only to an asker with an id.
-- **`Form.Model` ends at a seam.** After `Fm.rejected` there is no accessor for the server problems; there is no `Fm.focus`, no steps, no repeating rows, no `textArea`, tags or files; `Fm.summary` does not list fields outside the model. Use `()` for its `step` parameter. Mark the gaps.
-- **`Rule.choiceField` values are `String`s**, not your id type: keep a `toKey` function and use it for the choices and when reading the rule back.
-- **A `CommandPalette` whose only matching section is `remote` says "No results" while that section is `NotAsked`** (during the debounce).
+- **`Klar.Form` is the form model**, and its layout functions are in `Klar.Form.Layout`. Declare in `Klar.Form.Spec` once at the top of a file; the first type parameter of `Form` and `State` is the step type (`()` for a form without steps).
+- **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
 - **Toasts move to the top while a dialog or drawer is open** and cover the drawer title for a few seconds.
+- **`Time.Posix` is needed once**, for today (`Date.fromPosix`); `Remote.refreshWith` also takes the time of the answer.
 - **`import Url` needs `elm/url` as a direct dependency**, and `Elm.Main.init()` for `Browser.application` takes no `node` (`Browser.element` does).
 
 ## Links

@@ -41,6 +41,9 @@ Typography: titles, paragraphs, small print and code. Application code uses
 these instead of raw `h1`, `p` and `code` elements, so that text looks the same
 everywhere.
 
+Use when: the page needs titles, paragraphs, small print or code that look the same everywhere.
+Do not use when: you need a link that is also a button (as `Klar.Button`) or key caps (as `Klar.Kbd`).
+
     import Klar.Text as Text
 
     Text.title "Orders"

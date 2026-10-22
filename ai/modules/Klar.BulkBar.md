@@ -29,6 +29,9 @@ locale : Locale.Locale -> Attribute msg
 The bar of actions for the items the user has selected: "12 selected: Export,
 Delete".
 
+Use when: a list, a grid of cards or another selectable collection needs actions for the selected items.
+Do not use when: the items are in a `Klar.Table`, which draws a bar of its own for its selection.
+
     import Klar.BulkBar as BulkBar
     import Klar.Button as Button
     import Klar.Icon as Icon

@@ -40,6 +40,9 @@ locale : Locale.Locale -> Attribute id msg
 Records side by side, with the differences marked: two or more products,
 two versions of an order, "your version" against "theirs".
 
+Use when: two or more records are read side by side and the application wants to see where they differ.
+Do not use when: the change between two versions of one text or record is the point, use `Klar.Diff`.
+
     import Klar.Compare as Compare
     import Klar.Format as Format
 

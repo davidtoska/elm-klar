@@ -51,6 +51,10 @@ update : Msg -> State -> ( State, Cmd Msg )
 Sections that open and close: the details of a record, groups of settings,
 advanced filters.
 
+Use when: sections of content should open and close in place, such as the details of a record or groups of settings.
+Do not use when: the sections are views the user switches between (use `Klar.Tabs`).
+Quick path: `init`, `update`, `view`, `isOpen`, `open`, `closeAll`
+
     import Klar.Accordion as Accordion
 
     -- model: accordion : Accordion.State

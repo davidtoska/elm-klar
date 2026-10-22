@@ -384,3 +384,7 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
 - The showcase uses the new pieces: the Products tree can be cleared by clicking the chosen
   category again, the saved views of the rules page have a "New view ..." button (`startSave`)
   and a shared view, and the application frame is wired with `AppShell.State`.
+- Every module doc opens with its purpose, `Use when:`, `Do not use when:` and, for a module with a State
+  and Msg, `Quick path:` (at most six functions in call order); `ai/klar-index.json` reads them, and
+  `check:ai-docs` fails when a module lacks the first two. The recipes were rewritten on the stale data
+  (`Remote.Kept`), the form model (`Klar.Form`) and the repaired `LeaveGuard`.

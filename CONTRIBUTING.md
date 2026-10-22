@@ -45,7 +45,7 @@ npm run gen:ai-docs      # docs.json -> ai/modules/*.md, ai/klar-index.json, llm
 npm run check:ai-docs    # those files are up to date; AI.md is under 400 lines, names every module, and its program compiles
 npm run check:recipes    # every recipe and the template compile with --optimize; lists the KLAR GAP comments
 npm run check:doc-examples  # compiles the complete code examples of the module docs; writes ai/doc-example-report.md
-node scripts/check-doc-examples.mjs --strict   # the same, but fails when an example does not compile (later part of check)
+node scripts/check-doc-examples.mjs --strict   # the same, and fails when one does not compile (this is what check runs)
 node scripts/bench-workspace.mjs <dir>         # the folder a benchmark builder gets (bench/run.md)
 npm run check:format     # elm-format --validate
 npm test                 # elm-test

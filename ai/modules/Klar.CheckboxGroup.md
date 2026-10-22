@@ -47,6 +47,9 @@ locale : Locale.Locale -> Attribute msg
 
 A group of checkboxes: choose any number of the options.
 
+Use when: a handful of options where the user may choose any number and should see them all.
+Do not use when: exactly one choice is wanted (`Klar.Radio`) or the list is long and needs a search box (`Klar.MultiSelect`).
+
     import Klar.CheckboxGroup as CheckboxGroup
 
     CheckboxGroup.view
@@ -73,7 +76,7 @@ The group is a `fieldset` whose legend is the label, and each option is a
 [Klar.Checkbox](Klar.Checkbox.md). It takes the attributes that all form controls
 share (`label`, `hint`, `error`, `required` ...; see [Klar.Field](Klar.Field.md)),
 and the first checkbox that can be changed carries the `id` of the group, so
-the error summary of [Klar.Form](Klar.Form.md) can move focus into it.
+the error summary of [Klar.Form.Layout](Klar.Form.Layout.md) can move focus into it.
 
 Use a group for a handful of options that people should see all at once. For
 exactly one choice use [Klar.Radio](Klar.Radio.md), and for a long list, which

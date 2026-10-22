@@ -17,6 +17,13 @@ numberField : String -> String -> (row -> Maybe Float) -> Field row
 dateField : String -> String -> (row -> Maybe Date.Date) -> Field row
 boolField : String -> String -> (row -> Bool) -> Field row
 choiceField : String -> String -> List Choice -> (row -> String) -> Field row
+choiceFieldOf :
+    Ids.Ids id
+    -> String
+    -> String
+    -> List (Select.Option.Option id)
+    -> (row -> Maybe id)
+    -> Field row
 inGroup : String -> Field row -> Field row
 withOperators : List Operator -> Field row -> Field row
 fieldById : List (Field row) -> String -> Maybe (Field row)
@@ -108,6 +115,9 @@ decoder : Json.Decode.Decoder Rule
 
 Rules as plain data: a tree of conditions and groups that you can edit,
 check, run against your rows, describe in words and store as JSON.
+
+Use when: filter conditions are data that the application stores, runs against its rows or describes in words.
+Do not use when: the user must edit the conditions (use `Klar.RuleBuilder` or `Klar.FilterBar`).
 
 A rule is what a filter builder lets the user say, for example "Status is Paid
 and Total is greater than 100". This module has no HTML.
@@ -276,6 +286,28 @@ choice a row has, and the empty text for a row without one (it then satisfies
 `IsEmpty`, `IsNot` and `IsNoneOf`). Values are compared exactly.
 
     Rule.choiceField "status" "Status" statuses .status
+
+### `choiceFieldOf`
+
+```elm
+choiceFieldOf :
+    Ids.Ids id
+    -> String
+    -> String
+    -> List (Select.Option.Option id)
+    -> (row -> Maybe id)
+    -> Field row
+```
+
+A choice field over the application's own id type. The choices are the same
+`Select.Option` list the form's select is drawn from, and the `Ids` are the same
+that the form model uses, so the key functions are written once. A saved rule
+still holds the key as text; `Ids.fromKey` reads it back as your type.
+
+    Rule.choiceFieldOf categoryIds "category" "Category" categoryOptions .category
+
+For a field that only describes (the rows are on a server), give a getter that
+returns `Nothing`: `Rule.choiceFieldOf categoryIds "category" "Category" options (always Nothing)`.
 
 ### `inGroup`
 

@@ -61,9 +61,9 @@ locale : Locale.Locale -> Attribute msg
 A dialog on top of the page, for work that needs the user's full attention:
 editing a record, a form with several fields, a step of a wizard.
 
-Use a [Klar.ConfirmDialog](Klar.ConfirmDialog.md) for a yes-or-no question, a
-[Klar.Drawer](Klar.Drawer.md) for a panel along the side of the window and a
-[Klar.Popover](Klar.Popover.md) for a small panel next to a button.
+Use when: the user must finish a task, such as editing a record or a form with several fields, before doing anything else.
+Do not use when: a yes-or-no question (use `Klar.ConfirmDialog`), a panel beside the page (use `Klar.Drawer`) or a small panel next to a button (use `Klar.Popover`) is enough.
+Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.Button as Button
     import Klar.Modal as Modal
@@ -109,6 +109,15 @@ opener, dismissing, keyboard focus, the page behind and popups.
 built on this module, and [Klar.Popover](Klar.Popover.md), [Klar.Menu](Klar.Menu.md),
 [Klar.ContextMenu](Klar.ContextMenu.md) and [Klar.Toast](Klar.Toast.md) refer back
 to it instead of repeating them.
+
+A dialog that shows data from the backend (the record to edit, an order to
+review) takes its body from [Klar.RemoteView](Klar.RemoteView.md): the skeleton, the
+failure with a retry, and old or refreshing data, without a `case` of your own.
+
+    Modal.view ModalMsg
+        [ Modal.title "Order 1042" ]
+        model.dialog
+        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 ## View
 
@@ -424,7 +433,10 @@ say). A `static` dialog sends `msg` only from its close button.
   - On `close` focus returns to the opener. If that element is gone, or there was
     none (`""`), to the most recent element of the page that had focus before the
     dialog opened and still exists. A dialog opened by a route change or by a
-    command from the palette therefore needs no opener.
+    command from the palette therefore needs no opener. If there is no such element
+    either, to the start of the page content (the content area of an `AppShell`,
+    the page of an `Overlay.host`), so that the next `Tab` starts there and not
+    at the top of the window.
   - If the element that has focus inside the dialog is removed or disabled (a
     button replaced after an action), focus moves to the dialog itself. No call
     is needed for that.

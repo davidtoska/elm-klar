@@ -78,6 +78,10 @@ locale : Locale.Locale -> Attribute role permission msg
 A grid of roles and permissions that says what each role may do, and lets an
 administrator change it: the classic screen of an application with users.
 
+Use when: an administrator sets which roles may do what, in a grid of roles and permissions.
+Do not use when: only a list of options is chosen for one user, use `Klar.CheckboxGroup`.
+Quick path: `init`, `update`, `matrix`, `onChange`, `viewRemote`
+
     import Klar.PermissionMatrix as PermissionMatrix
     import Klar.Remote as Remote
 

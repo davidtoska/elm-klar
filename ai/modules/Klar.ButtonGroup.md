@@ -23,6 +23,9 @@ disabled : Bool -> Attribute
 Buttons that belong together, joined into one block: shared borders, only the
 outer corners rounded, and one focus ring per button that always stays in view.
 
+Use when: actions that are close in meaning should read as one joined control, such as "Edit / Duplicate / Print".
+Do not use when: the user chooses between views (as `Klar.SegmentedControl`), options are on or off (as `Klar.ToggleGroup`) or one action has alternatives (as `Klar.SplitButton`).
+
     import Klar.Button as Button
     import Klar.ButtonGroup as ButtonGroup
     import Klar.Icon as Icon

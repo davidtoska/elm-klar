@@ -29,9 +29,9 @@ Modules by group (each is ai/modules/Klar.<Name>.md):
 - Foundations: Theme, Locale, Layout, Card, Text, Icon
 - Actions: Button, Menu, ButtonGroup, ToggleGroup, SplitButton, Link, Kbd
 - Status and feedback: Badge, Tag, Alert, Spinner, Skeleton, Progress, EmptyState, ErrorState
-- Forms: Form, Form.Model, Field, Validate
+- Forms: Form, Form.Spec, Form.Layout, Form.Check, Field, Validate
 - Inputs: TextInput, TextArea, NumberInput, PasswordInput, SearchInput, TagInput, FileDrop, InlineEdit, Checkbox, CheckboxGroup, Radio, Switch, Slider, SegmentedControl, MaskedInput, Money, MoneyInput
-- Choosing: Select, Select.Option, MultiSelect, Autocomplete, VirtualList, Picking, TreeSelect, Cascader, Transfer
+- Choosing: Select, Select.Option, Ids, MultiSelect, Autocomplete, VirtualList, Picking, TreeSelect, Cascader, Transfer
 - Date and time: Date, DatePicker, DateRangePicker, TimePicker, DateTimePicker, Calendar, Recurrence, RecurrencePicker
 - Tables and lists: Table, Pagination, ListItem, Tree
 - Overlays: Overlay, Modal, ConfirmDialog, Drawer, Toast, Popover, Tooltip, ContextMenu, CommandPalette, ShortcutHelp
@@ -43,5 +43,5 @@ Modules by group (each is ai/modules/Klar.<Name>.md):
 - Access and approval: PermissionMatrix, ApprovalFlow
 - Data display: Stat, Chart, Timeline, Avatar, JsonViewer
 - Rules and filters: Rule, RuleBuilder, FilterBar, SavedViews
-- Data and utilities: Remote, Search, Format, Shortcut
+- Data and utilities: Remote, RemoteView, Search, Format, Shortcut
 - Icon library: Icon.Library, Icon.Arrows, Icon.Business, Icon.Calendar, Icon.Communication, Icon.Data, Icon.Developer, Icon.Devices, Icon.Documents, Icon.Editor, Icon.Interface, Icon.Logistics, Icon.Media, Icon.Nature, Icon.People, Icon.Science

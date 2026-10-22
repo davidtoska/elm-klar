@@ -35,6 +35,9 @@ locale : Locale.Locale -> Attribute msg
 A real link (`<a href>`) that cannot be built wrong: for a page of the
 application, for another site, for an email address or a telephone number.
 
+Use when: the user navigates to a page of the application, another site, an email address or a phone number.
+Do not use when: the click is an action and not a navigation (as `Klar.Button`).
+
     import Klar.Link as Link
 
     -- inside the application: the string comes from your own route function

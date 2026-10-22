@@ -50,6 +50,7 @@ placeholder : String -> Attribute msg
 label : String -> Attribute msg
 noResults : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
+zone : Time.Zone -> Attribute msg
 ```
 
 ## Documentation
@@ -58,9 +59,9 @@ A command palette: one search box, usually opened with `Ctrl K`, for commands
 ("New order", "Go to invoices") and for content ("Ada Lovelace"). Type to narrow
 the list, use the arrow keys to move, `Enter` to run and `Escape` to close.
 
-Use it for the actions and places of the whole application. For choosing one
-value in a form use [Klar.Select](Klar.Select.md), and for a search field on a page
-[Klar.SearchInput](Klar.SearchInput.md).
+Use when: the application needs one search box for its commands and places, usually opened with Ctrl K.
+Do not use when: the user chooses one value in a form (use `Klar.Select`) or searches inside a page (use `Klar.SearchInput`).
+Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.CommandPalette as CommandPalette
     import Klar.Icon as Icon
@@ -347,8 +348,14 @@ application fills, for example with the result of a search in the backend. The
 palette shows a skeleton while it is `Loading`, a short failure message when it
 is `Failed` (with a "Try again" button if the section has an `onRetry` and the
 problem can be retried), "No results" when it is `Loaded []` (see `emptyText`),
-and nothing while it is `NotAsked`. The items of a remote section are not
-filtered again: the backend already did that.
+and nothing while it is `NotAsked` and the search box is empty. Once the user has
+typed, `NotAsked` also shows the skeleton (the request is about to start), so the
+palette never says "No results" before the answer is there: set the section to
+`Loading` or `NotAsked` only while a request is pending, and leave the section
+out for a text that is too short to search for. Items that are `Kept` stay in the
+list; when the last refresh failed a line "Old data from 14:05" stands above
+them. The items of a remote section are not filtered again: the backend already
+did that.
 
 The query lives in the state, so the application watches it and starts the
 request. Compare before and after the update, and debounce with a counter:
@@ -508,3 +515,12 @@ locale : Locale.Locale -> Attribute msg
 The language of the built-in texts: the placeholder, the footer, the heading
 of the recent items and the announcement of the number of results. The default
 is `Locale.default`, which is `Locale.en`.
+
+### `zone`
+
+```elm
+zone : Time.Zone -> Attribute msg
+```
+
+The time zone of the time in "Old data from 14:05", the note at the top of a
+remote section whose data is `Kept` after a failed refresh. The default is UTC.

@@ -54,10 +54,11 @@ how often (daily, weekly, monthly, yearly), every how many, on which days, how
 it ends, with a sentence that says what the rule means and the next dates it
 gives.
 
-Use it where a person sets up something that repeats: a standing order, a
-delivery schedule, a recurring invoice. For a single date use
-[Klar.DatePicker](Klar.DatePicker.md); to ask a rule for its dates without a form,
-use [Klar.Recurrence](Klar.Recurrence.md) alone.
+Use when: a person sets up something that repeats: a standing order, a delivery schedule, a recurring invoice.
+Do not use when: you need a single date (as `Klar.DatePicker`) or the dates of a rule without a form (as `Klar.Recurrence`).
+Quick path: `init`, `update`, `view`, `value`
+
+See also [Klar.DatePicker](Klar.DatePicker.md) and [Klar.Recurrence](Klar.Recurrence.md).
 
     import Klar.Date exposing (Date)
     import Klar.Recurrence exposing (Rule)

@@ -28,6 +28,9 @@ compact : Attribute msg
 What to show when there is nothing to show: an empty list, no search
 results, a first-run screen.
 
+Use when: a list or a screen of your own is empty and the user should be told why and what to do next.
+Do not use when: a request failed (use `Klar.ErrorState`).
+
     import Klar.Button as Button
     import Klar.EmptyState as EmptyState
     import Klar.Icon as Icon

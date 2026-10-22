@@ -46,6 +46,9 @@ hintId : Config -> String
 The wrapper around a form control: a label, a required or optional mark, a
 hint and an error message, joined to the control for screen readers.
 
+Use when: you build a custom control that should look and behave like the other fields (label, hint, error).
+Do not use when: you use a control from this package such as `Klar.TextInput` or `Klar.Select`; they wrap themselves in a field.
+
 The inputs of this package (`TextInput`, `Select`, `DatePicker`, `Radio`,
 `Slider` ...) wrap themselves in a field, so an application seldom calls this
 module. It uses the attributes these controls have in common instead:
@@ -70,7 +73,7 @@ the message about a problem, in red under the control. `required` puts a `*`
 after the label, and `optionalText` writes something like "(optional)" after
 the label of a field that is not required. `id` is the DOM id of the control:
 give every control its own, because the ids of the other parts are made from it
-and the error summary of [Klar.Form](Klar.Form.md) moves focus to a control by its
+and the error summary of [Klar.Form.Layout](Klar.Form.Layout.md) moves focus to a control by its
 id. [Klar.Checkbox](Klar.Checkbox.md) and [Klar.Switch](Klar.Switch.md) draw their
 label, hint and error beside the box themselves and do not use this module.
 
@@ -89,7 +92,7 @@ the message of one control, as above:
 
 Call it when the user submits or leaves a control, keep the result in the model
 (`model.errors` above), hand each message to its control, and drop it when the
-value is fixed. [Klar.Form](Klar.Form.md) turns the same list of problems into an
+value is fixed. [Klar.Form.Layout](Klar.Form.Layout.md) turns the same list of problems into an
 error summary at the top of the form and shows the state of the submit; its
 documentation walks through a whole form.
 

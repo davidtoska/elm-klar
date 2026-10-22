@@ -47,6 +47,9 @@ focusTitle : String -> msg -> Cmd msg
 A page that stands for a whole result: "Order created", "No access", "Page
 not found", "Something went wrong on our side", "Down for maintenance".
 
+Use when: the whole page is one result, such as not found, no access, a server error, maintenance or success after a submit.
+Do not use when: the result sits inside a table, card or panel, use `Klar.EmptyState` or `Klar.ErrorState`.
+
     import Klar.Button as Button
     import Klar.StatusPage as StatusPage
 

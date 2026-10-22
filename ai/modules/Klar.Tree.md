@@ -75,6 +75,7 @@ onReload : msg -> Attribute id msg
 type Attribute id msg  -- opaque: no constructors are exposed
 ariaLabel : String -> Attribute id msg
 multiSelect : Attribute id msg
+allowEmptySelection : Attribute id msg
 checkboxes : Attribute id msg
 filterBox : Attribute id msg
 filterPlaceholder : String -> Attribute id msg
@@ -84,12 +85,19 @@ maxHeight : Int -> Attribute id msg
 maxChildren : Int -> Attribute id msg
 emptyText : String -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
+zone : Time.Zone -> Attribute id msg
 ```
 
 ## Documentation
 
 A tree view for hierarchies: regions and warehouses, folders, product
-categories, code lists. It follows the WAI-ARIA tree pattern (`tree`,
+categories, code lists.
+
+Use when: a hierarchy is shown on the page itself, with open and closed branches.
+Do not use when: the user picks a node in a form field (as `Klar.TreeSelect`).
+Quick path: `init`, `update`, `view`, `selected`
+
+It follows the WAI-ARIA tree pattern (`tree`,
 `treeitem`, `group`, `aria-expanded`, `aria-selected`, `aria-level`), keeps one
 tab stop for the whole tree and is fully usable from the keyboard.
 
@@ -141,7 +149,9 @@ into the tree and `Escape` clears the filter. With the mouse, a click selects, t
 arrow in front of a node opens and closes it, and a double click activates (or,
 without `onActivate`, opens or closes the node).
 
-Selection: single by default; `multiSelect` allows `Ctrl`+click to add and
+Selection: single by default (a tree that filters something else adds
+`allowEmptySelection`, so that a click on the selected node clears it); `multiSelect`
+allows `Ctrl`+click to add and
 `Shift`+click for a range. With `checkboxes` every node has a tri-state
 checkbox, and a click on a row toggles it: checking a parent checks everything
 below it, and a parent with some children checked shows a dash. `checked`
@@ -733,6 +743,21 @@ skipped), `Shift`+`Up` and `Shift`+`Down` extend the range, and `Space` toggles.
 Read the result with `selected`. It does not change how clicks work in a tree with
 `checkboxes`.
 
+### `allowEmptySelection`
+
+```elm
+allowEmptySelection : Attribute id msg
+```
+
+A click on the selected node (or `Space`, or `Enter` without `onActivate`) selects
+nothing, so the selection can go back to "no node", the normal state of a tree that
+filters something else ("all locations"). Without it a selected node stays selected
+until another is chosen (or `setSelected` clears it). In a `multiSelect` tree a plain
+click on the only selected node clears it too; `Ctrl`+click toggles as before. The
+node loses `aria-selected="true"` and its highlight, and keeps the focus.
+
+    Tree.view TreeMsg [ Tree.allowEmptySelection, Tree.ariaLabel "Locations" ] nodes state
+
 ### `checkboxes`
 
 ```elm
@@ -821,3 +846,12 @@ locale : Locale.Locale -> Attribute id msg
 The language of the built-in text (the filter box, "Loading ...", "Load",
 "Try again", "No items", "No matches", "Show N more") and of the numbers. The
 default is `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
+
+### `zone`
+
+```elm
+zone : Time.Zone -> Attribute id msg
+```
+
+The time zone of the time in "Old data from 14:05", the marker of data that
+is `Kept` after a failed refresh. The default is UTC.

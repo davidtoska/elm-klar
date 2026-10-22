@@ -24,6 +24,9 @@ locale : Locale.Locale -> Attribute msg
 What to show when a request failed: a clear title, the reason, and a
 button to try again when trying again can help.
 
+Use when: a request failed and the user should see why, with a button to try again.
+Do not use when: a list is simply empty (use `Klar.EmptyState`).
+
     import Klar.ErrorState as ErrorState
     import Klar.Locale as Locale
     import Klar.Remote as Remote exposing (Remote(..))

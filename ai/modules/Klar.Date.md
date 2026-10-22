@@ -47,6 +47,9 @@ fromEpochDay : Int -> Date
 
 Calendar dates without a time or a time zone: a year, a month and a day.
 
+Use when: the application holds a due date, a delivery date or a birthday, a day that is not a moment in time.
+Do not use when: you mean an exact moment (use `Time.Posix` from `elm/time`).
+
 A due date or a delivery date is not a moment in time, and treating it as
 `Time.Posix` makes it shift by a day in the wrong time zone. A `Date` is always
 a day that exists (there is no way to make 31 February): make one with

@@ -226,6 +226,12 @@ function keywordsOf(m, group, purpose) {
   return [...new Set(words)];
 }
 
+// "Quick path: `init`, `update`, `view`" -> ["init", "update", "view"]
+function quickPathOf(m) {
+  const line = /^\**Quick path\**:?\**:?\s*(.+)$/im.exec(proseOf(m.comment));
+  return line ? [...line[1].matchAll(/`([\w.]+)`/g)].map((x) => x[1]) : [];
+}
+
 function whenFromText(m) {
   const text = proseOf(m.comment);
   let use = '';
@@ -284,6 +290,7 @@ function buildIndexEntry(m, group) {
     msg: pick(/^Msg$/),
     ids: pick(/(^Ids?$|Id$|Ids$|^Keys$)/),
     stateful: fnNames.includes('update') && typeNames.includes('State'),
+    quickPath: quickPathOf(m),
     mainFunctions: main.slice(0, 8),
     related,
     keywords: keywordsOf(m, group, purpose),
@@ -401,7 +408,12 @@ for (const [rel, content] of files) {
 const leftovers = existing.filter((f) => !expected.has(f));
 if (!check) for (const f of leftovers) fs.rmSync(path.join(root, f));
 
+const lacking = index.filter((e) => !e.whenToUse || !e.whenNot).map((e) => e.name);
 if (check) {
+  if (lacking.length > 0) {
+    console.log(`${lacking.length} module(s) have no "Use when:" or "Do not use when:" line in their doc comment: ${lacking.join(', ')}`);
+    process.exit(1);
+  }
   if (stale.length > 0 || leftovers.length > 0) {
     console.log(`AI documentation is stale: ${stale.length} file(s) differ, ${leftovers.length} file(s) should not exist.`);
     for (const f of [...stale, ...leftovers].slice(0, 20)) console.log('  - ' + f);

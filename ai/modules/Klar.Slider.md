@@ -51,6 +51,9 @@ locale : Locale.Locale -> Attribute msg
 
 A slider for a number in a range, and a range slider with two thumbs.
 
+Use when: a number in a known range that is dragged rather than typed, or a range with two thumbs.
+Do not use when: the number is typed (`Klar.NumberInput`).
+
     import Klar.Slider as Slider
 
     Slider.view

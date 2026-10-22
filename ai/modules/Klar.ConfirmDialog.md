@@ -1,6 +1,6 @@
 # Klar.ConfirmDialog
 
-The "are you sure?" dialog, with the whole life of the request it guards:
+The "are you sure?" dialog, with the whole life of the request it guards.
 
 Import: `import Klar.ConfirmDialog as ConfirmDialog` | Group: Overlays
 
@@ -59,14 +59,16 @@ locale : Locale.Locale -> Attribute msg
 
 ## Documentation
 
-The "are you sure?" dialog, with the whole life of the request it guards:
+The "are you sure?" dialog, with the whole life of the request it guards.
+
+Use when: the user must confirm an action that is hard to undo or that affects others, such as deleting an order or canceling a shipment.
+Do not use when: the dialog needs form fields (use `Klar.Modal`).
+Quick path: `init`, `open`, `update`, `view`, `setBusy`, `close`
+
+The life of a request:
 
     idle  -->  busy  -->  closed          (success)
                  \--->  failed  -->  busy ...   (retry)
-
-Use it before an action that is hard to undo or that affects others, such as
-deleting an order or canceling a shipment. For anything with form fields, use a
-[Klar.Modal](Klar.Modal.md) instead.
 
 The dialog is a small [Klar.Modal](Klar.Modal.md), so focus, `Escape`, the
 backdrop, scroll locking and the page behind it behave as described there. The

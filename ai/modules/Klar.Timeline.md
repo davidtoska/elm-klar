@@ -52,6 +52,9 @@ emptyDescription : String -> Attribute msg
 
 A vertical history of events: an audit trail, an order log, an activity feed.
 
+Use when: a history of events is shown newest first, grouped by day, such as an audit trail or an order log.
+Do not use when: the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`.
+
     import Klar.Icon as Icon
     import Klar.Text as Text
     import Klar.Theme exposing (Tone(..))
@@ -338,6 +341,9 @@ While `True` a skeleton is shown instead of the events (see `skeletonRows`),
 and screen readers hear "Loading events". Pass a field of your model. Default:
 `False`.
 
+`loading`, `failed` and `remote` only add up: the timeline is busy when any of
+them says so, and shows a failure when any of them has one, whatever the order.
+
 ### `failed`
 
 ```elm
@@ -365,9 +371,12 @@ which sends the `onLoadMore` message.
 remote : Remote.Remote a -> Attribute msg
 ```
 
-Takes loading and failure from a `Remote`. The events themselves are passed
-to `view` as usual. `NotAsked` and `Loading` show the skeleton, `Failed` shows
-the problem and `Loaded` shows the events.
+Takes loading, failure, refreshing and old data from a `Remote`. The events
+themselves are passed to `view` as usual. `NotAsked` and `Loading` show the
+skeleton, `Failed` shows the problem and `Loaded` shows the events. Data that is
+`Kept` stays on the screen: dimmed and busy while it is refreshed, and with
+"Old data from 14:05" and a retry (`onRetry`) when the last refresh failed. The
+time is shown in the `zone` of the timeline.
 
     Timeline.view [ Timeline.remote model.history ]
         (List.map toEvent (Remote.withDefault [] model.history))

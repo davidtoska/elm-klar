@@ -32,6 +32,7 @@ options : List (Select.Option.Option id) -> Attribute id msg
 remote : Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
 serverSearch : Attribute id msg
 onRetry : msg -> Attribute id msg
+zone : Time.Zone -> Attribute id msg
 
 -- Field
 label : String -> Attribute id msg
@@ -64,6 +65,10 @@ maxVisibleChips : Int -> Attribute id msg
 Choose several values from a searchable list. The chosen values are shown as
 chips in the field; the list has a checkbox per option and stays open while the
 user picks. Use [Klar.Select](Klar.Select.md) when exactly one value is wanted.
+
+Use when: several values are chosen from a searchable list, shown as chips in the field.
+Do not use when: exactly one value is wanted (`Klar.Select`) or a handful of options fit on screen (`Klar.CheckboxGroup`).
+Quick path: `init`, `update`, `view`, `values`
 
     import Klar.MultiSelect as MultiSelect
     import Klar.Select as Select
@@ -320,7 +325,9 @@ remote : Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
 Options from the backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)).
 The list shows loading rows while the data is `Loading` or `NotAsked`, a compact
 error with a retry button on `Failed` (see `onRetry`), the empty state on
-`Loaded []`, and the options on `Loaded`.
+`Loaded []`, and the options on `Loaded`. Options that are `Kept` stay in the
+list: dimmed and busy while they are refreshed, and with "Old data from 14:05"
+and a retry (`onRetry`) at the top of the list when the last refresh failed.
 
     MultiSelect.remote model.categories
 
@@ -367,6 +374,14 @@ Enter in the search box sends the message as well. For other problems (no
 access, not found ...) nothing is retried, and Enter does nothing.
 
     MultiSelect.onRetry ReloadCategories
+
+### `zone`
+
+```elm
+zone : Time.Zone -> Attribute id msg
+```
+
+The time zone of the time in "Old data from 14:05". The default is UTC.
 
 ## Field
 

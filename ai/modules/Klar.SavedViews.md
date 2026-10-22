@@ -19,10 +19,19 @@ init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 
 -- Defining views
-type alias SavedView = { name : String, rule : Rule.Rule, note : Maybe String, isDefault : Bool }
+type alias SavedView =
+    { name : String
+    , rule : Rule.Rule
+    , note : Maybe String
+    , isDefault : Bool
+    , isShared : Bool
+    , query : Maybe Table.Query
+    }
 savedView : String -> Rule.Rule -> SavedView
 withNote : String -> SavedView -> SavedView
 asDefault : SavedView -> SavedView
+asShared : SavedView -> SavedView
+withQuery : Table.Query -> SavedView -> SavedView
 
 -- Reading and replacing the list
 views : State -> List SavedView
@@ -32,10 +41,13 @@ revision : State -> Int
 isOpen : State -> Bool
 setViews : List SavedView -> State -> State
 setActive : Maybe String -> State -> State
+apply : String -> State -> State
+startSave : State -> ( State, Cmd Msg )
 
 -- Attributes
 type Attribute msg  -- opaque: no constructors are exposed
 current : Rule.Rule -> Attribute msg
+currentQuery : Table.Query -> Attribute msg
 label : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 size : Theme.Size -> Attribute msg
@@ -49,9 +61,13 @@ views and lets the user apply one, save the current filter under a new name,
 rename and delete views (after an inline confirmation), mark one as the default
 view and reset to it.
 
+Use when: users want to save, name and reapply their filters.
+Do not use when: the filter is fixed and has no names to remember (use `Klar.FilterBar` alone).
+Quick path: `init`, `setViews`, `update`, `view`, `revision`, `active`
+
 Use it next to a [Klar.FilterBar](Klar.FilterBar.md) or a
-[Klar.RuleBuilder](Klar.RuleBuilder.md). A view is a name and a
-[Klar.Rule](Klar.Rule.md) `Rule`.
+[Klar.RuleBuilder](Klar.RuleBuilder.md). a view is a name and a
+[Klar.Rule](Klar.Rule.md) `Rule`, and optionally a table query (see below).
 
     import Klar.Rule as Rule
     import Klar.SavedViews as SavedViews
@@ -100,6 +116,47 @@ changes the default.
 view ..." saves, and the active view is marked "modified" when its rule differs
 from it. The button shows the name of the active view, or "Views" when there is
 none.
+
+**The whole query**: a view holds a rule, and it can also hold what the table next
+to the filters shows: the search text, the sort, the column filters and the page size
+(a [Table.Query](Klar.Table.md#query)). Give `currentQuery (Table.query model.table)` to
+`view`: "Save current view ..." then saves it with the rule, "modified" compares it too,
+and `active` carries it in `.query`. Applying goes through the application like the
+rule: `Table.setQuery` (the page is always 1). Without `currentQuery` a view holds
+only the rule, and a view that holds no query leaves the table as it is.
+
+    -- after the user applied a view
+    case SavedViews.active views |> Maybe.andThen .query of
+        Just q ->
+            { next | table = Table.setQuery q next.table }
+
+        Nothing ->
+            next
+
+**Open the save form from a command or a shortcut**: `startSave` opens the list
+with the "Save current view" form open and focus in its name field, so that a
+command palette entry or a shortcut needs no dialog of your own. The form saves
+what `current` is, so give `current` to `view` (without it there is no form and
+the list just opens).
+
+    ( views, cmd ) =
+        SavedViews.startSave model.views
+
+    -- ( { model | views = views }, Cmd.map ViewsMsg cmd )
+
+**Shared views**: a view is shared when the application says so (`asShared`, or
+`isShared = True` in stored data); the list shows a "Shared" badge. Klar stores
+nothing, so who may see a view is the backend's business. A link to a view is a
+route of your own that names it, and `apply` is what that route does:
+
+    -- the link a "Copy link" button copies
+    "#/orders?view=" ++ Url.percentEncode name
+
+    -- when the route says view=name: marks it active and bumps `revision`
+    { model | views = SavedViews.apply name model.views }
+
+Compare `revision` after `apply` as after `update` and load the rule (and query)
+of `active`.
 
 **Keyboard**: `ArrowDown` on the button opens the list. `ArrowUp`, `ArrowDown`,
 `Home` and `End` move between the views, `Enter` applies the view that has focus,
@@ -172,12 +229,21 @@ to store the list.
 ### `SavedView`
 
 ```elm
-type alias SavedView = { name : String, rule : Rule.Rule, note : Maybe String, isDefault : Bool }
+type alias SavedView =
+    { name : String
+    , rule : Rule.Rule
+    , note : Maybe String
+    , isDefault : Bool
+    , isShared : Bool
+    , query : Maybe Table.Query
+    }
 ```
 
 A named rule. The `name` identifies the view and must be unique, ignoring
 case. The `note` is a short description shown under the name. `isDefault` marks
-the view that "Reset" returns to; at most one view is the default.
+the view that "Reset" returns to; at most one view is the default. `isShared`
+is set by the application, and the list shows a badge for it. `query` is the search,
+sort, filters and page size of the table, when the view holds them.
 
 Make views with `savedView`, or build the record yourself, for example from
 stored data.
@@ -211,6 +277,25 @@ asDefault : SavedView -> SavedView
 
 Makes this the default view: the one that "Reset" returns to. The user can
 change the default in the list.
+
+### `asShared`
+
+```elm
+asShared : SavedView -> SavedView
+```
+
+Marks the view as shared (with colleagues, the team ...). The list shows a
+"Shared" badge. The application decides what that means and who may see the view.
+
+### `withQuery`
+
+```elm
+withQuery : Table.Query -> SavedView -> SavedView
+```
+
+Gives the view a table query: search text, sort, column filters and page size
+(the page is not kept). Use it for views you make yourself; the ones the user saves
+get it from `currentQuery`.
 
 ## Reading and replacing the list
 
@@ -282,6 +367,28 @@ Marks the view with this name as active, without applying anything: use it
 when the application has already loaded the rule, for example at start-up. A
 name that is not in the list, or `Nothing`, means that no view is active.
 
+### `apply`
+
+```elm
+apply : String -> State -> State
+```
+
+Applies the view with this name, as if the user had picked it: it becomes
+active and `revision` goes up, so the application loads its rule and query the
+way it does after `update`. Use it for a link that names a view. A name that is not
+in the list changes nothing.
+
+### `startSave`
+
+```elm
+startSave : State -> ( State, Cmd Msg )
+```
+
+Opens the list with the form for saving the current view open, and moves focus
+to its name field. Use it for a command or a shortcut ("New saved view"); map the
+`Cmd` with your wrapper of the component's `Msg`. The form needs `current` in the
+attributes of `view`.
+
 ## Attributes
 
 ### `Attribute`
@@ -303,6 +410,16 @@ The rule the application shows now. It is what "Save current view ..."
 saves, and what the active view is compared with: the view is marked "modified"
 when the two differ (ignoring node ids). Without it the list can only apply
 views, not save them.
+
+### `currentQuery`
+
+```elm
+currentQuery : Table.Query -> Attribute msg
+```
+
+The query of the table next to the filters, `Table.query model.table`. A view
+that is saved holds it with the rule (the page is left out), and the active view is
+"modified" when its query differs from it. Without it views hold only the rule.
 
 ### `label`
 

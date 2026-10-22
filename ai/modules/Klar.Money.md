@@ -75,6 +75,9 @@ problemText : Locale.Locale -> Problem -> String
 An exact amount of money: a whole number of minor units (øre, cents, yen)
 together with its currency. There is no `Float` in it, so there is no 0.1 + 0.2.
 
+Use when: every amount of money the application keeps, adds or splits, in an exact currency.
+Do not use when: the user types the amount (`Klar.MoneyInput`) or the number is not money, such as a quantity or a percentage (`Klar.NumberInput`).
+
     import Klar.Locale as Locale
     import Klar.Money as Money exposing (Money)
 

@@ -32,7 +32,9 @@ The menu that opens where the user right-clicks. One menu serves many
 elements (the rows of a table): each element says what it stands for, and the
 menu is built from that.
 
-Use a [Klar.Menu](Klar.Menu.md) when the menu opens from a button instead.
+Use when: one menu must open where the user right-clicks and serve many elements, such as the rows of a table.
+Do not use when: the menu opens from a button (use `Klar.Menu`).
+Quick path: `init`, `area`, `view`, `update`, `close`
 
     import Klar.ContextMenu as ContextMenu
     import Klar.Menu as Menu

@@ -44,6 +44,9 @@ disabled : Bool -> Attribute msg
 
 A group of radio buttons: choose exactly one of a few options.
 
+Use when: two to five options where exactly one is chosen and people should see them all.
+Do not use when: there are more options (`Klar.Select`), a one-line switch between views is wanted (`Klar.SegmentedControl`) or several may be chosen (`Klar.CheckboxGroup`).
+
     import Klar.Radio as Radio
 
     Radio.view
