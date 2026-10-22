@@ -218,6 +218,7 @@ type View msg
         , listed : List Listed
         , stepInfo : List { label : String, failed : Bool }
         , current : Int
+        , anchor : Maybe String
         }
 
 
@@ -405,7 +406,10 @@ step value label (Builder b) =
         }
 
 
-{-| A rule over several fields, run when every field is valid on its own. It
+{-| A rule over several fields, run when every field of the form is valid on its
+own. On a form with steps that means it shows up when the last step is reached;
+a rule that belongs to one step goes on the field (`rule`, for a list of rows) or
+on the sub-form of a group, which is checked row by row. It
 gets the handles, the state (to find the rows of a group with `rowFields`) and
 the values, and returns the problems it finds, each tied to a field with
 `problem`. Put it last, after the `with` calls: it is a compile error before.
@@ -423,14 +427,14 @@ the values, and returns the problems it finds, each tied to a field with
 
 -}
 check : (fields -> State step -> values -> List (Problem step)) -> Builder step fields values -> Builder step fields values
-check rule (Builder b) =
+check verdict (Builder b) =
     Builder
         { b
             | readAt =
                 \prefix locale data ->
                     case b.readAt prefix locale data of
                         Ok values ->
-                            case rule (b.fieldsAt prefix) (State data) values of
+                            case verdict (b.fieldsAt prefix) (State data) values of
                                 [] ->
                                     Ok values
 
@@ -927,6 +931,39 @@ oneWith message (Spec spec) =
         }
 
 
+{-| A rule over the whole list of a list-valued field, for what is wrong with the
+items _together_: at most one contact is the primary, two emails are the same.
+It runs when every item is valid on its own, and a problem is the field's own
+(a group of rows shows it by its add button and in the summary), so it counts on
+its step like any other rule. The message is a function of the locale, like
+`withMessage`.
+
+    Spec.rows { label = "Contacts", item = "Contact" } contact
+        |> Spec.rule
+            (\contacts -> List.length (List.filter .primary contacts) <= 1)
+            (\lang -> Locale.pick lang { nb = "Bare én kan være hovedkontakt", en = "Only one contact can be the primary" })
+
+-}
+rule : (List a -> Bool) -> (Locale -> String) -> Spec c (List a) -> Spec c (List a)
+rule holds message (Spec spec) =
+    Spec
+        { spec
+            | read =
+                \key locale data ->
+                    case spec.read key locale data of
+                        Ok list ->
+                            if holds list then
+                                Ok list
+
+                            else
+                                Err [ { field = key, label = spec.label, message = message locale } ]
+
+                        Err found ->
+                            Err found
+            , reword = Just (\replacement -> rule holds replacement (Spec spec))
+        }
+
+
 {-| The existing validators of [Klar.Validate](Klar-Validate) on a text, run on
 the text as typed. The first problem wins. A blank text passes every rule, also
 `Validate.custom` and `Validate.required`: an optional field that is left empty
@@ -949,7 +986,7 @@ rules validators =
 
 
 addCheck : (Locale -> c -> Maybe String) -> Spec c o -> Spec c o
-addCheck rule (Spec spec) =
+addCheck verdict (Spec spec) =
     Spec
         { spec
             | read =
@@ -959,7 +996,7 @@ addCheck rule (Spec spec) =
                             Err found
 
                         Ok output ->
-                            case rule locale (spec.fromData key data) of
+                            case verdict locale (spec.fromData key data) of
                                 Just message ->
                                     Err [ { field = key, label = spec.label, message = message } ]
 
@@ -968,7 +1005,7 @@ addCheck rule (Spec spec) =
             , reword =
                 Just
                     (\replacement ->
-                        addCheck (\locale value -> rule locale value |> Maybe.map (\_ -> replacement locale))
+                        addCheck (\locale value -> verdict locale value |> Maybe.map (\_ -> replacement locale))
                             (Spec spec)
                     )
         }
@@ -2200,7 +2237,7 @@ goToIndex ((Form form) as declared) target (State data) =
 {-| Moves to a step and puts the focus on its first field.
 -}
 enter : Form step fields values -> Int -> Data -> ( Data, Cmd Msg )
-enter declared index data =
+enter ((Form form) as declared) index data =
     let
         defs =
             expandedDefs declared data
@@ -2222,7 +2259,8 @@ enter declared index data =
             focusOn key
 
         Nothing ->
-            Cmd.none
+            -- a step with no fields of the form: focus its anchor (see `summary`)
+            FormLayout.focusSummary form.prefix NoOp
     )
 
 
@@ -2291,7 +2329,7 @@ bind locale toMsg ((Form form) as declared) (State data) =
             if List.isEmpty form.steps then
                 shown
 
-            else if isEmptyStep data.current defs then
+            else if data.current == List.length form.steps - 1 && isEmptyStep data.current defs then
                 standing found defs
                     |> List.map
                         (\d ->
@@ -2317,6 +2355,12 @@ bind locale toMsg ((Form form) as declared) (State data) =
             form.steps
                 |> List.indexedMap (\index info -> { label = info.label, failed = List.any (\p -> p.step == index) shown })
         , current = data.current
+        , anchor =
+            if not (List.isEmpty form.steps) && isEmptyStep data.current defs then
+                Just (stepLabel data.current)
+
+            else
+                Nothing
         }
 
 
@@ -2668,17 +2712,36 @@ as `FormLayout.errorSummary`: the form's own and those given to `outside`. Each 
 moves the focus to its element, on another step if need be. On a step it lists
 the problems of that step; on the review step (a step with no fields) it lists
 every problem of every step, shown or not, with the step in brackets. Nothing
-is drawn while there is nothing to list.
+is drawn while there is nothing to list, except on a step with no fields of the
+form (a review step, or a step whose fields you draw yourself): there an empty
+region named by the step is drawn, because the focus lands there when the form
+moves to the step. Put `summary` at the top of every step.
 -}
 summary : View msg -> Html msg
 summary (View view) =
-    FormLayout.errorSummary
-        [ FormLayout.id view.prefix
-        , FormLayout.locale view.locale
-        , FormLayout.labels (List.map (\p -> ( p.field, p.label )) view.listed)
-        , FormLayout.onFocusField (\key -> view.toMsg (FocusField key))
-        ]
-        (List.map (\p -> { field = p.field, message = p.message }) view.listed)
+    if List.isEmpty view.listed then
+        case view.anchor of
+            Just label ->
+                -- nothing to list, but a step with no fields of the form needs a place for the focus to land
+                Html.div
+                    [ Attr.id (view.prefix ++ "-summary")
+                    , Attr.tabindex -1
+                    , Attr.attribute "role" "group"
+                    , Attr.attribute "aria-label" label
+                    ]
+                    []
+
+            Nothing ->
+                Html.text ""
+
+    else
+        FormLayout.errorSummary
+            [ FormLayout.id view.prefix
+            , FormLayout.locale view.locale
+            , FormLayout.labels (List.map (\p -> ( p.field, p.label )) view.listed)
+            , FormLayout.onFocusField (\key -> view.toMsg (FocusField key))
+            ]
+            (List.map (\p -> { field = p.field, message = p.message }) view.listed)
 
 
 

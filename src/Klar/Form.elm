@@ -765,7 +765,10 @@ as `FormLayout.errorSummary`: the form's own and those given to `outside`. Each 
 moves the focus to its element, on another step if need be. On a step it lists
 the problems of that step; on the review step (a step with no fields) it lists
 every problem of every step, shown or not, with the step in brackets. Nothing
-is drawn while there is nothing to list.
+is drawn while there is nothing to list, except on a step with no fields of the
+form (a review step, or a step whose fields you draw yourself): there an empty
+region named by the step is drawn, because the focus lands there when the form
+moves to the step. Put `summary` at the top of every step.
 -}
 summary : View msg -> Html msg
 summary =

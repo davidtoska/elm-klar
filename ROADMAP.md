@@ -318,6 +318,14 @@ column hidden below a width) became documentation, and the filtered rows are sti
 again on each view while a search is active (a scan of the search texts, a few
 milliseconds at 50 000 rows).
 
+**Status of the form model: built, seam closed.** `Klar.Form` (using a form), `Klar.Form.Spec`
+(declaring it), `Klar.Form.Check` (tests), `Klar.Form.Layout` (the frame) and `Klar.Ids`:
+text, long text, number, choices, switches, tags, files, steps with a stepper and a review
+list, repeating rows, server problems and problems from outside the model, focus by handle,
+one dirty flag. The onboarding flow of round 2 shrinks from 1 631 to 1 030 code lines and from
+110 `KLAR GAP` lines to 45, all for the price rules (`custom` is not built). See
+[design/FORM-MODEL.md](design/FORM-MODEL.md) section 10.
+
 Second round of A0 after these: rebuild the three applications and compare compile errors,
 iterations, `KLAR GAP` lines and behaviour bugs with the first round.
 

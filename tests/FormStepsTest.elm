@@ -244,6 +244,7 @@ suite =
         , rowValues
         , rowDirty
         , crossRow
+        , ruleOfAGroup
         , stepControl
         , stepProblems
         , outsideProblems
@@ -422,6 +423,102 @@ crossRow =
                         filled |> Form.fillRows f.contacts fillContact [ alice, { bob | primary = True, email = "nope" } ]
                 in
                 problemsOf broken |> Expect.equal [ ( "Contact 2, Email", "Invalid email address" ) ]
+        ]
+
+
+type alias RuledFields =
+    { name : Form.Field String
+    , contacts : Form.Field (Form.Rows ContactFields)
+    , leadTime : Form.Field (Maybe Float)
+    }
+
+
+type alias RuledValues =
+    { name : String
+    , contacts : List Contact
+    , leadTime : Float
+    }
+
+
+{-| The same steps, with the rule across the rows on the group instead of a check.
+-}
+ruled : Form.Form Step RuledFields RuledValues
+ruled =
+    Spec.define "r" RuledFields RuledValues
+        |> Spec.step Company "Company"
+        |> Spec.with (Spec.text "Name" |> Spec.required)
+        |> Spec.step Contacts "Contacts"
+        |> Spec.with
+            (Spec.rows { label = "Contacts", item = "Contact" } contactForm
+                |> Spec.atLeast 1
+                |> Spec.rule (\contacts -> List.length (List.filter .primary contacts) <= 1) (\_ -> "At most one contact is the primary.")
+            )
+        |> Spec.step Delivery "Delivery"
+        |> Spec.with (Spec.number "Lead time" |> Spec.required)
+        |> Spec.build
+
+
+ruledFields : RuledFields
+ruledFields =
+    Form.fields ruled
+
+
+twoPrimaries : Form.State Step
+twoPrimaries =
+    Form.init ruled
+        |> Form.set ruledFields.name "Acme"
+        |> Form.fillRows ruledFields.contacts fillRuledContact [ alice, { bob | primary = True } ]
+        |> Form.goTo ruled Contacts
+        |> Tuple.first
+
+
+fillRuledContact : Contact -> ContactFields -> Form.State Step -> Form.State Step
+fillRuledContact c row =
+    Form.set row.name c.name
+        >> Form.set row.email c.email
+        >> Form.set row.role (Just c.role)
+        >> Form.set row.primary c.primary
+
+
+ruleOfAGroup : Test
+ruleOfAGroup =
+    describe "a rule of a group of rows, and a check"
+        [ test "the rule holds the step back while a later step is still empty" <|
+            \_ ->
+                let
+                    next =
+                        Form.advance ruled twoPrimaries
+                in
+                Expect.all
+                    [ \_ -> Form.currentStep ruled next.state |> Expect.equal (Just Contacts)
+                    , \_ -> Form.problems Locale.en ruled next.state |> List.map (\p -> ( p.label, p.message, p.step )) |> List.take 1 |> Expect.equal [ ( "Contacts", "At most one contact is the primary.", Just Contacts ) ]
+                    ]
+                    ()
+        , test "its problem shows at the add button once the step was tried" <|
+            \_ ->
+                let
+                    next =
+                        Form.advance ruled twoPrimaries
+                in
+                Form.addRow (Form.bind Locale.en identity ruled next.state) ruledFields.contacts [] "Add contact"
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text "At most one contact is the primary." ]
+        , test "once there is one primary the step lets go" <|
+            \_ ->
+                twoPrimaries
+                    |> Form.fillRows ruledFields.contacts fillRuledContact [ alice, bob ]
+                    |> Form.advance ruled
+                    |> .state
+                    |> Form.currentStep ruled
+                    |> Expect.equal (Just Delivery)
+        , test "a check over the whole form waits until every step is valid" <|
+            \_ ->
+                -- two primaries, but the lead time is empty: the check has nothing to say yet
+                filled
+                    |> Form.fillRows f.contacts fillContact [ alice, { bob | primary = True } ]
+                    |> Form.set f.leadTime Nothing
+                    |> problemsOf
+                    |> Expect.equal [ ( "Lead time", "Required" ) ]
         ]
 
 

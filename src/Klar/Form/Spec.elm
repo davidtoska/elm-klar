@@ -1,7 +1,7 @@
 module Klar.Form.Spec exposing
     ( Builder, define, with, step, check, build
     , Spec, text, number, choice, choices, toggle, tags, files, rows
-    , required, atLeast, one, rules, range, whole, hint, withMessage
+    , required, atLeast, one, rule, rules, range, whole, hint, withMessage
     )
 
 {-| The declaration of a form: its fields in order, each with a label and its
@@ -53,27 +53,30 @@ fields or rows.
 
 # What the compiler says
 
-The declaration is the one place where the types are four and a half (`Form step
+The declaration is the one place where the types are a little long (`Form step
 fields values`, `Builder step fields values`, `Spec control output`), so the
-messages are worth knowing. They were all produced on purpose and are kept in
-[design/FORM-MODEL-ERRORS.md](https://github.com/davidtoska/elm-klar/blob/main/design/FORM-MODEL-ERRORS.md);
-the type names below are the ones the compiler prints.
+messages are worth knowing. They were produced on purpose, one mistake at a time,
+and are kept with their full output in
+[design/FORM-MODEL-ERRORS.md](https://github.com/davidtoska/elm-klar/blob/main/design/FORM-MODEL-ERRORS.md).
+The names below are the ones the compiler prints.
 
-| You see | It means |
+| The compiler says | It means |
 |---|---|
-| `Builder step Fields (Country -> Values)` expected, `Builder step (Field (Maybe Country) -> f) ...` given (on the last `with`) | The last field has no slot in `Fields` (or in `Values`): the record is shorter than the pipeline. The slot named in the type is the field that is missing |
-| `Form () (Field (Maybe Country) -> Fields) (Country -> Values)` but the annotation says `Form () Fields Values` | A field is in `Fields` and in `Values` but not in the pipeline: a `with` is missing. The types of the unfilled slots say which field |
-| `Builder step (Field Country -> Field String -> Fields) ...` against `Builder step (Field String -> f) ...` | Two differently typed fields are in another order in the records than in the pipeline. The compiler's hint ("takes too many arguments") points the wrong way: the n-th `with` fills the n-th slot, put the records in the order of the pipeline |
-| `Maybe Country -> Values` against `Country -> v` | `Values` says `Maybe Country` for a field that is `required`: `required` removes the `Maybe`. The hint "use `Maybe.withDefault`" is not the fix |
-| `Field String` where `Field (Maybe id)` is wanted (at `Form.select`) | A text handle was given to a select, or the other way round: the type of a handle is the kind of its control |
-| `Builder step Fields Values` but the annotation says `Form () Fields Values` | `build` is missing at the end |
-| `Spec Bool Bool` piped to a function that wants `Spec Bool (Maybe a)` | `required` on a kind that cannot be empty (a `toggle`) |
-| `values -> Builder step (Field String -> Fields) values` | A form with one field was given only `Fields`: `define` takes both record constructors (`Spec.define "p" identity identity` for a single value) |
-| `Field (Rows ContactFields)` where `Field String` is wanted | A rows handle was given to a text input: draw the rows with `Form.rowFields` and the fields of each |
+| `Spec.Builder step Fields (Country -> Values)` where `Spec.Builder step (Form.Field (Maybe Country) -> f) (Country -> Values)` is wanted, at the last `with` | The last field has no slot in `Fields` (or, the other way round, in `Values`): the record is shorter than the pipeline. The slot named in the type is the field that is missing |
+| The body is `Form.Form () (Form.Field (Maybe Country) -> Fields) (Country -> Values)`, the annotation says `Form.Form () Fields Values` | A field is in both records but not in the pipeline: a `with` is missing. The unfilled slots in the type say which field |
+| `Spec.Builder step (Form.Field (Maybe Country) -> Form.Field String -> Fields) ...` where `Spec.Builder step (Form.Field String -> f) (Maybe String -> v)` is wanted | Two differently typed fields are in another order in the records than in the pipeline: the n-th `with` fills the n-th slot. The compiler's hint ("takes too many arguments") points the wrong way; reorder the records |
+| `... (Maybe Country -> Values)` where `... (Country -> v)` is wanted | `Values` says `Maybe Country` for a field that is `required`: `required` takes the `Maybe` away. The hint "use Maybe.withDefault" is not the fix |
+| `Form.Field String` where `Form.Field (Maybe id)` is wanted, at `Form.select` | A text handle was given to a select (or the other way round): the type of a handle is the kind of its control |
+| `Form.Field (Form.Rows ContactFields)` where `Form.Field String` is wanted | A handle of a group of rows was given to a text input: draw the rows with `Form.rowFields` and the fields of each |
+| The body is `Spec.Builder step Fields Values`, the annotation says `Form.Form () Fields Values` | `build` is missing at the end |
+| `Spec.Spec Bool Bool` where `Spec.Spec Bool (Maybe a)` is wanted | `required` on a kind that cannot be empty (a `toggle`) |
+| `values -> Spec.Builder step (Form.Field String -> Fields) values` | A form with one field was given only `Fields`: `define` takes both record constructors (`Spec.define "p" identity identity` for a single value) |
+| `Spec.Builder step (Form.Field String -> Fields) ...` where `Spec.Builder step { a \| nickname : Form.Field c } ...` is wanted, at `Spec.check` | `check` comes before the last `with`: it must be the last step of the pipeline, because it needs every handle |
 
-A repeated label gets the next free DOM id (`name`, `name-2`), so two fields never
-clash. The prefix is the one thing that must be different for every form on a
-page.
+The one mistake the compiler cannot see is two fields of the same type swapped in
+`Fields` or in `Values`; `Form.Check.roundTrip` catches it in one test line. A
+repeated label gets the next free DOM id (`name`, `name-2`), so two fields never
+clash; the prefix is the one thing that must be different for every form on a page.
 
 
 # Declaring a form
@@ -92,7 +95,7 @@ the DOM id.
 
 # Rules
 
-@docs required, atLeast, one, rules, range, whole, hint, withMessage
+@docs required, atLeast, one, rule, rules, range, whole, hint, withMessage
 
 -}
 
@@ -173,7 +176,10 @@ step =
     Core.step
 
 
-{-| A rule over several fields, run when every field is valid on its own. It
+{-| A rule over several fields, run when every field of the form is valid on its
+own. On a form with steps that means it shows up when the last step is reached;
+a rule that belongs to one step goes on the field (`rule`, for a list of rows) or
+on the sub-form of a group, which is checked row by row. It
 gets the handles, the state (to find the rows of a group with `rowFields`) and
 the values, and returns the problems it finds, each tied to a field with
 `problem`. Put it last, after the `with` calls: it is a compile error before.
@@ -336,6 +342,24 @@ atLeast =
 one : Spec c (List a) -> Spec c (Maybe a)
 one =
     Core.one
+
+
+{-| A rule over the whole list of a list-valued field, for what is wrong with the
+items _together_: at most one contact is the primary, two emails are the same.
+It runs when every item is valid on its own, and a problem is the field's own
+(a group of rows shows it by its add button and in the summary), so it counts on
+its step like any other rule. The message is a function of the locale, like
+`withMessage`.
+
+    Spec.rows { label = "Contacts", item = "Contact" } contact
+        |> Spec.rule
+            (\contacts -> List.length (List.filter .primary contacts) <= 1)
+            (\lang -> Locale.pick lang { nb = "Bare én kan være hovedkontakt", en = "Only one contact can be the primary" })
+
+-}
+rule : (List a -> Bool) -> (Locale -> String) -> Spec c (List a) -> Spec c (List a)
+rule =
+    Core.rule
 
 
 {-| The existing validators of [Klar.Validate](Klar-Validate) on a text, run on
