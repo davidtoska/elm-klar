@@ -4,6 +4,7 @@ module Klar.Rule exposing
     , FieldKind(..), Choice
     , Operator(..), Operands(..), operatorsFor, operandsOf, operatorLabel
     , Rule(..), Group, Combinator(..), Condition, emptyGroup
+    , is, isAnyOf, when, allOf, anyOf
     , matches, isComplete, parseNumber
     , validate, Issue, describe, quote
     , addCondition, addGroup, remove, duplicate, move, setCombinator, toggleNegated, setField, setOperator, setValue, addValue, removeValue
@@ -126,6 +127,13 @@ the tree has an `Int` id that is unique within the tree. The root group made by
 1, 2 ... from the top down.
 
 @docs Rule, Group, Combinator, Condition, emptyGroup
+
+A rule written by hand, for a saved view or a preset, is shorter with these (they
+number the nodes themselves; the records above stay as they are):
+
+    Rule.allOf [ Rule.is "status" "open", Rule.when "total" Rule.GreaterOrEqual [ "1000" ] ]
+
+@docs is, isAnyOf, when, allOf, anyOf
 
 
 # Running a rule
@@ -836,6 +844,89 @@ rule. It matches every row.
 emptyGroup : Rule
 emptyGroup =
     GroupRule { id = 0, combinator = All, negated = False, children = [] }
+
+
+{-| A test of one field with any operator and its operands, as a rule whose id is 0.
+It is a condition only: put it in `allOf` or `anyOf` to get the group that
+`FilterBar` and `SavedViews` expect.
+
+    Rule.when "total" Rule.GreaterOrEqual [ "1000" ]
+
+-}
+when : String -> Operator -> List String -> Rule
+when field operator values =
+    ConditionRule { id = 0, field = field, operator = operator, values = values }
+
+
+{-| "The field is this value": `when field Is [ value ]`.
+
+    Rule.is "status" "open"
+
+-}
+is : String -> String -> Rule
+is field value =
+    when field Is [ value ]
+
+
+{-| "The field is one of these values": `when field IsAnyOf values`.
+
+    Rule.isAnyOf "status" [ "received", "packed" ]
+
+-}
+isAnyOf : String -> List String -> Rule
+isAnyOf field values =
+    when field IsAnyOf values
+
+
+{-| A group where all of the rules must match. The nodes of the whole tree are
+numbered 0, 1, 2 ... from the top down, so the ids are unique.
+-}
+allOf : List Rule -> Rule
+allOf children =
+    groupOf All children
+
+
+{-| A group where any of the rules may match. Numbered as `allOf` is.
+-}
+anyOf : List Rule -> Rule
+anyOf children =
+    groupOf Any children
+
+
+groupOf : Combinator -> List Rule -> Rule
+groupOf combinator children =
+    GroupRule { id = 0, combinator = combinator, negated = False, children = children }
+        |> numbered
+
+
+{-| Numbers the nodes 0, 1, 2 ... from the top down.
+-}
+numbered : Rule -> Rule
+numbered root =
+    Tuple.second (numberFrom 0 root)
+
+
+numberFrom : Int -> Rule -> ( Int, Rule )
+numberFrom next rule =
+    case rule of
+        ConditionRule c ->
+            ( next + 1, ConditionRule { c | id = next } )
+
+        GroupRule g ->
+            let
+                ( after, children ) =
+                    List.foldl
+                        (\child ( at, done ) ->
+                            let
+                                ( following, numberedChild ) =
+                                    numberFrom at child
+                            in
+                            ( following, done ++ [ numberedChild ] )
+                        )
+                        ( next + 1, [] )
+                        g.children
+            in
+            ( after, GroupRule { g | id = next, children = children } )
 
 
 {-| The id of a node.
