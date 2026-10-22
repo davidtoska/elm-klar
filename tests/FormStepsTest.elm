@@ -730,6 +730,52 @@ stepProblems =
                 , advanced typed |> Tuple.first |> stepOf
                 )
                     |> Expect.equal ( Just Company, Just Contacts )
+        , test "a rejected save on the review step stays there and lists every problem with a way to go to it" <|
+            \_ ->
+                let
+                    onReview =
+                        filled |> Form.goTo form Review |> Tuple.first
+
+                    ( state, _ ) =
+                        Form.rejected [ Form.problem f.name "Taken." ] form onReview
+
+                    goToIt =
+                        Form.problems Locale.en form state
+                            |> List.head
+                            |> Maybe.map (\p -> Form.goToProblem form p state |> Tuple.first)
+                            |> Maybe.withDefault state
+                in
+                Expect.all
+                    [ \_ -> stepOf state |> Expect.equal (Just Review)
+                    , \_ -> Form.summary (bound state) |> showsText "Name (Company): Taken."
+                    , \_ ->
+                        Form.stepper (bound state) []
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.class "klar-stepper__step--failed" ]
+                            |> Query.has [ Selector.text "Company" ]
+                    , \_ -> Form.hasProblems form state |> Expect.equal True
+                    , \_ -> stepOf goToIt |> Expect.equal (Just Company)
+                    ]
+                    ()
+        , test "a rejected save on the review step stays there also when the problem is in a later step's row" <|
+            \_ ->
+                let
+                    row =
+                        Form.rowFields f.contacts filled |> List.drop 1 |> List.head
+
+                    ( state, _ ) =
+                        case row of
+                            Just r ->
+                                Form.rejected [ Form.problem r.email "This domain is blocked." ] form (Form.goTo form Review filled |> Tuple.first)
+
+                            Nothing ->
+                                ( filled, Cmd.none )
+                in
+                Expect.all
+                    [ \_ -> stepOf state |> Expect.equal (Just Review)
+                    , \_ -> Form.summary (bound state) |> showsText "Contact 2, Email (Contacts): This domain is blocked."
+                    ]
+                    ()
         ]
 
 

@@ -1945,8 +1945,10 @@ problem (Field field) message =
 and in the summary until that field is edited, and counts as a problem
 (`problems`, `toValues`) for as long. Every problem of the form shows from now
 on, the form moves to the step of the first problem (so that its summary is the
-one on screen), and the focus goes to the summary. A problem for a field the
-form does not have is ignored.
+one on screen), and the focus goes to the summary. On the review step (the last
+step, when it has no fields) the form stays: its summary lists every problem of
+every step, each with a button that goes there. A problem for a field the form
+does not have is ignored.
 
 The problems are stored whether or not the form is on screen. The `Cmd` focuses
 the summary of this form; when the summary is not on screen (the form is on
@@ -1975,10 +1977,21 @@ rejected found ((Form form) as declared) (State data) =
         first =
             standing (diagnose Locale.default declared withServer defs) defs |> List.head
 
+        last =
+            max 0 (List.length form.steps - 1)
+
+        onReview =
+            data.current == last && isEmptyStep last defs
+
         landed =
             case ( first, form.steps ) of
                 ( Just d, _ :: _ ) ->
-                    { withServer | current = d.step }
+                    -- the review step lists every problem of every step: stay there
+                    if onReview then
+                        withServer
+
+                    else
+                        { withServer | current = d.step }
 
                 _ ->
                     withServer
