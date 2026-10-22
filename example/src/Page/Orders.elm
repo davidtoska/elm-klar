@@ -64,7 +64,6 @@ type alias Model =
     { table : Table.State OrderId
     , rows : Remote (List Order)
     , total : Int
-    , refreshing : Bool
 
     -- Counts the requests for rows. An answer carries the number it was asked
     -- with, and is dropped when a newer request has been made since.
@@ -179,7 +178,6 @@ start ticket table _ openId backend =
     ( { table = table
       , rows = Remote.Loading
       , total = 0
-      , refreshing = False
       , ticket = ticket
       , lookups = Remote.Loading
       , drawer = Drawer.init drawerId
@@ -318,7 +316,6 @@ update context msg backend model =
                         ( { model
                             | rows = Remote.Loaded page.rows
                             , total = page.total
-                            , refreshing = False
 
                             -- The server shows the last page when asked for one
                             -- past the end (after the last row of a page was
@@ -330,7 +327,7 @@ update context msg backend model =
                         )
 
                     Err error ->
-                        ( { model | rows = Remote.Failed (Problem.toProblem error), refreshing = False }
+                        ( { model | rows = Remote.Failed (Problem.toProblem error) }
                         , backend
                         , Cmd.none
                         )
@@ -950,19 +947,12 @@ fetch backend model =
 
         ( backend1, cmd ) =
             Api.listOrders (toOrderQuery (Table.query model.table)) (Loaded ticket) backend
-
-        hasRows =
-            Remote.isLoaded model.rows
     in
     ( { model
         | ticket = ticket
-        , refreshing = hasRows
         , rows =
-            if hasRows then
-                model.rows
-
-            else
-                Remote.Loading
+            -- the rows stay, dimmed, until the new ones are here
+            Remote.refresh model.rows
       }
     , backend1
     , cmd
@@ -1118,8 +1108,8 @@ first is 0) the DOM id `<table id>-row-<n>`. Without the row on screen: `""`.
 -}
 rowDomId : Model -> OrderId -> String
 rowDomId model id =
-    case model.rows of
-        Remote.Loaded rows ->
+    case Remote.toMaybe model.rows of
+        Just rows ->
             rows
                 |> List.indexedMap Tuple.pair
                 |> List.filter (\( _, order ) -> order.id == id)
@@ -1127,7 +1117,7 @@ rowDomId model id =
                 |> Maybe.map (\( index, _ ) -> tableId ++ "-row-" ++ String.fromInt index)
                 |> Maybe.withDefault ""
 
-        _ ->
+        Nothing ->
             ""
 
 
@@ -1209,13 +1199,12 @@ view context model =
                 , PageHeader.subtitle "Search, filter and sort the orders. Click a row to open it. Open orders past their due date have a red edge."
                 , PageHeader.meta
                     [ PageHeader.metaItem "Results"
-                        (case model.rows of
-                            Remote.Loaded _ ->
-                                Format.int context.locale model.total
+                        (if Remote.isLoaded model.rows then
+                            Format.int context.locale model.total
 
+                         else
                             -- Not "0" while the first answer is on its way or failed.
-                            _ ->
-                                "–"
+                            "–"
                         )
                     ]
                 , PageHeader.actions
@@ -1235,7 +1224,6 @@ view context model =
                 , Table.columns (columns context lookups)
                 , Table.rows model.rows
                 , Table.server { total = model.total }
-                , Table.refreshing model.refreshing
                 , Table.rowId orderRows .id
                 , Table.rowLabel (rowLabel context)
                 , Table.rowTone (overdueTone context.today)

@@ -306,8 +306,11 @@ css =
  .klar-stale__text{font-weight: 500}
  .klar-stale__reason{color: var(--klar-text-secondary)}
  .klar-stale__action{margin-left: auto}
- .klar-refreshing{cursor: progress}
- .klar-refreshing > :not(.klar-stale):not(.klar-sr-only){opacity: 0.55;transition: opacity var(--klar-dur) var(--klar-ease)}
+ .klar-refreshing{position: relative;cursor: progress}
+ .klar-refreshing::after{content: "";position: absolute;inset: 0 0 auto 0;height: 2px;background: linear-gradient(90deg,transparent,var(--klar-blue-500),transparent) 0 0 / 40% 100% no-repeat;animation: klar-refreshing-line 1.2s var(--klar-ease) infinite;pointer-events: none}
+ @keyframes klar-refreshing-line{from{background-position: -40% 0}to{background-position: 140% 0}}
+ @media (prefers-reduced-motion: reduce){.klar-refreshing::after{animation: none;background-position: 0 0;background-size: 100% 100%;background-color: var(--klar-blue-200);background-image: none}}
+ .klar-refreshing > :not(.klar-stale):not(.klar-sr-only){opacity: 0.92;transition: opacity var(--klar-dur) var(--klar-ease)}
  .klar-remote-body{display: flex;flex-direction: column;gap: var(--klar-space-3)}
  .klar-remote-body--loading{min-height: 96px}
  .klar-chart-fresh,.klar-list-fresh,.klar-tree-fresh{display: flex;flex-direction: column;gap: var(--klar-space-2)}
@@ -886,7 +889,7 @@ css =
  .klar-table__detail-inner{position: sticky;left: 0;width: 100cqw;max-width: 100%;padding: var(--klar-space-3) var(--_cell-px) var(--klar-space-4) calc(var(--_indent,0px) + var(--_cell-px));box-shadow: inset 3px 0 0 var(--klar-primary-border);white-space: normal;animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
  .klar-table__state-cell{padding: 0;background: var(--klar-surface)}
  .klar-table__state{position: sticky;left: 50%;width: max-content;max-width: min(560px,92vw);transform: translateX(-50%);white-space: normal}
- .klar-table--refreshing .klar-table__body .klar-table__cell,.klar-table--refreshing .klar-table__body .klar-check,.klar-table--refreshing .klar-table__body .klar-table__expand{opacity: 0.5;transition: opacity var(--klar-dur) var(--klar-ease)}
+ .klar-table--refreshing .klar-table__body .klar-table__cell,.klar-table--refreshing .klar-table__body .klar-check,.klar-table--refreshing .klar-table__body .klar-table__expand{opacity: 0.8;transition: opacity var(--klar-dur) var(--klar-ease)}
  .klar-table__progress{position: absolute;top: calc(var(--_head-h) - 1px);left: 0;right: 0;z-index: calc(var(--klar-z-sticky) + 3);height: 2px;overflow: hidden;background: var(--klar-primary-subtle);pointer-events: none}
  .klar-table__progress::after{content: "";position: absolute;top: 0;bottom: 0;left: 0;width: 25%;background: var(--klar-primary);animation: klar-table-progress 1.2s var(--klar-ease) infinite}
  @keyframes klar-table-progress{from{transform: translateX(-100%)}to{transform: translateX(400%)}}

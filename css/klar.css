@@ -1589,10 +1589,31 @@ table {
 
 .klar-stale__action { margin-left: auto; }
 
-.klar-refreshing { cursor: progress; }
+/* Dimming is limited by contrast: muted text stays at 4.5:1 down to about 92%. A thin
+   moving line at the top says the rest. */
+.klar-refreshing { position: relative; cursor: progress; }
+
+.klar-refreshing::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--klar-blue-500), transparent) 0 0 / 40% 100% no-repeat;
+  animation: klar-refreshing-line 1.2s var(--klar-ease) infinite;
+  pointer-events: none;
+}
+
+@keyframes klar-refreshing-line {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .klar-refreshing::after { animation: none; background-position: 0 0; background-size: 100% 100%; background-color: var(--klar-blue-200); background-image: none; }
+}
 
 .klar-refreshing > :not(.klar-stale):not(.klar-sr-only) {
-  opacity: 0.55;
+  opacity: 0.92;
   transition: opacity var(--klar-dur) var(--klar-ease);
 }
 
@@ -5074,7 +5095,7 @@ table {
 .klar-table--refreshing .klar-table__body .klar-table__cell,
 .klar-table--refreshing .klar-table__body .klar-check,
 .klar-table--refreshing .klar-table__body .klar-table__expand {
-  opacity: 0.5;
+  opacity: 0.8;
   transition: opacity var(--klar-dur) var(--klar-ease);
 }
 

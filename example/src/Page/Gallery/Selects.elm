@@ -591,6 +591,14 @@ remoteDescription locale remote =
         Loaded found ->
             "Answer received: " ++ countOf locale (List.length found) "option" "options" ++ "."
 
+        Kept _ ->
+            case Remote.toMaybe remote of
+                Just found ->
+                    "Answer kept: " ++ countOf locale (List.length found) "option" "options" ++ "."
+
+                Nothing ->
+                    ""
+
 
 countOf : Locale -> Int -> String -> String -> String
 countOf locale n one other =

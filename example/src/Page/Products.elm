@@ -44,6 +44,7 @@ import Klar.Tree as Tree
 import Page.Effect as Effect exposing (Context, Effect(..))
 import Page.Products.Category as Category exposing (Branch(..), Category)
 import Set
+import Time
 
 
 
@@ -65,7 +66,6 @@ type alias Model =
     , latest : Int
 
     -- True while new rows are on their way and the old ones are still shown.
-    , refreshing : Bool
     , effects : Effect.Outbox
     }
 
@@ -79,7 +79,6 @@ init _ backend =
         , table = Table.init "products-table"
         , tree = Tree.init "products-tree"
         , latest = 0
-        , refreshing = False
         , effects = Effect.empty
         }
 
@@ -139,13 +138,8 @@ update context msg backend model =
 
         Reload ->
             -- The refresh button and the retry button of a failure.
-            case model.products of
-                Remote.Loaded _ ->
-                    -- The rows stay, dimmed, until the new ones are here.
-                    request backend { model | refreshing = True }
-
-                _ ->
-                    request backend { model | products = Remote.Loading, refreshing = False }
+            -- The rows stay, dimmed, until the new ones are here.
+            request backend { model | products = Remote.refresh model.products }
 
         TableMsg inner ->
             let
@@ -225,7 +219,6 @@ loaded context result model =
                 { model
                     | products = Remote.Loaded products
                     , categories = categories
-                    , refreshing = False
                     , tree =
                         if Remote.isLoaded model.products then
                             -- A refresh: leave the tree as the user has it.
@@ -240,10 +233,12 @@ loaded context result model =
                 problem =
                     Problem.toProblem error
             in
-            if model.refreshing then
-                -- The rows on screen are old, not wrong: keep them and say so.
+            if Remote.isRefreshing model.products then
+                -- The rows on screen are old, not wrong: keep them (the table marks
+                -- them as old) and say so. This page has no clock, so the time
+                -- given for a failed answer is never used.
                 { model
-                    | refreshing = False
+                    | products = Remote.refreshWith model.products (Err problem) (Time.millisToPosix 0)
                     , effects = Effect.push (Notify Danger "Products not refreshed" (Maybe.withDefault (Remote.title context.locale problem) (Remote.detail context.locale problem))) model.effects
                 }
 
@@ -339,7 +334,7 @@ view context model =
                       -- skips that when its inputs are what they were the last time,
                       -- for instance while the user moves through the tree with the
                       -- arrow keys.
-                      Html.Lazy.lazy5 viewTable context.locale model.category model.refreshing model.products model.table
+                      Html.Lazy.lazy4 viewTable context.locale model.category model.products model.table
                     ]
                 ]
             ]
@@ -358,8 +353,8 @@ viewHeader context model =
 
 headerFacts : Context -> Model -> List (Html Msg)
 headerFacts context model =
-    case model.products of
-        Remote.Loaded products ->
+    case Remote.toMaybe model.products of
+        Just products ->
             let
                 number =
                     Format.int context.locale
@@ -461,8 +456,8 @@ treeNode (Branch category below) =
 unchanged out of the model: a `Maybe` or a `Remote` made in `view` would be a
 new value every time.
 -}
-viewTable : Locale -> Maybe Category -> Bool -> Remote (List Product) -> Table.State String -> Html Msg
-viewTable locale category refreshing products table =
+viewTable : Locale -> Maybe Category -> Remote (List Product) -> Table.State String -> Html Msg
+viewTable locale category products table =
     Table.view TableMsg
         ([ Table.label "Products"
          , Table.locale locale
@@ -480,7 +475,6 @@ viewTable locale category refreshing products table =
          , Table.columnChooser
          , Table.densityToggle
          , Table.onRefresh Reload
-         , Table.refreshing refreshing
          , Table.onRetry Reload
          , Table.onResetFilters FiltersReset
          , Table.maxHeight 620

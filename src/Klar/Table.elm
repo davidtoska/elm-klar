@@ -3731,9 +3731,17 @@ view toMsg attributes (State model) =
         , Internal.attrIf config.virtual (Internal.styleVars [ ( "--_row-h", Internal.px ctx.geometry.rowHeight ) ])
         ]
         [ viewToolbar ctx
-        , Freshness.notice
-            { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
-            config.freshness
+        , case config.freshness of
+            Freshness.Stale _ ->
+                -- the retry button goes away when the data is fresh: focus waits on the table
+                Html.div [ Events.on "click" (retryClicked ctx) ]
+                    [ Freshness.notice
+                        { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                        config.freshness
+                    ]
+
+            _ ->
+                Html.text ""
         , viewFrame ctx
         , viewFooter ctx
         , Html.div [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status", Attr.attribute "aria-live" "polite" ]

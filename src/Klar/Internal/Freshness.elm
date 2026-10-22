@@ -159,7 +159,17 @@ notice config freshness =
                 ]
                 [ Icon.view Icon.clock
                 , Html.span [ Internal.cls [ "klar-stale__text" ] ] [ Html.text (text config.locale config.zone value.at) ]
-                , Html.span [ Internal.cls [ "klar-stale__reason" ] ] [ Html.text ("· " ++ reason) ]
+                , Html.span
+                    [ Internal.cls
+                        [ "klar-stale__reason"
+                        , if config.inline then
+                            "klar-sr-only"
+
+                          else
+                            ""
+                        ]
+                    ]
+                    [ Html.text ("· " ++ reason) ]
                 , case ( config.onRetry, Remote.isRetryable value.problem ) of
                     ( Just msg, True ) ->
                         Html.span [ Internal.cls [ "klar-stale__action" ] ]

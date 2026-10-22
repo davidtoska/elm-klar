@@ -438,18 +438,7 @@ view : Locale -> Model -> Html Msg
 view locale model =
     let
         nodes =
-            case model.regions of
-                Loaded list ->
-                    Loaded (regionNodes model.fetched list)
-
-                Loading ->
-                    Loading
-
-                NotAsked ->
-                    NotAsked
-
-                Failed problem ->
-                    Failed problem
+            Remote.map (regionNodes model.fetched) model.regions
     in
     Doc.page
         { title = "Picking from trees and lists"
