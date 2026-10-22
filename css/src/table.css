@@ -742,8 +742,25 @@
 
 .klar-table__foot .klar-table__cell--pinned { z-index: calc(var(--klar-z-sticky) + 3); }
 
+/* A total is never cut with an ellipsis: when a sum does not fit next to its label
+   the label stays on one line and the sum on the next (and a number wider than
+   the column breaks only as the last resort). */
+.klar-table__foot .klar-table__cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  padding-block: var(--klar-space-1);
+  line-height: var(--klar-leading-tight);
+}
+.klar-table__foot .klar-table__td--right .klar-table__cell { justify-content: flex-end; }
+.klar-table__foot .klar-table__td--center .klar-table__cell { justify-content: center; }
+.klar-table__foot .klar-table__aggregate { max-width: 100%; overflow-wrap: anywhere; }
+
 .klar-table__aggregate-label {
-  margin-right: 6px;
   font-size: var(--klar-text-xs);
   font-weight: var(--klar-weight-bold);
   letter-spacing: 0.04em;

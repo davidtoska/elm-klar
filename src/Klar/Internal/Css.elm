@@ -874,7 +874,11 @@ css =
  @media (prefers-reduced-motion: reduce){.klar-table__progress::after{width: 100%;opacity: 0.5;animation: none}}
  .klar-table__foot .klar-table__td{position: sticky;bottom: 0;z-index: calc(var(--klar-z-sticky) + 1);background: var(--klar-gray-50);border-top: 1px solid var(--klar-border);border-bottom: 0;font-weight: var(--klar-weight-medium)}
  .klar-table__foot .klar-table__cell--pinned{z-index: calc(var(--klar-z-sticky) + 3)}
- .klar-table__aggregate-label{margin-right: 6px;font-size: var(--klar-text-xs);font-weight: var(--klar-weight-bold);letter-spacing: 0.04em;text-transform: uppercase;color: var(--klar-text-muted)}
+ .klar-table__foot .klar-table__cell{display: flex;flex-wrap: wrap;align-items: baseline;column-gap: 6px;overflow: visible;text-overflow: clip;white-space: nowrap;padding-block: var(--klar-space-1);line-height: var(--klar-leading-tight)}
+ .klar-table__foot .klar-table__td--right .klar-table__cell{justify-content: flex-end}
+ .klar-table__foot .klar-table__td--center .klar-table__cell{justify-content: center}
+ .klar-table__foot .klar-table__aggregate{max-width: 100%;overflow-wrap: anywhere}
+ .klar-table__aggregate-label{font-size: var(--klar-text-xs);font-weight: var(--klar-weight-bold);letter-spacing: 0.04em;text-transform: uppercase;color: var(--klar-text-muted)}
  .klar-table__aggregate{font-variant-numeric: tabular-nums}
  .klar-table__footer{display: flex;align-items: center;flex: none;min-height: calc(var(--klar-control-sm) + var(--klar-space-4));padding: var(--klar-space-2) var(--klar-space-3);border-top: 1px solid var(--klar-border);background: var(--klar-surface)}
  .klar-table__footer-loading{display: inline-flex;align-items: center;gap: var(--klar-space-2);font-size: var(--klar-text-sm);color: var(--klar-text-muted)}

@@ -3259,10 +3259,11 @@ is the scroll area less the header.
 virtualGeometry : Config row msg -> Model -> Int -> Window.Geometry
 virtualGeometry config model count =
     let
-        -- the totals row stays in view at the bottom and covers a row's room
+        -- the totals row stays in view at the bottom and covers a row's room (a sum that
+        -- does not fit on one line takes a second line, so it is a little taller)
         footPx =
             if List.any (\(Column col) -> hasFooter col) config.columns then
-                rowPx model.density
+                rowPx model.density + 4
 
             else
                 0
