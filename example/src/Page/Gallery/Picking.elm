@@ -363,7 +363,7 @@ update msg model =
             ( { model | downState = state }, Cmd.map DownMsg cmd )
 
         RegionsArrived ->
-            ( { model | regions = Success regions }, Cmd.none )
+            ( { model | regions = Loaded regions }, Cmd.none )
 
         ZonesArrived siteId result ->
             ( { model | fetched = Dict.insert siteId (Remote.fromResult result) model.fetched }, Cmd.none )
@@ -439,8 +439,8 @@ view locale model =
     let
         nodes =
             case model.regions of
-                Success list ->
-                    Success (regionNodes model.fetched list)
+                Loaded list ->
+                    Loaded (regionNodes model.fetched list)
 
                 Loading ->
                     Loading
@@ -448,8 +448,8 @@ view locale model =
                 NotAsked ->
                     NotAsked
 
-                Failure problem ->
-                    Failure problem
+                Failed problem ->
+                    Failed problem
     in
     Doc.page
         { title = "Picking from trees and lists"
@@ -520,7 +520,7 @@ TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
                         model.sites
                     , Text.caption ("Value: " ++ listText locationText (TreeSelect.values model.sites))
                     , case model.regions of
-                        Success list ->
+                        Loaded list ->
                             Text.caption
                                 ("Written out as leaves ("
                                     ++ String.fromInt (List.length (TreeSelect.leaves (regionNodes model.fetched list) model.sites))
@@ -561,7 +561,7 @@ TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
                             Loading
 
                          else
-                            Failure (Remote.problem Remote.network)
+                            Failed (Remote.problem Remote.network)
                         )
                     , TreeSelect.onRetry RetryDown
                     , TreeSelect.locale locale

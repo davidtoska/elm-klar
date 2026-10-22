@@ -55,7 +55,7 @@ type Kids
     = NoKids
     | Unloaded
     | Loading
-    | Failed Remote.Problem
+    | LoadFailed Remote.Problem
     | Kids (List String)
 
 
@@ -163,10 +163,10 @@ addOne parent depth node acc =
 
             ( kids, below, finished ) =
                 case Picking.children node of
-                    Remote.Success [] ->
+                    Remote.Loaded [] ->
                         ( NoKids, False, started )
 
-                    Remote.Success list ->
+                    Remote.Loaded list ->
                         let
                             ( keys, flagged, after ) =
                                 addAll (Just key) (depth + 1) list started
@@ -183,8 +183,8 @@ addOne parent depth node acc =
                     Remote.Loading ->
                         ( Loading, False, started )
 
-                    Remote.Failure problem ->
-                        ( Failed problem, False, started )
+                    Remote.Failed problem ->
+                        ( LoadFailed problem, False, started )
 
             disabled =
                 Picking.isDisabled node
@@ -267,7 +267,7 @@ findLabelsIn wanted nodes found =
 
                     below =
                         case Picking.children node of
-                            Remote.Success kids ->
+                            Remote.Loaded kids ->
                                 findLabelsIn wanted kids here
 
                             _ ->
@@ -592,7 +592,7 @@ emitOne view index count position key acc =
                     Loading ->
                         LoadingRow { parent = key, depth = entry.depth + 1 } :: withRow
 
-                    Failed problem ->
+                    LoadFailed problem ->
                         FailedRow { parent = key, depth = entry.depth + 1, problem = problem } :: withRow
 
                     NoKids ->

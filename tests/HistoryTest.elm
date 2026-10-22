@@ -9,6 +9,7 @@ import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Json.Encode as Encode
 import Klar.History as History exposing (History)
 import Klar.Locale as Locale
 import Klar.Shortcut as Shortcut
@@ -22,6 +23,7 @@ import Test.Html.Selector as Selector exposing (Selector)
 type Msg
     = Undo
     | Redo
+    | ShortcutMsg Shortcut.Msg
 
 
 {-| The value is an `Int`, the key of a burst a field number.
@@ -875,6 +877,38 @@ controlsTests =
                 \_ ->
                     controls [] (History.undo labelled |> History.record [] 9)
                         |> H.none [ Selector.class "klar-history__live", Selector.containing [ Selector.text "Undid" ] ]
+            , describe "the next change to the history takes the announcement away"
+                (List.map
+                    (\( name, change ) ->
+                        test name <|
+                            \_ ->
+                                Expect.all
+                                    [ \_ -> controls [] (History.undo labelled) |> H.inside live [ Selector.text "Undid: Changed note" ]
+                                    , \_ ->
+                                        controls [] (change (History.undo labelled))
+                                            |> H.none [ Selector.class "klar-history__live", Selector.containing [ Selector.text "Undid" ] ]
+                                    ]
+                                    ()
+                    )
+                    [ ( "an edit", History.record [] 9 )
+                    , ( "endBurst", History.endBurst )
+                    , ( "markSaved", History.markSaved )
+                    , ( "withLimit", History.withLimit 50 )
+                    , ( "clear", History.clear )
+                    , ( "reset", History.reset 4 )
+                    ]
+                )
+            , test "an edit that equals the present value, and an undo or redo with nothing to do, change nothing and leave the announcement" <|
+                \_ ->
+                    let
+                        undone =
+                            History.undo labelled
+                    in
+                    Expect.all
+                        [ \_ -> controls [] (History.record [] (History.present undone) undone) |> H.inside live [ Selector.text "Undid: Changed note" ]
+                        , \_ -> controls [] (History.undo (History.undo (History.undo undone))) |> H.inside live [ Selector.text "Undid: Changed quantity" ]
+                        ]
+                        ()
             , test "an undo that did nothing announces nothing" <|
                 \_ ->
                     controls [] (History.undo fresh)
@@ -920,7 +954,7 @@ controlsTests =
                     controls [ History.showShortcuts ] (History.undo labelled)
                         |> Expect.all
                             [ H.inside undoButton [ Selector.attribute (Attr.title "Undo: Changed quantity (Ctrl+Z)"), H.attr "aria-keyshortcuts" "Control+Z" ]
-                            , H.inside redoButton [ Selector.attribute (Attr.title "Redo: Changed note (Ctrl+Shift+Z)"), H.attr "aria-keyshortcuts" "Control+Shift+Z" ]
+                            , H.inside redoButton [ Selector.attribute (Attr.title "Redo: Changed note (Ctrl+Shift+Z, Ctrl+Y)"), H.attr "aria-keyshortcuts" "Control+Shift+Z Control+Y" ]
                             ]
             ]
         ]
@@ -935,18 +969,48 @@ shortcutTests =
     let
         made =
             History.shortcuts Locale.en { onUndo = Undo, onRedo = Redo }
+
+        -- a key press the way the browser reports it, heard by the element that listens
+        pressed key modifiers =
+            Html.div [ Shortcut.listen ShortcutMsg made Shortcut.init ] []
+                |> Query.fromHtml
+                |> Event.simulate
+                    (Event.custom "keydown"
+                        (Encode.object
+                            [ ( "key", Encode.string key )
+                            , ( "ctrlKey", Encode.bool modifiers.ctrl )
+                            , ( "metaKey", Encode.bool modifiers.meta )
+                            , ( "altKey", Encode.bool False )
+                            , ( "shiftKey", Encode.bool modifiers.shift )
+                            ]
+                        )
+                    )
+                |> Event.toResult
+                |> Result.toMaybe
+                |> Maybe.andThen
+                    (\msg ->
+                        case msg of
+                            ShortcutMsg inner ->
+                                Shortcut.update made inner Shortcut.init |> Tuple.second
+
+                            _ ->
+                                Nothing
+                    )
+
+        ctrl =
+            { ctrl = True, meta = False, shift = False }
     in
     describe "shortcuts"
-        [ test "two shortcuts: Ctrl Z and Ctrl Shift Z" <|
+        [ test "three: Ctrl Z for undo, and Ctrl Shift Z and Ctrl Y for redo" <|
             \_ ->
                 Expect.equal
-                    [ [ [ "Ctrl", "Z" ] ], [ [ "Ctrl", "Shift", "Z" ] ] ]
+                    [ [ [ "Ctrl", "Z" ] ], [ [ "Ctrl", "Shift", "Z" ] ], [ [ "Ctrl", "Y" ] ] ]
                     (List.map (Shortcut.keycaps << Shortcut.keysOf) made)
         , test "with names for the shortcut sheet, in a group" <|
             \_ ->
                 Expect.all
-                    [ \_ -> Expect.equal [ "Undo", "Redo" ] (List.map Shortcut.labelOf made)
-                    , \_ -> Expect.equal [ "Edit", "Edit" ] (List.map Shortcut.groupOf made)
+                    [ \_ -> Expect.equal [ "Undo", "Redo", "Redo" ] (List.map Shortcut.labelOf made)
+                    , \_ -> Expect.equal [ "Edit", "Edit", "Edit" ] (List.map Shortcut.groupOf made)
                     ]
                     ()
         , test "in Norwegian" <|
@@ -956,14 +1020,25 @@ shortcutTests =
                         History.shortcuts Locale.nb { onUndo = Undo, onRedo = Redo }
                 in
                 Expect.all
-                    [ \_ -> Expect.equal [ "Angre", "Gjør om" ] (List.map Shortcut.labelOf norwegian)
-                    , \_ -> Expect.equal [ "Redigering", "Redigering" ] (List.map Shortcut.groupOf norwegian)
+                    [ \_ -> Expect.equal [ "Angre", "Gjør om", "Gjør om" ] (List.map Shortcut.labelOf norwegian)
+                    , \_ -> Expect.equal [ "Redigering", "Redigering", "Redigering" ] (List.map Shortcut.groupOf norwegian)
                     ]
                     ()
         , test "they do not fire in text fields unless the application marks them" <|
-            \_ -> Expect.equal [ False, False ] (List.map Shortcut.firesInInputs made)
-        , test "the keys are the ones the controls show" <|
+            \_ -> Expect.equal [ False, False, False ] (List.map Shortcut.firesInInputs made)
+        , test "pressing Ctrl Z undoes" <|
+            \_ -> Expect.equal (Just Undo) (pressed "z" ctrl)
+        , test "pressing Ctrl Shift Z redoes" <|
+            \_ -> Expect.equal (Just Redo) (pressed "Z" { ctrl | shift = True })
+        , test "pressing Ctrl Y redoes too, the way Windows applications do" <|
+            \_ -> Expect.equal (Just Redo) (pressed "y" ctrl)
+        , test "and so does Cmd Y on a Mac, which mod stands for as well" <|
+            \_ -> Expect.equal (Just Redo) (pressed "y" { ctrl | ctrl = False, meta = True })
+        , test "a plain Y or Z is no shortcut" <|
             \_ ->
-                -- the same keys the hint in the controls names
-                Expect.equal (Shortcut.keycaps (Shortcut.mod (Shortcut.char 'z'))) (Shortcut.keycaps (Shortcut.keysOf (List.head made |> Maybe.withDefault (Shortcut.shortcut Shortcut.escape "" "" Undo))))
+                Expect.all
+                    [ \_ -> Expect.equal Nothing (pressed "y" { ctrl | ctrl = False })
+                    , \_ -> Expect.equal Nothing (pressed "z" { ctrl | ctrl = False })
+                    ]
+                    ()
         ]

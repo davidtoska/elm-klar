@@ -7,7 +7,8 @@
 // 1. A static audit: every exposed name must be listed in a `@docs` line of the
 //    module documentation and must have a `{-| ... -}` comment right above its
 //    definition.
-// 2. The real thing: `elm make --docs` in a private workspace (in the OS temp
+// 2. A guard against doc examples that are known not to compile (KNOWN_BAD below).
+// 3. The real thing: `elm make --docs` in a private workspace (in the OS temp
 //    directory) that exposes only the given modules, so several people can run
 //    it at the same time without sharing an `elm-stuff` directory.
 //
@@ -135,6 +136,48 @@ if (staticProblems.length > 0) {
   if (staticProblems.length > 400) console.log(`  ... and ${staticProblems.length - 400} more`);
 } else {
   console.log(`Static audit: ok (${modules.length} module(s))`);
+}
+
+// ------------------------------------------------- known-bad example patterns
+
+// Mistakes that were once found in the docs, as text patterns that can only be wrong:
+// a column id is a `Table.ColumnId` (never a string), a `SideNav` entry needs its
+// `Keys` first, and `Remote` has `Loaded` and `Failed` (`Success` is a `Theme.Tone`).
+// Compiling every example is a later task (ROADMAP A1).
+const KNOWN_BAD = [
+  {
+    pattern: /\bTable\.(text|int|float|date|maybeDate|badge|status|bool|custom|actions)\s+"/,
+    message: 'a Table column constructor with a string literal as its id: use (Table.columnId "...") or a ColumnId value',
+  },
+  {
+    pattern: /\bSideNav\.(item|group)\s+\{/,
+    message: 'SideNav.item or SideNav.group with a record as the first argument: they take the Keys first (SideNav.stringKeys)',
+  },
+  {
+    pattern: /\bRemote\.(Success|Failure)\b/,
+    message: 'Remote.Success and Remote.Failure do not exist: the constructors are Loaded and Failed',
+  },
+];
+
+function knownBad(file) {
+  const problems = [];
+  const shown = path.relative(root, file).split(path.sep).join('/');
+  fs.readFileSync(file, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      for (const { pattern, message } of KNOWN_BAD) if (pattern.test(line)) problems.push(`${shown}:${i + 1}: ${message}`);
+    });
+  return problems;
+}
+
+const guideFiles = requested.length > 0 ? [] : ['README.md', 'USING.md', 'CONTRIBUTING.md'].map((f) => path.join(root, f));
+const badProblems = [...modules.map(fileOf).filter((f) => fs.existsSync(f)), ...guideFiles].flatMap(knownBad);
+if (badProblems.length > 0) {
+  failed = true;
+  console.log(`Known-bad examples: ${badProblems.length} problem(s)`);
+  for (const p of badProblems) console.log('  - ' + p);
+} else {
+  console.log('Known-bad examples: ok');
 }
 
 // ------------------------------------------------------------ compiler check

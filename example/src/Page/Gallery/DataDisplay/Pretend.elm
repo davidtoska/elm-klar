@@ -43,4 +43,4 @@ down locale retrying =
         Remote.Loading
 
     else
-        Remote.Failure (Remote.problem Remote.network)
+        Remote.Failed (Remote.problem Remote.network)

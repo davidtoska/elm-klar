@@ -1,6 +1,6 @@
 module Klar.Layout exposing
     ( stack, row, grid, container
-    , Attribute, gap, padding, fill, grow, maxWidth, maxHeight
+    , Attribute, gap, padding, fill, grow, fillRest, maxWidth, maxHeight
     , alignStart, alignCenter, alignEnd, alignStretch, alignBaseline, justifyCenter, justifyEnd, justifyBetween, wrap
     , columns, minColumn
     , spacer, divider, dividerLabelled
@@ -41,7 +41,7 @@ numbers are rounded down to the step below (7 becomes 6, 9 becomes 8, 11 becomes
 
 # Spacing and size
 
-@docs Attribute, gap, padding, fill, grow, maxWidth, maxHeight
+@docs Attribute, gap, padding, fill, grow, fillRest, maxWidth, maxHeight
 
 
 # Alignment
@@ -80,6 +80,7 @@ type alias Config =
     , padding : Int
     , fill : Bool
     , grow : Bool
+    , fillRest : Bool
     , columns : Maybe Int
     , minColumn : Maybe Int
     , maxWidth : Maybe Int
@@ -96,6 +97,7 @@ defaults =
     , padding = 0
     , fill = False
     , grow = False
+    , fillRest = False
     , columns = Nothing
     , minColumn = Nothing
     , maxWidth = Nothing
@@ -224,6 +226,28 @@ grow =
     Attribute (\config -> { config | grow = True })
 
 
+{-| Makes a `stack` as tall as the room that is left in its parent, and hands
+that height on to its children: the way to give a `Table.fillHeight` a table
+that fills the rest of the page. Inside an `AppShell` the parent is the content
+area, so the stack is as tall as the window under the top bar; in a flex column
+of your own it takes what the other children leave. The stack can still grow
+beyond that when its content cannot be squeezed.
+
+    AppShell.view attributes
+        [ Layout.stack [ Layout.fillRest ]
+            [ PageHeader.view [ PageHeader.title "Inbox" ]
+            , Table.view TableMsg [ Table.fillHeight, Table.columns columns, Table.rows model.orders ] model.table
+            ]
+        ]
+
+Stacks only. Without it a stack is as tall as its content.
+
+-}
+fillRest : Attribute msg
+fillRest =
+    Attribute (\config -> { config | fillRest = True })
+
+
 {-| A `grid` with this many equal columns. There is always at least one column:
 0 and negative numbers count as 1. If a grid has both `columns` and `minColumn`,
 `columns` wins.
@@ -234,7 +258,8 @@ columns n =
 
 
 {-| A responsive `grid`: as many columns as fit, each at least this many pixels
-wide, sharing the free space between them. On a screen narrower than one column
+wide, sharing the free space between them. Columns that would be empty collapse
+(`auto-fit`), so two children in a wide grid share the whole row. On a screen narrower than one column
 there is a single column of full width. A grid with neither `columns` nor
 `minColumn` behaves like `minColumn 240`. The smallest width is 16 pixels:
 smaller numbers (and 0 and negative numbers) count as 16.
@@ -323,10 +348,10 @@ grid attributes children =
                 -- so a narrow screen gets one full-width column instead of
                 -- a column that sticks out and scrolls the page sideways
                 ( Nothing, Just px ) ->
-                    "repeat(auto-fill, minmax(min(" ++ String.fromInt px ++ "px, 100%), 1fr))"
+                    "repeat(auto-fit, minmax(min(" ++ String.fromInt px ++ "px, 100%), 1fr))"
 
                 ( Nothing, Nothing ) ->
-                    "repeat(auto-fill, minmax(min(240px, 100%), 1fr))"
+                    "repeat(auto-fit, minmax(min(240px, 100%), 1fr))"
     in
     Html.div
         (commonAttributes "klar-grid" [ ( "--klar-grid-template", template ) ] config)
@@ -427,6 +452,11 @@ commonAttributes block extra config =
             ""
         , if config.grow then
             "klar-grow"
+
+          else
+            ""
+        , if config.fillRest then
+            "klar-fill-rest"
 
           else
             ""

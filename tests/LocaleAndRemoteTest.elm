@@ -73,23 +73,23 @@ remote =
     describe "Remote"
         [ test "map changes only the data" <|
             \_ ->
-                Expect.equal [ Success 2, NotAsked, Loading, Failure failure ]
-                    [ Remote.map ((+) 1) (Success 1), Remote.map ((+) 1) NotAsked, Remote.map ((+) 1) Loading, Remote.map ((+) 1) (Failure failure) ]
+                Expect.equal [ Loaded 2, NotAsked, Loading, Failed failure ]
+                    [ Remote.map ((+) 1) (Loaded 1), Remote.map ((+) 1) NotAsked, Remote.map ((+) 1) Loading, Remote.map ((+) 1) (Failed failure) ]
         , test "toMaybe" <|
-            \_ -> Expect.equal [ Just 1, Nothing, Nothing, Nothing ] (List.map Remote.toMaybe [ Success 1, NotAsked, Loading, Failure failure ])
+            \_ -> Expect.equal [ Just 1, Nothing, Nothing, Nothing ] (List.map Remote.toMaybe [ Loaded 1, NotAsked, Loading, Failed failure ])
         , test "withDefault" <|
-            \_ -> Expect.equal [ 1, 0, 0, 0 ] (List.map (Remote.withDefault 0) [ Success 1, NotAsked, Loading, Failure failure ])
+            \_ -> Expect.equal [ 1, 0, 0, 0 ] (List.map (Remote.withDefault 0) [ Loaded 1, NotAsked, Loading, Failed failure ])
         , test "fromResult" <|
-            \_ -> Expect.equal [ Success 1, Failure failure ] [ Remote.fromResult (Ok 1), Remote.fromResult (Err failure) ]
+            \_ -> Expect.equal [ Loaded 1, Failed failure ] [ Remote.fromResult (Ok 1), Remote.fromResult (Err failure) ]
         , test "the predicates" <|
             \_ ->
                 Expect.equal
                     [ ( False, False, False ), ( True, False, False ), ( False, False, True ), ( False, True, False ) ]
-                    (List.map (\r -> ( Remote.isLoading r, Remote.isSuccess r, Remote.isFailure r ))
-                        [ NotAsked, Loading, Failure failure, Success () ]
+                    (List.map (\r -> ( Remote.isLoading r, Remote.isLoaded r, Remote.isFailed r ))
+                        [ NotAsked, Loading, Failed failure, Loaded () ]
                     )
         , test "isLoading is not confused by data that contains functions" <|
-            \_ -> Expect.equal False (Remote.isLoading (Success (\x -> x + 1)))
+            \_ -> Expect.equal False (Remote.isLoading (Loaded (\x -> x + 1)))
         ]
 
 

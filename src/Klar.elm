@@ -97,7 +97,7 @@ label on one page need an `id` each. A column of a [Klar.Table](Klar-Table) is
 named with `Table.columnId`, and the same advice holds: name it once.
 
 **Data from a backend.** Components that show data take a [Klar.Remote](Klar-Remote)
-(`NotAsked | Loading | Failure | Success`) and draw the loading skeleton, the failure
+(`NotAsked | Loading | Loaded a | Failed Problem`) and draw the loading skeleton, the failure
 with a retry button and the empty state themselves. A screen is correct in every
 state without you writing the four cases every time.
 
@@ -134,7 +134,9 @@ them again after Klar's CSS to restyle everything at once; they are listed in
   - **Foundations**: [Klar.Theme](Klar-Theme), [Klar.Locale](Klar-Locale),
     [Klar.Layout](Klar-Layout), [Klar.Card](Klar-Card), [Klar.Text](Klar-Text),
     [Klar.Icon](Klar-Icon)
-  - **Actions**: [Klar.Button](Klar-Button), [Klar.Menu](Klar-Menu)
+  - **Actions**: [Klar.Button](Klar-Button), [Klar.Menu](Klar-Menu),
+    [Klar.ButtonGroup](Klar-ButtonGroup), [Klar.ToggleGroup](Klar-ToggleGroup),
+    [Klar.SplitButton](Klar-SplitButton), [Klar.Link](Klar-Link), [Klar.Kbd](Klar-Kbd)
   - **Status and feedback**: [Klar.Badge](Klar-Badge), [Klar.Tag](Klar-Tag),
     [Klar.Alert](Klar-Alert), [Klar.Spinner](Klar-Spinner),
     [Klar.Skeleton](Klar-Skeleton), [Klar.Progress](Klar-Progress),
@@ -147,12 +149,17 @@ them again after Klar's CSS to restyle everything at once; they are listed in
     [Klar.InlineEdit](Klar-InlineEdit), [Klar.Checkbox](Klar-Checkbox),
     [Klar.CheckboxGroup](Klar-CheckboxGroup), [Klar.Radio](Klar-Radio),
     [Klar.Switch](Klar-Switch), [Klar.Slider](Klar-Slider),
-    [Klar.SegmentedControl](Klar-SegmentedControl)
+    [Klar.SegmentedControl](Klar-SegmentedControl),
+    [Klar.MaskedInput](Klar-MaskedInput), [Klar.Money](Klar-Money),
+    [Klar.MoneyInput](Klar-MoneyInput)
   - **Choosing**: [Klar.Select](Klar-Select), [Klar.MultiSelect](Klar-MultiSelect),
-    [Klar.Autocomplete](Klar-Autocomplete), [Klar.VirtualList](Klar-VirtualList)
+    [Klar.Autocomplete](Klar-Autocomplete), [Klar.VirtualList](Klar-VirtualList),
+    [Klar.TreeSelect](Klar-TreeSelect), [Klar.Cascader](Klar-Cascader),
+    [Klar.Transfer](Klar-Transfer), [Klar.Picking](Klar-Picking)
   - **Date and time**: [Klar.Date](Klar-Date), [Klar.DatePicker](Klar-DatePicker),
     [Klar.DateRangePicker](Klar-DateRangePicker), [Klar.TimePicker](Klar-TimePicker),
-    [Klar.DateTimePicker](Klar-DateTimePicker), [Klar.Calendar](Klar-Calendar)
+    [Klar.DateTimePicker](Klar-DateTimePicker), [Klar.Calendar](Klar-Calendar),
+    [Klar.Recurrence](Klar-Recurrence), [Klar.RecurrencePicker](Klar-RecurrencePicker)
   - **Tables and lists**: [Klar.Table](Klar-Table),
     [Klar.Pagination](Klar-Pagination), [Klar.ListItem](Klar-ListItem),
     [Klar.Tree](Klar-Tree)
@@ -167,6 +174,14 @@ them again after Klar's CSS to restyle everything at once; they are listed in
     [Klar.Breadcrumbs](Klar-Breadcrumbs), [Klar.Tabs](Klar-Tabs),
     [Klar.Stepper](Klar-Stepper), [Klar.Accordion](Klar-Accordion),
     [Klar.Toolbar](Klar-Toolbar), [Klar.DescriptionList](Klar-DescriptionList)
+  - **Arranging**: [Klar.Sortable](Klar-Sortable), [Klar.Splitter](Klar-Splitter)
+  - **Pages and flow**: [Klar.StatusPage](Klar-StatusPage), [Klar.BulkBar](Klar-BulkBar),
+    [Klar.LeaveGuard](Klar-LeaveGuard), [Klar.History](Klar-History)
+  - **Text and change**: [Klar.Markdown](Klar-Markdown),
+    [Klar.MarkdownEditor](Klar-MarkdownEditor), [Klar.Diff](Klar-Diff),
+    [Klar.Compare](Klar-Compare)
+  - **Access and approval**: [Klar.PermissionMatrix](Klar-PermissionMatrix),
+    [Klar.ApprovalFlow](Klar-ApprovalFlow)
   - **Data display**: [Klar.Stat](Klar-Stat), [Klar.Chart](Klar-Chart),
     [Klar.Timeline](Klar-Timeline), [Klar.Avatar](Klar-Avatar),
     [Klar.JsonViewer](Klar-JsonViewer)

@@ -96,7 +96,9 @@ its dependencies that `elm.json` allows (check both before a release, see
    `FileDrop.Problem`, `Pagination.Item`, `Calendar.Event` and `Avatar.Status`
    (a result or a state an application reads), and the small design vocabularies
    `Theme.Tone`, `Theme.Size`, `Theme.Density`, `Icon.Size`, `Modal.Side` and
-   `TextArea.Resize`. Types whose set is open are opaque: `Locale`, `Icon`,
+   `TextArea.Resize`. `LeaveGuard.Answer` (`Proceed | Hold`) is the one closed answer a
+   guard can give: the application does something different in each case and there is
+   nothing else a guard can say. Types whose set is open are opaque: `Locale`, `Icon`,
    `Date`, `Remote.Kind`, `Remote.Problem`, `Table.ColumnId`, `Rule.Field`,
    `Shortcut`, `Shortcut.Keys`. Values that an application keeps and compares
    (`Select` values) are of the application's own type.

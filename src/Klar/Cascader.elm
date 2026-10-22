@@ -1411,7 +1411,7 @@ configure : List (Attribute id msg) -> Config id msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
-        , nodes = Success []
+        , nodes = Loaded []
         , anyNode = False
         , separator = " / "
         , placeholder = Nothing
@@ -1443,13 +1443,13 @@ later one wins.
 -}
 nodes : List (Node id) -> Attribute id msg
 nodes list =
-    Attribute (\config -> { config | nodes = Success list })
+    Attribute (\config -> { config | nodes = Loaded list })
 
 
 {-| The top level of the hierarchy from the backend, as a `Remote` (see
 [Klar.Remote](Klar-Remote)). The popup shows loading rows while the data is
-`Loading` or `NotAsked`, a compact error with a retry button on `Failure` (see
-`onRetry`), the empty state on `Success []`, and the columns on `Success`.
+`Loading` or `NotAsked`, a compact error with a retry button on `Failed` (see
+`onRetry`), the empty state on `Loaded []`, and the columns on `Loaded`.
 
     Cascader.remote model.places
 
@@ -1802,10 +1802,10 @@ shownPath config data =
 
                                     Nothing ->
                                         case config.nodes of
-                                            Success _ ->
+                                            Loaded _ ->
                                                 Just Unknown
 
-                                            Failure _ ->
+                                            Failed _ ->
                                                 Just LoadFailed
 
                                             _ ->
@@ -2016,7 +2016,7 @@ viewPopup toMsg config t env data =
 
         loaded =
             case topLevel of
-                Success _ ->
+                Loaded _ ->
                     True
 
                 _ ->
@@ -2024,7 +2024,7 @@ viewPopup toMsg config t env data =
 
         retry =
             case topLevel of
-                Failure problem ->
+                Failed problem ->
                     View.retryFor problem config.onRetry
 
                 _ ->
@@ -2155,7 +2155,7 @@ viewPopup toMsg config t env data =
 
         body =
             case topLevel of
-                Success _ ->
+                Loaded _ ->
                     case cache of
                         Just c ->
                             if Index.size c.index == 0 then
@@ -2180,7 +2180,7 @@ viewPopup toMsg config t env data =
                         Nothing ->
                             viewLoading t
 
-                Failure problem ->
+                Failed problem ->
                     View.viewFailure
                         { locale = config.locale
                         , onRetry = retry

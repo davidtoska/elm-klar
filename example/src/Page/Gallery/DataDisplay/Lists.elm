@@ -205,7 +205,7 @@ view locale model =
                     , ListItem.locale locale
                     ]
                     row
-                    (Remote.Success [])
+                    (Remote.Loaded [])
                 ]
             )
         ]

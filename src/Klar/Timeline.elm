@@ -346,8 +346,8 @@ failed problem =
 
 
 {-| Takes loading and failure from a `Remote`. The events themselves are passed
-to `view` as usual. `NotAsked` and `Loading` show the skeleton, `Failure` shows
-the problem and `Success` shows the events.
+to `view` as usual. `NotAsked` and `Loading` show the skeleton, `Failed` shows
+the problem and `Loaded` shows the events.
 
     Timeline.view [ Timeline.remote model.history ]
         (List.map toEvent (Remote.withDefault [] model.history))
@@ -366,10 +366,10 @@ remote data =
                         Remote.Loading ->
                             Busy
 
-                        Remote.Failure problem ->
+                        Remote.Failed problem ->
                             Failed problem
 
-                        Remote.Success _ ->
+                        Remote.Loaded _ ->
                             Ready
             }
         )
@@ -441,6 +441,12 @@ emptyDescription text =
 
 {-| Makes the timeline, footer included, scroll inside itself when it is taller
 than this many pixels: for a log in a side panel. Default: no limit.
+
+A scroll area must be reachable with the keyboard. With `onLoadMore` the button
+in the footer is a tab stop inside it; without, the timeline itself takes the
+keyboard focus (`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if
+you gave none), so that the arrow keys scroll it.
+
 -}
 maxHeight : Int -> Attribute msg
 maxHeight pixels =
@@ -466,6 +472,7 @@ type alias Texts =
     , loadingMore : String
     , noMore : String
     , empty : String
+    , events : String
     , today : String
     , yesterday : String
     , retry : String
@@ -485,6 +492,7 @@ texts loc =
     , loadingMore = pick "Henter flere hendelser ..." "Loading more events ..."
     , noMore = pick "Ingen flere hendelser" "No more events"
     , empty = pick "Ingen hendelser" "No events"
+    , events = pick "Hendelser" "Events"
     , today = pick "I dag" "Today"
     , yesterday = pick "I går" "Yesterday"
     , retry = pick "Prøv igjen" "Try again"
@@ -516,6 +524,10 @@ view attributes events =
         t =
             texts config.locale
 
+        -- A scroll area with nothing focusable in it cannot be scrolled from the keyboard.
+        scrollsWithoutButton =
+            config.maxHeight /= Nothing && config.onLoadMore == Nothing
+
         wrap children =
             Html.section
                 [ Internal.cls
@@ -532,7 +544,13 @@ view attributes events =
                         ""
                     ]
                 , Internal.attrMaybe (\pixels -> Internal.styleVars [ ( "max-height", Internal.px pixels ) ]) config.maxHeight
-                , Internal.attrMaybe (Attr.attribute "aria-label") config.label
+                , if scrollsWithoutButton then
+                    Attr.attribute "aria-label" (Maybe.withDefault t.events config.label)
+
+                  else
+                    Internal.attrMaybe (Attr.attribute "aria-label") config.label
+                , Internal.attrIf scrollsWithoutButton (Attr.tabindex 0)
+                , Internal.attrIf scrollsWithoutButton (Attr.attribute "role" "region")
                 , Internal.attrIf (config.state == Busy) (Attr.attribute "aria-busy" "true")
                 ]
                 children

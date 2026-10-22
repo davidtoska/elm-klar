@@ -10,7 +10,7 @@ import Fuzz exposing (Fuzzer)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
-import Klar.LeaveGuard as LeaveGuard exposing (Answer(..), Decision(..))
+import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
 import Klar.Locale as Locale
 import Support.FlowHtml as H
 import Test exposing (Test, describe, fuzz, test)
@@ -32,6 +32,7 @@ suite =
         , requestTests
         , answerTests
         , heldTests
+        , dismissQuestionTests
         , dialogTests
         , dismissTests
         , textTests
@@ -79,7 +80,7 @@ clicked selectors guard =
 {-| Press a button of the dialog: the new guard and the decision, or the same guard
 and no decision when there is no such button (the dialog is closed).
 -}
-press : String -> Guard -> ( Guard, Maybe (Decision Int) )
+press : String -> Guard -> ( Guard, Maybe ( Int, Bool ) )
 press name guard =
     case clicked [ Selector.id ("leave-" ++ name) ] guard of
         Ok msg ->
@@ -87,10 +88,18 @@ press name guard =
                 ( next, _, decision ) =
                     LeaveGuard.update msg guard
             in
-            ( next, decision )
+            ( next, decided decision )
 
         Err _ ->
             ( guard, Nothing )
+
+
+{-| A decision as the two things one can ask it: where to go and whether to save
+first.
+-}
+decided : Maybe (LeaveGuard.Decision Int) -> Maybe ( Int, Bool )
+decided =
+    Maybe.map (\decision -> ( LeaveGuard.destination decision, LeaveGuard.savesFirst decision ))
 
 
 
@@ -230,7 +239,7 @@ answerTests =
             \_ ->
                 press "leave" held
                     |> Expect.all
-                        [ \( _, decision ) -> Expect.equal (Just (Leave 5)) decision
+                        [ \( _, decision ) -> Expect.equal (Just ( 5, False )) decision
                         , \( next, _ ) -> Expect.equal False (LeaveGuard.isDirty next)
                         , \( next, _ ) -> Expect.equal False (LeaveGuard.isOpen next)
                         , \( next, _ ) -> Expect.equal Nothing (LeaveGuard.pending next)
@@ -264,7 +273,7 @@ answerTests =
             \_ ->
                 press "save" held
                     |> Expect.all
-                        [ \( _, decision ) -> Expect.equal (Just (SaveFirst 5)) decision
+                        [ \( _, decision ) -> Expect.equal (Just ( 5, True )) decision
                         , \( next, _ ) -> Expect.equal [ 1, 2 ] (LeaveGuard.dirtySources next)
                         , \( next, _ ) -> Expect.equal False (LeaveGuard.isOpen next)
                         , \( next, _ ) -> Expect.equal Nothing (LeaveGuard.pending next)
@@ -281,8 +290,8 @@ answerTests =
                                 LeaveGuard.update msg once
                         in
                         Expect.all
-                            [ \_ -> Expect.equal (Just (Leave 5)) first
-                            , \_ -> Expect.equal Nothing second
+                            [ \_ -> Expect.equal (Just ( 5, False )) (decided first)
+                            , \_ -> Expect.equal Nothing (decided second)
                             , \_ -> Expect.equal once twice
                             ]
                             ()
@@ -300,7 +309,7 @@ answerTests =
                             ( _, _, decision ) =
                                 LeaveGuard.update leave afterStay
                         in
-                        Expect.equal Nothing decision
+                        Expect.equal Nothing (decided decision)
 
                     _ ->
                         Expect.fail "the buttons are missing"
@@ -322,7 +331,7 @@ heldTests =
                 in
                 Expect.all
                     [ \g -> Expect.equal (Just 8) (LeaveGuard.pending g)
-                    , \g -> Expect.equal (Just (Leave 8)) (Tuple.second (press "leave" g))
+                    , \g -> Expect.equal (Just ( 8, False )) (Tuple.second (press "leave" g))
                     ]
                     twice
         , test "is held even when everything became clean in the meantime" <|
@@ -352,7 +361,92 @@ heldTests =
             \_ ->
                 press "leave" (dirtyWith [ 1 ] |> asked 5 |> LeaveGuard.setDirty 1 False)
                     |> Tuple.second
-                    |> Expect.equal (Just (Leave 5))
+                    |> Expect.equal (Just ( 5, False ))
+        ]
+
+
+
+-- WITHDRAWING THE QUESTION
+
+
+dismissQuestionTests : Test
+dismissQuestionTests =
+    let
+        held =
+            asked 5 (dirtyWith [ 1, 2 ])
+    in
+    describe "dismiss"
+        [ test "closes the question, forgets the held value and keeps the dirty marks" <|
+            \_ ->
+                LeaveGuard.dismiss held
+                    |> Tuple.first
+                    |> Expect.all
+                        [ \g -> Expect.equal False (LeaveGuard.isOpen g)
+                        , \g -> Expect.equal Nothing (LeaveGuard.pending g)
+                        , \g -> Expect.equal [ 1, 2 ] (LeaveGuard.dirtySources g)
+                        ]
+        , test "gives a command that moves focus back, like closing the dialog does" <|
+            \_ -> Expect.notEqual Cmd.none (Tuple.second (LeaveGuard.dismiss held))
+        , test "with no question open it changes nothing and has nothing to do" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.equal (dirtyWith [ 1 ]) (Tuple.first (LeaveGuard.dismiss (dirtyWith [ 1 ])))
+                    , \_ -> Expect.equal Cmd.none (Tuple.second (LeaveGuard.dismiss fresh))
+                    , \_ -> Expect.equal fresh (Tuple.first (LeaveGuard.dismiss fresh))
+                    ]
+                    ()
+        , test "after it Leave and the other buttons are gone: there is nothing to answer" <|
+            \_ ->
+                Expect.all
+                    [ \g -> Expect.equal ( g, Nothing ) (press "leave" g)
+                    , \g -> Expect.equal ( g, Nothing ) (press "stay" g)
+                    ]
+                    (Tuple.first (LeaveGuard.dismiss held))
+        , test "a button pressed after the question was withdrawn settles nothing" <|
+            \_ ->
+                case clicked [ Selector.id "leave-leave" ] held of
+                    Ok leave ->
+                        let
+                            ( withdrawn, _ ) =
+                                LeaveGuard.dismiss held
+
+                            ( _, _, decision ) =
+                                LeaveGuard.update leave withdrawn
+                        in
+                        Expect.equal Nothing (decided decision)
+
+                    Err problem ->
+                        Expect.fail problem
+        , test "the stale question of a save that came back: the application went to A, a click on B was held" <|
+            \_ ->
+                let
+                    -- "Save and leave" to page 1: the dialog closes, the save is on its way
+                    saving =
+                        press "save" (asked 1 (dirtyWith [ 1 ]))
+
+                    -- the user clicks a link to page 2 while it saves
+                    questioned =
+                        asked 2 (Tuple.first saving)
+
+                    -- the save returned: the application goes to page 1 and says so
+                    afterSave =
+                        questioned |> LeaveGuard.setDirty 1 False |> LeaveGuard.dismiss |> Tuple.first
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (Just ( 1, True )) (Tuple.second saving)
+                    , \_ -> Expect.equal (Just 2) (LeaveGuard.pending questioned)
+                    , \_ -> Expect.equal Nothing (LeaveGuard.pending afterSave)
+                    , \_ -> Expect.equal False (LeaveGuard.isOpen afterSave)
+                    , \_ -> Expect.equal ( afterSave, Nothing ) (press "leave" afterSave)
+                    , \_ ->
+                        case LeaveGuard.request 3 afterSave of
+                            Proceed target ->
+                                Expect.equal 3 target
+
+                            Hold _ _ ->
+                                Expect.fail "still asking after everything was saved and the question withdrawn"
+                    ]
+                    ()
         ]
 
 
@@ -470,7 +564,7 @@ dismissTests =
                             LeaveGuard.update msg open
                     in
                     Expect.all
-                        [ \_ -> Expect.equal Nothing decision
+                        [ \_ -> Expect.equal Nothing (decided decision)
                         , \_ -> Expect.equal False (LeaveGuard.isOpen next)
                         , \_ -> Expect.equal Nothing (LeaveGuard.pending next)
                         , \_ -> Expect.equal True (LeaveGuard.isDirty next)
@@ -538,6 +632,7 @@ type Op
     | PressLeave
     | PressStay
     | PressSave
+    | Dismiss
 
 
 opFuzzer : Fuzzer Op
@@ -548,6 +643,7 @@ opFuzzer =
         , Fuzz.constant PressLeave
         , Fuzz.constant PressStay
         , Fuzz.constant PressSave
+        , Fuzz.constant Dismiss
         ]
 
 
@@ -628,7 +724,7 @@ step op run =
                                     press "leave" run.guard
                             in
                             case ( model.held, decision ) of
-                                ( Just target, Just (Leave back) ) ->
+                                ( Just target, Just ( back, False ) ) ->
                                     if back == target then
                                         { run | guard = next, model = { dirty = [], held = Nothing } }
 
@@ -640,6 +736,12 @@ step op run =
 
                                 _ ->
                                     { run | problem = Just "Leave and the model disagree" }
+
+                        Dismiss ->
+                            { run
+                                | guard = Tuple.first (LeaveGuard.dismiss run.guard)
+                                , model = { model | held = Nothing }
+                            }
 
                         PressStay ->
                             let
@@ -659,7 +761,7 @@ step op run =
                                     press "save" run.guard
                             in
                             case ( model.held, decision ) of
-                                ( Just target, Just (SaveFirst back) ) ->
+                                ( Just target, Just ( back, True ) ) ->
                                     if back == target then
                                         { run | guard = next, model = { model | held = Nothing } }
 

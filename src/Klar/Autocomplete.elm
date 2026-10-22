@@ -402,7 +402,7 @@ options list =
 component does not filter them; the typed text is highlighted in them. Fetch
 when `Autocomplete.text` changes. The list is hidden while the data is
 `NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, an
-error on `Failure` (see `onRetry`), and "No suggestions" on `Success []`.
+error on `Failed` (see `onRetry`), and "No suggestions" on `Loaded []`.
 
     Autocomplete.suggestions model.citySuggestions
 
@@ -664,13 +664,13 @@ view toMsg attributes (State state) =
                             Loading ->
                                 Busy
 
-                            Failure problem ->
+                            Remote.Failed problem ->
                                 Failed problem
 
-                            Success [] ->
+                            Remote.Loaded [] ->
                                 NoSuggestions
 
-                            Success _ ->
+                            Remote.Loaded _ ->
                                 let
                                     built =
                                         rows ()

@@ -216,6 +216,21 @@ posix =
             \_ ->
                 Expect.equal (date 1970 1 2)
                     (Date.fromPosix (Time.customZone 120 []) (Time.millisToPosix (23 * 3600 * 1000)))
+        , test "toPosix is midnight UTC" <|
+            \_ -> Expect.equal 86400000 (Time.posixToMillis (Date.toPosix Time.utc (date 1970 1 2)))
+        , test "toPosix is the start of the day in the zone" <|
+            \_ ->
+                -- two hours ahead of UTC: the day starts at 22:00 the evening before
+                Expect.equal (86400000 - 2 * 3600 * 1000) (Time.posixToMillis (Date.toPosix (Time.customZone 120 []) (date 1970 1 2)))
+        , test "toPosix is the start of the day west of UTC" <|
+            \_ -> Expect.equal (5 * 3600 * 1000) (Time.posixToMillis (Date.toPosix (Time.customZone -300 []) (date 1970 1 1)))
+        , test "toPosix and fromPosix are inverses" <|
+            \_ ->
+                let
+                    zone =
+                        Time.customZone 90 []
+                in
+                Expect.equal (date 2026 10 22) (Date.fromPosix zone (Date.toPosix zone (date 2026 10 22)))
         ]
 
 

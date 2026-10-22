@@ -1040,7 +1040,7 @@ configure : List (Attribute id msg) -> Config id msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
-        , items = Success []
+        , items = Loaded []
         , ids = Nothing
         , titles = Nothing
         , order = Lists.SourceOrder
@@ -1071,12 +1071,12 @@ the same key the first one is used.
 -}
 options : Ids id -> List (Option id) -> Attribute id msg
 options ids list =
-    Attribute (\config -> { config | items = Success list, ids = Just ids })
+    Attribute (\config -> { config | items = Loaded list, ids = Just ids })
 
 
 {-| The items from the backend, as a `Remote` (see [Klar.Remote](Klar-Remote)).
 "Available" shows loading rows while the data is `Loading` or `NotAsked`, a compact
-error with a retry button on `Failure` (see `onRetry`), and the items on `Success`.
+error with a retry button on `Failed` (see `onRetry`), and the items on `Loaded`.
 "Chosen" keeps showing what is chosen, with "Loading ..." for the labels it does
 not know yet.
 
@@ -1558,7 +1558,7 @@ viewPane toMsg config t env data interactive side =
 
         body =
             case ( side, config.items ) of
-                ( Available, Failure problem ) ->
+                ( Available, Failed problem ) ->
                     View.viewFailure
                         { locale = config.locale
                         , onRetry = config.onRetry
@@ -1681,10 +1681,10 @@ unknownLabel config t row =
 
             Nothing ->
                 case config.items of
-                    Success _ ->
+                    Loaded _ ->
                         t.unknownValue
 
-                    Failure _ ->
+                    Failed _ ->
                         t.unavailable
 
                     _ ->

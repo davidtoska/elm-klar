@@ -1,5 +1,5 @@
 module Klar.Remote exposing
-    ( Remote(..), fromResult, map, toMaybe, withDefault, isLoading, isSuccess, isFailure
+    ( Remote(..), fromResult, map, toMaybe, withDefault, isLoading, isLoaded, isFailed
     , Problem, problem, withTitle, withDetail, withCode, isRetryable
     , title, detail, code, kind
     , Kind, network, timeout, server, notFound, forbidden, unauthorized, validation, conflict, unknown
@@ -13,7 +13,7 @@ failed, or here.
     type alias Model =
         { orders : Remote (List Order) }
 
-    -- NotAsked -> Loading -> Success orders | Failure problem
+    -- NotAsked -> Loading -> Loaded orders | Failed problem
 
 Components that show remote data (`Klar.Table`, `Klar.Select`, `Klar.ListItem` ...)
 take a `Remote` and render the loading skeleton, the failure with a retry button
@@ -48,7 +48,7 @@ already on the screen:
 
 # Remote data
 
-@docs Remote, fromResult, map, toMaybe, withDefault, isLoading, isSuccess, isFailure
+@docs Remote, fromResult, map, toMaybe, withDefault, isLoading, isLoaded, isFailed
 
 
 # Problems
@@ -71,15 +71,15 @@ import Klar.Locale as Locale exposing (Locale)
 
 
 {-| Data you ask for. Start in `NotAsked` (or `Loading` if the request is sent
-in `init`), then move to `Success` or `Failure`. Refreshing data that is already
-there is up to you: keep the `Success` value and show your own indicator, or go
+in `init`), then move to `Loaded` or `Failed`. Refreshing data that is already
+there is up to you: keep the `Loaded` value and show your own indicator, or go
 back to `Loading` to show the skeleton again.
 -}
 type Remote a
     = NotAsked
     | Loading
-    | Failure Problem
-    | Success a
+    | Loaded a
+    | Failed Problem
 
 
 {-| What went wrong, in terms that decide what to tell the user. The type is
@@ -353,11 +353,11 @@ map change remote =
         Loading ->
             Loading
 
-        Failure p ->
-            Failure p
+        Failed p ->
+            Failed p
 
-        Success a ->
-            Success (change a)
+        Loaded a ->
+            Loaded (change a)
 
 
 {-| The data, if it is there.
@@ -365,7 +365,7 @@ map change remote =
 toMaybe : Remote a -> Maybe a
 toMaybe remote =
     case remote of
-        Success a ->
+        Loaded a ->
             Just a
 
         _ ->
@@ -380,7 +380,7 @@ toMaybe remote =
 withDefault : a -> Remote a -> a
 withDefault fallback remote =
     case remote of
-        Success a ->
+        Loaded a ->
             a
 
         _ ->
@@ -398,10 +398,10 @@ fromResult : Result Problem a -> Remote a
 fromResult result =
     case result of
         Ok a ->
-            Success a
+            Loaded a
 
         Err p ->
-            Failure p
+            Failed p
 
 
 {-| Whether the request is on its way.
@@ -418,10 +418,10 @@ isLoading remote =
 
 {-| Whether the data is there.
 -}
-isSuccess : Remote a -> Bool
-isSuccess remote =
+isLoaded : Remote a -> Bool
+isLoaded remote =
     case remote of
-        Success _ ->
+        Loaded _ ->
             True
 
         _ ->
@@ -430,10 +430,10 @@ isSuccess remote =
 
 {-| Whether the request failed.
 -}
-isFailure : Remote a -> Bool
-isFailure remote =
+isFailed : Remote a -> Bool
+isFailed remote =
     case remote of
-        Failure _ ->
+        Failed _ ->
             True
 
         _ ->

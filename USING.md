@@ -5,6 +5,260 @@ This is the guide for someone who builds an application with Klar, as the
 project (also before it is published), how to keep it untouched, and how the
 parts fit together in an application that talks to a backend.
 
+## Start here
+
+A complete application with the frame of Klar: a `Browser.application` with an
+`AppShell`, a side menu typed by your own `Page`, and a `Remote` that a table draws.
+It compiles as it stands. Copy it, then replace `fetchOrders` with a real request
+(see section 3).
+
+**`elm.json`.** An application that uses `Browser.application` imports `Url`, so
+`elm/url` must be a *direct* dependency next to the ones Klar needs
+(`elm install elm/url` does it). See section 1 for the whole list.
+
+**`index.html`.** How the application is mounted depends on its `main`:
+
+| `main` is built with | Mount it with | Use it for |
+| --- | --- | --- |
+| `Browser.sandbox`, `Browser.element` | `Elm.Main.init({ node: document.getElementById("app") })` | a widget inside a page you own (the README's first program) |
+| `Browser.document`, `Browser.application` | `Elm.Main.init()` | a whole page: **use this with `AppShell`**, which fills the viewport and owns the page |
+
+`Elm.Main.init()` without a `node` on a sandbox or an element fails with
+`Cannot read properties of undefined (reading 'node')`. `Klar.stylesheet` removes
+the margin of the `body`, so the page needs no CSS of its own:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acme Operations</title>
+</head>
+<body>
+  <script src="main.js"></script>
+  <script>Elm.Main.init();</script>
+</body>
+</html>
+```
+
+`elm make src/Main.elm --output=main.js` builds it. The routes are the part of the
+URL after `#`, so any static file server works and nothing has to be configured to
+send every path to `index.html`.
+
+**`src/Main.elm`.**
+
+```elm
+module Main exposing (main)
+
+import Browser
+import Browser.Navigation as Nav
+import Html exposing (Html)
+import Klar
+import Klar.AppShell as AppShell
+import Klar.Icon as Icon
+import Klar.PageHeader as PageHeader
+import Klar.Remote as Remote exposing (Remote(..))
+import Klar.SideNav as SideNav
+import Klar.Table as Table
+import Process
+import Task
+import Url exposing (Url)
+
+
+type Page
+    = Orders
+    | Customers
+
+
+type alias Order =
+    { id : String, customer : String, total : Float }
+
+
+type alias Model =
+    { key : Nav.Key
+    , page : Page
+    , sideNav : SideNav.State Page
+    , table : Table.State String
+    , orders : Remote (List Order)
+    }
+
+
+type Msg
+    = LinkClicked Browser.UrlRequest
+    | UrlChanged Url
+    | SideNavMsg SideNav.Msg
+    | TableMsg Table.Msg
+    | GotOrders (Result Remote.Problem (List Order))
+    | Reload
+    | NoOp
+
+
+main : Program () Model Msg
+main =
+    Browser.application
+        { init = init
+        , update = update
+        , view = view
+        , subscriptions = \_ -> Sub.none
+        , onUrlRequest = LinkClicked
+        , onUrlChange = UrlChanged
+        }
+
+
+init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
+init _ url key =
+    let
+        page =
+            pageFromUrl url
+    in
+    ( { key = key
+      , page = page
+      , sideNav = SideNav.init "main-nav" |> SideNav.reveal page navigation
+      , table = Table.init "orders"
+      , orders = Loading
+      }
+    , fetchOrders
+    )
+
+
+{-| Stands for a request: replace it with `Http.get` and `Result.mapError`.
+-}
+fetchOrders : Cmd Msg
+fetchOrders =
+    Process.sleep 600
+        |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics Ltd" 1250.5, Order "1043" "Fjord Foods" 310 ])
+        |> Task.perform GotOrders
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        LinkClicked (Browser.Internal url) ->
+            ( model, Nav.pushUrl model.key (Url.toString url) )
+
+        LinkClicked (Browser.External href) ->
+            ( model, Nav.load href )
+
+        UrlChanged url ->
+            let
+                page =
+                    pageFromUrl url
+            in
+            ( { model | page = page, sideNav = SideNav.reveal page navigation model.sideNav }
+            , AppShell.resetScroll shellId NoOp
+            )
+
+        SideNavMsg m ->
+            let
+                ( sideNav, cmd ) =
+                    SideNav.update m model.sideNav
+            in
+            ( { model | sideNav = sideNav }, Cmd.map SideNavMsg cmd )
+
+        TableMsg m ->
+            let
+                ( table, cmd ) =
+                    Table.update m model.table
+            in
+            ( { model | table = table }, Cmd.map TableMsg cmd )
+
+        Reload ->
+            ( { model | orders = Loading }, fetchOrders )
+
+        NoOp ->
+            ( model, Cmd.none )
+
+        GotOrders result ->
+            ( { model | orders = Remote.fromResult result }, Cmd.none )
+
+
+view : Model -> Browser.Document Msg
+view model =
+    { title = "Acme Operations"
+    , body =
+        [ Klar.stylesheet
+        , AppShell.view
+            [ AppShell.id shellId
+            , AppShell.brand
+                (AppShell.brandLink { name = "Acme Operations", href = "#/", logo = Nothing })
+            , AppShell.sidebar
+                (SideNav.view SideNavMsg
+                    [ SideNav.entries navigation, SideNav.current model.page ]
+                    model.sideNav
+                )
+            ]
+            [ viewPage model ]
+        ]
+    }
+
+
+viewPage : Model -> Html Msg
+viewPage model =
+    case model.page of
+        Orders ->
+            Html.div []
+                [ PageHeader.view [ PageHeader.title "Orders" ]
+                , Table.view TableMsg
+                    [ Table.columns
+                        [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
+                        , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
+                        , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
+                        ]
+                    , Table.rows model.orders
+                    , Table.rowId Table.stringIds .id
+                    , Table.onRetry Reload
+                    ]
+                    model.table
+                ]
+
+        Customers ->
+            PageHeader.view [ PageHeader.title "Customers" ]
+
+
+
+-- NAVIGATION
+
+
+shellId : String
+shellId =
+    "app-shell"
+
+
+pageToString : Page -> String
+pageToString page =
+    case page of
+        Orders ->
+            "orders"
+
+        Customers ->
+            "customers"
+
+
+pageKeys : SideNav.Keys Page
+pageKeys =
+    SideNav.keys pageToString
+
+
+navigation : List (SideNav.Entry Page msg)
+navigation =
+    [ SideNav.item pageKeys { key = Orders, label = "Orders", href = "#/orders" }
+        |> SideNav.withIcon Icon.clipboardCheck
+    , SideNav.item pageKeys { key = Customers, label = "Customers", href = "#/customers" }
+        |> SideNav.withIcon Icon.users
+    ]
+
+
+pageFromUrl : Url -> Page
+pageFromUrl url =
+    case url.fragment of
+        Just "/customers" ->
+            Customers
+
+        _ ->
+            Orders
+```
+
 ## 1. Getting Klar into a project
 
 **Published.** `elm install davidtoska/elm-klar`. The package is a normal Elm
@@ -33,12 +287,18 @@ the dependencies of the application and not of a folder:
             "elm/core": "1.0.5",
             "elm/html": "1.0.1",
             "elm/json": "1.1.4",
-            "elm/time": "1.0.0"
+            "elm/time": "1.0.0",
+            "elm/url": "1.0.0"
         },
         "indirect": { "elm/virtual-dom": "1.0.5" }
     }
 }
 ```
+
+`elm/url` is only needed by an application that uses `Browser.application` (every
+application with an `AppShell` does, see "Start here"); Klar itself does not
+import it. Add the packages your own code imports (`elm/http` for requests, say) the
+same way.
 
 Replacing the submodule with `elm install davidtoska/elm-klar` later changes
 nothing in the application's code.
@@ -118,7 +378,7 @@ Table.view TableMsg [ Table.columns columns, Table.rows model.orders, Table.onRe
 Loading, the failure with a retry button and the empty state are drawn by the
 table. The texts of a problem are chosen when it is drawn, in the language of the
 component, so a language switch changes a failure that is already on the screen.
-When you refresh data that is already there, keep the old `Success` and add
+When you refresh data that is already there, keep the old `Loaded` and add
 `Table.refreshing True`: the rows stay, dimmed.
 
 **Ids from your database, in the selects.** The value of an option is your own

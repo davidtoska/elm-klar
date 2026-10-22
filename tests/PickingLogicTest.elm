@@ -70,7 +70,7 @@ nodeTests =
                         Picking.lazy Picking.stringIds "z" "Z" Remote.Loading
                 in
                 Expect.equal
-                    ( Remote.Success [], Remote.Success [ l ], Remote.Loading )
+                    ( Remote.Loaded [], Remote.Loaded [ l ], Remote.Loading )
                     ( Picking.children l, Picking.children b, Picking.children z )
         , test "the modifiers set what the readers return, in any order" <|
             \_ ->
@@ -345,7 +345,7 @@ rowTests =
             \_ ->
                 let
                     failing =
-                        Index.build [ Picking.lazy Picking.stringIds "z" "Z" (Remote.Failure (Remote.problem Remote.network)) ]
+                        Index.build [ Picking.lazy Picking.stringIds "z" "Z" (Remote.Failed (Remote.problem Remote.network)) ]
                 in
                 Expect.equal
                     ( [ "z", "loading:z" ], [ "z", "failed:z" ] )

@@ -120,8 +120,8 @@ preceded by `recent` if you gave any.
 `remote` takes a `Remote (List Item)` ([Klar.Remote](Klar-Remote)) that the
 application fills, for example with the result of a search in the backend. The
 palette shows a skeleton while it is `Loading`, a short failure message when it
-is `Failure` (with a "Try again" button if the section has an `onRetry` and the
-problem can be retried), "No results" when it is `Success []` (see `emptyText`),
+is `Failed` (with a "Try again" button if the section has an `onRetry` and the
+problem can be retried), "No results" when it is `Loaded []` (see `emptyText`),
 and nothing while it is `NotAsked`. The items of a remote section are not
 filtered again: the backend already did that.
 
@@ -800,13 +800,13 @@ buildBlocks config text =
                         Loading ->
                             [ { key = key, title = data.title, body = [ LoadingBody, LoadingBody, LoadingBody ] } ]
 
-                        Failure problem ->
+                        Failed problem ->
                             [ { key = key, title = data.title, body = [ FailureBody problem (Remote.title config.locale problem) data.onRetry ] } ]
 
-                        Success [] ->
+                        Loaded [] ->
                             [ { key = key, title = data.title, body = [ EmptyBody (Maybe.withDefault language.noResults data.emptyText) ] } ]
 
-                        Success items ->
+                        Loaded items ->
                             [ { key = key, title = data.title, body = keyedBody key items } ]
     in
     recentBlock ++ List.concat (List.indexedMap blockFor config.sections)
@@ -993,7 +993,7 @@ view toMsg attributes (State state) =
                 List.any (\block -> List.any isLoadingRow block.rows) blocks
 
             hasFailure =
-                List.any (\block -> List.any isFailureRow block.rows) blocks
+                List.any (\block -> List.any isFailedRow block.rows) blocks
 
             hasRetry =
                 List.any (\block -> List.any isRetryRow block.rows) blocks
@@ -1123,8 +1123,8 @@ isLoadingRow row =
             False
 
 
-isFailureRow : PlacedRow msg -> Bool
-isFailureRow row =
+isFailedRow : PlacedRow msg -> Bool
+isFailedRow row =
     case row of
         FailureRow _ _ _ ->
             True

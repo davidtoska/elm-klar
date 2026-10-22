@@ -61,14 +61,29 @@ click of a quick selection. Only changes are announced: a bar that is drawn for 
 first time with items already selected says nothing. The count going down to zero is
 not announced either; say what happened yourself, with a [Klar.Toast](Klar-Toast).
 
-A button that the user presses can be gone in the next frame, and a focused element
-that disappears leaves focus on the page body. The bar removes its own buttons in two
-cases, and in both the application moves focus in the same `update`:
 
-  - "Clear selection" removes the whole bar: give focus to the list, as you do after
-    any bulk action that removes the rows.
-  - "Select all N matching" disappears once everything is selected: `focus` the bar
-    (give it an `id`), so that the next `Tab` reaches your actions.
+# Focus
+
+"Select all N matching" stays where it is when it has been used: it turns into an
+inactive button, "All matching selected" (`aria-disabled`, so that it keeps focus),
+and nothing is lost.
+
+"Clear selection", and any action of yours that empties the selection (Delete), take
+the whole bar away, and with it the button that has focus. A focused element that
+disappears leaves focus on the page body: a screen reader says nothing, and only some
+browsers continue the next `Tab` from where the button was. The bar cannot move focus
+itself, since it keeps no state and a click sends a single message, so the application
+does it in the same `update`, with one call that works for all of these cases:
+
+    ClearSelection ->
+        ( { model | selected = Set.empty }
+        , BulkBar.focus "orders-bulk" NoOp
+        )
+
+`focus` gives focus to the box that the toolbar and the bar share. That box is on the
+page whether or not something is selected, so it is there to receive focus when the bar
+has gone, and the next `Tab` reaches the first control of the toolbar. It needs the
+`id` attribute. If you would rather return to the list, focus the list yourself.
 
 
 # View
@@ -130,10 +145,15 @@ configure attributes =
 
 The offer is made only when the selection is at least as large as the page, and
 only when something is left to select: a person who ticked a row or two is not
-asked, while one who ticked the whole page is. A `total` smaller than the number
-selected (the selection and the count can disagree for a moment while a new
-search is on its way) is taken to be the number selected, so the bar never says
-"12 of 3 selected". When everything is selected it says "All 12,340 selected".
+asked, while one who ticked the whole page is. Once everything is selected the
+button stays in its place as an inactive "All matching selected", and a screen reader
+is told "All 12,340 selected".
+
+A `total` that cannot be true, below 1 or below the number selected (the selection and
+the count can disagree for a moment while a new search is on its way), is taken as
+"the total is not known": the bar says "12 selected" and makes no offer and no claim
+about everything. It never says "12 of 3 selected" or "All 12 selected" on such a
+number.
 
 Without `selectAllMatching` the bar says "12 selected" and offers nothing.
 
@@ -143,8 +163,8 @@ selectAllMatching options =
     Attribute (\config -> { config | all = Just options })
 
 
-{-| The DOM id of the bar, which must be unique on the page. It lets `focus` find
-the bar. There is no id by default.
+{-| The DOM id of the box that the toolbar and the bar share, which must be unique on
+the page. It lets `focus` find the box. There is no id by default.
 -}
 id : String -> Attribute msg
 id value =
@@ -161,20 +181,22 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| Gives focus to the bar with this `id` (see the attribute `id`) while something
-is selected. Call it in the `update` that handles `onSelectAll`, because the button
-the user pressed is replaced by a note. The message is sent when it is done,
-whether it worked or not.
+{-| Gives focus to the box with this `id` (see the attribute `id`) that the toolbar and
+the bar share. The box is on the page whether or not something is selected, so this
+works after the bar has gone. Call it in the `update` that handles "Clear selection"
+and your own actions that empty the selection, because the button that was pressed is
+gone with the bar. The next `Tab` reaches the first control of the toolbar. The
+message is sent when it is done, whether it worked or not.
 
-    SelectAllOrders ->
-        ( { model | selected = everything model }
+    ClearSelection ->
+        ( { model | selected = Set.empty }
         , BulkBar.focus "orders-bulk" NoOp
         )
 
 -}
 focus : String -> msg -> Cmd msg
-focus barId done =
-    Internal.focus barId done
+focus boxId done =
+    Internal.focus boxId done
 
 
 {-| The toolbar with the bar over it. `toolbar` is what the bar covers while
@@ -200,13 +222,17 @@ view attributes options actions =
         covered =
             count > 0
 
-        summary =
-            summaryText config.locale count (Maybe.map .total config.all)
+        texts =
+            countTexts config.locale count (knownTotal count config)
     in
     -- The three children keep their places whether or not something is selected, so
     -- that Elm updates them in place: the toolbar keeps its state and the live
     -- region is the same element from one count to the next.
-    Html.div [ Internal.cls [ "klar-bulk" ] ]
+    Html.div
+        [ Internal.cls [ "klar-bulk" ]
+        , Internal.attrMaybe Attr.id config.id
+        , Internal.attrIf (config.id /= Nothing) (Attr.tabindex -1)
+        ]
         [ Html.div
             [ Internal.cls [ "klar-bulk__under", when covered "klar-bulk__under--covered" ]
             , Internal.attrIf covered (Attr.attribute "inert" "")
@@ -220,14 +246,14 @@ view attributes options actions =
             ]
             [ Html.text
                 (if covered then
-                    summary
+                    texts.heard
 
                  else
                     ""
                 )
             ]
         , if covered then
-            viewBar config options.onClear count summary actions
+            viewBar config options.onClear count texts.shown actions
 
           else
             Html.text ""
@@ -235,51 +261,27 @@ view attributes options actions =
 
 
 viewBar : Config msg -> msg -> Int -> String -> List (Html msg) -> Html msg
-viewBar config onClear count summary actions =
+viewBar config onClear count shown actions =
     let
         language =
             config.locale
-
-        offer =
-            config.all
-                |> Maybe.andThen
-                    (\everything ->
-                        if offersSelectAll count everything then
-                            Just everything
-
-                        else
-                            Nothing
-                    )
     in
     Html.div
         [ Internal.cls [ "klar-bulk__bar" ]
         , Attr.attribute "role" "group"
         , Attr.attribute "aria-label"
             (Locale.pick language { nb = "Handlinger for valgte elementer", en = "Actions for the selected items" })
-        , Internal.attrMaybe Attr.id config.id
-        , Internal.attrIf (config.id /= Nothing) (Attr.tabindex -1)
         ]
         [ -- The live region says the same, once.
           Html.span
             [ Internal.cls [ "klar-bulk__count", "klar-tabular" ]
             , Attr.attribute "aria-hidden" "true"
             ]
-            [ Html.text summary ]
-        , Internal.viewMaybe
-            (\everything ->
-                Html.div [ Internal.cls [ "klar-bulk__offer" ] ]
-                    [ Button.view
-                        [ Button.link
-                        , Button.onClick everything.onSelectAll
-                        ]
-                        (Locale.pick language
-                            { nb = "Velg alle " ++ Format.int language (everythingTotal count everything) ++ " treff"
-                            , en = "Select all " ++ Format.int language (everythingTotal count everything) ++ " matching"
-                            }
-                        )
-                    ]
-            )
-            offer
+            [ Html.text shown ]
+
+        -- The offer is one button from the moment it is made to the moment the bar
+        -- goes: when it has been used it changes in place, so that focus stays on it.
+        , Internal.viewMaybe (viewOffer language) (offerFor count config)
         , Html.div [ Internal.cls [ "klar-bulk__actions" ] ]
             (actions
                 ++ [ Button.view
@@ -293,6 +295,26 @@ viewBar config onClear count summary actions =
         ]
 
 
+viewOffer : Locale -> Offer msg -> Html msg
+viewOffer language offer =
+    Html.div [ Internal.cls [ "klar-bulk__offer" ] ]
+        [ case offer of
+            Offered onSelectAll total ->
+                Button.view
+                    [ Button.link, Button.onClick onSelectAll ]
+                    (Locale.pick language
+                        { nb = "Velg alle " ++ Format.int language total ++ " treff"
+                        , en = "Select all " ++ Format.int language total ++ " matching"
+                        }
+                    )
+
+            Taken ->
+                Button.view
+                    [ Button.ghost, Button.icon Icon.check, Button.ariaDisabled True ]
+                    (Locale.pick language { nb = "Alle treff er valgt", en = "All matching selected" })
+        ]
+
+
 when : Bool -> String -> String
 when condition name =
     if condition then
@@ -302,51 +324,93 @@ when condition name =
         ""
 
 
+
+-- WHAT THE BAR SAYS
+
+
+{-| The button for everything that matches: to press, or, when it has been used,
+done.
+-}
+type Offer msg
+    = Offered msg Int
+    | Taken
+
+
+{-| The total, when it can be true: at least 1 and at least the number selected.
+Anything else counts as not known, and then the bar claims nothing about it.
+-}
+knownTotal : Int -> Config msg -> Maybe Int
+knownTotal count config =
+    case config.all of
+        Just everything ->
+            if everything.total >= 1 && everything.total >= count then
+                Just everything.total
+
+            else
+                Nothing
+
+        Nothing ->
+            Nothing
+
+
 {-| The offer is made when the selection covers the page and there is more to
-select.
+select; it is taken when everything that matches is selected and that was more than
+the page.
 -}
-offersSelectAll : Int -> Everything msg -> Bool
-offersSelectAll count everything =
-    everything.onPage > 0 && count >= everything.onPage && everythingTotal count everything > count
+offerFor : Int -> Config msg -> Maybe (Offer msg)
+offerFor count config =
+    case ( config.all, knownTotal count config ) of
+        ( Just everything, Just total ) ->
+            if everything.onPage > 0 && count >= everything.onPage then
+                if total > count then
+                    Just (Offered everything.onSelectAll total)
+
+                else if total > everything.onPage then
+                    Just Taken
+
+                else
+                    Nothing
+
+            else
+                Nothing
+
+        _ ->
+            Nothing
 
 
-{-| The total, never smaller than the number selected.
+{-| What the bar shows and what the live region says: "12 selected", "200 of 12,340
+selected", and, when everything is selected, "12,340 selected" in the bar (the button
+beside it says "All matching selected") and "All 12,340 selected" to a screen reader,
+which is not looking at the button.
 -}
-everythingTotal : Int -> Everything msg -> Int
-everythingTotal count everything =
-    max count everything.total
-
-
-{-| "12 selected", "200 of 12,340 selected" or "All 12,340 selected".
--}
-summaryText : Locale -> Int -> Maybe Int -> String
-summaryText language count maybeTotal =
+countTexts : Locale -> Int -> Maybe Int -> { shown : String, heard : String }
+countTexts language count total =
     let
         n =
             Format.int language count
+
+        plain =
+            Locale.pick language { nb = n ++ " valgt", en = n ++ " selected" }
     in
-    case maybeTotal of
-        Just total ->
-            let
-                of_ =
-                    max count total
-            in
-            if count < of_ then
-                Locale.pick language
-                    { nb = n ++ " av " ++ Format.int language of_ ++ " valgt"
-                    , en = n ++ " of " ++ Format.int language of_ ++ " selected"
-                    }
+    case total of
+        Just known ->
+            if count < known then
+                let
+                    ofTotal =
+                        Locale.pick language
+                            { nb = n ++ " av " ++ Format.int language known ++ " valgt"
+                            , en = n ++ " of " ++ Format.int language known ++ " selected"
+                            }
+                in
+                { shown = ofTotal, heard = ofTotal }
 
             else if count > 1 then
-                Locale.pick language { nb = "Alle " ++ n ++ " valgt", en = "All " ++ n ++ " selected" }
+                { shown = plain
+                , heard = Locale.pick language { nb = "Alle " ++ n ++ " valgt", en = "All " ++ n ++ " selected" }
+                }
 
             else
-                plainCount language n
+                { shown = plain, heard = plain }
 
         Nothing ->
-            plainCount language n
-
-
-plainCount : Locale -> String -> String
-plainCount language n =
-    Locale.pick language { nb = n ++ " valgt", en = n ++ " selected" }
+            { shown = plain, heard = plain }

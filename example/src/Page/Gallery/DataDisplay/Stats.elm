@@ -35,7 +35,7 @@ type Msg
 
 init : Model
 init =
-    { shipments = Remote.Failure (Remote.problem Remote.timeout)
+    { shipments = Remote.Failed (Remote.problem Remote.timeout)
     , clicks = 0
     }
 

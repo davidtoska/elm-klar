@@ -23,7 +23,7 @@ import Klar.Format as Format
 import Klar.History as History exposing (History)
 import Klar.Icon as Icon
 import Klar.Layout as Layout
-import Klar.LeaveGuard as LeaveGuard exposing (Answer(..), Decision(..))
+import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Modal as Modal
@@ -165,6 +165,15 @@ init =
 
 
 
+-- THE ID OF THE PAGE THAT REPLACES THE FORM: one place, so that `id` and `focusTitle` agree
+
+
+createdId : String
+createdId =
+    "flow-created"
+
+
+
 -- SAMPLE DATA
 
 
@@ -254,7 +263,7 @@ update msg model =
         CreateOrder ->
             -- the form is gone in the next frame, and so is the focused button:
             -- the title of the page that replaces it takes focus
-            ( { model | created = True }, StatusPage.focusTitle "flow-created" NoOp )
+            ( { model | created = True }, StatusPage.focusTitle createdId NoOp )
 
         CreateAnother ->
             ( { model | created = False, customer = "" }
@@ -302,8 +311,8 @@ update msg model =
             )
 
         SelectEverything ->
-            -- the button the user pressed is replaced by the new count: the bar takes focus
-            ( { model | everything = True, outcome = Nothing }, BulkBar.focus "flow-bulk" NoOp )
+            -- the button the user pressed stays where it is, as an inactive button: no focus to move
+            ( { model | everything = True, outcome = Nothing }, Cmd.none )
 
         ClearSelection ->
             clearSelection model Nothing
@@ -345,20 +354,25 @@ update msg model =
                 Nothing ->
                     ( next, Cmd.map GuardMsg cmd )
 
-                Just (Leave route) ->
-                    -- the changes are given up: the drafts go back to what was saved
-                    ( { next | route = route, note = model.noteSaved, address = model.addressSaved }
-                    , Cmd.map GuardMsg cmd
-                    )
+                Just answer ->
+                    let
+                        route =
+                            LeaveGuard.destination answer
+                    in
+                    if LeaveGuard.savesFirst answer then
+                        -- the save takes a moment; the route travels in the message that comes back
+                        ( { next | saving = Just route }
+                        , Cmd.batch
+                            [ Cmd.map GuardMsg cmd
+                            , Task.perform (\_ -> SavedThenGo route) (Process.sleep 700)
+                            ]
+                        )
 
-                Just (SaveFirst route) ->
-                    -- the save takes a moment; the route travels in the message that comes back
-                    ( { next | saving = Just route }
-                    , Cmd.batch
-                        [ Cmd.map GuardMsg cmd
-                        , Task.perform (\_ -> SavedThenGo route) (Process.sleep 700)
-                        ]
-                    )
+                    else
+                        -- the changes are given up: the drafts go back to what was saved
+                        ( { next | route = route, note = model.noteSaved, address = model.addressSaved }
+                        , Cmd.map GuardMsg cmd
+                        )
 
         NoteTyped text ->
             ( dirtied { model | note = text }, Cmd.none )
@@ -376,7 +390,16 @@ update msg model =
             ( { model | offerSave = checked }, Cmd.none )
 
         SavedThenGo route ->
-            ( dirtied { model | noteSaved = model.note, addressSaved = model.address, saving = Nothing, route = route }, Cmd.none )
+            let
+                saved =
+                    dirtied { model | noteSaved = model.note, addressSaved = model.address, saving = Nothing, route = route }
+
+                -- a click on another link while it saved may have opened a question
+                -- about a place the user is no longer going to: withdraw it
+                ( guard, cmd ) =
+                    LeaveGuard.dismiss saved.guard
+            in
+            ( { saved | guard = guard }, Cmd.map GuardMsg cmd )
 
         -- UNDO HISTORY
         QuantityTyped text ->
@@ -429,13 +452,13 @@ update msg model =
             )
 
 
-{-| Clearing the selection removes the bar and the button that has focus: the list
-takes it.
+{-| Clearing the selection removes the bar and the button that has focus: the box
+that the toolbar and the bar share, which is always on the page, takes it.
 -}
 clearSelection : Model -> Maybe String -> ( Model, Cmd Msg )
 clearSelection model outcome =
     ( { model | picked = Set.empty, everything = False, outcome = outcome }
-    , Task.attempt (\_ -> NoOp) (Dom.focus "flow-orders")
+    , BulkBar.focus "flow-bulk" NoOp
     )
 
 
@@ -556,7 +579,7 @@ statusSection locale model =
                 (if model.created then
                     StatusPage.view
                         [ StatusPage.locale locale
-                        , StatusPage.id "flow-created"
+                        , StatusPage.id createdId
                         , StatusPage.title ("Order created for " ++ model.customer)
                         , StatusPage.description "A confirmation was sent to the customer."
                         , StatusPage.icon Icon.package
@@ -629,7 +652,7 @@ bulkSection locale model =
         "Appears when a selection is not empty: the count, the actions for it and Clear selection. It does not push anything: the bar takes the place of the toolbar, in the same box, and the toolbar underneath keeps its state (type in the search field, then select a row). The count is announced politely by one region that is always on the page. It never takes focus by itself, and Escape does nothing here: whether Escape clears is the application's decision."
         [ Doc.example
             { title = "A selectable list of orders"
-            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Clear selection and Delete give focus back to the list; Select all moves focus to the bar so that Tab reaches the actions."
+            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Select all stays in its place as an inactive button, so focus is never lost. Clear selection and Delete take the bar away with the button that has focus, and the update calls BulkBar.focus: focus goes to the toolbar box, and Tab reaches its first control."
             , code = Just bulkCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -668,9 +691,7 @@ bulkSection locale model =
                     , Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Deleted ] "Delete"
                     ]
                 , Html.div
-                    [ Attr.id "flow-orders"
-                    , Attr.tabindex -1
-                    , Attr.style "border" "1px solid var(--klar-border)"
+                    [ Attr.style "border" "1px solid var(--klar-border)"
                     , Attr.style "border-radius" "var(--klar-radius-lg)"
                     , Attr.style "background" "var(--klar-surface)"
                     ]
@@ -994,12 +1015,14 @@ bulkCode =
     , Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Deleted ] "Delete"
     ]
 
--- the buttons of the bar are gone in the next frame: keep focus in the page
+-- the bar and its focused button are gone in the next frame: the box that the toolbar
+-- and the bar share is always on the page and takes focus
 ClearSelection ->
-    ( { model | picked = Set.empty }, Task.attempt (always NoOp) (Dom.focus "orders-list") )
+    ( { model | picked = Set.empty }, BulkBar.focus "orders-bulk" NoOp )
 
+-- the "Select all" button stays where it is (inactive): nothing to move
 SelectEverything ->
-    ( { model | everything = True }, BulkBar.focus "orders-bulk" NoOp )"""
+    ( { model | everything = True }, Cmd.none )"""
 
 
 guardCode : String
@@ -1029,14 +1052,25 @@ GuardMsg inner ->
             LeaveGuard.update inner model.guard
     in
     case decision of
-        Just (Leave route) ->
-            ( { model | guard = guard, route = route }, Cmd.map GuardMsg cmd )
+        Just answer ->
+            if LeaveGuard.savesFirst answer then
+                ( { model | guard = guard }
+                , Cmd.batch [ Cmd.map GuardMsg cmd, saveThenGo (LeaveGuard.destination answer) ]
+                )
 
-        Just (SaveFirst route) ->
-            ( { model | guard = guard }, Cmd.batch [ Cmd.map GuardMsg cmd, saveThenGo route ] )
+            else
+                ( { model | guard = guard, route = LeaveGuard.destination answer }, Cmd.map GuardMsg cmd )
 
         Nothing ->
             ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+-- the save came back: go there, and withdraw a question about another place
+SavedThenGo route ->
+    let
+        ( guard, cmd ) =
+            LeaveGuard.dismiss (LeaveGuard.setDirty NoteForm False model.guard)
+    in
+    ( { model | guard = guard, route = route }, Cmd.map GuardMsg cmd )
 
 -- view: the page is inert while the question is open
 Modal.host

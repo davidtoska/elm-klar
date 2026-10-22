@@ -289,7 +289,7 @@ openTests =
             \_ ->
                 let
                     failed kind =
-                        html [ TreeSelect.remote (Failure (Remote.problem kind)), TreeSelect.onRetry Retried ] open
+                        html [ TreeSelect.remote (Failed (Remote.problem kind)), TreeSelect.onRetry Retried ] open
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] (failed Remote.network))
@@ -601,14 +601,14 @@ lazyTests =
                         goToJapan NotAsked |> (\s -> feedWith NotAsked s "ArrowRight")
 
                     loaded =
-                        Success [ Picking.leaf ids "tokyo" "Tokyo" ]
+                        Loaded [ Picking.leaf ids "tokyo" "Tokyo" ]
                 in
                 Expect.equal True (rowLabelled "Tokyo" (withZones loaded state))
         , test "a failed node shows the problem with a retry button, and Enter on that row retries" <|
             \_ ->
                 let
                     failed =
-                        Failure (Remote.problem Remote.network)
+                        Failed (Remote.problem Remote.network)
 
                     state =
                         goToJapan failed |> (\s -> feedWith failed s "ArrowRight") |> (\s -> feedWith failed s "ArrowDown")
@@ -629,7 +629,7 @@ lazyTests =
             \_ ->
                 let
                     failed =
-                        Failure (Remote.problem Remote.forbidden)
+                        Failed (Remote.problem Remote.forbidden)
 
                     state =
                         goToJapan failed |> (\s -> feedWith failed s "ArrowRight")
@@ -648,7 +648,7 @@ lazyTests =
             \_ ->
                 let
                     failed =
-                        Failure (Remote.problem Remote.network)
+                        Failed (Remote.problem Remote.network)
 
                     state =
                         goToJapan failed |> (\s -> feedWith failed s "ArrowRight")
@@ -688,7 +688,7 @@ valueTests =
                 in
                 Expect.equal [ True, True ]
                     [ Drive.has [ Selector.text "Loading ..." ] (html [ TreeSelect.remote Loading ] state)
-                    , Drive.has [ Selector.text "Could not be loaded" ] (html [ TreeSelect.remote (Failure (Remote.problem Remote.network)) ] state)
+                    , Drive.has [ Selector.text "Could not be loaded" ] (html [ TreeSelect.remote (Failed (Remote.problem Remote.network)) ] state)
                     ]
         , test "valueText writes a value that is in no node" <|
             \_ ->

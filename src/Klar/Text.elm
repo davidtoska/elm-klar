@@ -27,6 +27,16 @@ The headings are real heading elements, so the outline of the page is right for
 screen readers: `title` is the `h1` (use it once per page), `heading` an `h2` and
 `subheading` an `h3`. Use `figure` for a large number that is not a heading.
 
+**Block or inline.** Some functions make a block, which starts on a new line, and the
+others make inline text, which runs on in the line it is in. Two inline ones next
+to each other (in a `Layout.stack`, say) end up on one line: put them in
+`paragraphWith`, or use a block.
+
+| | Functions |
+| --- | --- |
+| Block | `title`, `heading`, `subheading`, `overline`, `lead`, `paragraph`, `paragraphWith`, `codeBlock` |
+| Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `link`, `mono`, `code`, `kbd`, `kbdCombo` |
+
 Every function takes its text as a `String` (`kbdCombo` takes a list of strings
 and `paragraphWith` a list of HTML) and no attributes. When you need an id or an
 event handler, wrap the result in an element of your own.

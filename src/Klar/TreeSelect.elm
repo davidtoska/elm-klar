@@ -1324,7 +1324,7 @@ configure : List (Attribute id msg) -> Config id msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
-        , nodes = Success []
+        , nodes = Loaded []
         , placeholder = Nothing
         , searchPlaceholder = Nothing
         , clearable = False
@@ -1355,13 +1355,13 @@ later one wins.
 -}
 nodes : List (Node id) -> Attribute id msg
 nodes list =
-    Attribute (\config -> { config | nodes = Success list })
+    Attribute (\config -> { config | nodes = Loaded list })
 
 
 {-| The top level of the tree from the backend, as a `Remote` (see
 [Klar.Remote](Klar-Remote)). The popup shows loading rows while the data is
-`Loading` or `NotAsked`, a compact error with a retry button on `Failure` (see
-`onRetry`), the empty state on `Success []`, and the tree on `Success`.
+`Loading` or `NotAsked`, a compact error with a retry button on `Failed` (see
+`onRetry`), the empty state on `Loaded []`, and the tree on `Loaded`.
 
     TreeSelect.remote model.sites
 
@@ -1666,7 +1666,7 @@ shownFor config found chosen =
 
                         Nothing ->
                             case config.nodes of
-                                Success _ ->
+                                Loaded _ ->
                                     case config.valueText of
                                         Just toText ->
                                             Labelled (toText c.id)
@@ -1674,7 +1674,7 @@ shownFor config found chosen =
                                         Nothing ->
                                             Unknown
 
-                                Failure _ ->
+                                Failed _ ->
                                     LoadFailed
 
                                 _ ->
@@ -2093,7 +2093,7 @@ viewPopup toMsg config t env data =
 
         loaded =
             case topLevel of
-                Success _ ->
+                Loaded _ ->
                     True
 
                 _ ->
@@ -2101,7 +2101,7 @@ viewPopup toMsg config t env data =
 
         retry =
             case topLevel of
-                Failure problem ->
+                Failed problem ->
                     View.retryFor problem config.onRetry
 
                 _ ->
@@ -2207,7 +2207,7 @@ viewPopup toMsg config t env data =
 
         body =
             case topLevel of
-                Success _ ->
+                Loaded _ ->
                     case content of
                         Just cache ->
                             if cache.rows.shown == 0 then
@@ -2226,7 +2226,7 @@ viewPopup toMsg config t env data =
                         Nothing ->
                             viewLoading t
 
-                Failure problem ->
+                Failed problem ->
                     View.viewFailure
                         { locale = config.locale
                         , onRetry = retry

@@ -98,7 +98,7 @@ cellsFor parent keys kids =
         Kids _ ->
             itemCells keys
 
-        Failed problem ->
+        LoadFailed problem ->
             Array.fromList [ FailedCell parent problem ]
 
         _ ->

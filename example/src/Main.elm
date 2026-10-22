@@ -467,10 +467,10 @@ update msg model =
                     | orderHits =
                         case result of
                             Ok page ->
-                                Remote.Success (List.map orderHit page.rows)
+                                Remote.Loaded (List.map orderHit page.rows)
 
                             Err error ->
-                                Remote.Failure (Problem.toProblem error)
+                                Remote.Failed (Problem.toProblem error)
                   }
                 , Cmd.none
                 )

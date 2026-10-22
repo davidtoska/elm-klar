@@ -215,7 +215,7 @@ sortingTests =
         , test "numbers are sorted as numbers, not as text (12 comes after 7)" <|
             \_ ->
                 shows [ 2004, 2002, 2007 ]
-                    [ Table.rows (Success (List.filter (\order -> List.member order.number (numbers [ 2002, 2004, 2007 ])) Orders.curated)) ]
+                    [ Table.rows (Loaded (List.filter (\order -> List.member order.number (numbers [ 2002, 2004, 2007 ])) Orders.curated)) ]
                     (by "items" Ascending)
         , test "by text in the order of English: accents sort with their letter" <|
             \_ -> shows [ 2007, 2001, 2005, 2008, 2002, 2004, 2003, 2006 ] [] (by "customer" Ascending)
@@ -254,7 +254,7 @@ sortingTests =
                 let
                     blank =
                         [ Table.rows
-                            (Success
+                            (Loaded
                                 (List.indexedMap
                                     (\i order ->
                                         if i == 1 then
@@ -552,15 +552,15 @@ outsideFilterTests =
         , test "a table whose rows are all filtered out says 'No matches'" <|
             \_ -> element [ Table.rowFilter (always False), Table.activeExternalFilters 1 ] [ Selector.class "klar-state" ] [ Selector.text "No matches" ] start
         , test "a table without rows says 'No data'" <|
-            \_ -> element [ Table.rows (Success []) ] [ Selector.class "klar-state" ] [ Selector.text "No data" ] start
+            \_ -> element [ Table.rows (Loaded []) ] [ Selector.class "klar-state" ] [ Selector.text "No data" ] start
         , test "with an outside filter active, a table without rows says 'No matches': the filter may be why" <|
-            \_ -> element [ Table.rows (Success []), Table.activeExternalFilters 1 ] [ Selector.class "klar-state" ] [ Selector.text "No matches" ] start
+            \_ -> element [ Table.rows (Loaded []), Table.activeExternalFilters 1 ] [ Selector.class "klar-state" ] [ Selector.text "No matches" ] start
         , test "the popover lists the number of outside filters in a note" <|
             \_ ->
                 press [ Table.activeExternalFilters 2, Table.rowFilter large ] (byId "orders-trigger-filters") Event.click start
                     |> expectOk (\s -> element [ Table.activeExternalFilters 2, Table.rowFilter large ] (byId "orders-popup-filters") [ Selector.text "+ 2 filters outside the table" ] s)
         , test "rowFilter is left alone in server mode, where the backend filters" <|
-            \_ -> shows [ 2001, 2002 ] [ Table.rowFilter (always False), Table.server { total = 2 }, Table.rows (Success (List.take 2 Orders.curated)) ] start
+            \_ -> shows [ 2001, 2002 ] [ Table.rowFilter (always False), Table.server { total = 2 }, Table.rows (Loaded (List.take 2 Orders.curated)) ] start
         ]
 
 
@@ -617,7 +617,7 @@ footerTests =
                     [ Selector.text "2 orders" ]
                     (Table.setSearch "acme" start)
         , test "in server mode the footer covers the current page" <|
-            \_ -> footerCell 3 [ Table.server { total = 120 }, Table.rows (Success (List.take 2 Orders.curated)) ] [ Selector.text "15" ] start
+            \_ -> footerCell 3 [ Table.server { total = 120 }, Table.rows (Loaded (List.take 2 Orders.curated)) ] [ Selector.text "15" ] start
         ]
 
 
@@ -672,13 +672,13 @@ serverModeTests : Test
 serverModeTests =
     let
         server =
-            [ Table.server { total = 120 }, Table.rows (Success (generated 25)) ]
+            [ Table.server { total = 120 }, Table.rows (Loaded (generated 25)) ]
 
         page =
             List.range 3001 3025
 
         empty =
-            [ Table.server { total = 120 }, Table.rows (Success []) ]
+            [ Table.server { total = 120 }, Table.rows (Loaded []) ]
     in
     describe "server mode"
         [ test "shows the rows it is given, as they are" <|
@@ -704,7 +704,7 @@ serverModeTests =
         , test "the pagination has a button for each of the five pages" <|
             \_ -> element server (ariaLabelled "Page 5") [] start
         , test "a negative total counts as no rows" <|
-            \_ -> element [ Table.server { total = -4 }, Table.rows (Success []) ] [ Selector.class "klar-state" ] [ Selector.text "No data" ] start
+            \_ -> element [ Table.server { total = -4 }, Table.rows (Loaded []) ] [ Selector.class "klar-state" ] [ Selector.text "No data" ] start
         , test "no rows but a total says that this page is empty" <|
             \_ -> element empty [ Selector.class "klar-state" ] [ Selector.text "This page is empty" ] start
         , test "and offers the first page" <|
@@ -855,7 +855,7 @@ exportTests =
                         [ { number = "ORD-1", customer = "=HYPERLINK(\"http://example.com\")", city = "Oslo", items = 1, total = 1, status = "Open", shipped = Nothing, express = False } ]
 
                     attributes =
-                        [ Table.exportCsv "orders.csv", Table.rows (Success hostile), Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "customer") "Customer" .customer [] ] ]
+                        [ Table.exportCsv "orders.csv", Table.rows (Loaded hostile), Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "customer") "Customer" .customer [] ] ]
                 in
                 open attributes start
                     |> expectOk (\s -> option 0 attributes (link "Order,Customer\u{000D}\nORD-1,\"'=HYPERLINK(\"\"http://example.com\"\")\"" "orders.csv") s)
@@ -903,7 +903,7 @@ exportTests =
             \_ ->
                 let
                     attributes =
-                        Table.server { total = 120 } :: Table.rows (Success (generated 25)) :: exporting
+                        Table.server { total = 120 } :: Table.rows (Loaded (generated 25)) :: exporting
                 in
                 open attributes start
                     |> expectOk (\s -> option 0 attributes [ Selector.text "This page", Selector.text "25 rows" ] s)

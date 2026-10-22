@@ -92,7 +92,7 @@ problem kind =
 
 failed : Kind -> Remote (List (Select.Option String))
 failed kind =
-    Failure (problem kind)
+    Failed (problem kind)
 
 
 orders : List (Select.Option String)
