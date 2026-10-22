@@ -11,8 +11,7 @@ and the nodes of a hierarchy to choose from. The components give your ids back
 as they are, so you never write the way back from a key to an id.
 
     import Klar.Picking as Picking
-    import Klar.Remote exposing (Remote(..))
-
+    import Klar.Remote as Remote exposing (Remote(..))
 
     -- how a RegionId is written as a key, once for the whole application
     regionIds : Picking.Ids RegionId
@@ -42,9 +41,19 @@ Every id must be unique in the whole tree, not only among its siblings, and its
 key (what `ids` was told to make of it) must be different for different ids. A node
 whose key was already used by an earlier node is left out of the choice list.
 
-The functions that read a node (`key`, `id`, `label` ...) are for the components
-of this package and for code that builds one tree from another; an application
-rarely needs them.
+`Picking.ids` takes only the function that writes an id as a key. That differs from
+`Tree.nodeIds` and `Table.rowIds`, which also ask for the way back from a key to an
+id (`fromKey`), and is the same as `SideNav.keys`: the picking components keep the
+ids themselves next to their keys, so nothing is ever read back from a key, and an
+application with an opaque id type does not have to write a parser for it. The
+price is that these components cannot restore a value from keys alone (a saved view
+that stores keys): store your own ids and give them to `TreeSelect.setValues`,
+`Cascader.setValue` or `Transfer.setValues`.
+
+The functions that read a node (`key`, `id`, `label`, `description`, `icon`,
+`keywords`, `isDisabled`, `children`) are for building your own components on these
+nodes, or one tree from another (the components of this package use them for
+exactly that); an application rarely needs them.
 
 
 # Ids
