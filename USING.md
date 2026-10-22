@@ -404,6 +404,40 @@ window and `Tab` reaches them after the footer), or anything for the landmarks. 
 every overlay in the list all the time, also while it is closed. In a page module of
 your own, `List.map (Overlay.map PageMsg) overlays` gives the list to the main module.
 
+**A form: declare it once.** The values, the rules, the steps, the rows of a repeating
+group, what the server refused and whether anything changed live in one `Form.State`.
+Declare the form as a constant with `Klar.Form.Spec`, keep the state and one message in
+your model, and draw each control with one call:
+
+```elm
+form : Form.Form () Fields Values
+form =
+    Spec.define "customer" Fields Values
+        |> Spec.with (Spec.text "Name" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])
+        |> Spec.with (Spec.choice countryIds "Country" |> Spec.required)
+        |> Spec.build
+
+-- update
+FormMsg inner -> Form.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+Save ->
+    case Form.toValues Locale.default form model.form of
+        Ok values -> ( { model | status = FormLayout.Submitting }, send values )
+        Err _ -> Form.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+Refused problems -> Form.rejected problems form model.form |> Tuple.mapBoth ...
+
+-- view
+let v = Form.bind Locale.default FormMsg form model.form
+in FormLayout.view [ FormLayout.onSubmit Save ] [ Form.summary v, Form.textInput v fields.name [], Form.select v fields.country options [] ]
+```
+
+A wizard adds `Spec.step` and `Form.advance`, `Form.back`, `Form.stepper`; a group such as the
+contacts of a supplier is `Spec.rows` with `Form.rowFields`, `Form.addRow` and
+`Form.removeRow`. You do not write: a state, a message or a DOM id for any field, a dirty
+test (`Form.isDirty`), "validate before Next", the list of everything that is wrong on the
+review step, the focus after an add, a remove, a step or a refused save, or a second copy
+of the server's problems. `Klar.Form`'s module documentation has a complete example; the
+`Klar.Ids` of your id types are written once and shared with the rule builder.
+
 **Ids from your database, in the selects.** The value of an option is your own
 type, and the select hands the same value back:
 

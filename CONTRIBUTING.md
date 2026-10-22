@@ -92,7 +92,7 @@ its dependencies that `elm.json` allows (check both before a release, see
    `Rule.Rule`, `Rule.Combinator`, `Rule.Operator`, `Rule.Operands` and
    `Rule.FieldKind` (a rule is data an application translates to its own query),
    `Table.Filter`, `Table.Direction` and `Table.Selection` (the answer a server-mode
-   table gives), `Remote.Remote` (the four states of a request), `Form.Status`,
+   table gives), `Remote.Remote` (the four states of a request), `Form.Layout.Status`,
    `FileDrop.Problem`, `Pagination.Item`, `Calendar.Event` and `Avatar.Status`
    (a result or a state an application reads), and the small design vocabularies
    `Theme.Tone`, `Theme.Size`, `Theme.Density`, `Icon.Size`, `Modal.Side` and
