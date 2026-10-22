@@ -1197,6 +1197,10 @@
   border-top: 1px solid var(--klar-border);
 }
 
+/* The status takes the free space and wraps inside itself, so a long message never
+   pushes the buttons onto a second line. */
+.klar-form-actions > .klar-form-statusregion { flex: 1 1 0; min-width: 0; }
+
 .klar-form-actions--sticky {
   position: sticky;
   bottom: 0;
@@ -1238,7 +1242,10 @@
 }
 
 .klar-form-summary__link {
-  padding: 0;
+  /* WCAG 2.2 target size (2.5.8): at least 24 by 24 CSS pixels */
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px 4px;
   border: 0;
   background: none;
   font: inherit;

@@ -1365,8 +1365,13 @@ open =
 
 failedSave : InlineEdit.State
 failedSave =
+    failedWith Remote.network
+
+
+failedWith : Remote.Kind -> InlineEdit.State
+failedWith kind =
     afterEdits [ startEditing, typeText "Ada Byron", editEvent [] inputOf (keyDown "Enter") ] customer
-        |> Result.map (InlineEdit.failed (Remote.problem Remote.network))
+        |> Result.map (InlineEdit.failed (Remote.problem kind))
         |> Result.withDefault customer
 
 
@@ -1490,7 +1495,16 @@ inlineEditTests =
                         ()
             ]
         , describe "the other states"
-            [ test "text that is not being edited is plain text without a button" <|
+            [ test "a conflict or a validation problem cannot be tried again" <|
+                \_ ->
+                    Expect.all
+                        [ \_ -> viewOfEdit [] (failedWith Remote.conflict) |> Query.hasNot [ Selector.text "Try again" ]
+                        , \_ -> viewOfEdit [] (failedWith Remote.validation) |> Query.hasNot [ Selector.text "Try again" ]
+                        , \_ -> viewOfEdit [] (failedWith Remote.conflict) |> Query.has [ Selector.text "Cancel" ]
+                        , \_ -> viewOfEdit [] failedSave |> Query.has [ Selector.text "Try again" ]
+                        ]
+                        ()
+            , test "text that is not being edited is plain text without a button" <|
                 \_ -> viewOfEdit off customer |> Query.hasNot [ Selector.tag "button" ]
             , test "after a failed save the retry button is inactive" <|
                 \_ ->

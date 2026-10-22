@@ -144,7 +144,7 @@ layoutColumnTests =
             test name <|
                 \_ ->
                     Layout.grid [ Layout.minColumn given ] []
-                        |> has [ gridStyle ("repeat(auto-fill, minmax(min(" ++ String.fromInt expected ++ "px, 100%), 1fr))") ]
+                        |> has [ gridStyle ("repeat(auto-fit, minmax(min(" ++ String.fromInt expected ++ "px, 100%), 1fr))") ]
     in
     describe "Layout.columns and Layout.minColumn never write invalid CSS"
         [ columnsTest "3 columns stay 3" 3 3
@@ -162,10 +162,19 @@ layoutColumnTests =
             \_ ->
                 Layout.grid [ Layout.minColumn 200, Layout.columns 0 ] []
                     |> has [ gridStyle "repeat(1, minmax(0, 1fr))" ]
+        , test "fillRest marks a stack as the rest of the height" <|
+            \_ ->
+                Layout.stack [ Layout.fillRest ] []
+                    |> has [ Selector.classes [ "klar-stack", "klar-fill-rest" ] ]
+        , test "a stack without fillRest is as tall as its content" <|
+            \_ ->
+                Layout.stack [] []
+                    |> Query.fromHtml
+                    |> Query.hasNot [ Selector.class "klar-fill-rest" ]
         , test "a grid with neither keeps the default of 240 pixels" <|
             \_ ->
                 Layout.grid [] []
-                    |> has [ gridStyle "repeat(auto-fill, minmax(min(240px, 100%), 1fr))" ]
+                    |> has [ gridStyle "repeat(auto-fit, minmax(min(240px, 100%), 1fr))" ]
         ]
 
 
@@ -209,7 +218,7 @@ grid starts with its template.
 maxHeightStyle : String -> String
 maxHeightStyle name =
     if name == "grid" then
-        "--klar-grid-template:repeat(auto-fill, minmax(min(240px, 100%), 1fr));--klar-gap:var(--klar-space-3);--klar-max-h:120px"
+        "--klar-grid-template:repeat(auto-fit, minmax(min(240px, 100%), 1fr));--klar-gap:var(--klar-space-3);--klar-max-h:120px"
 
     else
         "--klar-gap:var(--klar-space-3);--klar-max-h:120px"
@@ -245,7 +254,7 @@ listScrollTests =
                     |> has [ focusable, role "list", ariaLabel "Tickets" ]
         , test "remote: the rows of a loaded list scroll and can take focus" <|
             \_ ->
-                ListItem.remote [ ListItem.maxHeight 200 ] orderRow (Success [ "Order 1" ])
+                ListItem.remote [ ListItem.maxHeight 200 ] orderRow (Loaded [ "Order 1" ])
                     |> has [ focusable, Selector.class "klar-list--scroll" ]
         , test "remote: the placeholder rows have no height limit, so no tab stop" <|
             \_ ->

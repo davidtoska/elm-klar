@@ -736,7 +736,7 @@ table {
 
 .klar-grid {
   display: grid;
-  grid-template-columns: var(--klar-grid-template, repeat(auto-fill, minmax(240px, 1fr)));
+  grid-template-columns: var(--klar-grid-template, repeat(auto-fit, minmax(240px, 1fr)));
   gap: var(--klar-gap, var(--klar-space-3));
 }
 
@@ -765,6 +765,7 @@ table {
 
 .klar-fill { width: 100%; }
 .klar-grow { flex: 1 1 0; min-width: 0; }
+.klar-fill-rest { flex: 1 1 auto; min-height: 0; }
 .klar-padded { padding: var(--klar-pad, 0); }
 .klar-spacer { flex: 1 1 auto; }
 
@@ -2760,6 +2761,10 @@ table {
   border-top: 1px solid var(--klar-border);
 }
 
+/* The status takes the free space and wraps inside itself, so a long message never
+   pushes the buttons onto a second line. */
+.klar-form-actions > .klar-form-statusregion { flex: 1 1 0; min-width: 0; }
+
 .klar-form-actions--sticky {
   position: sticky;
   bottom: 0;
@@ -2801,7 +2806,10 @@ table {
 }
 
 .klar-form-summary__link {
-  padding: 0;
+  /* WCAG 2.2 target size (2.5.8): at least 24 by 24 CSS pixels */
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px 4px;
   border: 0;
   background: none;
   font: inherit;
@@ -3100,8 +3108,12 @@ table {
 }
 
 @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
+  /* As wide as the field at least, and as wide as the longest option (with its
+     description) up to a limit, so descriptions are not cut. */
   .klar-select__popup {
-    width: anchor-size(width);
+    width: max-content;
+    min-width: max(260px, anchor-size(width));
+    max-width: min(36rem, calc(100vw - 16px));
   }
 }
 
@@ -4320,7 +4332,7 @@ table {
   --_cell-px: var(--klar-space-4);
 }
 
-.klar-table--fill { height: 100%; min-height: 0; }
+.klar-table--fill { height: 100%; min-height: 0; flex: 1 1 auto; }
 .klar-table--fill .klar-table__frame { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .klar-table--fill .klar-table__scroll { flex: 1 1 auto; min-height: 0; }
 
@@ -5695,6 +5707,14 @@ table {
 .klar-app-shell__page {
   width: 100%;
   margin-inline: auto;
+}
+
+/* A page with a Layout.fillRest child has the height of the content area, so the
+   child can hand the rest of it on to a table (the child is a flex item). */
+.klar-app-shell__page:has(> .klar-fill-rest) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .klar-app-shell__backdrop { display: none; }

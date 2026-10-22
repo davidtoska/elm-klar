@@ -946,10 +946,10 @@ viewRemote locale model =
                 Remote.Loading ->
                     Spinner.panel "Loading orders ..."
 
-                Remote.Failure problem ->
+                Remote.Failed problem ->
                     ErrorState.view [ ErrorState.onRetry Retried, ErrorState.locale locale ] problem
 
-                Remote.Success [] ->
+                Remote.Loaded [] ->
                     EmptyState.view
                         [ EmptyState.icon Icon.inbox
                         , EmptyState.title "No orders to show"
@@ -957,7 +957,7 @@ viewRemote locale model =
                         , EmptyState.action (Button.view [ Button.onClick (Requested Works) ] "Load orders")
                         ]
 
-                Remote.Success orders ->
+                Remote.Loaded orders ->
                     Layout.stack [ Layout.gap 0 ]
                         (List.intersperse Layout.divider (List.map viewOrderRow orders))
             ]
@@ -1491,13 +1491,13 @@ case model.orders of
     Remote.Loading ->
         Spinner.panel "Loading orders ..."
 
-    Remote.Failure problem ->
+    Remote.Failed problem ->
         ErrorState.view [ ErrorState.onRetry Retry ] problem
 
-    Remote.Success [] ->
+    Remote.Loaded [] ->
         EmptyState.view [ EmptyState.title "No orders to show" ]
 
-    Remote.Success orders ->
+    Remote.Loaded orders ->
         viewOrders orders
 
 -- update: a ticket makes the answer to an old request count for nothing

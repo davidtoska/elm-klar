@@ -240,7 +240,7 @@ init =
             , loading = Table.init "loading-orders" |> Table.setPageSize 5
             , failed = Table.init "failed-orders"
             , lifecycle =
-                { rows = Remote.Failure (failedProblem Remote.network)
+                { rows = Remote.Failed (failedProblem Remote.network)
                 , kind = Remote.network
                 , attempts = 0
                 , serviceBack = False
@@ -431,10 +431,10 @@ update msg model =
             else
                 case result of
                     Ok answer ->
-                        ( { model | server = { server | rows = Remote.Success answer.rows, total = answer.total, refreshing = False } }, Cmd.none )
+                        ( { model | server = { server | rows = Remote.Loaded answer.rows, total = answer.total, refreshing = False } }, Cmd.none )
 
                     Err problem ->
-                        ( { model | server = { server | rows = Remote.Failure problem, refreshing = False } }, Cmd.none )
+                        ( { model | server = { server | rows = Remote.Failed problem, refreshing = False } }, Cmd.none )
 
         ServerRetry ->
             let
@@ -578,10 +578,10 @@ update msg model =
                         { l
                             | rows =
                                 if l.serviceBack then
-                                    Remote.Success (List.take 8 mixedOrders)
+                                    Remote.Loaded (List.take 8 mixedOrders)
 
                                 else
-                                    Remote.Failure (failedProblem l.kind)
+                                    Remote.Failed (failedProblem l.kind)
                         }
                     )
                     model
@@ -599,8 +599,8 @@ update msg model =
                             { l
                                 | kind = kind
                                 , rows =
-                                    if Remote.isFailure l.rows then
-                                        Remote.Failure (failedProblem kind)
+                                    if Remote.isFailed l.rows then
+                                        Remote.Failed (failedProblem kind)
 
                                     else
                                         l.rows
@@ -730,7 +730,7 @@ fetch server =
                 latency
 
         hasRows =
-            Remote.isSuccess server.rows
+            Remote.isLoaded server.rows
 
         failing =
             server.simulateError
@@ -1037,12 +1037,12 @@ columnIds =
 
 allOrders : Remote (List Order)
 allOrders =
-    Remote.Success Sample.orders
+    Remote.Loaded Sample.orders
 
 
 noOrders : Remote (List Order)
 noOrders =
-    Remote.Success []
+    Remote.Loaded []
 
 
 {-| 300 orders for the examples that show how columns behave rather than how
@@ -1064,7 +1064,7 @@ mixedOrders =
 
 someOrders : Remote (List Order)
 someOrders =
-    Remote.Success (List.take 240 mixedOrders)
+    Remote.Loaded (List.take 240 mixedOrders)
 
 
 {-| Splits a list in the rows that pass the first test, those of the rest that
@@ -1446,7 +1446,7 @@ ownerRows =
                 , averageTotal = List.sum (List.map .total theirs) / toFloat (max 1 count)
                 }
             )
-        |> Remote.Success
+        |> Remote.Loaded
 
 
 ownerColumns : List (Table.Column OwnerRow Msg)
@@ -1495,7 +1495,7 @@ narrowOrders : Remote (List Order)
 narrowOrders =
     case mixedOrders of
         first :: rest ->
-            Remote.Success
+            Remote.Loaded
                 ({ first
                     | customer = "Aurora Intercontinental Freight and Logistics Holding Company Ltd"
                     , email = "accounts-payable.department@aurora-intercontinental-freight.example"
@@ -1806,7 +1806,7 @@ serverSection locale server =
                 Remote.Loading ->
                     "Loading the first page ..."
 
-                Remote.Failure _ ->
+                Remote.Failed _ ->
                     "The request failed."
 
                 _ ->
@@ -2225,7 +2225,7 @@ statesSection locale states =
         "No data and no matches are different states: with no matches the user gets “Clear search and filters”. The header is always there, the skeleton rows are as tall as real rows, and a failure is shown inside the table with “Try again” when that can help."
         [ Doc.example
             { title = "No data"
-            , description = Just "Table.rows (Remote.Success []) with the application's own empty state."
+            , description = Just "Table.rows (Remote.Loaded []) with the application's own empty state."
             , code = Just emptyCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -2280,7 +2280,7 @@ statesSection locale states =
             )
         , Doc.example
             { title = "Failed, and trying again"
-            , description = Just ("Remote.Failure with Table.onRetry (and onRefresh). “Try again” is only offered when trying again could help: choose “No access” to see it go. An attempt takes a second and fails again until the service is back. Attempts so far: " ++ String.fromInt lifecycle.attempts ++ ".")
+            , description = Just ("Remote.Failed with Table.onRetry (and onRefresh). “Try again” is only offered when trying again could help: choose “No access” to see it go. An attempt takes a second and fails again until the service is back. Attempts so far: " ++ String.fromInt lifecycle.attempts ++ ".")
             , code = Just failedCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -2321,7 +2321,7 @@ emptyCode : String
 emptyCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.rows (Remote.Success [])
+    , Table.rows (Remote.Loaded [])
     , Table.emptyState
         [ EmptyState.title "No orders yet"
         , EmptyState.description "Orders you create show up here."
@@ -2334,7 +2334,7 @@ emptyCode =
 noMatchCode : String
 noMatchCode =
     """-- in init: all the rows, and a search that matches none of them
-{ orders = Remote.Success allOrders
+{ orders = Remote.Loaded allOrders
 , table = Table.init "orders" |> Table.setSearch "Zyxwv"
 }"""
 
@@ -2352,7 +2352,7 @@ failedCode : String
 failedCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.rows (Remote.Failure problem) -- Remote.problem Remote.network
+    , Table.rows (Remote.Failed problem) -- Remote.problem Remote.network
     , Table.onRetry Retry -- the button only shows for problems worth retrying
     , Table.onRefresh Retry
     ]

@@ -79,7 +79,7 @@ closes while a filter is active are forgotten when the text changes.
 
 Lazy loading: a `lazy` node carries a `Remote` of its children. When the user
 opens one that is `NotAsked`, `loadRequests` on the message tells you which node
-asked; set its children to `Loading`, fetch them, and put `Success` or `Failure`
+asked; set its children to `Loading`, fetch them, and put `Loaded` or `Failed`
 in the node on the next render. The tree shows a spinner row while loading and a
 short failure with a retry button (`onRetry`). The children of a lazy node may be
 lazy nodes too. The tree keeps no copy of your nodes, so each level has its own
@@ -324,7 +324,7 @@ branch ids id label children =
 
 {-| A node whose children come from the backend and are fetched when the node
 is first opened. Until then the `Remote` is `NotAsked`; while the request is on
-its way you pass `Loading`, and then `Success` with the children or `Failure`
+its way you pass `Loading`, and then `Loaded` with the children or `Failed`
 with a problem.
 
     Tree.lazy Tree.stringIds "south" "Southern region" model.southWarehouses
@@ -403,7 +403,7 @@ childNodes children =
         Branch nodes ->
             nodes
 
-        Lazy (Remote.Success nodes) ->
+        Lazy (Remote.Loaded nodes) ->
             nodes
 
         _ ->
@@ -732,7 +732,7 @@ user just opened while their children were `NotAsked`. Usually it is zero or one
 id; `*` on the keyboard can open several nodes at once.
 
 Call it with the message you are about to hand to `update`. Set the children of
-those nodes to `Loading`, fetch them, and later put `Success` or `Failure` in the
+those nodes to `Loading`, fetch them, and later put `Loaded` or `Failed` in the
 node. Once a node is no longer `NotAsked` it is not requested again: after a
 failure the user retries with the button that `onRetry` adds. The lazy loading
 example in the introduction above shows the whole flow.
@@ -1331,8 +1331,8 @@ filterNode words (Node n) =
                     Branch _ ->
                         Branch inner.nodes
 
-                    Lazy (Remote.Success _) ->
-                        Lazy (Remote.Success inner.nodes)
+                    Lazy (Remote.Loaded _) ->
+                        Lazy (Remote.Loaded inner.nodes)
 
                     other ->
                         other
@@ -1673,8 +1673,8 @@ fallbackStop s visibleIds =
             List.head visibleIds
 
 
-{-| The same tree for a top level that comes from the backend. `Success` shows
-the tree, `Failure` shows the problem with a "Try again" button (`onReload`), and
+{-| The same tree for a top level that comes from the backend. `Loaded` shows
+the tree, `Failed` shows the problem with a "Try again" button (`onReload`), and
 `NotAsked` and `Loading` show a skeleton.
 
     Tree.viewRemote TreeMsg [ Tree.onReload Reload ] model.tree model.regions
@@ -1689,10 +1689,10 @@ viewRemote toMsg attributes state data =
             configure attributes
     in
     case data of
-        Remote.Success nodes ->
+        Remote.Loaded nodes ->
             view toMsg attributes state nodes
 
-        Remote.Failure problem ->
+        Remote.Failed problem ->
             ErrorState.view
                 (List.filterMap identity
                     [ Just ErrorState.compact
@@ -1853,7 +1853,7 @@ viewNode env depth parent index total ((Node n) as node) =
             n.disabled
                 || List.isEmpty terminals
                 || (case n.children of
-                        Lazy (Remote.Success _) ->
+                        Lazy (Remote.Loaded _) ->
                             False
 
                         Lazy _ ->
@@ -2122,7 +2122,7 @@ viewChildren env depth parentId parentValue children =
                             [ Spinner.view [ Spinner.size Small ], Html.text env.t.loading ]
                 )
 
-        Lazy (Remote.Failure problem) ->
+        Lazy (Remote.Failed problem) ->
             statusRow
                 (Html.span [ Internal.cls [ "klar-tree__status-text", "klar-tree__status-text--error" ], Attr.attribute "role" "alert" ]
                     [ Icon.view Icon.errorCircle
@@ -2136,7 +2136,7 @@ viewChildren env depth parentId parentValue children =
                     ]
                 )
 
-        Lazy (Remote.Success []) ->
+        Lazy (Remote.Loaded []) ->
             statusRow (Html.span [ Internal.cls [ "klar-tree__status-text" ] ] [ Html.text env.t.emptyBranch ])
 
         _ ->
@@ -2166,10 +2166,10 @@ terminalsOf (Node n) =
         Branch nodes ->
             List.concatMap terminalsOf nodes
 
-        Lazy (Remote.Success []) ->
+        Lazy (Remote.Loaded []) ->
             own
 
-        Lazy (Remote.Success nodes) ->
+        Lazy (Remote.Loaded nodes) ->
             List.concatMap terminalsOf nodes
 
         Lazy _ ->

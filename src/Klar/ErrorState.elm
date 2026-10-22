@@ -14,10 +14,10 @@ button to try again when trying again can help.
     viewOrders : Remote (List Order) -> Html Msg
     viewOrders orders =
         case orders of
-            Success list ->
+            Loaded list ->
                 viewOrderList list
 
-            Failure problem ->
+            Failed problem ->
                 ErrorState.view [ ErrorState.onRetry ReloadOrders ] problem
 
             _ ->
@@ -26,7 +26,7 @@ button to try again when trying again can help.
     -- inside a table or small panel
     ErrorState.view [ ErrorState.compact, ErrorState.onRetry ReloadOrders ] problem
 
-Pair it with [Klar.Remote](Klar-Remote): when the data is `Failure problem`,
+Pair it with [Klar.Remote](Klar-Remote): when the data is `Failed problem`,
 show this. A `Problem` is plain data. Make one for each failed request with
 `Remote.problem`, which has ready-made texts for the kind of failure, and adjust
 it with `Remote.withTitle`, `Remote.withDetail` or `Remote.withCode`:

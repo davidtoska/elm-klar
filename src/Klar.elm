@@ -97,7 +97,7 @@ label on one page need an `id` each. A column of a [Klar.Table](Klar-Table) is
 named with `Table.columnId`, and the same advice holds: name it once.
 
 **Data from a backend.** Components that show data take a [Klar.Remote](Klar-Remote)
-(`NotAsked | Loading | Failure | Success`) and draw the loading skeleton, the failure
+(`NotAsked | Loading | Loaded a | Failed Problem`) and draw the loading skeleton, the failure
 with a retry button and the empty state themselves. A screen is correct in every
 state without you writing the four cases every time.
 

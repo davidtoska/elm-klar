@@ -315,7 +315,7 @@ update context msg backend model =
                 case result of
                     Ok page ->
                         ( { model
-                            | rows = Remote.Success page.rows
+                            | rows = Remote.Loaded page.rows
                             , total = page.total
                             , refreshing = False
 
@@ -329,7 +329,7 @@ update context msg backend model =
                         )
 
                     Err error ->
-                        ( { model | rows = Remote.Failure (Problem.toProblem error), refreshing = False }
+                        ( { model | rows = Remote.Failed (Problem.toProblem error), refreshing = False }
                         , backend
                         , Cmd.none
                         )
@@ -951,7 +951,7 @@ fetch backend model =
             Api.listOrders (toOrderQuery (Table.query model.table)) (Loaded ticket) backend
 
         hasRows =
-            Remote.isSuccess model.rows
+            Remote.isLoaded model.rows
     in
     ( { model
         | ticket = ticket
@@ -973,7 +973,7 @@ left alone.
 -}
 loadMissingLookups : Backend -> Model -> ( Model, Backend, Cmd Msg )
 loadMissingLookups backend model =
-    if Remote.isSuccess model.lookups then
+    if Remote.isLoaded model.lookups then
         ( model, backend, Cmd.none )
 
     else
@@ -1118,7 +1118,7 @@ first is 0) the DOM id `<table id>-row-<n>`. Without the row on screen: `""`.
 rowDomId : Model -> OrderId -> String
 rowDomId model id =
     case model.rows of
-        Remote.Success rows ->
+        Remote.Loaded rows ->
             rows
                 |> List.indexedMap Tuple.pair
                 |> List.filter (\( _, order ) -> order.id == id)
@@ -1209,7 +1209,7 @@ view context model =
                 , PageHeader.meta
                     [ PageHeader.metaItem "Results"
                         (case model.rows of
-                            Remote.Success _ ->
+                            Remote.Loaded _ ->
                                 Format.int context.locale model.total
 
                             -- Not "0" while the first answer is on its way or failed.
@@ -1286,10 +1286,10 @@ viewLookupsProblem context model =
     case ( model.rows, model.lookups ) of
         -- The table shows its own failure, and its retry loads the reference
         -- data too: one message is enough.
-        ( Remote.Failure _, _ ) ->
+        ( Remote.Failed _, _ ) ->
             Html.text ""
 
-        ( _, Remote.Failure problem ) ->
+        ( _, Remote.Failed problem ) ->
             Alert.view
                 [ Alert.tone Warning
                 , Alert.title "Some information is missing"

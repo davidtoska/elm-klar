@@ -140,7 +140,7 @@ update context msg backend model =
         Reload ->
             -- The refresh button and the retry button of a failure.
             case model.products of
-                Remote.Success _ ->
+                Remote.Loaded _ ->
                     -- The rows stay, dimmed, until the new ones are here.
                     request backend { model | refreshing = True }
 
@@ -223,11 +223,11 @@ loaded context result model =
             in
             refreshCategory categories
                 { model
-                    | products = Remote.Success products
+                    | products = Remote.Loaded products
                     , categories = categories
                     , refreshing = False
                     , tree =
-                        if Remote.isSuccess model.products then
+                        if Remote.isLoaded model.products then
                             -- A refresh: leave the tree as the user has it.
                             model.tree
 
@@ -248,7 +248,7 @@ loaded context result model =
                 }
 
             else
-                { model | products = Remote.Failure problem }
+                { model | products = Remote.Failed problem }
 
 
 {-| The one place that changes the chosen category. The tree shows it, the
@@ -360,7 +360,7 @@ viewHeader context model =
 headerFacts : Context -> Model -> List (Html Msg)
 headerFacts context model =
     case model.products of
-        Remote.Success products ->
+        Remote.Loaded products ->
             let
                 number =
                     Format.int context.locale
@@ -421,7 +421,7 @@ viewCategories context model =
             )
         ]
         [ case model.products of
-            Remote.Failure _ ->
+            Remote.Failed _ ->
                 -- The table says what went wrong and offers the retry. A second
                 -- error here (an alert for screen readers) would only repeat it.
                 Text.paragraphWith [ Text.secondary "The categories appear when the products have loaded." ]

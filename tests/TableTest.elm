@@ -451,7 +451,7 @@ selectionTests =
 serverAttributes : List (Table.Attribute String Order Msg)
 serverAttributes =
     [ Table.server { total = 120 }
-    , Table.rows (Success (generated 25))
+    , Table.rows (Loaded (generated 25))
     , Table.selectable
     ]
 
@@ -638,7 +638,7 @@ sortingByClickTests =
 
 pagingAttributes : List (Table.Attribute String Order Msg)
 pagingAttributes =
-    [ Table.rows (Success (generated 120)) ]
+    [ Table.rows (Loaded (generated 120)) ]
 
 
 pagingByClickTests : Test
@@ -748,7 +748,7 @@ searchingByTypingTests =
             press (Table.searchable :: attributes) (byId "orders-search") (Event.input text)
 
         server =
-            [ Table.server { total = 120 }, Table.rows (Success (generated 25)) ]
+            [ Table.server { total = 120 }, Table.rows (Loaded (generated 25)) ]
     in
     describe "typing in the search box"
         [ check "in client mode the search takes effect at once" (Ok "ost") (after [ typeInSearch [] "ost" ] start |> Result.map Table.search)
@@ -818,7 +818,7 @@ filterPopupTests =
             [ Selector.attribute (Attr.attribute "role" "dialog") ]
 
         server =
-            [ Table.server { total = 120 }, Table.rows (Success (generated 25)) ]
+            [ Table.server { total = 120 }, Table.rows (Loaded (generated 25)) ]
     in
     describe "the filter popovers in the header"
         [ test "a click on the filter button opens a dialog named after the column" <|
@@ -961,7 +961,7 @@ filterPopupTests =
                 \_ ->
                     let
                         many =
-                            [ Table.rows (Success (generated 20)), Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.filterSelect ] ] ]
+                            [ Table.rows (Loaded (generated 20)), Table.columns [ Table.text (Table.columnId "number") "Order" .number [ Table.filterSelect ] ] ]
                     in
                     press many (byId "orders-trigger-filter-number") Event.click start
                         |> expectOk (\s -> element many (byId "orders-filter-number-search") [ Selector.attribute (Attr.type_ "text") ] s)
@@ -1255,7 +1255,7 @@ rowKeyboardTests =
         , check "Home goes to the first row" (Ok [ 0 ]) (stops (after [ key 0 "End", key 7 "Home" ] start))
         , check "PageDown moves ten rows, or to the last" (Ok [ 7 ]) (stops (after [ key 0 "PageDown" ] start))
         , check "PageUp moves ten rows, or to the first" (Ok [ 0 ]) (stops (after [ key 0 "End", key 7 "PageUp" ] start))
-        , check "PageDown stops at the last row of a short page" (Ok [ 2 ]) (Result.map (tabStops [ Table.selectable, Table.rows (Success (List.take 3 Orders.curated)) ]) (press [ Table.selectable, Table.rows (Success (List.take 3 Orders.curated)) ] (row 0) (keyDown "orders-row-0" "PageDown") start))
+        , check "PageDown stops at the last row of a short page" (Ok [ 2 ]) (Result.map (tabStops [ Table.selectable, Table.rows (Loaded (List.take 3 Orders.curated)) ]) (press [ Table.selectable, Table.rows (Loaded (List.take 3 Orders.curated)) ] (row 0) (keyDown "orders-row-0" "PageDown") start))
         , check "Space selects the row" (Ok [ "ORD-2001" ]) (after [ key 0 " " ] start |> Result.map (Table.selectedIds Ids.strings))
         , check "Space again unselects it" (Ok []) (after [ key 0 " ", key 0 " " ] start |> Result.map (Table.selectedIds Ids.strings))
         , test "a key with Ctrl is left to the browser" <|

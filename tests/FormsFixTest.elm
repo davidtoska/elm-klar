@@ -655,7 +655,7 @@ formTests =
                 Expect.all
                     [ Query.find [ aria "aria-label" "Customer" ] >> Query.has [ role "group", Selector.tag "section" ]
                     , Query.find [ aria "aria-label" "Delivery" ] >> Query.has [ role "group", Selector.tag "section" ]
-                    , Query.find [ Selector.tag "h3", Selector.containing [ Selector.text "Customer" ] ]
+                    , Query.find [ Selector.tag "h2", Selector.containing [ Selector.text "Customer" ] ]
                         >> Query.has [ Selector.class "klar-form-section__title" ]
                     ]
                     root

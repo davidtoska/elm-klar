@@ -94,7 +94,7 @@ render : List (Table.Attribute String Order Msg) -> Table.State String -> Html M
 render attributes state =
     Table.view TableMsg
         ([ Table.columns columns
-         , Table.rows (Success orders)
+         , Table.rows (Loaded orders)
          , Table.rowId Ids.strings .number
          , Table.label "Orders"
          ]
@@ -683,7 +683,7 @@ resetButtonTests =
                 \_ ->
                     let
                         server =
-                            [ Table.server { total = 0 }, Table.rows (Success []), Table.onResetFilters FiltersReset ]
+                            [ Table.server { total = 0 }, Table.rows (Loaded []), Table.onResetFilters FiltersReset ]
                     in
                     afterClicking server (Table.setSearch "zzz" start) (buttonSaying "Clear search and filters")
                         |> expectCleared { search = "", filters = [] }
@@ -850,13 +850,13 @@ choiceListTests =
                     blank =
                         { number = "A-5", customer = "Hooli", city = "  ", items = 2, weight = Nothing, locked = False }
                 in
-                popover [ Table.rows (Success (orders ++ [ blank ])) ] start
+                popover [ Table.rows (Loaded (orders ++ [ blank ])) ] start
                     |> expectOk (expectOptions [ ( "Bergen", Just "1" ), ( "Oslo", Just "2" ), ( "Trondheim", Just "1" ) ])
         , test "server mode, without filterOptions: only the values on the current page, and no counts" <|
             \_ ->
                 let
                     server =
-                        [ Table.server { total = 40 }, Table.rows (Success (List.take 2 orders)) ]
+                        [ Table.server { total = 40 }, Table.rows (Loaded (List.take 2 orders)) ]
                 in
                 popover server start
                     |> expectOk (expectOptions [ ( "Bergen", Nothing ), ( "Oslo", Nothing ) ])
@@ -869,7 +869,7 @@ choiceListTests =
                 let
                     server =
                         [ Table.server { total = 40 }
-                        , Table.rows (Success (List.take 2 orders))
+                        , Table.rows (Loaded (List.take 2 orders))
                         , filterOptionsOf [ "Oslo", "Trondheim" ]
                         ]
                 in
@@ -921,7 +921,7 @@ pageTests =
             \_ ->
                 let
                     server =
-                        [ Table.server { total = 4 }, Table.rows (Success (List.take 1 orders)) ]
+                        [ Table.server { total = 4 }, Table.rows (Loaded (List.take 1 orders)) ]
                 in
                 Expect.all
                     [ \_ -> currentPage server |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Page 2") ]

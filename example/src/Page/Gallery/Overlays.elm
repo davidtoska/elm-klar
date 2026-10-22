@@ -664,10 +664,10 @@ update msg model =
                         ( { model
                             | drawerData =
                                 if model.failDrawer then
-                                    Remote.Failure (Remote.problem Remote.timeout |> Remote.withCode "ETIMEDOUT")
+                                    Remote.Failed (Remote.problem Remote.timeout |> Remote.withCode "ETIMEDOUT")
 
                                 else
-                                    Remote.Success order
+                                    Remote.Loaded order
                           }
                         , Cmd.none
                         )
@@ -1785,10 +1785,10 @@ drawerRightView locale model =
                 ]
                 model.drawerRight
                 [ case model.drawerData of
-                    Remote.Success loaded ->
+                    Remote.Loaded loaded ->
                         orderDetails locale loaded
 
-                    Remote.Failure problem ->
+                    Remote.Failed problem ->
                         ErrorState.view [ ErrorState.compact, ErrorState.onRetry RetryDrawer, ErrorState.locale locale ] problem
 
                     _ ->

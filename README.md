@@ -111,6 +111,12 @@ view model =
         ]
 ```
 
+This program is mounted with `Elm.Main.init({ node: document.getElementById("app") })`,
+because `Browser.sandbox` and `Browser.element` need a node. A whole application with
+the `AppShell` is a `Browser.application` (or `Browser.document`) and is mounted with
+plain `Elm.Main.init()`; it also needs `elm/url` as a direct dependency. The complete
+recipe, with `index.html`, is "Start here" in [USING.md](USING.md).
+
 Components are configured with a list of attributes, like `Html`. A component that
 has state of its own (a select that is open, a table that is sorted) comes with
 `State`, `Msg`, `update` and `view`, and is wired like any child in the Elm
@@ -150,7 +156,7 @@ Some of the pure modules are useful on their own:
 * `Klar.Search`: search that ignores case and diacritics and ranks results.
 * `Klar.Validate`: composable validators with messages in two languages.
 * `Klar.Rule`: a tree of conditions, evaluated against your own records, with JSON.
-* `Klar.Remote`: `NotAsked | Loading | Failure | Success`.
+* `Klar.Remote`: `NotAsked | Loading | Loaded a | Failed Problem`.
 
 ## The showcase
 

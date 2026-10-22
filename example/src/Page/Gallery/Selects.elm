@@ -160,7 +160,7 @@ options never arrived.
 -}
 unreachable : Remote (List (Option String))
 unreachable =
-    Failure (Remote.problem Remote.network)
+    Failed (Remote.problem Remote.network)
 
 
 
@@ -510,15 +510,15 @@ respond target text model =
                     model.serverFails
     in
     if fails then
-        Failure (Remote.problem Remote.server |> Remote.withCode "HTTP 503")
+        Failed (Remote.problem Remote.server |> Remote.withCode "HTTP 503")
 
     else
         case target of
             CustomerSearch ->
-                Success (Select.filter text customerOptions |> List.take 30)
+                Loaded (Select.filter text customerOptions |> List.take 30)
 
             _ ->
-                Success (Select.filter text orderOptions |> List.take 50)
+                Loaded (Select.filter text orderOptions |> List.take 50)
 
 
 subscriptions : Model -> Sub Msg
@@ -585,10 +585,10 @@ remoteDescription locale remote =
         Loading ->
             "Fetching ..."
 
-        Failure _ ->
+        Failed _ ->
             "The request failed."
 
-        Success found ->
+        Loaded found ->
             "Answer received: " ++ countOf locale (List.length found) "option" "options" ++ "."
 
 
@@ -1333,7 +1333,7 @@ remoteCode : String
 remoteCode =
     """Select.view OrderMsg
     [ Select.label "Order"
-    , Select.remote model.orders -- Loading: "Loading ...", Failure: "Could not be loaded"
+    , Select.remote model.orders -- Loading: "Loading ...", Failed: "Could not be loaded"
     ]
     (Select.setValue "ORD-11234" model.order)
 
