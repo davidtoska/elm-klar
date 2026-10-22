@@ -23,7 +23,7 @@ import Klar.Format as Format
 import Klar.History as History exposing (History)
 import Klar.Icon as Icon
 import Klar.Layout as Layout
-import Klar.LeaveGuard as LeaveGuard exposing (Answer(..), Decision(..))
+import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Modal as Modal
@@ -345,20 +345,25 @@ update msg model =
                 Nothing ->
                     ( next, Cmd.map GuardMsg cmd )
 
-                Just (Leave route) ->
-                    -- the changes are given up: the drafts go back to what was saved
-                    ( { next | route = route, note = model.noteSaved, address = model.addressSaved }
-                    , Cmd.map GuardMsg cmd
-                    )
+                Just answer ->
+                    let
+                        route =
+                            LeaveGuard.destination answer
+                    in
+                    if LeaveGuard.savesFirst answer then
+                        -- the save takes a moment; the route travels in the message that comes back
+                        ( { next | saving = Just route }
+                        , Cmd.batch
+                            [ Cmd.map GuardMsg cmd
+                            , Task.perform (\_ -> SavedThenGo route) (Process.sleep 700)
+                            ]
+                        )
 
-                Just (SaveFirst route) ->
-                    -- the save takes a moment; the route travels in the message that comes back
-                    ( { next | saving = Just route }
-                    , Cmd.batch
-                        [ Cmd.map GuardMsg cmd
-                        , Task.perform (\_ -> SavedThenGo route) (Process.sleep 700)
-                        ]
-                    )
+                    else
+                        -- the changes are given up: the drafts go back to what was saved
+                        ( { next | route = route, note = model.noteSaved, address = model.addressSaved }
+                        , Cmd.map GuardMsg cmd
+                        )
 
         NoteTyped text ->
             ( dirtied { model | note = text }, Cmd.none )
@@ -376,7 +381,16 @@ update msg model =
             ( { model | offerSave = checked }, Cmd.none )
 
         SavedThenGo route ->
-            ( dirtied { model | noteSaved = model.note, addressSaved = model.address, saving = Nothing, route = route }, Cmd.none )
+            let
+                saved =
+                    dirtied { model | noteSaved = model.note, addressSaved = model.address, saving = Nothing, route = route }
+
+                -- a click on another link while it saved may have opened a question
+                -- about a place the user is no longer going to: withdraw it
+                ( guard, cmd ) =
+                    LeaveGuard.dismiss saved.guard
+            in
+            ( { saved | guard = guard }, Cmd.map GuardMsg cmd )
 
         -- UNDO HISTORY
         QuantityTyped text ->
@@ -1029,14 +1043,25 @@ GuardMsg inner ->
             LeaveGuard.update inner model.guard
     in
     case decision of
-        Just (Leave route) ->
-            ( { model | guard = guard, route = route }, Cmd.map GuardMsg cmd )
+        Just answer ->
+            if LeaveGuard.savesFirst answer then
+                ( { model | guard = guard }
+                , Cmd.batch [ Cmd.map GuardMsg cmd, saveThenGo (LeaveGuard.destination answer) ]
+                )
 
-        Just (SaveFirst route) ->
-            ( { model | guard = guard }, Cmd.batch [ Cmd.map GuardMsg cmd, saveThenGo route ] )
+            else
+                ( { model | guard = guard, route = LeaveGuard.destination answer }, Cmd.map GuardMsg cmd )
 
         Nothing ->
             ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+-- the save came back: go there, and withdraw a question about another place
+SavedThenGo route ->
+    let
+        ( guard, cmd ) =
+            LeaveGuard.dismiss (LeaveGuard.setDirty NoteForm False model.guard)
+    in
+    ( { model | guard = guard, route = route }, Cmd.map GuardMsg cmd )
 
 -- view: the page is inert while the question is open
 Modal.host
