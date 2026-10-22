@@ -147,7 +147,8 @@ cut n text =
         lastCode =
             String.right 1 head |> String.toList |> List.map Char.toCode |> List.head |> Maybe.withDefault 0
     in
-    if lastCode >= 0xD800 && lastCode <= 0xDBFF then
+    -- a half of a pair has no code at all (NaN) when it is the first half
+    if isNaN (toFloat lastCode) then
         String.dropRight 1 head
 
     else
@@ -593,6 +594,15 @@ paragraph open, so that a line without the marker can continue it?
 -}
 advance : Open -> String -> Open
 advance open line =
+    advanceWithin maxDepth open line
+
+
+{-| `levels` is how many markers of quotes and lists inside each other are looked
+into; a line with more is text (so that a line of `> > > > ...` costs no more than
+a line of text).
+-}
+advanceWithin : Int -> Open -> String -> Open
+advanceWithin levels open line =
     case open of
         OpenFence fence ->
             if closesFence fence line then
@@ -614,10 +624,13 @@ advance open line =
                         if isThematicBreak line || atxHeading line /= Nothing then
                             Settled
 
+                        else if levels <= 0 then
+                            OpenParagraph
+
                         else
                             case quoteContent line of
                                 Just inner ->
-                                    advance Settled inner
+                                    advanceWithin (levels - 1) Settled inner
 
                                 Nothing ->
                                     case listMarker line of
@@ -626,7 +639,7 @@ advance open line =
                                                 Settled
 
                                             else
-                                                advance Settled marker.content
+                                                advanceWithin (levels - 1) Settled marker.content
 
                                         Nothing ->
                                             if indentOf line >= 4 && open /= OpenParagraph then
@@ -656,89 +669,105 @@ blocksHelp context lines acc pending separated =
                 blocksHelp context rest acc (pending || not (List.isEmpty acc)) separated
 
             else
-                let
-                    containers =
-                        context.depth < maxDepth
+                case readBlock context line rest of
+                    Skipped remaining ->
+                        blocksHelp context remaining acc pending separated
 
-                    next block remaining =
+                    Read block remaining ->
                         blocksHelp context remaining (block :: acc) False (separated || pending)
+
+
+type Read
+    = Read Block (List String)
+    | Skipped (List String)
+
+
+{-| The block that starts at a line, and the lines that follow it. (A loop that
+calls itself runs in constant space in Elm; a loop that calls a function that calls
+it does not, which is why this is a function of its own.)
+-}
+readBlock : Context -> String -> List String -> Read
+readBlock context line rest =
+    let
+        containers =
+            context.depth < maxDepth
+    in
+    if indentOf line >= 4 then
+        let
+            ( code, remaining ) =
+                indentedCode (line :: rest)
+        in
+        Read (CodeBlock { language = "", code = code }) remaining
+
+    else
+        case fenceOpen line of
+            Just fence ->
+                let
+                    ( code, remaining ) =
+                        fencedCode fence rest
                 in
-                if indentOf line >= 4 then
-                    let
-                        ( code, remaining ) =
-                            indentedCode lines
-                    in
-                    next (CodeBlock { language = "", code = code }) remaining
+                Read (CodeBlock { language = languageOf fence.info, code = code }) remaining
 
-                else
-                    case fenceOpen line of
-                        Just fence ->
-                            let
-                                ( code, remaining ) =
-                                    fencedCode fence rest
-                            in
-                            next (CodeBlock { language = languageOf fence.info, code = code }) remaining
+            Nothing ->
+                case atxHeading line of
+                    Just ( level, text ) ->
+                        if text == "" then
+                            Skipped rest
 
-                        Nothing ->
-                            case atxHeading line of
-                                Just ( level, text ) ->
-                                    if text == "" then
-                                        blocksHelp context rest acc pending separated
+                        else
+                            Read
+                                (HeadingBlock
+                                    { level = level
+                                    , id = ""
+                                    , content = Inline.parse (context.final && List.isEmpty rest) text
+                                    }
+                                )
+                                rest
 
-                                    else
-                                        next
-                                            (HeadingBlock
-                                                { level = level
-                                                , id = ""
-                                                , content = Inline.parse (context.final && List.isEmpty rest) text
-                                                }
-                                            )
-                                            rest
+                    Nothing ->
+                        if isThematicBreak line then
+                            Read Rule rest
 
-                                Nothing ->
-                                    if isThematicBreak line then
-                                        next Rule rest
+                        else
+                            case ( containers, quoteContent line ) of
+                                ( True, Just content ) ->
+                                    let
+                                        ( inner, remaining ) =
+                                            quoteLines content rest
+                                    in
+                                    Read
+                                        (Quote
+                                            (parseBlocks
+                                                { depth = context.depth + 1, final = context.final && List.isEmpty remaining }
+                                                inner
+                                            ).blocks
+                                        )
+                                        remaining
 
-                                    else
-                                        case ( containers, quoteContent line ) of
-                                            ( True, Just content ) ->
-                                                let
-                                                    ( inner, remaining ) =
-                                                        quoteLines content rest
-                                                in
-                                                next
-                                                    (Quote
-                                                        (parseBlocks
-                                                            { depth = context.depth + 1, final = context.final && List.isEmpty remaining }
-                                                            inner
-                                                        ).blocks
-                                                    )
-                                                    remaining
+                                _ ->
+                                    case ( containers, listMarker line ) of
+                                        ( True, Just marker ) ->
+                                            let
+                                                ( block, remaining ) =
+                                                    listBlock context marker (line :: rest)
+                                            in
+                                            Read block remaining
 
-                                            _ ->
-                                                case ( containers, listMarker line ) of
-                                                    ( True, Just marker ) ->
-                                                        let
-                                                            ( block, remaining ) =
-                                                                listBlock context marker lines
-                                                        in
-                                                        next block remaining
+                                        _ ->
+                                            case tableAt line rest of
+                                                Just aligns ->
+                                                    let
+                                                        ( block, remaining ) =
+                                                            tableBlock context aligns line (List.drop 1 rest)
+                                                    in
+                                                    Read block remaining
 
-                                                    _ ->
-                                                        case tableAt line rest of
-                                                            Just aligns ->
-                                                                let
-                                                                    ( block, remaining ) =
-                                                                        tableBlock context aligns line (List.drop 1 rest)
-                                                                in
-                                                                next block remaining
-
-                                                            Nothing ->
-                                                                let
-                                                                    ( text, remaining ) =
-                                                                        paragraphText containers line rest
-                                                                in
-                                                                next (Paragraph (Inline.parse (context.final && List.isEmpty remaining) text)) remaining
+                                                Nothing ->
+                                                    let
+                                                        ( text, remaining ) =
+                                                            paragraphText containers line rest
+                                                    in
+                                                    Read (Paragraph (Inline.parse (context.final && List.isEmpty remaining) text)) remaining
 
 
 {-| An indented code block: the lines, and what follows (including the blank lines

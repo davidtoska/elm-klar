@@ -172,7 +172,11 @@ acceptable c =
         code =
             Char.toCode c
     in
-    if code < 0x80 then
+    if isNaN (toFloat code) then
+        -- the first half of a pair without the second
+        False
+
+    else if code < 0x80 then
         code > 0x20 && code < 0x7F && not (List.member c [ '\\', '<', '>', '"', '`' ])
 
     else

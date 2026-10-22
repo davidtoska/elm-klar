@@ -44,7 +44,8 @@ maxFrames =
     12
 
 
-{-| Most times one pair of delimiter runs wraps content: `***a***` is two.
+{-| Most times one run of delimiters wraps content: `***a***` is two. Together with
+`maxFrames` it bounds how deep the result can nest.
 -}
 maxWraps : Int
 maxWraps =
@@ -59,6 +60,7 @@ type alias Run =
     { char : Char
     , count : Int
     , original : Int
+    , wraps : Int
     , canOpen : Bool
     , canClose : Bool
     }
@@ -184,16 +186,32 @@ scan final chars st =
                     scan final (skipSpaces rest) (lineBreak node st)
 
                 '`' ->
-                    codeSpan final chars st
+                    let
+                        ( st1, after ) =
+                            codeSpan final chars st
+                    in
+                    scan final after st1
 
                 '*' ->
-                    delimiter final c chars st
+                    let
+                        ( st1, after ) =
+                            delimiter c chars st
+                    in
+                    scan final after st1
 
                 '_' ->
-                    delimiter final c chars st
+                    let
+                        ( st1, after ) =
+                            delimiter c chars st
+                    in
+                    scan final after st1
 
                 '~' ->
-                    delimiter final c chars st
+                    let
+                        ( st1, after ) =
+                            delimiter c chars st
+                    in
+                    scan final after st1
 
                 '[' ->
                     scan final rest (setPrevious '[' (openBracket False st))
@@ -299,12 +317,17 @@ lineBreak node st =
 
 countSpaces : List Char -> Int
 countSpaces chars =
+    countSpacesHelp chars 0
+
+
+countSpacesHelp : List Char -> Int -> Int
+countSpacesHelp chars total =
     case chars of
         ' ' :: rest ->
-            1 + countSpaces rest
+            countSpacesHelp rest (total + 1)
 
         _ ->
-            0
+            total
 
 
 dropSpaces : List Char -> List Char
@@ -353,7 +376,7 @@ type Closer
     | NotClosed Bool (List Char) Int
 
 
-codeSpan : Bool -> List Char -> State -> State
+codeSpan : Bool -> List Char -> State -> ( State, List Char )
 codeSpan final chars st =
     let
         ( ticks, after ) =
@@ -361,15 +384,15 @@ codeSpan final chars st =
     in
     case findCloser ticks after st.budget of
         Closed content afterClose spent ->
-            scan final afterClose (setPrevious '`' (emit (Code (codeText content)) (spend spent st)))
+            ( setPrevious '`' (emit (Code (codeText content)) (spend spent st)), afterClose )
 
         NotClosed reachedEnd content spent ->
             if final && reachedEnd && opensCode after && String.trim (String.fromList content) /= "" then
                 -- the text ends inside the code span: show it as one
-                scan final [] (setPrevious '`' (emit (Code (codeText content)) (spend spent st)))
+                ( setPrevious '`' (emit (Code (codeText content)) (spend spent st)), [] )
 
             else
-                scan final after (literalString (String.repeat ticks "`") (spend spent st))
+                ( literalString (String.repeat ticks "`") (spend spent st), after )
 
 
 opensCode : List Char -> Bool
@@ -461,8 +484,8 @@ codeText chars =
 -- DELIMITERS: EMPHASIS, STRONG, STRIKETHROUGH
 
 
-delimiter : Bool -> Char -> List Char -> State -> State
-delimiter final char chars st =
+delimiter : Char -> List Char -> State -> ( State, List Char )
+delimiter char chars st =
     let
         ( count, after ) =
             takeRun char chars
@@ -489,6 +512,7 @@ delimiter final char chars st =
                 { char = char
                 , count = count
                 , original = count
+                , wraps = 0
                 , canOpen = leftFlanking && (not rightFlanking || isPunctuation before)
                 , canClose = rightFlanking && (not leftFlanking || isPunctuation next)
                 }
@@ -497,15 +521,16 @@ delimiter final char chars st =
                 { char = char
                 , count = count
                 , original = count
+                , wraps = 0
                 , canOpen = leftFlanking
                 , canClose = rightFlanking
                 }
     in
     if char == '~' && count /= 2 then
-        scan final after (setPrevious char (literalString (String.repeat count "~") st))
+        ( setPrevious char (literalString (String.repeat count "~") st), after )
 
     else
-        scan final after (setPrevious char (handleRun run (flush st)))
+        ( setPrevious char (handleRun run (flush st)), after )
 
 
 handleRun : Run -> State -> State
@@ -577,7 +602,7 @@ matchLoop budget run st =
 
                     stack =
                         if openerLeft > 0 then
-                            { kind = Delimiter { opener | count = openerLeft }, content = [ node ] } :: below
+                            { kind = Delimiter { opener | count = openerLeft, wraps = opener.wraps + 1 }, content = [ node ] } :: below
 
                         else
                             addToTop [ node ] below
@@ -610,7 +635,7 @@ runs add up to a multiple of three (unless both are).
 -}
 pairs : Run -> Run -> Bool
 pairs opener closer =
-    if opener.char /= closer.char then
+    if opener.char /= closer.char || opener.wraps >= maxWraps then
         False
 
     else if opener.char == '~' then
@@ -1134,7 +1159,7 @@ bareUrl chars budget =
                 collectUrl (List.drop schemeLength chars) [] 0 (min budget Url.maxLength)
 
             ( trimmed, rest ) =
-                trimUrl body after
+                trimUrl (occurrences '(' body) (occurrences ')' body) body after
         in
         case List.reverse trimmed of
             first :: _ ->
@@ -1165,17 +1190,18 @@ collectUrl chars acc spent limit =
 
 
 {-| Takes trailing punctuation and an unmatched `)` off the (reversed) address and
-gives it back to the text that follows.
+gives it back to the text that follows. The first two numbers are the opening and
+the closing parentheses that are left in the address.
 -}
-trimUrl : List Char -> List Char -> ( List Char, List Char )
-trimUrl reversed after =
+trimUrl : Int -> Int -> List Char -> List Char -> ( List Char, List Char )
+trimUrl opening closing reversed after =
     case reversed of
         c :: before ->
             if String.contains (String.fromChar c) "?!.,:;'\"*_~" then
-                trimUrl before (c :: after)
+                trimUrl opening closing before (c :: after)
 
-            else if c == ')' && occurrences ')' reversed > occurrences '(' reversed then
-                trimUrl before (c :: after)
+            else if c == ')' && closing > opening then
+                trimUrl opening (closing - 1) before (c :: after)
 
             else
                 ( reversed, after )
