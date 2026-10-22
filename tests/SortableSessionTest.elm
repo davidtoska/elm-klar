@@ -270,7 +270,30 @@ keyboardFlowTests =
                 Expect.equal ( 0, Nothing, Just (Cancelled "b" 2 5) ) ( state.drops, state.session, state.note )
         , test "keys while nothing is held do nothing" <|
             \_ ->
-                Expect.equal fresh (run [ Step 1, Jump True, Cancel, Drop keys, Blurred "a" ] fresh)
+                Expect.equal fresh (run [ Step 1, Jump True, Cancel, Drop keys, Blurred "a", Focused keys ] fresh)
+        , test "an item that was taken out of the list while it was held is let go when a handle gets the focus" <|
+            \_ ->
+                let
+                    held =
+                        run [ Lift (layout "b"), Step 1 ] fresh
+                in
+                Expect.equal
+                    ( Just 2, Nothing )
+                    ( toOf (run [ Focused keys ] held)
+                    , .session (run [ Focused [ "a", "c", "d", "e" ] ] held)
+                    )
+        , test "a handle that gets the focus while the item is still in the list changes nothing" <|
+            \_ ->
+                let
+                    held =
+                        run [ Lift (layout "b"), Step 1 ] fresh
+                in
+                Expect.equal held (run [ Focused keys, Focused [ "b", "a" ] ] held)
+        , test "a drop remembers the keys as they are after the move, for a list that is not the drawn one" <|
+            \_ ->
+                run [ Lift (layout "a"), Step 1, Step 1, Drop keys ] fresh
+                    |> .last
+                    |> Expect.equal (Just { key = "a", to = 2, placed = [ "b", "c", "a", "d", "e" ] })
         ]
 
 
