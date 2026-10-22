@@ -23,6 +23,7 @@ type Section
     | Selects
     | Tables
     | Forms
+    | FormModel
     | DateTime
     | Overlays
     | Navigation
@@ -41,7 +42,7 @@ type Section
 
 all : List Section
 all =
-    [ Foundations, Basics, Selects, Tables, Forms, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring ]
+    [ Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring ]
 
 
 slug : Section -> String
@@ -61,6 +62,9 @@ slug section =
 
         Forms ->
             "forms"
+
+        FormModel ->
+            "form-model"
 
         DateTime ->
             "date-and-time"
@@ -128,6 +132,9 @@ title section =
         Forms ->
             "Forms"
 
+        FormModel ->
+            "Form model"
+
         DateTime ->
             "Date and time"
 
@@ -187,6 +194,9 @@ icon section =
             Icon.table
 
         Forms ->
+            Icon.clipboardCheck
+
+        FormModel ->
             Icon.clipboardCheck
 
         DateTime ->
@@ -250,6 +260,9 @@ description section =
         Forms ->
             "Form fields, validation and form layout."
 
+        FormModel ->
+            "A form declared once: values, validation, dirty check and server problems in one state."
+
         DateTime ->
             "Date, period and time pickers, and the calendar."
 
@@ -312,6 +325,9 @@ components section =
 
         Forms ->
             [ "TextArea", "NumberInput", "PasswordInput", "Radio", "CheckboxGroup", "Switch", "Slider", "SegmentedControl", "SearchInput", "TagInput", "FileDrop", "InlineEdit", "Form" ]
+
+        FormModel ->
+            [ "Form.Model" ]
 
         DateTime ->
             [ "DatePicker", "DateRangePicker", "TimePicker", "DateTimePicker", "Calendar" ]
