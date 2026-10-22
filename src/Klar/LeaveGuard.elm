@@ -15,7 +15,8 @@ Quick path: `initAt`, `setDirty`, `request`, `onUrlChange`, `update`, `view`
 **The quick path.** Six functions, in this order:
 
   - `initAt` in `init`, with the `Key` and the `Url`;
-  - `setDirty` whenever a form changes, with the comparison itself;
+  - `setDirty` in the branch of each message that edits a form, with the comparison itself
+    (`draft /= saved`); not in a wrapper that runs after every message (see "After Leave" below);
   - `request` for every link and every navigation of your own: `Proceed` and you
     push the address, `Hold` and the dialog is open;
   - `onUrlChange` in your `onUrlChange`: it answers the Back and Forward buttons, and it
@@ -212,7 +213,7 @@ elements that had focus while the dialog was closed; an element without an id is
 among them, and focus then goes to the last one that was, which may be somewhere else.
 Give the links that can ask an id. After "Leave" the new page is yours: the dialog
 puts focus back on the link, and the page you enter moves it on to its content
-(`AppShell.focusContent`, or `Form.focusField`), which is what every navigation of the
+(`AppShell.focusContent`, or `FormLayout.focusField` for a field), which is what every navigation of the
 application should do anyway. The example does it in `UrlChanged`.
 
 **Several forms.** Each form that can hold unsaved changes is a source of your own
@@ -222,9 +223,20 @@ not contain functions. Requests are only held and handed back, never compared; t
 too should be plain data (a `Route`, not a function), as anything in a model should.
 A page that is made of many parts (twenty contact rows, tags, files) is one source:
 combine their flags in one function of yours and call `setDirty` once after each
-update. [`Form.unsavedChanges`](Klar-Form#unsavedChanges) and
-[`Form.unsavedFlag`](Klar-Form#unsavedFlag) show the same fact to the user, in the
+update. [`FormLayout.unsavedChanges`](Klar-Form-Layout#unsavedChanges) and
+[`FormLayout.unsavedFlag`](Klar-Form-Layout#unsavedFlag) show the same fact to the user, in the
 form; this guard acts on it.
+
+**After "Leave".** `setDirty` states what is true now; it does not say "something changed".
+"Leave" gives the changes up, so the guard forgets every dirty mark, but your model still
+holds whatever the user had typed. If the next message says `setDirty source True` again,
+because a wrapper around `update` recomputes the flag after every message, the guard is
+armed a second time for input the user just gave up: after Back and "Leave" the next
+`onUrlChange` asks again and "Leave" seems to do nothing. Two rules keep it right: call
+`setDirty` only in the branches of the messages that edit a form (and after a save has
+succeeded, with `False`), and when the user leaves with "Leave" reset the form you left
+(`Form.init`, or the draft back to the saved value) as part of entering the next page.
+The guard cannot tell a value that is unchanged from one that is new: both are "dirty".
 
 **A new request while the question is open** replaces the held one: the latest thing
 the user asked for is what "Leave" does. A request is never held when everything is
@@ -655,8 +667,9 @@ update msg (Guard guard) =
             settle (Leave.save guard.state) SaveFirst
 
 
-{-| Is the question open? Pass it to `Modal.host` as `blocked`, or to
-`AppShell.modalOpen`, so that the page behind the dialog is inert.
+{-| Is the question open? The page behind the dialog is already inert when `view` is in
+the overlay list (`Overlay.host` or `AppShell.overlays`), so you need this only for
+your own logic, such as ignoring a shortcut while the question is open.
 -}
 isOpen : Guard source target -> Bool
 isOpen (Guard guard) =
@@ -735,7 +748,7 @@ message value =
 
 
 {-| Adds a third button, "Save and leave", for the application that can save from
-here. Pressing it closes the dialog and `update` gives you `SaveFirst`. It is the
+here. Pressing it closes the dialog and `update` gives you a `Decision` for which `savesFirst` is `True`. It is the
 primary button of the dialog; focus still starts on "Stay".
 -}
 saveAndLeave : Attribute
@@ -757,7 +770,7 @@ locale value =
 
 {-| The dialog. Renders nothing while no question is open, so it can stay in your
 view all the time; put it in the `overlays` of
-[`Modal.host`](Klar-Modal#host) or the `overlays` of `AppShell`.
+[`Overlay.host`](Klar-Overlay#host) or the `overlays` of `AppShell`.
 
     LeaveGuard.view GuardMsg [ LeaveGuard.saveAndLeave ] model.guard
 

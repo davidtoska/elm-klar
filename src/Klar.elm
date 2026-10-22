@@ -8,7 +8,7 @@ state the data is in. It is plain Elm and plain CSS: besides the official `elm/*
 packages it needs nothing, and it has no ports and no JavaScript.
 
 Use when: you start any application with Klar, to put its stylesheet on the page once.
-Do not use when: you only need a component, which has its own module (as `Klar.Button`).
+Do not use when: you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet.
 Quick path: `stylesheet`
 
 
@@ -87,12 +87,12 @@ and the ids inside the component are derived from it (`country-search`,
 each other's elements, and Elm cannot check that for you. Keep the ids in one
 place, as values with a name, so that a page cannot use one twice by accident:
 
-    -- Ids.elm (or a record at the top of the page module)
+    -- PageIds.elm (or a record at the top of the page module)
     country : String
     country =
         "order-country"
 
-    Select.init Ids.country
+    Select.init PageIds.country
 
 A page that can be on screen twice (two drawers with the same form) needs a
 different prefix for each. A text field that is given no `id` takes one from its
