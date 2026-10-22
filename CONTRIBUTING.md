@@ -96,7 +96,7 @@ its dependencies that `elm.json` allows (check both before a release, see
    `Rule.FieldKind` (a rule is data an application translates to its own query),
    `Table.Filter`, `Table.Direction` and `Table.Selection` (the answer a server-mode
    table gives), `Remote.Remote` (the five states of a request: the fifth, `Kept`, has an
-   opaque payload that only `Remote.refresh` and `Remote.refreshWith` make), `Form.Status`,
+   opaque payload that only `Remote.refresh` and `Remote.refreshWith` make), `Form.Layout.Status`,
    `FileDrop.Problem`, `Pagination.Item`, `Calendar.Event` and `Avatar.Status`
    (a result or a state an application reads), and the small design vocabularies
    `Theme.Tone`, `Theme.Size`, `Theme.Density`, `Icon.Size`, `Modal.Side` and
@@ -174,6 +174,17 @@ SelectMsg m ->
 compares before and after to react (`Select.value new /= Select.value old`). There
 are no out-messages. Row clicks, row actions and other things that are not state
 changes are plain `msg` callbacks given as attributes.
+
+### One implementation, several public modules
+
+When one piece is too big for one page of documentation, split the *documentation*,
+not the implementation: the form model is `src/Klar/Form/Core.elm` (not exposed, no
+documentation to keep), and `Klar.Form` (using a form), `Klar.Form.Spec` (declaring one)
+and `Klar.Form.Check` (testing one) are thin modules that carry the docs. Their types are
+aliases of the types in `Core` (`type alias Form step fields values = Core.Form step fields
+values`), and their functions are `name = Core.name` with the signature and the comment
+written out. `npm run check:api` accepts exactly this shape: an alias whose body is only a
+type of an internal module, because the user names the type through the alias.
 
 ### Remote data
 

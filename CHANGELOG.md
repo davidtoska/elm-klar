@@ -48,6 +48,18 @@ The first release.
   `Timeline.loading` only add to what `remote` and `failed` say, whatever the order (a
   `loading False` after `remote` used to hide the loading state and the failure). The
   command palette no longer says "No results" while a remote section is still on its way.
+
+- The form model (`Klar.Form`, declared with `Klar.Form.Spec`, tested with `Klar.Form.Check`;
+  see `design/FORM-MODEL.md`): a form declared once, with one state that owns every field's
+  value, knows when it is dirty, loads and returns a record, and ties problems from the
+  server to fields. Text, long text, number, one choice, several choices, switches, tags and
+  files; steps with a stepper, validation on the way and a review step that lists every
+  problem; repeating rows with stable keys, add and remove buttons and rules across rows
+  (`Spec.rows`, `Spec.check`); `Form.problems` and `Form.outside` for everything that is
+  showing, also what the model does not hold (a rule builder); `Form.focus` so that an
+  application never writes a DOM id. `Klar.Ids` is the one place an id type is written as
+  text, shared with `Rule.choiceFieldOf`. The old `Klar.Form` (the frame of a form) is now
+  `Klar.Form.Layout`. `Select.mapOption` gives an option another kind of value.
 - An icon library of 500 line icons in one style (24 by 24 grid, 2 pixel stroke, round
   ends), every one an Elm value that carries its own drawing: `Klar.Icon` has the
   everyday icons and `Klar.Icon.Arrows`, `Business`, `Calendar`, `Communication`,

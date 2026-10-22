@@ -39,7 +39,7 @@ import Klar.ConfirmDialog as ConfirmDialog
 import Klar.Date as Date exposing (Date)
 import Klar.Drawer as Drawer
 import Klar.EmptyState as EmptyState
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
@@ -489,7 +489,7 @@ update context msg backend model =
                 ( next, backend1, cmd ) =
                     update context Submit backend model
             in
-            ( next, backend1, Cmd.batch [ cmd, Form.focusStatus Editor.formId NoOp ] )
+            ( next, backend1, Cmd.batch [ cmd, FormLayout.focusStatus Editor.formId NoOp ] )
 
         Saved (Ok order) ->
             let
@@ -529,15 +529,15 @@ update context msg backend model =
                 ( Just _, ValidationFailed errors ) ->
                     -- The server's messages go to the fields they are about and
                     -- into the summary, which takes the focus.
-                    ( editWith (\editor -> { editor | submit = Form.Idle, errors = errors }) model
+                    ( editWith (\editor -> { editor | submit = FormLayout.Idle, errors = errors }) model
                     , backend
-                    , Form.focusSummary Editor.formId NoOp
+                    , FormLayout.focusSummary Editor.formId NoOp
                     )
 
                 ( Just _, _ ) ->
                     -- The status line in the footer says what went wrong, and
                     -- offers to try again.
-                    ( editWith (\editor -> { editor | submit = Form.Failed (Problem.toProblem error) }) model
+                    ( editWith (\editor -> { editor | submit = FormLayout.Failed (Problem.toProblem error) }) model
                     , backend
                     , Cmd.none
                     )
@@ -550,7 +550,7 @@ update context msg backend model =
                     )
 
         FocusField id ->
-            ( model, backend, Form.focusField id NoOp )
+            ( model, backend, FormLayout.focusField id NoOp )
 
         ChangeStatus order status ->
             let
@@ -899,7 +899,7 @@ cancelNotice context cancelled refused failed =
 -}
 submit : Context -> Backend -> Editor.Editor -> Model -> ( Model, Backend, Cmd Msg )
 submit context backend editor model =
-    if editor.submit == Form.Submitting || not (Editor.isEditable editor) then
+    if editor.submit == FormLayout.Submitting || not (Editor.isEditable editor) then
         -- Enter in a field while the save is under way, or in an order that
         -- cannot be changed.
         ( model, backend, Cmd.none )
@@ -917,7 +917,7 @@ submit context backend editor model =
             -- the server. The summary covers them all, and takes the focus.
             ( { model | editing = Just { settled | errors = problems } }
             , backend
-            , Form.focusSummary Editor.formId NoOp
+            , FormLayout.focusSummary Editor.formId NoOp
             )
 
         else
@@ -933,7 +933,7 @@ submit context backend editor model =
                         Editor.ExistingOrder order ->
                             Api.updateOrder order.id input Saved backend
             in
-            ( { model | editing = Just { settled | submit = Form.Submitting, errors = [] } }, backend1, cmd )
+            ( { model | editing = Just { settled | submit = FormLayout.Submitting, errors = [] } }, backend1, cmd )
 
 
 {-| Asks the server for the rows the table currently wants. Rows already on screen
@@ -1134,7 +1134,7 @@ confirmLeave model =
     else
         case model.editing of
             Just editor ->
-                if editor.submit == Form.Submitting then
+                if editor.submit == FormLayout.Submitting then
                     Just ( model, Cmd.none )
 
                 else if not (Editor.isDirty editor) then
@@ -1163,7 +1163,7 @@ routeLeft model =
     in
     case model.editing of
         Just editor ->
-            if Editor.isDirty editor || editor.submit == Form.Submitting then
+            if Editor.isDirty editor || editor.submit == FormLayout.Submitting then
                 ( unrouted, Cmd.none )
 
             else
@@ -1442,7 +1442,7 @@ viewEditor context model =
                     Editor.isEditable editor
 
                 submitting =
-                    editor.submit == Form.Submitting
+                    editor.submit == FormLayout.Submitting
             in
             Drawer.view DrawerMsg
                 ([ Drawer.title (Editor.title editor)
@@ -1501,11 +1501,11 @@ the "Try again" button is replaced.
 viewSubmitStatus : Context -> Editor.Editor -> Html Msg
 viewSubmitStatus context editor =
     case editor.submit of
-        Form.Idle ->
-            Form.unsavedFlag [ Form.locale context.locale ] (Editor.isDirty editor)
+        FormLayout.Idle ->
+            FormLayout.unsavedFlag [ FormLayout.locale context.locale ] (Editor.isDirty editor)
 
         status ->
-            Form.status [ Form.id Editor.formId, Form.onRetry Retry, Form.locale context.locale ] status
+            FormLayout.status [ FormLayout.id Editor.formId, FormLayout.onRetry Retry, FormLayout.locale context.locale ] status
 
 
 viewDiscard : Context -> Model -> Overlay Msg

@@ -3,74 +3,74 @@
 
 This function cannot handle the argument sent through the (|>) pipe:
 
-31|     Fm.define "p" Fields Values
-32|         |> Fm.with (Fm.text "Name" |> Fm.required)
-33|         |> Fm.with (Fm.text "Nickname")
-34|         |> Fm.with (Fm.choice countries "Country" |> Fm.required)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+33|     Spec.define "p" Fields Values
+34|         |> Spec.with (Spec.text "Name" |> Spec.required)
+35|         |> Spec.with (Spec.text "Nickname")
+36|         |> Spec.with (Spec.choice countries "Country" |> Spec.required)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
 
-    Fm.Builder step (Fm.Field (Maybe Country) -> Fields) Values
+    Spec.Builder step (Form.Field (Maybe Country) -> Fields) Values
 
 But (|>) is piping it to a function that expects:
 
-    Fm.Builder step (Fm.Field (Maybe Country) -> Fields) (Country -> v)
+    Spec.Builder step (Form.Field (Maybe Country) -> Fields) (Country -> v)
 
 ===== A_FieldNotInFields: DOES NOT COMPILE
 -- TYPE MISMATCH ---------------------------------- cases\A_FieldNotInFields.elm
 
 This function cannot handle the argument sent through the (|>) pipe:
 
-31|     Fm.define "p" Fields Values
-32|         |> Fm.with (Fm.text "Name" |> Fm.required)
-33|         |> Fm.with (Fm.text "Nickname")
-34|         |> Fm.with (Fm.choice countries "Country" |> Fm.required)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+33|     Spec.define "p" Fields Values
+34|         |> Spec.with (Spec.text "Name" |> Spec.required)
+35|         |> Spec.with (Spec.text "Nickname")
+36|         |> Spec.with (Spec.choice countries "Country" |> Spec.required)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
 
-    Fm.Builder step Fields (Country -> Values)
+    Spec.Builder step Fields (Country -> Values)
 
 But (|>) is piping it to a function that expects:
 
-    Fm.Builder step (Fm.Field (Maybe Country) -> f) (Country -> Values)
+    Spec.Builder step (Form.Field (Maybe Country) -> f) (Country -> Values)
 
 ===== B_FieldNotInPipeline: DOES NOT COMPILE
 -- TYPE MISMATCH -------------------------------- cases\B_FieldNotInPipeline.elm
 
 Something is off with the body of the `form` definition:
 
-32|>    Fm.define "p" Fields Values
-33|>        |> Fm.with (Fm.text "Name" |> Fm.required)
-34|>        |> Fm.with (Fm.text "Nickname")
-35|>        |> Fm.build
+34|>    Spec.define "p" Fields Values
+35|>        |> Spec.with (Spec.text "Name" |> Spec.required)
+36|>        |> Spec.with (Spec.text "Nickname")
+37|>        |> Spec.build
 
 The body is:
 
-    Fm.Form () (Fm.Field (Maybe Country) -> Fields) (Country -> Values)
+    Form.Form () (Form.Field (Maybe Country) -> Fields) (Country -> Values)
 
 But the type annotation on `form` says it should be:
 
-    Fm.Form () Fields Values
+    Form.Form () Fields Values
 
 ===== C_DifferentTypesSwapped: DOES NOT COMPILE
 -- TYPE MISMATCH ----------------------------- cases\C_DifferentTypesSwapped.elm
 
 This function cannot handle the argument sent through the (|>) pipe:
 
-32|     Fm.define "p" Fields Values
-33|         |> Fm.with (Fm.text "Name" |> Fm.required)
-34|         |> Fm.with (Fm.text "Nickname")
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+34|     Spec.define "p" Fields Values
+35|         |> Spec.with (Spec.text "Name" |> Spec.required)
+36|         |> Spec.with (Spec.text "Nickname")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
 
-    Fm.Builder
+    Spec.Builder
         step
-        (Fm.Field (Maybe Country) -> Fm.Field String -> Fields)
+        (Form.Field (Maybe Country) -> Form.Field String -> Fields)
         (Country -> Maybe String -> Values)
 
 But (|>) is piping it to a function that expects:
 
-    Fm.Builder step (Fm.Field String -> f) (Maybe String -> v)
+    Spec.Builder step (Form.Field String -> f) (Maybe String -> v)
 
 Hint: It looks like it takes too many arguments. I see 1 extra.
 
@@ -82,15 +82,15 @@ Success!
 
 The 2nd argument to `select` is not what I expect:
 
-46|     Fm.select v f.name (Remote.Loaded []) []
-                    ^^^^^^
+48|     Form.select v f.name (Remote.Loaded []) []
+                      ^^^^^^
 The value at .name is a:
 
-    Fm.Field String
+    Form.Field String
 
 But `select` needs the 2nd argument to be:
 
-    Fm.Field (Maybe id)
+    Form.Field (Maybe id)
 
 Hint: I always figure out the argument types from left to right. If an argument
 is acceptable, I assume it is “correct” and move on. So the problem may actually
@@ -101,21 +101,21 @@ be in one of the previous arguments!
 
 This function cannot handle the argument sent through the (|>) pipe:
 
-32|     Fm.define "p" Fields Values
-33|         |> Fm.with (Fm.text "Name" |> Fm.required)
-34|         |> Fm.with (Fm.text "Nickname")
-35|         |> Fm.with (Fm.choice countries "Country" |> Fm.required)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+34|     Spec.define "p" Fields Values
+35|         |> Spec.with (Spec.text "Name" |> Spec.required)
+36|         |> Spec.with (Spec.text "Nickname")
+37|         |> Spec.with (Spec.choice countries "Country" |> Spec.required)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
 
-    Fm.Builder
+    Spec.Builder
         step
-        (Fm.Field (Maybe Country) -> Fields)
+        (Form.Field (Maybe Country) -> Fields)
         (Maybe Country -> Values)
 
 But (|>) is piping it to a function that expects:
 
-    Fm.Builder step (Fm.Field (Maybe Country) -> Fields) (Country -> v)
+    Spec.Builder step (Form.Field (Maybe Country) -> Fields) (Country -> v)
 
 Hint: Use Maybe.withDefault to handle possible errors. Longer term, it is
 usually better to write out the full `case` though!
@@ -125,8 +125,8 @@ usually better to write out the full `case` though!
 
 Something is off with the body of the `country` definition:
 
-46|     Fm.get f.country state
-        ^^^^^^^^^^^^^^^^^^^^^^
+48|     Form.get f.country state
+        ^^^^^^^^^^^^^^^^^^^^^^^^
 This `get` call produces:
 
     Maybe Country
@@ -143,69 +143,105 @@ usually better to write out the full `case` though!
 
 Something is off with the body of the `form` definition:
 
-32|>    Fm.define "p" Fields Values
-33|>        |> Fm.with (Fm.text "Name" |> Fm.required)
-34|>        |> Fm.with (Fm.text "Nickname")
-35|>        |> Fm.with (Fm.choice countries "Country" |> Fm.required)
+34|>    Spec.define "p" Fields Values
+35|>        |> Spec.with (Spec.text "Name" |> Spec.required)
+36|>        |> Spec.with (Spec.text "Nickname")
+37|>        |> Spec.with (Spec.choice countries "Country" |> Spec.required)
 
 The body is:
 
-    Fm.Builder step Fields Values
+    Spec.Builder step Fields Values
 
 But the type annotation on `form` says it should be:
 
-    Fm.Form () Fields Values
+    Form.Form () Fields Values
 
 ===== Good: COMPILES
-Success!
+Compiling ...
 
 ===== H_RequiredOnToggle: DOES NOT COMPILE
 -- TYPE MISMATCH ---------------------------------- cases\H_RequiredOnToggle.elm
 
 This function cannot handle the argument sent through the (|>) pipe:
 
-29|         |> Fm.with (Fm.toggle "Agree" |> Fm.required)
-                                             ^^^^^^^^^^^
+31|         |> Spec.with (Spec.toggle "Agree" |> Spec.required)
+                                                 ^^^^^^^^^^^^^
 The argument is:
 
-    Fm.Spec Bool Bool
+    Spec.Spec Bool Bool
 
 But (|>) is piping it to a function that expects:
 
-    Fm.Spec Bool (Maybe a)
+    Spec.Spec Bool (Maybe a)
 
 ===== I_OneFieldForgotValues: DOES NOT COMPILE
 -- TYPE MISMATCH ------------------------------ cases\I_OneFieldForgotValues.elm
 
 This function cannot handle the argument sent through the (|>) pipe:
 
-23|     Fm.define "p" Fields
-24|         |> Fm.with (Fm.text "Name" |> Fm.required)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25|     Spec.define "p" Fields
+26|         |> Spec.with (Spec.text "Name" |> Spec.required)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
 
-    values -> Fm.Builder step (Fm.Field String -> Fields) values
+    values -> Spec.Builder step (Form.Field String -> Fields) values
 
 But (|>) is piping it to a function that expects:
 
-    Fm.Builder step (Fm.Field String -> f) (String -> v)
+    Spec.Builder step (Form.Field String -> f) (String -> v)
 
 ===== J_NumberHandleToTextInput: DOES NOT COMPILE
 -- TYPE MISMATCH --------------------------- cases\J_NumberHandleToTextInput.elm
 
 The 2nd argument to `textInput` is not what I expect:
 
-40|     Fm.textInput v f.age []
-                       ^^^^^
+42|     Form.textInput v f.age []
+                         ^^^^^
 The value at .age is a:
 
-    Fm.Field (Maybe Float)
+    Form.Field (Maybe Float)
 
 But `textInput` needs the 2nd argument to be:
 
-    Fm.Field String
+    Form.Field String
 
 Hint: I always figure out the argument types from left to right. If an argument
 is acceptable, I assume it is “correct” and move on. So the problem may actually
 be in one of the previous arguments!
+
+===== K_RowsHandleToTextInput: DOES NOT COMPILE
+-- TYPE MISMATCH ----------------------------- cases\K_RowsHandleToTextInput.elm
+
+The 2nd argument to `textInput` is not what I expect:
+
+49|     Form.textInput v f.contacts []
+                         ^^^^^^^^^^
+The value at .contacts is a:
+
+    Form.Field (Form.Rows ContactFields)
+
+But `textInput` needs the 2nd argument to be:
+
+    Form.Field String
+
+Hint: I always figure out the argument types from left to right. If an argument
+is acceptable, I assume it is “correct” and move on. So the problem may actually
+be in one of the previous arguments!
+
+===== L_CheckBeforeTheFields: DOES NOT COMPILE
+-- TYPE MISMATCH ------------------------------ cases\L_CheckBeforeTheFields.elm
+
+This function cannot handle the argument sent through the (|>) pipe:
+
+21|     Spec.define "p" Fields Values
+22|         |> Spec.with (Spec.text "Name" |> Spec.required)
+23|         |> Spec.check (\fields _ values -> [ Form.problem fields.nickname "Too long" ])
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The argument is:
+
+    Spec.Builder step (Form.Field String -> Fields) (Maybe String -> Values)
+
+But (|>) is piping it to a function that expects:
+
+    Spec.Builder step { a | nickname : Form.Field c } (Maybe String -> Values)
 

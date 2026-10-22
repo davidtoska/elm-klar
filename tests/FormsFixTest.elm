@@ -16,7 +16,7 @@ import Html.Attributes as Attr
 import Klar.Checkbox as Checkbox
 import Klar.CheckboxGroup as CheckboxGroup
 import Klar.Field as Field
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Radio as Radio
 import Klar.SegmentedControl as SegmentedControl
 import Klar.Slider as Slider
@@ -628,7 +628,7 @@ problem =
 
 section : String -> Html Msg
 section title =
-    Form.section title "" []
+    FormLayout.section title "" []
 
 
 formTests : Test
@@ -638,7 +638,7 @@ formTests =
             \_ ->
                 let
                     root =
-                        Form.view [] [ section "Details", section "Details" ] |> Query.fromHtml
+                        FormLayout.view [] [ section "Details", section "Details" ] |> Query.fromHtml
                 in
                 Expect.all
                     [ count [ Selector.tag "section" ] 2
@@ -650,7 +650,7 @@ formTests =
             \_ ->
                 let
                     root =
-                        Form.view [] [ section "Customer", section "Delivery" ] |> Query.fromHtml
+                        FormLayout.view [] [ section "Customer", section "Delivery" ] |> Query.fromHtml
                 in
                 Expect.all
                     [ Query.find [ aria "aria-label" "Customer" ] >> Query.has [ role "group", Selector.tag "section" ]
@@ -664,8 +664,8 @@ formTests =
                 let
                     page =
                         Html.div []
-                            [ Form.view [ Form.id "billing" ] [ section "Details" ]
-                            , Form.view [ Form.id "shipping" ] [ section "Details" ]
+                            [ FormLayout.view [ FormLayout.id "billing" ] [ section "Details" ]
+                            , FormLayout.view [ FormLayout.id "shipping" ] [ section "Details" ]
                             ]
                             |> Query.fromHtml
                 in
@@ -681,10 +681,10 @@ formTests =
                 let
                     page =
                         Html.div []
-                            [ Form.errorSummary [ Form.id "billing" ] [ problem ]
-                            , Form.status [ Form.id "billing" ] Form.Submitting
-                            , Form.errorSummary [ Form.id "shipping" ] [ problem ]
-                            , Form.status [ Form.id "shipping" ] (Form.Succeeded "Saved")
+                            [ FormLayout.errorSummary [ FormLayout.id "billing" ] [ problem ]
+                            , FormLayout.status [ FormLayout.id "billing" ] FormLayout.Submitting
+                            , FormLayout.errorSummary [ FormLayout.id "shipping" ] [ problem ]
+                            , FormLayout.status [ FormLayout.id "shipping" ] (FormLayout.Succeeded "Saved")
                             ]
                             |> Query.fromHtml
                 in
@@ -702,8 +702,8 @@ formTests =
                 let
                     page =
                         Html.div []
-                            [ Form.errorSummary [] [ problem ]
-                            , Form.status [] Form.Submitting
+                            [ FormLayout.errorSummary [] [ problem ]
+                            , FormLayout.status [] FormLayout.Submitting
                             ]
                             |> Query.fromHtml
                 in
@@ -715,8 +715,8 @@ formTests =
         , test "an idle status and an empty summary draw nothing" <|
             \_ ->
                 Html.div []
-                    [ Form.errorSummary [ Form.id "billing" ] []
-                    , Form.status [ Form.id "billing" ] Form.Idle
+                    [ FormLayout.errorSummary [ FormLayout.id "billing" ] []
+                    , FormLayout.status [ FormLayout.id "billing" ] FormLayout.Idle
                     ]
                     |> Query.fromHtml
                     |> Expect.all
@@ -725,7 +725,7 @@ formTests =
                         ]
         , test "the id of the form is on the form element" <|
             \_ ->
-                Form.view [ Form.id "billing" ] []
+                FormLayout.view [ FormLayout.id "billing" ] []
                     |> Query.fromHtml
                     |> Query.has [ Selector.tag "form", Selector.id "billing" ]
         ]

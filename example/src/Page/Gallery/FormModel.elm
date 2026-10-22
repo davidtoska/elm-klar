@@ -1,19 +1,21 @@
 module Page.Gallery.FormModel exposing (Model, Msg, init, subscriptions, update, view)
 
-{-| Gallery page: the form model. Step 1 of the supplier onboarding application
-(a company: four texts, a country, several categories, a server problem on one
-text, a dirty check, load and read back a record), rewritten on `Klar.Form.Model`
-with neutral names (a customer account instead of a supplier).
+{-| Gallery page: the form model. A flat form first (a customer account: four
+texts, a country, several segments, a server problem on one text, a dirty check,
+load and read back a record), then a wizard with every kind of field, steps, a
+repeating group and a review step (`Page.Gallery.FormModel.Wizard`).
 
-The application's own code is between the markers `A`, `B` and `C`; the line
-counts against the old version are in `design/FORM-MODEL.md` section 9.4.
+The application's own code of the flat form is between the markers `A`, `B`
+and `C`.
 
 -}
 
 import Html exposing (Html)
 import Klar.Button as Button
 import Klar.Form as Form
-import Klar.Form.Model as Fm
+import Klar.Form.Layout as FormLayout
+import Klar.Form.Spec as Spec
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.MultiSelect as MultiSelect
@@ -22,6 +24,7 @@ import Klar.Select as Select
 import Klar.Text as Text
 import Klar.TextInput as TextInput
 import Klar.Validate as Validate
+import Page.Gallery.FormModel.Wizard as Wizard
 import Showcase.Doc as Doc
 
 
@@ -122,12 +125,12 @@ save values =
 
 
 type alias Fields =
-    { name : Fm.Field String
-    , legalName : Fm.Field String
-    , registration : Fm.Field String
-    , website : Fm.Field String
-    , country : Fm.Field (Maybe CountryId)
-    , segments : Fm.Field (List SegmentId)
+    { name : Form.Field String
+    , legalName : Form.Field String
+    , registration : Form.Field String
+    , website : Form.Field String
+    , country : Form.Field (Maybe CountryId)
+    , segments : Form.Field (List SegmentId)
     }
 
 
@@ -141,31 +144,31 @@ type alias Values =
     }
 
 
-countryIds : Fm.Ids CountryId
+countryIds : Ids CountryId
 countryIds =
-    Fm.ids { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
+    Ids.make { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
 
 
-segmentIds : Fm.Ids SegmentId
+segmentIds : Ids SegmentId
 segmentIds =
-    Fm.ids { toKey = \(SegmentId n) -> String.fromInt n, fromKey = Maybe.map SegmentId << String.toInt }
+    Ids.make { toKey = \(SegmentId n) -> String.fromInt n, fromKey = Maybe.map SegmentId << String.toInt }
 
 
-form : Fm.Form () Fields Values
+form : Form.Form () Fields Values
 form =
-    Fm.define "account" Fields Values
-        |> Fm.with (Fm.text "Name" |> Fm.required |> Fm.rules [ Validate.maxLength 80 ])
-        |> Fm.with (Fm.text "Legal name" |> Fm.required)
-        |> Fm.with (Fm.text "Registration number" |> Fm.required |> Fm.rules [ registrationFormat ])
-        |> Fm.with (Fm.text "Website" |> Fm.rules [ httpUrl ])
-        |> Fm.with (Fm.choice countryIds "Country" |> Fm.required)
-        |> Fm.with (Fm.choices segmentIds "Segments" |> Fm.atLeast 1)
-        |> Fm.build
+    Spec.define "account" Fields Values
+        |> Spec.with (Spec.text "Name" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])
+        |> Spec.with (Spec.text "Legal name" |> Spec.required)
+        |> Spec.with (Spec.text "Registration number" |> Spec.required |> Spec.rules [ registrationFormat ])
+        |> Spec.with (Spec.text "Website" |> Spec.rules [ httpUrl ])
+        |> Spec.with (Spec.choice countryIds "Country" |> Spec.required)
+        |> Spec.with (Spec.choices segmentIds "Segments" |> Spec.atLeast 1)
+        |> Spec.build
 
 
 f : Fields
 f =
-    Fm.fields form
+    Form.fields form
 
 
 registrationFormat : Validate.Validator
@@ -184,14 +187,14 @@ httpUrl =
 -- B: LOAD, READ BACK, AND THE SERVER'S PROBLEMS
 
 
-fill : Account -> Fm.State () -> Fm.State ()
+fill : Account -> Form.State () -> Form.State ()
 fill a =
-    Fm.set f.name a.name
-        >> Fm.set f.legalName a.legalName
-        >> Fm.set f.registration a.registrationNumber
-        >> Fm.set f.website a.website
-        >> Fm.set f.country (Just a.country)
-        >> Fm.set f.segments a.segments
+    Form.set f.name a.name
+        >> Form.set f.legalName a.legalName
+        >> Form.set f.registration a.registrationNumber
+        >> Form.set f.website a.website
+        >> Form.set f.country (Just a.country)
+        >> Form.set f.segments a.segments
 
 
 toAccount : Values -> Account
@@ -205,23 +208,23 @@ toAccount v =
     }
 
 
-fromBackend : BackendProblem -> Fm.Problem
+fromBackend : BackendProblem -> Form.Problem ()
 fromBackend p =
     case p.field of
         Name ->
-            Fm.problem f.name p.message
+            Form.problem f.name p.message
 
         LegalName ->
-            Fm.problem f.legalName p.message
+            Form.problem f.legalName p.message
 
         Registration ->
-            Fm.problem f.registration p.message
+            Form.problem f.registration p.message
 
         Website ->
-            Fm.problem f.website p.message
+            Form.problem f.website p.message
 
         CountryField ->
-            Fm.problem f.country p.message
+            Form.problem f.country p.message
 
 
 
@@ -229,49 +232,55 @@ fromBackend p =
 
 
 type alias Model =
-    { form : Fm.State ()
-    , status : Form.Status
+    { form : Form.State ()
+    , status : FormLayout.Status
     , saved : Maybe Account
+    , wizard : Wizard.Model
     }
 
 
 type Msg
-    = FormMsg Fm.Msg
+    = FormMsg Form.Msg
     | Save
     | Load
     | Revert
+    | WizardMsg Wizard.Msg
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { form = Fm.init form, status = Form.Idle, saved = Nothing }, Cmd.none )
+    ( { form = Form.init form, status = FormLayout.Idle, saved = Nothing, wizard = Wizard.init }, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        WizardMsg inner ->
+            Wizard.update inner model.wizard
+                |> Tuple.mapBoth (\wizard -> { model | wizard = wizard }) (Cmd.map WizardMsg)
+
         FormMsg inner ->
-            Fm.update inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+            Form.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
         Load ->
-            ( { model | form = Fm.init form |> fill savedAccount |> Fm.markClean, status = Form.Idle }, Cmd.none )
+            ( { model | form = Form.init form |> fill savedAccount |> Form.markClean, status = FormLayout.Idle }, Cmd.none )
 
         Revert ->
-            ( { model | form = Fm.revert model.form, status = Form.Idle }, Cmd.none )
+            ( { model | form = Form.revert form model.form, status = FormLayout.Idle }, Cmd.none )
 
         Save ->
-            case Fm.toValues Locale.default form model.form of
+            case Form.toValues Locale.default form model.form of
                 Err _ ->
-                    Fm.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+                    Form.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
                 Ok values ->
                     case save values of
                         [] ->
-                            ( { model | form = Fm.markClean model.form, status = Form.Succeeded "Saved.", saved = Just (toAccount values) }, Cmd.none )
+                            ( { model | form = Form.markClean model.form, status = FormLayout.Succeeded "Saved.", saved = Just (toAccount values) }, Cmd.none )
 
                         problems ->
-                            Fm.rejected (List.map fromBackend problems) form model.form
-                                |> Tuple.mapBoth (\s -> { model | form = s, status = Form.Idle }) (Cmd.map FormMsg)
+                            Form.rejected (List.map fromBackend problems) form model.form
+                                |> Tuple.mapBoth (\s -> { model | form = s, status = FormLayout.Idle }) (Cmd.map FormMsg)
 
 
 subscriptions : Model -> Sub Msg
@@ -283,26 +292,26 @@ accountForm : Locale -> Model -> Html Msg
 accountForm locale model =
     let
         v =
-            Fm.bind locale FormMsg form model.form
+            Form.bind locale FormMsg form model.form
     in
-    Form.view [ Form.id "account", Form.onSubmit Save ]
-        [ Fm.summary v
-        , Form.unsavedFlag [ Form.locale locale ] (Fm.isDirty model.form)
-        , Form.section "Account"
+    FormLayout.view [ FormLayout.id "account", FormLayout.onSubmit Save ]
+        [ Form.summary v
+        , FormLayout.unsavedFlag [ FormLayout.locale locale ] (Form.isDirty model.form)
+        , FormLayout.section "Account"
             "Who the customer is, as registered."
-            [ Form.grid 2
-                [ Fm.textInput v f.name [ TextInput.hint "How the customer appears in lists." ]
-                , Fm.textInput v f.legalName []
-                , Fm.textInput v f.registration [ TextInput.placeholder "8 digits" ]
-                , Fm.textInput v f.website [ TextInput.url ]
-                , Fm.select v f.country (Remote.Loaded countryOptions) []
-                , Fm.multiSelect v f.segments (Remote.Loaded segmentOptions) []
+            [ FormLayout.grid 2
+                [ Form.textInput v f.name [ TextInput.hint "How the customer appears in lists." ]
+                , Form.textInput v f.legalName []
+                , Form.textInput v f.registration [ TextInput.placeholder "8 digits" ]
+                , Form.textInput v f.website [ TextInput.url ]
+                , Form.select v f.country (Remote.Loaded countryOptions) []
+                , Form.multiSelect v f.segments (Remote.Loaded segmentOptions) []
                 ]
             ]
-        , Form.actions
-            [ Form.status [ Form.locale locale ] model.status
+        , FormLayout.actions
+            [ FormLayout.status [ FormLayout.locale locale ] model.status
             , Layout.spacer
-            , Button.view [ Button.onClick Revert, Button.disabled (not (Fm.isDirty model.form)) ] "Revert"
+            , Button.view [ Button.onClick Revert, Button.disabled (not (Form.isDirty model.form)) ] "Revert"
             , Button.view [ Button.onClick Load ] "Load saved account"
             , Button.view [ Button.primary, Button.submit ] "Save"
             ]
@@ -317,15 +326,15 @@ view : Locale -> Model -> Html Msg
 view locale model =
     Doc.page
         { title = "Form model"
-        , description = "A form declared once: the values of every field live in one state that knows when it is dirty, loads and returns a record, and takes the server's problems per field. Try: press Save on the empty form (every problem shows and the focus moves to the summary), type the name Acme Trading and the registration number 00000000, then Save (the server refuses and its words show at the fields until you edit them), or Load a saved account and type a letter and delete it again (clean again)."
+        , description = "A form declared once: the values of every field live in one state that knows when it is dirty, loads and returns a record, takes the server's problems per field, owns the steps and the repeating rows, and lists every problem with a way to go to it. Try the flat form first: press Save on the empty form (every problem shows and the focus moves to the summary), type the name Acme Trading and the registration number 00000000, then Save (the server refuses and its words show at the fields until you edit them), or Load a saved account and type a letter and delete it again (clean again)."
         }
-        [ Doc.section "Customer account"
-            "Step 1 of the supplier onboarding application, on the form model."
+        [ Doc.section "A flat form"
+            "A customer account: texts, a country, several segments, the server's problems, the mark for unsaved changes."
             [ Doc.example { title = "A customer account", description = Nothing, code = Nothing } (accountForm locale model)
             , Layout.stack [ Layout.gap 2 ]
                 [ Text.caption
                     ("Unsaved changes: "
-                        ++ (if Fm.isDirty model.form then
+                        ++ (if Form.isDirty model.form then
                                 "yes"
 
                             else
@@ -342,4 +351,33 @@ view locale model =
                     )
                 ]
             ]
+        , Doc.section "A wizard"
+            "Four steps over one declaration: every kind of field (text, long text, number, choice, several choices, switch, tags, files), a repeating group of contacts with a rule across the rows, a checkbox the model does not hold but still counts, and a review step that lists every problem of every step. Click Next on an empty step; click a later step in the stepper (it checks the steps on the way); add and remove contacts; Load a saved customer and change a letter."
+            [ Doc.example
+                { title = "Customer onboarding"
+                , description = Just "Next, Back, the stepper and the review list all come from the form. The code of the declaration is in Page.Gallery.FormModel.Wizard."
+                , code = Just wizardCode
+                }
+                (Html.map WizardMsg (Wizard.view locale model.wizard))
+            ]
+        ]
+
+
+wizardCode : String
+wizardCode =
+    String.join "\n"
+        [ "form : Form.Form Step Fields Customer"
+        , "form ="
+        , "    Spec.define \"wizard\" Fields Customer"
+        , "        |> Spec.step Account \"Account\""
+        , "        |> Spec.with (Spec.text \"Name\" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])"
+        , "        |> Spec.with (Spec.choice countryIds \"Country\" |> Spec.required)"
+        , "        |> Spec.with (Spec.tags \"Certifications\")"
+        , "        |> Spec.with (Spec.files \"Signed contract\" |> Spec.one |> Spec.required)"
+        , "        |> Spec.step Contacts \"Contacts\""
+        , "        |> Spec.with (Spec.rows { label = \"Contacts\", item = \"Contact\" } contactForm |> Spec.atLeast 1 |> Spec.rule onlyOnePrimary message)"
+        , "        |> Spec.step Delivery \"Delivery\""
+        , "        |> Spec.with (Spec.number \"Lead time in days\" |> Spec.required |> Spec.whole)"
+        , "        |> Spec.step Review \"Review\""
+        , "        |> Spec.build"
         ]

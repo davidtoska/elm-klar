@@ -107,8 +107,11 @@ component. The body of a card, dialog or drawer does the same with
 
 **Forms.** Every input accepts the same field attributes (`label`, `hint`, `error`,
 `required` ...) and wraps itself in a [Klar.Field](Klar-Field). Validators in
-[Klar.Validate](Klar-Validate) are plain functions; [Klar.Form](Klar-Form) lays out
-sections, shows an error summary and the state of the submit.
+[Klar.Validate](Klar-Validate) are plain functions. [Klar.Form](Klar-Form) holds a whole
+form in one state (declared once with [Klar.Form.Spec](Klar-Form-Spec)): the values, the
+rows of a repeating group, the step, what the server refused and whether anything changed.
+[Klar.Form.Layout](Klar-Form-Layout) lays out sections, shows an error summary and the state
+of the submit, for a form you wire by hand.
 
 **Language.** Built-in text (placeholders, labels read by screen readers, month
 names) is English by default and Norwegian Bokmål with `locale Locale.nb`; see
@@ -145,7 +148,9 @@ them again after Klar's CSS to restyle everything at once; they are listed in
     [Klar.Alert](Klar-Alert), [Klar.Spinner](Klar-Spinner),
     [Klar.Skeleton](Klar-Skeleton), [Klar.Progress](Klar-Progress),
     [Klar.EmptyState](Klar-EmptyState), [Klar.ErrorState](Klar-ErrorState)
-  - **Forms and inputs**: [Klar.Form](Klar-Form), [Klar.Field](Klar-Field),
+  - **Forms and inputs**: [Klar.Form](Klar-Form), [Klar.Form.Spec](Klar-Form-Spec),
+    [Klar.Form.Layout](Klar-Form-Layout), [Klar.Form.Check](Klar-Form-Check),
+    [Klar.Ids](Klar-Ids), [Klar.Field](Klar-Field),
     [Klar.Validate](Klar-Validate), [Klar.TextInput](Klar-TextInput),
     [Klar.TextArea](Klar-TextArea), [Klar.NumberInput](Klar-NumberInput),
     [Klar.PasswordInput](Klar-PasswordInput), [Klar.SearchInput](Klar-SearchInput),

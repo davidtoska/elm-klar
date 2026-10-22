@@ -37,7 +37,9 @@
         ],
         "Forms": [
             "Klar.Form",
-            "Klar.Form.Model",
+            "Klar.Form.Spec",
+            "Klar.Form.Layout",
+            "Klar.Form.Check",
             "Klar.Field",
             "Klar.Validate"
         ],
@@ -63,6 +65,7 @@
         "Choosing": [
             "Klar.Select",
             "Klar.Select.Option",
+            "Klar.Ids",
             "Klar.MultiSelect",
             "Klar.Autocomplete",
             "Klar.VirtualList",

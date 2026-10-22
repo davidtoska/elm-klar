@@ -1,959 +1,775 @@
 module Klar.Form exposing
-    ( view, section, grid, fullRow, actions, stickyActions
-    , errorSummary, focusSummary, focusField
-    , Status(..), status, focusStatus
-    , unsavedChanges, unsavedFlag
-    , Attribute
-    , id, ariaLabel, onSubmit, stacked
-    , locale
-    , labels, onFocusField
-    , onRetry, onDismiss
-    , onSave, onDiscard, saving, sticky
+    ( Form, State, Msg, Field, Rows, Problem, View
+    , fields
+    , init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
+    , problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
+    , currentStep, attempted, advance, back, goTo
+    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
     )
 
-{-| The layout of a form and the parts around it: sections, a grid for the
-fields, the row of buttons, the list of problems after a failed submit, the
-state of the submit and a reminder of unsaved changes.
+{-| A form as one value: the text and choices of every field, which fields the
+user has left, what the server refused, the rows of a repeating group, the step
+the user is on, and whether anything has changed. You declare the form once with
+[`Klar.Form.Spec`](Klar-Form-Spec), keep one [`State`](#State) in your model and
+one [`Msg`](#Msg) in your messages, and draw each control with one call. The
+application never writes a DOM id, a component state per field, a dirty test, a
+"validate before Next" or a second copy of the server's problems.
 
-A form is values in the model, rules that find what is wrong with them, and a
-view. This module draws the frame of the view, the controls (`TextInput`,
-`Radio` ...) draw the fields, and [Klar.Validate](Klar-Validate) holds the
-rules. Here they work together in a small order form.
+Use it for an edit form, a sign-up, a wizard with a review step, a form with a
+repeating group (the contacts of a supplier). For one value that saves by itself
+use [`Klar.InlineEdit`](Klar-InlineEdit); for the frame around a form (sections,
+the button row, the status of the save) use
+[`Klar.Form.Layout`](Klar-Form-Layout), which this module is built on and which
+a hand-written form can use alone.
 
-**Model and rules.** The model keeps the values, whether the problems are shown
-yet, and where the submit is. The rules are a function of the model, so the
-messages are always up to date: once a submit has found problems, they follow
-the values and disappear as the fields are fixed. The first part of each triple
-is the DOM id of the control, so the control gets the same `id`.
+| Module | Is for |
+|---|---|
+| `Klar.Form.Spec` | declaring the form: the fields, their rules, the steps (read once, at the top of a file) |
+| `Klar.Form` | using it: state, update, problems, steps, the controls |
+| `Klar.Form.Layout` | the frame: sections, grid, button row, status, unsaved mark |
+| `Klar.Form.Check` | tests: the round trip of a record, the keys of an id type |
+| `Klar.Ids` | how your id types are written as text, once |
 
-    import Html exposing (Html)
-    import Klar.Button as Button
-    import Klar.Form as Form
-    import Klar.Layout as Layout
-    import Klar.Locale as Locale
-    import Klar.Radio as Radio
-    import Klar.Remote as Remote
-    import Klar.TextInput as TextInput
-    import Klar.Validate as Validate
 
+# Quick path
+
+Six functions cover a form: `init` (the state), `bind` (once per view), `update`
+(one branch for every control), `toValues` (the record, or the problems),
+`summary` (the list of problems) and `rejected` (what the server refused).
+`reveal` shows the problems after a Save that found some. A form with steps adds
+`advance` and `stepper`; one with repeating groups adds `rowFields`, `addRow` and
+`removeRow`.
+
+A customer form with a text, a country, a long note and a switch, a save that
+the server can refuse, and the mark for unsaved changes. The model keeps one
+`Form.State`, the message has one `Form.Msg`, and the view is one call for each
+control:
+
+    -- THE DECLARATION
+    type CountryId
+        = CountryId String
+
+    countryIds : Ids CountryId
+    countryIds =
+        Ids.make { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
+
+    type alias Fields =
+        { name : Form.Field String
+        , country : Form.Field (Maybe CountryId)
+        , note : Form.Field String
+        , preferred : Form.Field Bool
+        }
+
+    type alias Values =
+        { name : String
+        , country : CountryId
+        , note : Maybe String
+        , preferred : Bool
+        }
+
+    form : Form.Form () Fields Values
+    form =
+        Spec.define "customer" Fields Values
+            |> Spec.with (Spec.text "Name" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])
+            |> Spec.with (Spec.choice countryIds "Country" |> Spec.required)
+            |> Spec.with (Spec.text "Note" |> Spec.rules [ Validate.maxLength 500 ])
+            |> Spec.with (Spec.toggle "Preferred customer")
+            |> Spec.build
+
+    fields : Fields
+    fields =
+        Form.fields form
+
+    -- THE MODEL AND THE UPDATE
     type alias Model =
-        { customer : String
-        , email : String
-        , priority : String
-        , showErrors : Bool
-        , status : Form.Status
+        { form : Form.State ()
+        , status : FormLayout.Status
         }
 
     type Msg
-        = CustomerChanged String
-        | EmailChanged String
-        | PriorityChanged String
-        | Submit
-        | Retry
-        | Saved (Result Remote.Problem ())
-        | FocusField String
-        | NoOp
+        = FormMsg Form.Msg
+        | Save
+        | Replied (List (Form.Problem ()))
 
-    problems : Model -> List Validate.Error
-    problems model =
-        Validate.collect Locale.default
-            [ ( "order-customer", [ Validate.required ], model.customer )
-            , ( "order-email", [ Validate.required, Validate.email ], model.email )
-            ]
-
-**View.** The whole form is one `Form.view`. Several attributes are shared by
-the functions of this module: each function reads the ones it needs and ignores
-the rest, so one list serves the form, its error summary and its status line.
-`labels` lets the summary say "Email: Invalid email address" instead of the
-message alone.
-
-    formAttributes : List (Form.Attribute Msg)
-    formAttributes =
-        [ Form.id "order-form"
-        , Form.onSubmit Submit
-        , Form.labels [ ( "order-customer", "Customer" ), ( "order-email", "Email" ) ]
-        , Form.onFocusField FocusField
-        , Form.onRetry Retry
-        ]
-
-    view : Model -> Html Msg
-    view model =
-        let
-            errors =
-                if model.showErrors then
-                    problems model
-
-                else
-                    []
-        in
-        Form.view formAttributes
-            [ Form.errorSummary formAttributes errors
-            , Form.section "Customer"
-                "Who the invoice is for."
-                [ Form.grid 2
-                    [ TextInput.view
-                        [ TextInput.id "order-customer"
-                        , TextInput.label "Customer"
-                        , TextInput.required
-                        , TextInput.value model.customer
-                        , TextInput.onInput CustomerChanged
-                        , TextInput.errorMaybe (Validate.errorFor "order-customer" errors)
-                        ]
-                    , TextInput.view
-                        [ TextInput.id "order-email"
-                        , TextInput.label "Email"
-                        , TextInput.email
-                        , TextInput.required
-                        , TextInput.value model.email
-                        , TextInput.onInput EmailChanged
-                        , TextInput.errorMaybe (Validate.errorFor "order-email" errors)
-                        ]
-                    ]
-                ]
-            , Form.section "Delivery"
-                "How fast the order should arrive."
-                [ Radio.view
-                    [ Radio.id "order-priority"
-                    , Radio.label "Priority"
-                    , Radio.options
-                        [ Radio.option "standard" "Standard, 3 to 5 days"
-                        , Radio.option "express" "Express, next day"
-                        ]
-                    , Radio.selected (Just model.priority)
-                    , Radio.onSelect PriorityChanged
-                    ]
-                ]
-            , Form.actions
-                [ Form.status formAttributes model.status
-                , Layout.spacer
-                , Button.view
-                    [ Button.primary
-                    , Button.submit
-                    , Button.loading (model.status == Form.Submitting)
-                    ]
-                    "Place order"
-                ]
-            ]
-
-The form has `novalidate`: the browser shows none of its own validation
-bubbles, and the application shows its messages next to the fields and in the
-summary. Pressing Enter in a field submits the form, even when the submit button
-is outside it (in the footer of a dialog, for example): the form holds an
-invisible submit button for that. A section puts its title and description
-beside its fields when the window is wide, and above them otherwise. Give every
-form on a page its own `Form.id`: the DOM ids of its summary and its status line
-are made from it, and two forms without one would share them.
-
-**Update.** `Submit` decides what happens. The browser would reload the page on
-a submit, so a form needs its `onSubmit`. Enter in a field sends it too, also
-while a request is running, so ignore it then. When there are problems, show
-them and move the focus to the summary, where a screen reader reads them; each
-problem is a button that sends `FocusField` with the id of its control, which
-`focusField` turns into the focus. When there are none, start the request
-(`sendOrder` is your own function, this package has no HTTP) and answer the
-status with `Succeeded` or `Failed` when it comes back.
+    init : Model
+    init =
+        { form = Form.init form, status = FormLayout.Idle }
 
     update : Msg -> Model -> ( Model, Cmd Msg )
     update msg model =
         case msg of
-            Submit ->
-                if model.status == Form.Submitting then
-                    ( model, Cmd.none )
+            FormMsg inner ->
+                Form.update form inner model.form
+                    |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
-                else if List.isEmpty (problems model) then
-                    ( { model | showErrors = False, status = Form.Submitting }
-                    , sendOrder model
-                    )
+            Save ->
+                case Form.toValues Locale.default form model.form of
+                    Ok values ->
+                        ( { model | status = FormLayout.Submitting }, send values )
 
-                else
-                    ( { model | showErrors = True }
-                    , Form.focusSummary "order-form" NoOp
-                    )
+                    Err _ ->
+                        Form.reveal form model.form
+                            |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
-            FocusField fieldId ->
-                ( model, Form.focusField fieldId NoOp )
+            Replied [] ->
+                ( { model | form = Form.markClean model.form, status = FormLayout.Succeeded "Saved." }, Cmd.none )
 
-            Retry ->
-                ( { model | status = Form.Submitting }
-                , Cmd.batch [ sendOrder model, Form.focusStatus "order-form" NoOp ]
-                )
+            Replied found ->
+                Form.rejected found form model.form
+                    |> Tuple.mapBoth (\state -> { model | form = state, status = FormLayout.Idle }) (Cmd.map FormMsg)
 
-            Saved (Ok ()) ->
-                ( { model | status = Form.Succeeded "The order was saved." }, Cmd.none )
+    -- your request to the server; this package has no HTTP
+    send : Values -> Cmd Msg
+    send _ =
+        Cmd.none
 
-            Saved (Err problem) ->
-                ( { model | status = Form.Failed problem }, Cmd.none )
+    -- THE VIEW
+    view : Model -> Html Msg
+    view model =
+        let
+            v =
+                Form.bind Locale.default FormMsg form model.form
+        in
+        FormLayout.view [ FormLayout.id "customer", FormLayout.onSubmit Save ]
+            [ Form.summary v
+            , FormLayout.section "Customer"
+                "Who the invoice is for."
+                [ FormLayout.grid 2
+                    [ Form.textInput v fields.name []
+                    , Form.select v fields.country (Remote.Loaded countries) []
+                    , FormLayout.fullRow (Form.textArea v fields.note [ TextArea.rows 3 ])
+                    , Form.switch v fields.preferred []
+                    ]
+                ]
+            , FormLayout.unsavedFlag [] (Form.isDirty model.form)
+            , FormLayout.actions
+                [ FormLayout.status [ FormLayout.id "customer" ] model.status
+                , Layout.spacer
+                , Button.view [ Button.primary, Button.submit ] "Save"
+                ]
+            ]
 
-            CustomerChanged value ->
-                ( { model | customer = value }, Cmd.none )
+    countries : List (Select.Option CountryId)
+    countries =
+        [ Select.option (CountryId "no") "Norway"
+        , Select.option (CountryId "se") "Sweden"
+        ]
 
-            EmailChanged value ->
-                ( { model | email = value }, Cmd.none )
+The state also has no function in it, nor has the message, so the model can be
+compared, stored and tested. `Form.isDirty model.form` is the flag for
+`FormLayout.unsavedFlag` and for a leave guard.
 
-            PriorityChanged value ->
-                ( { model | priority = value }, Cmd.none )
+**When a problem shows.** A field shows its problem once the user has been in it
+and left, or has edited it; after `reveal`, `rejected` or `advance` every field
+shows its own; a problem the server gave shows at once and goes away when its
+field is edited. Rows and fields added later start quiet again.
 
-            NoOp ->
-                ( model, Cmd.none )
+**Steps.** Declare them with `Spec.step`; the form then owns which step the user
+is on. `advance` is the whole of the Next and Save buttons, `back` of Back and
+`goTo` of "Edit" on a review page, and `stepper` draws the steps with a red mark
+on the ones that have problems showing. A step that is reached by clicking
+forward must pass every step on the way. The last step, when it has no fields, is
+the review step: its `summary` lists every problem of every step, each with a
+button that goes there.
 
-`status` shows `Submitting` as a spinner with "Saving ...", `Succeeded` as a
-green message and `Failed` as a red one with the title and detail of the
-`Remote.Problem` and, when `onRetry` is given and the problem is worth trying
-again, a "Try again" button. That button is replaced by "Saving ..." the moment
-it is pressed, which is why `Retry` moves the focus to the status line with
-`focusStatus` instead of leaving it on a button that is gone.
+**Rows.** `Spec.rows` declares a repeating group once. Every row has a number
+that stays with it while it lives, so the DOM ids, the focus and the state of a
+select follow the row when another row is removed; "Contact 2" in the words is
+the position.
 
-A form that edits existing data can also show `unsavedChanges`, a banner for as
-long as the data differs from what was loaded or saved, or `unsavedFlag`, a
-small mark for the footer of a dialog or drawer. The texts the functions draw
-are English; `Form.locale Locale.nb` makes them Norwegian.
-
-
-# Layout
-
-@docs view, section, grid, fullRow, actions, stickyActions
-
-
-# Problems after a submit
-
-@docs errorSummary, focusSummary, focusField
+**Things outside the form.** Something the model does not hold, such as the rule
+builder of a price rule, gives its problems to `outside`, and they are then in
+the summary, the stepper marks and `toValues` like any other.
 
 
-# The state of the submit
+# Types
 
-@docs Status, status, focusStatus
-
-
-# Unsaved changes
-
-@docs unsavedChanges, unsavedFlag
+@docs Form, State, Msg, Field, Rows, Problem, View
 
 
-# Attributes
+# The handles
 
-@docs Attribute
+@docs fields
 
-The form itself (`view`). The `id` is also read by `errorSummary` and `status`:
 
-@docs id, ariaLabel, onSubmit, stacked
+# Values and state
 
-The language of the texts that `errorSummary`, `status`, `unsavedChanges` and
-`unsavedFlag` draw:
+@docs init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
 
-@docs locale
 
-The error summary (`errorSummary`):
+# Problems and focus
 
-@docs labels, onFocusField
+@docs problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
 
-The status line (`status`):
 
-@docs onRetry, onDismiss
+# Steps
 
-The unsaved-changes banner (`unsavedChanges`):
+@docs currentStep, attempted, advance, back, goTo
 
-@docs onSave, onDiscard, saving, sticky
+
+# Drawing the form
+
+@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
 
 -}
 
 import Html exposing (Html)
-import Html.Attributes as Attr
-import Html.Events as Events
-import Json.Decode as Decode
-import Klar.Alert as Alert
 import Klar.Button as Button
-import Klar.Format as Format
-import Klar.Internal as Internal
-import Klar.Locale as Locale exposing (Locale)
-import Klar.Remote as Remote exposing (Problem)
-import Klar.Theme exposing (Tone(..))
+import Klar.FileDrop as FileDrop
+import Klar.Form.Core as Core
+import Klar.Locale exposing (Locale)
+import Klar.MultiSelect as MultiSelect
+import Klar.NumberInput as NumberInput
+import Klar.Remote exposing (Remote)
+import Klar.Select as Select
+import Klar.Stepper as Stepper
+import Klar.Switch as Switch
+import Klar.TagInput as TagInput
+import Klar.TextArea as TextArea
+import Klar.TextInput as TextInput
 
 
 
--- ATTRIBUTES
+-- TYPES
 
 
-{-| A setting for the functions of this module. Make them with the functions
-below and pass a list to `view`, `errorSummary`, `status`, `unsavedChanges` or
-`unsavedFlag`. Each function reads the attributes it knows and ignores the rest,
-so one list can serve them all; later attributes win over earlier ones.
+{-| A form declaration: the fields in order with their rules. It is a constant
+(`form`), never part of the model or of a message. The three parameters are the
+application's own step type (`()` for a form without steps), the record of
+field handles (`Fields`) and the record the form produces (`Values`).
 -}
-type Attribute msg
-    = Attribute (Config msg -> Config msg)
+type alias Form step fields values =
+    Core.Form step fields values
 
 
-type alias Config msg =
-    { id : Maybe String
-    , ariaLabel : Maybe String
-    , onSubmit : Maybe msg
-    , stacked : Bool
-    , locale : Locale
-    , labels : List ( String, String )
-    , onFocusField : Maybe (String -> msg)
-    , onRetry : Maybe msg
-    , onDismiss : Maybe msg
-    , onSave : Maybe msg
-    , onDiscard : Maybe msg
-    , saving : Bool
-    , sticky : Bool
+{-| Everything the form keeps while it is being edited: the value of every field
+(and the open list of a select), the rows of every repeating group, the baseline
+for `isDirty`, which fields were left, the problems the server gave and the
+current step. It is data only: there is no function in it. Make it with `init`
+and keep it in the model.
+-}
+type alias State step =
+    Core.State step
+
+
+{-| What the controls of the form send. Wrap it in one constructor of the
+application's message type and pass what comes back to `update`.
+-}
+type alias Msg =
+    Core.Msg
+
+
+{-| A handle to one field. The type says what the value looks like while it is
+edited: `String` for a text, `Maybe id` for a choice, `List id` for several,
+`Maybe Float` for a number, `Bool` for a switch, `List String` for tags and a
+list of files for files. Get the handles from `fields form`; there is no other
+way to make one.
+-}
+type alias Field control =
+    Core.Field control
+
+
+{-| The control of a repeating group (`rows`): the handles of the rows it has
+now. It has no constructor, so a rows field cannot be given a value with `set`;
+read the handles of the rows with `rowFields` and load them with `fillRows`.
+-}
+type alias Rows rowFields =
+    Core.Rows rowFields
+
+
+{-| A message tied to a field: the DOM id of the control (`field`), the label
+the user knows the field by (`label`), what to tell the user (`message`) and,
+in a form with steps, the step the field is on. `problems` lists them all.
+
+Write one by hand for something the form model does not hold, such as the
+rule builder of a price rule, and hand it to `outside`:
+
+    { field = "price-rule-1"
+    , label = "Price rule 1"
+    , message = "Add at least one condition."
+    , step = Just Pricing
+    }
+
+-}
+type alias Problem step =
+    { field : String
+    , label : String
+    , message : String
+    , step : Maybe step
     }
 
 
-configure : List (Attribute msg) -> Config msg
-configure attributes =
-    List.foldl (\(Attribute change) config -> change config)
-        { id = Nothing
-        , ariaLabel = Nothing
-        , onSubmit = Nothing
-        , stacked = False
-        , locale = Locale.default
-        , labels = []
-        , onFocusField = Nothing
-        , onRetry = Nothing
-        , onDismiss = Nothing
-        , onSave = Nothing
-        , onDiscard = Nothing
-        , saving = False
-        , sticky = False
-        }
-        attributes
-
-
-{-| The DOM id of the form. `view` puts it on the `form` element. The error
-summary and the status line make their own ids from it (`<id>-summary` and
-`<id>-status`), which is how `focusSummary` and `focusStatus` find them, so give
-the same id to all of them. Give every form on a page its own id: without one
-the summary and the status line use `form-summary` and `form-status`, and two
-forms without an id would share those ids.
+{-| A form, a state and a message wrapper, bound once per view with `bind`.
+Every control of the form is drawn from it.
 -}
-id : String -> Attribute msg
-id value =
-    Attribute (\config -> { config | id = Just value })
+type alias View msg =
+    Core.View msg
 
 
-{-| The accessible name of the form (`view`). A form with a name is a landmark
-that screen reader users can jump to.
+
+-- THE HANDLES
+
+
+{-| The handles of the form's fields, as the `Fields` record. A constant: bind
+it once at the top level of the module.
 -}
-ariaLabel : String -> Attribute msg
-ariaLabel value =
-    Attribute (\config -> { config | ariaLabel = Just value })
+fields : Form step fields values -> fields
+fields =
+    Core.fields
 
 
-{-| The message sent when the form is submitted, by a submit button
-(`Button.submit`) or by Enter in a field (`view`). The browser's own submit,
-which would reload the page, is prevented only when this is given: always give
-a form an `onSubmit`. Enter submits also while a request is running, so ignore
-the message in `update` while the status is `Submitting`.
+
+-- VALUES AND STATE
+
+
+{-| A form with every field empty, nothing touched, the first step, a group of
+rows with its minimum number of empty rows, and that state as the baseline. Each
+field's component gets its DOM id here.
 -}
-onSubmit : msg -> Attribute msg
-onSubmit msg =
-    Attribute (\config -> { config | onSubmit = Just msg })
+init : Form step fields values -> State step
+init =
+    Core.init
 
 
-{-| Puts the title and description of every section above its fields instead
-of beside them (`view`). Sections already stack on a narrow window; use this for
-a form in a narrow place such as a dialog or a drawer, where the width of the
-window says nothing about the room the form has.
--}
-stacked : Attribute msg
-stacked =
-    Attribute (\config -> { config | stacked = True })
+{-| Puts a value in a field, for every kind of field. The type of the handle
+decides what is accepted: a select takes a `Maybe CountryId`, a switch a `Bool`.
+Use it to load a record. A select shows its label as soon as its options have
+arrived; `get` returns the value at once. The rows of a group are loaded with
+`fillRows`.
 
-
-{-| The language of the texts that `errorSummary`, `status`, `unsavedChanges`
-and `unsavedFlag` draw ("The form has 2 errors", "Saving ...", "Try again",
-"Unsaved changes" ...). The default is `Locale.default`, which is English.
--}
-locale : Locale -> Attribute msg
-locale value =
-    Attribute (\config -> { config | locale = value })
-
-
-{-| Pairs of a field's DOM id and its label, so that a problem reads "Email:
-Invalid email address" in the error summary instead of the message alone
-(`errorSummary`). A problem whose field has no pair shows only its message.
--}
-labels : List ( String, String ) -> Attribute msg
-labels value =
-    Attribute (\config -> { config | labels = value })
-
-
-{-| What a click on a problem in the error summary sends: the DOM id of its
-field. Handle it with `focusField` (`errorSummary`). Without this each problem
-is a plain link to `#<field id>`, which an application built with
-`Browser.application` receives as a URL request; always give it.
--}
-onFocusField : (String -> msg) -> Attribute msg
-onFocusField toMsg =
-    Attribute (\config -> { config | onFocusField = Just toMsg })
-
-
-{-| Shows a "Try again" button in the failure message when the submit failed in
-a way that is worth trying again: the network, a timeout, a server error or an
-unknown error, see `Remote.isRetryable` (`status`). The button sends this
-message.
--}
-onRetry : msg -> Attribute msg
-onRetry msg =
-    Attribute (\config -> { config | onRetry = Just msg })
-
-
-{-| Shows a close button on the success and failure messages and sends this
-message when it is pressed (`status`). The button goes away with the message, so
-in the update that handles it move focus to a control that makes sense (the
-submit button, `focusField`); otherwise keyboard focus falls back to the page.
--}
-onDismiss : msg -> Attribute msg
-onDismiss msg =
-    Attribute (\config -> { config | onDismiss = Just msg })
-
-
-{-| Gives the unsaved-changes banner a "Save" button that sends this message
-(`unsavedChanges`). Without it the banner has no such button.
--}
-onSave : msg -> Attribute msg
-onSave msg =
-    Attribute (\config -> { config | onSave = Just msg })
-
-
-{-| Gives the unsaved-changes banner a "Discard" button that sends this message
-(`unsavedChanges`). Without it the banner has no such button.
--}
-onDiscard : msg -> Attribute msg
-onDiscard msg =
-    Attribute (\config -> { config | onDiscard = Just msg })
-
-
-{-| While `True` the "Save" button of the banner shows a spinner and ignores
-clicks, and the "Discard" button is disabled (`unsavedChanges`). Pass a field of
-your model that is `True` while the request is running. The default is `False`.
--}
-saving : Bool -> Attribute msg
-saving value =
-    Attribute (\config -> { config | saving = value })
-
-
-{-| The banner sticks to the top of the scrolling area while the page scrolls
-(`unsavedChanges`).
--}
-sticky : Attribute msg
-sticky =
-    Attribute (\config -> { config | sticky = True })
-
-
-
--- FORM
-
-
-{-| The `form` element around the sections, the error summary and the button row.
-It has `novalidate`, so the browser shows none of its own validation bubbles.
-Reads `id`, `ariaLabel`, `onSubmit` and `stacked`.
-
-    Form.view [ Form.id "order-form", Form.onSubmit Submit ]
-        [ Form.section "Customer" "Who the invoice is for." [ customerFields ]
-        , Form.actions [ Layout.spacer, saveButton ]
-        ]
-
-With an `onSubmit`, the form also holds an invisible submit button, so that Enter
-in a field submits it even when the real buttons are outside the form, as in the
-footer of a dialog.
+    Form.init form
+        |> Form.set f.name "Acme Supplies"
+        |> Form.set f.country (Just (CountryId "no"))
+        |> Form.markClean
 
 -}
-view : List (Attribute msg) -> List (Html msg) -> Html msg
-view attributes children =
-    let
-        config =
-            configure attributes
-    in
-    Html.form
-        [ Internal.cls
-            [ "klar-form"
-            , if config.stacked then
-                "klar-form--stacked"
+set : Field c -> c -> State step -> State step
+set =
+    Core.set
 
-              else
-                ""
-            ]
-        , Attr.novalidate True
-        , Internal.attrMaybe Attr.id config.id
-        , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
-        , case config.onSubmit of
-            Just msg ->
-                Events.onSubmit msg
 
-            Nothing ->
-                Internal.noAttr
-        ]
-        (case config.onSubmit of
-            -- Pressing Enter in a field only submits a form with several
-            -- fields when the form has a submit button. The real buttons are
-            -- often outside the form (a dialog footer), so there is an
-            -- invisible one that keeps Enter working.
-            Just _ ->
-                children
-                    ++ [ Html.button
-                            [ Attr.type_ "submit"
-                            , Internal.cls [ "klar-sr-only" ]
-                            , Attr.tabindex -1
-                            , Attr.attribute "aria-hidden" "true"
-                            ]
-                            []
-                       ]
+{-| The value of a field as it is edited: `Nothing` for an empty select, `[]` for
+an empty multi select, the text as typed.
+-}
+get : Field c -> State step -> c
+get =
+    Core.get
 
-            Nothing ->
-                children
+
+{-| The handles of the rows a group has now, in order. Draw one card of fields
+for each; the position is for the words ("Contact 2"). A handle is the row's
+own: it stays right when other rows are added or removed, and stops working when
+its row is removed.
+
+    Form.rowFields f.contacts model.form
+        |> List.indexedMap (\i row -> contactCard v i row)
+
+-}
+rowFields : Field (Rows rowFields) -> State step -> List rowFields
+rowFields =
+    Core.rowFields
+
+
+{-| Loads a list of records into the rows of a group: the rows that are there are
+replaced by one new row for each item, and `fill` puts the item in the row's
+fields. Like `set`, it does not change the baseline; call `markClean` after a
+load.
+
+    Form.fillRows f.contacts
+        (\contact row ->
+            Form.set row.name contact.name
+                >> Form.set row.email contact.email
         )
-
-
-{-| A part of the form: a title and a short explanation on the left and the
-fields on the right (above each other when the window is narrow, or always with
-`stacked`). Sections are separated by a thin gray line.
-
-    Form.section "Delivery" "Where and when the order should arrive." [ addressFields ]
-
-The second argument may be an empty string. The title names the section for
-screen readers (`role="group"` with an `aria-label`) and is an `h2`, the level under
-the `h1` of a page. A section has no DOM id, so
-two sections may share a title, also in different forms on one page.
+        supplier.contacts
 
 -}
-section : String -> String -> List (Html msg) -> Html msg
-section title description children =
-    -- The title names the group with aria-label instead of aria-labelledby, so
-    -- the section needs no DOM id: two sections may share a title, also in
-    -- different forms of one page, and nothing can collide.
-    Html.section
-        [ Internal.cls [ "klar-form-section" ]
-        , Attr.attribute "role" "group"
-        , Attr.attribute "aria-label" title
-        ]
-        [ Html.div [ Internal.cls [ "klar-form-section__head" ] ]
-            [ Html.h2 [ Internal.cls [ "klar-form-section__title" ] ] [ Html.text title ]
-            , if description == "" then
-                Html.text ""
-
-              else
-                Html.p [ Internal.cls [ "klar-form-section__description" ] ] [ Html.text description ]
-            ]
-        , Html.div [ Internal.cls [ "klar-form-section__body" ] ] children
-        ]
+fillRows : Field (Rows rowFields) -> (a -> rowFields -> State step -> State step) -> List a -> State step -> State step
+fillRows =
+    Core.fillRows
 
 
-{-| Fields side by side in this many columns (a number below 1 counts as 1). It
-becomes a single column on a narrow window.
+{-| The record the form produces, or all the problems, in the order of the
+declaration, in the given language. An invalid form cannot produce a record.
+Rules and `required` run on every field, whether or not the user has been
+there. A problem the server gave that still stands (its field has not been
+edited) and every problem given to `outside` count too: the form is not valid
+while they are there, so a record is never produced behind them.
 
-    Form.grid 2 [ nameField, emailField, Form.fullRow addressField ]
+    case Form.toValues Locale.default form model.form of
+        Ok values ->
+            save values
+
+        Err found ->
+            ...
 
 -}
-grid : Int -> List (Html msg) -> Html msg
-grid columns children =
-    Html.div
-        [ Internal.cls [ "klar-form-grid" ]
-        , Internal.styleVars [ ( "--klar-cols", String.fromInt (max 1 columns) ) ]
-        ]
-        children
+toValues : Locale -> Form step fields values -> State step -> Result (List (Problem step)) values
+toValues =
+    Core.toValues
 
 
-{-| A field that takes the whole row of a `grid`, such as an address or a free
-text note.
+{-| `True` when the values differ from the baseline, rows added and removed
+included. Typing a letter and deleting it again is clean again. Only values
+count: an open list, a search text or a server problem do not. It covers every
+field of every step and every row, so one flag is enough for the leave guard.
 -}
-fullRow : Html msg -> Html msg
-fullRow child =
-    Html.div [ Internal.cls [ "klar-form-grid__full" ] ] [ child ]
+isDirty : State step -> Bool
+isDirty =
+    Core.isDirty
 
 
-{-| The row of buttons at the end of the form, right-aligned and set off from
-the fields by a thin line. Put `Layout.spacer` between buttons to push the first
-ones to the left, for example a "Delete" button; the `status` line also belongs
-here.
-
-    Form.actions
-        [ Button.view [ Button.danger, Button.onClick Delete ] "Delete"
-        , Layout.spacer
-        , Button.view [ Button.onClick Cancel ] "Cancel"
-        , Button.view [ Button.primary, Button.submit ] "Save"
-        ]
-
+{-| The values now become the baseline, after a load or a successful save.
 -}
-actions : List (Html msg) -> Html msg
-actions children =
-    Html.div [ Internal.cls [ "klar-form-actions" ] ] children
+markClean : State step -> State step
+markClean =
+    Core.markClean
 
 
-{-| Like `actions`, but the row stays at the bottom of the scrolling area while
-the form is longer than the window.
+{-| Every field goes back to the baseline, removed rows come back and added rows
+go. Problems and what was touched are forgotten.
 -}
-stickyActions : List (Html msg) -> Html msg
-stickyActions children =
-    Html.div [ Internal.cls [ "klar-form-actions", "klar-form-actions--sticky" ] ] children
+revert : Form step fields values -> State step -> State step
+revert =
+    Core.revert
 
 
+{-| Handles a message of the form's controls. A change in a field clears the
+server problem of that field. It also answers the buttons that add and remove
+rows, the stepper and the lines of the summary, which is why it needs the form.
 
--- FOCUS
-
-
-{-| Moves keyboard focus to the element with this DOM id, normally a control
-(the `id` you gave it), and scrolls it into view. The message is sent when it is
-done, also when no element has that id. Use it to answer the message of
-`onFocusField`, with a message that does nothing:
-
-    FocusField fieldId ->
-        ( model, Form.focusField fieldId NoOp )
+    FormMsg inner ->
+        let
+            ( form, cmd ) =
+                Form.update declaration inner model.form
+        in
+        ( { model | form = form }, Cmd.map FormMsg cmd )
 
 -}
-focusField : String -> msg -> Cmd msg
-focusField fieldId done =
-    Internal.focus fieldId done
-
-
-{-| Moves focus to the error summary of the form with this id (the one given to
-`Form.id`), so that a screen reader reads it. Call it in the update that finds
-problems on a submit, after the problems are in the model. The message is sent
-when it is done.
--}
-focusSummary : String -> msg -> Cmd msg
-focusSummary formId done =
-    Internal.focus (summaryId formId) done
-
-
-summaryId : String -> String
-summaryId formId =
-    formId ++ "-summary"
+update : Form step fields values -> Msg -> State step -> ( State step, Cmd Msg )
+update =
+    Core.update
 
 
 
--- ERROR SUMMARY
+-- PROBLEMS AND FOCUS
 
 
-{-| A red message at the top of the form that says how many problems there are
-("The form has 2 errors", then "Fix the problems below before you continue.")
-and lists them, one line each. Nothing is drawn for an empty list. A problem is
-a `field`, the DOM id of its control, and a `message`; the `Validate.Error`
-records from [Klar.Validate](Klar-Validate) fit. Each line is a button that
-sends `onFocusField` with the id of its field (a plain link to `#<field id>`
-when there is no `onFocusField`), and the box itself can take focus
-(`focusSummary`). It is announced by screen readers when it appears
-(`role="alert"`). Reads `id`, `labels`, `onFocusField` and `locale`.
--}
-errorSummary : List (Attribute msg) -> List { field : String, message : String } -> Html msg
-errorSummary attributes problems =
-    let
-        config =
-            configure attributes
+{-| Everything that is wrong now, in the order of the declaration: the rules of
+every field (whether or not the user has been there), the problems the server
+gave that still stand, and the problems given to `outside`. A field has at most
+one problem from the form, its own rule first and then the server's. This is the
+list `toValues` gives when it fails, and the list for a review page or a count;
+`summary` and the field's own message show the part of it that has come to
+light.
 
-        count =
-            List.length problems
-
-        formId =
-            Maybe.withDefault "form" config.id
-
-        title =
-            Locale.pick config.locale
-                { nb = "Skjemaet har " ++ String.fromInt count ++ " feil"
-                , en = "The form has " ++ String.fromInt count ++ " " ++ Format.plural config.locale count { one = "error", other = "errors" }
-                }
-
-        intro =
-            Locale.pick config.locale
-                { nb = "Rett opp feilene under før du fortsetter."
-                , en = "Fix the problems below before you continue."
-                }
-    in
-    if List.isEmpty problems then
-        Html.text ""
-
-    else
-        Html.div
-            [ Internal.cls [ "klar-form-summary" ]
-            , Attr.id (summaryId formId)
-            , Attr.tabindex -1
-            ]
-            [ Alert.viewWith
-                [ Alert.tone Danger, Alert.title title, Alert.locale config.locale ]
-                [ Html.p [ Internal.cls [ "klar-form-summary__intro" ] ] [ Html.text intro ]
-                , Html.ul [ Internal.cls [ "klar-form-summary__list" ] ]
-                    (List.map (summaryItem config) problems)
-                ]
-            ]
-
-
-summaryItem : Config msg -> { field : String, message : String } -> Html msg
-summaryItem config problem =
-    let
-        text =
-            case List.filter (\( fieldId, _ ) -> fieldId == problem.field) config.labels |> List.head of
-                Just ( _, fieldLabel ) ->
-                    fieldLabel ++ ": " ++ problem.message
-
-                Nothing ->
-                    problem.message
-    in
-    Html.li []
-        [ case config.onFocusField of
-            -- A button, not a link: in an application with hash routing a
-            -- click on `href="#field"` would be taken for a route change.
-            Just toMsg ->
-                Html.button
-                    [ Internal.cls [ "klar-form-summary__link" ]
-                    , Attr.type_ "button"
-                    , Events.onClick (toMsg problem.field)
-                    ]
-                    [ Html.text text ]
-
-            Nothing ->
-                Html.a
-                    [ Internal.cls [ "klar-form-summary__link" ]
-                    , Attr.href ("#" ++ problem.field)
-                    ]
-                    [ Html.text text ]
-        ]
-
-
-
--- STATUS
-
-
-{-| Where the submit of a form is, for `status` to show. Keep one in the model
-and start with `Idle`.
-
-  - `Idle`: nothing to show, because nothing has been sent yet or the
-    application cleared the message.
-  - `Submitting`: the request is on its way.
-  - `Succeeded message`: it worked; the message is shown in green.
-  - `Failed problem`: it did not; the `Problem` from
-    [Klar.Remote](Klar-Remote) is shown in red.
+    Form.problems Locale.default form model.form
+        |> List.map (\p -> p.label ++ ": " ++ p.message)
 
 -}
-type Status
-    = Idle
-    | Submitting
-    | Succeeded String
-    | Failed Problem
+problems : Locale -> Form step fields values -> State step -> List (Problem step)
+problems =
+    Core.problems
 
 
-{-| The state of the submit as one line or message: nothing while `Idle`, a
-spinner with "Saving ..." while `Submitting`, a green message with the text of
-`Succeeded`, and a red message with the title, detail and code of the problem
-in `Failed` and, when `onRetry` is given and trying again could help, a "Try
-again" button. Put it in the button row (`actions`). Reads `id`, `onRetry`,
-`onDismiss` and `locale`.
+{-| `True` when `problems` is not empty. Use it to keep a Save button quiet or to
+colour a step: the language does not matter for the answer.
+-}
+hasProblems : Form step fields values -> State step -> Bool
+hasProblems =
+    Core.hasProblems
 
-**Focus.** The message sits in a region that can take focus (`tabindex="-1"`,
-with the DOM id `<form id>-status`), and the region stays in the page from
-"Saving ..." until the answer comes, also when the message inside it is
-replaced. The "Try again" button is replaced by "Saving ..." the moment it is
-pressed, so keyboard focus would fall back to the page: move it to the region
-with `focusStatus` in the same update, and a screen reader follows the retry
-from "Saving ..." to the result.
 
-    Retry ->
-        ( { model | status = Form.Submitting }
-        , Cmd.batch [ sendOrder model, Form.focusStatus "order-form" NoOp ]
-        )
+{-| Gives the form the problems of something it does not hold itself, such as
+the rule builder of a price rule. They count like the form's own: they are in
+`problems`, `toValues` fails while they stand, the stepper marks their step, and
+`summary` lists them once their step has been tried (`advance`, `reveal`,
+`rejected`). Each is a `Problem` you write by hand; its `field` is the DOM id of
+the element the summary moves the focus to, and its `step` the step it belongs
+to.
+
+The list replaces the one given before, so compute it from your model and call
+it at the end of your `update`, for example in the same place that handles the
+messages of the rule builder:
+
+    ( { model | form = Form.outside declaration (ruleProblems model) model.form }, cmd )
 
 -}
-status : List (Attribute msg) -> Status -> Html msg
-status attributes current =
-    let
-        config =
-            configure attributes
+outside : Form step fields values -> List (Problem step) -> State step -> State step
+outside =
+    Core.outside
 
-        dismiss =
-            case config.onDismiss of
-                Just msg ->
-                    [ Alert.onDismiss msg ]
 
-                Nothing ->
-                    []
+{-| A message from the server tied to a field. Map the backend's own field type
+to a handle once, in the application:
 
-        region content =
-            Html.div
-                [ Internal.cls [ "klar-form-statusregion" ]
-                , Attr.id (statusId (Maybe.withDefault "form" config.id))
-                , Attr.tabindex -1
-                ]
-                [ content ]
-    in
-    case current of
-        Idle ->
+    fromBackend : Backend.Problem -> Form.Problem step
+    fromBackend p =
+        case p.field of
+            Backend.Name ->
+                Form.problem f.name p.message
+
+            Backend.Country ->
+                Form.problem f.country p.message
+
+The label and the step are filled in from the declaration. A field in a row has
+a handle for each row: `Form.rowFields f.contacts state`, then the row at the
+position the server named.
+
+-}
+problem : Field c -> String -> Problem step
+problem =
+    Core.problem
+
+
+{-| Gives the form the problems of a failed save. Each is shown at its field
+and in the summary until that field is edited, and counts as a problem
+(`problems`, `toValues`) for as long. Every problem of the form shows from now
+on, the form moves to the step of the first problem (so that its summary is the
+one on screen), and the focus goes to the summary. A problem for a field the
+form does not have is ignored.
+
+The problems are stored whether or not the form is on screen. The `Cmd` focuses
+the summary of this form; when the summary is not on screen (the form is on
+another page, or not drawn yet) it finds nothing and does nothing, so it is safe
+to batch or to drop. Two forms rejected in one reply each focus their own
+summary, and the last one wins: keep the `Cmd` of the one the user is looking at.
+
+-}
+rejected : List (Problem step) -> Form step fields values -> State step -> ( State step, Cmd Msg )
+rejected =
+    Core.rejected
+
+
+{-| Shows every problem now, also for fields the user has not been in, and moves
+the focus to the summary. Call it when the user presses Save and `toValues`
+returned problems (`advance` does it for you in a form with steps). Fields and
+rows added later start quiet again.
+-}
+reveal : Form step fields values -> State step -> ( State step, Cmd Msg )
+reveal =
+    Core.reveal
+
+
+{-| Moves the focus to a field, so the application never writes a DOM id. Map
+the `Cmd` with your message constructor. Nothing happens when the field is not
+on screen.
+
+    Form.focus f.name |> Cmd.map FormMsg
+
+-}
+focus : Field c -> Cmd Msg
+focus =
+    Core.focus
+
+
+{-| Goes to the element a problem is about, for a review list you draw yourself
+(the summary does this by itself): the form changes to the step of the problem,
+and the focus moves to its element once that step is on screen. The problem is
+one of `problems`, or one you gave to `outside`.
+-}
+goToProblem : Form step fields values -> Problem step -> State step -> ( State step, Cmd Msg )
+goToProblem =
+    Core.goToProblem
+
+
+
+-- STEPS
+
+
+{-| The step the form is on, or `Nothing` in a form that was declared without
+steps.
+
+    case Form.currentStep declaration model.form of
+        Just Company ->
+            viewCompany model
+
+        Just Contacts ->
+            viewContacts model
+
+        _ ->
             Html.text ""
 
-        Submitting ->
-            region
-                (Html.span
-                    [ Internal.cls [ "klar-form-status" ]
-                    , Attr.attribute "role" "status"
-                    ]
-                    [ Html.span [ Internal.cls [ "klar-spinner", "klar-spinner--sm" ], Attr.attribute "aria-hidden" "true" ] []
-                    , Html.text (Locale.pick config.locale { nb = "Lagrer ...", en = "Saving ..." })
-                    ]
-                )
-
-        Succeeded message ->
-            region (Alert.view ([ Alert.tone Success, Alert.compact, Alert.locale config.locale ] ++ dismiss) message)
-
-        Failed problem ->
-            region
-                (Alert.viewWith
-                    ([ Alert.tone Danger
-                     , Alert.compact
-                     , Alert.title (Remote.title config.locale problem)
-                     , Alert.locale config.locale
-                     , Alert.actions
-                        (case ( config.onRetry, Remote.isRetryable problem ) of
-                            ( Just msg, True ) ->
-                                [ Button.view [ Button.small, Button.onClick msg ]
-                                    (Locale.pick config.locale { nb = "Prøv igjen", en = "Try again" })
-                                ]
-
-                            _ ->
-                                []
-                        )
-                     ]
-                        ++ dismiss
-                    )
-                    [ Html.text (Maybe.withDefault "" (Remote.detail config.locale problem))
-                    , case Remote.code problem of
-                        Just code ->
-                            Html.span [ Internal.cls [ "klar-form-status__code" ] ] [ Html.text (" (" ++ code ++ ")") ]
-
-                        Nothing ->
-                            Html.text ""
-                    ]
-                )
-
-
-{-| Moves keyboard focus to the status region of the form with this id (the one
-given to `Form.id`, see `status`). Call it in the update that handles the "Try
-again" button, so focus is not left on a button that has just been replaced. The
-message is sent when it is done. Nothing happens when the form has no status
-message at that moment.
 -}
-focusStatus : String -> msg -> Cmd msg
-focusStatus formId done =
-    Internal.focus (statusId formId) done
+currentStep : Form step fields values -> State step -> Maybe step
+currentStep =
+    Core.currentStep
 
 
-statusId : String -> String
-statusId formId =
-    formId ++ "-status"
-
-
-
--- UNSAVED CHANGES
-
-
-{-| A warning banner ("You have unsaved changes. The changes are lost if you
-leave the page without saving.") for as long as the form has changes that are
-not saved. The `Bool` says whether there are some: compare the data in the form
-with what was loaded or saved. Nothing is drawn for `False`. The buttons "Save"
-and "Discard" are there when `onSave` and `onDiscard` are given. The banner is
-announced politely (`role="status"`), as it appears while the user is typing.
-Reads `onSave`, `onDiscard`, `saving`, `sticky` and `locale`.
-
-    Form.unsavedChanges
-        [ Form.onSave SaveOrder, Form.onDiscard DiscardChanges, Form.saving model.saving ]
-        (model.draft /= model.saved)
-
-The banner appears above the fields when the first change is made, and pushes
-them down. In a long form or flow prefer [`unsavedFlag`](#unsavedFlag), which takes
-no room of its own. Keeping people from leaving the page with unsaved changes is
-[`LeaveGuard`](Klar-LeaveGuard): tell it the same fact with `LeaveGuard.setDirty`
-and it asks on links, in your code and on the browser's Back and Forward buttons.
-Closing the tab cannot be intercepted without JavaScript.
-
+{-| `True` when the user has tried to leave this step (with `advance`) or the
+problems were revealed (`reveal`, `rejected`). Something you draw yourself that
+shows problems only after a try, such as the rule builder, asks it.
 -}
-unsavedChanges : List (Attribute msg) -> Bool -> Html msg
-unsavedChanges attributes dirty =
-    let
-        config =
-            configure attributes
-
-        buttons =
-            List.filterMap identity
-                [ config.onSave
-                    |> Maybe.map
-                        (\msg ->
-                            Button.view
-                                [ Button.small
-                                , Button.primary
-                                , Button.loading config.saving
-                                , Button.onClick msg
-                                ]
-                                (Locale.pick config.locale { nb = "Lagre", en = "Save" })
-                        )
-                , config.onDiscard
-                    |> Maybe.map
-                        (\msg ->
-                            Button.view
-                                [ Button.small
-                                , Button.disabled config.saving
-                                , Button.onClick msg
-                                ]
-                                (Locale.pick config.locale { nb = "Forkast", en = "Discard" })
-                        )
-                ]
-    in
-    if dirty then
-        Html.div
-            [ Internal.cls
-                [ "klar-form-unsaved"
-                , if config.sticky then
-                    "klar-form-unsaved--sticky"
-
-                  else
-                    ""
-                ]
-            ]
-            [ Alert.viewWith
-                [ Alert.tone Warning
-                , Alert.compact
-                , Alert.polite
-                , Alert.locale config.locale
-                , Alert.title (Locale.pick config.locale { nb = "Du har ulagrede endringer", en = "You have unsaved changes" })
-                , Alert.actions buttons
-                ]
-                [ Html.text
-                    (Locale.pick config.locale
-                        { nb = "Endringene går tapt hvis du forlater siden uten å lagre."
-                        , en = "The changes are lost if you leave the page without saving."
-                        }
-                    )
-                ]
-            ]
-
-    else
-        Html.text ""
+attempted : Form step fields values -> step -> State step -> Bool
+attempted =
+    Core.attempted
 
 
-{-| A small mark, "Unsaved changes", for the footer of a drawer or dialog
-(`Drawer.footerStart`, `Modal.footerStart`) or the button row of a form. The
-`Bool` says whether there are unsaved changes, as for `unsavedChanges`. The mark
-takes no room of its own while the form is clean and does not push the fields
-around when the first key is typed, which the banner of `unsavedChanges` does:
-this is the one for a long form or flow. The empty live region is always there, so a
-screen reader announces the text when it appears. Reads `locale`. The question
-"Leave without saving?" when the user goes away is
-[`LeaveGuard`](Klar-LeaveGuard), fed with the same `Bool`.
+{-| What the Next and Save buttons do. On a step before the last it checks that
+step: with problems, they are shown, the step is marked as failed in the stepper
+and the focus goes to the summary; without, the form moves on and the focus goes
+to the first field of the next step. On the last step it checks the whole form:
+with problems, they are all shown and the form goes to the review step (or, when
+the last step has fields, to the first step with a problem); without,
+`submit` is the record, ready to send. Sending it and keeping the
+`FormLayout.Status` stays with the application.
 
-    Form.unsavedFlag [] (model.draft /= model.saved)
-
--}
-unsavedFlag : List (Attribute msg) -> Bool -> Html msg
-unsavedFlag attributes dirty =
-    let
-        config =
-            configure attributes
-    in
-    Html.span
-        [ Internal.cls [ "klar-form-flag" ]
-        , Attr.attribute "role" "status"
-        ]
-        (if dirty then
-            [ Html.span [ Internal.cls [ "klar-form-flag__dot" ], Attr.attribute "aria-hidden" "true" ] []
-            , Html.text (Locale.pick config.locale { nb = "Ulagrede endringer", en = "Unsaved changes" })
-            ]
-
-         else
-            []
+    Submit ->
+        let
+            next =
+                Form.advance declaration model.form
+        in
+        ( { model | form = next.state }
+        , Cmd.batch [ Cmd.map FormMsg next.cmd, Maybe.map send next.submit |> Maybe.withDefault Cmd.none ]
         )
+
+-}
+advance : Form step fields values -> State step -> { state : State step, cmd : Cmd Msg, submit : Maybe values }
+advance =
+    Core.advance
+
+
+{-| The Back button: one step back, without checking anything, and the focus goes
+to the first field of that step. On the first step it does nothing.
+-}
+back : Form step fields values -> State step -> ( State step, Cmd Msg )
+back =
+    Core.back
+
+
+{-| Goes to a step, for the "Edit" buttons of a review page. Going back is free.
+Going forward checks every step on the way, as the stepper does: it stops at the
+first one with problems, shows them and puts the focus on the summary.
+-}
+goTo : Form step fields values -> step -> State step -> ( State step, Cmd Msg )
+goTo =
+    Core.goTo
+
+
+
+-- DRAWING THE FORM
+
+
+{-| Binds the form, the state, the language and the message wrapper for one
+view. The result carries everything the controls need, so each control is one
+call.
+-}
+bind : Locale -> (Msg -> msg) -> Form step fields values -> State step -> View msg
+bind =
+    Core.bind
+
+
+{-| A text input for a `text` field. The id, label, hint, required mark, value,
+error and messages are set by the form and win over the application's
+attributes; the others (a placeholder, `TextInput.url`, a suffix) are the
+application's.
+-}
+textInput : View msg -> Field String -> List (TextInput.Attribute msg) -> Html msg
+textInput =
+    Core.textInput
+
+
+{-| A multi-line text area for a `text` field: the same field as `textInput`,
+drawn for a long note. Give the number of rows and the maximum length as
+attributes (`TextArea.rows`, `TextArea.maxLength`).
+-}
+textArea : View msg -> Field String -> List (TextArea.Attribute msg) -> Html msg
+textArea =
+    Core.textArea
+
+
+{-| A number input for a `number` field. The limits of `range` and the decimals
+of `whole` are applied for you.
+-}
+numberInput : View msg -> Field (Maybe Float) -> List (NumberInput.Attribute msg) -> Html msg
+numberInput =
+    Core.numberInput
+
+
+{-| A select for a `choice` field. The options are an argument, not an
+attribute, so a select without options cannot be drawn.
+-}
+select : View msg -> Field (Maybe id) -> Remote (List (Select.Option id)) -> List (Select.Attribute String msg) -> Html msg
+select =
+    Core.select
+
+
+{-| A multi select for a `choices` field.
+-}
+multiSelect : View msg -> Field (List id) -> Remote (List (Select.Option id)) -> List (MultiSelect.Attribute String msg) -> Html msg
+multiSelect =
+    Core.multiSelect
+
+
+{-| A switch for a `toggle` field. The hint of the declaration is its
+description.
+-}
+switch : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
+switch =
+    Core.switch
+
+
+{-| A tag field for a `tags` field. The label, hint, required mark, error and
+messages are set by the form; the delimiters, the limit, the placeholder and
+a rule for a single tag are the application's attributes.
+-}
+tagInput : View msg -> Field (List String) -> List (TagInput.Attribute msg) -> Html msg
+tagInput =
+    Core.tagInput
+
+
+{-| A drop zone for a `files` field. The type and size limits and the number of
+files are the application's attributes (`FileDrop.accept`, `FileDrop.maxSize`,
+`FileDrop.maxFiles`); `one` does not limit the zone by itself.
+-}
+fileDrop : View msg -> Field (List FileDrop.FileInfo) -> List (FileDrop.Attribute msg) -> Html msg
+fileDrop =
+    Core.fileDrop
+
+
+{-| The button that adds a row to a group, with the group's problem under it
+("Add at least 1") when that is showing. The new row is added at the end and its
+first field gets the focus. The button's DOM id is the group's: it is where the
+summary and the focus after removing the last row lead.
+
+    Form.addRow v f.contacts [] "Add contact"
+
+-}
+addRow : View msg -> Field (Rows rowFields) -> List (Button.Attribute msg) -> String -> Html msg
+addRow =
+    Core.addRow
+
+
+{-| The button that removes the row at this position (counted from 0, as in
+`List.indexedMap` over `rowFields`): an icon button named "Remove contact 2"
+from the group's `item`. The focus goes to the next row's first field, or the
+previous one, or the add button when no row is left.
+-}
+removeRow : View msg -> Field (Rows rowFields) -> Int -> List (Button.Attribute msg) -> Html msg
+removeRow =
+    Core.removeRow
+
+
+{-| The steps of the form as a stepper, with the step the form is on and a red
+mark on every step that has problems showing. A click on a step goes there; going
+forward checks the steps on the way and stops at the first one with problems.
+Nothing is drawn for a form without steps. The attributes are the stepper's own
+(`Stepper.ariaLabel`, `Stepper.small`).
+-}
+stepper : View msg -> List (Stepper.Attribute msg) -> Html msg
+stepper =
+    Core.stepper
+
+
+{-| The list of problems that are showing, with the labels of the declaration,
+as `FormLayout.errorSummary`: the form's own and those given to `outside`. Each line
+moves the focus to its element, on another step if need be. On a step it lists
+the problems of that step; on the review step (a step with no fields) it lists
+every problem of every step, shown or not, with the step in brackets. Nothing
+is drawn while there is nothing to list, except on a step with no fields of the
+form (a review step, or a step whose fields you draw yourself): there an empty
+region named by the step is drawn, because the focus lands there when the form
+moves to the step. Put `summary` at the top of every step.
+-}
+summary : View msg -> Html msg
+summary =
+    Core.summary
