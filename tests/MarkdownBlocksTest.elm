@@ -97,7 +97,7 @@ paragraphs =
         , ok "trailing spaces" "aaa     \nbbb     " "<p>aaa<br>bbb</p>"
         , ok "blank lines with spaces" "aaa\n   \nbbb" "<p>aaa</p><p>bbb</p>"
         , ok "tabs" "\taaa\n\nbbb" "<pre><code>aaa</code></pre><p>bbb</p>"
-        , ok "a null character becomes the replacement character" "a\u{0000}b" "<p>a\u{FFFD}b</p>"
+        , ok "a null character becomes the replacement character" "a\u{0000}b" "<p>a�b</p>"
         ]
 
 

@@ -1408,7 +1408,6 @@ canStartUrl previous =
     isWhitespace previous || String.contains (String.fromChar previous) "(*_~\"'"
 
 
-
 isAlphaNumeric : Char -> Bool
 isAlphaNumeric c =
     isAsciiLetter c || isDigit c

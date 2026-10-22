@@ -927,6 +927,7 @@ property that goes away back to `null`, which for a selection is 0.
 
 `selectionEnd` is set first: setting `selectionStart` after the end is before
 the old start would otherwise move the end.
+
 -}
 restoreAttributes : Maybe Restore -> List (Html.Attribute msg)
 restoreAttributes maybe =

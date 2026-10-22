@@ -125,7 +125,7 @@ parse input =
 
         lines =
             kept
-                |> String.replace "\u{0000}" "\u{FFFD}"
+                |> String.replace "\u{0000}" "�"
                 |> String.lines
                 |> dropLastEmpty
 

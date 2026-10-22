@@ -173,8 +173,7 @@ lineCount text =
 
 
 type alias Marker =
-    { {- is the text a run of this mark with something inside? -}
-      wrappedBy : String -> Bool
+    { {- is the text a run of this mark with something inside? -} wrappedBy : String -> Bool
 
     -- the text without one layer of the mark
     , unwrap : String -> String
@@ -800,7 +799,9 @@ indentOf text =
 
 
 {-| A heading goes from none to level 2, 3 and 4, and then to none; level 1 goes to
-2. The first line decides, and all lines get the same level.
+
+1.  The first line decides, and all lines get the same level.
+
 -}
 headingPlan : List Line -> List (Maybe LineEdit)
 headingPlan lines =
@@ -892,7 +893,7 @@ isQuoted text =
     String.startsWith ">" (String.trimLeft text)
 
 
-{-| `> ` in front of every line that has text, `>` in front of the empty lines
+{-| `>` in front of every line that has text, `>` in front of the empty lines
 between them. When every line is a quote already, the marks come off.
 -}
 quotePlan : List Line -> List (Maybe LineEdit)

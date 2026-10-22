@@ -5,6 +5,7 @@ its state, and what the events of the text area and of the buttons do.
 
 The messages are made the way the browser makes them: by simulating an event on the
 element and handing what comes out to `update`.
+
 -}
 
 import Expect
@@ -438,6 +439,7 @@ previewTests =
                 render [] (start "![a](https://example.com/a.png)")
                     |> Query.hasNot [ Selector.tag "img" ]
         ]
+
 
 
 -- RENDER

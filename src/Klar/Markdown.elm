@@ -37,7 +37,7 @@ module safe for text you did not write:
 **What is understood.** Headings (`#` to `######`), paragraphs, block quotes,
 bullet and numbered lists (nested, tight or loose, a numbered list keeps the
 number it starts at), task lists (`- [ ]` and `- [x]` become disabled check
-boxes that screen readers announce), fenced code (` ``` ` and `~~~`, the language
+boxes that screen readers announce), fenced code (```` ``` ```` and `~~~`, the language
 is kept as a label) and indented code, thematic breaks, tables with alignment,
 emphasis, strong text, `~~strikethrough~~`, code spans, links with titles,
 `<autolinks>`, plain `https://` addresses, images, backslash escapes and hard
@@ -141,7 +141,7 @@ parse text =
 
 
 {-| The text of a document without any markup: one line for each paragraph, heading,
-list item, row of a table (cells separated by ` | `) and line of code, with the
+list item, row of a table (cells separated by `|`) and line of code, with the
 words of links and the descriptions of images. It fits a search index, a preview
 that is cut after some characters, or a notification.
 
@@ -299,6 +299,7 @@ address of an image can carry what a text from a model knows. Turn it on only fo
 text you trust. To trust only your own image server, use `imagesFrom`.
 
 The browser is told to send no referrer and to load the image lazily.
+
 -}
 images : Attribute
 images =

@@ -4,6 +4,7 @@ module MarkdownEditorEditTest exposing (suite)
 
 A text and its selection are written in one string: `⟦` and `⟧` mark the ends of the
 selection, and `‸` marks a caret.
+
 -}
 
 import Expect exposing (Expectation)
