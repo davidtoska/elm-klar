@@ -129,7 +129,7 @@ fire draw event state =
         |> Query.find [ Selector.tag "input" ]
         |> Event.simulate event
         |> Event.toResult
-        |> Result.map (\msg -> Fm.update msg state |> Tuple.first)
+        |> Result.map (\msg -> Fm.update form msg state |> Tuple.first)
         |> Result.withDefault state
 
 
@@ -245,7 +245,7 @@ validation =
                                         |> Query.find [ Selector.tag "input" ]
                                         |> Event.simulate (Event.input "abc")
                                         |> Event.toResult
-                                        |> Result.map (\msg -> Fm.update msg state |> Tuple.first)
+                                        |> Result.map (\msg -> Fm.update optional msg state |> Tuple.first)
                                         |> Result.withDefault state
                                )
                 in
@@ -422,8 +422,8 @@ dirty =
                         typeName "Other" filled
                 in
                 ( Fm.markClean edited |> Fm.isDirty
-                , Fm.revert edited |> Fm.get f.name
-                , Fm.revert edited |> Fm.isDirty
+                , Fm.revert form edited |> Fm.get f.name
+                , Fm.revert form edited |> Fm.isDirty
                 )
                     |> Expect.equal ( False, "Acme", False )
         , test "opening or searching a select does not make the form dirty" <|
@@ -600,20 +600,20 @@ everythingShowing =
             \_ ->
                 let
                     withRule =
-                        Fm.outside [ priceRule ] filled
+                        Fm.outside form [ priceRule ] filled
                 in
                 Expect.all
                     [ \_ -> labelled withRule |> Expect.equal [ ( "Price rule 1", "Add a condition." ) ]
                     , \_ -> Fm.hasProblems form withRule |> Expect.equal True
                     , \_ -> Fm.toValues Locale.en form withRule |> Result.map (always ()) |> Expect.equal (Err [ priceRule ])
-                    , \_ -> labelled (Fm.outside [] withRule) |> Expect.equal []
+                    , \_ -> labelled (Fm.outside form [] withRule) |> Expect.equal []
                     ]
                     ()
         , test "a problem from outside is quiet until the problems are revealed" <|
             \_ ->
                 let
                     withRule =
-                        Fm.outside [ priceRule ] filled
+                        Fm.outside form [ priceRule ] filled
                 in
                 Expect.all
                     [ \_ -> summed withRule |> hidesText "Add a condition."
@@ -744,7 +744,7 @@ tagsAndFiles =
                             |> Query.find [ Selector.tag "button" ]
                             |> Event.simulate Event.click
                             |> Event.toResult
-                            |> Result.map (\msg -> Fm.update msg one |> Tuple.first)
+                            |> Result.map (\msg -> Fm.update docForm msg one |> Tuple.first)
                             |> Result.withDefault one
                 in
                 Expect.all
@@ -787,7 +787,7 @@ tagsAndFiles =
                     |> Query.find [ Selector.tag "textarea" ]
                     |> Event.simulate (Event.input "ok, changed")
                     |> Event.toResult
-                    |> Result.map (\msg -> Fm.update msg docsFilled |> Tuple.first |> Fm.get d.note)
+                    |> Result.map (\msg -> Fm.update docForm msg docsFilled |> Tuple.first |> Fm.get d.note)
                     |> Expect.equal (Ok "ok, changed")
         ]
 

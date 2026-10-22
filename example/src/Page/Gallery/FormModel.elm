@@ -252,13 +252,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         FormMsg inner ->
-            Fm.update inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+            Fm.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
         Load ->
             ( { model | form = Fm.init form |> fill savedAccount |> Fm.markClean, status = Form.Idle }, Cmd.none )
 
         Revert ->
-            ( { model | form = Fm.revert model.form, status = Form.Idle }, Cmd.none )
+            ( { model | form = Fm.revert form model.form, status = Form.Idle }, Cmd.none )
 
         Save ->
             case Fm.toValues Locale.default form model.form of

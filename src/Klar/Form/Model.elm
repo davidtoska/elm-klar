@@ -1,11 +1,12 @@
 module Klar.Form.Model exposing
-    ( Form, State, Msg, Field, Problem, Spec, Builder, View
-    , define, with, build, fields
-    , text, number, choice, choices, toggle, tags, files
+    ( Form, State, Msg, Field, Rows, Problem, Spec, Builder, View
+    , define, with, step, check, build, fields
+    , text, number, choice, choices, toggle, tags, files, rows
     , required, atLeast, one, rules, range, whole, hint, withMessage
-    , init, set, get, toValues, isDirty, markClean, revert, update
+    , init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
     , problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
-    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, summary
+    , currentStep, attempted, advance, back, goTo
+    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
     , roundTrip, lostIds
     )
 
@@ -17,8 +18,8 @@ The application keeps one [`State`](#State) in its model and one [`Msg`](#Msg)
 in its messages, instead of one component state and one message per field.
 
 This is a prototype of the form model (`design/FORM-MODEL.md` in the
-repository): it handles text, numbers, one choice, several choices, switches,
-tags and files. Import it as `Fm`.
+repository): text, numbers, one choice, several choices, switches, tags, files,
+steps and repeating rows. Import it as `Fm`.
 
     import Klar.Form.Model as Fm
     import Klar.Locale as Locale
@@ -50,7 +51,7 @@ tags and files. Import it as `Fm`.
 
     -- model:  { form : Fm.State () }          init: Fm.init form
     -- message: FormMsg Fm.Msg
-    -- update:  FormMsg inner -> Fm.update inner model.form |> Tuple.mapBoth ... (Cmd.map FormMsg)
+    -- update:  FormMsg inner -> Fm.update form inner model.form |> Tuple.mapBoth ... (Cmd.map FormMsg)
     -- view:
     let
         v =
@@ -80,17 +81,17 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 
 # Types
 
-@docs Form, State, Msg, Field, Problem, Spec, Builder, View
+@docs Form, State, Msg, Field, Rows, Problem, Spec, Builder, View
 
 
 # Declaring a form
 
-@docs define, with, build, fields
+@docs define, with, step, check, build, fields
 
 
 # Kinds of field
 
-@docs text, number, choice, choices, toggle, tags, files
+@docs text, number, choice, choices, toggle, tags, files, rows
 
 
 # Rules
@@ -100,7 +101,7 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 
 # Values and state
 
-@docs init, set, get, toValues, isDirty, markClean, revert, update
+@docs init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
 
 
 # Problems and focus
@@ -108,9 +109,14 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 @docs problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
 
 
+# Steps
+
+@docs currentStep, attempted, advance, back, goTo
+
+
 # Views
 
-@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, summary
+@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
 
 
 # Tests
@@ -122,8 +128,10 @@ Things the compiler refuses (checked, see `design/FORM-MODEL-ERRORS.md`):
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar.Button as Button
 import Klar.FileDrop as FileDrop
 import Klar.Form as Form
+import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
@@ -131,6 +139,7 @@ import Klar.MultiSelect as MultiSelect
 import Klar.NumberInput as NumberInput
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Select as Select
+import Klar.Stepper as Stepper
 import Klar.Switch as Switch
 import Klar.TagInput as TagInput
 import Klar.TextArea as TextArea
@@ -151,26 +160,46 @@ field handles (`Fields`) and the record the form produces (`Values`).
 type Form step fields values
     = Form
         { prefix : String
-        , defs : List Def
-        , fields : fields
-        , read : Locale -> Dict String Raw -> Result (List (Problem step)) values
+        , steps : List (StepInfo step)
+        , defsAt : String -> List Def
+        , fieldsAt : String -> fields
+        , readAt : String -> Locale -> Data -> Result (List Found) values
         }
+
+
+type alias StepInfo step =
+    { step : step
+    , label : String
+    }
 
 
 {-| Everything the form keeps while it is being edited: the value of every field
-(and the open list of a select), the baseline for `isDirty`, which fields were
-left, and the problems the server gave. It is data only: there is no function in
-it. Make it with `init` and keep it in the model.
+(and the open list of a select), the rows of every repeating group, the baseline
+for `isDirty`, which fields were left, the problems the server gave and the
+current step. It is data only: there is no function in it. Make it with `init`
+and keep it in the model.
 -}
 type State step
-    = State
-        { slots : Dict String Slot
-        , baseline : Dict String Raw
-        , touched : Set String
-        , server : Dict String String
-        , outside : List (Problem step)
-        , reviewed : Bool
-        }
+    = State Data
+
+
+type alias Data =
+    { slots : Dict String Slot
+    , baseline : Dict String Raw
+    , touched : Set String
+    , server : Dict String String
+    , outside : List Outside
+    , current : Int
+    , attempted : Set Int
+    }
+
+
+type alias Outside =
+    { field : String
+    , label : String
+    , message : String
+    , step : Maybe Int
+    }
 
 
 {-| What the controls of the form send. Wrap it in one constructor of the
@@ -185,14 +214,18 @@ type Msg
     | TagsMsg String TagInput.Msg
     | FilesMsg String FileDrop.Msg
     | Toggled String Bool
+    | AddRow String
+    | RemoveRow String Int
+    | GoStep Int
     | FocusField String
     | NoOp
 
 
 {-| A handle to one field. The type says what the value looks like while it is
 edited: `String` for a text, `Maybe id` for a choice, `List id` for several,
-`Maybe Float` for a number, `Bool` for a switch. Get the handles from
-`fields form`; there is no other way to make one.
+`Maybe Float` for a number, `Bool` for a switch, `List String` for tags and a
+list of files for files. Get the handles from `fields form`; there is no other
+way to make one.
 -}
 type Field control
     = Field
@@ -200,8 +233,17 @@ type Field control
         , label : String
         , empty : control
         , toRaw : control -> Raw
-        , fromRaw : Raw -> Maybe control
+        , fromData : Data -> control
+        , plan : Maybe RowsPlan
         }
+
+
+{-| The control of a repeating group (`rows`): the handles of the rows it has
+now. It has no constructor, so a rows field cannot be given a value with `set`;
+read the handles of the rows with `rowFields` and load them with `fillRows`.
+-}
+type Rows rowFields
+    = Rows (List rowFields)
 
 
 {-| A message tied to a field: the DOM id of the control (`field`), the label
@@ -214,7 +256,7 @@ rule builder of a price rule, and hand it to `outside`:
     { field = "price-rule-1"
     , label = "Price rule 1"
     , message = "Add at least one condition."
-    , step = Nothing
+    , step = Just Pricing
     }
 
 -}
@@ -223,6 +265,13 @@ type alias Problem step =
     , label : String
     , message : String
     , step : Maybe step
+    }
+
+
+type alias Found =
+    { field : String
+    , label : String
+    , message : String
     }
 
 
@@ -241,11 +290,11 @@ type alias SpecData control output =
     , required : Bool
     , empty : control
     , toRaw : control -> Raw
-    , fromRaw : Raw -> Maybe control
+    , fromData : String -> Data -> control
     , limits : Limits
-    , check : Locale -> control -> Maybe String
+    , rows : Maybe RowsPlan
     , few : Locale -> Int -> String
-    , finish : Locale -> control -> Result String output
+    , read : String -> Locale -> Data -> Result (List Found) output
     , reword : Maybe ((Locale -> String) -> Spec control output)
     }
 
@@ -264,9 +313,11 @@ type Builder step fields values
     = Builder
         { prefix : String
         , used : Set String
-        , defs : List Def
-        , fields : fields
-        , read : Locale -> Dict String Raw -> Result (List (Problem step)) values
+        , steps : List (StepInfo step)
+        , current : Int
+        , makers : List (String -> Def)
+        , fieldsAt : String -> fields
+        , readAt : String -> Locale -> Data -> Result (List Found) values
         }
 
 
@@ -278,17 +329,20 @@ type View msg
         { toMsg : Msg -> msg
         , locale : Locale
         , prefix : String
-        , defs : List Def
+        , defs : Dict String Def
         , slots : Dict String Slot
         , byField : Dict String String
-        , shown : List ShownProblem
+        , listed : List Listed
+        , stepInfo : List { label : String, failed : Bool }
+        , current : Int
         }
 
 
-type alias ShownProblem =
+type alias Listed =
     { field : String
     , label : String
     , message : String
+    , step : Int
     }
 
 
@@ -303,6 +357,7 @@ type Raw
     | RBool Bool
     | RTags (List String)
     | RFiles (List FileDrop.FileInfo) Bool
+    | RRows (List Int)
 
 
 type Slot
@@ -313,6 +368,7 @@ type Slot
     | STags TagInput.State
     | SFiles FileDrop.State
     | SToggle Bool
+    | SRows { order : List Int, next : Int }
 
 
 {-| What the form knows about one field without knowing its types.
@@ -324,6 +380,34 @@ type alias Def =
     , required : Bool
     , initial : Raw
     , limits : Limits
+    , step : Int
+    , rows : Maybe RowsPlan
+    }
+
+
+{-| A repeating group: what one row is, as a function of the prefix of the
+row's DOM ids.
+-}
+type RowsPlan
+    = RowsPlan
+        { item : String
+        , minimum : Int
+        , defsAt : String -> List Def
+        }
+
+
+type Origin
+    = FromRule
+    | FromServer
+    | FromOutside
+
+
+type alias Diagnosis =
+    { field : String
+    , label : String
+    , message : String
+    , step : Int
+    , origin : Origin
     }
 
 
@@ -334,7 +418,9 @@ type alias Def =
 {-| Starts a declaration. The text is the prefix of the DOM ids of the fields
 (`"supplier"` gives `supplier-name`, `supplier-legal-name` ...) and of the
 summary; it must be different for every form on the page. The other two
-arguments are the record constructors `Fields` and `Values`.
+arguments are the record constructors `Fields` and `Values`. (A form that is
+only used as the rows of another form gets its prefix from the group: the text
+is not used.)
 
     Fm.define "supplier" Fields Values
         |> Fm.with (Fm.text "Name")
@@ -346,9 +432,11 @@ define prefix fieldsConstructor valuesConstructor =
     Builder
         { prefix = prefix
         , used = Set.empty
-        , defs = []
-        , fields = fieldsConstructor
-        , read = \_ _ -> Ok valuesConstructor
+        , steps = []
+        , current = 0
+        , makers = []
+        , fieldsAt = \_ -> fieldsConstructor
+        , readAt = \_ _ _ -> Ok valuesConstructor
         }
 
 
@@ -360,54 +448,114 @@ repeated label gets `-2`, `-3` ... so two ids never clash.
 with : Spec control output -> Builder step (Field control -> f) (output -> v) -> Builder step f v
 with (Spec spec) (Builder b) =
     let
-        key =
-            uniqueKey b.prefix spec.label b.used
+        local =
+            uniqueLocal spec.label b.used
 
-        def =
-            { key = key
+        keyAt prefix =
+            prefix ++ "-" ++ local
+
+        maker prefix =
+            { key = keyAt prefix
             , label = spec.label
             , hint = spec.hint
             , required = spec.required
             , initial = spec.toRaw spec.empty
             , limits = spec.limits
+            , step = b.current
+            , rows = spec.rows
             }
 
-        handle =
+        handleAt prefix =
             Field
-                { key = key
+                { key = keyAt prefix
                 , label = spec.label
                 , empty = spec.empty
                 , toRaw = spec.toRaw
-                , fromRaw = spec.fromRaw
+                , fromData = spec.fromData (keyAt prefix)
+                , plan = spec.rows
                 }
 
-        readField locale raws =
-            let
-                raw =
-                    Dict.get key raws |> Maybe.withDefault def.initial
-            in
-            validate locale spec raw
-
-        read locale raws =
-            case ( b.read locale raws, readField locale raws ) of
+        readAt prefix locale data =
+            case ( b.readAt prefix locale data, spec.read (keyAt prefix) locale data ) of
                 ( Ok constructor, Ok output ) ->
                     Ok (constructor output)
 
                 ( Err found, Ok _ ) ->
                     Err found
 
-                ( Ok _, Err message ) ->
-                    Err [ { field = key, label = spec.label, message = message, step = Nothing } ]
+                ( Ok _, Err found ) ->
+                    Err found
 
-                ( Err found, Err message ) ->
-                    Err (found ++ [ { field = key, label = spec.label, message = message, step = Nothing } ])
+                ( Err before, Err found ) ->
+                    Err (before ++ found)
     in
     Builder
         { prefix = b.prefix
-        , used = Set.insert key b.used
-        , defs = def :: b.defs
-        , fields = b.fields handle
-        , read = read
+        , used = Set.insert local b.used
+        , steps = b.steps
+        , current = b.current
+        , makers = maker :: b.makers
+        , fieldsAt = \prefix -> b.fieldsAt prefix (handleAt prefix)
+        , readAt = readAt
+        }
+
+
+{-| The fields that follow are on this step. The step is a value of the
+application's own type, and the text is its label in the stepper and in the
+review list. Declare the steps in order, before their fields. A step with no
+fields of its own is the review step: its summary lists every problem of every
+step.
+
+    Fm.define "supplier" Fields Values
+        |> Fm.step Company "Company"
+        |> Fm.with (Fm.text "Name" |> Fm.required)
+        |> Fm.step Review "Review"
+        |> Fm.build
+
+-}
+step : step -> String -> Builder step fields values -> Builder step fields values
+step value label (Builder b) =
+    Builder
+        { b
+            | steps = b.steps ++ [ { step = value, label = label } ]
+            , current = List.length b.steps
+        }
+
+
+{-| A rule over several fields, run when every field is valid on its own. It
+gets the handles, the state (to find the rows of a group with `rowFields`) and
+the values, and returns the problems it finds, each tied to a field with
+`problem`. Put it last, after the `with` calls: it is a compile error before.
+
+    Fm.define "supplier" Fields Values
+        |> Fm.with (Fm.rows { label = "Contacts", item = "Contact" } contact)
+        |> Fm.check
+            (\f state _ ->
+                Fm.rowFields f.contacts state
+                    |> List.filter (\row -> Fm.get row.primary state)
+                    |> List.drop 1
+                    |> List.map (\row -> Fm.problem row.primary "Only one contact can be the primary.")
+            )
+        |> Fm.build
+
+-}
+check : (fields -> State step -> values -> List (Problem step)) -> Builder step fields values -> Builder step fields values
+check rule (Builder b) =
+    Builder
+        { b
+            | readAt =
+                \prefix locale data ->
+                    case b.readAt prefix locale data of
+                        Ok values ->
+                            case rule (b.fieldsAt prefix) (State data) values of
+                                [] ->
+                                    Ok values
+
+                                found ->
+                                    Err (List.map (\p -> { field = p.field, label = p.label, message = p.message }) found)
+
+                        Err found ->
+                            Err found
         }
 
 
@@ -419,9 +567,10 @@ build : Builder step fields values -> Form step fields values
 build (Builder b) =
     Form
         { prefix = b.prefix
-        , defs = List.reverse b.defs
-        , fields = b.fields
-        , read = b.read
+        , steps = b.steps
+        , defsAt = \prefix -> List.map (\make_ -> make_ prefix) (List.reverse b.makers)
+        , fieldsAt = b.fieldsAt
+        , readAt = b.readAt
         }
 
 
@@ -430,14 +579,14 @@ it once at the top level of the module.
 -}
 fields : Form step fields values -> fields
 fields (Form form) =
-    form.fields
+    form.fieldsAt form.prefix
 
 
-uniqueKey : String -> String -> Set String -> String
-uniqueKey prefix label used =
+uniqueLocal : String -> Set String -> String
+uniqueLocal label used =
     let
         base =
-            prefix ++ "-" ++ slug label
+            slug label
 
         free n =
             let
@@ -474,13 +623,18 @@ slug label =
         String.join "-" parts
 
 
+rowPrefix : String -> Int -> String
+rowPrefix key id =
+    key ++ "-" ++ String.fromInt id
+
+
 
 -- KINDS
 
 
 {-| A line of text. Blank is `Nothing` in the output, and the output is trimmed
 (the display is not: nothing is changed behind the user's back). Add `required`
-to get a `String`.
+to get a `String`. Draw it with `textInput`, or with `textArea` for a long note.
 -}
 text : String -> Spec String (Maybe String)
 text label =
@@ -584,7 +738,7 @@ toggle label =
         (\_ value -> Ok value)
 
 
-{-| Free-form tags, drawn by `tags`: type a word, press Enter, get a chip. The
+{-| Free-form tags, drawn by `tagInput`: type a word, press Enter, get a chip. The
 order is the order they were added. Empty is `[]`. Add `atLeast 1` to make it
 required, and give the delimiters, the limit and a rule for a single tag to the
 view (`TagInput.delimiters`, `TagInput.maxTags`, `TagInput.validate`).
@@ -612,7 +766,7 @@ tags label =
     Spec { spec | few = \locale n -> Locale.pick locale { nb = "Legg til minst " ++ String.fromInt n, en = "Add at least " ++ String.fromInt n } }
 
 
-{-| Files the user chose or dropped, drawn by `files`. Empty is `[]`. Files the
+{-| Files the user chose or dropped, drawn by `fileDrop`. Empty is `[]`. Files the
 drop zone refused (wrong type, too large) are not in the value; while one of
 them is still listed the field has the problem "Remove the refused file". Add
 `atLeast 1` to require a file, or `one` for a single file (`one |> required`
@@ -642,6 +796,92 @@ files label =
     Spec { spec | few = \locale n -> Locale.pick locale { nb = "Legg ved minst " ++ String.fromInt n, en = "Attach at least " ++ String.fromInt n } }
 
 
+{-| A repeating group, such as the contacts of a supplier: every row has the
+fields of the form you give, declared once. The `label` names the group (in the
+summary, "Add at least 1" and the like), the `item` names one row ("Contact":
+the summary says "Contact 2, Email: Required" and the remove button "Remove
+contact 2"). The output is the list of the rows' values, in the order of the
+rows. `atLeast n` requires n rows and starts the form with n empty rows. Draw
+the rows with `rowFields`, the buttons with `addRow` and `removeRow`.
+
+    contact : Fm.Form () ContactFields Contact
+    contact =
+        Fm.define "contact" ContactFields Contact
+            |> Fm.with (Fm.text "Name" |> Fm.required)
+            |> Fm.with (Fm.text "Email" |> Fm.required |> Fm.rules [ Validate.email ])
+            |> Fm.build
+
+    Fm.rows { label = "Contacts", item = "Contact" } contact |> Fm.atLeast 1
+
+**Keys of the rows.** Every row gets a number when it is added, and the number
+stays with the row for as long as it lives: `supplier-contacts-3-email` is the
+same row's field after rows 1 and 2 are removed, and a number is never used
+twice. Positions ("Contact 2") are only for the words and for problems from the
+server. This keeps the state of a select or tag field with its row, makes a
+removed row's problems go with it, and lets an application keep a handle.
+
+-}
+rows : { label : String, item : String } -> Form () rowFields rowValues -> Spec (Rows rowFields) (List rowValues)
+rows names (Form sub) =
+    Spec
+        { label = names.label
+        , hint = Nothing
+        , required = False
+        , empty = Rows []
+        , toRaw = \_ -> RRows []
+        , fromData = \key data -> Rows (List.map (\id -> sub.fieldsAt (rowPrefix key id)) (rowIds key data))
+        , limits = noLimits
+        , rows = Just (RowsPlan { item = names.item, minimum = 0, defsAt = sub.defsAt })
+        , few = \locale n -> Locale.pick locale { nb = "Legg til minst " ++ String.fromInt n, en = "Add at least " ++ String.fromInt n }
+        , read =
+            \key locale data ->
+                rowIds key data
+                    |> List.indexedMap
+                        (\position id ->
+                            sub.readAt (rowPrefix key id) locale data
+                                |> Result.mapError (List.map (inRow names.item position))
+                        )
+                    |> collect
+        , reword = Nothing
+        }
+
+
+inRow : String -> Int -> Found -> Found
+inRow item position found =
+    { found | label = rowLabel item position found.label }
+
+
+rowLabel : String -> Int -> String -> String
+rowLabel item position label =
+    item ++ " " ++ String.fromInt (position + 1) ++ ", " ++ label
+
+
+collect : List (Result (List Found) a) -> Result (List Found) (List a)
+collect results =
+    List.foldr
+        (\result acc ->
+            case ( result, acc ) of
+                ( Ok value, Ok values ) ->
+                    Ok (value :: values)
+
+                ( Err found, Ok _ ) ->
+                    Err found
+
+                ( Ok _, Err found ) ->
+                    Err found
+
+                ( Err first, Err rest ) ->
+                    Err (first ++ rest)
+        )
+        (Ok [])
+        results
+
+
+noLimits : Limits
+noLimits =
+    { min = Nothing, max = Nothing, decimals = Nothing }
+
+
 make : String -> control -> (control -> Raw) -> (Raw -> Maybe control) -> (Locale -> control -> Result String output) -> Spec control output
 make label empty toRaw fromRaw finish =
     Spec
@@ -650,40 +890,46 @@ make label empty toRaw fromRaw finish =
         , required = False
         , empty = empty
         , toRaw = toRaw
-        , fromRaw = fromRaw
-        , limits = { min = Nothing, max = Nothing, decimals = Nothing }
-        , check = \_ _ -> Nothing
+        , fromData = \key data -> lookup key data |> Maybe.andThen fromRaw |> Maybe.withDefault empty
+        , limits = noLimits
+        , rows = Nothing
         , few = \locale n -> Locale.pick locale { nb = "Velg minst " ++ String.fromInt n, en = "Choose at least " ++ String.fromInt n }
-        , finish = finish
+        , read =
+            \key locale data ->
+                let
+                    raw =
+                        lookup key data |> Maybe.withDefault (toRaw empty)
+
+                    refuse message =
+                        Err [ { field = key, label = label, message = message } ]
+                in
+                case raw of
+                    RUnreadable ->
+                        refuse (Locale.pick locale { nb = "Må være et tall", en = "Must be a number" })
+
+                    RFiles _ True ->
+                        refuse (Locale.pick locale { nb = "Fjern filen som ble avvist", en = "Remove the refused file" })
+
+                    _ ->
+                        finish locale (fromRaw raw |> Maybe.withDefault empty)
+                            |> Result.mapError (\message -> [ { field = key, label = label, message = message } ])
         , reword = Nothing
         }
 
 
-validate : Locale -> SpecData control output -> Raw -> Result String output
-validate locale spec raw =
-    case raw of
-        RUnreadable ->
-            Err (Locale.pick locale { nb = "Må være et tall", en = "Must be a number" })
+lookup : String -> Data -> Maybe Raw
+lookup key data =
+    Dict.get key data.slots |> Maybe.map rawOf
 
-        RFiles _ True ->
-            Err (Locale.pick locale { nb = "Fjern filen som ble avvist", en = "Remove the refused file" })
+
+rowIds : String -> Data -> List Int
+rowIds key data =
+    case Dict.get key data.slots of
+        Just (SRows group) ->
+            group.order
 
         _ ->
-            let
-                value =
-                    spec.fromRaw raw |> Maybe.withDefault spec.empty
-            in
-            case spec.finish locale value of
-                Err message ->
-                    Err message
-
-                Ok output ->
-                    case spec.check locale value of
-                        Just message ->
-                            Err message
-
-                        Nothing ->
-                            Ok output
+            []
 
 
 
@@ -709,27 +955,27 @@ requiredWith message (Spec spec) =
         , required = True
         , empty = spec.empty
         , toRaw = spec.toRaw
-        , fromRaw = spec.fromRaw
+        , fromData = spec.fromData
         , limits = spec.limits
-        , check = spec.check
+        , rows = spec.rows
         , few = spec.few
-        , finish =
-            \locale value ->
-                case spec.finish locale value of
+        , read =
+            \key locale data ->
+                case spec.read key locale data of
                     Ok (Just output) ->
                         Ok output
 
                     Ok Nothing ->
-                        Err (message locale)
+                        Err [ { field = key, label = spec.label, message = message locale } ]
 
-                    Err problem_ ->
-                        Err problem_
+                    Err found ->
+                        Err found
         , reword = Just (\replacement -> requiredWith replacement (Spec spec))
         }
 
 
 {-| A list with at least this many items. It is required, and the message says
-how many.
+how many. On a `rows` group it also starts the form with that many empty rows.
 
     Fm.choices categoryIds "Categories" |> Fm.atLeast 1
 
@@ -744,18 +990,19 @@ atLeastWith n message (Spec spec) =
     Spec
         { spec
             | required = n > 0
-            , finish =
-                \locale value ->
-                    case spec.finish locale value of
+            , rows = Maybe.map (\(RowsPlan plan) -> RowsPlan { plan | minimum = n }) spec.rows
+            , read =
+                \key locale data ->
+                    case spec.read key locale data of
                         Ok list ->
                             if List.length list < n then
-                                Err (message locale)
+                                Err [ { field = key, label = spec.label, message = message locale } ]
 
                             else
                                 Ok list
 
-                        Err problem_ ->
-                            Err problem_
+                        Err found ->
+                            Err found
             , reword = Just (\replacement -> atLeastWith n replacement (Spec spec))
         }
 
@@ -775,13 +1022,13 @@ oneWith message (Spec spec) =
         , required = spec.required
         , empty = spec.empty
         , toRaw = spec.toRaw
-        , fromRaw = spec.fromRaw
+        , fromData = spec.fromData
         , limits = spec.limits
-        , check = spec.check
+        , rows = spec.rows
         , few = spec.few
-        , finish =
-            \locale value ->
-                case spec.finish locale value of
+        , read =
+            \key locale data ->
+                case spec.read key locale data of
                     Ok [] ->
                         Ok Nothing
 
@@ -789,10 +1036,10 @@ oneWith message (Spec spec) =
                         Ok (Just single)
 
                     Ok _ ->
-                        Err (message locale)
+                        Err [ { field = key, label = spec.label, message = message locale } ]
 
-                    Err problem_ ->
-                        Err problem_
+                    Err found ->
+                        Err found
         , reword = Just (\replacement -> oneWith replacement (Spec spec))
         }
 
@@ -822,14 +1069,19 @@ addCheck : (Locale -> c -> Maybe String) -> Spec c o -> Spec c o
 addCheck rule (Spec spec) =
     Spec
         { spec
-            | check =
-                \locale value ->
-                    case spec.check locale value of
-                        Just message ->
-                            Just message
+            | read =
+                \key locale data ->
+                    case spec.read key locale data of
+                        Err found ->
+                            Err found
 
-                        Nothing ->
-                            rule locale value
+                        Ok output ->
+                            case rule locale (spec.fromData key data) of
+                                Just message ->
+                                    Err [ { field = key, label = spec.label, message = message } ]
+
+                                Nothing ->
+                                    Ok output
             , reword =
                 Just
                     (\replacement ->
@@ -927,28 +1179,7 @@ withMessage message ((Spec spec) as original) =
 
 
 
--- VALUES
-
-
-{-| A form with every field empty, nothing touched, and that empty state as the
-baseline. Each field's component gets its DOM id here.
--}
-init : Form step fields values -> State step
-init (Form form) =
-    let
-        slots =
-            form.defs
-                |> List.map (\def -> ( def.key, newSlot def ))
-                |> Dict.fromList
-    in
-    State
-        { slots = slots
-        , baseline = Dict.map (\_ slot -> stable (rawOf slot)) slots
-        , touched = Set.empty
-        , server = Dict.empty
-        , outside = []
-        , reviewed = False
-        }
+-- SLOTS
 
 
 newSlot : Def -> Slot
@@ -969,14 +1200,39 @@ newSlot def =
         RUnreadable ->
             SNumber (NumberInput.init def.key)
 
+        RBool value ->
+            SToggle value
+
         RTags _ ->
             STags (TagInput.init def.key)
 
         RFiles _ _ ->
             SFiles (FileDrop.init def.key)
 
-        RBool value ->
-            SToggle value
+        RRows _ ->
+            SRows { order = [], next = 1 }
+
+
+{-| The slots of a list of fields, with the empty rows a group starts with.
+-}
+seed : List Def -> Dict String Slot
+seed defs =
+    List.foldl (\def all -> Dict.union (seedOne def) all) Dict.empty defs
+
+
+seedOne : Def -> Dict String Slot
+seedOne def =
+    case def.rows of
+        Nothing ->
+            Dict.singleton def.key (newSlot def)
+
+        Just (RowsPlan plan) ->
+            let
+                ids =
+                    List.range 1 plan.minimum
+            in
+            seed (List.concatMap (\id -> plan.defsAt (rowPrefix def.key id)) ids)
+                |> Dict.insert def.key (SRows { order = ids, next = plan.minimum + 1 })
 
 
 numberLimits : Limits -> List (NumberInput.Attribute msg)
@@ -1029,6 +1285,9 @@ rawOf slot =
         SToggle value ->
             RBool value
 
+        SRows group ->
+            RRows group.order
+
 
 putRaw : Raw -> Slot -> Slot
 putRaw raw slot =
@@ -1061,10 +1320,36 @@ putRaw raw slot =
             slot
 
 
+
+-- VALUES
+
+
+{-| A form with every field empty, nothing touched, the first step, a group of
+rows with its minimum number of empty rows, and that state as the baseline. Each
+field's component gets its DOM id here.
+-}
+init : Form step fields values -> State step
+init (Form form) =
+    let
+        slots =
+            seed (form.defsAt form.prefix)
+    in
+    State
+        { slots = slots
+        , baseline = Dict.map (\_ slot -> stable (rawOf slot)) slots
+        , touched = Set.empty
+        , server = Dict.empty
+        , outside = []
+        , current = 0
+        , attempted = Set.empty
+        }
+
+
 {-| Puts a value in a field, for every kind of field. The type of the handle
 decides what is accepted: a select takes a `Maybe CountryId`, a switch a `Bool`.
 Use it to load a record. A select shows its label as soon as its options have
-arrived; `get` returns the value at once.
+arrived; `get` returns the value at once. The rows of a group are loaded with
+`fillRows`.
 
     Fm.init form
         |> Fm.set f.name "Acme Supplies"
@@ -1073,19 +1358,83 @@ arrived; `get` returns the value at once.
 
 -}
 set : Field c -> c -> State step -> State step
-set (Field field) value (State state) =
-    State { state | slots = Dict.update field.key (Maybe.map (putRaw (field.toRaw value))) state.slots }
+set (Field field) value (State data) =
+    State { data | slots = Dict.update field.key (Maybe.map (putRaw (field.toRaw value))) data.slots }
 
 
 {-| The value of a field as it is edited: `Nothing` for an empty select, `[]` for
 an empty multi select, the text as typed.
 -}
 get : Field c -> State step -> c
-get (Field field) (State state) =
-    Dict.get field.key state.slots
-        |> Maybe.map rawOf
-        |> Maybe.andThen field.fromRaw
-        |> Maybe.withDefault field.empty
+get (Field field) (State data) =
+    field.fromData data
+
+
+{-| The handles of the rows a group has now, in order. Draw one card of fields
+for each; the position is for the words ("Contact 2"). A handle is the row's
+own: it stays right when other rows are added or removed, and stops working when
+its row is removed.
+
+    Fm.rowFields f.contacts model.form
+        |> List.indexedMap (\i row -> contactCard v i row)
+
+-}
+rowFields : Field (Rows rowFields) -> State step -> List rowFields
+rowFields field state =
+    case get field state of
+        Rows handles ->
+            handles
+
+
+{-| Loads a list of records into the rows of a group: the rows that are there are
+replaced by one new row for each item, and `fill` puts the item in the row's
+fields. Like `set`, it does not change the baseline; call `markClean` after a
+load.
+
+    Fm.fillRows f.contacts
+        (\contact row ->
+            Fm.set row.name contact.name
+                >> Fm.set row.email contact.email
+        )
+        supplier.contacts
+
+-}
+fillRows : Field (Rows rowFields) -> (a -> rowFields -> State step -> State step) -> List a -> State step -> State step
+fillRows ((Field field) as handle) fill items (State data) =
+    case field.plan of
+        Nothing ->
+            State data
+
+        Just (RowsPlan plan) ->
+            let
+                next =
+                    case Dict.get field.key data.slots of
+                        Just (SRows group) ->
+                            group.next
+
+                        _ ->
+                            1
+
+                ids =
+                    List.range next (next + List.length items - 1)
+
+                under key =
+                    String.startsWith (field.key ++ "-") key
+
+                emptied =
+                    State
+                        { data
+                            | slots =
+                                data.slots
+                                    |> Dict.filter (\key _ -> not (under key))
+                                    |> Dict.union (seed (List.concatMap (\id -> plan.defsAt (rowPrefix field.key id)) ids))
+                                    |> Dict.insert field.key (SRows { order = ids, next = next + List.length items })
+                            , touched = Set.filter (not << under) data.touched
+                            , server = Dict.filter (\key _ -> not (under key)) data.server
+                        }
+            in
+            List.map2 fill items (rowFields handle emptied)
+                |> List.foldl (\apply state -> apply state) emptied
 
 
 {-| The record the form produces, or all the problems, in the order of the
@@ -1104,102 +1453,135 @@ while they are there, so a record is never produced behind them.
 
 -}
 toValues : Locale -> Form step fields values -> State step -> Result (List (Problem step)) values
-toValues locale (Form form) (State state) =
+toValues locale ((Form form) as declared) (State data) =
     let
-        client =
-            form.read locale (Dict.map (\_ slot -> rawOf slot) state.slots)
+        defs =
+            expandedDefs declared data
 
-        clientProblems =
-            case client of
-                Ok _ ->
-                    []
-
-                Err found ->
-                    found
-
-        standing =
-            form.defs
-                |> List.filterMap
-                    (\def ->
-                        case List.filter (\p -> p.field == def.key) clientProblems of
-                            first :: _ ->
-                                Just first
-
-                            [] ->
-                                Dict.get def.key state.server
-                                    |> Maybe.map (\message -> { field = def.key, label = def.label, message = message, step = Nothing })
-                    )
-
-        everything =
-            standing ++ state.outside
+        standing_ =
+            standing (diagnose locale declared data defs) defs
     in
-    case client of
-        Ok values ->
-            if List.isEmpty everything then
+    if List.isEmpty standing_ then
+        case form.readAt form.prefix locale data of
+            Ok values ->
                 Ok values
 
-            else
-                Err everything
+            Err _ ->
+                Err []
 
-        Err _ ->
-            Err everything
+    else
+        Err (List.map (asProblem declared) standing_)
 
 
-{-| `True` when the values differ from the baseline. Typing a letter and
-deleting it again is clean again. Only values count: an open list, a search
-text or a server problem do not.
+{-| `True` when the values differ from the baseline, rows added and removed
+included. Typing a letter and deleting it again is clean again. Only values
+count: an open list, a search text or a server problem do not. It covers every
+field of every step and every row, so one flag is enough for the leave guard.
 -}
 isDirty : State step -> Bool
-isDirty (State state) =
-    Dict.map (\_ slot -> stable (rawOf slot)) state.slots /= state.baseline
+isDirty (State data) =
+    Dict.map (\_ slot -> stable (rawOf slot)) data.slots /= data.baseline
 
 
 {-| The values now become the baseline, after a load or a successful save.
 -}
 markClean : State step -> State step
-markClean (State state) =
-    State { state | baseline = Dict.map (\_ slot -> stable (rawOf slot)) state.slots }
+markClean (State data) =
+    State { data | baseline = Dict.map (\_ slot -> stable (rawOf slot)) data.slots }
 
 
-{-| Every field goes back to the baseline. Problems and what was touched are
-forgotten.
+{-| Every field goes back to the baseline, removed rows come back and added rows
+go. Problems and what was touched are forgotten.
 -}
-revert : State step -> State step
-revert (State state) =
+revert : Form step fields values -> State step -> State step
+revert (Form form) (State data) =
     State
-        { state
-            | slots = Dict.map (\key slot -> Dict.get key state.baseline |> Maybe.map (\raw -> putRaw raw slot) |> Maybe.withDefault slot) state.slots
+        { data
+            | slots = rebuild data.baseline data.slots (form.defsAt form.prefix)
             , touched = Set.empty
             , server = Dict.empty
-            , reviewed = False
+            , attempted = Set.empty
         }
 
 
+rebuild : Dict String Raw -> Dict String Slot -> List Def -> Dict String Slot
+rebuild baseline old defs =
+    List.foldl (\def all -> Dict.union (rebuildOne baseline old def) all) Dict.empty defs
+
+
+rebuildOne : Dict String Raw -> Dict String Slot -> Def -> Dict String Slot
+rebuildOne baseline old def =
+    case def.rows of
+        Nothing ->
+            Dict.singleton def.key (putRaw (Dict.get def.key baseline |> Maybe.withDefault def.initial) (newSlot def))
+
+        Just (RowsPlan plan) ->
+            let
+                order =
+                    case Dict.get def.key baseline of
+                        Just (RRows ids) ->
+                            ids
+
+                        _ ->
+                            []
+
+                used =
+                    case Dict.get def.key old of
+                        Just (SRows group) ->
+                            group.next
+
+                        _ ->
+                            1
+            in
+            rebuild baseline old (List.concatMap (\id -> plan.defsAt (rowPrefix def.key id)) order)
+                |> Dict.insert def.key (SRows { order = order, next = max used (nextAfter order) })
+
+
+nextAfter : List Int -> Int
+nextAfter ids =
+    List.maximum ids |> Maybe.map ((+) 1) |> Maybe.withDefault 1
+
+
+
+-- UPDATE
+
+
 {-| Handles a message of the form's controls. A change in a field clears the
-server problem of that field.
+server problem of that field. It also answers the buttons that add and remove
+rows, the stepper and the lines of the summary, which is why it needs the form.
 
     FormMsg inner ->
         let
             ( form, cmd ) =
-                Fm.update inner model.form
+                Fm.update declaration inner model.form
         in
         ( { model | form = form }, Cmd.map FormMsg cmd )
 
 -}
-update : Msg -> State step -> ( State step, Cmd Msg )
-update msg ((State state) as current) =
+update : Form step fields values -> Msg -> State step -> ( State step, Cmd Msg )
+update declared msg ((State data) as current) =
     case msg of
         Typed key value ->
-            ( moved key (Dict.get key state.slots) (Just (SText value)) current, Cmd.none )
+            case Dict.get key data.slots of
+                Just ((SText _) as old) ->
+                    ( moved key old (SText value) current, Cmd.none )
+
+                _ ->
+                    ( current, Cmd.none )
 
         Left key ->
             ( touch key current, Cmd.none )
 
         Toggled key value ->
-            ( moved key (Dict.get key state.slots) (Just (SToggle value)) current, Cmd.none )
+            case Dict.get key data.slots of
+                Just ((SToggle _) as old) ->
+                    ( moved key old (SToggle value) current, Cmd.none )
+
+                _ ->
+                    ( current, Cmd.none )
 
         SelectMsg key inner ->
-            case Dict.get key state.slots of
+            case Dict.get key data.slots of
                 Just ((SSelect before) as old) ->
                     let
                         ( after, cmd ) =
@@ -1208,7 +1590,7 @@ update msg ((State state) as current) =
                         left =
                             Select.isOpen before && not (Select.isOpen after)
                     in
-                    ( moved key (Just old) (Just (SSelect after)) current |> touchIf left key
+                    ( moved key old (SSelect after) current |> touchIf left key
                     , Cmd.map (SelectMsg key) cmd
                     )
 
@@ -1216,7 +1598,7 @@ update msg ((State state) as current) =
                     ( current, Cmd.none )
 
         MultiMsg key inner ->
-            case Dict.get key state.slots of
+            case Dict.get key data.slots of
                 Just ((SMulti before) as old) ->
                     let
                         ( after, cmd ) =
@@ -1225,7 +1607,7 @@ update msg ((State state) as current) =
                         left =
                             MultiSelect.isOpen before && not (MultiSelect.isOpen after)
                     in
-                    ( moved key (Just old) (Just (SMulti after)) current |> touchIf left key
+                    ( moved key old (SMulti after) current |> touchIf left key
                     , Cmd.map (MultiMsg key) cmd
                     )
 
@@ -1233,13 +1615,13 @@ update msg ((State state) as current) =
                     ( current, Cmd.none )
 
         NumberMsg key inner ->
-            case Dict.get key state.slots of
+            case Dict.get key data.slots of
                 Just ((SNumber before) as old) ->
                     let
                         ( after, cmd ) =
                             NumberInput.update inner before
                     in
-                    ( moved key (Just old) (Just (SNumber after)) current |> touchIf (NumberInput.isTouched after) key
+                    ( moved key old (SNumber after) current |> touchIf (NumberInput.isTouched after) key
                     , Cmd.map (NumberMsg key) cmd
                     )
 
@@ -1247,13 +1629,13 @@ update msg ((State state) as current) =
                     ( current, Cmd.none )
 
         TagsMsg key inner ->
-            case Dict.get key state.slots of
+            case Dict.get key data.slots of
                 Just ((STags before) as old) ->
                     let
                         ( after, cmd ) =
                             TagInput.update inner before
                     in
-                    ( moved key (Just old) (Just (STags after)) current |> touchIf (TagInput.isTouched after) key
+                    ( moved key old (STags after) current |> touchIf (TagInput.isTouched after) key
                     , Cmd.map (TagsMsg key) cmd
                     )
 
@@ -1261,21 +1643,30 @@ update msg ((State state) as current) =
                     ( current, Cmd.none )
 
         FilesMsg key inner ->
-            case Dict.get key state.slots of
+            case Dict.get key data.slots of
                 Just ((SFiles before) as old) ->
                     let
                         ( after, cmd ) =
                             FileDrop.update inner before
                     in
-                    ( moved key (Just old) (Just (SFiles after)) current |> touchIf (FileDrop.isTouched after) key
+                    ( moved key old (SFiles after) current |> touchIf (FileDrop.isTouched after) key
                     , Cmd.map (FilesMsg key) cmd
                     )
 
                 _ ->
                     ( current, Cmd.none )
 
+        AddRow key ->
+            addRowTo declared key current
+
+        RemoveRow key id ->
+            removeRowFrom declared key id current
+
+        GoStep index ->
+            goToIndex declared index current
+
         FocusField key ->
-            ( current, Form.focusField key NoOp )
+            goToKey declared key current
 
         NoOp ->
             ( current, Cmd.none )
@@ -1285,30 +1676,22 @@ update msg ((State state) as current) =
 and its server problem is dropped (also when the old value is typed again: the
 server said no to a value the user has since changed).
 -}
-moved : String -> Maybe Slot -> Maybe Slot -> State step -> State step
-moved key before after (State state) =
-    case after of
-        Nothing ->
-            State state
+moved : String -> Slot -> Slot -> State step -> State step
+moved key before after (State data) =
+    let
+        next =
+            { data | slots = Dict.insert key after data.slots }
+    in
+    if stable (rawOf before) /= stable (rawOf after) then
+        State { next | touched = Set.insert key next.touched, server = Dict.remove key next.server }
 
-        Just slot ->
-            let
-                edited =
-                    Maybe.map (rawOf >> stable) before /= Just (stable (rawOf slot))
-
-                next =
-                    State { state | slots = Dict.insert key slot state.slots }
-            in
-            if edited then
-                touch key next |> dropServer key
-
-            else
-                next
+    else
+        State next
 
 
 touch : String -> State step -> State step
-touch key (State state) =
-    State { state | touched = Set.insert key state.touched }
+touch key (State data) =
+    State { data | touched = Set.insert key data.touched }
 
 
 touchIf : Bool -> String -> State step -> State step
@@ -1320,9 +1703,234 @@ touchIf condition key state =
         state
 
 
-dropServer : String -> State step -> State step
-dropServer key (State state) =
-    State { state | server = Dict.remove key state.server }
+addRowTo : Form step fields values -> String -> State step -> ( State step, Cmd Msg )
+addRowTo declared key (State data) =
+    case ( Dict.get key data.slots, findDef key (expandedDefs declared data) |> Maybe.andThen .rows ) of
+        ( Just (SRows group), Just (RowsPlan plan) ) ->
+            let
+                id =
+                    group.next
+
+                prefix =
+                    rowPrefix key id
+
+                slots =
+                    seed (plan.defsAt prefix)
+                        |> Dict.union data.slots
+                        |> Dict.insert key (SRows { order = group.order ++ [ id ], next = id + 1 })
+            in
+            ( State { data | slots = slots }
+            , focusOn (rowFirstKey (RowsPlan plan) prefix key)
+            )
+
+        _ ->
+            ( State data, Cmd.none )
+
+
+removeRowFrom : Form step fields values -> String -> Int -> State step -> ( State step, Cmd Msg )
+removeRowFrom declared key id (State data) =
+    case ( Dict.get key data.slots, findDef key (expandedDefs declared data) |> Maybe.andThen .rows ) of
+        ( Just (SRows group), Just (RowsPlan plan) ) ->
+            let
+                under k =
+                    String.startsWith (rowPrefix key id ++ "-") k
+
+                remaining =
+                    List.filter (\other -> other /= id) group.order
+
+                position =
+                    List.length (List.filter (\other -> other < id) group.order)
+
+                neighbour =
+                    case List.drop position remaining of
+                        next :: _ ->
+                            Just next
+
+                        [] ->
+                            List.reverse remaining |> List.head
+
+                target =
+                    neighbour
+                        |> Maybe.map (\other -> rowFirstKey (RowsPlan plan) (rowPrefix key other) key)
+                        |> Maybe.withDefault key
+            in
+            ( State
+                { data
+                    | slots =
+                        data.slots
+                            |> Dict.filter (\k _ -> not (under k))
+                            |> Dict.insert key (SRows { group | order = remaining })
+                    , touched = Set.filter (not << under) data.touched
+                    , server = Dict.filter (\k _ -> not (under k)) data.server
+                }
+            , focusOn target
+            )
+
+        _ ->
+            ( State data, Cmd.none )
+
+
+{-| The DOM id of the first field of a row, or the group's own id (the add
+button) when the row has none.
+-}
+rowFirstKey : RowsPlan -> String -> String -> String
+rowFirstKey (RowsPlan plan) prefix groupKey =
+    plan.defsAt prefix |> List.head |> Maybe.map .key |> Maybe.withDefault groupKey
+
+
+findDef : String -> List Def -> Maybe Def
+findDef key defs =
+    defs |> List.filter (\def -> def.key == key) |> List.head
+
+
+focusOn : String -> Cmd Msg
+focusOn key =
+    Form.focusField key NoOp
+
+
+
+-- DEFS AND PROBLEMS
+
+
+{-| The fields of the form with the rows of every group in place, each row's
+fields labelled with the row's position and put on the step of the group.
+-}
+expandedDefs : Form step fields values -> Data -> List Def
+expandedDefs (Form form) data =
+    expand data (form.defsAt form.prefix)
+
+
+expand : Data -> List Def -> List Def
+expand data defs =
+    List.concatMap (expandOne data) defs
+
+
+expandOne : Data -> Def -> List Def
+expandOne data def =
+    case def.rows of
+        Nothing ->
+            [ def ]
+
+        Just (RowsPlan plan) ->
+            def
+                :: (rowIds def.key data
+                        |> List.indexedMap
+                            (\position id ->
+                                plan.defsAt (rowPrefix def.key id)
+                                    |> List.map (\sub -> { sub | step = def.step, label = rowLabel plan.item position sub.label })
+                                    |> expand data
+                            )
+                        |> List.concat
+                   )
+
+
+diagnose : Locale -> Form step fields values -> Data -> List Def -> List Diagnosis
+diagnose locale (Form form) data defs =
+    let
+        byKey =
+            Dict.fromList (List.map (\def -> ( def.key, def )) defs)
+
+        client =
+            case form.readAt form.prefix locale data of
+                Ok _ ->
+                    []
+
+                Err found ->
+                    found
+                        |> List.map
+                            (\f ->
+                                case Dict.get f.field byKey of
+                                    Just def ->
+                                        { field = f.field, label = def.label, message = f.message, step = def.step, origin = FromRule }
+
+                                    Nothing ->
+                                        { field = f.field, label = f.label, message = f.message, step = 0, origin = FromRule }
+                            )
+
+        server =
+            defs
+                |> List.filterMap
+                    (\def ->
+                        Dict.get def.key data.server
+                            |> Maybe.map (\message -> { field = def.key, label = def.label, message = message, step = def.step, origin = FromServer })
+                    )
+
+        fromOutside =
+            data.outside
+                |> List.map
+                    (\o ->
+                        { field = o.field, label = o.label, message = o.message, step = Maybe.withDefault 0 o.step, origin = FromOutside }
+                    )
+    in
+    client ++ server ++ fromOutside
+
+
+{-| Every problem once, in the order of the declaration: a field has its own
+rule's problem first and the server's after it, and the problems given from
+outside come last.
+-}
+standing : List Diagnosis -> List Def -> List Diagnosis
+standing found defs =
+    let
+        known =
+            Set.fromList (List.map .key defs)
+
+        ofFields =
+            defs
+                |> List.filterMap
+                    (\def ->
+                        found
+                            |> List.filter (\d -> d.field == def.key && d.origin /= FromOutside)
+                            |> List.head
+                    )
+
+        strays =
+            List.filter (\d -> d.origin == FromRule && not (Set.member d.field known)) found
+
+        fromOutside =
+            List.filter (\d -> d.origin == FromOutside) found
+    in
+    ofFields ++ strays ++ fromOutside
+
+
+{-| A rule's problem shows once the field was left or edited, a server problem
+always (until its field is edited), and a problem from outside once its step was
+tried.
+-}
+isShown : Data -> Diagnosis -> Bool
+isShown data d =
+    case d.origin of
+        FromRule ->
+            Set.member d.field data.touched
+
+        FromServer ->
+            True
+
+        FromOutside ->
+            Set.member d.step data.attempted
+
+
+asProblem : Form step fields values -> Diagnosis -> Problem step
+asProblem declared d =
+    { field = d.field
+    , label = d.label
+    , message = d.message
+    , step = stepAt declared d.step
+    }
+
+
+stepAt : Form step fields values -> Int -> Maybe step
+stepAt (Form form) index =
+    form.steps |> List.drop index |> List.head |> Maybe.map .step
+
+
+stepIndex : Form step fields values -> step -> Maybe Int
+stepIndex (Form form) value =
+    form.steps
+        |> List.indexedMap Tuple.pair
+        |> List.filter (\( _, info ) -> info.step == value)
+        |> List.head
+        |> Maybe.map Tuple.first
 
 
 
@@ -1361,21 +1969,34 @@ hasProblems declared current =
 
 {-| Gives the form the problems of something it does not hold itself, such as
 the rule builder of a price rule. They count like the form's own: they are in
-`problems`, `toValues` fails while they stand, and `summary` lists them once the
-problems have been revealed (`reveal`, `rejected`). Each is a `Problem` you write
-by hand; its `field` is the DOM id of the element the summary moves the focus
+`problems`, `toValues` fails while they stand, the stepper marks their step, and
+`summary` lists them once their step has been tried (`advance`, `reveal`,
+`rejected`). Each is a `Problem` you write by hand; its `field` is the DOM id of
+the element the summary moves the focus to, and its `step` the step it belongs
 to.
 
 The list replaces the one given before, so compute it from your model and call
 it at the end of your `update`, for example in the same place that handles the
 messages of the rule builder:
 
-    ( { model | form = Fm.outside (ruleProblems model) model.form }, cmd )
+    ( { model | form = Fm.outside declaration (ruleProblems model) model.form }, cmd )
 
 -}
-outside : List (Problem step) -> State step -> State step
-outside found (State state) =
-    State { state | outside = found }
+outside : Form step fields values -> List (Problem step) -> State step -> State step
+outside declared found (State data) =
+    State
+        { data
+            | outside =
+                List.map
+                    (\p ->
+                        { field = p.field
+                        , label = p.label
+                        , message = p.message
+                        , step = p.step |> Maybe.andThen (stepIndex declared)
+                        }
+                    )
+                    found
+        }
 
 
 {-| A message from the server tied to a field. Map the backend's own field type
@@ -1390,6 +2011,10 @@ to a handle once, in the application:
             Backend.Country ->
                 Fm.problem f.country p.message
 
+The label and the step are filled in from the declaration. A field in a row has
+a handle for each row: `Fm.rowFields f.contacts state`, then the row at the
+position the server named.
+
 -}
 problem : Field c -> String -> Problem step
 problem (Field field) message =
@@ -1398,9 +2023,10 @@ problem (Field field) message =
 
 {-| Gives the form the problems of a failed save. Each is shown at its field
 and in the summary until that field is edited, and counts as a problem
-(`problems`, `toValues`) for as long. All the problems of the form show from now
-on, and the focus moves to the summary. A problem for a field the form does not
-have is ignored.
+(`problems`, `toValues`) for as long. Every problem of the form shows from now
+on, the form moves to the step of the first problem (so that its summary is the
+one on screen), and the focus goes to the summary. A problem for a field the
+form does not have is ignored.
 
 The problems are stored whether or not the form is on screen. The `Cmd` focuses
 the summary of this form; when the summary is not on screen (the form is on
@@ -1410,30 +2036,66 @@ summary, and the last one wins: keep the `Cmd` of the one the user is looking at
 
 -}
 rejected : List (Problem step) -> Form step fields values -> State step -> ( State step, Cmd Msg )
-rejected found (Form form) (State state) =
+rejected found ((Form form) as declared) (State data) =
     let
+        defs =
+            expandedDefs declared data
+
         known =
-            List.map .key form.defs
+            List.map .key defs
 
         server =
             found
                 |> List.filter (\p -> List.member p.field known)
                 |> List.foldl (\p all -> Dict.update p.field (\old -> Just (Maybe.withDefault p.message old)) all) Dict.empty
+
+        withServer =
+            { data | server = server }
+
+        first =
+            standing (diagnose Locale.default declared withServer defs) defs |> List.head
+
+        landed =
+            case ( first, form.steps ) of
+                ( Just d, _ :: _ ) ->
+                    { withServer | current = d.step }
+
+                _ ->
+                    withServer
     in
-    ( State { state | server = server, reviewed = True }
+    ( State (revealSteps (allSteps declared) defs landed)
     , Form.focusSummary form.prefix NoOp
     )
 
 
 {-| Shows every problem now, also for fields the user has not been in, and moves
 the focus to the summary. Call it when the user presses Save and `toValues`
-returned problems.
+returned problems (`advance` does it for you in a form with steps). Fields and
+rows added later start quiet again.
 -}
 reveal : Form step fields values -> State step -> ( State step, Cmd Msg )
-reveal (Form form) (State state) =
-    ( State { state | reviewed = True }
+reveal ((Form form) as declared) (State data) =
+    ( State (revealSteps (allSteps declared) (expandedDefs declared data) data)
     , Form.focusSummary form.prefix NoOp
     )
+
+
+allSteps : Form step fields values -> List Int
+allSteps (Form form) =
+    List.range 0 (max 0 (List.length form.steps - 1))
+
+
+{-| Touches every field of these steps and marks the steps as tried.
+-}
+revealSteps : List Int -> List Def -> Data -> Data
+revealSteps indexes defs data =
+    { data
+        | touched =
+            defs
+                |> List.filter (\def -> List.member def.step indexes)
+                |> List.foldl (\def all -> Set.insert def.key all) data.touched
+        , attempted = List.foldl Set.insert data.attempted indexes
+    }
 
 
 {-| Moves the focus to a field, so the application never writes a DOM id. Map
@@ -1445,16 +2107,257 @@ on screen.
 -}
 focus : Field c -> Cmd Msg
 focus (Field field) =
-    Form.focusField field.key NoOp
+    focusOn field.key
 
 
-{-| Moves the focus to the element a problem is about, for a review list you
-draw yourself (the summary does this by itself). The problem is one of
-`problems`, or one you gave to `outside`.
+{-| Goes to the element a problem is about, for a review list you draw yourself
+(the summary does this by itself): the form changes to the step of the problem,
+and the focus moves to its element once that step is on screen. The problem is
+one of `problems`, or one you gave to `outside`.
 -}
 goToProblem : Form step fields values -> Problem step -> State step -> ( State step, Cmd Msg )
-goToProblem _ p state =
-    ( state, Form.focusField p.field NoOp )
+goToProblem declared p (State data) =
+    case p.step |> Maybe.andThen (stepIndex declared) of
+        Just index ->
+            ( State { data | current = index }, focusOn p.field )
+
+        Nothing ->
+            ( State data, focusOn p.field )
+
+
+goToKey : Form step fields values -> String -> State step -> ( State step, Cmd Msg )
+goToKey declared key (State data) =
+    let
+        index =
+            case findDef key (expandedDefs declared data) of
+                Just def ->
+                    Just def.step
+
+                Nothing ->
+                    data.outside
+                        |> List.filter (\o -> o.field == key)
+                        |> List.head
+                        |> Maybe.andThen .step
+    in
+    case index of
+        Just i ->
+            ( State { data | current = i }, focusOn key )
+
+        Nothing ->
+            ( State data, focusOn key )
+
+
+
+-- STEPS
+
+
+{-| The step the form is on, or `Nothing` in a form that was declared without
+steps.
+
+    case Fm.currentStep declaration model.form of
+        Just Company ->
+            viewCompany model
+
+        Just Contacts ->
+            viewContacts model
+
+        _ ->
+            Html.text ""
+
+-}
+currentStep : Form step fields values -> State step -> Maybe step
+currentStep declared (State data) =
+    stepAt declared data.current
+
+
+{-| `True` when the user has tried to leave this step (with `advance`) or the
+problems were revealed (`reveal`, `rejected`). Something you draw yourself that
+shows problems only after a try, such as the rule builder, asks it.
+-}
+attempted : Form step fields values -> step -> State step -> Bool
+attempted declared value (State data) =
+    case stepIndex declared value of
+        Just index ->
+            Set.member index data.attempted
+
+        Nothing ->
+            False
+
+
+{-| What the Next and Save buttons do. On a step before the last it checks that
+step: with problems, they are shown, the step is marked as failed in the stepper
+and the focus goes to the summary; without, the form moves on and the focus goes
+to the first field of the next step. On the last step it checks the whole form:
+with problems, they are all shown and the form goes to the review step (or, when
+the last step has fields, to the first step with a problem); without,
+`submit` is the record, ready to send. Sending it and keeping the
+`Form.Status` stays with the application.
+
+    Submit ->
+        let
+            next =
+                Fm.advance declaration model.form
+        in
+        ( { model | form = next.state }
+        , Cmd.batch [ Cmd.map FormMsg next.cmd, Maybe.map send next.submit |> Maybe.withDefault Cmd.none ]
+        )
+
+-}
+advance : Form step fields values -> State step -> { state : State step, cmd : Cmd Msg, submit : Maybe values }
+advance ((Form form) as declared) ((State data) as current) =
+    let
+        defs =
+            expandedDefs declared data
+
+        found =
+            standing (diagnose Locale.default declared data defs) defs
+
+        last =
+            max 0 (List.length form.steps - 1)
+    in
+    if data.current < last then
+        case List.filter (\d -> d.step == data.current) found of
+            [] ->
+                let
+                    ( entered, cmd ) =
+                        enter declared (data.current + 1) data
+                in
+                { state = State entered, cmd = cmd, submit = Nothing }
+
+            _ ->
+                { state = State (revealSteps [ data.current ] defs data)
+                , cmd = Form.focusSummary form.prefix NoOp
+                , submit = Nothing
+                }
+
+    else
+        case ( found, toValues Locale.default declared current ) of
+            ( [], Ok values ) ->
+                { state = current, cmd = Cmd.none, submit = Just values }
+
+            _ ->
+                let
+                    target =
+                        if not (List.isEmpty form.steps) && isEmptyStep last defs then
+                            last
+
+                        else
+                            found |> List.head |> Maybe.map .step |> Maybe.withDefault data.current
+
+                    moved_ =
+                        { data | current = target }
+                in
+                { state = State (revealSteps (allSteps declared) defs moved_)
+                , cmd = Form.focusSummary form.prefix NoOp
+                , submit = Nothing
+                }
+
+
+{-| The Back button: one step back, without checking anything, and the focus goes
+to the first field of that step. On the first step it does nothing.
+-}
+back : Form step fields values -> State step -> ( State step, Cmd Msg )
+back declared (State data) =
+    if data.current <= 0 then
+        ( State data, Cmd.none )
+
+    else
+        enter declared (data.current - 1) data |> Tuple.mapFirst State
+
+
+{-| Goes to a step, for the "Edit" buttons of a review page. Going back is free.
+Going forward checks every step on the way, as the stepper does: it stops at the
+first one with problems, shows them and puts the focus on the summary.
+-}
+goTo : Form step fields values -> step -> State step -> ( State step, Cmd Msg )
+goTo declared value ((State _) as current) =
+    case stepIndex declared value of
+        Just index ->
+            goToIndex declared index current
+
+        Nothing ->
+            ( current, Cmd.none )
+
+
+goToIndex : Form step fields values -> Int -> State step -> ( State step, Cmd Msg )
+goToIndex ((Form form) as declared) target (State data) =
+    let
+        last =
+            max 0 (List.length form.steps - 1)
+
+        index =
+            clamp 0 last target
+    in
+    if index <= data.current then
+        enter declared index data |> Tuple.mapFirst State
+
+    else
+        let
+            defs =
+                expandedDefs declared data
+
+            found =
+                standing (diagnose Locale.default declared data defs) defs
+
+            blocking =
+                List.range data.current (index - 1)
+                    |> List.filter (\s -> List.any (\d -> d.step == s) found)
+                    |> List.head
+        in
+        case blocking of
+            Nothing ->
+                enter declared index data |> Tuple.mapFirst State
+
+            Just bad ->
+                ( State (revealSteps [ bad ] defs { data | current = bad })
+                , Form.focusSummary form.prefix NoOp
+                )
+
+
+{-| Moves to a step and puts the focus on its first field.
+-}
+enter : Form step fields values -> Int -> Data -> ( Data, Cmd Msg )
+enter declared index data =
+    let
+        defs =
+            expandedDefs declared data
+
+        onStep =
+            List.filter (\def -> def.step == index) defs
+
+        firstField =
+            case List.filter (\def -> not (isGroup def)) onStep |> List.head of
+                Just def ->
+                    Just def.key
+
+                Nothing ->
+                    List.head onStep |> Maybe.map .key
+    in
+    ( { data | current = index }
+    , case firstField of
+        Just key ->
+            focusOn key
+
+        Nothing ->
+            Cmd.none
+    )
+
+
+isGroup : Def -> Bool
+isGroup def =
+    case def.rows of
+        Just _ ->
+            True
+
+        Nothing ->
+            False
+
+
+{-| A step with no fields of its own: the review step.
+-}
+isEmptyStep : Int -> List Def -> Bool
+isEmptyStep index defs =
+    not (List.any (\def -> def.step == index) defs)
 
 
 
@@ -1466,46 +2369,71 @@ view. The result carries everything the controls need, so each control is one
 call.
 -}
 bind : Locale -> (Msg -> msg) -> Form step fields values -> State step -> View msg
-bind locale toMsg (Form form) (State state) =
+bind locale toMsg ((Form form) as declared) (State data) =
     let
-        client =
-            case form.read locale (Dict.map (\_ slot -> rawOf slot) state.slots) of
-                Ok _ ->
-                    []
+        defs =
+            expandedDefs declared data
 
-                Err found ->
-                    found
-                        |> List.filter (\p -> state.reviewed || Set.member p.field state.touched)
+        found =
+            diagnose locale declared data defs
 
-        shownClient =
-            client |> List.map (\p -> ( p.field, p.message )) |> Dict.fromList
+        visible =
+            List.filter (isShown data) found
 
-        shownByField =
-            Dict.union shownClient state.server
+        byField =
+            visible
+                |> List.filter (\d -> d.origin /= FromOutside)
+                |> List.foldr (\d all -> Dict.insert d.field d.message all) Dict.empty
 
-        ofForm =
-            form.defs
+        ofFields =
+            defs
                 |> List.filterMap
                     (\def ->
-                        Dict.get def.key shownByField
-                            |> Maybe.map (\message -> { field = def.key, label = def.label, message = message })
+                        Dict.get def.key byField
+                            |> Maybe.map (\message -> { field = def.key, label = def.label, message = message, step = def.step })
                     )
 
         ofOutside =
-            if state.reviewed then
-                List.map (\p -> { field = p.field, label = p.label, message = p.message }) state.outside
+            visible
+                |> List.filter (\d -> d.origin == FromOutside)
+                |> List.map (\d -> { field = d.field, label = d.label, message = d.message, step = d.step })
+
+        shown =
+            ofFields ++ ofOutside
+
+        stepLabel index =
+            form.steps |> List.drop index |> List.head |> Maybe.map .label |> Maybe.withDefault ""
+
+        listed =
+            if List.isEmpty form.steps then
+                shown
+
+            else if isEmptyStep data.current defs then
+                standing found defs
+                    |> List.map
+                        (\d ->
+                            { field = d.field
+                            , label = d.label ++ " (" ++ stepLabel d.step ++ ")"
+                            , message = d.message
+                            , step = d.step
+                            }
+                        )
 
             else
-                []
+                List.filter (\p -> p.step == data.current) shown
     in
     View
         { toMsg = toMsg
         , locale = locale
         , prefix = form.prefix
-        , defs = form.defs
-        , slots = state.slots
-        , byField = shownByField
-        , shown = ofForm ++ ofOutside
+        , defs = Dict.fromList (List.map (\def -> ( def.key, def )) defs)
+        , slots = data.slots
+        , byField = byField
+        , listed = listed
+        , stepInfo =
+            form.steps
+                |> List.indexedMap (\index info -> { label = info.label, failed = List.any (\p -> p.step == index) shown })
+        , current = data.current
         }
 
 
@@ -1514,7 +2442,7 @@ attributes that win over the application's own.
 -}
 fieldDef : View msg -> Field c -> Maybe ( Def, Slot )
 fieldDef (View view) (Field field) =
-    case ( List.filter (\def -> def.key == field.key) view.defs |> List.head, Dict.get field.key view.slots ) of
+    case ( Dict.get field.key view.defs, Dict.get field.key view.slots ) of
         ( Just def, Just slot ) ->
             Just ( def, slot )
 
@@ -1754,19 +2682,120 @@ switch ((View view) as bound) field attributes =
             mismatch bound field "a switch"
 
 
+{-| The button that adds a row to a group, with the group's problem under it
+("Add at least 1") when that is showing. The new row is added at the end and its
+first field gets the focus. The button's DOM id is the group's: it is where the
+summary and the focus after removing the last row lead.
+
+    Fm.addRow v f.contacts [] "Add contact"
+
+-}
+addRow : View msg -> Field (Rows rowFields) -> List (Button.Attribute msg) -> String -> Html msg
+addRow ((View view) as bound) (Field field) attributes label =
+    case Dict.get field.key view.defs of
+        Just def ->
+            Html.div []
+                [ Button.view
+                    (Button.icon Icon.plus
+                        :: attributes
+                        ++ [ Button.id def.key
+                           , Button.onClick (view.toMsg (AddRow def.key))
+                           ]
+                    )
+                    label
+                , case problemOf bound def of
+                    Just message ->
+                        Html.p [ Internal.cls [ "klar-field__error" ] ] [ Html.text message ]
+
+                    Nothing ->
+                        Html.text ""
+                ]
+
+        Nothing ->
+            Html.text ""
+
+
+{-| The button that removes the row at this position (counted from 0, as in
+`List.indexedMap` over `rowFields`): an icon button named "Remove contact 2"
+from the group's `item`. The focus goes to the next row's first field, or the
+previous one, or the add button when no row is left.
+-}
+removeRow : View msg -> Field (Rows rowFields) -> Int -> List (Button.Attribute msg) -> Html msg
+removeRow (View view) (Field field) position attributes =
+    case
+        ( Dict.get field.key view.defs |> Maybe.andThen .rows
+        , Dict.get field.key view.slots
+        )
+    of
+        ( Just (RowsPlan plan), Just (SRows group) ) ->
+            case List.drop position group.order |> List.head of
+                Just id ->
+                    Button.iconOnly
+                        (Button.ghost
+                            :: attributes
+                            ++ [ Button.onClick (view.toMsg (RemoveRow field.key id)) ]
+                        )
+                        Icon.trash
+                        (Locale.pick view.locale
+                            { nb = "Fjern " ++ String.toLower plan.item ++ " " ++ String.fromInt (position + 1)
+                            , en = "Remove " ++ String.toLower plan.item ++ " " ++ String.fromInt (position + 1)
+                            }
+                        )
+
+                Nothing ->
+                    Html.text ""
+
+        _ ->
+            Html.text ""
+
+
+{-| The steps of the form as a stepper, with the step the form is on and a red
+mark on every step that has problems showing. A click on a step goes there; going
+forward checks the steps on the way and stops at the first one with problems.
+Nothing is drawn for a form without steps. The attributes are the stepper's own
+(`Stepper.ariaLabel`, `Stepper.small`).
+-}
+stepper : View msg -> List (Stepper.Attribute msg) -> Html msg
+stepper (View view) attributes =
+    if List.isEmpty view.stepInfo then
+        Html.text ""
+
+    else
+        Stepper.view
+            (attributes
+                ++ [ Stepper.current view.current
+                   , Stepper.onSelect (\index -> view.toMsg (GoStep index))
+                   , Stepper.locale view.locale
+                   ]
+            )
+            (List.map
+                (\info ->
+                    if info.failed then
+                        Stepper.step info.label |> Stepper.failed
+
+                    else
+                        Stepper.step info.label
+                )
+                view.stepInfo
+            )
+
+
 {-| The list of problems that are showing, with the labels of the declaration,
 as `Form.errorSummary`: the form's own and those given to `outside`. Each line
-moves the focus to its element. Nothing is drawn while no problem is showing.
+moves the focus to its element, on another step if need be. On a step it lists
+the problems of that step; on the review step (a step with no fields) it lists
+every problem of every step, shown or not, with the step in brackets. Nothing
+is drawn while there is nothing to list.
 -}
 summary : View msg -> Html msg
 summary (View view) =
     Form.errorSummary
         [ Form.id view.prefix
         , Form.locale view.locale
-        , Form.labels (List.map (\p -> ( p.field, p.label )) view.shown)
+        , Form.labels (List.map (\p -> ( p.field, p.label )) view.listed)
         , Form.onFocusField (\key -> view.toMsg (FocusField key))
         ]
-        (List.map (\p -> { field = p.field, message = p.message }) view.shown)
+        (List.map (\p -> { field = p.field, message = p.message }) view.listed)
 
 
 
