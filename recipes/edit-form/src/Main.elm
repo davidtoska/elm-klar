@@ -3,8 +3,8 @@ module Main exposing (main)
 {-| An edit form: the record is loaded (a `Remote`), edited, validated, and saved by a
 backend that can answer with a problem per field or with a failure of its own.
 
-The form is declared once with `Klar.Form.Model` (`Fm`): one `Fm.State` in the model and one
-`Fm.Msg` in the messages, whatever the number of fields.
+The form is declared once with `Klar.Form.Spec`: one `Form.State` in the model and one
+`Form.Msg` in the messages, whatever the number of fields.
 
 -}
 
@@ -15,7 +15,9 @@ import Klar.Button as Button
 import Klar.Card as Card
 import Klar.ErrorState as ErrorState
 import Klar.Form as Form
-import Klar.Form.Model as Fm
+import Klar.Form.Layout as FormLayout
+import Klar.Form.Spec as Spec
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale
 import Klar.Overlay as Overlay exposing (Overlay)
@@ -55,7 +57,7 @@ countries =
 
 
 type SaveProblem
-    = FieldProblem (Fields -> Fm.Field String) String
+    = FieldProblem (Fields -> Form.Field String) String
     | Failure Remote.Problem
 
 
@@ -102,33 +104,33 @@ sendSave customer =
 
 
 type alias Fields =
-    { name : Fm.Field String
-    , email : Fm.Field String
-    , creditLimit : Fm.Field (Maybe Float)
-    , country : Fm.Field (Maybe CountryId)
-    , active : Fm.Field Bool
+    { name : Form.Field String
+    , email : Form.Field String
+    , creditLimit : Form.Field (Maybe Float)
+    , country : Form.Field (Maybe CountryId)
+    , active : Form.Field Bool
     }
 
 
-countryIds : Fm.Ids CountryId
+countryIds : Ids CountryId
 countryIds =
-    Fm.ids { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
+    Ids.make { toKey = \(CountryId code) -> code, fromKey = Just << CountryId }
 
 
-form : Fm.Form () Fields Customer
+form : Form.Form () Fields Customer
 form =
-    Fm.define "customer" Fields Customer
-        |> Fm.with (Fm.text "Name" |> Fm.required |> Fm.rules [ Validate.maxLength 80 ])
-        |> Fm.with (Fm.text "Email" |> Fm.required |> Fm.rules [ Validate.email ])
-        |> Fm.with (Fm.number "Credit limit" |> Fm.range 0 100000 |> Fm.hint "In euros, 0 to 100 000.")
-        |> Fm.with (Fm.choice countryIds "Country" |> Fm.required)
-        |> Fm.with (Fm.toggle "Active")
-        |> Fm.build
+    Spec.define "customer" Fields Customer
+        |> Spec.with (Spec.text "Name" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])
+        |> Spec.with (Spec.text "Email" |> Spec.required |> Spec.rules [ Validate.email ])
+        |> Spec.with (Spec.number "Credit limit" |> Spec.range 0 100000 |> Spec.hint "In euros, 0 to 100 000.")
+        |> Spec.with (Spec.choice countryIds "Country" |> Spec.required)
+        |> Spec.with (Spec.toggle "Active")
+        |> Spec.build
 
 
 f : Fields
 f =
-    Fm.fields form
+    Form.fields form
 
 
 
@@ -137,15 +139,15 @@ f =
 
 type alias Model =
     { customer : Remote Customer
-    , state : Fm.State ()
-    , status : Form.Status
+    , state : Form.State ()
+    , status : FormLayout.Status
     , toasts : Toast.State Msg
     }
 
 
 type Msg
     = GotCustomer (Result Remote.Problem Customer)
-    | FormMsg Fm.Msg
+    | FormMsg Form.Msg
     | ToastMsg Toast.Msg
     | Submit
     | Saved (Result (List SaveProblem) ())
@@ -167,8 +169,8 @@ main =
 initialModel : Model
 initialModel =
     { customer = Loading
-    , state = Fm.init form
-    , status = Form.Idle
+    , state = Form.init form
+    , status = FormLayout.Idle
     , toasts = Toast.init
     }
 
@@ -189,7 +191,7 @@ update msg model =
         FormMsg m ->
             let
                 ( state, cmd ) =
-                    Fm.update m model.state
+                    Form.update form m model.state
             in
             ( { model | state = state }, Cmd.map FormMsg cmd )
 
@@ -201,19 +203,19 @@ update msg model =
             ( { model | toasts = toasts }, Cmd.map ToastMsg cmd )
 
         Submit ->
-            if model.status == Form.Submitting then
+            if model.status == FormLayout.Submitting then
                 ( model, Cmd.none )
 
             else
-                case Fm.toValues Locale.default form model.state of
+                case Form.toValues Locale.default form model.state of
                     Ok customer ->
-                        ( { model | status = Form.Submitting }, sendSave customer )
+                        ( { model | status = FormLayout.Submitting }, sendSave customer )
 
                     Err _ ->
                         -- show every problem, also in fields the user has not visited, and focus the summary
                         let
                             ( state, cmd ) =
-                                Fm.reveal form model.state
+                                Form.reveal form model.state
                         in
                         ( { model | state = state }, Cmd.map FormMsg cmd )
 
@@ -222,7 +224,7 @@ update msg model =
                 ( toasts, cmd ) =
                     Toast.push [ Toast.success, Toast.message "Customer saved." ] model.toasts
             in
-            ( { model | status = Form.Idle, state = Fm.markClean model.state, toasts = toasts }
+            ( { model | status = FormLayout.Idle, state = Form.markClean model.state, toasts = toasts }
             , Cmd.map ToastMsg cmd
             )
 
@@ -233,7 +235,7 @@ update msg model =
                         (\p ->
                             case p of
                                 FieldProblem field text ->
-                                    Just (Fm.problem (field f) text)
+                                    Just (Form.problem (field f) text)
 
                                 Failure _ ->
                                     Nothing
@@ -255,33 +257,33 @@ update msg model =
             in
             case failure of
                 Just problem ->
-                    ( { model | status = Form.Failed problem }, Cmd.none )
+                    ( { model | status = FormLayout.Failed problem }, Cmd.none )
 
                 Nothing ->
                     let
                         ( state, cmd ) =
-                            Fm.rejected fieldProblems form model.state
+                            Form.rejected fieldProblems form model.state
                     in
-                    ( { model | status = Form.Idle, state = state }, Cmd.map FormMsg cmd )
+                    ( { model | status = FormLayout.Idle, state = state }, Cmd.map FormMsg cmd )
 
         Discard ->
-            ( { model | state = Fm.revert model.state }, Cmd.none )
+            ( { model | state = Form.revert form model.state }, Cmd.none )
 
         Reload ->
-            ( { model | customer = Loading, status = Form.Idle }, loadCustomer )
+            ( { model | customer = Loading, status = FormLayout.Idle }, loadCustomer )
 
         NoOp ->
             ( model, Cmd.none )
 
 
-fill : Customer -> Fm.State () -> Fm.State ()
+fill : Customer -> Form.State () -> Form.State ()
 fill customer =
-    Fm.set f.name customer.name
-        >> Fm.set f.email customer.email
-        >> Fm.set f.creditLimit customer.creditLimit
-        >> Fm.set f.country (Just customer.country)
-        >> Fm.set f.active customer.active
-        >> Fm.markClean
+    Form.set f.name customer.name
+        >> Form.set f.email customer.email
+        >> Form.set f.creditLimit customer.creditLimit
+        >> Form.set f.country (Just customer.country)
+        >> Form.set f.active customer.active
+        >> Form.markClean
 
 
 
@@ -322,27 +324,27 @@ viewForm : Model -> Html Msg
 viewForm model =
     let
         v =
-            Fm.bind Locale.default FormMsg form model.state
+            Form.bind Locale.default FormMsg form model.state
 
         attributes =
-            [ Form.id "customer-form", Form.onSubmit Submit, Form.onRetry Submit ]
+            [ FormLayout.id "customer-form", FormLayout.onSubmit Submit, FormLayout.onRetry Submit ]
     in
-    Form.view attributes
-        [ Form.unsavedChanges [ Form.onDiscard Discard, Form.saving (model.status == Form.Submitting) ] (Fm.isDirty model.state)
-        , Fm.summary v
-        , Form.section "Customer"
+    FormLayout.view attributes
+        [ FormLayout.unsavedChanges [ FormLayout.onDiscard Discard, FormLayout.saving (model.status == FormLayout.Submitting) ] (Form.isDirty model.state)
+        , Form.summary v
+        , FormLayout.section "Customer"
             "Who we invoice."
-            [ Form.grid 2
-                [ Fm.textInput v f.name []
-                , Fm.textInput v f.email []
-                , Fm.numberInput v f.creditLimit []
-                , Fm.select v f.country (Loaded countries) []
-                , Fm.switch v f.active []
+            [ FormLayout.grid 2
+                [ Form.textInput v f.name []
+                , Form.textInput v f.email []
+                , Form.numberInput v f.creditLimit []
+                , Form.select v f.country (Loaded countries) []
+                , Form.switch v f.active []
                 ]
             ]
-        , Form.actions
-            [ Form.status attributes model.status
+        , FormLayout.actions
+            [ FormLayout.status attributes model.status
             , Layout.spacer
-            , Button.view [ Button.primary, Button.submit, Button.loading (model.status == Form.Submitting) ] "Save"
+            , Button.view [ Button.primary, Button.submit, Button.loading (model.status == FormLayout.Submitting) ] "Save"
             ]
         ]

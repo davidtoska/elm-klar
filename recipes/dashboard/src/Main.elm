@@ -5,16 +5,19 @@ module Main exposing (main)
 A period picker (`SegmentedControl`) reloads five panels: `Stat` tiles, a `Chart` line, a
 `Chart` donut, a `Tree` of regions and warehouses, and a `Timeline`. Each panel is `Loading`,
 `Failed` (with its own retry) or `Loaded` on its own, so one failure never hides the others.
-The Activity panel fails on its first request, so retry can be tried. An answer for a period
-the user has already left is dropped.
+A period change or a retry refreshes a panel that has data: the old data stays, dimmed and busy,
+and when the refresh fails it stays as old data with a notice. The Activity panel fails on its
+first request and the order status panel fails for 90 days, so both can be tried. An answer for
+a period the user has already left is dropped.
 
-The components draw all four states from the `Remote`; the page writes no case for them.
+The components draw every state from the `Remote`; the page writes no case for them.
 
 -}
 
 import Browser
 import Html exposing (Html)
 import Klar
+import Klar.Alert as Alert
 import Klar.Card as Card
 import Klar.Chart as Chart
 import Klar.Layout as Layout
@@ -81,7 +84,8 @@ type Panel
 
 type Msg
     = PeriodPicked String
-    | Got Period Answer
+    | Got Period Time.Posix Answer
+    | RetryStale
     | Retry Panel
     | TreeMsg Tree.Msg
 
@@ -130,10 +134,16 @@ regionIds =
 -- BACKEND (stand-ins that answer after a pause; replace each with a request)
 
 
-reply : Int -> (Result Remote.Problem a -> Answer) -> Period -> a -> Cmd Msg
-reply ms toAnswer period data =
+reply : Int -> (Result Remote.Problem a -> Answer) -> Period -> Result Remote.Problem a -> Cmd Msg
+reply ms toAnswer period result =
     Process.sleep (toFloat ms)
-        |> Task.perform (\_ -> Got period (toAnswer (Ok data)))
+        |> Task.andThen (\_ -> Time.now)
+        |> Task.perform (\at -> Got period at (toAnswer result))
+
+
+down : Result Remote.Problem a
+down =
+    Err (Remote.problem Remote.server)
 
 
 loadAll : Model -> Cmd Msg
@@ -152,42 +162,52 @@ load model panel =
     in
     case panel of
         SummaryPanel ->
-            reply 400 GotSummary model.period { orders = days * 41, revenue = scale * 1830.5, previousRevenue = scale * 1710, lateShare = 4.2 }
+            reply 400 GotSummary model.period (Ok { orders = days * 41, revenue = scale * 1830.5, previousRevenue = scale * 1710, lateShare = 4.2 })
 
         SalesPanel ->
             reply 900
                 GotSales
                 model.period
-                { labels = List.map (\n -> "Week " ++ String.fromInt n) (List.range 1 6)
-                , thisPeriod = List.map (\n -> scale * toFloat (n + 3) * 12) (List.range 1 6)
-                , lastPeriod = List.map (\n -> scale * toFloat (n + 2) * 11) (List.range 1 6)
-                }
+                (Ok
+                    { labels = List.map (\n -> "Week " ++ String.fromInt n) (List.range 1 6)
+                    , thisPeriod = List.map (\n -> scale * toFloat (n + 3) * 12) (List.range 1 6)
+                    , lastPeriod = List.map (\n -> scale * toFloat (n + 2) * 11) (List.range 1 6)
+                    }
+                )
 
         StatusesPanel ->
-            reply 600 GotStatuses model.period [ ( "Shipped", 62 ), ( "Packed", 21 ), ( "Late", 7 ), ( "Canceled", 3 ) ]
+            -- fails for 90 days, so the old numbers stay with a notice
+            if model.period == Quarter then
+                reply 600 GotStatuses model.period down
+
+            else
+                reply 600 GotStatuses model.period (Ok [ ( "Shipped", 62 ), ( "Packed", 21 ), ( "Late", 7 ), ( "Canceled", 3 ) ])
 
         RegionsPanel ->
             reply 1200
                 GotRegions
                 model.period
-                [ Region (RegionId 1) "North" [ Region (RegionId 11) "Tromsø" [], Region (RegionId 12) "Bodø" [] ]
-                , Region (RegionId 2) "South" [ Region (RegionId 21) "Oslo" [], Region (RegionId 22) "Kristiansand" [] ]
-                ]
+                (Ok
+                    [ Region (RegionId 1) "North" [ Region (RegionId 11) "Tromsø" [], Region (RegionId 12) "Bodø" [] ]
+                    , Region (RegionId 2) "South" [ Region (RegionId 21) "Oslo" [], Region (RegionId 22) "Kristiansand" [] ]
+                    ]
+                )
 
         ActivityPanel ->
             -- fails on the first request, answers on a retry
             if model.activityAttempts == 0 then
-                Process.sleep 800
-                    |> Task.perform (\_ -> Got model.period (GotActivity (Err (Remote.problem Remote.server))))
+                reply 800 GotActivity model.period down
 
             else
                 reply 500
                     GotActivity
                     model.period
-                    [ Activity "a-3" 1760000000000 "Order 1043 shipped"
-                    , Activity "a-2" 1759990000000 "Order 1042 packed"
-                    , Activity "a-1" 1759980000000 "Order 1041 created"
-                    ]
+                    (Ok
+                        [ Activity "a-3" 1760000000000 "Order 1043 shipped"
+                        , Activity "a-2" 1759990000000 "Order 1042 packed"
+                        , Activity "a-1" 1759980000000 "Order 1041 created"
+                        ]
+                    )
 
 
 periodDays : Period -> Int
@@ -215,11 +235,11 @@ update msg model =
                 reloaded =
                     { model
                         | period = periodFromKey key
-                        , summary = Loading
-                        , sales = Loading
-                        , statuses = Loading
-                        , regions = Loading
-                        , activity = Loading
+                        , summary = Remote.refresh model.summary
+                        , sales = Remote.refresh model.sales
+                        , statuses = Remote.refresh model.statuses
+                        , regions = Remote.refresh model.regions
+                        , activity = Remote.refresh model.activity
                     }
             in
             ( reloaded, loadAll reloaded )
@@ -233,51 +253,80 @@ update msg model =
 
         Retry panel ->
             let
-                -- KLAR GAP: Remote has no "stale" state, so a reload empties the panel (skeleton) instead of keeping the old data dimmed.
                 next =
-                    case panel of
-                        SummaryPanel ->
-                            { model | summary = Loading }
-
-                        SalesPanel ->
-                            { model | sales = Loading }
-
-                        StatusesPanel ->
-                            { model | statuses = Loading }
-
-                        RegionsPanel ->
-                            { model | regions = Loading }
-
-                        ActivityPanel ->
-                            { model | activity = Loading, activityAttempts = model.activityAttempts + 1 }
+                    refreshPanel panel model
             in
             ( next, load next panel )
 
-        Got period answer ->
+        RetryStale ->
+            let
+                stale =
+                    List.filterMap
+                        (\( panel, remoteIsStale ) ->
+                            if remoteIsStale then
+                                Just panel
+
+                            else
+                                Nothing
+                        )
+                        [ ( SummaryPanel, Remote.isStale model.summary )
+                        , ( SalesPanel, Remote.isStale model.sales )
+                        , ( StatusesPanel, Remote.isStale model.statuses )
+                        , ( RegionsPanel, Remote.isStale model.regions )
+                        , ( ActivityPanel, Remote.isStale model.activity )
+                        ]
+
+                next =
+                    List.foldl refreshPanel model stale
+            in
+            ( next, Cmd.batch (List.map (load next) stale) )
+
+        Got period at answer ->
             if period /= model.period then
                 ( model, Cmd.none )
 
             else
-                ( store answer model, Cmd.none )
+                ( store at answer model, Cmd.none )
 
 
-store : Answer -> Model -> Model
-store answer model =
+{-| Data that is there stays (dimmed and busy); a panel with nothing yet shows its skeleton.
+-}
+refreshPanel : Panel -> Model -> Model
+refreshPanel panel model =
+    case panel of
+        SummaryPanel ->
+            { model | summary = Remote.refresh model.summary }
+
+        SalesPanel ->
+            { model | sales = Remote.refresh model.sales }
+
+        StatusesPanel ->
+            { model | statuses = Remote.refresh model.statuses }
+
+        RegionsPanel ->
+            { model | regions = Remote.refresh model.regions }
+
+        ActivityPanel ->
+            { model | activity = Remote.refresh model.activity, activityAttempts = model.activityAttempts + 1 }
+
+
+store : Time.Posix -> Answer -> Model -> Model
+store at answer model =
     case answer of
         GotSummary r ->
-            { model | summary = Remote.fromResult r }
+            { model | summary = Remote.refreshWith model.summary r at }
 
         GotSales r ->
-            { model | sales = Remote.fromResult r }
+            { model | sales = Remote.refreshWith model.sales r at }
 
         GotStatuses r ->
-            { model | statuses = Remote.fromResult r }
+            { model | statuses = Remote.refreshWith model.statuses r at }
 
         GotRegions r ->
-            { model | regions = Remote.fromResult r }
+            { model | regions = Remote.refreshWith model.regions r at }
 
         GotActivity r ->
-            { model | activity = Remote.fromResult r }
+            { model | activity = Remote.refreshWith model.activity r at }
 
 
 periodFromKey : String -> Period
@@ -301,6 +350,7 @@ view : Model -> Html Msg
 view model =
     Layout.stack [ Layout.gap 4, Layout.padding 4 ]
         [ PageHeader.view [ PageHeader.title "Operations", PageHeader.actions [ periodPicker model.period ] ]
+        , Alert.stale [] RetryStale (staleNames model)
         , Stat.row (viewStats model)
         , Layout.grid [ Layout.columns 2, Layout.gap 4 ]
             [ Card.view [ Card.title "Revenue" ] [ viewSales model ]
@@ -308,6 +358,17 @@ view model =
             , Card.view [ Card.title "Regions" ] [ viewRegions model ]
             , Card.view [ Card.title "Activity" ] [ viewActivity model ]
             ]
+        ]
+
+
+staleNames : Model -> List String
+staleNames model =
+    List.concat
+        [ Remote.staleIn "figures" model.summary
+        , Remote.staleIn "revenue" model.sales
+        , Remote.staleIn "order statuses" model.statuses
+        , Remote.staleIn "regions" model.regions
+        , Remote.staleIn "activity" model.activity
         ]
 
 
@@ -350,8 +411,8 @@ viewStats model =
 viewSales : Model -> Html Msg
 viewSales model =
     -- remote and onRetry only: `Chart.loading` after `Chart.remote` would cancel it
-    case model.sales of
-        Loaded sales ->
+    case Remote.toMaybe model.sales of
+        Just sales ->
             Chart.line [ Chart.categories sales.labels, Chart.remote model.sales, Chart.onRetry (Retry SalesPanel) ]
                 [ Chart.series "This period" sales.thisPeriod, Chart.series "Last period" sales.lastPeriod |> Chart.dashed ]
 

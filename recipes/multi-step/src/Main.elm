@@ -1,11 +1,13 @@
 module Main exposing (main)
 
-{-| A multi-step flow: three steps (customer, delivery, review) with a `Stepper`, one route per
-step, validation before "Next", a submit that can fail, and a leave guard that asks before
-the flow is left with unsaved input.
+{-| A multi-step flow: three steps (customer, delivery, review) with a `Stepper`, validation
+before "Next", a review step that lists what is wrong, a submit that can fail, and a leave guard
+that asks before the flow is left with unsaved input.
 
-Every way out of the flow goes through `LeaveGuard.request`: a link (`LinkClicked`) and the
-step strip. What it cannot stop is the browser's own Back button, see the KLAR GAP below.
+The form owns the steps (`Klar.Form.Spec.step`): which step the user is on, what "Next" checks,
+the stepper, and the summary on the review step. The application owns the address of the flow
+(`#/order`) and the leave guard. Every way out goes through the guard: a link
+(`LeaveGuard.request`) and the browser's Back and Forward buttons (`LeaveGuard.onUrlChange`).
 
 -}
 
@@ -17,15 +19,14 @@ import Klar.Button as Button
 import Klar.Card as Card
 import Klar.DescriptionList as DescriptionList
 import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
+import Klar.Form.Spec as Spec
 import Klar.Layout as Layout
 import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
 import Klar.Locale as Locale
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
-import Klar.Radio as Radio
 import Klar.Remote as Remote
-import Klar.Stepper as Stepper
-import Klar.TextInput as TextInput
 import Klar.Toast as Toast
 import Klar.Validate as Validate
 import Process
@@ -37,34 +38,10 @@ import Url exposing (Url)
 -- ROUTES
 
 
-type Step
-    = Customer
-    | Delivery
-    | Review
-
-
 type Route
     = Home
-    | Order Step
+    | Order
     | Done
-
-
-steps : List Step
-steps =
-    [ Customer, Delivery, Review ]
-
-
-stepIndex : Step -> Int
-stepIndex step =
-    case step of
-        Customer ->
-            0
-
-        Delivery ->
-            1
-
-        Review ->
-            2
 
 
 routeToPath : Route -> String
@@ -73,14 +50,8 @@ routeToPath route =
         Home ->
             "#/"
 
-        Order Customer ->
-            "#/order/customer"
-
-        Order Delivery ->
-            "#/order/delivery"
-
-        Order Review ->
-            "#/order/review"
+        Order ->
+            "#/order"
 
         Done ->
             "#/order/done"
@@ -89,14 +60,8 @@ routeToPath route =
 routeFromUrl : Url -> Route
 routeFromUrl url =
     case url.fragment of
-        Just "/order/customer" ->
-            Order Customer
-
-        Just "/order/delivery" ->
-            Order Delivery
-
-        Just "/order/review" ->
-            Order Review
+        Just "/order" ->
+            Order
 
         Just "/order/done" ->
             Done
@@ -106,41 +71,81 @@ routeFromUrl url =
 
 
 
--- MODEL
+-- THE FORM, declared once
 
 
-type alias Draft =
-    { customer : String
-    , email : String
-    , address : String
-    , priority : String
+type Step
+    = Customer
+    | Delivery
+    | Review
+
+
+type alias Fields =
+    { name : Form.Field String
+    , email : Form.Field String
+    , address : Form.Field String
+    , express : Form.Field Bool
     }
 
 
-emptyDraft : Draft
-emptyDraft =
-    { customer = "", email = "", address = "", priority = "standard" }
+type alias OrderValues =
+    { name : String
+    , email : String
+    , address : String
+    , express : Bool
+    }
+
+
+form : Form.Form Step Fields OrderValues
+form =
+    Spec.define "order" Fields OrderValues
+        |> Spec.step Customer "Customer"
+        |> Spec.with (Spec.text "Customer" |> Spec.required)
+        |> Spec.with (Spec.text "Email" |> Spec.required |> Spec.rules [ Validate.email ])
+        |> Spec.step Delivery "Delivery"
+        |> Spec.with (Spec.text "Address" |> Spec.required)
+        |> Spec.with (Spec.toggle "Express" |> Spec.hint "Next day instead of 3 to 5 days.")
+        |> Spec.step Review "Review"
+        |> Spec.build
+
+
+f : Fields
+f =
+    Form.fields form
+
+
+{-| A stand-in for the request. The customer "Crash" makes it fail.
+-}
+sendOrder : OrderValues -> Cmd Msg
+sendOrder order =
+    Process.sleep 700
+        |> Task.map
+            (\_ ->
+                if order.name == "Crash" then
+                    Err "The server could not take the order."
+
+                else
+                    Ok ()
+            )
+        |> Task.perform Submitted
+
+
+
+-- MODEL
 
 
 {-| The one source of unsaved changes. A page with several forms has one constructor each.
 -}
 type Source
-    = OrderDraft
-
-
-{-| What a navigation wants: a plain value, so the guard can hold it.
--}
-type Target
-    = Go Route
+    = OrderForm
 
 
 type alias Model =
     { key : Nav.Key
     , route : Route
-    , draft : Draft
-    , showErrors : Bool
-    , status : Form.Status
-    , guard : LeaveGuard.Guard Source Target
+    , order : Form.State Step
+    , status : FormLayout.Status
+    , guard : LeaveGuard.Guard Source Route
     , toasts : Toast.State Msg
     }
 
@@ -148,16 +153,12 @@ type alias Model =
 type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url
-    | Edited Draft
-    | Next Step
-    | Back Step
-    | StepSelected Int
-    | Submit
+    | FormMsg Form.Msg
+    | Next
+    | Back
     | Submitted (Result String ())
     | GuardMsg LeaveGuard.Msg
     | ToastMsg Toast.Msg
-    | FocusField String
-    | NoOp
 
 
 main : Program () Model Msg
@@ -176,75 +177,13 @@ init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init _ url key =
     ( { key = key
       , route = routeFromUrl url
-      , draft = emptyDraft
-      , showErrors = False
-      , status = Form.Idle
-      , guard = LeaveGuard.init "leave-dialog"
+      , order = Form.init form
+      , status = FormLayout.Idle
+      , guard = LeaveGuard.initAt "leave-dialog" key url
       , toasts = Toast.init
       }
     , Cmd.none
     )
-
-
-{-| A stand-in for the request. The customer "Crash" makes it fail.
--}
-sendOrder : Draft -> Cmd Msg
-sendOrder draft =
-    Process.sleep 700
-        |> Task.map
-            (\_ ->
-                if draft.customer == "Crash" then
-                    Err "The server could not take the order."
-
-                else
-                    Ok ()
-            )
-        |> Task.perform Submitted
-
-
-
--- VALIDATION, per step
-
-
-fieldIds : { customer : String, email : String, address : String }
-fieldIds =
-    { customer = "order-customer", email = "order-email", address = "order-address" }
-
-
-
--- KLAR GAP: Klar.Form.Model has no steps (validate and reveal only the fields of the current step), so this flow keeps its own draft and uses Validate.
-
-
-problems : Step -> Draft -> List Validate.Error
-problems step draft =
-    case step of
-        Customer ->
-            Validate.collect Locale.default
-                [ ( fieldIds.customer, [ Validate.required ], draft.customer )
-                , ( fieldIds.email, [ Validate.required, Validate.email ], draft.email )
-                ]
-
-        Delivery ->
-            Validate.collect Locale.default [ ( fieldIds.address, [ Validate.required ], draft.address ) ]
-
-        Review ->
-            []
-
-
-allProblems : Draft -> List Validate.Error
-allProblems draft =
-    List.concatMap (\step -> problems step draft) steps
-
-
-{-| The furthest step the user may open: the first one with a problem.
--}
-reached : Draft -> Int
-reached draft =
-    steps
-        |> List.filter (\step -> not (List.isEmpty (problems step draft)))
-        |> List.head
-        |> Maybe.map stepIndex
-        |> Maybe.withDefault 2
 
 
 
@@ -255,66 +194,74 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         LinkClicked (Browser.Internal url) ->
-            navigate (Go (routeFromUrl url)) model
+            case LeaveGuard.request (routeFromUrl url) model.guard of
+                Proceed route ->
+                    ( model, Nav.pushUrl model.key (routeToPath route) )
+
+                Hold guard cmd ->
+                    ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
         LinkClicked (Browser.External href) ->
             ( model, Nav.load href )
 
         UrlChanged url ->
-            -- KLAR GAP: the browser Back and Forward buttons cannot be stopped, so the guard does not ask for them (the draft stays in the model).
-            ( { model | route = routeFromUrl url, showErrors = False }, Cmd.none )
+            -- also the browser's Back and Forward: with unsaved input the guard keeps the page and asks
+            case LeaveGuard.onUrlChange routeFromUrl url model.guard of
+                ( guard, cmd, Just route ) ->
+                    ( { model | route = route, guard = guard }, Cmd.map GuardMsg cmd )
 
-        Edited draft ->
-            ( { model
-                | draft = draft
-                , status = Form.Idle
-                , guard = LeaveGuard.setDirty OrderDraft (draft /= emptyDraft) model.guard
-              }
-            , Cmd.none
-            )
+                ( guard, cmd, Nothing ) ->
+                    ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
-        Next step ->
-            if List.isEmpty (problems step model.draft) then
-                ( { model | showErrors = False }, Nav.pushUrl model.key (routeToPath (Order (nextStep step))) )
+        FormMsg inner ->
+            let
+                ( order, cmd ) =
+                    Form.update form inner model.order
+            in
+            ( edited { model | order = order, status = FormLayout.Idle }, Cmd.map FormMsg cmd )
 
-            else
-                ( { model | showErrors = True }, Form.focusSummary "order-form" NoOp )
-
-        Back step ->
-            ( { model | showErrors = False }, Nav.pushUrl model.key (routeToPath (Order (previousStep step))) )
-
-        StepSelected index ->
-            case List.drop index steps |> List.head of
-                Just step ->
-                    ( model, Nav.pushUrl model.key (routeToPath (Order step)) )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
-        Submit ->
-            if model.status == Form.Submitting then
+        Next ->
+            if model.status == FormLayout.Submitting then
                 ( model, Cmd.none )
 
             else
-                ( { model | status = Form.Submitting }, sendOrder model.draft )
+                let
+                    next =
+                        Form.advance form model.order
+                in
+                case next.submit of
+                    Just order ->
+                        ( { model | order = next.state, status = FormLayout.Submitting }
+                        , Cmd.batch [ Cmd.map FormMsg next.cmd, sendOrder order ]
+                        )
+
+                    Nothing ->
+                        ( { model | order = next.state }, Cmd.map FormMsg next.cmd )
+
+        Back ->
+            let
+                ( order, cmd ) =
+                    Form.back form model.order
+            in
+            ( { model | order = order }, Cmd.map FormMsg cmd )
 
         Submitted (Ok ()) ->
             let
                 ( toasts, cmd ) =
                     Toast.push [ Toast.success, Toast.message "Order placed." ] model.toasts
             in
-            -- nothing is unsaved any more: clear the dirty mark, then leave the flow
-            ( { model | draft = emptyDraft, status = Form.Idle, guard = LeaveGuard.setDirty OrderDraft False model.guard, toasts = toasts }
+            -- nothing is unsaved any more: start a clean form, then leave the flow
+            ( edited { model | order = Form.init form, status = FormLayout.Idle, toasts = toasts }
             , Cmd.batch [ Cmd.map ToastMsg cmd, Nav.pushUrl model.key (routeToPath Done) ]
             )
 
         Submitted (Err message) ->
-            ( { model | status = Form.Failed (remoteProblem message) }, Cmd.none )
+            ( { model | status = FormLayout.Failed (remoteProblem message) }, Cmd.none )
 
-        GuardMsg m ->
+        GuardMsg inner ->
             let
                 ( guard, cmd, decision ) =
-                    LeaveGuard.update m model.guard
+                    LeaveGuard.update inner model.guard
 
                 next =
                     { model | guard = guard }
@@ -325,58 +272,26 @@ update msg model =
 
                 Just answer ->
                     -- "Leave": the changes are given up
-                    let
-                        (Go route) =
-                            LeaveGuard.destination answer
-                    in
-                    ( { next | draft = emptyDraft, status = Form.Idle }
-                    , Cmd.batch [ Cmd.map GuardMsg cmd, Nav.pushUrl model.key (routeToPath route) ]
+                    ( { next | order = Form.init form, status = FormLayout.Idle }
+                    , Cmd.batch
+                        [ Cmd.map GuardMsg cmd
+                        , Nav.pushUrl model.key (routeToPath (LeaveGuard.destination answer))
+                        ]
                     )
 
-        ToastMsg m ->
+        ToastMsg inner ->
             let
                 ( toasts, cmd ) =
-                    Toast.update m model.toasts
+                    Toast.update inner model.toasts
             in
             ( { model | toasts = toasts }, Cmd.map ToastMsg cmd )
 
-        FocusField id ->
-            ( model, Form.focusField id NoOp )
 
-        NoOp ->
-            ( model, Cmd.none )
-
-
-{-| Every navigation asks the guard first.
+{-| Tell the guard whether the form holds unsaved input.
 -}
-navigate : Target -> Model -> ( Model, Cmd Msg )
-navigate target model =
-    case LeaveGuard.request target model.guard of
-        Proceed (Go route) ->
-            ( model, Nav.pushUrl model.key (routeToPath route) )
-
-        Hold guard cmd ->
-            ( { model | guard = guard }, Cmd.map GuardMsg cmd )
-
-
-nextStep : Step -> Step
-nextStep step =
-    case step of
-        Customer ->
-            Delivery
-
-        _ ->
-            Review
-
-
-previousStep : Step -> Step
-previousStep step =
-    case step of
-        Review ->
-            Delivery
-
-        _ ->
-            Customer
+edited : Model -> Model
+edited model =
+    { model | guard = LeaveGuard.setDirty OrderForm (Form.isDirty model.order) model.guard }
 
 
 remoteProblem : String -> Remote.Problem
@@ -415,7 +330,7 @@ viewPage model =
         Home ->
             Layout.stack []
                 [ PageHeader.view [ PageHeader.title "Orders" ]
-                , Button.view [ Button.primary, Button.href (routeToPath (Order Customer)) ] "New order"
+                , Button.view [ Button.primary, Button.href (routeToPath Order) ] "New order"
                 ]
 
         Done ->
@@ -424,97 +339,58 @@ viewPage model =
                 , Button.view [ Button.href (routeToPath Home) ] "Back to orders"
                 ]
 
-        Order step ->
-            viewStep model step
+        Order ->
+            viewOrder model
 
 
-viewStep : Model -> Step -> Html Msg
-viewStep model step =
+viewOrder : Model -> Html Msg
+viewOrder model =
     let
-        errors =
-            if model.showErrors then
-                problems step model.draft
+        v =
+            Form.bind Locale.default FormMsg form model.order
 
-            else
-                []
+        step =
+            Form.currentStep form model.order
 
         attributes =
-            [ Form.id "order-form", Form.onFocusField FocusField, Form.onRetry Submit, Form.onSubmit (submitMessage step) ]
-
-        draft =
-            model.draft
+            [ FormLayout.id "order-form", FormLayout.onSubmit Next, FormLayout.onRetry Next ]
     in
     Layout.stack []
         [ PageHeader.view [ PageHeader.title "New order" ]
-        , Stepper.view
-            [ Stepper.current (stepIndex step), Stepper.onSelect StepSelected ]
-            (List.map (stepLabel (reached draft)) steps)
+        , Form.stepper v []
         , Card.view []
-            [ Form.view attributes
-                [ Form.errorSummary attributes errors
+            [ FormLayout.view attributes
+                [ Form.summary v
                 , case step of
-                    Customer ->
+                    Just Customer ->
                         Layout.stack []
-                            [ TextInput.view
-                                [ TextInput.id fieldIds.customer
-                                , TextInput.label "Customer"
-                                , TextInput.required
-                                , TextInput.value draft.customer
-                                , TextInput.onInput (\v -> Edited { draft | customer = v })
-                                , TextInput.errorMaybe (Validate.errorFor fieldIds.customer errors)
-                                ]
-                            , TextInput.view
-                                [ TextInput.id fieldIds.email
-                                , TextInput.label "Email"
-                                , TextInput.email
-                                , TextInput.required
-                                , TextInput.value draft.email
-                                , TextInput.onInput (\v -> Edited { draft | email = v })
-                                , TextInput.errorMaybe (Validate.errorFor fieldIds.email errors)
-                                ]
+                            [ Form.textInput v f.name []
+                            , Form.textInput v f.email []
                             ]
 
-                    Delivery ->
+                    Just Delivery ->
                         Layout.stack []
-                            [ TextInput.view
-                                [ TextInput.id fieldIds.address
-                                , TextInput.label "Address"
-                                , TextInput.required
-                                , TextInput.value draft.address
-                                , TextInput.onInput (\v -> Edited { draft | address = v })
-                                , TextInput.errorMaybe (Validate.errorFor fieldIds.address errors)
-                                ]
-                            , Radio.view
-                                [ Radio.id "order-priority"
-                                , Radio.label "Priority"
-                                , Radio.options [ Radio.option "standard" "Standard, 3 to 5 days", Radio.option "express" "Express, next day" ]
-                                , Radio.selected (Just draft.priority)
-                                , Radio.onSelect (\v -> Edited { draft | priority = v })
-                                ]
+                            [ Form.textInput v f.address []
+                            , Form.switch v f.express []
                             ]
 
-                    Review ->
-                        DescriptionList.view []
-                            [ DescriptionList.text "Customer" draft.customer
-                            , DescriptionList.text "Email" draft.email
-                            , DescriptionList.text "Address" draft.address
-                            , DescriptionList.text "Priority" draft.priority
-                            ]
-                , Form.actions
+                    _ ->
+                        viewReview model
+                , FormLayout.actions
                     [ Button.view [ Button.id "cancel-order", Button.ghost, Button.href (routeToPath Home) ] "Cancel"
-                    , Form.status attributes model.status
+                    , FormLayout.status attributes model.status
                     , Layout.spacer
-                    , if step == Customer then
+                    , if step == Just Customer then
                         Html.text ""
 
                       else
-                        Button.view [ Button.onClick (Back step) ] "Back"
+                        Button.view [ Button.onClick Back ] "Back"
                     , Button.view
                         [ Button.primary
                         , Button.submit
-                        , Button.loading (model.status == Form.Submitting)
+                        , Button.loading (model.status == FormLayout.Submitting)
                         ]
-                        (if step == Review then
+                        (if step == Just Review then
                             "Place order"
 
                          else
@@ -526,31 +402,17 @@ viewStep model step =
         ]
 
 
-submitMessage : Step -> Msg
-submitMessage step =
-    if step == Review then
-        Submit
+viewReview : Model -> Html Msg
+viewReview model =
+    DescriptionList.view []
+        [ DescriptionList.text "Customer" (Form.get f.name model.order)
+        , DescriptionList.text "Email" (Form.get f.email model.order)
+        , DescriptionList.text "Address" (Form.get f.address model.order)
+        , DescriptionList.text "Delivery"
+            (if Form.get f.express model.order then
+                "Express, next day"
 
-    else
-        Next step
-
-
-stepLabel : Int -> Step -> Stepper.Step
-stepLabel furthest step =
-    let
-        label =
-            case step of
-                Customer ->
-                    "Customer"
-
-                Delivery ->
-                    "Delivery"
-
-                Review ->
-                    "Review"
-    in
-    if stepIndex step > furthest then
-        Stepper.step label |> Stepper.disabledStep
-
-    else
-        Stepper.step label
+             else
+                "Standard, 3 to 5 days"
+            )
+        ]

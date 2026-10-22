@@ -1,21 +1,24 @@
 module Main exposing (main)
 
 {-| A server-mode inbox: a `Table` whose rows live on the server, a `FilterBar` and `SavedViews`
-that edit one `Rule`, and the glue that every such list needs:
+that edit one `Rule` and the table's query, and the glue that every such list needs:
 
   - compare the query and the rule before and after each `update`;
   - go back to page 1 when the rule changed;
-  - wait a moment (debounce) so typing does not ask the server on every key;
+  - wait a moment (debounce) so a changing filter does not ask the server on every edit (the
+    search box has its own debounce in server mode);
   - give each request a ticket and drop answers that are not for the latest one.
 
 The "server" is `search`, a function over an in-memory list behind `Process.sleep`.
-Type `fail` in the search box to see the failure state and its retry button.
+Type `fail` in the search box to see the failure: the first time the table has no rows to keep, and
+after a good page the old rows stay with "Old data from ..." and a retry.
 
 -}
 
 import Browser
 import Html exposing (Html)
 import Klar
+import Klar.Button as Button
 import Klar.Date as Date exposing (Date)
 import Klar.FilterBar as FilterBar
 import Klar.Layout as Layout
@@ -88,6 +91,7 @@ initialViews : List SavedViews.SavedView
 initialViews =
     [ SavedViews.savedView "Open orders" (whereField "status" Rule.Is [ "open" ]) |> SavedViews.asDefault
     , SavedViews.savedView "Large orders" (whereField "total" Rule.GreaterOrEqual [ "1000" ])
+    , SavedViews.savedView "Shipped (team)" (whereField "status" Rule.Is [ "shipped" ]) |> SavedViews.asShared
     ]
 
 
@@ -101,7 +105,6 @@ type alias Model =
     , views : SavedViews.State
     , page : Remote (List OrderRow)
     , total : Int
-    , fetching : Bool
     , ticket : Int
     , today : Date
     }
@@ -111,8 +114,9 @@ type Msg
     = TableMsg Table.Msg
     | FilterBarMsg FilterBar.Msg
     | ViewsMsg SavedViews.Msg
+    | SaveView
     | Debounced Int
-    | GotPage Int (Result Remote.Problem Page)
+    | GotPage Int Time.Posix (Result Remote.Problem Page)
     | Retry
 
 
@@ -141,7 +145,6 @@ init =
         , views = SavedViews.setActive (Just "Open orders") views
         , page = Loading
         , total = 0
-        , fetching = False
         , ticket = 0
         , today = Date.fromPosix Time.utc (Time.millisToPosix 0)
         }
@@ -179,13 +182,33 @@ update msg model =
             if SavedViews.revision views /= SavedViews.revision model.views then
                 -- the user applied a view (or "Reset"): load its rule into the filter bar
                 let
+                    active =
+                        SavedViews.active views
+
                     rule =
-                        SavedViews.active views |> Maybe.map .rule |> Maybe.withDefault Rule.emptyGroup
+                        active |> Maybe.map .rule |> Maybe.withDefault Rule.emptyGroup
+
+                    -- a view that holds a query puts the table's search, sort and filters back too
+                    table =
+                        case active |> Maybe.andThen .query of
+                            Just q ->
+                                Table.setQuery q next.table
+
+                            Nothing ->
+                                next.table
                 in
-                changed model { next | filterBar = FilterBar.setRule rule next.filterBar } (Cmd.map ViewsMsg cmd)
+                changed model { next | filterBar = FilterBar.setRule rule next.filterBar, table = table } (Cmd.map ViewsMsg cmd)
 
             else
                 ( next, Cmd.map ViewsMsg cmd )
+
+        SaveView ->
+            -- the same form as "Save current view ...", opened from a button
+            let
+                ( views, cmd ) =
+                    SavedViews.startSave model.views
+            in
+            ( { model | views = views }, Cmd.map ViewsMsg cmd )
 
         Debounced ticket ->
             if ticket == model.ticket then
@@ -194,7 +217,7 @@ update msg model =
             else
                 ( model, Cmd.none )
 
-        GotPage ticket result ->
+        GotPage ticket at result ->
             if ticket /= model.ticket then
                 -- an answer to a question that is no longer asked
                 ( model, Cmd.none )
@@ -202,10 +225,11 @@ update msg model =
             else
                 case result of
                     Ok page ->
-                        ( { model | page = Loaded page.rows, total = page.total, fetching = False }, Cmd.none )
+                        ( { model | page = Remote.refreshWith model.page (Ok page.rows) at, total = page.total }, Cmd.none )
 
                     Err problem ->
-                        ( { model | page = Failed problem, fetching = False }, Cmd.none )
+                        -- with rows on the screen they stay as old data; without, the table shows the failure
+                        ( { model | page = Remote.refreshWith model.page (Err problem) at }, Cmd.none )
 
         Retry ->
             fetch model
@@ -246,7 +270,7 @@ changed before after cmd =
         ( next, cmd )
 
 
-{-| Ask now. Rows that are already on the screen stay (dimmed, see `Table.refreshing`) while the answer comes.
+{-| Ask now. Rows that are already on the screen stay (dimmed and busy, see `Remote.refresh`) while the answer comes.
 -}
 fetch : Model -> ( Model, Cmd Msg )
 fetch model =
@@ -255,9 +279,10 @@ fetch model =
 
 request : Model -> ( Model, Cmd Msg )
 request model =
-    ( { model | fetching = True }
+    ( { model | page = Remote.refresh model.page }
     , search model.today fields { query = Table.query model.table, rule = FilterBar.rule model.filterBar }
-        |> Task.perform (GotPage model.ticket)
+        |> Task.andThen (\result -> Time.now |> Task.map (\at -> ( at, result )))
+        |> Task.perform (\( at, result ) -> GotPage model.ticket at result)
     )
 
 
@@ -269,15 +294,15 @@ view : Model -> Html Msg
 view model =
     Layout.stack [ Layout.gap 3, Layout.padding 4 ]
         [ Klar.stylesheet
-        , PageHeader.view [ PageHeader.title "Inbox", PageHeader.subtitle "Orders from the server" ]
+        , PageHeader.view [ PageHeader.title "Inbox", PageHeader.subtitle "Orders from the server", PageHeader.actions [ Button.view [ Button.secondary, Button.onClick SaveView ] "Save view ..." ] ]
         , Layout.row [ Layout.gap 2, Layout.alignStart ]
-            [ SavedViews.view ViewsMsg [ SavedViews.current (FilterBar.rule model.filterBar) ] model.views
+            [ SavedViews.view ViewsMsg [ SavedViews.current (FilterBar.rule model.filterBar), SavedViews.currentQuery (Table.query model.table) ] model.views
             , Layout.stack [ Layout.grow ]
                 [ FilterBar.view FilterBarMsg
                     [ FilterBar.fields fields
                     , FilterBar.totalCount allOrdersCount
                     , FilterBar.matchCount (Just model.total |> keepIf (Remote.isLoaded model.page))
-                    , FilterBar.counting model.fetching
+                    , FilterBar.counting (Remote.isRefreshing model.page || Remote.isLoading model.page)
                     , FilterBar.today model.today
                     ]
                     model.filterBar
@@ -289,7 +314,7 @@ view model =
             , Table.rows model.page
             , Table.rowId Table.stringIds .id
             , Table.searchable
-            , Table.refreshing model.fetching
+            , Table.onRefresh Retry
             , Table.onRetry Retry
             ]
             model.table
