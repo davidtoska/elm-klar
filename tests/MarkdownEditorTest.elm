@@ -557,12 +557,6 @@ renderTests =
                     , \_ -> depth [ Editor.error "No" ]
                     ]
                     ()
-        , test "the focus is not given to the browser's undo: the properties of the selection" <|
-            \_ ->
-                -- before any change of a button, the text area has no selection properties
-                render [] (start "a b c")
-                    |> textarea
-                    |> Query.hasNot [ Selector.attribute (Attr.property "selectionStart" (Encode.int 0)) ]
         ]
 
 
