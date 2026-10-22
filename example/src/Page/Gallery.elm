@@ -20,6 +20,7 @@ import Page.Gallery.Catalog as Catalog exposing (Section(..))
 import Page.Gallery.DataDisplay as DataDisplay
 import Page.Gallery.DateTime as DateTime
 import Page.Gallery.Flow as Flow
+import Page.Gallery.FormModel as FormModel
 import Page.Gallery.Forms as Forms
 import Page.Gallery.Foundations as Foundations
 import Page.Gallery.Index as Index
@@ -46,6 +47,7 @@ type alias Model =
     , selects : Maybe Selects.Model
     , tables : Maybe Tables.Model
     , forms : Maybe Forms.Model
+    , formModel : Maybe FormModel.Model
     , dateTime : Maybe DateTime.Model
     , overlays : Maybe Overlays.Model
     , navigation : Maybe Navigation.Model
@@ -71,6 +73,7 @@ init =
     , selects = Nothing
     , tables = Nothing
     , forms = Nothing
+    , formModel = Nothing
     , dateTime = Nothing
     , overlays = Nothing
     , navigation = Nothing
@@ -99,6 +102,7 @@ type Msg
     | SelectsMsg Selects.Msg
     | TablesMsg Tables.Msg
     | FormsMsg Forms.Msg
+    | FormModelMsg FormModel.Msg
     | DateTimeMsg DateTime.Msg
     | OverlaysMsg Overlays.Msg
     | NavigationMsg Navigation.Msg
@@ -135,6 +139,9 @@ ensure section model =
 
         Forms ->
             create model.forms Forms.init (\page -> { model | forms = page }) FormsMsg model
+
+        FormModel ->
+            create model.formModel FormModel.init (\page -> { model | formModel = page }) FormModelMsg model
 
         DateTime ->
             create model.dateTime DateTime.init (\page -> { model | dateTime = page }) DateTimeMsg model
@@ -209,6 +216,9 @@ update msg model =
 
         FormsMsg inner ->
             step model.forms (Forms.update inner) (\page -> { model | forms = page }) FormsMsg model
+
+        FormModelMsg inner ->
+            step model.formModel (FormModel.update inner) (\page -> { model | formModel = page }) FormModelMsg model
 
         DateTimeMsg inner ->
             step model.dateTime (DateTime.update inner) (\page -> { model | dateTime = page }) DateTimeMsg model
@@ -296,6 +306,9 @@ view locale maybeSection model =
                 Forms ->
                     show FormsMsg (Forms.view locale) model.forms
 
+                FormModel ->
+                    show FormModelMsg (FormModel.view locale) model.formModel
+
                 DateTime ->
                     show DateTimeMsg (DateTime.view locale) model.dateTime
 
@@ -377,6 +390,9 @@ subscriptions maybeSection model =
 
                 Forms ->
                     sub FormsMsg Forms.subscriptions model.forms
+
+                FormModel ->
+                    sub FormModelMsg FormModel.subscriptions model.formModel
 
                 DateTime ->
                     sub DateTimeMsg DateTime.subscriptions model.dateTime

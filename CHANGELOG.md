@@ -28,6 +28,10 @@ The first release.
   RRULE in and out); `Klar.PermissionMatrix` and `Klar.ApprovalFlow`. No new package
   dependency was added for any of them.
 - Built-in text in English and Norwegian Bokmål (`Klar.Locale`).
+- `Klar.Form.Model` (a prototype, see `design/FORM-MODEL.md`): a form declared once, with
+  one state that owns every field's value, knows when it is dirty, loads and returns a
+  record, and ties problems from the server to fields. Text, number, one choice, several
+  choices and switches so far. `Select.mapOption` gives an option another kind of value.
 - An icon library of 500 line icons in one style (24 by 24 grid, 2 pixel stroke, round
   ends), every one an Elm value that carries its own drawing: `Klar.Icon` has the
   everyday icons and `Klar.Icon.Arrows`, `Business`, `Calendar`, `Communication`,

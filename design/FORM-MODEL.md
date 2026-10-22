@@ -1,7 +1,10 @@
 # Form model
 
-Design for ROADMAP A8 "Form model" (EVALUATION item 10). Paper only: no code under `src/`,
-`tests/`, `example/` or `css/` was written. Status: **proposal for the owner**.
+Design for ROADMAP A8 "Form model" (EVALUATION item 10). Status: **approved by the owner
+with five amendments (section 9); steps 1 and 2 of the plan are built on the branch
+`form-model` as a prototype, to be judged before anything else is built.** The first version
+of this document was paper only; the amendments, and the deviations the build forced, are
+collected in section 9 and applied in the text above it.
 
 Method: the onboarding app (`apps/onboarding/src`) is the test. Line counts are physical
 lines of the file ranges named; the counts of the proposal are non-blank lines of the
@@ -107,8 +110,7 @@ tags    : String -> Spec (List String) (List String)
 files   : String -> Spec (List FileInfo) (List FileInfo)
 toggle  : String -> Spec Bool Bool
 day     : String -> Spec (Maybe Date) (Maybe Date)
-custom  : String -> { empty : a, encode : a -> Value, decoder : Decoder a } -> Spec a a   -- application-owned editor (rule builder, list in a dialog)
-rows    : String -> Form () rf rv -> Spec (Rows rf) (List rv)                             -- 2.7
+-- NOT in the first version: custom (application-owned editor with a Value codec) and rows (2.7)
 
 -- rules; each returns the same kind of spec, a few change the output type
 required : Spec c (Maybe a) -> Spec c a              -- also draws the "*"; removes Maybe from the output
@@ -118,7 +120,7 @@ rules    : List Validate.Validator -> Spec String o -> Spec String o   -- the ex
 range    : Float -> Float -> Spec (Maybe Float) o -> Spec (Maybe Float) o
 whole    : Spec (Maybe Float) o -> Spec (Maybe Float) o               -- no decimals, shown and checked
 hint     : String -> Spec c o -> Spec c o
-withMessage : { nb : String, en : String } -> Spec c o -> Spec c o   -- replaces the message of the rule just added
+withMessage : (Locale -> String) -> Spec c o -> Spec c o   -- replaces the message of the rule just added
 ```
 
 How a mistake becomes a compile error (principle 5):
@@ -193,8 +195,7 @@ type Slot                                   -- private
     | SFiles FileDrop.State
     | SDate DatePicker.State
     | SToggle Bool
-    | SJson String                          -- `custom`: the value as encoded text, compared as text
-    | SRows ...
+    -- later (amendment 3): SJson for `custom`, SRows for `rows`
 ```
 
 The **existing component states stay as they are** and the form holds them (answer to
@@ -230,21 +231,26 @@ Each view sets `id`, `label`, `required`, `value`, `errorMaybe` and the message 
 application's attributes, so they win: the application cannot give a control a second id.
 The attributes that remain are the ones the declaration does not know (a placeholder, a
 suffix text, `TextInput.url`, `FileDrop.accept`, `Select.onRetry`). The existing attribute
-types are reused, so there is no second vocabulary to learn (principle 10). For a `custom` or
-`rows` field the application draws the control and uses three helpers:
-`errorFor : View msg -> Field c -> Maybe String`, `domId : Field c -> String` (for
-`Form.focusField` and `Card.id`), `isRequired`.
+types are reused, so there is no second vocabulary to learn (principle 10).
 
-Exposed names (the budget, for `check:api`): types `Form State Msg Field Ids Problem View Spec
-Builder Rows`; declaration `define with step build fields ids`, kinds 9, rules 8; state `init
-set get toValues isDirty markClean revert update bind`; steps and problems 12 (section 4 and
-3); views 10. About 55 names, against 25 today in `Klar.Form`. No new exposed union.
+**Naming (found while building).** The first draft gave the kinds and the views the same
+names (`text`, `number`, `toggle`), which cannot both be exposed from one module. A view is
+named after the component it draws and a kind after the value it declares: kinds `text
+number choice choices toggle`, views `textInput numberInput select multiSelect switch`. The
+sketches in this document that say `Fm.text v fields.name` mean `Fm.textInput v fields.name`.
 
-### 2.7 Repeating groups and application-owned values
+Exposed names: see section 9.5 for the count of the first version and the proposal to split
+it. The full design (steps, rows, custom, tags, files, day) was estimated at about 55 names.
+No new exposed union.
+
+### 2.7 Repeating groups and application-owned values (NOT in the first version)
 
 The onboarding contacts step is a list of rows with five fields each, and the price rules are
-edited in a dialog that returns one finished rule. Both are common. They are in scope, but they
-are the last piece (plan step 5), because they are the hard one:
+edited in a dialog that returns one finished rule. Both are common. **Amendment 3 of the
+owner: neither `rows` nor `custom` is built in this round.** They are the hard part, they
+freeze names in a published API, and the core must first be proved by a real second round of
+A0. What must be true before they are added is in section 9.3. The sketch below stays as the
+direction, not as a promise:
 
 ```elm
 rows   : String -> Form () rf rv -> Spec (Rows rf) (List rv)     -- a sub-declaration per row
@@ -623,7 +629,7 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
    be found only in the browser, where the three applications found all their bugs.
    Mitigation: `ids` exports a test helper that checks a list of values round-trips; every
    kind is checked with real key presses and `document.activeElement` before the step is done.
-3. **Scope: rows and application-owned editors.** The flat form is well defined; contacts
+3. **Scope: rows and application-owned editors (deferred, section 9.3).** The flat form is well defined; contacts
    (rows with a cross-row rule) and pricing rules (an editor in a dialog) are what the
    onboarding app actually needs. If they turn out awkward, the model covers only half of the
    app, and the 820 lines drop to 500, not 260. They are built last (step 5) so that the
@@ -639,9 +645,8 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
    application's model, which is design C.
 2. **Is a positional pipeline acceptable?** See risk 1. *Recommend: yes*, with the round-trip
    test in the recipe. Say no only if the owner wants the compiler to refuse a swap.
-3. **Rows and custom values in the first version, or later?** *Recommend: in the first
-   version, but as the last implementation step*, so that the core can be reviewed and used
-   by the three applications without waiting for them.
+3. **Rows and custom values in the first version, or later?** *Decided by the owner: not in
+   this round* (section 9.3). They are added only when the conditions listed there hold.
 4. **When is a field's problem shown?** Proposed: after the field was left once or edited,
    after its step was attempted, after the form was reviewed. The alternative (only after a
    Next or Save) shows less while typing. *Recommend: the proposed rule*; it is one function
@@ -652,18 +657,18 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
 
 ### Implementation plan (each step reviewable on its own)
 
-1. **Small additions to existing modules** (no new module). `Select.mapOption` (and the same
+1. **Small additions to existing modules** (no new module; built: `Select.mapOption`; `Stepper.done` waits for step 4). `Select.mapOption` (and the same
    for `MultiSelect`'s option), `Stepper.done` plus a doc line that "visited" is "not
    disabled". Tests: pure unit tests of
    `mapOption` (label, group, description kept). Breaks: nothing. Review: a 100-line diff.
-2. **`Klar.Form.Model`, the core for text, number, choice, choices, toggle.** `Ids`, `Spec`,
+2. **`Klar.Form.Model`, the core for text, number, choice, choices, toggle** (built, section 9). `Ids`, `Spec`,
    `define/with/build/fields`, `init/set/get/toValues`, `isDirty/markClean/revert`, `update`,
    `bind` and the five views, the id derivation. Tests (elm-test, pure): validation and the
    output type of `required`, `atLeast`, `one`; `set`/`get`/`toValues` round trip; dirty after
    typing and undoing; id derivation is unique for equal labels; and the "must not compile"
    list that A5 asks for (a half-declared form, a text handle given to `select`). Breaks:
    nothing; the new module is added to `exposed-modules`. Showcase page.
-3. **The remaining kinds**: tags, files, day, radio, `textArea`, and `custom`. Tests: each
+3. **The remaining kinds**: tags, files, day, radio and `textArea` (`custom` is out, section 9.3). Tests: each
    kind's parse, empty value and snapshot. A browser pass with the keyboard on every kind,
    checking focus after an edit and after opening a list (the CONTRIBUTING rules). Breaks:
    nothing.
@@ -672,7 +677,8 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
    `stepHasProblems`. Tests: the rule of visibility for every combination of touched,
    attempted and reviewed; `advance` on every step; a server problem clears when its field is
    edited; `rejected` goes to the right step. Breaks: nothing.
-5. **Rows and `check`.** `rows`, `row`, `addRow`, `removeRow`, row ids, `check`. Tests: ids
+5. **Rows, `custom` and `check`** (deferred by amendment 3; only after the conditions of
+   section 9.3). `rows`, `row`, `addRow`, `removeRow`, row ids, `check`. Tests: ids
    of row 0 and 2 stay stable when row 1 is removed (the keys follow the position, so the
    summary says "Contact 2"); a cross-row rule; dirty after adding and removing a row. Breaks:
    nothing. This is the step that can change the design of 2.7; review it separately.
@@ -686,3 +692,222 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
 
 **First step: step 1**, because it is additive and small, and it settles the one thing the
 core depends on (a `Select.Option` can be given another id type).
+
+## 9. The owner's amendments, and what building steps 1 and 2 taught
+
+Branch `form-model`. Built: plan steps 1 and 2 (the core: text, number, choice, choices,
+toggle) and the showcase page *Form model* (`example/src/Page/Gallery/FormModel.elm`). Not
+built: steps, tags, files, day, radio, `textArea`, `rows`, `custom`, `check`, the stepper,
+`Stepper.done` (it has no user until the steps exist), the migration of `apps/onboarding`.
+The text above this section is already consistent with these decisions.
+
+### 9.1 `withMessage` takes a function from `Locale` (amendment 1)
+
+```elm
+withMessage : (Locale -> String) -> Spec c o -> Spec c o
+```
+
+The first draft took `{ nb : String, en : String }`, which freezes the set of languages
+into the API (`Locale` is opaque so that a language can be added in a minor version). A
+declaration is a constant, so the function lives in the `Form` constant and never in `State`
+or `Msg`. The application writes `\locale -> Locale.pick locale { nb = ..., en = ... }`,
+which is what `Validate.withMessage` hides inside its own record today. Built-in messages
+(required, at least, at most one, range, whole, not a number) are in English and Norwegian
+Bokmål in the module.
+
+`withMessage` replaces the message of **the rule added last** (`required`, `atLeast`, `one`,
+`rules`, `range`, `whole`); on a spec with no rule yet it does nothing. Tested.
+
+### 9.2 Naming and layering: open decision (amendment 2)
+
+The new model is the way to build a form, so it should not live next to `Klar.Form` as
+`Klar.Form.Model` forever. **Now:** it is the module `Klar.Form.Model`, as designed, so that
+nothing churns while the prototype is judged. **Plan once the prototype is judged good**
+(the owner's decision, after the second A0 round has used it):
+
+1. `Klar.Form.Model` becomes `Klar.Form`. Its types and functions keep their names
+   (`Fm.Field`, `Fm.State`, `Fm.textInput` ... become `Form.Field`, `Form.State`,
+   `Form.textInput`), so the move is a rename of the import in applications.
+2. Today's `Klar.Form` (the frame: `view`, `section`, `grid`, `fullRow`, `actions`,
+   `stickyActions`, `errorSummary`, `focusSummary`, `focusField`, `Status`, `status`,
+   `focusStatus`, `unsavedChanges`, `unsavedFlag` and the attributes) moves under it as
+   `Klar.Form.Layout` (or `Klar.Form.Frame`; the name is part of the decision). The form model
+   uses it internally and reuses its attributes, so the layout stays one module.
+3. In one commit while the API is free (nothing is published): `elm.json` exposed modules,
+   the module docs, `USING.md`, `example/` and `apps/*` imports, `check:example-imports`,
+   the README module list, and the recipe "an edit form with validation and a save that can
+   fail". `Form.Status` stays a closed union (it is on the list in `CONTRIBUTING.md`
+   rule 8) and moves with the layout.
+4. A hand-written form (no model) keeps working through `Klar.Form.Layout`; its low-level
+   example stays in that module's doc.
+
+Questions for that decision: does `Status` belong with the layout or with the model (the
+model's `rejected` and `reveal` end in the same `focusSummary`)? Does `Klar.Form.Spec`
+(section 9.5) stay a submodule?
+
+### 9.3 `custom` and `rows` are not built (amendment 3)
+
+Both are removed from the first-version scope (sections 2.3 and 2.7 say so). They are the
+hard part, they freeze the most names, and they are what the onboarding app needs for half of
+its forms; shipping them half done is worse than shipping them late. **They are added only
+when all of these are true:**
+
+1. The core (this round) has been used by the second A0 round: the three applications are
+   rebuilt on it, and the friction log has no open item against the core's shape (the
+   pipeline, the handles, the `set`/`get` pair, the visibility rule).
+2. The types of the steps are decided (section 4 is built), because a row group is a
+   sub-form with its own step and its own problems, and its handles must fit the summary.
+3. The answer to "how does a handle name row `i`" exists in a prototype that compiles: the
+   keys follow the position (`contacts-2-email`), so removing row 1 renames row 2; the
+   summary says "Contact 2" from the position. That choice, and the cross-row `check`, are
+   the decisions that cannot be changed after the first publish.
+4. `custom` has a second consumer besides the price-rule dialog (`Rule` is one); an
+   application-owned editor needs `Value` encode and decode, and the baseline is the encoded
+   text. One consumer is not enough to freeze that codec shape.
+
+Until then the application keeps those values in its own model and uses
+`Fm.isDirty`/`Fm.markClean` for the rest; nothing in the core prevents it.
+
+### 9.4 The four parameters, tested for real (amendment 4)
+
+Eleven wrong programs, compiled with Elm 0.19.3: [FORM-MODEL-ERRORS.md](FORM-MODEL-ERRORS.md)
+(sources and the unedited output in `design/form-model-errors/`). Result in one paragraph:
+**readable.** Nine of the eleven point at the right line and show the missing or wrong
+thing in the application's own words (`Fm.Field (Maybe Country) -> Fields`: a slot of `Fields`
+that still waits for a `Maybe Country`). Two are weaker (two differently typed fields
+swapped: the location is right, the message is about the records, and the compiler's
+hint "takes too many arguments" points the wrong way; a single-field form that forgot the
+`Values` constructor). The unresolved `step` shows as noise in `Builder step ...`. The one
+mistake the compiler cannot see (two same-typed fields swapped) is caught by
+`Fm.roundTrip` in one test line. The evidence does not call for design B.
+
+### 9.5 The exposed API of the first version (amendment 5)
+
+`Klar.Form.Model` exposes **47 names**:
+
+| Group | Names | Count |
+|---|---|---|
+| Types | `Form State Msg Field Ids Problem Spec Builder View` | 9 |
+| Declaring | `define with build fields ids` | 5 |
+| Kinds | `text number choice choices toggle` | 5 |
+| Rules | `required atLeast one rules range whole hint withMessage` | 8 |
+| Values and state | `init set get toValues isDirty markClean revert update` | 8 |
+| Problems from the server | `problem rejected reveal` | 3 |
+| Views | `bind textInput numberInput select multiSelect switch summary` | 7 |
+| Tests | `roundTrip lostIds` | 2 |
+
+No exposed union, no function-valued field in `State` or `Msg` (see 9.6 for the one that the
+select's own message carries). For comparison, in this repository: `Klar.Icon` 195, `Klar.Table`
+124, `Klar.Tree` 55, `Klar.Rule` 53, `Klar.Money` 48, **`Klar.Form.Model` 47**, `Klar.Chart`
+46, `Klar.Select` 44, today's `Klar.Form` 28. There is no budget script yet (A2 asks for
+one and says "not a hard number"); by the roadmap's own wording the question is whether the
+*common path* is short. The common path of an application is about 22 names (`define with
+build fields ids`, `text choice choices`, `required atLeast`, `init set markClean get
+toValues`, `update`, `bind`, `textInput select multiSelect`, `summary`, `problem rejected`),
+so the common path fits. The module as a whole is over the ~40 mark.
+
+**Proposal (to do with the rename of 9.2, not now):** split by role, which also splits the
+documentation page in two readable halves.
+
+* `Klar.Form.Spec`, the declaration vocabulary that is only read once, at the top of the file:
+  `Spec`, the five kinds and the eight rules, **14 names**. (Plain Elm modules, imported as
+  `Spec`: `Spec.text "Name" |> Spec.required`.)
+* `Klar.Form.Check`, test helpers: `roundTrip`, `lostIds`, **2 names** (it keeps the test
+  helpers out of the application's autocomplete and out of the module an AI reads first).
+* `Klar.Form.Model` (later `Klar.Form`): the rest, **31 names**. `Builder` is the only type
+  an application never writes (it appears in the `define`/`with`/`build` signatures; if those
+  three moved into `Klar.Form.Spec` too, that module would have 17 names and the runtime 28;
+  either split is fine).
+
+Every type that appears in a public signature must stay nameable (`check:api` enforces it),
+so `Builder`, `Spec` and `View` cannot become internal; what can move is functions.
+
+### 9.6 What the build changed in the design
+
+* **Names of the views.** The kinds and the views had the same names (`text`, `number`,
+  `toggle`), which cannot both be exposed. A view is named after the component it draws:
+  `textInput numberInput select multiSelect switch`; a kind after the value: `text number
+  choice choices toggle`. (Section 2.6 says so.)
+* **`update : Msg -> State step -> ( State step, Cmd Msg )`** and
+  **`revert : State step -> State step`** do not take the `Form`: nothing in them needs it
+  (the component messages carry their own rules; the baseline is in the state). The same
+  shape as every component's `update`.
+* **Locale is an argument where text is made:** `toValues : Locale -> Form -> State -> ...`
+  and `bind : Locale -> (Msg -> msg) -> Form -> State -> View msg`. A `Problem` is
+  `{ field : String, message : String }`, the shape of `Validate.Error`, so it goes to
+  `Form.errorSummary` unchanged; the labels for the summary come from the declaration.
+* **`reveal : Form -> State -> ( State, Cmd Msg )`** is new: the "attempted" of the
+  visible-problem rule for a form without steps (press Save, show every problem, focus the
+  summary). `rejected` does the same and stores the server's problems. With steps (plan
+  step 4) both are replaced by `advance`.
+* **The visible-problem rule** as designed, minus steps: a client problem shows when the
+  field was edited or left, or after `reveal`/`rejected`; a server problem shows until its
+  field is edited; the client problem wins. For a select and a multi select "left" is "the
+  list was open and is now closed"; for a number it is `NumberInput.isTouched`.
+* **The type variable `step` is a phantom** until the steps are built: forms are
+  `Fm.Form () Fields Values`. Adding `step` later changes no signature.
+* **Select attributes are `Select.Attribute String msg`**, not `Attribute id msg`: the state
+  stores keys (`Select.State String`), so an attribute that mentions the id type
+  (`creatable`, `valueText`, `options`, `remote`) cannot be given by the application. That
+  is intended (the options are an argument); the attributes that do not mention it
+  (`placeholder`, `onRetry`, `clearable` ...) are polymorphic and work.
+* **A function in the select's own message.** `Select.Msg` carries `Maybe (String -> id)` in
+  its `Key` constructor (the `creatable` factory). The form never offers `creatable`, so it is
+  always `Nothing` in a form's `Msg`; the claim "no function in `State` or `Msg`" holds for
+  everything the form adds and for every message a form can produce today.
+* **One-field forms** need both constructors (`Fm.define "p" identity identity`); forgetting
+  the second is case I of the error file.
+* **`Form.Status` stays with the application** (it is not in `State`): the application
+  owns the request and the model keeps `status : Form.Status`, as the page does.
+* **Key clash with a component's derived ids.** A select with key `account-country` derives
+  `account-country-search`; a field labelled "Country search" in the same form would clash.
+  Not guarded; rare, and a duplicate-id check belongs with the A8 "DOM ids derived from
+  state" item.
+
+### 9.7 The count on the showcase page (step 1 of the onboarding app)
+
+`example/src/Page/Gallery/FormModel.elm`, a customer account: four texts, a country select,
+a segments multi select, a server problem on the name, the registration number and the
+country, the dirty flag, Load, Revert, Save and the status. Non-blank lines, after
+`elm-format`, between the markers:
+
+| Part | Design sketch (8 fields) | Built (6 fields) | Notes |
+|---|---|---|---|
+| A. Declaration: records, ids, pipeline, two validators | 50 | 44 | 62 lines with blanks; two `Validate.custom` rules are in it |
+| B. Load, `toAccount`, server mapping | 20 | 31 | `toAccount` (8) is the application's domain mapping, not in the sketch |
+| C. Model, `Msg`, `init`, `update`, the form's view | 28 | 64 | model/msg/init 13, update 20 (FormMsg, Load, Revert, Save with server problems), subscriptions 3, view 28 |
+| **Total** | **98** (about 125 formatted) | **139** | |
+
+The old version of the same step is counted at 295 (section 7.1) for eight fields and
+without Save, Load, Revert or the status line. The comparison is therefore not exact: the
+built page does more (a working Save with server problems, Load, Revert, a status line) with
+fewer fields (no tags, no files). Read it as: the sketch was about right in A (and in the
+total, once formatting is counted: 125 predicted, 139 built, with the extra features); C is
+bigger than sketched because the sketch left out the `Model`/`Msg`/`init` boilerplate and the
+save flow; and the reduction against 295 is at least 50 %, more if the old version were
+given the same features. No old-API version of this exact page exists, so no better number
+is claimed. What did disappear, as designed: `Draft`, `toDraft`, `isDirty`, `edited` and its
+call sites, the DOM ids, the `Form.labels` list, `visibleProblems`, `requiredValue` and
+`nonEmptyList`, and ten `Msg` constructors (there is one).
+
+### 9.8 Verified in a browser
+
+Headless Chrome over the DevTools protocol with real key events (script:
+`form-model-browser-test.mjs` in the shared notes folder), page `#/components/form-model`:
+
+* Tab order: name, legal name, registration number, website, country, segments, Load saved
+  account, Save (Revert is disabled while the form is clean and is skipped).
+* Focus after an edit stays in the input while the error appears and goes
+  (`document.activeElement` = `input#account-name` after typing, clearing and retyping).
+* Select: ArrowDown on the trigger opens the list with focus in the search input; typing
+  `swe` and Enter picks Sweden and focus returns to the trigger. Multi select: two picks keep
+  focus in the search input; Escape returns focus to the trigger; both chips show.
+* Save with a server refusal: focus is on the summary (`div#account-summary`); the name and
+  registration number show the server's words at the field and in the summary; editing the
+  name clears only the name's problem and focus stays in the input.
+* Save with client problems: focus on the summary, "Name: Required | Registration number:
+  Required"; a summary button focuses its field. Enter in a field submits.
+* Load, type a letter (unsaved: yes), delete it (unsaved: no), Revert.
+* axe-core 4.10.2 (wcag2a, wcag2aa, wcag21aa, wcag22aa, best-practice): no violations on
+  the initial page, with server problems showing, with client problems showing, and at the
+  end.
