@@ -15,9 +15,11 @@ module Klar.Recurrence exposing
 month, ten times"): build it, ask it for its dates, describe it in words, and
 exchange it with a backend as an iCalendar RRULE.
 
-This module only does the arithmetic. For a form field that lets a person build
-a rule, use [Klar.RecurrencePicker](Klar-RecurrencePicker); to draw the dates on
-a month, give them to [Klar.Calendar](Klar-Calendar) as markers.
+Use when: the application needs the dates of a repeating schedule, a description of it in words or an RRULE for the backend.
+Do not use when: a person builds the rule in a form (as `Klar.RecurrencePicker`).
+
+This module only does the arithmetic. To draw the dates on a month, give them
+to [Klar.Calendar](Klar-Calendar) as markers.
 
     import Klar.Date as Date exposing (Date)
     import Klar.Locale as Locale

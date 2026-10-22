@@ -5,6 +5,9 @@ module Klar.Skeleton exposing
 
 {-| Shimmering placeholders that stand in for content while it loads.
 
+Use when: you can sketch what the content will look like (a title, a few lines, a picture) while it loads.
+Do not use when: you cannot predict the shape of the content (use `Klar.Spinner`).
+
     import Klar.Layout as Layout
     import Klar.Skeleton as Skeleton
 

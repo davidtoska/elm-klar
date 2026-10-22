@@ -10,9 +10,9 @@ module Klar.Popover exposing
 {-| A small panel anchored to a button, with any content: a quick filter, a few
 settings, a short form, an explanation with a link.
 
-Where a [Klar.Menu](Klar-Menu) offers a list of actions, a popover offers
-arbitrary content, and it stays open while the user works in it. For work that
-needs the full attention of the user, use a [Klar.Modal](Klar-Modal).
+Use when: a small panel next to a button must hold any content, such as a quick filter or a few settings, and stay open while the user works in it.
+Do not use when: you only need a list of actions (use `Klar.Menu`) or the work needs the full attention of the user (use `Klar.Modal`).
+Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
 
     -- model:   popover : Popover.State        (Popover.init "filter-popover")
 

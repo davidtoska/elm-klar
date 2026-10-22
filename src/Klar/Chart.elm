@@ -11,6 +11,9 @@ module Klar.Chart exposing
 {-| Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart
 or SVG package.
 
+Use when: numbers are shown as a trend, a comparison of categories, parts of a whole or one value against a scale.
+Do not use when: the progress of a task is shown, use `Klar.Progress`.
+
     import Klar.Chart as Chart
     import Klar.Theme exposing (Tone(..))
 

@@ -13,6 +13,10 @@ module Klar.MoneyInput exposing
 types ("1 234,5", "1,234.50", "kr 100") and reads it into an exact
 [Klar.Money](Klar-Money), so it is stateful.
 
+Use when: the user types an amount of money in one currency and the application needs it as an exact `Klar.Money`.
+Do not use when: the number is not money (`Klar.NumberInput`) or an amount is only shown (`Klar.Money`).
+Quick path: `init`, `update`, `view`, `value`
+
     import Klar.Money as Money
     import Klar.MoneyInput as MoneyInput
 

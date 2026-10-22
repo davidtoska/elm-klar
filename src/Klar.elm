@@ -7,6 +7,10 @@ It is calm, small-typed and exact, and it never leaves the user wondering what
 state the data is in. It is plain Elm and plain CSS: besides the official `elm/*`
 packages it needs nothing, and it has no ports and no JavaScript.
 
+Use when: you start any application with Klar, to put its stylesheet on the page once.
+Do not use when: you only need a component, which has its own module (as `Klar.Button`).
+Quick path: `stylesheet`
+
 
 # Start here
 

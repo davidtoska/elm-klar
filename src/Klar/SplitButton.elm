@@ -7,6 +7,10 @@ module Klar.SplitButton exposing
 {-| A main action with a few alternatives: a button joined to a small arrow that
 opens a menu. "Save" with "Save and close" and "Save as draft" behind the arrow.
 
+Use when: one main action has a few alternatives behind an arrow, such as "Save" and "Save and close".
+Do not use when: the actions are equal (as `Klar.ButtonGroup`) or there is no main action (as `Klar.Menu`).
+Quick path: `init`, `update`, `view`, `isOpen`
+
     import Klar.Menu as Menu
     import Klar.SplitButton as SplitButton
 

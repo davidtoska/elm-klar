@@ -2,6 +2,10 @@ module Klar.Ids exposing (Ids, make, toKey, fromKey)
 
 {-| How the application's own id type is written as text and read back, once.
 
+Use when: the application's own id type must be written as text and read back for components that keep text keys.
+Do not use when: the id is already a `String`; no `Ids` is needed.
+Quick path: `make`, `toKey`, `fromKey`
+
 Several components keep their values as text keys internally (the form model's
 selects, the choices of a rule): an application with `CountryId` and
 `CategoryId` types writes the two functions once per type and hands the `Ids`

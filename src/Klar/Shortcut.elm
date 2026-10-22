@@ -9,6 +9,10 @@ module Klar.Shortcut exposing
 {-| Global keyboard shortcuts for the whole application, including sequences of
 two keys such as `g` then `m`.
 
+Use when: the application needs global keyboard shortcuts, including sequences of two keys.
+Do not use when: a key only matters inside one component (use that component's own key handling).
+Quick path: `init`, `listen`, `subscription`, `update`
+
 A shortcut is the keys, a group and a label (which
 [Klar.ShortcutHelp](Klar-ShortcutHelp) lists) and the message to send. Keep all
 shortcuts in one list and give that list to `listen`, `subscription` and

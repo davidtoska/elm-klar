@@ -8,6 +8,9 @@ module Klar.CheckboxGroup exposing
 
 {-| A group of checkboxes: choose any number of the options.
 
+Use when: a handful of options where the user may choose any number and should see them all.
+Do not use when: exactly one choice is wanted (`Klar.Radio`) or the list is long and needs a search box (`Klar.MultiSelect`).
+
     import Klar.CheckboxGroup as CheckboxGroup
 
     CheckboxGroup.view

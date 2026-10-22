@@ -12,6 +12,10 @@ module Klar.Diff exposing
 {-| What changed between two versions of a text, of a JSON document or of a
 record, shown so that a person can see it and decide.
 
+Use when: a person must see what changed between two versions of a text, a JSON value or a record, such as in a review or an audit log.
+Do not use when: several records are shown side by side, use `Klar.Compare`, or when there is only one JSON value, use `Klar.JsonViewer`.
+Quick path: `lines`, `init`, `update`, `view`
+
     import Klar.Diff as Diff
 
     -- in your model

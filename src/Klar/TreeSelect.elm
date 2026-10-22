@@ -9,11 +9,14 @@ module Klar.TreeSelect exposing
     )
 
 {-| A field that opens a popup with a tree and lets the user choose one node, or
-several with check boxes. Use it for a hierarchy that is too big for a plain list
-(regions and warehouses, product categories, an organisation); for a short flat
-list use [Klar.Select](Klar-Select) or [Klar.MultiSelect](Klar-MultiSelect), to
-drill down through levels like a file browser [Klar.Cascader](Klar-Cascader), and
-to show a tree on the page itself [Klar.Tree](Klar-Tree).
+several with check boxes.
+
+Use when: the user picks from a hierarchy that is too big for a plain list (regions and warehouses, product categories, an organisation).
+Do not use when: the list is short and flat (as `Klar.Select` or `Klar.MultiSelect`), the user drills down through levels (as `Klar.Cascader`) or the tree is shown on the page itself (as `Klar.Tree`).
+Quick path: `init`, `update`, `view`, `nodes`, `value`
+
+See also [Klar.Select](Klar-Select), [Klar.MultiSelect](Klar-MultiSelect),
+[Klar.Cascader](Klar-Cascader) and [Klar.Tree](Klar-Tree).
 
     import Klar.Picking as Picking
     import Klar.TreeSelect as TreeSelect

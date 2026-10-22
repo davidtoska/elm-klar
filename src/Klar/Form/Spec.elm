@@ -9,6 +9,10 @@ rules, grouped in steps. It is read once, at the top of the file that owns the
 form, and it is a constant: it never goes in a model or a message. What is
 declared here is used through [`Klar.Form`](Klar-Form).
 
+Use when: you declare the fields, labels, rules and steps of a form once, at the top of the file that owns it.
+Do not use when: you keep or change form state at run time (use `Klar.Form`).
+Quick path: `define`, `with`, `build`
+
     import Klar.Form as Form
     import Klar.Form.Spec as Spec
 

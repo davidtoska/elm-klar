@@ -9,6 +9,9 @@ module Klar.Avatar exposing
 {-| Avatars: a person, an organization or a system shown as a small badge with
 initials, a picture or an icon.
 
+Use when: a person, an organization or a system is shown as a small badge with initials, a picture or an icon.
+Do not use when: a short text label or status is shown, use `Klar.Badge`.
+
     import Klar.Avatar as Avatar
     import Klar.Icon as Icon
     import Klar.Theme exposing (Size(..))

@@ -11,6 +11,10 @@ module Klar.MultiSelect exposing
 chips in the field; the list has a checkbox per option and stays open while the
 user picks. Use [Klar.Select](Klar-Select) when exactly one value is wanted.
 
+Use when: several values are chosen from a searchable list, shown as chips in the field.
+Do not use when: exactly one value is wanted (`Klar.Select`) or a handful of options fit on screen (`Klar.CheckboxGroup`).
+Quick path: `init`, `update`, `view`, `values`
+
     import Klar.MultiSelect as MultiSelect
     import Klar.Select as Select
 

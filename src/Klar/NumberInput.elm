@@ -14,6 +14,10 @@ module Klar.NumberInput exposing
 text the user types ("1 234,5" or "12.5") and turns it into a number, so it is
 stateful.
 
+Use when: the value is a number that people type in their own way, with limits, decimals or a unit.
+Do not use when: the value is plain text (use `Klar.TextInput`).
+Quick path: `init`, `update`, `view`, `value`
+
     import Klar.NumberInput as NumberInput
 
     type alias Model =

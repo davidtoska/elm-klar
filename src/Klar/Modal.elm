@@ -12,9 +12,9 @@ module Klar.Modal exposing
 {-| A dialog on top of the page, for work that needs the user's full attention:
 editing a record, a form with several fields, a step of a wizard.
 
-Use a [Klar.ConfirmDialog](Klar-ConfirmDialog) for a yes-or-no question, a
-[Klar.Drawer](Klar-Drawer) for a panel along the side of the window and a
-[Klar.Popover](Klar-Popover) for a small panel next to a button.
+Use when: the user must finish a task, such as editing a record or a form with several fields, before doing anything else.
+Do not use when: a yes-or-no question (use `Klar.ConfirmDialog`), a panel beside the page (use `Klar.Drawer`) or a small panel next to a button (use `Klar.Popover`) is enough.
+Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.Button as Button
     import Klar.Modal as Modal

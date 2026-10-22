@@ -6,6 +6,9 @@ module Klar.Icon.Developer exposing
 
 {-| Developer tools: 16 icons.
 
+Use when: you need an icon of this theme for a component that takes an Icon.
+Do not use when: the everyday icon exists in `Klar.Icon`, or you want to browse all icons (`Klar.Icon.Library`).
+
     import Klar.Icon as Icon
     import Klar.Icon.Developer as Developer
 

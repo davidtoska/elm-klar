@@ -8,6 +8,10 @@ module Klar.ShortcutHelp exposing
 {-| The cheat sheet of keyboard shortcuts: a dialog that lists every shortcut of
 the application, grouped, with key caps and a small filter box.
 
+Use when: the user needs a cheat sheet of the keyboard shortcuts the application listens to.
+Do not use when: you only need to show one shortcut next to a control (use `Klar.Tooltip`).
+Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
+
 It is built from the same list of [Klar.Shortcut](Klar-Shortcut) shortcuts that
 the application listens to, so the sheet always says what the keys really do.
 

@@ -11,10 +11,12 @@ module Klar.DatePicker exposing
 
 {-| A date field: type the date or pick it in a calendar.
 
-For a period with a from and a to date use
-[Klar.DateRangePicker](Klar-DateRangePicker), for a date with a time of day
-[Klar.DateTimePicker](Klar-DateTimePicker), and for a calendar that is always
-visible [Klar.Calendar](Klar-Calendar).
+Use when: the user enters one date in a form (a due date, a delivery date).
+Do not use when: the user chooses a period (as `Klar.DateRangePicker`), a date with a time of day (as `Klar.DateTimePicker`) or the calendar should always be visible (as `Klar.Calendar`).
+Quick path: `init`, `update`, `view`, `date`
+
+See also [Klar.DateRangePicker](Klar-DateRangePicker),
+[Klar.DateTimePicker](Klar-DateTimePicker) and [Klar.Calendar](Klar-Calendar).
 
     import Klar.DatePicker as DatePicker
 

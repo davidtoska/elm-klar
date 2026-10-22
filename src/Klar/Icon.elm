@@ -18,6 +18,9 @@ module Klar.Icon exposing
 {-| Line icons. An icon takes the text color of its parent and scales with its
 `Size`, so it follows disabled, hover and danger states without extra work.
 
+Use when: a button, menu item or message needs a small line icon that follows the text color.
+Do not use when: you need one of the rarer icons, which live in the `Klar.Icon.*` modules, or a picture (use an `img`).
+
     import Klar.Icon as Icon
 
     Icon.view Icon.search

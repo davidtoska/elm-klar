@@ -9,6 +9,9 @@ module Klar.PageHeader exposing
 the application, the state of the thing you are looking at, and what you can do
 with it.
 
+Use when: a page needs a title with its subtitle, status, breadcrumbs, actions and tabs at the top.
+Do not use when: you need the frame of the whole application (use `Klar.AppShell`) or the title of a card or panel (use `Klar.Card`).
+
     import Klar.Badge as Badge
     import Klar.Breadcrumbs as Breadcrumbs
     import Klar.Button as Button

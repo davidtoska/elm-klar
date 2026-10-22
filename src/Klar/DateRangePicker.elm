@@ -13,8 +13,11 @@ module Klar.DateRangePicker exposing
 {-| A period field: a from date and a to date in one control, with one calendar
 that shows two months and a list of quick choices.
 
-Use it for reports, filters and bookings, where the user chooses a period. For a
-single date use [Klar.DatePicker](Klar-DatePicker).
+Use when: the user chooses a period, as in reports, filters and bookings.
+Do not use when: the user enters a single date (as `Klar.DatePicker`).
+Quick path: `init`, `update`, `view`, `range`
+
+For a single date see [Klar.DatePicker](Klar-DatePicker).
 
     import Klar.DateRangePicker as DateRangePicker
 

@@ -6,6 +6,9 @@ module Klar.Overlay exposing
 {-| The layer above the page: dialogs, drawers, the command palette, the shortcut
 sheet and the toasts.
 
+Use when: you put dialogs, drawers, toasts or the command palette on the page (one `host` for all of them).
+Do not use when: you need a menu or a tooltip next to an element (as `Klar.Menu` or `Klar.Tooltip`).
+
 Every component of that kind ([Klar.Modal](Klar-Modal), [Klar.Drawer](Klar-Drawer),
 [Klar.ConfirmDialog](Klar-ConfirmDialog), [Klar.CommandPalette](Klar-CommandPalette),
 [Klar.ShortcutHelp](Klar-ShortcutHelp), [Klar.Toast](Klar-Toast)) has a `view` that

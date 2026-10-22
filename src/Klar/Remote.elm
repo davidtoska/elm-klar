@@ -9,6 +9,9 @@ module Klar.Remote exposing
 {-| The state of data that comes from a backend: not asked for yet, loading,
 failed, or here.
 
+Use when: a screen shows data that comes from a backend and can be loading, failed or old.
+Do not use when: the data is always there, as a plain value in the model.
+
     import Klar.Remote as Remote exposing (Remote(..))
 
     type alias Model =

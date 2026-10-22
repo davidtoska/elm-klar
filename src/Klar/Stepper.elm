@@ -6,6 +6,9 @@ module Klar.Stepper exposing
 
 {-| The steps of a wizard or a checkout flow, laid out horizontally or vertically.
 
+Use when: the user needs to see where they are in the steps of a wizard or a checkout flow.
+Do not use when: you need switchable views of the same thing (use `Klar.Tabs`) or a plain progress measure (use `Klar.Progress`).
+
     import Klar.Stepper as Stepper
 
     steps : List Stepper.Step

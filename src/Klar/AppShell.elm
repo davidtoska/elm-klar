@@ -14,6 +14,10 @@ module Klar.AppShell exposing
 that scrolls on its own. Use it as the root of the `view` of a
 `Browser.application`.
 
+Use when: the application needs a frame with a top bar, a sidebar and a content area, as the root of a `Browser.application` view.
+Do not use when: you only need a single page without navigation chrome (build it from `Klar.Layout` and `Klar.PageHeader`).
+Quick path: `init`, `update`, `view`, `onUrlRequest`, `onUrlChange`, `setPage`
+
 You tell the shell what to draw (the brand, the sidebar, the user) and an
 `AppShell.State` keeps what the user changes in it: whether the sidebar is collapsed
 or the drawer is open, the side menu and the current page. The parts normally come

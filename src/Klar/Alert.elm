@@ -8,6 +8,9 @@ module Klar.Alert exposing
 {-| Inline messages that tell the user something important in the context where
 it matters: information, success, a warning or an error.
 
+Use when: the user must see an important message in the place where it matters.
+Do not use when: the message should disappear by itself (as `Klar.Toast`).
+
     import Html
     import Klar.Alert as Alert
     import Klar.Theme exposing (Tone(..))

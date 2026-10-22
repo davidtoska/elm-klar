@@ -7,6 +7,9 @@ module Klar.Tag exposing
 {-| A chip: a short label for a value, a filter or a selection, optionally
 with a remove button.
 
+Use when: a chip shows a value, filter or selection that the user chose and can take away.
+Do not use when: the label is a read-only state (as `Klar.Badge`).
+
     import Klar.Tag as Tag
     import Klar.Theme exposing (Tone(..))
 

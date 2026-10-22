@@ -10,6 +10,10 @@ module Klar.FilterBar exposing
 ("Status is Paid"), an "Add filter" button that opens a small editor (field,
 operator, value), and optional preset pills like "Unpaid".
 
+Use when: users filter a table with a few quick conditions shown as chips and presets.
+Do not use when: users need nested groups of conditions (use `Klar.RuleBuilder`).
+Quick path: `init`, `update`, `view`, `rule`
+
     import Klar.FilterBar as FilterBar
     import Klar.Rule as Rule
 

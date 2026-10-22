@@ -9,10 +9,13 @@ module Klar.Cascader exposing
 
 {-| A field for choosing a path through levels: Region, Country, City; Category,
 Subcategory, Product. The popup shows one column for each level, like a file
-browser, and the closed field shows the path ("Europe / Norway / Oslo"). Use it
-when the user thinks in levels and knows where to look; to pick from a tree with
-check boxes use [Klar.TreeSelect](Klar-TreeSelect), and for one flat list
-[Klar.Select](Klar-Select).
+browser, and the closed field shows the path ("Europe / Norway / Oslo").
+
+Use when: the user thinks in levels and knows where to look.
+Do not use when: the user picks from a tree with check boxes (as `Klar.TreeSelect`) or from one flat list (as `Klar.Select`).
+Quick path: `init`, `update`, `view`, `nodes`, `value`
+
+See also [Klar.TreeSelect](Klar-TreeSelect) and [Klar.Select](Klar-Select).
 
     import Klar.Cascader as Cascader
     import Klar.Picking as Picking

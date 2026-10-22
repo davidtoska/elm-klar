@@ -8,6 +8,10 @@ module Klar.Validate exposing
 {-| Pure, composable validators for text values. A validator returns the
 problem as a message in the given `Locale`, or `Nothing` when the value is fine.
 
+Use when: you check text values by hand and want messages in the user's language.
+Do not use when: you declare a form with `Klar.Form.Spec`, which takes the same validators as its rules.
+Quick path: `run`, `firstError`, `collect`, `errorFor`
+
     import Klar.Locale exposing (Locale(..))
     import Klar.Validate as Validate
 

@@ -10,11 +10,12 @@ module Klar.Calendar exposing
 
 {-| A month calendar for choosing a day or a period, with small marks on days.
 
+Use when: the calendar should always be visible, such as a delivery schedule or a day chooser beside a list of orders.
+Do not use when: you need a form field with a popup (as `Klar.DatePicker` or `Klar.DateRangePicker`).
+Quick path: `init`, `update`, `view`, `selected`
+
 This is the grid behind [Klar.DatePicker](Klar-DatePicker) and
-[Klar.DateRangePicker](Klar-DateRangePicker). Use it on its own when the
-calendar should always be visible: a delivery schedule, or a day chooser beside
-a list of orders. When you need a form field with a popup, use one of the
-pickers instead.
+[Klar.DateRangePicker](Klar-DateRangePicker).
 
     import Klar.Calendar as Calendar
     import Klar.Theme exposing (Tone(..))

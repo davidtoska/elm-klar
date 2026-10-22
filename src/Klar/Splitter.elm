@@ -9,6 +9,10 @@ module Klar.Splitter exposing
 larger and smaller by moving the separators between them, with the mouse, a finger
 or the keyboard.
 
+Use when: the user should resize a master and its detail, a navigator beside a work area or an editor above a preview.
+Do not use when: the layout is fixed, use `Klar.Layout`, or when sections only open and close, use `Klar.Accordion`.
+Quick path: `init`, `update`, `view`, `sizes`
+
     import Klar.Splitter as Splitter
 
     -- model: split : Splitter.State

@@ -12,6 +12,10 @@ thousands of options. Use it when only listed values are valid; for free text
 with suggestions use [Klar.Autocomplete](Klar-Autocomplete), and to choose
 several values [Klar.MultiSelect](Klar-MultiSelect).
 
+Use when: exactly one value is chosen from a list of a handful to many thousands of options, and only listed values are valid.
+Do not use when: the user may type anything (`Klar.Autocomplete`) or several values are chosen (`Klar.MultiSelect`).
+Quick path: `init`, `update`, `view`, `value`
+
     import Klar.Select as Select
 
     -- model: one State per select, of your own id type; the String is a DOM id,

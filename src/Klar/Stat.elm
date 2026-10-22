@@ -10,6 +10,9 @@ module Klar.Stat exposing
 {-| A KPI tile: one number with its label, the change since last time, a short
 note and optionally a trend line.
 
+Use when: a headline number is read at a glance on a dashboard or at the top of a page.
+Do not use when: there are several label and value pairs, use `Klar.DescriptionList`, or one value against a scale, use `gauge` or `meter` from `Klar.Chart`.
+
     import Klar.Stat as Stat
 
     Stat.view

@@ -11,7 +11,13 @@ module Klar.Tree exposing
     )
 
 {-| A tree view for hierarchies: regions and warehouses, folders, product
-categories, code lists. It follows the WAI-ARIA tree pattern (`tree`,
+categories, code lists.
+
+Use when: a hierarchy is shown on the page itself, with open and closed branches.
+Do not use when: the user picks a node in a form field (as `Klar.TreeSelect`).
+Quick path: `init`, `update`, `view`, `selected`
+
+It follows the WAI-ARIA tree pattern (`tree`,
 `treeitem`, `group`, `aria-expanded`, `aria-selected`, `aria-level`), keeps one
 tab stop for the whole tree and is fully usable from the keyboard.
 

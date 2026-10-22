@@ -10,6 +10,9 @@ module Klar.TextInput exposing
 
 {-| A single-line text input with a label, a hint and an error message.
 
+Use when: you need one line of text and want to own the value in your model.
+Do not use when: the value is a number, a password, a search, tags or several lines (use `Klar.NumberInput`, `Klar.PasswordInput`, `Klar.SearchInput`, `Klar.TagInput` or `Klar.TextArea`).
+
     import Klar.TextInput as TextInput
 
     TextInput.view

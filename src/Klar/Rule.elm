@@ -14,6 +14,9 @@ module Klar.Rule exposing
 {-| Rules as plain data: a tree of conditions and groups that you can edit,
 check, run against your rows, describe in words and store as JSON.
 
+Use when: filter conditions are data that the application stores, runs against its rows or describes in words.
+Do not use when: the user must edit the conditions (use `Klar.RuleBuilder` or `Klar.FilterBar`).
+
 A rule is what a filter builder lets the user say, for example "Status is Paid
 and Total is greater than 100". This module has no HTML.
 [Klar.RuleBuilder](Klar-RuleBuilder) and [Klar.FilterBar](Klar-FilterBar) draw

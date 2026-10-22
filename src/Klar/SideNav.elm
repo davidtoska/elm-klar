@@ -9,6 +9,10 @@ module Klar.SideNav exposing
 {-| Vertical navigation for the sidebar of an application: sections, links with
 icons and counts, and groups that open and close.
 
+Use when: the sidebar needs vertical navigation with sections, links, counts and groups that open and close.
+Do not use when: you need tabs inside a page (use `Klar.Tabs`) or the path to the current page (use `Klar.Breadcrumbs`).
+Quick path: `init`, `update`, `view`, `reveal`
+
     import Klar.Icon as Icon
     import Klar.SideNav as SideNav
 
