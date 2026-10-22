@@ -902,7 +902,15 @@ texts loc =
                             Nothing
                         ]
             in
-            String.join (pick " og " " and ") parts ++ pick " ble ignorert. Hver rolle og hver tilgang må ha en nøkkel som er forskjellig fra de andre." " ignored. Every role and every permission needs a key that differs from the others."
+            String.join (pick " og " " and ") parts
+                ++ pick " ble ignorert."
+                    (if roles + permissions == 1 then
+                        " was ignored."
+
+                     else
+                        " were ignored."
+                    )
+                ++ pick " Hver rolle og hver tilgang må ha en nøkkel som er forskjellig fra de andre." " Every role and every permission needs a key that differs from the others."
     , noRoles = pick "Ingen roller å vise" "No roles to show"
     , noPermissions = pick "Ingen tilganger å vise" "No permissions to show"
     , noMatch = \text -> pick ("Ingen tilganger samsvarer med «" ++ text ++ "»") ("No permission matches \"" ++ text ++ "\"")
