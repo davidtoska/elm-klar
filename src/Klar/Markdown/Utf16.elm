@@ -1,4 +1,4 @@
-module Klar.Markdown.Utf16 exposing (isHighSurrogate, isLowSurrogate, repair)
+module Klar.Markdown.Utf16 exposing (isHighSurrogate, isLowSurrogate, left, repair)
 
 {-| Text that is cut in the wrong place (`String.left 7` of a text with an emoji)
 holds half of a character: the first half or the second half of a pair of code
@@ -61,6 +61,23 @@ halfOf unit =
 
         else
             Nothing
+
+
+{-| The first `n` code units of a text, but not the first half of a character that
+takes two: cutting a text with `String.left` can leave half of an emoji, and that
+half is not valid text. Use this wherever a text is cut to a length.
+-}
+left : Int -> String -> String
+left n text =
+    let
+        head =
+            String.left n text
+    in
+    if isHighSurrogate (String.right 1 head) then
+        String.dropRight 1 head
+
+    else
+        head
 
 
 {-| The text with every half that has no partner replaced by U+FFFD, and a first

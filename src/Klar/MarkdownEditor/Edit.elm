@@ -20,7 +20,12 @@ the text is touched.
 
 Every action is a toggle where that makes sense: apply it twice and the text is as
 it was (for a heading, four times: it goes through the levels 2, 3 and 4 and then
-has none).
+has none). That holds for text that has none of the marks the action writes where it
+acts: a toggle takes a mark that is there for its own, so `Bold` on a line that
+holds only `*`, or `BulletList` on `- -`, reads that text as marks and does not
+give the text back. (The editor keeps the text before a change, and `Ctrl Z` undoes
+it.) `Link` is not a toggle: it inserts a template, and takes it out again only when
+the whole link is selected.
 
 -}
 
@@ -784,13 +789,13 @@ targets lines =
             some
 
 
-isTarget : List Line -> Line -> Bool
-isTarget lines line =
-    if List.all isBlankLine lines then
-        True
-
-    else
-        not (isBlankLine line)
+{-| Is this line one the action is about? `allBlank` says that all the lines are blank
+(`List.all isBlankLine lines`): ask it once for the lines, not for every line, or
+the cost grows with the square of the number of lines.
+-}
+isTarget : Bool -> Line -> Bool
+isTarget allBlank line =
+    allBlank || not (isBlankLine line)
 
 
 indentOf : String -> Int
@@ -806,6 +811,9 @@ indentOf text =
 headingPlan : List Line -> List (Maybe LineEdit)
 headingPlan lines =
     let
+        allBlank =
+            List.all isBlankLine lines
+
         current =
             case targets lines of
                 line :: _ ->
@@ -826,7 +834,7 @@ headingPlan lines =
     in
     List.map
         (\line ->
-            if isTarget lines line then
+            if isTarget allBlank line then
                 let
                     indent =
                         indentOf line.text
@@ -1041,8 +1049,11 @@ or, when every line has this kind of marker already, none.
 listPlan : ListKind -> List Line -> List (Maybe LineEdit)
 listPlan kind lines =
     let
+        allBlank =
+            List.all isBlankLine lines
+
         chosen =
-            List.filter (isTarget lines) lines
+            List.filter (isTarget allBlank) lines
 
         markers =
             List.map (\line -> listMarker line.text) chosen
@@ -1074,7 +1085,7 @@ listPlan kind lines =
     lines
         |> List.foldl
             (\line ( number, acc ) ->
-                if isTarget lines line then
+                if isTarget allBlank line then
                     let
                         existing =
                             listMarker line.text
