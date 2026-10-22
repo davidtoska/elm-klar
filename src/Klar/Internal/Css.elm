@@ -1827,4 +1827,21 @@ css =
  .klar-leave__message{color: var(--klar-text);overflow-wrap: anywhere}
  .klar-history{position: relative;display: inline-flex;align-items: center;gap: var(--klar-space-1)}
  .klar-history__live{pointer-events: none}
+ .klar-recurrence{min-width: 0;margin: 0;padding: 0;border: 0}
+ .klar-recurrence__legend{display: block;padding: 0;margin-bottom: 6px}
+ .klar-recurrence__body{display: flex;flex-direction: column;gap: var(--klar-space-3);min-width: 0}
+ .klar-recurrence__interval,.klar-recurrence__end-field{max-width: 260px}
+ .klar-recurrence__weekdays,.klar-recurrence__by,.klar-recurrence__missing{min-width: 0}
+ .klar-recurrence__end{display: flex;flex-direction: column;gap: var(--klar-space-2);min-width: 0}
+ .klar-recurrence__note{margin: 0;font-size: var(--klar-text-sm);color: var(--klar-text-secondary)}
+ .klar-recurrence__note:not(:empty){margin-top: var(--klar-space-1)}
+ .klar-recurrence__summary{margin: 0;padding: var(--klar-space-2) var(--klar-space-3);border: 1px solid var(--klar-border-subtle);border-radius: var(--klar-radius);background: var(--klar-surface-subtle);color: var(--klar-text);font-weight: var(--klar-weight-medium);overflow-wrap: anywhere}
+ .klar-recurrence__summary:empty{padding: 0;border: 0}
+ .klar-recurrence--readonly .klar-recurrence__summary{padding: 0;border: 0;background: none}
+ .klar-recurrence--invalid .klar-recurrence__summary{border-color: var(--klar-danger-border)}
+ .klar-recurrence__preview{display: flex;flex-direction: column;gap: var(--klar-space-1);min-width: 0}
+ .klar-recurrence__preview-title{margin: 0;font-size: var(--klar-text-sm);font-weight: var(--klar-weight-medium);color: var(--klar-text-secondary)}
+ .klar-recurrence__dates{display: grid;grid-template-columns: repeat(auto-fill,minmax(12rem,1fr));gap: var(--klar-space-1) var(--klar-space-4);margin: 0;padding: 0;list-style: none;font-variant-numeric: tabular-nums}
+ .klar-recurrence__date{min-width: 0;color: var(--klar-text)}
+ .klar-recurrence__more,.klar-recurrence__none{margin: 0;color: var(--klar-text-muted)}
 """
