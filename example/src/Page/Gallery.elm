@@ -12,6 +12,7 @@ mechanical.
 
 import Html exposing (Html)
 import Klar.Locale exposing (Locale)
+import Page.Gallery.Access as Access
 import Page.Gallery.Actions as Actions
 import Page.Gallery.Arranging as Arranging
 import Page.Gallery.Basics as Basics
@@ -25,6 +26,8 @@ import Page.Gallery.Index as Index
 import Page.Gallery.Markdown as Markdown
 import Page.Gallery.Navigation as Navigation
 import Page.Gallery.Overlays as Overlays
+import Page.Gallery.Picking as Picking
+import Page.Gallery.Recurring as Recurring
 import Page.Gallery.Review as Review
 import Page.Gallery.Rules as Rules
 import Page.Gallery.Selects as Selects
@@ -54,6 +57,9 @@ type alias Model =
     , markdown : Maybe Markdown.Model
     , review : Maybe Review.Model
     , structured : Maybe Structured.Model
+    , picking : Maybe Picking.Model
+    , access : Maybe Access.Model
+    , recurring : Maybe Recurring.Model
     }
 
 
@@ -76,6 +82,9 @@ init =
     , markdown = Nothing
     , review = Nothing
     , structured = Nothing
+    , picking = Nothing
+    , access = Nothing
+    , recurring = Nothing
     }
 
 
@@ -101,6 +110,9 @@ type Msg
     | MarkdownMsg Markdown.Msg
     | ReviewMsg Review.Msg
     | StructuredMsg Structured.Msg
+    | PickingMsg Picking.Msg
+    | AccessMsg Access.Msg
+    | RecurringMsg Recurring.Msg
 
 
 {-| Creates the page for a section if it has not been visited yet. Call it when
@@ -156,6 +168,15 @@ ensure section model =
 
         Structured ->
             create model.structured Structured.init (\page -> { model | structured = page }) StructuredMsg model
+
+        Picking ->
+            create model.picking Picking.init (\page -> { model | picking = page }) PickingMsg model
+
+        Access ->
+            create model.access Access.init (\page -> { model | access = page }) AccessMsg model
+
+        Recurring ->
+            create model.recurring Recurring.init (\page -> { model | recurring = page }) RecurringMsg model
 
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
@@ -221,6 +242,15 @@ update msg model =
 
         StructuredMsg inner ->
             step model.structured (Structured.update inner) (\page -> { model | structured = page }) StructuredMsg model
+
+        PickingMsg inner ->
+            step model.picking (Picking.update inner) (\page -> { model | picking = page }) PickingMsg model
+
+        AccessMsg inner ->
+            step model.access (Access.update inner) (\page -> { model | access = page }) AccessMsg model
+
+        RecurringMsg inner ->
+            step model.recurring (Recurring.update inner) (\page -> { model | recurring = page }) RecurringMsg model
 
 
 {-| Runs a page's update on its model, if the page exists.
@@ -299,6 +329,15 @@ view locale maybeSection model =
                 Structured ->
                     show StructuredMsg (Structured.view locale) model.structured
 
+                Picking ->
+                    show PickingMsg (Picking.view locale) model.picking
+
+                Access ->
+                    show AccessMsg (Access.view locale) model.access
+
+                Recurring ->
+                    show RecurringMsg (Recurring.view locale) model.recurring
+
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
 show toMsg viewPage maybePage =
@@ -371,6 +410,15 @@ subscriptions maybeSection model =
 
                 Structured ->
                     sub StructuredMsg Structured.subscriptions model.structured
+
+                Picking ->
+                    sub PickingMsg Picking.subscriptions model.picking
+
+                Access ->
+                    sub AccessMsg Access.subscriptions model.access
+
+                Recurring ->
+                    sub RecurringMsg Recurring.subscriptions model.recurring
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

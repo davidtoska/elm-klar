@@ -64,7 +64,10 @@
             "Klar.Select.Option",
             "Klar.MultiSelect",
             "Klar.Autocomplete",
-            "Klar.VirtualList"
+            "Klar.VirtualList",
+            "Klar.TreeSelect",
+            "Klar.Cascader",
+            "Klar.Transfer"
         ],
         "Date and time": [
             "Klar.Date",
@@ -72,7 +75,9 @@
             "Klar.DateRangePicker",
             "Klar.TimePicker",
             "Klar.DateTimePicker",
-            "Klar.Calendar"
+            "Klar.Calendar",
+            "Klar.Recurrence",
+            "Klar.RecurrencePicker"
         ],
         "Tables and lists": [
             "Klar.Table",
@@ -119,6 +124,10 @@
             "Klar.MarkdownEditor",
             "Klar.Diff",
             "Klar.Compare"
+        ],
+        "Access and approval": [
+            "Klar.PermissionMatrix",
+            "Klar.ApprovalFlow"
         ],
         "Data display": [
             "Klar.Stat",

@@ -34,11 +34,14 @@ type Section
     | Markdown
     | Review
     | Structured
+    | Picking
+    | Access
+    | Recurring
 
 
 all : List Section
 all =
-    [ Foundations, Basics, Selects, Tables, Forms, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured ]
+    [ Foundations, Basics, Selects, Tables, Forms, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring ]
 
 
 slug : Section -> String
@@ -91,6 +94,15 @@ slug section =
 
         Structured ->
             "structured-input"
+
+        Picking ->
+            "picking"
+
+        Access ->
+            "access"
+
+        Recurring ->
+            "recurrence"
 
 
 fromSlug : String -> Maybe Section
@@ -149,6 +161,15 @@ title section =
         Structured ->
             "Structured input"
 
+        Picking ->
+            "Picking from trees and lists"
+
+        Access ->
+            "Roles and approvals"
+
+        Recurring ->
+            "Recurring dates"
+
 
 icon : Section -> Icon
 icon section =
@@ -201,6 +222,15 @@ icon section =
         Structured ->
             Icon.keyboard
 
+        Picking ->
+            Icon.listTree
+
+        Access ->
+            Icon.shieldCheck
+
+        Recurring ->
+            Icon.refresh
+
 
 description : Section -> String
 description section =
@@ -252,6 +282,15 @@ description section =
 
         Structured ->
             "Masked input for phone numbers, IBAN and the like, and exact money input."
+
+        Picking ->
+            "Pick from a tree, drill down through columns, or move items between two lists."
+
+        Access ->
+            "A permission matrix for roles and an approval flow with owners and status."
+
+        Recurring ->
+            "Rules like every second Tuesday: occurrences, a plain-language description and a picker."
 
 
 {-| The components shown on each page.
@@ -306,6 +345,15 @@ components section =
 
         Structured ->
             [ "MaskedInput", "Money", "MoneyInput" ]
+
+        Picking ->
+            [ "TreeSelect", "Cascader", "Transfer" ]
+
+        Access ->
+            [ "PermissionMatrix", "ApprovalFlow" ]
+
+        Recurring ->
+            [ "Recurrence", "RecurrencePicker" ]
 
 
 componentCount : Int
