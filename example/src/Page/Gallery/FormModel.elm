@@ -1,12 +1,12 @@
 module Page.Gallery.FormModel exposing (Model, Msg, init, subscriptions, update, view)
 
-{-| Gallery page: the form model. Step 1 of the supplier onboarding application
-(a company: four texts, a country, several categories, a server problem on one
-text, a dirty check, load and read back a record), rewritten on `Klar.Form.Model`
-with neutral names (a customer account instead of a supplier).
+{-| Gallery page: the form model. A flat form first (a customer account: four
+texts, a country, several segments, a server problem on one text, a dirty check,
+load and read back a record), then a wizard with every kind of field, steps, a
+repeating group and a review step (`Page.Gallery.FormModel.Wizard`).
 
-The application's own code is between the markers `A`, `B` and `C`; the line
-counts against the old version are in `design/FORM-MODEL.md` section 9.4.
+The application's own code of the flat form is between the markers `A`, `B`
+and `C`.
 
 -}
 
@@ -24,6 +24,7 @@ import Klar.Select as Select
 import Klar.Text as Text
 import Klar.TextInput as TextInput
 import Klar.Validate as Validate
+import Page.Gallery.FormModel.Wizard as Wizard
 import Showcase.Doc as Doc
 
 
@@ -234,6 +235,7 @@ type alias Model =
     { form : Form.State ()
     , status : FormLayout.Status
     , saved : Maybe Account
+    , wizard : Wizard.Model
     }
 
 
@@ -242,16 +244,21 @@ type Msg
     | Save
     | Load
     | Revert
+    | WizardMsg Wizard.Msg
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { form = Form.init form, status = FormLayout.Idle, saved = Nothing }, Cmd.none )
+    ( { form = Form.init form, status = FormLayout.Idle, saved = Nothing, wizard = Wizard.init }, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        WizardMsg inner ->
+            Wizard.update inner model.wizard
+                |> Tuple.mapBoth (\wizard -> { model | wizard = wizard }) (Cmd.map WizardMsg)
+
         FormMsg inner ->
             Form.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
@@ -319,10 +326,10 @@ view : Locale -> Model -> Html Msg
 view locale model =
     Doc.page
         { title = "Form model"
-        , description = "A form declared once: the values of every field live in one state that knows when it is dirty, loads and returns a record, and takes the server's problems per field. Try: press Save on the empty form (every problem shows and the focus moves to the summary), type the name Acme Trading and the registration number 00000000, then Save (the server refuses and its words show at the fields until you edit them), or Load a saved account and type a letter and delete it again (clean again)."
+        , description = "A form declared once: the values of every field live in one state that knows when it is dirty, loads and returns a record, takes the server's problems per field, owns the steps and the repeating rows, and lists every problem with a way to go to it. Try the flat form first: press Save on the empty form (every problem shows and the focus moves to the summary), type the name Acme Trading and the registration number 00000000, then Save (the server refuses and its words show at the fields until you edit them), or Load a saved account and type a letter and delete it again (clean again)."
         }
-        [ Doc.section "Customer account"
-            "Step 1 of the supplier onboarding application, on the form model."
+        [ Doc.section "A flat form"
+            "A customer account: texts, a country, several segments, the server's problems, the mark for unsaved changes."
             [ Doc.example { title = "A customer account", description = Nothing, code = Nothing } (accountForm locale model)
             , Layout.stack [ Layout.gap 2 ]
                 [ Text.caption
@@ -344,4 +351,33 @@ view locale model =
                     )
                 ]
             ]
+        , Doc.section "A wizard"
+            "Four steps over one declaration: every kind of field (text, long text, number, choice, several choices, switch, tags, files), a repeating group of contacts with a rule across the rows, a checkbox the model does not hold but still counts, and a review step that lists every problem of every step. Click Next on an empty step; click a later step in the stepper (it checks the steps on the way); add and remove contacts; Load a saved customer and change a letter."
+            [ Doc.example
+                { title = "Customer onboarding"
+                , description = Just "Next, Back, the stepper and the review list all come from the form. The code of the declaration is in Page.Gallery.FormModel.Wizard."
+                , code = Just wizardCode
+                }
+                (Html.map WizardMsg (Wizard.view locale model.wizard))
+            ]
+        ]
+
+
+wizardCode : String
+wizardCode =
+    String.join "\n"
+        [ "form : Form.Form Step Fields Customer"
+        , "form ="
+        , "    Spec.define \"wizard\" Fields Customer"
+        , "        |> Spec.step Account \"Account\""
+        , "        |> Spec.with (Spec.text \"Name\" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])"
+        , "        |> Spec.with (Spec.choice countryIds \"Country\" |> Spec.required)"
+        , "        |> Spec.with (Spec.tags \"Certifications\")"
+        , "        |> Spec.with (Spec.files \"Signed contract\" |> Spec.one |> Spec.required)"
+        , "        |> Spec.step Contacts \"Contacts\""
+        , "        |> Spec.with (Spec.rows { label = \"Contacts\", item = \"Contact\" } contactForm |> Spec.atLeast 1 |> Spec.rule onlyOnePrimary message)"
+        , "        |> Spec.step Delivery \"Delivery\""
+        , "        |> Spec.with (Spec.number \"Lead time in days\" |> Spec.required |> Spec.whole)"
+        , "        |> Spec.step Review \"Review\""
+        , "        |> Spec.build"
         ]
