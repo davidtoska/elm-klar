@@ -11,6 +11,7 @@ import Fuzz
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar
 import Klar.Date as Date exposing (Date)
 import Klar.Locale as Locale
 import Klar.Recurrence as Recurrence exposing (Rule)
@@ -744,6 +745,14 @@ markupTests =
                         [ Query.has [ Selector.attribute (Attr.attribute "role" "radiogroup"), Selector.attribute (Attr.attribute "aria-label" "Frequency") ]
                         , Query.findAll [ Selector.tag "input", Selector.attribute (Attr.type_ "radio") ] >> Query.count (Expect.equal 5)
                         ]
+        , test "the five frequencies wrap onto a second line in a narrow column, and keep their words" <|
+            \_ ->
+                [ ".klar-recurrence .klar-segmented{flex-wrap: wrap}"
+                , ".klar-recurrence .klar-segmented__item{flex: 0 0 auto}"
+                , ".klar-recurrence .klar-segmented__label{overflow: visible;text-overflow: clip}"
+                ]
+                    |> List.map (\rule -> String.contains rule Klar.css)
+                    |> Expect.equal [ True, True, True ]
         , test "the id of the field is on an input, so an error summary can move focus there" <|
             \_ ->
                 query [] fresh

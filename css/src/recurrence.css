@@ -25,6 +25,12 @@
   min-width: 0;
 }
 
+/* The five frequencies keep their words: in a narrow column they go onto a second
+   line, and are not cut down to "D.." and "W..". */
+.klar-recurrence .klar-segmented { flex-wrap: wrap; }
+.klar-recurrence .klar-segmented__item { flex: 0 0 auto; }
+.klar-recurrence .klar-segmented__label { overflow: visible; text-overflow: clip; }
+
 .klar-recurrence__interval,
 .klar-recurrence__end-field {
   max-width: 260px;

@@ -112,12 +112,34 @@ called after the address has changed, and a program in Elm cannot read the posit
 in the history, so it cannot even tell which of the two was pressed. All it can do is
 the opposite move, `Nav.forward 1` after a Back (`Nav.back 1` after a Forward), which
 puts the address back without adding an entry to the history, and then `request` the
-page the user wanted. That move calls `onUrlChange` once more: ignore the call whose
-address is the page you are showing. If the user chooses "Leave", make the real move
-(`Nav.back 1` again). Do not put the address back with `Nav.pushUrl`: it adds an
-entry, so that Back, Leave, Back ends on the page the user has just left. Let your
-target type say where the request came from (`Go Route` for a link, `GoBack` for the
-Back button), so that `Leave` knows which move to make.
+page the user wanted. That move calls `onUrlChange` twice: at once, with the address
+that is still in the bar (the browser has not moved yet), and again when it has moved,
+with the page you are showing. A handler that asks again on the first call asks
+forever, and the page freezes: set a flag together with `Nav.forward 1`, ignore the
+calls while it is set, and clear it when the address is the page you are showing.
+
+    UrlChanged url ->
+        if model.undoing then
+            ( { model | undoing = Route.fromUrl url /= model.route }, Cmd.none )
+
+        else if Route.fromUrl url == model.route then
+            ( model, Cmd.none )
+
+        else
+            case LeaveGuard.request GoBack model.guard of
+                Proceed _ ->
+                    goTo (Route.fromUrl url) model
+
+                Hold guard cmd ->
+                    ( { model | guard = guard, undoing = True }
+                    , Cmd.batch [ Nav.forward model.key 1, Cmd.map GuardMsg cmd ]
+                    )
+
+If the user chooses "Leave", make the real move (`Nav.back 1` again). Do not put the
+address back with `Nav.pushUrl`: it adds an entry, so that Back, Leave, Back ends on
+the page the user has just left. Let your target type say where the request came from
+(`Go Route` for a link, `GoBack` for the Back button), so that `Leave` knows which move
+to make.
 
 
 # The guard

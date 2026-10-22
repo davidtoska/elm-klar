@@ -127,13 +127,25 @@ Findings that belong to Phase A and A8 and are listed here so they are not lost:
 - Three id helpers say the same thing in three shapes: `Tree.nodeIds` and `Table.rowIds`
   take `{ toKey, fromKey }`, `SideNav.keys` and `Picking.ids` take only `toKey`. One shared
   shape would be simpler.
-- `Select.Popup` and `Picking.View` hold the same popup code twice, and neither checks
-  `isComposing`, so a key that confirms an IME composition can choose an option.
+- `Select.Popup` and `Picking.View` hold the same popup code twice. A browser test (a
+  `keydown` of `Enter` with `isComposing`, the key that confirms an IME composition)
+  showed that `Select` chooses an option on it, while `TreeSelect` and `Cascader` ignore
+  keys during a composition: `Select.Popup` needs the same check.
 - `Button.group` and `Klar.ButtonGroup` do the same thing, and `Text.kbd` and `Klar.Kbd`
   overlap.
 - `Menu` cannot open with the first item highlighted from the keyboard, and `Tag` cannot name
   its remove button differently, which the new components work around.
 - `Remote` has no stale state (all new data components say so in their admission answer).
+
+A pass in a real browser (Chrome only, 22 October 2026: real mouse and keys, 375, 640,
+1024 and 1280 px, English and Norwegian, reduced motion, IME composition events) found
+and fixed: a splitter that cut off its last pane on a phone, a bulk bar that moved the
+list when it appeared, an editor that fired the application's `Ctrl K` as well as its own,
+an approval flow that lost the focus when its buttons went away (`ApprovalFlow.id` and
+`focus`), frequency and day buttons cut down to "D.." and "M..", a recurrence demo with two
+fields on one id, and a `LeaveGuard` recipe for the Back button that froze the page. Still
+to be tried by a person: Firefox and Safari, a screen reader, touch and pen, Windows high
+contrast and a Mac keyboard.
 
 ## Technical rules
 

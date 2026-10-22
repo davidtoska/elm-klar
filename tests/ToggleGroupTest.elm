@@ -4,6 +4,7 @@ import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar
 import Klar.Icon as Icon
 import Klar.Theme exposing (Size(..))
 import Klar.ToggleGroup as ToggleGroup
@@ -308,6 +309,23 @@ renderTests =
                     |> Query.fromHtml
                     |> Query.find [ role "group" ]
                     |> Query.has [ Selector.class "klar-toggle-group--full" ]
+        , test "a group that does not fit goes onto a second line, and its words are not cut down" <|
+            \_ ->
+                [ ".klar-toggle-group{flex-wrap: wrap}"
+                , ".klar-toggle-group:not(.klar-toggle-group--full) > .klar-button{flex: 0 0 auto}"
+                ]
+                    |> List.map (\rule -> String.contains rule Klar.css)
+                    |> Expect.equal [ True, True ]
+        , test "in Windows high contrast a switched on button is marked by a frame, not by a background" <|
+            \_ ->
+                Klar.css
+                    |> String.contains "@media (forced-colors: active){.klar-toggle-group .klar-button[aria-pressed=\"true\"]::after{"
+                    |> Expect.equal True
+        , test "the buttons of a full width group have little padding, so that seven short day names fit on a phone" <|
+            \_ ->
+                Klar.css
+                    |> String.contains ".klar-toggle-group--full > .klar-button:not(.klar-button--icon-only){padding-inline: var(--klar-space-1)}"
+                    |> Expect.equal True
         ]
 
 

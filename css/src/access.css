@@ -19,7 +19,9 @@
   --_cell-px: var(--klar-space-3);
   --_font: var(--klar-text-md);
   --_label-w: 240px;
-  --_col-w: 124px;
+  /* wide enough for "Administrator" with its lock: at 124px the longest role name of the
+     showcase was cut down to "Administrato..." */
+  --_col-w: 132px;
   display: flex;
   flex-direction: column;
   min-width: 0;
