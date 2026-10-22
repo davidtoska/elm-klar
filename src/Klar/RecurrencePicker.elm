@@ -76,7 +76,11 @@ as it does there: the arrow keys in the choice of frequency, the weekdays as
 check boxes, the spinbutton for the interval, the calendar of the date field. The
 whole field is one `fieldset` with the label as its legend, and the fields that
 come and go keep their place, so the keyboard focus stays where it is when the
-frequency changes. Only the sentence is a live region (`aria-live="polite"`).
+frequency changes. The sentence is the one `aria-live="polite"` region, so a screen
+reader hears the new meaning after each change, and the list of dates is not
+announced. The only other message that can be announced is the status line about
+the weekday that cannot be turned off (`role="status"`), which is empty until the
+user tries.
 
 With `readOnly` the field shows its label and the sentence and nothing else. The
 built-in text follows `locale` (English by default).
