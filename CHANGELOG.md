@@ -230,3 +230,9 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   symbol is written as the symbol (the table `Klar.Money` already uses), any other text
   that ends in a letter is separated from the number by a non-breaking space in English.
   Norwegian already did.
+- `Card` titles are `h2` by default (R2S-006): the level under the `h1` of a `PageHeader`, so a
+  dashboard passes axe `heading-order` without `headingLevel`. Use `headingLevel 3` for a card
+  inside a section that has its own `h2`. (`Form.section` already was an `h2`.)
+- `AppShell.sidebar` renders an `aside` named "Sidebar" ("Sidepanel" in Norwegian), so a caption
+  or a filter tree next to the `SideNav` is inside a landmark (R2S-007, axe `region`). The
+  `SideNav` stays its own `nav` inside it; the roles differ, so no landmark is duplicated.

@@ -372,7 +372,10 @@ brand value =
 
 
 {-| The content of the sidebar, normally a `SideNav.view` from
-[Klar.SideNav](Klar-SideNav). The sidebar scrolls on its own when it is long.
+[Klar.SideNav](Klar-SideNav), with anything else you want in it (a caption, a filter
+tree). The sidebar is an `aside` landmark named "Sidebar" ("Sidepanel" in Norwegian),
+so everything in it is inside a landmark; the `SideNav` is its own `nav` inside it. The
+sidebar scrolls on its own when it is long.
 Without it the shell has no sidebar and no toggle buttons.
 -}
 sidebar : Html msg -> Attribute msg
@@ -705,6 +708,7 @@ type alias Texts =
     , collapse : String
     , expand : String
     , menu : String
+    , sidebar : String
     }
 
 
@@ -718,6 +722,7 @@ texts locale_ =
             , collapse = "Skjul sidemenyen"
             , expand = "Vis sidemenyen"
             , menu = "Meny"
+            , sidebar = "Sidepanel"
             }
         , en =
             { skip = "Skip to main content"
@@ -726,6 +731,7 @@ texts locale_ =
             , collapse = "Hide the sidebar"
             , expand = "Show the sidebar"
             , menu = "Menu"
+            , sidebar = "Sidebar"
             }
         }
 
@@ -1067,9 +1073,10 @@ viewSidebar : Config msg -> Html msg
 viewSidebar config =
     case config.sidebar of
         Just content ->
-            Html.div
+            Html.aside
                 [ Internal.cls [ "klar-app-shell__sidebar" ]
                 , Attr.id (sidebarId config.id)
+                , Attr.attribute "aria-label" (texts config.locale).sidebar
                 ]
                 [ content ]
 
