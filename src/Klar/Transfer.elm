@@ -1353,10 +1353,15 @@ view toMsg attributes (State data) =
                    ]
             )
             [ viewLegend field
-            , Html.div [ Internal.cls [ "klar-transfer__panes" ] ]
-                [ viewPane toMsg config t env current interactive Available
-                , viewButtons toMsg config t env current interactive
-                , viewPane toMsg config t env current interactive ChosenSide
+            , Html.div
+                [ Internal.cls [ "klar-transfer__box" ]
+                , Internal.styleVars [ ( "--klar-transfer-rows", String.fromInt config.visibleRows ) ]
+                ]
+                [ Html.div [ Internal.cls [ "klar-transfer__panes" ] ]
+                    [ viewPane toMsg config t env current interactive Available
+                    , viewButtons toMsg config t env current interactive
+                    , viewPane toMsg config t env current interactive ChosenSide
+                    ]
                 ]
             , Html.div
                 [ Internal.cls [ "klar-sr-only" ]
@@ -1570,24 +1575,10 @@ viewPane toMsg config t env data interactive side =
                     viewLoading t
 
                 _ ->
-                    if shownCount == 0 then
-                        View.viewEmpty
-                            (if filtering then
-                                Icon.search
-
-                             else
-                                Icon.inbox
-                            )
-                            (if filtering then
-                                t.noMatches
-
-                             else
-                                t.noItems
-                            )
-                            Nothing
-
-                    else
-                        VirtualList.view (ListMsg side >> toMsg)
+                    -- the list is always there, also with no rows, so that keyboard
+                    -- focus in it survives moving the last item to the other list
+                    Html.div []
+                        [ VirtualList.view (ListMsg side >> toMsg)
                             [ VirtualList.rowHeight rowHeight
                             , VirtualList.height (config.visibleRows * rowHeight)
                             , VirtualList.htmlAttrs
@@ -1603,11 +1594,30 @@ viewPane toMsg config t env data interactive side =
                             ]
                             { items = rows, viewRow = viewRow rc }
                             (pick side data.lists)
+                        , if shownCount == 0 then
+                            View.viewEmpty
+                                (if filtering then
+                                    Icon.search
+
+                                 else
+                                    Icon.inbox
+                                )
+                                (if filtering then
+                                    t.noMatches
+
+                                 else
+                                    t.noItems
+                                )
+                                Nothing
+
+                          else
+                            Html.text ""
+                        ]
 
         allMarked =
             enabledCount > 0 && markedCount == enabledCount
     in
-    Html.div [ Internal.cls [ "klar-transfer__pane", "klar-transfer__pane--" ++ sideName side ] ]
+    Html.div [ Internal.cls [ "klar-transfer__pane" ] ]
         [ Html.div [ Internal.cls [ "klar-transfer__head" ] ]
             [ Checkbox.view
                 [ Checkbox.ariaLabel (t.selectAllIn title)

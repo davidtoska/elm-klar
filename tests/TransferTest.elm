@@ -12,6 +12,7 @@ import Expect
 import Fuzz
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Json.Encode as Encode
 import Klar.Locale as Locale
 import Klar.Picking as Picking
 import Klar.Remote as Remote exposing (Remote(..))
@@ -70,7 +71,7 @@ feed maybe state =
             state
 
 
-fireOn : List (Transfer.Attribute Int Msg) -> List Selector -> ( String, a ) -> State -> State
+fireOn : List (Transfer.Attribute Int Msg) -> List Selector -> ( String, Encode.Value ) -> State -> State
 fireOn extra selectors event state =
     feed (Drive.fire selectors event (html extra state)) state
 
@@ -462,7 +463,7 @@ renderTests =
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ Selector.id "products-available", attr "aria-activedescendant" "products-a-0" ] h)
                     , \_ -> Expect.equal True (Drive.has [ Selector.id "products-a-0" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-available", attr "tabindex" "0" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-available", Selector.attribute (Attr.tabindex 0) ] h)
                     ]
                     ()
         , test "the filter boxes, the header check boxes, the counts and the four buttons are there, with names" <|
