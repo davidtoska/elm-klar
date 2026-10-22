@@ -36,7 +36,7 @@ control, and the links of the error summary find the control to focus.
 
 -}
 
-import Api.Types as Types exposing (FieldError, Lookups, Order, OrderInput, Priority(..))
+import Api.Types as Types exposing (CountryCode, FieldError, Lookups, Order, OrderInput, OwnerId, Priority(..), WarehouseId)
 import Html exposing (Html)
 import Klar.Alert as Alert
 import Klar.Autocomplete as Autocomplete
@@ -76,10 +76,10 @@ type alias Editor =
     , saved : OrderInput
     , customer : Autocomplete.State
     , email : String
-    , country : Select.State String
+    , country : Select.State CountryCode
     , city : String
-    , warehouse : Select.State String
-    , owner : Select.State String
+    , warehouse : Select.State WarehouseId
+    , owner : Select.State OwnerId
     , priority : Priority
     , due : DatePicker.State
     , lines : NumberInput.State
@@ -129,9 +129,9 @@ init target =
     , saved = values
     , customer = Autocomplete.init "order-customer" |> Autocomplete.setText values.customer
     , email = values.email
-    , country = selectOf "order-country" (nonBlank values.country)
+    , country = selectOf "order-country" values.country
     , city = values.city
-    , warehouse = selectOf "order-warehouse" (nonBlank values.warehouse)
+    , warehouse = selectOf "order-warehouse" values.warehouse
     , owner = selectOf "order-owner" values.owner
     , priority = values.priority
     , due = DatePicker.init "order-due" |> DatePicker.setDate values.due
@@ -147,11 +147,11 @@ blank : OrderInput
 blank =
     { customer = ""
     , email = ""
-    , country = ""
+    , country = Nothing
     , city = ""
     , priority = Normal
     , owner = Nothing
-    , warehouse = ""
+    , warehouse = Nothing
     , due = Nothing
     , lines = Nothing
     , total = Nothing
@@ -163,11 +163,11 @@ fromOrder : Order -> OrderInput
 fromOrder order =
     { customer = order.customer
     , email = order.email
-    , country = order.country
+    , country = Just order.country
     , city = order.city
     , priority = order.priority
     , owner = order.owner
-    , warehouse = order.warehouse
+    , warehouse = Just order.warehouse
     , due = Just order.due
     , lines = Just order.lines
     , total = Just order.total
@@ -175,7 +175,7 @@ fromOrder order =
     }
 
 
-selectOf : String -> Maybe String -> Select.State String
+selectOf : String -> Maybe id -> Select.State id
 selectOf id maybeValue =
     case maybeValue of
         Just value ->
@@ -185,15 +185,6 @@ selectOf id maybeValue =
             Select.init id
 
 
-nonBlank : String -> Maybe String
-nonBlank text =
-    if String.isEmpty text then
-        Nothing
-
-    else
-        Just text
-
-
 {-| The values in the form, as the API takes them. What is missing or cannot be
 read stays missing (`Nothing`, `""`): the server decides what that means.
 -}
@@ -201,11 +192,11 @@ toInput : Editor -> OrderInput
 toInput editor =
     { customer = Autocomplete.text editor.customer
     , email = editor.email
-    , country = Maybe.withDefault "" (Select.value editor.country)
+    , country = Select.value editor.country
     , city = editor.city
     , priority = editor.priority
     , owner = Select.value editor.owner
-    , warehouse = Maybe.withDefault "" (Select.value editor.warehouse)
+    , warehouse = Select.value editor.warehouse
     , due = DatePicker.date editor.due
     , lines = Maybe.map round (NumberInput.value editor.lines)
     , total = NumberInput.value editor.total
@@ -270,7 +261,7 @@ subtitle editor =
             "The order is created as a draft."
 
         ExistingOrder order ->
-            order.id ++ " · " ++ order.customer
+            Types.orderIdText order.id ++ " · " ++ order.customer
 
 
 
@@ -355,10 +346,10 @@ numberProblem field message accepts state =
 type Msg
     = CustomerMsg Autocomplete.Msg
     | EmailChanged String
-    | CountryMsg (Select.Msg String)
+    | CountryMsg (Select.Msg CountryCode)
     | CityChanged String
-    | WarehouseMsg (Select.Msg String)
-    | OwnerMsg (Select.Msg String)
+    | WarehouseMsg (Select.Msg WarehouseId)
+    | OwnerMsg (Select.Msg OwnerId)
     | PriorityChosen String
     | DueMsg DatePicker.Msg
     | LinesMsg NumberInput.Msg
@@ -713,21 +704,21 @@ customerOption name =
     Select.option name name
 
 
-countryOption : Types.Country -> Select.Option String
+countryOption : Types.Country -> Select.Option CountryCode
 countryOption country =
     Select.option country.code country.name
-        |> Select.withDescription country.code
+        |> Select.withDescription (Types.countryCodeText country.code)
 
 
-warehouseOption : Types.Warehouse -> Select.Option String
+warehouseOption : Types.Warehouse -> Select.Option WarehouseId
 warehouseOption warehouse =
     Select.option warehouse.id warehouse.name
         |> Select.withDescription warehouse.city
 
 
-ownerOption : String -> Select.Option String
-ownerOption name =
-    Select.option name name
+ownerOption : Types.Owner -> Select.Option OwnerId
+ownerOption owner =
+    Select.option owner.id owner.name
 
 
 {-| The fields in the order of the form, with the names the error summary uses.

@@ -18,6 +18,7 @@ import Klar.Table as Table
 import Klar.Tabs as Tabs
 import Klar.TextInput as TextInput
 import Klar.Theme as Theme
+import Support.Ids as Ids
 import Support.Orders as Orders
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
@@ -1352,7 +1353,7 @@ tableTests =
                             , Table.rowActions (\order -> [ Menu.item "Open" (Orders.Opened order) ])
                             , Table.onRefresh Orders.Refreshed
                             ]
-                            (start |> Table.setSelected [ "ORD-2001" ] True |> Table.setExpanded "ORD-2002" True)
+                            (start |> Table.setSelected Ids.strings [ "ORD-2001" ] True |> Table.setExpanded Ids.strings "ORD-2002" True)
                         )
             , test "with a filter popup open everything is still wired" <|
                 \_ ->

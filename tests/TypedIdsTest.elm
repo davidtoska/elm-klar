@@ -1,110 +1,86 @@
 module TypedIdsTest exposing (suite)
 
-{-| The selects hand back the application's own id type, not a `String`.
--}
-
 import Expect
-import Klar.MultiSelect as MultiSelect
-import Klar.Select as Select
+import Klar.SideNav as SideNav
+import Klar.Tree as Tree
 import Test exposing (Test, describe, test)
-import Test.Html.Query as Query
-import Test.Html.Selector as Selector
 
 
-type CustomerId
-    = CustomerId Int
+type RegionId
+    = RegionId Int
 
 
-type alias Customer =
-    { id : CustomerId
-    , name : String
-    }
+type Page
+    = Orders
+    | Reports
 
 
-customers : List Customer
-customers =
-    [ { id = CustomerId 1, name = "Ada Lovelace" }
-    , { id = CustomerId 2, name = "Grace Hopper" }
-    , { id = CustomerId 3, name = "Katherine Johnson" }
-    ]
+regions : Tree.Ids RegionId
+regions =
+    Tree.nodeIds
+        { toKey = \(RegionId n) -> "region-" ++ String.fromInt n
+        , fromKey = \key -> String.toInt (String.dropLeft 7 key) |> Maybe.map RegionId
+        }
 
 
-options : List (Select.Option CustomerId)
-options =
-    List.map (\customer -> Select.option customer.id customer.name) customers
+pages : SideNav.Keys Page
+pages =
+    SideNav.keys
+        (\page ->
+            case page of
+                Orders ->
+                    "orders"
+
+                Reports ->
+                    "reports"
+        )
 
 
 suite : Test
 suite =
-    describe "typed ids"
-        [ describe "Select"
-            [ test "the value is the id that was set, with its own type" <|
-                \_ ->
-                    Select.init "customer"
-                        |> Select.setValue (CustomerId 2)
-                        |> Select.value
-                        |> Expect.equal (Just (CustomerId 2))
-            , test "a select shows the label of the option whose id was set" <|
-                \_ ->
-                    Select.view identity [ Select.label "Customer", Select.options options ] (Select.init "customer" |> Select.setValue (CustomerId 3))
-                        |> Query.fromHtml
-                        |> Query.has [ Selector.text "Katherine Johnson" ]
-            , test "an id that no option has is shown as an unknown value, not as a guess" <|
-                \_ ->
-                    Select.view identity [ Select.label "Customer", Select.options options ] (Select.init "customer" |> Select.setValue (CustomerId 99))
-                        |> Query.fromHtml
-                        |> Query.has [ Selector.text "Unknown value" ]
-            , test "valueText says how to write an id that no option has" <|
-                \_ ->
-                    Select.view
-                        identity
-                        [ Select.label "Customer"
-                        , Select.options options
-                        , Select.valueText (\(CustomerId n) -> "Customer #" ++ String.fromInt n)
-                        ]
-                        (Select.init "customer" |> Select.setValue (CustomerId 99))
-                        |> Query.fromHtml
-                        |> Query.has [ Selector.text "Customer #99" ]
-            , test "setOption stores the id of the option" <|
-                \_ ->
-                    Select.init "customer"
-                        |> Select.setOption (Select.option (CustomerId 7) "Annie Easley")
-                        |> Select.value
-                        |> Expect.equal (Just (CustomerId 7))
-            , test "clear forgets the id" <|
-                \_ ->
-                    Select.init "customer"
-                        |> Select.setValue (CustomerId 1)
-                        |> Select.clear
-                        |> Select.value
-                        |> Expect.equal Nothing
-            ]
-        , describe "MultiSelect"
-            [ test "the values are the ids that were set, in order, without duplicates" <|
-                \_ ->
-                    MultiSelect.init "customers"
-                        |> MultiSelect.setValues [ CustomerId 3, CustomerId 1, CustomerId 3 ]
-                        |> MultiSelect.values
-                        |> Expect.equal [ CustomerId 3, CustomerId 1 ]
-            , test "the chips show the labels of the options" <|
-                \_ ->
-                    MultiSelect.view identity
-                        [ MultiSelect.label "Customers", MultiSelect.options options ]
-                        (MultiSelect.init "customers" |> MultiSelect.setValues [ CustomerId 1, CustomerId 2 ])
-                        |> Query.fromHtml
-                        |> Query.has [ Selector.text "Ada Lovelace", Selector.text "Grace Hopper" ]
-            , test "setOptions stores the ids of the options" <|
-                \_ ->
-                    MultiSelect.init "customers"
-                        |> MultiSelect.setOptions [ Select.option (CustomerId 5) "Mary Jackson" ]
-                        |> MultiSelect.values
-                        |> Expect.equal [ CustomerId 5 ]
-            , test "clear forgets all the ids" <|
-                \_ ->
-                    MultiSelect.init "customers"
-                        |> MultiSelect.setValues [ CustomerId 1, CustomerId 2 ]
-                        |> MultiSelect.clear
-                        |> MultiSelect.values
-                        |> Expect.equal []
-            ]
+    describe "ids and keys of the app's own type (Tree, SideNav)"
+        [ test "Tree: open nodes come back in the app's type" <|
+            \_ ->
+                (Tree.init "regions" |> Tree.setExpanded regions [ RegionId 2, RegionId 10 ])
+                    |> Tree.expanded regions
+                    |> Expect.equal [ RegionId 10, RegionId 2 ]
+        , test "Tree: isExpanded takes the app's type" <|
+            \_ ->
+                let
+                    state =
+                        Tree.init "regions" |> Tree.expand regions (RegionId 3)
+                in
+                Expect.equal ( True, False ) ( Tree.isExpanded regions (RegionId 3) state, Tree.isExpanded regions (RegionId 4) state )
+        , test "Tree: select, selectedId and checked" <|
+            \_ ->
+                let
+                    state =
+                        Tree.init "regions" |> Tree.select regions (RegionId 7) |> Tree.setChecked regions [ RegionId 1 ]
+                in
+                Expect.equal ( Just (RegionId 7), [ RegionId 1 ] ) ( Tree.selectedId regions state, Tree.checked regions state )
+        , test "Tree: a state of the app's type compares with ==" <|
+            \_ ->
+                Expect.equal (Tree.init "r" |> Tree.expand regions (RegionId 1)) (Tree.init "r" |> Tree.expand regions (RegionId 1))
+        , test "SideNav: groups open and close by the app's key" <|
+            \_ ->
+                let
+                    open =
+                        SideNav.init "nav" |> SideNav.expandGroup pages Reports
+                in
+                Expect.equal
+                    ( True, False, False )
+                    ( SideNav.isExpanded pages Reports open
+                    , SideNav.isExpanded pages Orders open
+                    , SideNav.isExpanded pages Reports (SideNav.collapseGroup pages Reports open)
+                    )
+        , test "SideNav: reveal opens the groups around a key" <|
+            \_ ->
+                let
+                    menu =
+                        [ SideNav.group pages { key = Reports, label = "Reports" } [ SideNav.item pages { key = Orders, label = "Orders", href = "#/o" } ] ]
+                in
+                SideNav.init "nav"
+                    |> SideNav.reveal Orders menu
+                    |> SideNav.isExpanded pages Reports
+                    |> Expect.equal True
         ]

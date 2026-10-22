@@ -4,6 +4,7 @@ module Page.Gallery.DataDisplay.Timelines exposing (Model, Msg, init, update, vi
 compact and ungrouped looks, and the loading, empty and failed states.
 -}
 
+import Api.Types exposing (orderIdText)
 import Html exposing (Html)
 import Klar.Icon as Icon
 import Klar.Layout as Layout
@@ -201,7 +202,7 @@ orderEvent i =
             order |> Maybe.map .customer |> Maybe.withDefault "Unknown customer"
 
         orderId =
-            order |> Maybe.map .id |> Maybe.withDefault "ORD-00000"
+            order |> Maybe.map (.id >> orderIdText) |> Maybe.withDefault "ORD-00000"
 
         owner =
             Sample.owners |> List.drop (modBy 6 (i * 5)) |> List.head |> Maybe.withDefault "System"

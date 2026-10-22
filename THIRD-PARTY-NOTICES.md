@@ -4,9 +4,9 @@ Klar itself is released under the BSD 3-Clause license (see [LICENSE](LICENSE)).
 
 ## Icons
 
-The drawings of the built-in icons (`Klar.Icon`; the rules `.klar-icon--*` in
-`css/src/icons.css`, which are also part of the stylesheet embedded in
-`Klar.Internal.Css`) are taken from, or modeled on, the open-source icon sets
+The drawings of the built-in icons (the modules `Klar.Icon` and `Klar.Icon.*`, where
+each icon is an Elm value that carries its SVG; the modules under `src/Klar/Icon/` are
+generated from Lucide) are taken from, or modeled on, the open-source icon sets
 **Feather** and **Lucide**. Their license texts follow, as both licenses require
 when the icons are redistributed.
 

@@ -4,6 +4,7 @@ module Page.Gallery.Forms.Validation exposing (Model, Msg, init, sections, updat
 languages, and a field to try them on.
 -}
 
+import Api.Types exposing (orderId)
 import Html exposing (Html)
 import Klar.Badge as Badge
 import Klar.Layout as Layout
@@ -54,7 +55,7 @@ orderExists : Validate.Validator
 orderExists =
     Validate.customWith
         (\locale value ->
-            case Sample.orderById (String.trim value) of
+            case Sample.orderById (orderId (String.trim value)) of
                 Just _ ->
                     Nothing
 

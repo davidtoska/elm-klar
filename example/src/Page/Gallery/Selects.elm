@@ -4,7 +4,7 @@ module Page.Gallery.Selects exposing (Model, Msg, init, subscriptions, update, v
 lists, server search and the awkward places a popup has to work in.
 -}
 
-import Api.Types exposing (orderStatusLabel)
+import Api.Types exposing (countryCodeText, orderIdText, orderStatusLabel)
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Klar.Autocomplete as Autocomplete
@@ -33,7 +33,7 @@ countryOptions : List (Option String)
 countryOptions =
     Sample.countries
         |> List.sortBy .name
-        |> List.map (\country -> Select.option country.code country.name |> Select.withDescription country.code)
+        |> List.map (\country -> Select.option (countryCodeText country.code) country.name |> Select.withDescription (countryCodeText country.code))
 
 
 countryGroupedOptions : List (Option String)
@@ -42,8 +42,8 @@ countryGroupedOptions =
         |> List.sortBy (\country -> ( country.region, country.name ))
         |> List.map
             (\country ->
-                Select.option country.code country.name
-                    |> Select.withDescription country.code
+                Select.option (countryCodeText country.code) country.name
+                    |> Select.withDescription (countryCodeText country.code)
                     |> Select.withGroup country.region
             )
 
@@ -94,7 +94,7 @@ orderOptions =
     Sample.orders
         |> List.map
             (\order ->
-                Select.option order.id (order.id ++ " · " ++ order.customer)
+                Select.option (orderIdText order.id) (orderIdText order.id ++ " · " ++ order.customer)
                     |> Select.withDescription (order.city ++ " · " ++ orderStatusLabel order.status)
             )
 
@@ -1407,7 +1407,7 @@ manyCode =
 orderOptions =
     List.map
         (\\order ->
-            Select.option order.id (order.id ++ " · " ++ order.customer)
+            Select.option (orderIdText order.id) (orderIdText order.id ++ " · " ++ order.customer)
                 |> Select.withDescription order.city
         )
         orders

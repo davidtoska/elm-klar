@@ -79,37 +79,39 @@ pageFor key =
 {-| The menu of the pretend application, in three sections, with a group inside
 a group.
 -}
-menu : List (SideNav.Entry msg)
+menu : List (SideNav.Entry String msg)
 menu =
     [ SideNav.section "Workspace"
-        [ SideNav.item { key = "overview", label = "Overview", href = href "overview" }
+        [ SideNav.item SideNav.stringKeys { key = "overview", label = "Overview", href = href "overview" }
             |> SideNav.withIcon Icon.home
-        , SideNav.item { key = "orders", label = "Orders", href = href "orders" }
+        , SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = href "orders" }
             |> SideNav.withIcon Icon.clipboardCheck
             |> SideNav.withCount 12
-        , SideNav.item { key = "customers", label = "Customers", href = href "customers" }
+        , SideNav.item SideNav.stringKeys { key = "customers", label = "Customers", href = href "customers" }
             |> SideNav.withIcon Icon.users
             |> SideNav.withBadge (Badge.view [ Badge.tone Warning, Badge.size Small ] "New")
         ]
     , SideNav.section "Analysis"
-        [ SideNav.group { key = "reports", label = "Reports" }
-            [ SideNav.item { key = "reports-monthly", label = "Monthly report", href = href "reports/monthly" }
-            , SideNav.item { key = "reports-activity", label = "Activity", href = href "reports/activity" }
-            , SideNav.group { key = "reports-finance", label = "Finance" }
-                [ SideNav.item { key = "reports-budget", label = "Budget", href = href "reports/budget" }
-                , SideNav.item { key = "reports-revenue", label = "Revenue", href = href "reports/revenue" }
+        [ SideNav.group SideNav.stringKeys
+            { key = "reports", label = "Reports" }
+            [ SideNav.item SideNav.stringKeys { key = "reports-monthly", label = "Monthly report", href = href "reports/monthly" }
+            , SideNav.item SideNav.stringKeys { key = "reports-activity", label = "Activity", href = href "reports/activity" }
+            , SideNav.group SideNav.stringKeys
+                { key = "reports-finance", label = "Finance" }
+                [ SideNav.item SideNav.stringKeys { key = "reports-budget", label = "Budget", href = href "reports/budget" }
+                , SideNav.item SideNav.stringKeys { key = "reports-revenue", label = "Revenue", href = href "reports/revenue" }
                 ]
-            , SideNav.item { key = "reports-exports", label = "Exports", href = href "reports/exports" }
+            , SideNav.item SideNav.stringKeys { key = "reports-exports", label = "Exports", href = href "reports/exports" }
             ]
             |> SideNav.withIcon Icon.barChart
         ]
     , SideNav.section "System"
-        [ SideNav.item { key = "settings", label = "Settings", href = href "settings" }
+        [ SideNav.item SideNav.stringKeys { key = "settings", label = "Settings", href = href "settings" }
             |> SideNav.withIcon Icon.settings
-        , SideNav.item { key = "billing", label = "Billing", href = href "billing" }
+        , SideNav.item SideNav.stringKeys { key = "billing", label = "Billing", href = href "billing" }
             |> SideNav.withIcon Icon.fileText
             |> SideNav.disabledItem
-        , SideNav.item { key = "help", label = "Help", href = href "help" }
+        , SideNav.item SideNav.stringKeys { key = "help", label = "Help", href = href "help" }
             |> SideNav.withIcon Icon.help
         ]
     ]

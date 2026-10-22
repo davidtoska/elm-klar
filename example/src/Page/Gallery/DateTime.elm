@@ -10,7 +10,7 @@ The calendar that loads its marks month by month asks a pretend server
 
 -}
 
-import Api.Types exposing (orderStatusLabel)
+import Api.Types exposing (orderIdText, orderStatusLabel)
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Klar.Badge as Badge
@@ -291,7 +291,7 @@ orderDots =
         (\order ->
             Calendar.dot order.due
                 (Labels.statusTone order.status)
-                (order.id ++ ", " ++ order.customer ++ ", " ++ orderStatusLabel order.status)
+                (orderIdText order.id ++ ", " ++ order.customer ++ ", " ++ orderStatusLabel order.status)
         )
         Sample.orders
 
@@ -1371,7 +1371,7 @@ calendarOrdersCode =
 
 dueDot : Order -> Calendar.Marker
 dueDot order =
-    Calendar.dot order.due (statusTone order.status) (order.id ++ ", " ++ order.customer)"""
+    Calendar.dot order.due (statusTone order.status) (orderIdText order.id ++ ", " ++ order.customer)"""
 
 
 calendarMonthsCode : String

@@ -27,6 +27,7 @@ import Klar.Locale as Locale
 import Klar.Menu as Menu
 import Klar.Remote exposing (Remote(..))
 import Klar.Table as Table exposing (Filter(..))
+import Support.Ids as Ids
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -84,17 +85,17 @@ columns =
     ]
 
 
-start : Table.State
+start : Table.State String
 start =
     Table.init "orders"
 
 
-render : List (Table.Attribute Order Msg) -> Table.State -> Html Msg
+render : List (Table.Attribute String Order Msg) -> Table.State String -> Html Msg
 render attributes state =
     Table.view TableMsg
         ([ Table.columns columns
          , Table.rows (Success orders)
-         , Table.rowId .number
+         , Table.rowId Ids.strings .number
          , Table.label "Orders"
          ]
             ++ attributes
@@ -102,12 +103,12 @@ render attributes state =
         state
 
 
-page : List (Table.Attribute Order Msg) -> Table.State -> Query.Single Msg
+page : List (Table.Attribute String Order Msg) -> Table.State String -> Query.Single Msg
 page attributes state =
     Query.fromHtml (render attributes state)
 
 
-applyMsg : Msg -> Table.State -> Table.State
+applyMsg : Msg -> Table.State String -> Table.State String
 applyMsg msg state =
     case msg of
         TableMsg tableMsg ->
@@ -152,7 +153,7 @@ ariaLabelled label =
     [ Selector.attribute (Attr.attribute "aria-label" label) ]
 
 
-row : List (Table.Attribute Order Msg) -> Table.State -> Int -> Query.Single Msg
+row : List (Table.Attribute String Order Msg) -> Table.State String -> Int -> Query.Single Msg
 row attributes state index =
     page attributes state
         |> Query.find [ Selector.id (rowDomId index) ]
@@ -160,7 +161,7 @@ row attributes state index =
 
 {-| A control in the row, found by what it says to a screen reader.
 -}
-control : List (Table.Attribute Order Msg) -> Table.State -> Int -> List Selector -> Query.Single Msg
+control : List (Table.Attribute String Order Msg) -> Table.State String -> Int -> List Selector -> Query.Single Msg
 control attributes state index selectors =
     row attributes state index
         |> Query.find selectors
@@ -273,10 +274,10 @@ the state from before the message).
 -}
 lockedRowIgnores :
     String
-    -> Table.State
+    -> Table.State String
     -> (Int -> Query.Single Msg)
     -> (Int -> ( String, Encode.Value ))
-    -> (Msg -> Table.State -> Expectation)
+    -> (Msg -> Table.State String -> Expectation)
     -> Test
 lockedRowIgnores name state target event works =
     describe name
@@ -291,10 +292,10 @@ lockedRowIgnores name state target event works =
 -}
 onRow :
     String
-    -> List (Table.Attribute Order Msg)
-    -> Table.State
+    -> List (Table.Attribute String Order Msg)
+    -> Table.State String
     -> (Int -> ( String, Encode.Value ))
-    -> (Msg -> Table.State -> Expectation)
+    -> (Msg -> Table.State String -> Expectation)
     -> Test
 onRow name attributes state event works =
     lockedRowIgnores name state (row attributes state) event works
@@ -305,40 +306,40 @@ index of the row.
 -}
 onControl :
     String
-    -> List (Table.Attribute Order Msg)
-    -> Table.State
+    -> List (Table.Attribute String Order Msg)
+    -> Table.State String
     -> (Int -> List Selector)
     -> ( String, Encode.Value )
-    -> (Msg -> Table.State -> Expectation)
+    -> (Msg -> Table.State String -> Expectation)
     -> Test
 onControl name attributes state selectors event works =
     lockedRowIgnores name state (\index -> control attributes state index (selectors index)) (\_ -> event) works
 
 
-isSelected : String -> Msg -> Table.State -> Expectation
+isSelected : String -> Msg -> Table.State String -> Expectation
 isSelected id msg state =
-    Expect.equal True (Table.isSelected id (applyMsg msg state))
+    Expect.equal True (Table.isSelected Ids.strings id (applyMsg msg state))
 
 
-isExpanded : String -> Msg -> Table.State -> Expectation
+isExpanded : String -> Msg -> Table.State String -> Expectation
 isExpanded id msg state =
-    Expect.equal True (Table.isExpanded id (applyMsg msg state))
+    Expect.equal True (Table.isExpanded Ids.strings id (applyMsg msg state))
 
 
 {-| The row menu is open after the message.
 -}
-opensMenu : List (Table.Attribute Order Msg) -> Msg -> Table.State -> Expectation
+opensMenu : List (Table.Attribute String Order Msg) -> Msg -> Table.State String -> Expectation
 opensMenu attributes msg state =
     page attributes (applyMsg msg state)
         |> Query.has menuPopup
 
 
-sends : Msg -> Msg -> Table.State -> Expectation
+sends : Msg -> Msg -> Table.State String -> Expectation
 sends expected msg _ =
     Expect.equal expected msg
 
 
-movesFocus : Msg -> Table.State -> Expectation
+movesFocus : Msg -> Table.State String -> Expectation
 movesFocus _ _ =
     Expect.pass
 
@@ -347,28 +348,28 @@ movesFocus _ _ =
 -- A DISABLED ROW IS INERT
 
 
-withMenu : List (Table.Attribute Order Msg)
+withMenu : List (Table.Attribute String Order Msg)
 withMenu =
     [ Table.rowDisabled .locked
     , Table.rowActions (\order -> [ Menu.item "Open" (Picked order.number) ])
     ]
 
 
-withCheckboxes : List (Table.Attribute Order Msg)
+withCheckboxes : List (Table.Attribute String Order Msg)
 withCheckboxes =
     [ Table.rowDisabled .locked
     , Table.selectable
     ]
 
 
-withDetails : List (Table.Attribute Order Msg)
+withDetails : List (Table.Attribute String Order Msg)
 withDetails =
     [ Table.rowDisabled .locked
     , Table.expandedRow (\order -> Html.text ("Details of " ++ order.number))
     ]
 
 
-withClick : List (Table.Attribute Order Msg)
+withClick : List (Table.Attribute String Order Msg)
 withClick =
     [ Table.rowDisabled .locked
     , Table.onRowClick (\order -> Clicked order.number)
@@ -377,7 +378,7 @@ withClick =
 
 {-| Everything at once: each control is on the page next to the others.
 -}
-withEverything : List (Table.Attribute Order Msg)
+withEverything : List (Table.Attribute String Order Msg)
 withEverything =
     [ Table.rowDisabled .locked
     , Table.selectable
@@ -436,8 +437,8 @@ keyTests =
 
         bothOpen =
             start
-                |> Table.setExpanded "A-1" True
-                |> Table.setExpanded "A-2" True
+                |> Table.setExpanded Ids.strings "A-1" True
+                |> Table.setExpanded Ids.strings "A-2" True
 
         moves attributes index key =
             test (key ++ " on row " ++ String.fromInt index) <|
@@ -456,7 +457,7 @@ keyTests =
             bothOpen
             (row withDetails bothOpen)
             (\index -> plainKey index "ArrowLeft")
-            (\msg state -> Expect.equal False (Table.isExpanded "A-1" (applyMsg msg state)))
+            (\msg state -> Expect.equal False (Table.isExpanded Ids.strings "A-1" (applyMsg msg state)))
         , describe "the other arrow keys still move focus, onto the disabled row and off it"
             [ moves withEverything openIndex "ArrowDown"
             , moves withEverything 2 "ArrowUp"
@@ -519,7 +520,7 @@ selectAllTests =
                     |> Query.find [ Selector.id "orders-select-page" ]
                     |> Event.simulate (Event.check True)
                     |> Event.toResult
-                    |> expectOk (\msg -> Expect.equal [ "A-1", "A-3", "A-4" ] (Table.selectedIds (applyMsg msg start)))
+                    |> expectOk (\msg -> Expect.equal [ "A-1", "A-3", "A-4" ] (Table.selectedIds Ids.strings (applyMsg msg start)))
         ]
 
 
@@ -529,7 +530,7 @@ selectAllTests =
 
 {-| A filter on the city and a search, and two rows match both.
 -}
-filteredAndSearched : Table.State
+filteredAndSearched : Table.State String
 filteredAndSearched =
     start
         |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ]))
@@ -538,14 +539,14 @@ filteredAndSearched =
 
 {-| The same filter, and a search that nothing matches.
 -}
-nothingMatches : Table.State
+nothingMatches : Table.State String
 nothingMatches =
     start
         |> Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ]))
         |> Table.setSearch "zzz"
 
 
-withReset : List (Table.Attribute Order Msg)
+withReset : List (Table.Attribute String Order Msg)
 withReset =
     [ Table.onResetFilters FiltersReset ]
 
@@ -574,7 +575,7 @@ wrapperOf inner =
 
 {-| Click the button, and see what the table has after the message.
 -}
-afterClicking : List (Table.Attribute Order Msg) -> Table.State -> List Selector -> Result String Table.State
+afterClicking : List (Table.Attribute String Order Msg) -> Table.State String -> List Selector -> Result String (Table.State String)
 afterClicking attributes state selectors =
     page attributes state
         |> Query.find selectors
@@ -583,19 +584,19 @@ afterClicking attributes state selectors =
         |> Result.map (\msg -> applyMsg msg state)
 
 
-expectCleared : { search : String, filters : List ( String, Filter ) } -> Result String Table.State -> Expectation
+expectCleared : { search : String, filters : List ( String, Filter ) } -> Result String (Table.State String) -> Expectation
 expectCleared expected =
     expectOk (\state -> Expect.equal expected { search = Table.search state, filters = List.map (Tuple.mapFirst Table.columnName) (Table.filters state) })
 
 
-expectWrapperSends : List (Table.Attribute Order Msg) -> Table.State -> List Selector -> Expectation
+expectWrapperSends : List (Table.Attribute String Order Msg) -> Table.State String -> List Selector -> Expectation
 expectWrapperSends attributes state selectors =
     expectSends (page attributes state |> Query.find (wrapperOf selectors)) Event.click (Expect.equal FiltersReset)
 
 
 {-| The table after the user opened the list of active filters.
 -}
-openedSummary : Result String Table.State
+openedSummary : Result String (Table.State String)
 openedSummary =
     page withReset filteredAndSearched
         |> Query.find [ Selector.id "orders-trigger-filters" ]
@@ -717,7 +718,7 @@ resetButtonTests =
 -- WHAT THE DOCUMENTATION OF Filter, filterSelect AND page SAYS
 
 
-expectRows : Int -> List (Table.Attribute Order Msg) -> Table.State -> Expectation
+expectRows : Int -> List (Table.Attribute String Order Msg) -> Table.State String -> Expectation
 expectRows count attributes state =
     page attributes state
         |> Query.findAll [ Selector.class "klar-table__row" ]
@@ -774,7 +775,7 @@ filterDocumentationTests =
 
 {-| The list of values of a `filterSelect`: open the popover of the column.
 -}
-openedFilter : List (Table.Attribute Order Msg) -> String -> Table.State -> Result String Table.State
+openedFilter : List (Table.Attribute String Order Msg) -> String -> Table.State String -> Result String (Table.State String)
 openedFilter attributes columnId state =
     page attributes state
         |> Query.find [ Selector.id ("orders-trigger-filter-" ++ columnId) ]

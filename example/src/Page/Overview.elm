@@ -262,7 +262,7 @@ attentionRow : Context -> Order -> Html Msg
 attentionRow context order =
     ListItem.view
         [ ListItem.avatar order.customer
-        , ListItem.secondary (order.id ++ " · due " ++ Format.date context.locale order.due)
+        , ListItem.secondary (Types.orderIdText order.id ++ " · due " ++ Format.date context.locale order.due)
         , ListItem.meta (Types.priorityLabel order.priority)
         , ListItem.onClick (Open order)
         ]
@@ -296,18 +296,18 @@ activityEvent item =
         ( title, tone, icon ) =
             case item.kind of
                 OrderCreated ->
-                    ( "Order " ++ item.orderId ++ " created", Info, Icon.plus )
+                    ( "Order " ++ Types.orderIdText item.orderId ++ " created", Info, Icon.plus )
 
                 OrderShipped ->
-                    ( "Order " ++ item.orderId ++ " shipped", Primary, Icon.send )
+                    ( "Order " ++ Types.orderIdText item.orderId ++ " shipped", Primary, Icon.send )
 
                 OrderDelivered ->
-                    ( "Order " ++ item.orderId ++ " delivered", Success, Icon.check )
+                    ( "Order " ++ Types.orderIdText item.orderId ++ " delivered", Success, Icon.check )
 
                 OrderCancelled ->
-                    ( "Order " ++ item.orderId ++ " cancelled", Danger, Icon.close )
+                    ( "Order " ++ Types.orderIdText item.orderId ++ " cancelled", Danger, Icon.close )
     in
-    Timeline.event (item.orderId ++ "-" ++ Types.activityKey item.kind) item.at title
+    Timeline.event (Types.orderIdText item.orderId ++ "-" ++ Types.activityKey item.kind) item.at title
         |> Timeline.withTone tone
         |> Timeline.withIcon icon
         |> Timeline.withDescription item.customer

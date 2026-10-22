@@ -114,6 +114,24 @@
             "Klar.Search",
             "Klar.Format",
             "Klar.Shortcut"
+        ],
+        "Icon library": [
+            "Klar.Icon.Library",
+            "Klar.Icon.Arrows",
+            "Klar.Icon.Business",
+            "Klar.Icon.Calendar",
+            "Klar.Icon.Communication",
+            "Klar.Icon.Data",
+            "Klar.Icon.Developer",
+            "Klar.Icon.Devices",
+            "Klar.Icon.Documents",
+            "Klar.Icon.Editor",
+            "Klar.Icon.Interface",
+            "Klar.Icon.Logistics",
+            "Klar.Icon.Media",
+            "Klar.Icon.Nature",
+            "Klar.Icon.People",
+            "Klar.Icon.Science"
         ]
     },
     "elm-version": "0.19.0 <= v < 0.20.0",

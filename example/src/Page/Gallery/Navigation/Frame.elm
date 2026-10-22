@@ -44,7 +44,7 @@ type alias Model =
     , modal : Bool
     , banner : Bool
     , page : String
-    , nav : SideNav.State
+    , nav : SideNav.State String
     , userMenu : Menu.State
     , actionsMenu : Menu.State
     , tabs : Tabs.State
@@ -52,8 +52,8 @@ type alias Model =
     , lastAction : Maybe String
 
     -- side navigation on its own
-    , navExpanded : SideNav.State
-    , navCollapsed : SideNav.State
+    , navExpanded : SideNav.State String
+    , navCollapsed : SideNav.State String
     , navPage : String
     }
 
@@ -116,7 +116,7 @@ update msg model =
             else
                 -- Opening: the links come after the whole top bar, so the keyboard
                 -- goes to the link of the current page.
-                ( { model | drawerOpen = True }, SideNav.focusLink model.page model.nav NoOp )
+                ( { model | drawerOpen = True }, SideNav.focusLink SideNav.stringKeys model.page model.nav NoOp )
 
         CloseDrawer ->
             -- Closing: the links can no longer hold focus; the menu button gets it.
@@ -558,16 +558,16 @@ sideNavCode =
     model.sideNav
 
 
-menu : List (SideNav.Entry msg)
+menu : List (SideNav.Entry String msg)
 menu =
     [ SideNav.section "Workspace"
-        [ SideNav.item { key = "overview", label = "Overview", href = "#/" }
+        [ SideNav.item SideNav.stringKeys { key = "overview", label = "Overview", href = "#/" }
             |> SideNav.withIcon Icon.home
-        , SideNav.item { key = "orders", label = "Orders", href = "#/orders" }
+        , SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
             |> SideNav.withIcon Icon.clipboardCheck
             |> SideNav.withCount 12
-        , SideNav.group { key = "reports", label = "Reports" }
-            [ SideNav.item { key = "monthly", label = "Monthly report", href = "#/reports/monthly" } ]
+        , SideNav.group SideNav.stringKeys { key = "reports", label = "Reports" }
+            [ SideNav.item SideNav.stringKeys { key = "monthly", label = "Monthly report", href = "#/reports/monthly" } ]
             |> SideNav.withIcon Icon.barChart
         ]
     ]

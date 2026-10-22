@@ -9,7 +9,7 @@ rows of another. Do the same on application pages with big client-side tables.
 
 -}
 
-import Api.Types exposing (Order, OrderStatus(..), Priority(..), allOrderStatuses, allPriorities, allowedNextStatuses, isEditable, orderStatusLabel, priorityLabel)
+import Api.Types exposing (Order, OrderId, OrderStatus(..), Priority(..), allOrderStatuses, allPriorities, allowedNextStatuses, isEditable, orderId, orderIdText, orderStatusLabel, priorityLabel)
 import Html exposing (Html)
 import Html.Lazy
 import Klar.Badge as Badge
@@ -36,6 +36,7 @@ import Set
 import Showcase.Doc as Doc
 import Showcase.Sample as Sample
 import Task
+import View.Ids exposing (orderRows)
 import View.Labels as Labels
 
 
@@ -50,15 +51,15 @@ type alias Model =
     , views : Views
     , simple : Simple
     , states : States
-    , narrow : Table.State
-    , norwegian : Table.State
+    , narrow : Table.State OrderId
+    , norwegian : Table.State OrderId
     , pagers : Pagers
     }
 
 
 type alias Client =
     { orders : Remote (List Order)
-    , table : Table.State
+    , table : Table.State OrderId
     , urgentOnly : Bool
     , refreshing : Bool
     , refreshes : Int
@@ -67,7 +68,7 @@ type alias Client =
 
 
 type alias Server =
-    { table : Table.State
+    { table : Table.State OrderId
     , rows : Remote (List Order)
     , total : Int
     , refreshing : Bool
@@ -80,30 +81,30 @@ type alias Server =
 
 
 type alias Columns =
-    { kinds : Table.State
-    , sorting : Table.State
+    { kinds : Table.State OrderId
+    , sorting : Table.State OrderId
     , lastEvent : String
     }
 
 
 type alias Views =
-    { table : Table.State
+    { table : Table.State OrderId
     , applied : String
     }
 
 
 type alias Simple =
-    { owners : Table.State
-    , picking : Table.State
+    { owners : Table.State String
+    , picking : Table.State String
     , lastEvent : String
     }
 
 
 type alias States =
-    { empty : Table.State
-    , noMatch : Table.State
-    , loading : Table.State
-    , failed : Table.State
+    { empty : Table.State OrderId
+    , noMatch : Table.State OrderId
+    , loading : Table.State OrderId
+    , failed : Table.State OrderId
     , lifecycle : Lifecycle
     , lastEvent : String
     }
@@ -297,10 +298,10 @@ update msg model =
                 ( model, Cmd.none )
 
         Opened order ->
-            ( clientEvent ("Opened " ++ order.id ++ " (" ++ order.customer ++ ").") model, Cmd.none )
+            ( clientEvent ("Opened " ++ orderIdText order.id ++ " (" ++ order.customer ++ ").") model, Cmd.none )
 
         Edit order ->
-            ( clientEvent ("Edit " ++ order.id ++ ".") model, Cmd.none )
+            ( clientEvent ("Edit " ++ orderIdText order.id ++ ".") model, Cmd.none )
 
         CancelOrder order ->
             ( withClient
@@ -309,8 +310,8 @@ update msg model =
                         | orders = Remote.map (List.map (cancelIf (\o -> o.id == order.id))) c.orders
 
                         -- a disabled row keeps its selection and its open details until told otherwise
-                        , table = c.table |> Table.setSelected [ order.id ] False |> Table.setExpanded order.id False
-                        , lastEvent = "Order " ++ order.id ++ " is cancelled. The row is now disabled."
+                        , table = c.table |> Table.setSelected orderRows [ order.id ] False |> Table.setExpanded orderRows order.id False
+                        , lastEvent = "Order " ++ orderIdText order.id ++ " is cancelled. The row is now disabled."
                     }
                 )
                 model
@@ -323,8 +324,8 @@ update msg model =
                 (\c ->
                     { c
                         | orders = Remote.map (List.filter (\o -> o.id /= order.id)) c.orders
-                        , table = c.table |> Table.setSelected [ order.id ] False |> Table.setExpanded order.id False
-                        , lastEvent = "Order " ++ order.id ++ " is deleted."
+                        , table = c.table |> Table.setSelected orderRows [ order.id ] False |> Table.setExpanded orderRows order.id False
+                        , lastEvent = "Order " ++ orderIdText order.id ++ " is deleted."
                     }
                 )
                 model
@@ -334,11 +335,11 @@ update msg model =
         CancelSelected ->
             let
                 ids =
-                    Set.fromList (Table.selectedIds model.client.table)
+                    Set.fromList (List.map orderIdText (Table.selectedIds orderRows model.client.table))
 
                 chosen =
                     Remote.withDefault [] model.client.orders
-                        |> List.filter (\o -> Set.member o.id ids)
+                        |> List.filter (\o -> Set.member (orderIdText o.id) ids)
 
                 cancellable =
                     List.filter canCancel chosen
@@ -349,9 +350,9 @@ update msg model =
             ( withClient
                 (\c ->
                     { c
-                        | orders = Remote.map (List.map (cancelIf (\o -> Set.member o.id ids))) c.orders
+                        | orders = Remote.map (List.map (cancelIf (\o -> Set.member (orderIdText o.id) ids))) c.orders
                         , table =
-                            List.foldl (\o table -> Table.setExpanded o.id False table) (Table.clearSelection c.table) cancellable
+                            List.foldl (\o table -> Table.setExpanded orderRows o.id False table) (Table.clearSelection c.table) cancellable
                         , lastEvent =
                             countText (List.length cancellable) "order" "orders"
                                 ++ " cancelled"
@@ -371,7 +372,7 @@ update msg model =
         RemindSelected ->
             ( clientEvent
                 ("Reminder sent to the customers of "
-                    ++ countText (List.length (Table.selectedIds model.client.table)) "order" "orders"
+                    ++ countText (List.length (Table.selectedIds orderRows model.client.table)) "order" "orders"
                     ++ " (a bulk action of the application's own)."
                 )
                 model
@@ -381,12 +382,12 @@ update msg model =
         DeleteSelected ->
             let
                 ids =
-                    Set.fromList (Table.selectedIds model.client.table)
+                    Set.fromList (List.map orderIdText (Table.selectedIds orderRows model.client.table))
             in
             ( withClient
                 (\c ->
                     { c
-                        | orders = Remote.map (List.filter (\o -> not (Set.member o.id ids))) c.orders
+                        | orders = Remote.map (List.filter (\o -> not (Set.member (orderIdText o.id) ids))) c.orders
                         , table = Table.clearSelection c.table
                         , lastEvent = countText (Set.size ids) "order" "orders" ++ " deleted."
                     }
@@ -456,7 +457,7 @@ update msg model =
                     Table.selectedCount server.total server.table
 
                 how =
-                    case Table.selection server.table of
+                    case Table.selection orderRows server.table of
                         Table.AllMatching { except } ->
                             if List.isEmpty except then
                                 "all rows matching the query"
@@ -523,7 +524,7 @@ update msg model =
         PickingNotified ->
             let
                 names =
-                    Table.selectedIds model.simple.picking
+                    Table.selectedIds Table.stringIds model.simple.picking
             in
             -- the selection is over, and the bar with the button that was pressed with it
             ( withSimple
@@ -640,7 +641,7 @@ update msg model =
 
 {-| Stores the new state of a table and maps its commands.
 -}
-tableStep : (Table.State -> Model) -> (Table.Msg -> Msg) -> ( Table.State, Cmd Table.Msg ) -> ( Model, Cmd Msg )
+tableStep : (Table.State id -> Model) -> (Table.Msg -> Msg) -> ( Table.State id, Cmd Table.Msg ) -> ( Model, Cmd Msg )
 tableStep store toMsg =
     Tuple.mapBoth store (Cmd.map toMsg)
 
@@ -803,14 +804,14 @@ serve q =
 
 searchText : Order -> String
 searchText o =
-    Search.normalize (String.join "\n" [ o.id, o.customer, o.city, orderStatusLabel o.status, ownerName o ])
+    Search.normalize (String.join "\n" [ orderIdText o.id, o.customer, o.city, orderStatusLabel o.status, ownerName o ])
 
 
 matchesFilter : Order -> ( Table.ColumnId, Table.Filter ) -> Bool
 matchesFilter o ( column, filter ) =
     case ( Table.columnName column, filter ) of
         ( "id", Table.Contains text ) ->
-            contains text o.id
+            contains text (orderIdText o.id)
 
         ( "customer", Table.Contains text ) ->
             contains text o.customer
@@ -841,14 +842,14 @@ compareBy : List ( Table.ColumnId, Table.Direction ) -> Order -> Order -> Basics
 compareBy levels a b =
     case levels of
         [] ->
-            compare a.id b.id
+            compare (orderIdText a.id) (orderIdText b.id)
 
         ( column, direction ) :: rest ->
             let
                 order =
                     case Table.columnName column of
                         "id" ->
-                            compare a.id b.id
+                            compare (orderIdText a.id) (orderIdText b.id)
 
                         "customer" ->
                             alphabetical direction a.customer b.customer
@@ -1122,12 +1123,12 @@ canCancel o =
 
 ownerName : Order -> String
 ownerName o =
-    Maybe.withDefault "" o.owner
+    o.owner |> Maybe.map Sample.ownerName |> Maybe.withDefault ""
 
 
 orderLabel : Order -> String
 orderLabel o =
-    o.id ++ ", " ++ o.customer
+    orderIdText o.id ++ ", " ++ o.customer
 
 
 orderTone : Order -> Maybe Tone
@@ -1224,6 +1225,7 @@ steps o =
 ownerSurname : Order -> String
 ownerSurname o =
     o.owner
+        |> Maybe.map Sample.ownerName
         |> Maybe.map (String.words >> List.reverse >> List.head >> Maybe.withDefault "")
         |> Maybe.withDefault ""
 
@@ -1291,11 +1293,11 @@ disabledUnless allowed item =
 orderDetail : Locale -> Order -> Html Msg
 orderDetail locale o =
     DescriptionList.view [ DescriptionList.columns 3, DescriptionList.compact, DescriptionList.locale locale ]
-        [ DescriptionList.text "Warehouse" o.warehouse
+        [ DescriptionList.text "Warehouse" (Sample.warehouseName o.warehouse)
         , DescriptionList.text "Created" (Format.date locale o.created)
         , DescriptionList.text "Due" (Format.dateLong locale o.due)
         , DescriptionList.maybe "Delivered" (Maybe.map (Format.dateLong locale) o.delivered)
-        , DescriptionList.maybe "Owner" o.owner
+        , DescriptionList.maybe "Owner" (Maybe.map Sample.ownerName o.owner)
         , DescriptionList.text "Total" (Format.currency locale "$" 2 o.total)
         , DescriptionList.text "Note" o.note |> DescriptionList.fullWidth
         ]
@@ -1307,7 +1309,7 @@ orderDetail locale o =
 
 clientColumns : List (Table.Column Order Msg)
 clientColumns =
-    [ Table.text columnIds.id "Order" .id [ Table.pinned, Table.width 112, Table.filterText, Table.alwaysVisible ]
+    [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.pinned, Table.width 112, Table.filterText, Table.alwaysVisible ]
     , Table.text columnIds.customer "Customer" .customer [ Table.minWidth 190, Table.filterText ]
     , Table.text columnIds.email "Email" .email [ Table.minWidth 240, Table.filterText ]
     , Table.text columnIds.city "City" .city [ Table.width 132, Table.filterSelect ]
@@ -1317,14 +1319,14 @@ clientColumns =
     , Table.date columnIds.due "Due" .due [ Table.width 124, Table.hint "The day the order is due. Click to sort." ]
     , Table.int columnIds.lines "Lines" .lines [ Table.width 100, Table.filterRange, Table.footerAverage ]
     , Table.float columnIds.total "Total" 2 .total [ Table.width 124, Table.filterRange, Table.footerSum, Table.hint "The order total in US dollars. Click to sort." ]
-    , Table.text columnIds.warehouse "Warehouse" .warehouse [ Table.width 116, Table.hiddenByDefault, Table.notSearchable ]
+    , Table.text columnIds.warehouse "Warehouse" (.warehouse >> Api.Types.warehouseIdText) [ Table.width 116, Table.hiddenByDefault, Table.notSearchable ]
     , Table.text columnIds.note "Note" .note [ Table.minWidth 240, Table.hiddenByDefault ]
     ]
 
 
 serverColumns : List (Table.Column Order Msg)
 serverColumns =
-    [ Table.text columnIds.id "Order" .id [ Table.width 112, Table.filterText ]
+    [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.width 112, Table.filterText ]
     , Table.text columnIds.customer "Customer" .customer [ Table.minWidth 190, Table.filterText ]
     , Table.text columnIds.city "City" .city [ Table.width 132, Table.filterOptions (List.sort Sample.cities) ]
     , Table.badge columnIds.status "Status" statusEntry [ Table.width 120, Table.filterOptions statusLabels ]
@@ -1339,7 +1341,7 @@ the cell of the total and the footer of the id write a currency and a count.
 -}
 kindColumns : Locale -> List (Table.Column Order Msg)
 kindColumns locale =
-    [ Table.text columnIds.id "Order" .id [ Table.width 108, Table.cell (.id >> Text.mono), Table.footer (orderCount locale) ]
+    [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.width 108, Table.cell (.id >> orderIdText >> Text.mono), Table.footer (orderCount locale) ]
     , Table.status columnIds.priority "Priority" priorityEntry [ Table.width 104, Table.sortNumber (.priority >> priorityRank) ]
     , Table.badge columnIds.status "Status" statusEntry [ Table.width 108, Table.sortNumber (.status >> statusRank) ]
     , Table.bool columnIds.overdue "Overdue" isOverdue [ Table.filterSelect ]
@@ -1374,7 +1376,7 @@ totalFooter locale orders =
 viewProgress : Locale -> Order -> Html Msg
 viewProgress locale o =
     Progress.view
-        [ Progress.ariaLabel ("Progress of " ++ o.id)
+        [ Progress.ariaLabel ("Progress of " ++ orderIdText o.id)
         , Progress.locale locale
         , Progress.outOf (steps o) 4
         , Progress.segments 4
@@ -1396,8 +1398,8 @@ progressText o =
 
 orderButtons : Order -> List (Html Msg)
 orderButtons o =
-    [ Button.iconOnly [ Button.ghost, Button.small, Button.onClick (ColumnAction ("Opened " ++ o.id ++ ".")) ] Icon.externalLink ("Open " ++ o.id)
-    , Button.iconOnly [ Button.ghost, Button.small, Button.onClick (ColumnAction ("A label for " ++ o.id ++ " is on its way to the printer.")) ] Icon.print ("Print a label for " ++ o.id)
+    [ Button.iconOnly [ Button.ghost, Button.small, Button.onClick (ColumnAction ("Opened " ++ orderIdText o.id ++ ".")) ] Icon.externalLink ("Open " ++ orderIdText o.id)
+    , Button.iconOnly [ Button.ghost, Button.small, Button.onClick (ColumnAction ("A label for " ++ orderIdText o.id ++ " is on its way to the printer.")) ] Icon.print ("Print a label for " ++ orderIdText o.id)
     ]
 
 
@@ -1405,13 +1407,13 @@ orderButtons o =
 -}
 sortingColumns : Locale -> List (Table.Column Order Msg)
 sortingColumns locale =
-    [ Table.text columnIds.id "Order" .id [ Table.width 112, Table.filterText ]
+    [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.width 112, Table.filterText ]
     , Table.text columnIds.owner "Owner" ownerName [ Table.minWidth 140, Table.sortText ownerSurname, Table.hint "Sorted by last name" ]
     , Table.text columnIds.due "Due" (.due >> Format.dateLong locale) [ Table.width 146, Table.sortDate .due, Table.exportAs (.due >> Date.toIso), Table.hint "Shown in full, sorted by date, exported as an ISO date" ]
     , Table.text columnIds.delivery "Delivery" deliveryText [ Table.width 124, Table.alignRight, Table.sortMaybeNumber (daysLate >> Maybe.map toFloat), Table.hint "Early or late compared with the due date. Orders that are not delivered yet sort last." ]
     , Table.status columnIds.priority "Priority" priorityEntry [ Table.width 112, Table.sortWith compareByPriority ]
     , Table.int columnIds.lines "Lines" .lines [ Table.width 100, Table.includeInSearch ]
-    , Table.text columnIds.warehouse "Warehouse" .warehouse [ Table.width 120, Table.alignCenter, Table.notSearchable ]
+    , Table.text columnIds.warehouse "Warehouse" (.warehouse >> Api.Types.warehouseIdText) [ Table.width 120, Table.alignCenter, Table.notSearchable ]
     , Table.text columnIds.note "Note" .note [ Table.width 200, Table.wrap, Table.unsortable, Table.notExported ]
     ]
 
@@ -1432,7 +1434,7 @@ ownerRows =
             (\name ->
                 let
                     theirs =
-                        List.filter (\o -> o.owner == Just name) Sample.orders
+                        List.filter (\o -> Maybe.map Sample.ownerName o.owner == Just name) Sample.orders
 
                     count =
                         List.length theirs
@@ -1464,7 +1466,7 @@ fit their card, so no scrollbar sits under a message.
 -}
 smallColumns : List (Table.Column Order Msg)
 smallColumns =
-    [ Table.text columnIds.id "Order" .id [ Table.minWidth 110 ]
+    [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.minWidth 110 ]
     , Table.text columnIds.city "City" .city [ Table.width 110, Table.filterSelect ]
     , Table.badge columnIds.status "Status" statusEntry [ Table.width 120 ]
     , Table.float columnIds.total "Total" 2 .total [ Table.width 110 ]
@@ -1483,7 +1485,7 @@ narrowColumns =
     , Table.date columnIds.due "Due" .due [ Table.width 120 ]
     , Table.float columnIds.total "Total" 2 .total [ Table.width 100 ]
     , Table.bool columnIds.assigned "Assigned" (\o -> o.owner /= Nothing) [ Table.width 100, Table.filterSelect ]
-    , Table.text columnIds.warehouse "Warehouse" .warehouse [ Table.width 116 ]
+    , Table.text columnIds.warehouse "Warehouse" (.warehouse >> Api.Types.warehouseIdText) [ Table.width 116 ]
     ]
 
 
@@ -1498,7 +1500,7 @@ narrowOrders =
                     | customer = "Aurora Intercontinental Freight and Logistics Holding Company Ltd"
                     , email = "accounts-payable.department@aurora-intercontinental-freight.example"
                     , note = "A very long note that does not fit in the cell: call before delivery, the pallet must stay below 1.8 m, and the invoice goes to the head office as agreed in the \"framework contract\"."
-                    , warehouse = "Rotterdam Hub"
+                    , warehouse = Api.Types.warehouseId "RTM"
                  }
                     :: List.take 299 rest
                 )
@@ -1509,7 +1511,7 @@ narrowOrders =
 
 norwegianColumns : List (Table.Column Order Msg)
 norwegianColumns =
-    [ Table.text columnIds.id "Order" .id [ Table.width 112 ]
+    [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.width 112 ]
     , Table.text columnIds.customer "Customer" .customer [ Table.minWidth 190, Table.filterText ]
     , Table.date columnIds.due "Due" .due [ Table.width 124 ]
     , Table.int columnIds.lines "Lines" .lines [ Table.width 100, Table.filterRange, Table.footerAverage ]
@@ -1548,7 +1550,7 @@ savedViewName saved =
 {-| A view is a table state built with the setters, as it could be read from a
 saved view or the URL.
 -}
-applyView : SavedView -> Table.State
+applyView : SavedView -> Table.State OrderId
 applyView saved =
     let
         fresh =
@@ -1587,8 +1589,8 @@ applyView saved =
 
         ReviewOrders ->
             fresh
-                |> Table.setExpanded "ORD-10001" True
-                |> Table.setSelected [ "ORD-10002", "ORD-10003" ] True
+                |> Table.setExpanded orderRows (orderId "ORD-10001") True
+                |> Table.setSelected orderRows [ orderId "ORD-10002", orderId "ORD-10003" ] True
 
 
 densityText : Theme.Density -> String
@@ -1604,7 +1606,7 @@ densityText density =
             "Comfortable"
 
 
-columnText : Table.ColumnId -> Table.State -> String
+columnText : Table.ColumnId -> Table.State OrderId -> String
 columnText id table =
     case Table.isColumnVisible id table of
         Just True ->
@@ -1619,12 +1621,12 @@ columnText id table =
 
 {-| The state of the table read back with the accessors.
 -}
-stateBlock : Table.State -> String
+stateBlock : Table.State OrderId -> String
 stateBlock table =
     String.join "\n"
         [ queryBlock (Table.query table)
-        , "selectedIds = " ++ stringList (Table.selectedIds table)
-        , "expandedIds = " ++ stringList (Table.expandedIds table)
+        , "selectedIds = " ++ stringList (List.map orderIdText (Table.selectedIds orderRows table))
+        , "expandedIds = " ++ stringList (List.map orderIdText (Table.expandedIds orderRows table))
         , "density = " ++ densityText (Table.density table)
         , "note column = " ++ columnText columnIds.note table
         ]
@@ -1710,7 +1712,7 @@ clientSection locale client =
                 , Table.view ClientTable
                     ([ Table.columns clientColumns
                      , Table.rows client.orders
-                     , Table.rowId .id
+                     , Table.rowId orderRows .id
                      , Table.rowLabel orderLabel
                      , Table.label "Orders"
                      , Table.locale locale
@@ -1746,7 +1748,7 @@ clientSection locale client =
                     client.table
                 , eventRow "Event" client.lastEvent
                 , Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Text.caption ("Selected: " ++ Format.int locale (List.length (Table.selectedIds client.table)) ++ " · Query:")
+                    [ Text.caption ("Selected: " ++ Format.int locale (List.length (Table.selectedIds orderRows client.table)) ++ " · Query:")
                     , Text.code (queryText (Table.query client.table))
                     ]
                 ]
@@ -1763,11 +1765,11 @@ clientCode =
         , Table.badge (columnIds.status) "Status" statusEntry [ Table.filterOptions statusLabels ]
         , Table.date (columnIds.due) "Due" .due []
         , Table.float (columnIds.total) "Total" 2 .total [ Table.filterRange, Table.footerSum ]
-        , Table.text (columnIds.warehouse) "Warehouse" .warehouse [ Table.hiddenByDefault ]
+        , Table.text (columnIds.warehouse) "Warehouse" (.warehouse >> Api.Types.warehouseIdText) [ Table.hiddenByDefault ]
         ]
     , Table.rows model.orders -- Remote (List Order), kept in the model
-    , Table.rowId .id
-    , Table.rowLabel .id
+    , Table.rowId orderRows .id
+    , Table.rowLabel (.id >> orderIdText)
     , Table.searchable
     , Table.multiSort
     , Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
@@ -1788,7 +1790,7 @@ clientCode =
     ]
     model.table
 
--- update: DeleteSelected -> remove (Table.selectedIds model.table),
+-- update: DeleteSelected -> remove (Table.selectedIds orderRows model.table),
 -- then Table.clearSelection, and Cmd.map TableMsg (Table.focus model.table)"""
 
 
@@ -1841,7 +1843,7 @@ serverSection locale server =
                     , Table.server { total = server.total }
                     , Table.rows server.rows
                     , Table.refreshing server.refreshing
-                    , Table.rowId .id
+                    , Table.rowId orderRows .id
                     , Table.rowLabel orderLabel
                     , Table.label "Orders from the server"
                     , Table.locale locale
@@ -1920,8 +1922,8 @@ columnsSection locale columns =
                 [ Table.view KindsTable
                     [ Table.columns (kindColumns locale)
                     , Table.rows someOrders
-                    , Table.rowId .id
-                    , Table.rowLabel .id
+                    , Table.rowId orderRows .id
+                    , Table.rowLabel (.id >> orderIdText)
                     , Table.label "Order columns"
                     , Table.locale locale
                     , Table.exportCsv "orders-kinds.csv"
@@ -1940,8 +1942,8 @@ columnsSection locale columns =
                 [ Table.view SortingTable
                     [ Table.columns (sortingColumns locale)
                     , Table.rows someOrders
-                    , Table.rowId .id
-                    , Table.rowLabel .id
+                    , Table.rowId orderRows .id
+                    , Table.rowLabel (.id >> orderIdText)
                     , Table.label "Order sorting and export"
                     , Table.locale locale
                     , Table.searchable
@@ -2022,7 +2024,7 @@ sortingCode =
         , Table.status (columnIds.priority) "Priority" priorityEntry
             [ Table.sortWith compareByPriority ]
         , Table.int (columnIds.lines) "Lines" .lines [ Table.includeInSearch ]
-        , Table.text (columnIds.warehouse) "Warehouse" .warehouse
+        , Table.text (columnIds.warehouse) "Warehouse" (.warehouse >> Api.Types.warehouseIdText)
             [ Table.alignCenter, Table.notSearchable ]
         , Table.text (columnIds.note) "Note" .note
             [ Table.wrap, Table.unsortable, Table.notExported ]
@@ -2068,7 +2070,7 @@ viewsSection locale views =
                 , Table.view ViewsTable
                     [ Table.columns clientColumns
                     , Table.rows allOrders
-                    , Table.rowId .id
+                    , Table.rowId orderRows .id
                     , Table.rowLabel orderLabel
                     , Table.label "Orders with saved views"
                     , Table.locale locale
@@ -2088,7 +2090,7 @@ viewsSection locale views =
 viewsCode : String
 viewsCode =
     """-- a view is a state, built with the setters
-largeOrders : Table.State
+largeOrders : Table.State OrderId
 largeOrders =
     Table.init "orders"
         |> Table.setSort [ ( columnIds.total, Table.Descending ) ]
@@ -2098,7 +2100,7 @@ largeOrders =
         |> Table.setDensity Theme.Compact
 
 -- or all at once, from a saved query or the URL
-openAndUrgent : Table.State
+openAndUrgent : Table.State OrderId
 openAndUrgent =
     Table.setQuery
         { search = ""
@@ -2110,11 +2112,11 @@ openAndUrgent =
         (Table.init "orders")
 
 -- rows can be opened and selected too
-reviewOrders : Table.State
+reviewOrders : Table.State OrderId
 reviewOrders =
     Table.init "orders"
-        |> Table.setExpanded "ORD-10001" True
-        |> Table.setSelected [ "ORD-10002", "ORD-10003" ] True
+        |> Table.setExpanded orderRows (orderId "ORD-10001") True
+        |> Table.setSelected orderRows [ (orderId "ORD-10002"), (orderId "ORD-10003") ] True
 
 -- change the state the user has now
 Table.clearFilters model.table -- the search and the column filters
@@ -2122,10 +2124,10 @@ Table.setPage 3 model.table
 
 -- and read it back
 Table.query model.table -- search, sort, filters, page and page size
-Table.selectedIds model.table
-Table.isSelected "ORD-10002" model.table
-Table.expandedIds model.table
-Table.isExpanded "ORD-10001" model.table
+Table.selectedIds orderRows model.table
+Table.isSelected orderRows (orderId "ORD-10002") model.table
+Table.expandedIds orderRows model.table
+Table.isExpanded orderRows (orderId "ORD-10001") model.table
 Table.isColumnVisible (columnIds.note) model.table -- Maybe Bool
 Table.density model.table"""
 
@@ -2146,7 +2148,7 @@ simpleSection locale simple =
             (Table.view OwnersTable
                 [ Table.columns ownerColumns
                 , Table.rows ownerRows
-                , Table.rowId .name
+                , Table.rowId Table.stringIds .name
                 , Table.label "Owners"
                 , Table.locale locale
                 , Table.unpaged
@@ -2163,7 +2165,7 @@ simpleSection locale simple =
                 [ Table.view PickingTable
                     [ Table.columns ownerColumns
                     , Table.rows ownerRows
-                    , Table.rowId .name
+                    , Table.rowId Table.stringIds .name
                     , Table.label "Owners with selection"
                     , Table.locale locale
                     , Table.unpaged
@@ -2185,7 +2187,7 @@ ownersCode =
         , Table.float (columnIds.averageTotal) "Average total" 2 .averageTotal []
         ]
     , Table.rows model.rows
-    , Table.rowId .name
+    , Table.rowId Table.stringIds .name
     , Table.unpaged
     , Table.zebra
     ]
@@ -2197,7 +2199,7 @@ pickingCode =
     """Table.view TableMsg
     [ Table.columns columns
     , Table.rows model.owners
-    , Table.rowId .name
+    , Table.rowId Table.stringIds .name
     , Table.unpaged
     , Table.bulkActions [ Button.view [ Button.small, Button.onClick SendSummary ] "Send summary" ]
     ]
@@ -2230,7 +2232,7 @@ statesSection locale states =
                 [ Table.view EmptyTable
                     [ Table.columns smallColumns
                     , Table.rows noOrders
-                    , Table.rowId .id
+                    , Table.rowId orderRows .id
                     , Table.label "No orders"
                     , Table.locale locale
                     , Table.searchable
@@ -2252,7 +2254,7 @@ statesSection locale states =
             (Table.view NoMatchTable
                 [ Table.columns smallColumns
                 , Table.rows allOrders
-                , Table.rowId .id
+                , Table.rowId orderRows .id
                 , Table.label "Orders without matches"
                 , Table.locale locale
                 , Table.searchable
@@ -2268,7 +2270,7 @@ statesSection locale states =
             (Table.view LoadingTable
                 [ Table.columns smallColumns
                 , Table.rows Remote.Loading
-                , Table.rowId .id
+                , Table.rowId orderRows .id
                 , Table.label "Orders that are loading"
                 , Table.locale locale
                 , Table.searchable
@@ -2302,7 +2304,7 @@ statesSection locale states =
                 , Table.view FailedTable
                     [ Table.columns smallColumns
                     , Table.rows lifecycle.rows
-                    , Table.rowId .id
+                    , Table.rowId orderRows .id
                     , Table.label "Orders that failed to load"
                     , Table.locale locale
                     , Table.onRetry FailedRetry
@@ -2361,7 +2363,7 @@ failedCode =
 -- VIEW: NARROW CONTAINER
 
 
-narrowSection : Locale -> Table.State -> Html Msg
+narrowSection : Locale -> Table.State OrderId -> Html Msg
 narrowSection locale table =
     Doc.section "Narrow and long"
         "Many columns in a narrow container: the table scrolls sideways with a discreet shadow at the edge, the first column stays in place, and the header stays put while the rows scroll. Long values are cut with … and shown in full as a tooltip."
@@ -2374,7 +2376,7 @@ narrowSection locale table =
                 [ Table.view NarrowTable
                     [ Table.columns narrowColumns
                     , Table.rows narrowOrders
-                    , Table.rowId .id
+                    , Table.rowId orderRows .id
                     , Table.rowLabel orderLabel
                     , Table.label "Orders in a narrow container"
                     , Table.locale locale
@@ -2415,7 +2417,7 @@ narrowCode =
 -- VIEW: LOCALE
 
 
-norwegianSection : Table.State -> Html Msg
+norwegianSection : Table.State OrderId -> Html Msg
 norwegianSection table =
     Doc.section "Locale"
         "The built-in text (the search placeholder, the filter popovers, the footer, what screen readers hear), the number and date formats, the alphabetical order of text and the CSV separator follow the table's locale. The titles of your columns, and everything else you pass in, are your own text."
@@ -2427,7 +2429,7 @@ norwegianSection table =
             (Table.view NorwegianTable
                 [ Table.columns norwegianColumns
                 , Table.rows allOrders
-                , Table.rowId .id
+                , Table.rowId orderRows .id
                 , Table.label "Orders in Norwegian"
                 , Table.locale Locale.nb
                 , Table.searchable

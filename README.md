@@ -16,7 +16,7 @@ Table.view TableMsg
         , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
         ]
     , Table.rows model.orders -- a Remote (List Order): loading, failure and empty are drawn for you
-    , Table.rowId .id
+    , Table.rowId orderRows .id -- your own OrderId; see Table.rowIds
     , Table.searchable
     , Table.selectable
     , Table.onRetry Reload
@@ -123,6 +123,7 @@ every module has an example.
 | | Modules |
 | --- | --- |
 | **Foundations** | `Theme`, `Locale`, `Layout`, `Card`, `Text`, `Icon` |
+| **Icon library** | 500 icons in one style: `Icon` and `Icon.Library`, plus `Icon.Arrows`, `Icon.Business`, `Icon.Data`, `Icon.Documents`, `Icon.Logistics` and more (see [ICONS.md](ICONS.md)) |
 | **Actions** | `Button`, `Menu` |
 | **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
 | **Forms** | `Form`, `Field`, `Validate` |

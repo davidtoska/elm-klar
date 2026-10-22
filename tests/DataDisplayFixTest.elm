@@ -124,12 +124,12 @@ nodeLabel id =
     "Node " ++ id
 
 
-leaves : List Tree.Node
+leaves : List (Tree.Node String)
 leaves =
-    List.map (\id -> Tree.leaf id (nodeLabel id)) awkwardIds
+    List.map (\id -> Tree.leaf Tree.stringIds id (nodeLabel id)) awkwardIds
 
 
-start : Tree.State
+start : Tree.State String
 start =
     Tree.init treeId
 
@@ -167,12 +167,12 @@ nameId nodeId =
     treeId ++ "-l-" ++ encode nodeId
 
 
-treeHtml : Tree.State -> List Tree.Node -> Html Msg
+treeHtml : Tree.State String -> List (Tree.Node String) -> Html Msg
 treeHtml state nodes =
     Tree.view TreeMsg [ Tree.ariaLabel "Catalog", Tree.onActivate Activated ] state nodes
 
 
-applyMsg : Tree.State -> Msg -> Tree.State
+applyMsg : Tree.State String -> Msg -> Tree.State String
 applyMsg state msg =
     case msg of
         TreeMsg treeMsg ->
@@ -210,7 +210,7 @@ plainClick =
 {-| A key pressed while the element with this DOM id has the focus: the message
 that the tree sends, or why it sends none.
 -}
-press : Tree.State -> List Tree.Node -> String -> String -> Result String Msg
+press : Tree.State String -> List (Tree.Node String) -> String -> String -> Result String Msg
 press state nodes targetId key =
     treeHtml state nodes
         |> Query.fromHtml
@@ -221,7 +221,7 @@ press state nodes targetId key =
 
 {-| `press`, and then give the message to `Tree.update`.
 -}
-pressAndUpdate : Tree.State -> List Tree.Node -> String -> String -> Result String Tree.State
+pressAndUpdate : Tree.State String -> List (Tree.Node String) -> String -> String -> Result String (Tree.State String)
 pressAndUpdate state nodes targetId key =
     press state nodes targetId key
         |> Result.map (applyMsg state)
@@ -231,7 +231,7 @@ pressAndUpdate state nodes targetId key =
 same key when it comes from the element of the node. Only the target differs, so
 the tree is there, it listens, and it is the target that it does not accept.
 -}
-expectIgnoredFrom : Tree.State -> List Tree.Node -> String -> String -> String -> Expectation
+expectIgnoredFrom : Tree.State String -> List (Tree.Node String) -> String -> String -> String -> Expectation
 expectIgnoredFrom state nodes nodeId targetId key =
     Expect.all
         [ \_ -> press state nodes (itemId nodeId) key |> expectOk
@@ -243,7 +243,7 @@ expectIgnoredFrom state nodes nodeId targetId key =
 {-| Click the row with this label and give the message to `Tree.update`: the
 node is selected and has the keyboard focus, as when a user clicks it.
 -}
-clickRow : Tree.State -> List Tree.Node -> String -> Result String Tree.State
+clickRow : Tree.State String -> List (Tree.Node String) -> String -> Result String (Tree.State String)
 clickRow state nodes rowLabel =
     treeHtml state nodes
         |> Query.fromHtml
@@ -256,7 +256,7 @@ clickRow state nodes rowLabel =
 {-| Click the row with this label, and then check the state that the click gave.
 When the click does not work, the test fails with the reason.
 -}
-afterClick : List Tree.Node -> String -> (Tree.State -> Expectation) -> Expectation
+afterClick : List (Tree.Node String) -> String -> (Tree.State String -> Expectation) -> Expectation
 afterClick nodes rowLabel check =
     case clickRow start nodes rowLabel of
         Ok clicked ->
@@ -269,7 +269,7 @@ afterClick nodes rowLabel check =
 {-| Press these keys one after the other. Every step names the node whose element
 has the focus when the key goes down, and the key.
 -}
-play : List Tree.Node -> Tree.State -> List ( String, String ) -> Result String Tree.State
+play : List (Tree.Node String) -> Tree.State String -> List ( String, String ) -> Result String (Tree.State String)
 play nodes state steps =
     List.foldl
         (\( nodeId, key ) result ->
@@ -288,7 +288,7 @@ treeIdTests =
                         let
                             tricky =
                                 [ "x", "x_row", "x.row", "x-row", "x_95_row", "a", "a_" ]
-                                    |> List.map (\id -> Tree.leaf id (nodeLabel id))
+                                    |> List.map (\id -> Tree.leaf Tree.stringIds id (nodeLabel id))
 
                             html =
                                 treeHtml start tricky |> Query.fromHtml
@@ -340,13 +340,13 @@ treeKeyTests =
                     \_ ->
                         clickRow start leaves (nodeLabel "dir/row")
                             |> Result.andThen (\state -> pressAndUpdate state leaves (itemId "dir/row") "End")
-                            |> Result.map Tree.focused
+                            |> Result.map (Tree.focused Tree.stringIds)
                             |> Expect.equal (Ok (Just "plain"))
                , test "Home jumps back to the first node" <|
                     \_ ->
                         clickRow start leaves (nodeLabel "plain")
                             |> Result.andThen (\state -> pressAndUpdate state leaves (itemId "plain") "Home")
-                            |> Result.map Tree.focused
+                            |> Result.map (Tree.focused Tree.stringIds)
                             |> Expect.equal (Ok (Just "orders.row"))
                , test "a key from a control that has no id (a button in the tree) is not a key of the tree" <|
                     \_ ->
@@ -388,13 +388,13 @@ arrowTests =
                 \_ ->
                     clickRow start leaves (nodeLabel from)
                         |> Result.andThen (\state -> pressAndUpdate state leaves (itemId from) "ArrowDown")
-                        |> Result.map Tree.focused
+                        |> Result.map (Tree.focused Tree.stringIds)
                         |> Expect.equal (Ok (Just to))
             , test ("ArrowUp moves from " ++ to ++ " to " ++ from) <|
                 \_ ->
                     clickRow start leaves (nodeLabel to)
                         |> Result.andThen (\state -> pressAndUpdate state leaves (itemId to) "ArrowUp")
-                        |> Result.map Tree.focused
+                        |> Result.map (Tree.focused Tree.stringIds)
                         |> Expect.equal (Ok (Just from))
             ]
         )
@@ -405,12 +405,13 @@ arrowTests =
 -- TREE: BRANCHES WITH AWKWARD IDS
 
 
-family : List Tree.Node
+family : List (Tree.Node String)
 family =
-    [ Tree.branch "dir/row"
+    [ Tree.branch Tree.stringIds
+        "dir/row"
         "Dir"
-        [ Tree.leaf "dir/row/a.row" "Child A"
-        , Tree.leaf "dir/row/b_row" "Child B"
+        [ Tree.leaf Tree.stringIds "dir/row/a.row" "Child A"
+        , Tree.leaf Tree.stringIds "dir/row/b_row" "Child B"
         ]
     ]
 
@@ -422,13 +423,13 @@ treeNestedTests =
             \_ ->
                 clickRow start family "Dir"
                     |> Result.andThen (\state -> play family state [ ( "dir/row", "ArrowRight" ) ])
-                    |> Result.map (Tree.isExpanded "dir/row")
+                    |> Result.map (Tree.isExpanded Tree.stringIds "dir/row")
                     |> Expect.equal (Ok True)
         , test "ArrowDown then goes into the branch" <|
             \_ ->
                 clickRow start family "Dir"
                     |> Result.andThen (\state -> play family state [ ( "dir/row", "ArrowRight" ), ( "dir/row", "ArrowDown" ) ])
-                    |> Result.map Tree.focused
+                    |> Result.map (Tree.focused Tree.stringIds)
                     |> Expect.equal (Ok (Just "dir/row/a.row"))
         , test "ArrowLeft on a child goes back to the parent" <|
             \_ ->
@@ -442,7 +443,7 @@ treeNestedTests =
                                 , ( "dir/row/a.row", "ArrowLeft" )
                                 ]
                         )
-                    |> Result.map Tree.focused
+                    |> Result.map (Tree.focused Tree.stringIds)
                     |> Expect.equal (Ok (Just "dir/row"))
         , test "ArrowLeft on the open parent closes it" <|
             \_ ->
@@ -455,7 +456,7 @@ treeNestedTests =
                                 , ( "dir/row", "ArrowLeft" )
                                 ]
                         )
-                    |> Result.map (Tree.isExpanded "dir/row")
+                    |> Result.map (Tree.isExpanded Tree.stringIds "dir/row")
                     |> Expect.equal (Ok False)
         , test "a child with an awkward id can be walked to and activated" <|
             \_ ->
@@ -495,7 +496,7 @@ treePropertyTests =
             \id ->
                 let
                     nodes =
-                        [ Tree.leaf id "Only node" ]
+                        [ Tree.leaf Tree.stringIds id "Only node" ]
                 in
                 clickRow start nodes "Only node"
                     |> Result.andThen (\state -> press state nodes (itemId id) "Enter")
@@ -508,7 +509,7 @@ treePropertyTests =
                 else
                     let
                         html =
-                            treeHtml start [ Tree.leaf first "First", Tree.leaf second "Second" ]
+                            treeHtml start [ Tree.leaf Tree.stringIds first "First", Tree.leaf Tree.stringIds second "Second" ]
                                 |> Query.fromHtml
                     in
                     Expect.all

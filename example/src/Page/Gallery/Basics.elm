@@ -161,7 +161,7 @@ optionWarehouses =
 
 tagRemoveId : Types.Warehouse -> String
 tagRemoveId warehouse =
-    "basics-tag-remove-" ++ String.toLower warehouse.id
+    "basics-tag-remove-" ++ String.toLower (Types.warehouseIdText warehouse.id)
 
 
 tagsResetId : String
@@ -201,7 +201,7 @@ longMenuId =
 
 rowMenuId : Types.Order -> String
 rowMenuId order =
-    "basics-menu-row-" ++ order.id
+    "basics-menu-row-" ++ Types.orderIdText order.id
 
 
 
@@ -240,12 +240,12 @@ update msg model =
         TagRemoved id ->
             let
                 remaining =
-                    List.filter (\warehouse -> warehouse.id /= id) model.tags
+                    List.filter (\warehouse -> Types.warehouseIdText warehouse.id /= id) model.tags
 
                 position =
                     model.tags
                         |> List.indexedMap Tuple.pair
-                        |> List.filter (\( _, warehouse ) -> warehouse.id == id)
+                        |> List.filter (\( _, warehouse ) -> Types.warehouseIdText warehouse.id == id)
                         |> List.head
                         |> Maybe.map Tuple.first
                         |> Maybe.withDefault 0
@@ -647,13 +647,13 @@ viewMenu model id attributes =
 viewRowWithMenu : Model -> Types.Order -> Html Msg
 viewRowWithMenu model order =
     Layout.row [ Layout.gap 3, Layout.padding 2 ]
-        [ Text.mono order.id
+        [ Text.mono (Types.orderIdText order.id)
         , Text.text order.customer
         , Layout.spacer
         , Labels.statusBadge order.status
         , viewMenu model
             (rowMenuId order)
-            [ Menu.kebab ("Actions for " ++ order.id)
+            [ Menu.kebab ("Actions for " ++ Types.orderIdText order.id)
             , Menu.alignEnd
             , Menu.items (rowMenuItems order)
             ]
@@ -667,12 +667,12 @@ rowMenuItems order =
             List.member Types.Cancelled (Types.allowedNextStatuses order.status)
 
         cancel =
-            Menu.item "Cancel order" (Picked ("Cancel " ++ order.id))
+            Menu.item "Cancel order" (Picked ("Cancel " ++ Types.orderIdText order.id))
                 |> Menu.withIcon Icon.ban
                 |> Menu.danger
     in
-    [ Menu.item "Open" (Picked ("Open " ++ order.id)) |> Menu.withIcon Icon.externalLink
-    , Menu.item "Duplicate" (Picked ("Duplicate " ++ order.id)) |> Menu.withIcon Icon.copy
+    [ Menu.item "Open" (Picked ("Open " ++ Types.orderIdText order.id)) |> Menu.withIcon Icon.externalLink
+    , Menu.item "Duplicate" (Picked ("Duplicate " ++ Types.orderIdText order.id)) |> Menu.withIcon Icon.copy
     , Menu.separator
     , if cancellable then
         cancel
@@ -774,7 +774,7 @@ viewRemovableTag locale warehouse =
         [ Tag.tone Primary
         , Tag.locale locale
         , Tag.removeId (tagRemoveId warehouse)
-        , Tag.onRemove (TagRemoved warehouse.id)
+        , Tag.onRemove (TagRemoved (Types.warehouseIdText warehouse.id))
         ]
         warehouse.name
 
@@ -967,7 +967,7 @@ viewRemote locale model =
 viewOrderRow : Types.Order -> Html Msg
 viewOrderRow order =
     Layout.row [ Layout.gap 3, Layout.padding 3 ]
-        [ Text.mono order.id
+        [ Text.mono (Types.orderIdText order.id)
         , Text.text order.customer
         , Layout.spacer
         , Labels.statusBadge order.status

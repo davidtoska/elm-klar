@@ -92,7 +92,7 @@ give it to the component:
 
 ```elm
 type alias Model =
-    { orders : Remote (List Order), table : Table.State }
+    { orders : Remote (List Order), table : Table.State OrderId }
 
 type Msg
     = GotOrders (Result Http.Error (List Order))
@@ -143,6 +143,29 @@ Select.value model.customer -- Maybe CustomerId
 whose option the server has not sent); without it the field says "Unknown value".
 For a record that is not in the list yet, `Select.setOption` stores the option
 together with the id. Values are compared with `==`, so use plain data.
+
+**Row ids, once.** A table keeps the selection and the open rows by id. Say once how
+your id type is written as a key and read back, and the table speaks your type:
+
+```elm
+orderRows : Table.RowIds OrderId
+orderRows =
+    Table.rowIds { toKey = OrderId.toString, fromKey = OrderId.fromString }
+
+Table.rowId orderRows .id
+Table.selectedIds orderRows model.table -- List OrderId, for "assign 40 orders"
+Table.setSelected orderRows [ id ] False model.table
+```
+
+The table is typed by the id (`Table.State OrderId`), so a table of orders cannot be
+asked about customer ids. Text and whole-number ids have `Table.stringIds` and
+`Table.intIds`.
+
+`Klar.Tree` works the same way (`Tree.nodeIds`, `Tree.State RegionId`, nodes built
+with `Tree.leaf regions id label`), and `Klar.SideNav` is typed by its keys
+(`SideNav.keys`, `SideNav.item pages { key = Orders, ... }`), so a misspelled key is
+a compile error. `Klar.JsonViewer` keeps text: its ids are paths into the JSON
+document, not ids of your data.
 
 **Columns named once.** A table column, a sort, a filter and a hidden column
 refer to the same value, so a misspelled id is a compile error:

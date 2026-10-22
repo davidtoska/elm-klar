@@ -3,6 +3,7 @@ module Api.Types exposing
     , ActivityKind(..)
     , ApiError(..)
     , Country
+    , CountryCode
     , FieldError
     , Lookups
     , Order
@@ -10,18 +11,32 @@ module Api.Types exposing
     , OrderInput
     , OrderQuery
     , OrderStatus(..)
+    , Owner
+    , OwnerId
     , Page
     , Priority(..)
     , Product
     , Summary
     , Warehouse
+    , WarehouseId
     , activityKey
     , allOrderStatuses
     , allPriorities
     , allowedNextStatuses
+    , countryCode
+    , countryCodeText
+    , countryName
     , isEditable
+    , orderId
+    , orderIdText
     , orderStatusLabel
+    , ownerId
+    , ownerIdText
+    , ownerName
     , priorityLabel
+    , warehouseId
+    , warehouseIdText
+    , warehouseName
     )
 
 {-| The contract between the pages and the backend: the records that cross the
@@ -42,8 +57,21 @@ import Time
 -- ORDERS
 
 
-type alias OrderId =
-    String
+{-| The number of an order ("ORD-10001"). A type of its own, so that an order
+number cannot be mixed up with a customer name or a warehouse code.
+-}
+type OrderId
+    = OrderId String
+
+
+orderId : String -> OrderId
+orderId =
+    OrderId
+
+
+orderIdText : OrderId -> String
+orderIdText (OrderId text) =
+    text
 
 
 {-| Where an order is in its life.
@@ -68,12 +96,12 @@ type alias Order =
     { id : OrderId
     , customer : String
     , email : String
-    , country : String
+    , country : CountryCode
     , city : String
     , status : OrderStatus
     , priority : Priority
-    , owner : Maybe String
-    , warehouse : String
+    , owner : Maybe OwnerId
+    , warehouse : WarehouseId
     , created : Date
     , due : Date
     , delivered : Maybe Date
@@ -89,11 +117,11 @@ decides the id, the status and the creation date.
 type alias OrderInput =
     { customer : String
     , email : String
-    , country : String
+    , country : Maybe CountryCode
     , city : String
     , priority : Priority
-    , owner : Maybe String
-    , warehouse : String
+    , owner : Maybe OwnerId
+    , warehouse : Maybe WarehouseId
     , due : Maybe Date
     , lines : Maybe Int
     , total : Maybe Float
@@ -213,18 +241,106 @@ type alias OrderQuery =
 -- REFERENCE DATA
 
 
+{-| The two-letter code of a country ("NL"). A type of its own, so that a country
+cannot be mixed up with a city or a warehouse.
+-}
+type CountryCode
+    = CountryCode String
+
+
+countryCode : String -> CountryCode
+countryCode =
+    CountryCode
+
+
+countryCodeText : CountryCode -> String
+countryCodeText (CountryCode text) =
+    text
+
+
+{-| The code of a warehouse ("RTM").
+-}
+type WarehouseId
+    = WarehouseId String
+
+
+warehouseId : String -> WarehouseId
+warehouseId =
+    WarehouseId
+
+
+warehouseIdText : WarehouseId -> String
+warehouseIdText (WarehouseId text) =
+    text
+
+
+{-| The id of an owner. Not the name: two people can have the same name.
+-}
+type OwnerId
+    = OwnerId String
+
+
+ownerId : String -> OwnerId
+ownerId =
+    OwnerId
+
+
+ownerIdText : OwnerId -> String
+ownerIdText (OwnerId text) =
+    text
+
+
+{-| The name for an id, from the list the server sent. An id the list does not
+have is shown as it is written.
+-}
+countryName : List Country -> CountryCode -> String
+countryName countries code =
+    countries
+        |> List.filter (\c -> c.code == code)
+        |> List.head
+        |> Maybe.map .name
+        |> Maybe.withDefault (countryCodeText code)
+
+
+warehouseName : List Warehouse -> WarehouseId -> String
+warehouseName warehouses id =
+    warehouses
+        |> List.filter (\w -> w.id == id)
+        |> List.head
+        |> Maybe.map .name
+        |> Maybe.withDefault (warehouseIdText id)
+
+
+ownerName : List Owner -> OwnerId -> String
+ownerName owners id =
+    owners
+        |> List.filter (\o -> o.id == id)
+        |> List.head
+        |> Maybe.map .name
+        |> Maybe.withDefault (ownerIdText id)
+
+
 type alias Country =
-    { code : String
+    { code : CountryCode
     , name : String
     , region : String
     }
 
 
 type alias Warehouse =
-    { id : String
+    { id : WarehouseId
     , name : String
     , city : String
-    , country : String
+    , country : CountryCode
+    }
+
+
+{-| Someone who looks after orders. The order holds the `OwnerId`; the name is
+looked up in the list of owners.
+-}
+type alias Owner =
+    { id : OwnerId
+    , name : String
     }
 
 
@@ -233,7 +349,7 @@ type alias Warehouse =
 type alias Lookups =
     { countries : List Country
     , warehouses : List Warehouse
-    , owners : List String
+    , owners : List Owner
     , customers : List String
     }
 

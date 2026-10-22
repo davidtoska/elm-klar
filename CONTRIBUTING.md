@@ -15,8 +15,9 @@ elm.json                 the package (exposed modules, dependencies, version)
 src/Klar.elm             the entry point: stylesheet, conventions, module index
 src/Klar/*.elm           one module per component (Klar.Button, Klar.Select, Klar.Table ...)
 src/Klar/<Name>/         modules that belong to one component and are not exposed
+src/Klar/Icon/           the icon library: one generated module per theme (see ICONS.md)
 src/Klar/Internal/       the generated stylesheet module (do not edit)
-css/src/*.css            the stylesheet sources (tokens, base, icons, one file per group)
+css/src/*.css            the stylesheet sources (tokens, base, the icon frame, one file per group)
 css/klar.css             the generated bundle (do not edit, see "Stylesheet")
 scripts/                 development tools (Node, no dependencies)
 tests/                   unit tests of the pure logic (elm-test)
@@ -32,7 +33,7 @@ npm run check            # everything below
 npm run check:text       # UTF-8, LF line endings, no byte order mark (npm run format repairs them)
 npm run check:css        # the generated stylesheet files are up to date
 npm run check:classes    # every CSS class the Elm code uses has a rule
-npm run check:icons      # every icon value has its rule, and the other way round
+npm run check:icons      # every icon is an Elm value with a valid drawing and a unique name
 npm run check:docs       # every exposed name is documented; elm make --docs passes
 npm run check:api        # no public signature mentions a type a user cannot name
 npm run check:format     # elm-format --validate
@@ -239,7 +240,7 @@ Dropdowns, menus, date pickers and popovers share one mechanism (`css/src/base.c
 - **Reading browser measurements** without ports: `Browser.Dom.getElement`,
   `getViewportOf`.
 - **Graphics without an SVG package**: do not try `Html.Attributes.property "innerHTML"`.
-  Icons are CSS masks over a `data:` SVG in the stylesheet; charts are positioned HTML
+  Icons are Elm values that carry a `data:` SVG and set it as a CSS mask (`Icon.fromSvg`); charts are positioned HTML
   elements, with lines drawn by an SVG written as a `data:` URI and used as a CSS mask
   (see `Klar.Chart`).
 - **Integer math**: Elm's `//` cuts numbers to 32 bits, so do not use it on

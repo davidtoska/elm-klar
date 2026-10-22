@@ -2,13 +2,16 @@ module Showcase.Sample exposing
     ( categoryPaths
     , cities
     , countries
+    , countryName
     , customers
     , now
     , orderById
     , orders
+    , ownerName
     , owners
     , products
     , today
+    , warehouseName
     , warehouses
     )
 
@@ -20,7 +23,7 @@ Only the gallery uses this module. The real pages talk to `Api`.
 
 -}
 
-import Api.Types exposing (Country, Order, OrderId, Product, Warehouse)
+import Api.Types exposing (Country, CountryCode, Order, OrderId, OwnerId, Product, Warehouse, WarehouseId, orderIdText)
 import Backend.Generate as Generate
 import Dict exposing (Dict)
 import Klar.Date exposing (Date)
@@ -48,12 +51,12 @@ orders =
 
 orderIndex : Dict String Order
 orderIndex =
-    orders |> List.map (\o -> ( o.id, o )) |> Dict.fromList
+    orders |> List.map (\o -> ( orderIdText o.id, o )) |> Dict.fromList
 
 
 orderById : OrderId -> Maybe Order
 orderById id =
-    Dict.get id orderIndex
+    Dict.get (orderIdText id) orderIndex
 
 
 {-| 420 company names, all different: for selects that must stay fast with many
@@ -74,9 +77,27 @@ cities =
     Generate.cities
 
 
+{-| The names of the owners. An order holds an `OwnerId`; `ownerName` turns it into
+this name.
+-}
 owners : List String
 owners =
-    Generate.owners
+    List.map .name Generate.owners
+
+
+ownerName : OwnerId -> String
+ownerName id =
+    Api.Types.ownerName Generate.owners id
+
+
+countryName : CountryCode -> String
+countryName code =
+    Api.Types.countryName countries code
+
+
+warehouseName : WarehouseId -> String
+warehouseName id =
+    Api.Types.warehouseName warehouses id
 
 
 warehouses : List Warehouse

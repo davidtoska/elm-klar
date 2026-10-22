@@ -24,6 +24,7 @@ import Api.Types
         ( Activity
         , ActivityKind(..)
         , ApiError(..)
+        , CountryCode
         , FieldError
         , Lookups
         , Order
@@ -31,13 +32,21 @@ import Api.Types
         , OrderInput
         , OrderQuery
         , OrderStatus(..)
+        , OwnerId
         , Page
         , Priority(..)
         , Product
         , Summary
+        , WarehouseId
         , allowedNextStatuses
+        , countryCode
+        , countryCodeText
         , isEditable
+        , orderId
+        , orderIdText
         , orderStatusLabel
+        , ownerIdText
+        , warehouseIdText
         )
 import Backend.Database exposing (Database)
 import Backend.Generate as Generate
@@ -70,7 +79,7 @@ queryOrders query db =
                 List.filter (\o -> List.member o.status query.statuses) db.orders
 
         searchText o =
-            String.join " " [ o.id, o.customer, o.city, o.email, Maybe.withDefault "" o.owner, o.note ]
+            String.join " " [ orderIdText o.id, o.customer, o.city, o.email, Maybe.withDefault "" (Maybe.map ownerName o.owner), o.note ]
 
         searched =
             if String.isEmpty (String.trim query.search) then
@@ -103,24 +112,37 @@ queryOrders query db =
     }
 
 
+{-| The names of the reference data, looked up by the text of the id (an id is not
+`comparable`, so it cannot be a key itself).
+-}
 countryNames : Dict.Dict String String
 countryNames =
-    Generate.countries |> List.map (\c -> ( c.code, c.name )) |> Dict.fromList
+    Generate.countries |> List.map (\c -> ( countryCodeText c.code, c.name )) |> Dict.fromList
 
 
-countryName : String -> String
+countryName : CountryCode -> String
 countryName code =
-    Dict.get code countryNames |> Maybe.withDefault code
+    Dict.get (countryCodeText code) countryNames |> Maybe.withDefault (countryCodeText code)
 
 
 warehouseNames : Dict.Dict String String
 warehouseNames =
-    Generate.warehouses |> List.map (\w -> ( w.id, w.name )) |> Dict.fromList
+    Generate.warehouses |> List.map (\w -> ( warehouseIdText w.id, w.name )) |> Dict.fromList
 
 
-warehouseName : String -> String
+warehouseName : WarehouseId -> String
 warehouseName id =
-    Dict.get id warehouseNames |> Maybe.withDefault id
+    Dict.get (warehouseIdText id) warehouseNames |> Maybe.withDefault (warehouseIdText id)
+
+
+ownerNames : Dict.Dict String String
+ownerNames =
+    Generate.owners |> List.map (\o -> ( ownerIdText o.id, o.name )) |> Dict.fromList
+
+
+ownerName : OwnerId -> String
+ownerName id =
+    Dict.get (ownerIdText id) ownerNames |> Maybe.withDefault (ownerIdText id)
 
 
 type SortKey
@@ -133,7 +155,7 @@ sortKey : String -> Order -> SortKey
 sortKey key o =
     case key of
         "id" ->
-            Text o.id
+            Text (orderIdText o.id)
 
         "customer" ->
             Text (Search.normalize o.customer)
@@ -153,8 +175,8 @@ sortKey key o =
 
         "owner" ->
             case o.owner of
-                Just name ->
-                    Text (Search.normalize name)
+                Just id ->
+                    Text (Search.normalize (ownerName id))
 
                 Nothing ->
                     Missing
@@ -175,7 +197,7 @@ sortKey key o =
             Text (Search.normalize (warehouseName o.warehouse))
 
         _ ->
-            Text o.id
+            Text (orderIdText o.id)
 
 
 {-| Sorting by a column. Orders without a value come last in both directions,
@@ -185,7 +207,7 @@ compareOrders : String -> Bool -> Order -> Order -> Basics.Order
 compareOrders key ascending a b =
     case ( sortKey key a, sortKey key b ) of
         ( Missing, Missing ) ->
-            compare a.id b.id
+            compare (orderIdText a.id) (orderIdText b.id)
 
         ( Missing, _ ) ->
             GT
@@ -204,7 +226,7 @@ compareOrders key ascending a b =
             in
             case direction (compareKeys x y) of
                 EQ ->
-                    compare a.id b.id
+                    compare (orderIdText a.id) (orderIdText b.id)
 
                 other ->
                     other
@@ -304,8 +326,8 @@ createOrder : OrderInput -> Database -> ( Database, Result ApiError Order )
 createOrder input db =
     case validate True input of
         [] ->
-            case ( input.due, input.lines, input.total ) of
-                ( Just due, Just lines, Just total ) ->
+            case ( ( input.due, input.lines, input.total ), ( input.country, input.warehouse ) ) of
+                ( ( Just due, Just lines, Just total ), ( Just country, Just warehouse ) ) ->
                     let
                         duplicate =
                             db.orders
@@ -314,20 +336,20 @@ createOrder input db =
                     in
                     case duplicate of
                         Just existing ->
-                            ( db, Err (Conflict ("An identical order already exists: " ++ existing.id ++ ".")) )
+                            ( db, Err (Conflict ("An identical order already exists: " ++ orderIdText existing.id ++ ".")) )
 
                         Nothing ->
                             let
                                 created =
-                                    { id = "ORD-" ++ String.fromInt db.nextNumber
+                                    { id = orderId ("ORD-" ++ String.fromInt db.nextNumber)
                                     , customer = String.trim input.customer
                                     , email = String.trim input.email
-                                    , country = input.country
+                                    , country = country
                                     , city = String.trim input.city
                                     , status = Draft
                                     , priority = input.priority
                                     , owner = input.owner
-                                    , warehouse = input.warehouse
+                                    , warehouse = warehouse
                                     , created = Generate.today
                                     , due = due
                                     , delivered = Nothing
@@ -360,18 +382,18 @@ updateOrder id input db =
             else
                 case validate False input of
                     [] ->
-                        case ( input.due, input.lines, input.total ) of
-                            ( Just due, Just lines, Just total ) ->
+                        case ( ( input.due, input.lines, input.total ), ( input.country, input.warehouse ) ) of
+                            ( ( Just due, Just lines, Just total ), ( Just country, Just warehouse ) ) ->
                                 let
                                     updated =
                                         { existing
                                             | customer = String.trim input.customer
                                             , email = String.trim input.email
-                                            , country = input.country
+                                            , country = country
                                             , city = String.trim input.city
                                             , priority = input.priority
                                             , owner = input.owner
-                                            , warehouse = input.warehouse
+                                            , warehouse = warehouse
                                             , due = due
                                             , lines = lines
                                             , total = total
@@ -486,14 +508,14 @@ validate isNew input =
                 ]
 
         countryError =
-            if List.any (\c -> c.code == input.country) Generate.countries then
+            if List.any (\c -> Just c.code == input.country) Generate.countries then
                 []
 
             else
                 [ { field = "order-country", message = "Choose a country." } ]
 
         warehouseError =
-            if List.any (\w -> w.id == input.warehouse) Generate.warehouses then
+            if List.any (\w -> Just w.id == input.warehouse) Generate.warehouses then
                 []
 
             else
@@ -598,7 +620,7 @@ summary db =
                                 acc
 
                             else
-                                Dict.update o.country (\sum -> Just (Maybe.withDefault 0 sum + o.total)) acc
+                                Dict.update (countryCodeText o.country) (\sum -> Just (Maybe.withDefault 0 sum + o.total)) acc
                         )
                         Dict.empty
                         db.orders
@@ -606,7 +628,7 @@ summary db =
             Dict.toList totals
                 |> List.sortBy (\( _, sum ) -> negate sum)
                 |> List.take 6
-                |> List.map (\( code, sum ) -> ( countryName code, sum ))
+                |> List.map (\( code, sum ) -> ( countryName (countryCode code), sum ))
     in
     { orders = List.length db.orders
     , open = List.length open

@@ -9,6 +9,7 @@ import Klar.Menu as Menu
 import Klar.Remote exposing (Remote(..))
 import Klar.Table as Table exposing (Direction(..), Filter(..), Selection(..))
 import Klar.Theme exposing (Density(..))
+import Support.Ids as Ids
 import Support.Orders as Orders exposing (Msg(..), Order, allOf, ariaLabelled, cannotUse, checkedBox, chosen, generated, keyDown, keyDownWith, passes, press, render, rowClickOn, send, sortButton, sortClick)
 import Test exposing (Test, describe, fuzz, fuzzWith, test)
 import Test.Html.Event as Event
@@ -26,6 +27,7 @@ suite =
         , filterStateTests
         , queryTests
         , selectionTests
+        , ownIdTests
         , allMatchingTests
         , expandedColumnAndDensityStateTests
         , sortingByClickTests
@@ -50,19 +52,19 @@ check name expected actual =
     test name <| \_ -> Expect.equal expected actual
 
 
-start : Table.State
+start : Table.State String
 start =
     Table.init "orders"
 
 
 type alias Step =
-    Table.State -> Result String Table.State
+    Table.State String -> Result String (Table.State String)
 
 
 {-| Do the steps one after the other, each on the table as the step before
 left it. The first step that cannot be done ends it with its reason.
 -}
-after : List Step -> Table.State -> Result String Table.State
+after : List Step -> Table.State String -> Result String (Table.State String)
 after steps state =
     List.foldl (\step result -> Result.andThen step result) (Ok state) steps
 
@@ -77,14 +79,14 @@ expectOk toExpectation result =
             Expect.fail problem
 
 
-view : List (Table.Attribute Order Msg) -> Table.State -> Query.Single Msg
+view : List (Table.Attribute String Order Msg) -> Table.State String -> Query.Single Msg
 view attributes state =
     render attributes state |> Query.fromHtml
 
 
 {-| Look at one element of the table.
 -}
-element : List (Table.Attribute Order Msg) -> List Selector -> List Selector -> Table.State -> Expectation
+element : List (Table.Attribute String Order Msg) -> List Selector -> List Selector -> Table.State String -> Expectation
 element attributes find expectations state =
     view attributes state
         |> Query.find find
@@ -93,13 +95,13 @@ element attributes find expectations state =
 
 {-| Look at the element the table is made of itself, the one with its id.
 -}
-root : List (Table.Attribute Order Msg) -> List Selector -> Table.State -> Expectation
+root : List (Table.Attribute String Order Msg) -> List Selector -> Table.State String -> Expectation
 root attributes expectations state =
     view attributes state
         |> Query.has expectations
 
 
-noElement : List (Table.Attribute Order Msg) -> List Selector -> Table.State -> Expectation
+noElement : List (Table.Attribute String Order Msg) -> List Selector -> Table.State String -> Expectation
 noElement attributes find state =
     view attributes state
         |> Query.findAll find
@@ -134,7 +136,7 @@ clickOn =
     Orders.clickOn
 
 
-tabStops : List (Table.Attribute Order Msg) -> Table.State -> List Int
+tabStops : List (Table.Attribute String Order Msg) -> Table.State String -> List Int
 tabStops attributes state =
     List.range 0 7
         |> List.filter
@@ -153,10 +155,10 @@ initTests =
         [ check "a new table has nothing sorted, searched or filtered, on page 1 with 25 rows"
             { search = "", sort = [], filters = [], page = 1, pageSize = 25 }
             (Table.query start)
-        , check "nothing is selected" (Selected []) (Table.selection start)
-        , check "no ids are selected" [] (Table.selectedIds start)
+        , check "nothing is selected" (Selected []) (Table.selection Ids.strings start)
+        , check "no ids are selected" [] (Table.selectedIds Ids.strings start)
         , check "nothing is selected, counted" 0 (Table.selectedCount 100 start)
-        , check "nothing is expanded" [] (Table.expandedIds start)
+        , check "nothing is expanded" [] (Table.expandedIds Ids.strings start)
         , check "the density is normal" Normal (Table.density start)
         , check "no column has been shown or hidden by the user" Nothing (Table.isColumnVisible (Table.columnId "city") start)
         , check "the accessors agree with the query"
@@ -264,10 +266,10 @@ filterStateTests =
             (start
                 |> Table.setSort [ ( Table.columnId "total", Table.Ascending ) ]
                 |> Table.setPageSize 10
-                |> Table.setSelected [ "ORD-2001" ] True
+                |> Table.setSelected Ids.strings [ "ORD-2001" ] True
                 |> Table.setFilter (Table.columnId "city") (Just (Contains "a"))
                 |> Table.clearFilters
-                |> (\s -> ( Table.sort s, Table.pageSize s, Table.selectedIds s ))
+                |> (\s -> ( Table.sort s, Table.pageSize s, Table.selectedIds Ids.strings s ))
             )
         , test "the header says that a filter is active" <|
             \_ ->
@@ -332,10 +334,10 @@ queryTests =
             \_ -> element [ Table.searchable ] (byId "orders-search") [ Selector.attribute (Attr.value " acme") ] (Table.setQuery { savedQuery | search = " acme" } start)
         , test "the headers show the restored filters" <|
             \_ -> element [] (byId "orders-trigger-filter-total") [ label "Filter Total (filter active)" ] (Table.setQuery savedQuery start)
-        , check "selected rows stay selected" [ "ORD-2002" ] (start |> Table.setSelected [ "ORD-2002" ] True |> Table.setQuery savedQuery |> Table.selectedIds)
+        , check "selected rows stay selected" [ "ORD-2002" ] (start |> Table.setSelected Ids.strings [ "ORD-2002" ] True |> Table.setQuery savedQuery |> Table.selectedIds Ids.strings)
         , check "selection, expansion, columns and density are not part of the query"
             True
-            (Table.query (start |> Table.setSelected [ "a" ] True |> Table.setExpanded "a" True |> Table.setDensity Compact |> Table.setColumnVisible (Table.columnId "city") False)
+            (Table.query (start |> Table.setSelected Ids.strings [ "a" ] True |> Table.setExpanded Ids.strings "a" True |> Table.setDensity Compact |> Table.setColumnVisible (Table.columnId "city") False)
                 == Table.query start
             )
         , -- Was a bug: a range filter with its bounds the wrong way round matched nothing when
@@ -357,45 +359,96 @@ queryTests =
 -- SELECTION
 
 
+type RowNo
+    = RowNo Int
+
+
+rowNos : Table.RowIds RowNo
+rowNos =
+    Table.rowIds
+        { toKey = \(RowNo n) -> "no-" ++ String.fromInt n
+        , fromKey =
+            \key ->
+                if String.startsWith "no-" key then
+                    Maybe.map RowNo (String.toInt (String.dropLeft 3 key))
+
+                else
+                    Nothing
+        }
+
+
+{-| How ids were written in an older version of the app (a saved view may still hold them).
+-}
+oldNos : Table.RowIds RowNo
+oldNos =
+    Table.rowIds { toKey = \(RowNo n) -> "old-" ++ String.fromInt n, fromKey = always Nothing }
+
+
+ownIdTests : Test
+ownIdTests =
+    let
+        numbered : Table.State RowNo
+        numbered =
+            Table.init "orders"
+    in
+    describe "an id type of the app's own (RowIds)"
+        [ check "the selection comes back in the app's type, ordered by key as text" [ RowNo 10, RowNo 2 ] (numbered |> Table.setSelected rowNos [ RowNo 10, RowNo 2 ] True |> Table.selectedIds rowNos)
+        , check "isSelected takes the app's type"
+            ( True, False )
+            (let
+                s =
+                    Table.setSelected rowNos [ RowNo 2 ] True numbered
+             in
+             ( Table.isSelected rowNos (RowNo 2) s, Table.isSelected rowNos (RowNo 3) s )
+            )
+        , check "the selection as a value" (Selected [ RowNo 1 ]) (numbered |> Table.setSelected rowNos [ RowNo 1 ] True |> Table.selection rowNos)
+        , check "expanded rows come back in the app's type" [ RowNo 7 ] (numbered |> Table.setExpanded rowNos (RowNo 7) True |> Table.expandedIds rowNos)
+        , check "a key the app cannot read is left out" [] (numbered |> Table.setSelected oldNos [ RowNo 1 ] True |> Table.selectedIds rowNos)
+        , check "intIds keeps whole numbers" [ 1, 3 ] (Table.init "orders" |> Table.setSelected Table.intIds [ 3, 1 ] True |> Table.selectedIds Table.intIds)
+        , check "stringIds keeps text as it is" [ "a", "b" ] (Table.init "orders" |> Table.setSelected Table.stringIds [ "b", "a" ] True |> Table.selectedIds Table.stringIds)
+        , check "a state of the app's type compares with ==" True (Table.setSelected rowNos [ RowNo 1 ] True numbered == Table.setSelected rowNos [ RowNo 1 ] True numbered)
+        ]
+
+
 selectionTests : Test
 selectionTests =
     describe "selection (setSelected, clearSelection ...)"
-        [ check "select some rows" [ "a", "b" ] (Table.selectedIds (Table.setSelected [ "a", "b" ] True start))
-        , check "the ids come back sorted, whatever the order they were selected in" [ "a", "b", "c" ] (Table.selectedIds (start |> Table.setSelected [ "c" ] True |> Table.setSelected [ "a", "b" ] True))
-        , check "the selection as a value" (Selected [ "a", "b" ]) (Table.selection (Table.setSelected [ "b", "a" ] True start))
-        , check "selecting twice selects once" [ "a" ] (Table.selectedIds (start |> Table.setSelected [ "a" ] True |> Table.setSelected [ "a", "a" ] True))
-        , check "deselect some rows" [ "b" ] (Table.selectedIds (start |> Table.setSelected [ "a", "b" ] True |> Table.setSelected [ "a" ] False))
-        , check "deselecting a row that is not selected changes nothing" [ "a" ] (Table.selectedIds (start |> Table.setSelected [ "a" ] True |> Table.setSelected [ "z" ] False))
-        , check "selecting nothing changes nothing" [ "a" ] (Table.selectedIds (start |> Table.setSelected [ "a" ] True |> Table.setSelected [] True))
+        [ check "select some rows" [ "a", "b" ] (Table.selectedIds Ids.strings (Table.setSelected Ids.strings [ "a", "b" ] True start))
+        , check "the ids come back sorted, whatever the order they were selected in" [ "a", "b", "c" ] (Table.selectedIds Ids.strings (start |> Table.setSelected Ids.strings [ "c" ] True |> Table.setSelected Ids.strings [ "a", "b" ] True))
+        , check "the selection as a value" (Selected [ "a", "b" ]) (Table.selection Ids.strings (Table.setSelected Ids.strings [ "b", "a" ] True start))
+        , check "selecting twice selects once" [ "a" ] (Table.selectedIds Ids.strings (start |> Table.setSelected Ids.strings [ "a" ] True |> Table.setSelected Ids.strings [ "a", "a" ] True))
+        , check "deselect some rows" [ "b" ] (Table.selectedIds Ids.strings (start |> Table.setSelected Ids.strings [ "a", "b" ] True |> Table.setSelected Ids.strings [ "a" ] False))
+        , check "deselecting a row that is not selected changes nothing" [ "a" ] (Table.selectedIds Ids.strings (start |> Table.setSelected Ids.strings [ "a" ] True |> Table.setSelected Ids.strings [ "z" ] False))
+        , check "selecting nothing changes nothing" [ "a" ] (Table.selectedIds Ids.strings (start |> Table.setSelected Ids.strings [ "a" ] True |> Table.setSelected Ids.strings [] True))
         , check "isSelected"
             ( True, False )
             (let
                 s =
-                    Table.setSelected [ "a" ] True start
+                    Table.setSelected Ids.strings [ "a" ] True start
              in
-             ( Table.isSelected "a" s, Table.isSelected "b" s )
+             ( Table.isSelected Ids.strings "a" s, Table.isSelected Ids.strings "b" s )
             )
-        , check "isSelected is exact" False (Table.isSelected "A" (Table.setSelected [ "a" ] True start))
+        , check "isSelected is exact" False (Table.isSelected Ids.strings "A" (Table.setSelected Ids.strings [ "a" ] True start))
         , check "selectedCount counts the selected rows, whatever number it is given"
             ( 2, 2, 2 )
             (let
                 s =
-                    Table.setSelected [ "a", "b" ] True start
+                    Table.setSelected Ids.strings [ "a", "b" ] True start
              in
              ( Table.selectedCount 0 s, Table.selectedCount 2 s, Table.selectedCount 5000 s )
             )
-        , check "clearSelection" [] (start |> Table.setSelected [ "a", "b" ] True |> Table.clearSelection |> Table.selectedIds)
-        , check "an id that looks like a number is a text, sorted as one" [ "10", "9" ] (Table.selectedIds (Table.setSelected [ "9", "10" ] True start))
-        , check "a selection does not change the query" (Table.query start) (Table.query (Table.setSelected [ "a" ] True start))
-        , check "paging does not change the selection" [ "a" ] (start |> Table.setSelected [ "a" ] True |> Table.setPage 4 |> Table.setPageSize 10 |> Table.selectedIds)
-        , check "sorting does not change the selection" [ "a" ] (start |> Table.setSelected [ "a" ] True |> Table.setSort [ ( Table.columnId "city", Table.Ascending ) ] |> Table.selectedIds)
-        , check "a new search keeps the rows that were picked one by one" [ "a" ] (start |> Table.setSelected [ "a" ] True |> Table.setSearch "x" |> Table.selectedIds)
+        , check "clearSelection" [] (start |> Table.setSelected Ids.strings [ "a", "b" ] True |> Table.clearSelection |> Table.selectedIds Ids.strings)
+        , check "an id that looks like a number is a text, sorted as one" [ "10", "9" ] (Table.selectedIds Ids.strings (Table.setSelected Ids.strings [ "9", "10" ] True start))
+        , check "a selection does not change the query" (Table.query start) (Table.query (Table.setSelected Ids.strings [ "a" ] True start))
+        , check "paging does not change the selection" [ "a" ] (start |> Table.setSelected Ids.strings [ "a" ] True |> Table.setPage 4 |> Table.setPageSize 10 |> Table.selectedIds Ids.strings)
+        , check "sorting does not change the selection" [ "a" ] (start |> Table.setSelected Ids.strings [ "a" ] True |> Table.setSort [ ( Table.columnId "city", Table.Ascending ) ] |> Table.selectedIds Ids.strings)
+        , check "a new search keeps the rows that were picked one by one" [ "a" ] (start |> Table.setSelected Ids.strings [ "a" ] True |> Table.setSearch "x" |> Table.selectedIds Ids.strings)
         ]
 
 
 {-| Server mode: 120 rows match, 25 of them are on the page.
 -}
-serverAttributes : List (Table.Attribute Order Msg)
+serverAttributes : List (Table.Attribute String Order Msg)
 serverAttributes =
     [ Table.server { total = 120 }
     , Table.rows (Success (generated 25))
@@ -419,10 +472,10 @@ selectAllMatching =
 {-| Prepare the table, choose "all matching", make a change, and say what is
 selected.
 -}
-selectionAfter : (Table.State -> Table.State) -> (Table.State -> Table.State) -> Result String Selection
+selectionAfter : (Table.State String -> Table.State String) -> (Table.State String -> Table.State String) -> Result String (Selection String)
 selectionAfter prepare change =
     selectAllMatching (prepare start)
-        |> Result.map (change >> Table.selection)
+        |> Result.map (change >> Table.selection Ids.strings)
 
 
 allMatchingTests : Test
@@ -438,21 +491,21 @@ allMatchingTests =
         [ test "the header checkbox selects the 25 rows of the page" <|
             \_ ->
                 press serverAttributes (byId "orders-select-page") (checkedBox True) start
-                    |> Result.map Table.selectedIds
+                    |> Result.map (Table.selectedIds Ids.strings)
                     |> Expect.equal (Ok (List.map .number (generated 25) |> List.sort))
         , test "the bar then offers to select all 120 matching rows" <|
             \_ ->
                 press serverAttributes (byId "orders-select-page") (checkedBox True) start
                     |> expectOk (\state -> element serverAttributes [ Selector.class "klar-table__bulk-prompt" ] [ Selector.text "Select all 120 matching" ] state)
         , check "choosing it selects everything that matches" everything (selectionAfter identity identity)
-        , check "the list of ids is then empty" (Ok []) (selectAllMatching start |> Result.map Table.selectedIds)
+        , check "the list of ids is then empty" (Ok []) (selectAllMatching start |> Result.map (Table.selectedIds Ids.strings))
         , check "and the count is the number of matching rows" (Ok 120) (selectAllMatching start |> Result.map (Table.selectedCount 120))
-        , check "every id counts as selected" (Ok ( True, True )) (selectAllMatching start |> Result.map (\s -> ( Table.isSelected "ORD-3001" s, Table.isSelected "anything at all" s )))
-        , check "deselecting a row adds it to the exceptions" (Ok (AllMatching { except = [ "ORD-3001" ] })) (selectionAfter identity (Table.setSelected [ "ORD-3001" ] False))
-        , check "and the count goes down by one" (Ok 119) (selectAllMatching start |> Result.map (Table.setSelected [ "ORD-3001" ] False >> Table.selectedCount 120))
-        , check "the excepted row is not selected, the others are" (Ok ( False, True )) (selectAllMatching start |> Result.map (Table.setSelected [ "ORD-3001" ] False >> (\s -> ( Table.isSelected "ORD-3001" s, Table.isSelected "ORD-3002" s ))))
-        , check "selecting the row again removes the exception" everything (selectionAfter identity (Table.setSelected [ "ORD-3001" ] False >> Table.setSelected [ "ORD-3001" ] True))
-        , check "the count never goes below 0" (Ok 0) (selectAllMatching start |> Result.map (Table.setSelected [ "a", "b", "c" ] False >> Table.selectedCount 0))
+        , check "every id counts as selected" (Ok ( True, True )) (selectAllMatching start |> Result.map (\s -> ( Table.isSelected Ids.strings "ORD-3001" s, Table.isSelected Ids.strings "anything at all" s )))
+        , check "deselecting a row adds it to the exceptions" (Ok (AllMatching { except = [ "ORD-3001" ] })) (selectionAfter identity (Table.setSelected Ids.strings [ "ORD-3001" ] False))
+        , check "and the count goes down by one" (Ok 119) (selectAllMatching start |> Result.map (Table.setSelected Ids.strings [ "ORD-3001" ] False >> Table.selectedCount 120))
+        , check "the excepted row is not selected, the others are" (Ok ( False, True )) (selectAllMatching start |> Result.map (Table.setSelected Ids.strings [ "ORD-3001" ] False >> (\s -> ( Table.isSelected Ids.strings "ORD-3001" s, Table.isSelected Ids.strings "ORD-3002" s ))))
+        , check "selecting the row again removes the exception" everything (selectionAfter identity (Table.setSelected Ids.strings [ "ORD-3001" ] False >> Table.setSelected Ids.strings [ "ORD-3001" ] True))
+        , check "the count never goes below 0" (Ok 0) (selectAllMatching start |> Result.map (Table.setSelected Ids.strings [ "a", "b", "c" ] False >> Table.selectedCount 0))
         , check "clearSelection ends it" ended (selectionAfter identity Table.clearSelection)
         , check "a changed search ends it" ended (selectionAfter identity (Table.setSearch "new"))
         , check "the same search keeps it" everything (selectionAfter (Table.setSearch "abc") (Table.setSearch "abc"))
@@ -477,7 +530,7 @@ allMatchingTests =
         , test "and counts without the exceptions" <|
             \_ ->
                 selectAllMatching start
-                    |> Result.map (Table.setSelected [ "ORD-3001", "ORD-3002" ] False)
+                    |> Result.map (Table.setSelected Ids.strings [ "ORD-3001", "ORD-3002" ] False)
                     |> expectOk (\state -> element serverAttributes [ Selector.class "klar-table__bulk-count" ] [ Selector.text "118 selected" ] state)
         ]
 
@@ -485,17 +538,17 @@ allMatchingTests =
 expandedColumnAndDensityStateTests : Test
 expandedColumnAndDensityStateTests =
     describe "expanded rows, hidden columns and density"
-        [ check "setExpanded opens a row" [ "a" ] (Table.expandedIds (Table.setExpanded "a" True start))
+        [ check "setExpanded opens a row" [ "a" ] (Table.expandedIds Ids.strings (Table.setExpanded Ids.strings "a" True start))
         , check "isExpanded"
             ( True, False )
             (let
                 s =
-                    Table.setExpanded "a" True start
+                    Table.setExpanded Ids.strings "a" True start
              in
-             ( Table.isExpanded "a" s, Table.isExpanded "b" s )
+             ( Table.isExpanded Ids.strings "a" s, Table.isExpanded Ids.strings "b" s )
             )
-        , check "setExpanded False closes it" [] (start |> Table.setExpanded "a" True |> Table.setExpanded "a" False |> Table.expandedIds)
-        , check "the ids come back sorted" [ "a", "b" ] (start |> Table.setExpanded "b" True |> Table.setExpanded "a" True |> Table.expandedIds)
+        , check "setExpanded False closes it" [] (start |> Table.setExpanded Ids.strings "a" True |> Table.setExpanded Ids.strings "a" False |> Table.expandedIds Ids.strings)
+        , check "the ids come back sorted" [ "a", "b" ] (start |> Table.setExpanded Ids.strings "b" True |> Table.setExpanded Ids.strings "a" True |> Table.expandedIds Ids.strings)
         , check "isColumnVisible remembers a choice"
             ( Just False, Just True, Nothing )
             (let
@@ -516,12 +569,12 @@ expandedColumnAndDensityStateTests =
 -- CLICKING HEADERS
 
 
-sortOf : Result String Table.State -> Result String (List ( Table.ColumnId, Direction ))
+sortOf : Result String (Table.State String) -> Result String (List ( Table.ColumnId, Direction ))
 sortOf =
     Result.map Table.sort
 
 
-ariaSort : String -> String -> Table.State -> Expectation
+ariaSort : String -> String -> Table.State String -> Expectation
 ariaSort title value state =
     element [ Table.multiSort ] [ Selector.tag "th", Selector.containing [ Selector.text title ] ] [ ariaAttribute "aria-sort" value ] state
 
@@ -583,7 +636,7 @@ sortingByClickTests =
 -- PAGING
 
 
-pagingAttributes : List (Table.Attribute Order Msg)
+pagingAttributes : List (Table.Attribute String Order Msg)
 pagingAttributes =
     [ Table.rows (Success (generated 120)) ]
 
@@ -1042,7 +1095,7 @@ selectionByClickTests =
             press selectable (byId "orders-select-page") (checkedBox value)
 
         ids =
-            Result.map Table.selectedIds
+            Result.map (Table.selectedIds Ids.strings)
 
         cancelled order =
             order.status == "Cancelled"
@@ -1157,7 +1210,7 @@ selectionByClickTests =
                         |> expectOk (noElement selectable [ Selector.class "klar-table__bulk-prompt", Selector.containing [ Selector.text "hidden" ] ])
             , test "in server mode tells that selected rows are not on this page" <|
                 \_ ->
-                    Ok (Table.setSelected [ "ORD-3001", "ORD-9999" ] True start)
+                    Ok (Table.setSelected Ids.strings [ "ORD-3001", "ORD-9999" ] True start)
                         |> expectOk (prompt serverAttributes [ Selector.text "1 selected row is not on this page" ])
             , test "the bar is a labelled region that can be given focus" <|
                 \_ ->
@@ -1203,8 +1256,8 @@ rowKeyboardTests =
         , check "PageDown moves ten rows, or to the last" (Ok [ 7 ]) (stops (after [ key 0 "PageDown" ] start))
         , check "PageUp moves ten rows, or to the first" (Ok [ 0 ]) (stops (after [ key 0 "End", key 7 "PageUp" ] start))
         , check "PageDown stops at the last row of a short page" (Ok [ 2 ]) (Result.map (tabStops [ Table.selectable, Table.rows (Success (List.take 3 Orders.curated)) ]) (press [ Table.selectable, Table.rows (Success (List.take 3 Orders.curated)) ] (row 0) (keyDown "orders-row-0" "PageDown") start))
-        , check "Space selects the row" (Ok [ "ORD-2001" ]) (after [ key 0 " " ] start |> Result.map Table.selectedIds)
-        , check "Space again unselects it" (Ok []) (after [ key 0 " ", key 0 " " ] start |> Result.map Table.selectedIds)
+        , check "Space selects the row" (Ok [ "ORD-2001" ]) (after [ key 0 " " ] start |> Result.map (Table.selectedIds Ids.strings))
+        , check "Space again unselects it" (Ok []) (after [ key 0 " ", key 0 " " ] start |> Result.map (Table.selectedIds Ids.strings))
         , test "a key with Ctrl is left to the browser" <|
             \_ -> cannotUse selectable (row 0) (keyDownWith { shift = False, ctrl = True } "orders-row-0" "ArrowDown") start
         , test "a key that was pressed in a control inside the row is left to the control" <|
@@ -1227,19 +1280,19 @@ rowKeyboardTests =
         , test "Enter opens a row that can be expanded" <|
             \_ ->
                 press expandable (row 1) (keyDown "orders-row-1" "Enter") start
-                    |> Result.map Table.expandedIds
+                    |> Result.map (Table.expandedIds Ids.strings)
                     |> Expect.equal (Ok [ "ORD-2002" ])
         , test "ArrowRight expands a row" <|
             \_ ->
                 press expandable (row 1) (keyDown "orders-row-1" "ArrowRight") start
-                    |> Result.map Table.expandedIds
+                    |> Result.map (Table.expandedIds Ids.strings)
                     |> Expect.equal (Ok [ "ORD-2002" ])
         , test "ArrowRight on a row that is open does nothing" <|
-            \_ -> cannotUse expandable (row 1) (keyDown "orders-row-1" "ArrowRight") (Table.setExpanded "ORD-2002" True start)
+            \_ -> cannotUse expandable (row 1) (keyDown "orders-row-1" "ArrowRight") (Table.setExpanded Ids.strings "ORD-2002" True start)
         , test "ArrowLeft collapses a row" <|
             \_ ->
-                press expandable (row 1) (keyDown "orders-row-1" "ArrowLeft") (Table.setExpanded "ORD-2002" True start)
-                    |> Result.map Table.expandedIds
+                press expandable (row 1) (keyDown "orders-row-1" "ArrowLeft") (Table.setExpanded Ids.strings "ORD-2002" True start)
+                    |> Result.map (Table.expandedIds Ids.strings)
                     |> Expect.equal (Ok [])
         , test "ArrowLeft on a row that is closed does nothing" <|
             \_ -> cannotUse expandable (row 1) (keyDown "orders-row-1" "ArrowLeft") start
@@ -1277,12 +1330,12 @@ rowKeyboardTests =
         ]
 
 
-expandable : List (Table.Attribute Order Msg)
+expandable : List (Table.Attribute String Order Msg)
 expandable =
     [ Table.expandedRow (\order -> Html.text ("Details of " ++ order.number)) ]
 
 
-withMenu : List (Table.Attribute Order Msg)
+withMenu : List (Table.Attribute String Order Msg)
 withMenu =
     [ Table.rowActions (\order -> [ Menu.item "Open order" (Opened order) ]) ]
 
@@ -1331,7 +1384,7 @@ rowClickTests =
         , test "a row of a table with expandable rows opens when clicked, if the application does not listen" <|
             \_ ->
                 press expandable (byId "orders-row-2") (rowClickOn "TD") start
-                    |> Result.map Table.expandedIds
+                    |> Result.map (Table.expandedIds Ids.strings)
                     |> Expect.equal (Ok [ "ORD-2003" ])
         , test "the application's click wins over opening the row" <|
             \_ -> opened (Table.onRowClick Opened :: expandable) (byId "orders-row-2") (rowClickOn "TD") start |> Expect.equal (Ok (Just "ORD-2003"))
@@ -1482,7 +1535,7 @@ expandByClickTests =
             \_ -> noElement expandable [ Selector.class "klar-table__expand", Selector.attribute (Attr.attribute "aria-controls" "orders-detail-0") ] start
         , test "the header of the button column is for screen readers only" <|
             \_ -> element expandable [ Selector.class "klar-table__th--expand" ] [ Selector.text "Details", Selector.containing [ Selector.class "klar-sr-only" ] ] start
-        , check "a click on the button opens the row" (Ok [ "ORD-2002" ]) (press expandable (ariaLabelled "Show details for ORD-2002") Event.click start |> Result.map Table.expandedIds)
+        , check "a click on the button opens the row" (Ok [ "ORD-2002" ]) (press expandable (ariaLabelled "Show details for ORD-2002") Event.click start |> Result.map (Table.expandedIds Ids.strings))
         , test "the detail is drawn under the row" <|
             \_ ->
                 press expandable (ariaLabelled "Show details for ORD-2002") Event.click start
@@ -1494,21 +1547,21 @@ expandByClickTests =
         , check "a second click closes it"
             (Ok [])
             (after [ press expandable (ariaLabelled "Show details for ORD-2002") Event.click, press expandable (ariaLabelled "Hide details for ORD-2002") Event.click ] start
-                |> Result.map Table.expandedIds
+                |> Result.map (Table.expandedIds Ids.strings)
             )
         , test "several rows can be open" <|
             \_ ->
                 after [ press expandable (ariaLabelled "Show details for ORD-2002") Event.click, press expandable (ariaLabelled "Show details for ORD-2005") Event.click ] start
-                    |> Result.map Table.expandedIds
+                    |> Result.map (Table.expandedIds Ids.strings)
                     |> Expect.equal (Ok [ "ORD-2002", "ORD-2005" ])
         , test "a row that was opened by the application is open" <|
-            \_ -> element expandable (byId "orders-detail-3") [ Selector.text "Details of ORD-2004" ] (Table.setExpanded "ORD-2004" True start)
+            \_ -> element expandable (byId "orders-detail-3") [ Selector.text "Details of ORD-2004" ] (Table.setExpanded Ids.strings "ORD-2004" True start)
         , test "the open row is marked" <|
-            \_ -> element expandable (byId "orders-row-3") [ Selector.class "klar-table__row--expanded" ] (Table.setExpanded "ORD-2004" True start)
+            \_ -> element expandable (byId "orders-row-3") [ Selector.class "klar-table__row--expanded" ] (Table.setExpanded Ids.strings "ORD-2004" True start)
         , test "the detail row spans all the columns and the button column" <|
-            \_ -> element expandable (byId "orders-detail-3") [ Selector.containing [ Selector.attribute (Attr.colspan 9) ] ] (Table.setExpanded "ORD-2004" True start)
+            \_ -> element expandable (byId "orders-detail-3") [ Selector.containing [ Selector.attribute (Attr.colspan 9) ] ] (Table.setExpanded Ids.strings "ORD-2004" True start)
         , test "rows are not expandable unless the application gives expandedRow" <|
-            \_ -> noElement [] [ Selector.class "klar-table__expand" ] (Table.setExpanded "ORD-2004" True start)
+            \_ -> noElement [] [ Selector.class "klar-table__expand" ] (Table.setExpanded Ids.strings "ORD-2004" True start)
         , test "an open row stays open when the table is sorted, because it follows its id" <|
             \_ ->
                 press expandable (ariaLabelled "Show details for ORD-2001") Event.click start
@@ -1570,7 +1623,7 @@ changeFuzzer =
         ]
 
 
-applyChange : Change -> Table.State -> Table.State
+applyChange : Change -> Table.State String -> Table.State String
 applyChange change state =
     case change of
         SetPage n ->
@@ -1592,13 +1645,13 @@ applyChange change state =
             Table.clearFilters state
 
         Select ids value ->
-            Table.setSelected ids value state
+            Table.setSelected Ids.strings ids value state
 
         ClearSelection ->
             Table.clearSelection state
 
 
-built : List Change -> Table.State
+built : List Change -> Table.State String
 built changes =
     List.foldl applyChange start changes
 
@@ -1631,7 +1684,7 @@ propertyTests =
             \changes ->
                 let
                     selected =
-                        Table.selectedIds (built changes)
+                        Table.selectedIds Ids.strings (built changes)
                 in
                 Expect.equal (List.sort selected |> dedupe) selected
         , fuzz changesFuzzer "restoring the query of a table on a new table gives the same query" <|
@@ -1655,7 +1708,7 @@ propertyTests =
                     state =
                         built changes
                 in
-                Expect.equal (Selected (Table.selectedIds state)) (Table.selection state)
+                Expect.equal (Selected (Table.selectedIds Ids.strings state)) (Table.selection Ids.strings state)
         , fuzz changesFuzzer "everything selected is selected and the count agrees" <|
             \changes ->
                 let
@@ -1663,9 +1716,9 @@ propertyTests =
                         built changes
 
                     ids =
-                        Table.selectedIds state
+                        Table.selectedIds Ids.strings state
                 in
-                Expect.equal ( True, List.length ids ) ( List.all (\id -> Table.isSelected id state) ids, Table.selectedCount 0 state )
+                Expect.equal ( True, List.length ids ) ( List.all (\id -> Table.isSelected Ids.strings id state) ids, Table.selectedCount 0 state )
         , fuzzWith { runs = 25, distribution = Test.noDistribution } changesFuzzer "drawing the table never fails, whatever the state" <|
             \changes ->
                 render [ Table.selectable, Table.searchable ] (built changes)

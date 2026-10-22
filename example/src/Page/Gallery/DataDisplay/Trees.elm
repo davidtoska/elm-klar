@@ -4,6 +4,7 @@ module Page.Gallery.DataDisplay.Trees exposing (Model, Msg, init, update, view)
 thousands of nodes, and the loading, failed and empty states.
 -}
 
+import Api.Types exposing (orderIdText)
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Lazy
@@ -25,12 +26,12 @@ import Showcase.Sample as Sample
 
 
 type alias Model =
-    { company : Tree.State
+    { company : Tree.State String
     , branches : Dict String (Remote (List Entry))
     , activated : Maybe String
-    , categories : Tree.State
-    , permissions : Tree.State
-    , orders : Tree.State
+    , categories : Tree.State String
+    , permissions : Tree.State String
+    , orders : Tree.State String
     , retrying : Bool
     }
 
@@ -54,15 +55,15 @@ init : Model
 init =
     { company =
         Tree.init "company-tree"
-            |> Tree.setExpanded [ "acme", "rtm", "rtm-a" ]
-            |> Tree.select "rtm-a2"
+            |> Tree.setExpanded Tree.stringIds [ "acme", "rtm", "rtm-a" ]
+            |> Tree.select Tree.stringIds "rtm-a2"
     , branches = Dict.empty
     , activated = Nothing
-    , categories = Tree.init "category-tree" |> Tree.setExpanded [ "Hardware", "Hardware/Fasteners", "Hardware/Tools" ]
+    , categories = Tree.init "category-tree" |> Tree.setExpanded Tree.stringIds [ "Hardware", "Hardware/Fasteners", "Hardware/Tools" ]
     , permissions =
         Tree.init "permission-tree"
-            |> Tree.setExpanded [ "orders", "admin" ]
-            |> Tree.setChecked [ "orders-read", "orders-create", "products-read" ]
+            |> Tree.setExpanded Tree.stringIds [ "orders", "admin" ]
+            |> Tree.setChecked Tree.stringIds [ "orders-read", "orders-create", "products-read" ]
     , orders = Tree.init "order-tree"
     , retrying = False
     }
@@ -82,7 +83,7 @@ update failing msg model =
 
                 -- The message says which lazy nodes were just opened.
                 ( loading, loadCmd ) =
-                    startLoading failing (Tree.loadRequests inner) { model | company = tree }
+                    startLoading failing (Tree.loadRequests Tree.stringIds inner) { model | company = tree }
             in
             ( loading, Cmd.batch [ Cmd.map CompanyMsg cmd, loadCmd ] )
 
@@ -126,7 +127,7 @@ update failing msg model =
                 ( loading, cmd ) =
                     startLoading failing [ id ] model
             in
-            ( loading, Cmd.batch [ cmd, Cmd.map CompanyMsg (Tree.focusNode model.company id) ] )
+            ( loading, Cmd.batch [ cmd, Cmd.map CompanyMsg (Tree.focusNode Tree.stringIds model.company id) ] )
 
         BranchLoaded id result ->
             ( { model | branches = Dict.insert id (Remote.fromResult result) model.branches }, Cmd.none )
@@ -186,7 +187,7 @@ companyExample : Locale -> Model -> Html Msg
 companyExample locale model =
     let
         selectedText =
-            case Tree.selectedId model.company of
+            case Tree.selectedId Tree.stringIds model.company of
                 Just id ->
                     "Selected: " ++ id
 
@@ -213,10 +214,10 @@ companyExample locale model =
     , Tree.maxHeight 440
     ]
     model.tree
-    [ Tree.branch "rtm" "Rotterdam Hub"
-        [ Tree.leaf "rtm-a1" "Bay A1" |> Tree.withCount 28 ]
+    [ (Tree.branch Tree.stringIds) "rtm" "Rotterdam Hub"
+        [ (Tree.leaf Tree.stringIds) "rtm-a1" "Bay A1" |> Tree.withCount 28 ]
         |> Tree.withIcon Icon.building
-    , Tree.lazy "suppliers" "Suppliers" (lookup "suppliers" model.branches)
+    , (Tree.lazy Tree.stringIds) "suppliers" "Suppliers" (lookup "suppliers" model.branches)
     ]
 
 -- update: the message says which lazy nodes were just opened.
@@ -228,7 +229,7 @@ CompanyMsg m ->
             Tree.update m model.tree
 
         opened =
-            Tree.loadRequests m
+            (Tree.loadRequests Tree.stringIds) m
     in
     ( { model | tree = tree, branches = markLoading opened model.branches }
     , Cmd.batch (Cmd.map CompanyMsg cmd :: List.map fetch opened)
@@ -237,7 +238,7 @@ CompanyMsg m ->
 -- "Try again" and "Load" are replaced by the loading row: put the focus back on the node
 LoadBranch id ->
     ( { model | branches = markLoading [ id ] model.branches }
-    , Cmd.batch [ fetch id, Cmd.map CompanyMsg (Tree.focusNode model.tree id) ]
+    , Cmd.batch [ fetch id, Cmd.map CompanyMsg ((Tree.focusNode Tree.stringIds) model.tree id) ]
     )"""
         }
         (Layout.stack [ Layout.gap 3 ]
@@ -270,14 +271,14 @@ categoriesExample locale model =
         , description = Just "Click selects one, Ctrl+click adds or removes, Shift+click selects a range. From the keyboard: Space toggles, Shift+arrows extend. Disabled nodes cannot be selected."
         , code = Just """Tree.view CategoriesMsg [ Tree.multiSelect, Tree.ariaLabel "Categories" ] model.tree nodes
 
-Tree.selected model.tree -- [ "Hardware/Fasteners/Bolts", "Hardware/Fasteners/Nuts" ]"""
+(Tree.selected Tree.stringIds) model.tree -- [ "Hardware/Fasteners/Bolts", "Hardware/Fasteners/Nuts" ]"""
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Tree.view CategoriesMsg
                 [ Tree.multiSelect, Tree.ariaLabel "Categories", Tree.locale locale ]
                 model.categories
                 categoryNodes
-            , Text.caption ("Selected: " ++ names (List.map lastName (Tree.selected model.categories)))
+            , Text.caption ("Selected: " ++ names (List.map lastName (Tree.selected Tree.stringIds model.categories)))
             ]
         )
 
@@ -289,14 +290,14 @@ permissionsExample locale model =
         , description = Just "Checking a parent checks everything below it; a parent with some of its children checked shows a dash. Space toggles the check. The application reads the checked leaves with Tree.checked."
         , code = Just """Tree.view PermissionsMsg [ Tree.checkboxes, Tree.ariaLabel "Permissions" ] model.tree permissions
 
-Tree.checked model.tree -- [ "orders-read", "products-read" ]"""
+(Tree.checked Tree.stringIds) model.tree -- [ "orders-read", "products-read" ]"""
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Tree.view PermissionsMsg
                 [ Tree.checkboxes, Tree.ariaLabel "Permissions", Tree.locale locale ]
                 model.permissions
                 permissions
-            , Text.caption ("Checked: " ++ names (Tree.checked model.permissions))
+            , Text.caption ("Checked: " ++ names (Tree.checked Tree.stringIds model.permissions))
             ]
         )
 
@@ -310,7 +311,7 @@ ordersExample locale model =
 
 -- ids are unique in the whole tree: an order that is listed under its city and
 -- under "All orders" has two ids, "city-Oslo/ORD-10042" and "all/ORD-10042"
-Tree.leaf ("all/" ++ order.id) order.customer |> Tree.withHint order.id"""
+(Tree.leaf Tree.stringIds) ("all/" ++ order.id) order.customer |> Tree.withHint order.id"""
         }
         (Html.Lazy.lazy2 orderTree locale model.orders)
 
@@ -318,7 +319,7 @@ Tree.leaf ("all/" ++ order.id) order.customer |> Tree.withHint order.id"""
 {-| The big tree on its own, so that it can be left alone while something else
 on the page changes.
 -}
-orderTree : Locale -> Tree.State -> Html Msg
+orderTree : Locale -> Tree.State String -> Html Msg
 orderTree locale state =
     Tree.view OrdersMsg
         [ Tree.compact
@@ -370,34 +371,35 @@ type Entry
 {-| Turns entries into nodes. `lookup` gives the children of a lazy node, and
 `decorate` adds badges and the like to a leaf, by its id.
 -}
-nodesOf : (String -> Remote (List Entry)) -> (String -> Tree.Node -> Tree.Node) -> List Entry -> List Tree.Node
+nodesOf : (String -> Remote (List Entry)) -> (String -> Tree.Node String -> Tree.Node String) -> List Entry -> List (Tree.Node String)
 nodesOf lookup decorate entries =
     List.map
         (\entry ->
             case entry of
                 Item id label count ->
-                    Tree.leaf id label |> Tree.withCount count |> decorate id
+                    Tree.leaf Tree.stringIds id label |> Tree.withCount count |> decorate id
 
                 Folder id label children ->
-                    Tree.branch id label (nodesOf lookup decorate children) |> Tree.withIcon Icon.folder
+                    Tree.branch Tree.stringIds id label (nodesOf lookup decorate children) |> Tree.withIcon Icon.folder
 
                 Deferred id label ->
-                    Tree.lazy id label (Remote.map (nodesOf lookup decorate) (lookup id)) |> Tree.withIcon Icon.folder
+                    Tree.lazy Tree.stringIds id label (Remote.map (nodesOf lookup decorate) (lookup id)) |> Tree.withIcon Icon.folder
         )
         entries
 
 
-companyNodes : Locale -> Dict String (Remote (List Entry)) -> List Tree.Node
+companyNodes : Locale -> Dict String (Remote (List Entry)) -> List (Tree.Node String)
 companyNodes locale branches =
     let
         lookup id =
             Dict.get id branches |> Maybe.withDefault Remote.NotAsked
 
         lazyBranch id label icon =
-            Tree.lazy id label (Remote.map (nodesOf lookup (\_ node -> node)) (lookup id))
+            Tree.lazy Tree.stringIds id label (Remote.map (nodesOf lookup (\_ node -> node)) (lookup id))
                 |> Tree.withIcon icon
     in
-    [ Tree.branch "acme"
+    [ Tree.branch Tree.stringIds
+        "acme"
         "Acme Trading"
         (warehouses
             ++ [ lazyBranch "suppliers" "Suppliers" Icon.globe
@@ -408,37 +410,43 @@ companyNodes locale branches =
     ]
 
 
-warehouses : List Tree.Node
+warehouses : List (Tree.Node String)
 warehouses =
-    [ Tree.branch "rtm"
+    [ Tree.branch Tree.stringIds
+        "rtm"
         "Rotterdam Hub"
-        [ Tree.branch "rtm-a"
+        [ Tree.branch Tree.stringIds
+            "rtm-a"
             "Hall A, inbound"
-            [ Tree.leaf "rtm-a1" "Bay A1, pallets" |> Tree.withCount 28
-            , Tree.leaf "rtm-a2" "Bay A2, parcels" |> Tree.withCount 24
-            , Tree.leaf "rtm-a3" "Bay A3, cold chain" |> Tree.withCount 19 |> Tree.withBadge Warning "Nearly full"
+            [ Tree.leaf Tree.stringIds "rtm-a1" "Bay A1, pallets" |> Tree.withCount 28
+            , Tree.leaf Tree.stringIds "rtm-a2" "Bay A2, parcels" |> Tree.withCount 24
+            , Tree.leaf Tree.stringIds "rtm-a3" "Bay A3, cold chain" |> Tree.withCount 19 |> Tree.withBadge Warning "Nearly full"
             ]
             |> Tree.withIcon Icon.folder
-        , Tree.branch "rtm-b"
+        , Tree.branch Tree.stringIds
+            "rtm-b"
             "Hall B, outbound"
-            [ Tree.leaf "rtm-b1" "Bay B1, express" |> Tree.withCount 31
-            , Tree.leaf "rtm-b2" "Bay B2, freight" |> Tree.withCount 22
-            , Tree.leaf "rtm-b3" "Bay B3, returns" |> Tree.withBadge Danger "Closed" |> Tree.disabled
+            [ Tree.leaf Tree.stringIds "rtm-b1" "Bay B1, express" |> Tree.withCount 31
+            , Tree.leaf Tree.stringIds "rtm-b2" "Bay B2, freight" |> Tree.withCount 22
+            , Tree.leaf Tree.stringIds "rtm-b3" "Bay B3, returns" |> Tree.withBadge Danger "Closed" |> Tree.disabled
             ]
             |> Tree.withIcon Icon.folder
-        , Tree.leaf "rtm-desk" "Returns desk" |> Tree.withIcon Icon.refresh |> Tree.withHint "24 hours"
+        , Tree.leaf Tree.stringIds "rtm-desk" "Returns desk" |> Tree.withIcon Icon.refresh |> Tree.withHint "24 hours"
         ]
         |> Tree.withIcon Icon.building
-    , Tree.branch "ham"
+    , Tree.branch Tree.stringIds
+        "ham"
         "Hamburg Central"
-        [ Tree.branch "ham-a"
+        [ Tree.branch Tree.stringIds
+            "ham-a"
             "Hall A, inbound"
-            [ Tree.leaf "ham-a1" "Bay A1, small parts" |> Tree.withCount 26
-            , Tree.leaf "ham-a2" "Bay A2, bulk goods" |> Tree.withCount 18
+            [ Tree.leaf Tree.stringIds "ham-a1" "Bay A1, small parts" |> Tree.withCount 26
+            , Tree.leaf Tree.stringIds "ham-a2" "Bay A2, bulk goods" |> Tree.withCount 18
             ]
             |> Tree.withIcon Icon.folder
-        , Tree.leaf "ham-customs" "Customs office" |> Tree.withIcon Icon.briefcase
-        , Tree.leaf "ham-special"
+        , Tree.leaf Tree.stringIds "ham-customs" "Customs office" |> Tree.withIcon Icon.briefcase
+        , Tree.leaf Tree.stringIds
+            "ham-special"
             "Special handling area for oversized, hazardous and temperature-controlled goods, including quarantine and returns inspection, north wing"
             |> Tree.withCount 14
             |> Tree.withBadge Success "Open"
@@ -475,7 +483,7 @@ suppliers =
 {-| The product categories of the sample data as a tree. Ids are the paths, so
 they are unique in the whole tree.
 -}
-categoryNodes : List Tree.Node
+categoryNodes : List (Tree.Node String)
 categoryNodes =
     nodesOf (\_ -> Remote.NotAsked) decorateCategory (categoryEntries "" [])
 
@@ -544,7 +552,7 @@ lowStockCount path =
     List.length (List.filter (\product -> product.category == path && product.stock < product.reorderLevel) Sample.products)
 
 
-decorateCategory : String -> Tree.Node -> Tree.Node
+decorateCategory : String -> Tree.Node String -> Tree.Node String
 decorateCategory id node =
     let
         path =
@@ -563,31 +571,35 @@ decorateCategory id node =
         node
 
 
-permissions : List Tree.Node
+permissions : List (Tree.Node String)
 permissions =
-    [ Tree.branch "orders"
+    [ Tree.branch Tree.stringIds
+        "orders"
         "Orders"
-        [ Tree.leaf "orders-read" "View orders"
-        , Tree.leaf "orders-create" "Create orders"
-        , Tree.leaf "orders-approve" "Approve orders"
+        [ Tree.leaf Tree.stringIds "orders-read" "View orders"
+        , Tree.leaf Tree.stringIds "orders-create" "Create orders"
+        , Tree.leaf Tree.stringIds "orders-approve" "Approve orders"
         ]
         |> Tree.withIcon Icon.clipboard
-    , Tree.branch "products"
+    , Tree.branch Tree.stringIds
+        "products"
         "Products"
-        [ Tree.leaf "products-read" "View products"
-        , Tree.leaf "products-prices" "Change prices"
+        [ Tree.leaf Tree.stringIds "products-read" "View products"
+        , Tree.leaf Tree.stringIds "products-prices" "Change prices"
         ]
         |> Tree.withIcon Icon.tag
-    , Tree.branch "admin"
+    , Tree.branch Tree.stringIds
+        "admin"
         "Administration"
-        [ Tree.leaf "admin-users" "Users"
-        , Tree.leaf "admin-roles" "Roles"
-        , Tree.branch "admin-audit"
+        [ Tree.leaf Tree.stringIds "admin-users" "Users"
+        , Tree.leaf Tree.stringIds "admin-roles" "Roles"
+        , Tree.branch Tree.stringIds
+            "admin-audit"
             "Audit"
-            [ Tree.leaf "audit-read" "View the audit log"
-            , Tree.leaf "audit-export" "Export the audit log"
+            [ Tree.leaf Tree.stringIds "audit-read" "View the audit log"
+            , Tree.leaf Tree.stringIds "audit-export" "Export the audit log"
             ]
-        , Tree.leaf "admin-system" "System settings" |> Tree.disabled
+        , Tree.leaf Tree.stringIds "admin-system" "System settings" |> Tree.disabled
         ]
         |> Tree.withIcon Icon.settings
     ]
@@ -597,23 +609,23 @@ permissions =
 with all three thousand orders. The same order is a node in two places, so the
 ids start with the branch they are in.
 -}
-orderNodes : List Tree.Node
+orderNodes : List (Tree.Node String)
 orderNodes =
     let
         orderLeaf prefix order =
-            Tree.leaf (prefix ++ order.id) order.customer |> Tree.withHint order.id
+            Tree.leaf Tree.stringIds (prefix ++ orderIdText order.id) order.customer |> Tree.withHint (orderIdText order.id)
 
         city name =
             let
                 inCity =
                     List.filter (\order -> order.city == name) Sample.orders
             in
-            Tree.branch ("city-" ++ name) name (List.map (orderLeaf ("city-" ++ name ++ "/")) inCity)
+            Tree.branch Tree.stringIds ("city-" ++ name) name (List.map (orderLeaf ("city-" ++ name ++ "/")) inCity)
                 |> Tree.withIcon Icon.mapPin
                 |> Tree.withCount (List.length inCity)
     in
     List.map city (List.take 12 Sample.cities)
-        ++ [ Tree.branch "all-orders" "All orders" (List.map (orderLeaf "all/") Sample.orders)
+        ++ [ Tree.branch Tree.stringIds "all-orders" "All orders" (List.map (orderLeaf "all/") Sample.orders)
                 |> Tree.withIcon Icon.list
                 |> Tree.withCount (List.length Sample.orders)
            ]

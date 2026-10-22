@@ -238,15 +238,15 @@ toolbarTests =
 -- SIDENAV
 
 
-link : String -> SideNav.Entry msg
+link : String -> SideNav.Entry String msg
 link key =
-    SideNav.item { key = key, label = key, href = "#/" ++ key }
+    SideNav.item SideNav.stringKeys { key = key, label = key, href = "#/" ++ key }
 
 
 {-| Two sections with the same caption, and a third that holds one more with that
 caption.
 -}
-sameCaptions : List (SideNav.Entry msg)
+sameCaptions : List (SideNav.Entry String msg)
 sameCaptions =
     [ SideNav.section "Workspace" [ link "orders" ]
     , SideNav.section "Workspace" [ link "customers" ]
@@ -255,7 +255,7 @@ sameCaptions =
     ]
 
 
-sideNav : List (SideNav.Entry SideNav.Msg) -> SideNav.State -> Html SideNav.Msg
+sideNav : List (SideNav.Entry String SideNav.Msg) -> SideNav.State String -> Html SideNav.Msg
 sideNav entries state =
     SideNav.view identity [ SideNav.entries entries ] state
 
@@ -308,13 +308,14 @@ sideNavTests =
                 let
                     entries =
                         [ SideNav.section "Top" [ link "home" ]
-                        , SideNav.group { key = "reports", label = "Reports" }
+                        , SideNav.group SideNav.stringKeys
+                            { key = "reports", label = "Reports" }
                             [ SideNav.section "Same" [ link "monthly" ]
                             , SideNav.section "Same" [ link "yearly" ]
                             ]
                         ]
                 in
-                sideNav entries (SideNav.init "main-nav" |> SideNav.expandGroup "reports")
+                sideNav entries (SideNav.init "main-nav" |> SideNav.expandGroup SideNav.stringKeys "reports")
                     |> Query.fromHtml
                     |> Query.findAll [ Selector.tag "h2" ]
                     |> Expect.all

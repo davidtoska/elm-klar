@@ -1,6 +1,7 @@
 module Klar.Table exposing
     ( view
     , State, init, Msg, update, focus
+    , RowIds, rowIds, stringIds, intIds
     , ColumnId, columnId, columnName
     , Query, Direction(..), Filter(..), query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
     , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection
@@ -39,8 +40,12 @@ is turned into HTML, so thousands of rows are fine.
 
     -- model
     { orders : Remote (List Order)
-    , table : Table.State -- Table.init "orders"
+    , table : Table.State OrderId -- Table.init "orders"
     }
+
+    orderRows : Table.RowIds OrderId
+    orderRows =
+        Table.rowIds { toKey = OrderId.toString, fromKey = OrderId.fromString }
 
     -- update
     TableMsg m ->
@@ -58,7 +63,7 @@ is turned into HTML, so thousands of rows are fine.
             , Table.int "items" "Items" .items [ Table.filterRange, Table.footerSum ]
             ]
         , Table.rows model.orders
-        , Table.rowId (.id >> String.fromInt)
+        , Table.rowId orderRows .id
         , Table.searchable
         , Table.selectable
         , Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
@@ -169,6 +174,15 @@ often, put the table in a function of the rows and the `State` and call it with
 # State
 
 @docs State, init, Msg, update, focus
+
+The `id` of `State id` is the type of your row ids (`State OrderId`). Declare how
+it is written as a key once with `rowIds`, and the selection and the expanded rows
+come back in your own type, with no converting to text and back:
+
+@docs RowIds, rowIds, stringIds, intIds
+
+A table that never needs its row ids (no `selectable`, no `expandedRow`) can use
+any type for `id`, for example `Table.State ()`.
 
 
 # Sort, page, search and filters
@@ -376,9 +390,59 @@ selected, except the ids in `except` (the table cannot list rows it never
 received). A new search or filter drops it, because it would then mean other
 rows.
 -}
-type Selection
-    = Selected (List String)
-    | AllMatching { except : List String }
+type Selection id
+    = Selected (List id)
+    | AllMatching { except : List id }
+
+
+{-| How your row id type (an `OrderId`, a `CustomerId` ...) is written as a key
+and read back. Declare one value for each kind of row, once, and pass it to
+`rowId`, `selectedIds`, `isSelected`, `setSelected` and the other functions that
+speak ids. The `State` of the table is then typed by the id: a table of orders
+cannot be asked about customer ids.
+
+    orderRows : Table.RowIds OrderId
+    orderRows =
+        Table.rowIds { toKey = OrderId.toString, fromKey = OrderId.fromString }
+
+The key is what the table keeps inside its `State`, so `toKey` must give every id
+its own key and `fromKey` must give the id back. A key `fromKey` rejects (it can
+come from a saved view that holds an old id) is left out of the lists you get.
+The lists are ordered by key, as text, not in the order the ids were selected.
+
+-}
+type RowIds id
+    = RowIds
+        { toKey : id -> String
+        , fromKey : String -> Maybe id
+        }
+
+
+{-| Makes the `RowIds` of an id type, see there.
+-}
+rowIds : { toKey : id -> String, fromKey : String -> Maybe id } -> RowIds id
+rowIds =
+    RowIds
+
+
+{-| Row ids that are plain text (a SKU, a code), used as they are.
+
+    Table.rowId Table.stringIds .sku
+
+-}
+stringIds : RowIds String
+stringIds =
+    RowIds { toKey = identity, fromKey = Just }
+
+
+{-| Row ids that are whole numbers (a database id).
+
+    Table.rowId Table.intIds .id
+
+-}
+intIds : RowIds Int
+intIds =
+    RowIds { toKey = String.fromInt, fromKey = String.toInt }
 
 
 
@@ -390,7 +454,7 @@ expanded rows, hidden columns and density, and which popup and row are open or
 focused. Make one with `init`, keep it in your model, change it with `update`
 (or the setters in this module) and pass it to `view`.
 -}
-type State
+type State id
     = State Model
 
 
@@ -442,7 +506,7 @@ per page and normal density. The `String` is a DOM id and must be unique on
 the page. It is the id of the table's element and the prefix of the ids inside
 it (`"orders"` gives `"orders-search"` for the search box, for example).
 -}
-init : String -> State
+init : String -> State id
 init tableId =
     State
         { id = tableId
@@ -474,7 +538,7 @@ size. In server mode, fetch whenever it changed; in client mode you only need it
 to save the table's view (see `setQuery`). The search text and the filters are
 the ones in effect, so text still waiting for the debounce is not in it.
 -}
-query : State -> Query
+query : State id -> Query
 query (State model) =
     { search = model.search
     , sort = List.map (\( id, direction ) -> ( ColumnId id, direction )) model.sort
@@ -490,7 +554,7 @@ popovers show the new values; a page or page size below 1 becomes 1. Selected
 rows stay selected, but an "all matching" selection (see `Selection`) is dropped
 when the search or the filters change.
 -}
-setQuery : Query -> State -> State
+setQuery : Query -> State id -> State id
 setQuery q (State model) =
     State
         (settled model
@@ -532,7 +596,7 @@ dropAllMatching picked =
 {-| The columns the table is sorted by, primary first, as column ids with a
 direction. Empty when nothing is sorted.
 -}
-sort : State -> List ( ColumnId, Direction )
+sort : State id -> List ( ColumnId, Direction )
 sort (State model) =
     List.map (\( id, direction ) -> ( ColumnId id, direction )) model.sort
 
@@ -541,7 +605,7 @@ sort (State model) =
 page 1. In client mode, ids that match no column, or a column that is
 `unsortable`, are ignored.
 -}
-setSort : List ( ColumnId, Direction ) -> State -> State
+setSort : List ( ColumnId, Direction ) -> State id -> State id
 setSort value (State model) =
     State { model | sort = List.map (\( ColumnId id, direction ) -> ( id, direction )) value, page = 1 }
 
@@ -550,14 +614,14 @@ setSort value (State model) =
 drawn as the last page (the footer says so, and in client mode the rows are those
 of the last page), but this keeps returning the number that was asked for.
 -}
-page : State -> Int
+page : State id -> Int
 page (State model) =
     model.page
 
 
 {-| Goes to this page. The first page is 1; smaller numbers count as 1.
 -}
-setPage : Int -> State -> State
+setPage : Int -> State id -> State id
 setPage value (State model) =
     State { model | page = max 1 value }
 
@@ -565,7 +629,7 @@ setPage value (State model) =
 {-| How many rows are on a page: 25 until the user picks another size in the
 footer (see `pageSizes`) or you call `setPageSize`.
 -}
-pageSize : State -> Int
+pageSize : State id -> Int
 pageSize (State model) =
     model.pageSize
 
@@ -573,7 +637,7 @@ pageSize (State model) =
 {-| Sets how many rows are on a page (at least 1) and goes back to page 1. A size
 that is not in `pageSizes` is still used and shown in the footer.
 -}
-setPageSize : Int -> State -> State
+setPageSize : Int -> State id -> State id
 setPageSize value (State model) =
     State { model | pageSize = max 1 value, page = 1 }
 
@@ -581,7 +645,7 @@ setPageSize value (State model) =
 {-| The search text in effect: what the user typed, trimmed, once any
 `searchDebounce` has passed. Empty when there is no search.
 -}
-search : State -> String
+search : State id -> String
 search (State model) =
     model.search
 
@@ -590,7 +654,7 @@ search (State model) =
 (without the debounce) and goes back to page 1. A changed search drops an "all
 matching" selection (see `Selection`).
 -}
-setSearch : String -> State -> State
+setSearch : String -> State id -> State id
 setSearch value (State model) =
     State (settled model { model | searchInput = value, search = String.trim value, page = 1 })
 
@@ -598,7 +662,7 @@ setSearch value (State model) =
 {-| The column filters in effect, as column ids with their filter, ordered by
 column id. Typed text still waiting for the debounce is not included.
 -}
-filters : State -> List ( ColumnId, Filter )
+filters : State id -> List ( ColumnId, Filter )
 filters (State model) =
     List.map (\( id, f ) -> ( ColumnId id, f )) (Dict.toList model.filters)
 
@@ -606,7 +670,7 @@ filters (State model) =
 {-| Sets (`Just`) or removes (`Nothing`) the filter of the column with this id,
 and goes back to page 1. The column's filter popover shows the new value.
 -}
-setFilter : ColumnId -> Maybe Filter -> State -> State
+setFilter : ColumnId -> Maybe Filter -> State id -> State id
 setFilter (ColumnId colId) maybeFilter (State model) =
     case maybeFilter of
         Just f ->
@@ -619,7 +683,7 @@ setFilter (ColumnId colId) maybeFilter (State model) =
 {-| Removes the search and every column filter, and goes back to page 1. Filters
 that live outside the table (see `rowFilter`) are yours to clear.
 -}
-clearFilters : State -> State
+clearFilters : State id -> State id
 clearFilters (State model) =
     State (settled model { model | filters = Dict.empty, inputs = Dict.empty, search = "", searchInput = "", page = 1 })
 
@@ -627,7 +691,7 @@ clearFilters (State model) =
 {-| The row density: `Compact`, `Normal` (the default) or `Comfortable`, from
 [Klar.Theme](Klar-Theme). The user changes it with the buttons of `densityToggle`.
 -}
-density : State -> Density
+density : State id -> Density
 density (State model) =
     model.density
 
@@ -635,7 +699,7 @@ density (State model) =
 {-| Sets the row density, for example from a saved preference. It works whether
 or not `densityToggle` is shown.
 -}
-setDensity : Density -> State -> State
+setDensity : Density -> State id -> State id
 setDensity value (State model) =
     State { model | density = value }
 
@@ -643,27 +707,37 @@ setDensity value (State model) =
 {-| What is selected, as a `Selection`. In client mode `selectedIds` is enough; in
 server mode check this one for `AllMatching`.
 -}
-selection : State -> Selection
-selection (State model) =
+selection : RowIds id -> State id -> Selection id
+selection ids (State model) =
     case model.selection of
         Picked keys ->
-            Selected (Set.toList keys)
+            Selected (idsOf ids keys)
 
         AllPicked except ->
-            AllMatching { except = Set.toList except }
+            AllMatching { except = idsOf ids except }
 
 
 {-| The ids (see `rowId`) of the selected rows. After "Select all N matching" in
 server mode this is empty: check `selection` for `AllMatching`.
 -}
-selectedIds : State -> List String
-selectedIds (State model) =
+selectedIds : RowIds id -> State id -> List id
+selectedIds ids (State model) =
     case model.selection of
         Picked keys ->
-            Set.toList keys
+            idsOf ids keys
 
         AllPicked _ ->
             []
+
+
+idsOf : RowIds id -> Set String -> List id
+idsOf (RowIds ids) keys =
+    List.filterMap ids.fromKey (Set.toList keys)
+
+
+keysOf : RowIds id -> List id -> List String
+keysOf (RowIds ids) =
+    List.map ids.toKey
 
 
 {-| How many rows are selected. Pass the number of rows that match the current
@@ -671,7 +745,7 @@ query (the `total` you give to `server`). It is only used after "Select all N
 matching", where the count is that number minus the exceptions, so in client
 mode any number will do.
 -}
-selectedCount : Int -> State -> Int
+selectedCount : Int -> State id -> Int
 selectedCount matching (State model) =
     case model.selection of
         Picked keys ->
@@ -684,24 +758,24 @@ selectedCount matching (State model) =
 {-| Is the row with this id selected? After "Select all N matching" every id
 counts as selected except the exceptions.
 -}
-isSelected : String -> State -> Bool
-isSelected key (State model) =
-    isPicked model.selection key
+isSelected : RowIds id -> id -> State id -> Bool
+isSelected (RowIds ids) id (State model) =
+    isPicked model.selection (ids.toKey id)
 
 
 {-| Selects (`True`) or deselects (`False`) the rows with these ids, as the
 checkboxes do. After "Select all N matching" selecting removes ids from the
 exceptions and deselecting adds them.
 -}
-setSelected : List String -> Bool -> State -> State
-setSelected keys checked (State model) =
-    State { model | selection = pick keys checked model.selection }
+setSelected : RowIds id -> List id -> Bool -> State id -> State id
+setSelected ids values checked (State model) =
+    State { model | selection = pick (keysOf ids values) checked model.selection }
 
 
 {-| Deselects everything, including an "all matching" selection. Call it when a
 bulk action has done its work.
 -}
-clearSelection : State -> State
+clearSelection : State id -> State id
 clearSelection (State model) =
     State { model | selection = Picked Set.empty }
 
@@ -713,14 +787,14 @@ would fall back to the page.
 
     DeleteSelected ->
         ( { model
-            | orders = withoutOrders (Table.selectedIds model.table) model.orders
+            | orders = withoutOrders (Table.selectedIds orderRows model.table) model.orders
             , table = Table.clearSelection model.table
           }
         , Cmd.map TableMsg (Table.focus model.table)
         )
 
 -}
-focus : State -> Cmd Msg
+focus : State id -> Cmd Msg
 focus (State model) =
     Internal.focus (scrollDomId model.id) NoOp
 
@@ -728,23 +802,27 @@ focus (State model) =
 {-| The ids (see `rowId`) of the rows that are expanded. Rows only expand when you
 give the table an `expandedRow`.
 -}
-expandedIds : State -> List String
-expandedIds (State model) =
-    Set.toList model.expanded
+expandedIds : RowIds id -> State id -> List id
+expandedIds ids (State model) =
+    idsOf ids model.expanded
 
 
 {-| Is the row with this id expanded?
 -}
-isExpanded : String -> State -> Bool
-isExpanded key (State model) =
-    Set.member key model.expanded
+isExpanded : RowIds id -> id -> State id -> Bool
+isExpanded (RowIds ids) id (State model) =
+    Set.member (ids.toKey id) model.expanded
 
 
 {-| Expands (`True`) or collapses (`False`) the row with this id, for example to
 open the first row when the table appears.
 -}
-setExpanded : String -> Bool -> State -> State
-setExpanded key value (State model) =
+setExpanded : RowIds id -> id -> Bool -> State id -> State id
+setExpanded (RowIds ids) id value (State model) =
+    let
+        key =
+            ids.toKey id
+    in
     State
         { model
             | expanded =
@@ -761,7 +839,7 @@ column with this id. `Nothing` means no choice yet: the column follows its
 default, shown unless it is `hiddenByDefault`. With `setColumnVisible` this lets
 you remember the user's column choices.
 -}
-isColumnVisible : ColumnId -> State -> Maybe Bool
+isColumnVisible : ColumnId -> State id -> Maybe Bool
 isColumnVisible (ColumnId colId) (State model) =
     Dict.get colId model.visibility
 
@@ -771,7 +849,7 @@ as if the user had ticked it in the column chooser. Columns that are
 `alwaysVisible` ignore it, and the table always keeps at least one column on
 screen.
 -}
-setColumnVisible : ColumnId -> Bool -> State -> State
+setColumnVisible : ColumnId -> Bool -> State id -> State id
 setColumnVisible (ColumnId colId) value (State model) =
     State { model | visibility = Dict.insert colId value model.visibility }
 
@@ -823,7 +901,7 @@ type Msg
 focus (into a popup, back to its button) and runs the timer behind the search
 debounce, so map it back with your own constructor: `Cmd.map TableMsg cmd`.
 -}
-update : Msg -> State -> ( State, Cmd Msg )
+update : Msg -> State id -> ( State id, Cmd Msg )
 update msg (State model) =
     Tuple.mapFirst State (step msg model)
 
@@ -2146,7 +2224,7 @@ footerAverage =
 them with the functions below and pass a list to `view`; later attributes win
 over earlier ones.
 -}
-type Attribute row msg
+type Attribute id row msg
     = Attribute (Config row msg -> Config row msg)
 
 
@@ -2189,7 +2267,7 @@ type alias Config row msg =
     }
 
 
-configure : List (Attribute row msg) -> Config row msg
+configure : List (Attribute id row msg) -> Config row msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { columns = []
@@ -2236,7 +2314,7 @@ configure attributes =
 Column ids must be unique and stay the same: sort, filters, hidden columns and
 the `Query` refer to them.
 -}
-columns : List (Column row msg) -> Attribute row msg
+columns : List (Column row msg) -> Attribute id row msg
 columns value =
     Attribute (\config -> { config | columns = value })
 
@@ -2247,7 +2325,7 @@ button (see `onRetry`), and `Success []` shows the empty state (see
 `emptyState`). In server mode these are the rows of the current page only.
 Without `rows` the table shows the loading skeleton.
 -}
-rows : Remote (List row) -> Attribute row msg
+rows : Remote (List row) -> Attribute id row msg
 rows value =
     Attribute (\config -> { config | rows = value })
 
@@ -2256,17 +2334,23 @@ rows value =
 rows and keyed rendering depend on it; without it rows are identified by their
 position in the current (filtered and sorted) result, so a selection or an open
 row does not follow its row when the order changes, and `selectable` needs it.
+
+The first argument says how your id type is written as a key and read back
+(see `rowIds`); the `State` of the table then speaks your id type:
+
+    Table.rowId orderRows .id
+
 -}
-rowId : (row -> String) -> Attribute row msg
-rowId toId =
-    Attribute (\config -> { config | rowId = Just toId })
+rowId : RowIds id -> (row -> id) -> Attribute id row msg
+rowId (RowIds ids) toId =
+    Attribute (\config -> { config | rowId = Just (toId >> ids.toKey) })
 
 
 {-| How screen readers name a row, for example in the label of its checkbox
 ("Select Ada Lovelace"), its expand button and its actions menu. The default is
 the text of the first visible column.
 -}
-rowLabel : (row -> String) -> Attribute row msg
+rowLabel : (row -> String) -> Attribute id row msg
 rowLabel toLabel =
     Attribute (\config -> { config | rowLabel = Just toLabel })
 
@@ -2277,7 +2361,7 @@ the rows itself; it shows the pagination for `total` and records what the user
 asks for, which you read with `query`. Without this attribute the table is in
 client mode.
 -}
-server : { total : Int } -> Attribute row msg
+server : { total : Int } -> Attribute id row msg
 server options =
     Attribute (\config -> { config | server = Just (max 0 options.total) })
 
@@ -2285,7 +2369,7 @@ server options =
 {-| The accessible name of the table, such as "Orders". It is also what makes the
 scrolling area a labelled region for screen readers.
 -}
-label : String -> Attribute row msg
+label : String -> Attribute id row msg
 label value =
     Attribute (\config -> { config | label = Just value })
 
@@ -2295,7 +2379,7 @@ number and date formats, the alphabetical order of text columns and the default
 CSV separator. The default is `Locale.default`, which is English; see
 [Klar.Locale](Klar-Locale).
 -}
-locale : Locale -> Attribute row msg
+locale : Locale -> Attribute id row msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -2305,7 +2389,7 @@ one of the visible, searchable columns (case and accents are ignored), and the
 match is highlighted. Escape clears the box; in server mode the table only
 records the text (see `query`).
 -}
-searchable : Attribute row msg
+searchable : Attribute id row msg
 searchable =
     Attribute (\config -> { config | searchable = True })
 
@@ -2314,7 +2398,7 @@ searchable =
 default tells how many rows can be searched, as in "Search 120 rows ...", and is
 just "Search ..." in server mode.
 -}
-searchPlaceholder : String -> Attribute row msg
+searchPlaceholder : String -> Attribute id row msg
 searchPlaceholder value =
     Attribute (\config -> { config | searchable = True, searchPlaceholder = Just value })
 
@@ -2324,7 +2408,7 @@ the text filters and the number range filters takes effect (checkbox filters
 always apply at once). The default is 0 in client mode and 350 in server mode,
 so that a server is not asked on every key press.
 -}
-searchDebounce : Int -> Attribute row msg
+searchDebounce : Int -> Attribute id row msg
 searchDebounce ms =
     Attribute (\config -> { config | searchDebounce = Just (max 0 ms) })
 
@@ -2335,7 +2419,7 @@ for which it returns `False` are left out, on top of the table's own search and
 filters. Tell the table how many outside filters are active with
 `activeExternalFilters`; server mode ignores this one, as your backend filters.
 -}
-rowFilter : (row -> Bool) -> Attribute row msg
+rowFilter : (row -> Bool) -> Attribute id row msg
 rowFilter keep =
     Attribute (\config -> { config | rowFilter = Just keep })
 
@@ -2345,7 +2429,7 @@ or the ones you send to your backend). The table adds them to its own in the
 "N filters active" button, and uses the number to tell "no matches" (a filter
 hides the rows) from "no data".
 -}
-activeExternalFilters : Int -> Attribute row msg
+activeExternalFilters : Int -> Attribute id row msg
 activeExternalFilters n =
     Attribute (\config -> { config | externalFilters = max 0 n })
 
@@ -2357,7 +2441,7 @@ state, which clears both. When your message arrives the table has cleared its ow
 filters (and maybe the search), so clear your outside filters too (see
 `rowFilter`) and fetch or filter again.
 -}
-onResetFilters : msg -> Attribute row msg
+onResetFilters : msg -> Attribute id row msg
 onResetFilters msg =
     Attribute (\config -> { config | onResetFilters = Just msg })
 
@@ -2368,7 +2452,7 @@ and a bar that covers the toolbar while something is selected (see
 `rowDisabled` cannot be selected. When a whole page is selected and more rows
 match, the bar offers "Select all N matching".
 -}
-selectable : Attribute row msg
+selectable : Attribute id row msg
 selectable =
     Attribute (\config -> { config | selectable = True })
 
@@ -2381,7 +2465,7 @@ buttons; it also turns on `selectable`.
     Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
 
 -}
-bulkActions : List (Html msg) -> Attribute row msg
+bulkActions : List (Html msg) -> Attribute id row msg
 bulkActions value =
     Attribute (\config -> { config | selectable = True, bulkActions = value })
 
@@ -2400,7 +2484,7 @@ key opens the menu.
         )
 
 -}
-rowActions : (row -> List (Menu.Item msg)) -> Attribute row msg
+rowActions : (row -> List (Menu.Item msg)) -> Attribute id row msg
 rowActions toItems =
     Attribute (\config -> { config | rowActions = Just toItems })
 
@@ -2409,7 +2493,7 @@ rowActions toItems =
 controls) or presses Enter on it. The function gets the row. A row that is
 `rowDisabled` does not send it.
 -}
-onRowClick : (row -> msg) -> Attribute row msg
+onRowClick : (row -> msg) -> Attribute id row msg
 onRowClick toMsg =
     Attribute (\config -> { config | onRowClick = Just toMsg })
 
@@ -2421,7 +2505,7 @@ ArrowRight and ArrowLeft expand and collapse the focused row, and without
 this. Which rows are open is part of the state (see `expandedIds` and
 `setExpanded`).
 -}
-expandedRow : (row -> Html msg) -> Attribute row msg
+expandedRow : (row -> Html msg) -> Attribute id row msg
 expandedRow render =
     Attribute (\config -> { config | expandedRow = Just render })
 
@@ -2429,7 +2513,7 @@ expandedRow render =
 {-| A colored accent at the start of some rows: return a `Tone` (from
 [Klar.Theme](Klar-Theme)) for the rows that need one and `Nothing` for the rest.
 -}
-rowTone : (row -> Maybe Tone) -> Attribute row msg
+rowTone : (row -> Maybe Tone) -> Attribute id row msg
 rowTone toTone =
     Attribute (\config -> { config | rowTone = Just toTone })
 
@@ -2444,7 +2528,7 @@ row already has stay until you change them with `setSelected` or `setExpanded`,
 and controls you draw yourself (`actions`, `cell`, `custom`) are yours to
 disable.
 -}
-rowDisabled : (row -> Bool) -> Attribute row msg
+rowDisabled : (row -> Bool) -> Attribute id row msg
 rowDisabled isDisabled =
     Attribute (\config -> { config | rowDisabled = Just isDisabled })
 
@@ -2452,7 +2536,7 @@ rowDisabled isDisabled =
 {-| Your own buttons at the right end of the toolbar, next to the table's own
 tools.
 -}
-toolbarActions : List (Html msg) -> Attribute row msg
+toolbarActions : List (Html msg) -> Attribute id row msg
 toolbarActions value =
     Attribute (\config -> { config | toolbarActions = value })
 
@@ -2460,7 +2544,7 @@ toolbarActions value =
 {-| Adds a refresh button to the toolbar that sends this message. The button
 shows a spinner while the table is `refreshing` or its rows are loading.
 -}
-onRefresh : msg -> Attribute row msg
+onRefresh : msg -> Attribute id row msg
 onRefresh msg =
     Attribute (\config -> { config | onRefresh = Just msg })
 
@@ -2471,7 +2555,7 @@ progress line under the header, and screen readers hear "Refreshing ...". It
 only applies to `Success` rows; while `rows` is `Loading` the skeleton is shown
 instead. The default is `False`.
 -}
-refreshing : Bool -> Attribute row msg
+refreshing : Bool -> Attribute id row msg
 refreshing value =
     Attribute (\config -> { config | refreshing = value })
 
@@ -2482,7 +2566,7 @@ only appears for problems worth retrying (see `Remote.isRetryable` in
 [Klar.Remote](Klar-Remote)). Keyboard focus stays in the table while the new rows
 load.
 -}
-onRetry : msg -> Attribute row msg
+onRetry : msg -> Attribute id row msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
@@ -2499,7 +2583,7 @@ columns and `notExported` columns are left out, and so are `custom` and
 as a formula is made safe. See `csvSeparator` for the field separator.
 
 -}
-exportCsv : String -> Attribute row msg
+exportCsv : String -> Attribute id row msg
 exportCsv filename =
     Attribute (\config -> { config | export = Just filename })
 
@@ -2508,7 +2592,7 @@ exportCsv filename =
 a semicolon in Norwegian, where spreadsheets use the comma as the decimal
 separator.
 -}
-csvSeparator : Char -> Attribute row msg
+csvSeparator : Char -> Attribute id row msg
 csvSeparator value =
     Attribute (\config -> { config | csvSeparator = Just value })
 
@@ -2518,7 +2602,7 @@ hide and show columns, with Reset and Done buttons. Columns that are
 `alwaysVisible`, and the last visible column, cannot be hidden. The choices are
 part of the state (see `isColumnVisible` and `setColumnVisible`).
 -}
-columnChooser : Attribute row msg
+columnChooser : Attribute id row msg
 columnChooser =
     Attribute (\config -> { config | columnChooser = True })
 
@@ -2527,7 +2611,7 @@ columnChooser =
 or comfortable. The choice is part of the state (see `density` and
 `setDensity`).
 -}
-densityToggle : Attribute row msg
+densityToggle : Attribute id row msg
 densityToggle =
     Attribute (\config -> { config | densityToggle = True })
 
@@ -2536,7 +2620,7 @@ densityToggle =
 `[ 10, 25, 50, 100 ]`. The page size itself is part of the state (25 from
 `init`; see `pageSize` and `setPageSize`).
 -}
-pageSizes : List Int -> Attribute row msg
+pageSizes : List Int -> Attribute id row msg
 pageSizes value =
     Attribute (\config -> { config | pageSizes = value })
 
@@ -2544,7 +2628,7 @@ pageSizes value =
 {-| All rows on one page and no pagination footer. Every matching row is turned
 into HTML, so keep it for short tables.
 -}
-unpaged : Attribute row msg
+unpaged : Attribute id row msg
 unpaged =
     Attribute (\config -> { config | paged = False })
 
@@ -2554,14 +2638,14 @@ column as the next sort level (or cycles its direction in place), and the
 headers show the order as small numbers. A plain click sorts by that column
 only; without `multiSort`, Shift changes nothing.
 -}
-multiSort : Attribute row msg
+multiSort : Attribute id row msg
 multiSort =
     Attribute (\config -> { config | multiSort = True })
 
 
 {-| Gives every second row a light gray background.
 -}
-zebra : Attribute row msg
+zebra : Attribute id row msg
 zebra =
     Attribute (\config -> { config | zebra = True })
 
@@ -2569,7 +2653,7 @@ zebra =
 {-| The rows scroll inside this height in pixels, under a header that stays in
 view. Without it the table is as tall as its rows.
 -}
-maxHeight : Int -> Attribute row msg
+maxHeight : Int -> Attribute id row msg
 maxHeight px =
     Attribute (\config -> { config | maxHeight = Just px })
 
@@ -2577,7 +2661,7 @@ maxHeight px =
 {-| The table fills the height of its parent, which must have a height of its
 own, and the rows scroll inside under the header.
 -}
-fillHeight : Attribute row msg
+fillHeight : Attribute id row msg
 fillHeight =
     Attribute (\config -> { config | fillHeight = True })
 
@@ -2593,7 +2677,7 @@ win.
     Table.emptyState [ EmptyState.title "No orders yet", EmptyState.action addButton ]
 
 -}
-emptyState : List (EmptyState.Attribute msg) -> Attribute row msg
+emptyState : List (EmptyState.Attribute msg) -> Attribute id row msg
 emptyState value =
     Attribute (\config -> { config | emptyState = value })
 
@@ -2903,7 +2987,7 @@ call; the `State` only holds what the user changed.
     Table.view TableMsg [ Table.columns columns, Table.rows model.orders ] model.table
 
 -}
-view : (Msg -> msg) -> List (Attribute row msg) -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute id row msg) -> State id -> Html msg
 view toMsg attributes (State model) =
     let
         config =
@@ -3408,6 +3492,21 @@ formatNumber loc decimals n =
         Format.decimal loc (max 1 decimals) n
 
 
+densityCompact : Icon.Icon
+densityCompact =
+    Icon.fromSvg "table-density-compact" "<line x1='4' y1='4.5' x2='20' y2='4.5'/><line x1='4' y1='9.5' x2='20' y2='9.5'/><line x1='4' y1='14.5' x2='20' y2='14.5'/><line x1='4' y1='19.5' x2='20' y2='19.5'/>"
+
+
+densityNormal : Icon.Icon
+densityNormal =
+    Icon.fromSvg "table-density-normal" "<line x1='4' y1='5' x2='20' y2='5'/><line x1='4' y1='12' x2='20' y2='12'/><line x1='4' y1='19' x2='20' y2='19'/>"
+
+
+densityComfortable : Icon.Icon
+densityComfortable =
+    Icon.fromSvg "table-density-comfortable" "<rect x='4' y='4' width='16' height='6' rx='1'/><rect x='4' y='14' width='16' height='6' rx='1'/>"
+
+
 viewDensity : Ctx row msg -> Html msg
 viewDensity ctx =
     let
@@ -3419,7 +3518,7 @@ viewDensity ctx =
                 , Button.title (ctx.t.density ++ ": " ++ name)
                 , Button.onClick (ctx.toMsg (DensityChanged value))
                 ]
-                (Icon.custom icon)
+                icon
                 name
     in
     Html.div
@@ -3427,9 +3526,9 @@ viewDensity ctx =
         , Attr.attribute "role" "group"
         , Attr.attribute "aria-label" ctx.t.density
         ]
-        [ choice Compact "table-density-compact" ctx.t.compact
-        , choice Normal "table-density-normal" ctx.t.normal
-        , choice Comfortable "table-density-comfortable" ctx.t.comfortable
+        [ choice Compact densityCompact ctx.t.compact
+        , choice Normal densityNormal ctx.t.normal
+        , choice Comfortable densityComfortable ctx.t.comfortable
         ]
 
 

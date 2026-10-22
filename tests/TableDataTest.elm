@@ -8,6 +8,7 @@ import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote exposing (Remote(..))
 import Klar.Table as Table exposing (Direction(..), Filter(..))
 import Klar.Table.Csv as Csv
+import Support.Ids as Ids
 import Support.Orders as Orders exposing (Msg(..), Order, allOf, ariaLabelled, expectRows, generated, press, render, sortButton, sortClick)
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
@@ -35,14 +36,14 @@ suite =
 -- HELPERS
 
 
-start : Table.State
+start : Table.State String
 start =
     Table.init "orders"
 
 
 {-| The rows the table shows, by order number, for a state and some attributes.
 -}
-shows : List Int -> List (Table.Attribute Order Msg) -> Table.State -> Expectation
+shows : List Int -> List (Table.Attribute String Order Msg) -> Table.State String -> Expectation
 shows codes attributes state =
     expectRows (numbers codes) (render attributes state)
 
@@ -57,12 +58,12 @@ allCodes =
     [ 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 ]
 
 
-sorted : List ( Table.ColumnId, Direction ) -> Table.State
+sorted : List ( Table.ColumnId, Direction ) -> Table.State String
 sorted levels =
     Table.setSort levels start
 
 
-element : List (Table.Attribute Order Msg) -> List Selector -> List Selector -> Table.State -> Expectation
+element : List (Table.Attribute String Order Msg) -> List Selector -> List Selector -> Table.State String -> Expectation
 element attributes find expectations state =
     render attributes state
         |> Query.fromHtml
@@ -70,14 +71,14 @@ element attributes find expectations state =
         |> Query.has expectations
 
 
-root : List (Table.Attribute Order Msg) -> List Selector -> Table.State -> Expectation
+root : List (Table.Attribute String Order Msg) -> List Selector -> Table.State String -> Expectation
 root attributes expectations state =
     render attributes state
         |> Query.fromHtml
         |> Query.has expectations
 
 
-noElement : List (Table.Attribute Order Msg) -> List Selector -> Table.State -> Expectation
+noElement : List (Table.Attribute String Order Msg) -> List Selector -> Table.State String -> Expectation
 noElement attributes find state =
     render attributes state
         |> Query.fromHtml
@@ -107,7 +108,7 @@ expectOk toExpectation result =
 
 {-| One cell of the footer, counted from the left.
 -}
-footerCell : Int -> List (Table.Attribute Order Msg) -> List Selector -> Table.State -> Expectation
+footerCell : Int -> List (Table.Attribute String Order Msg) -> List Selector -> Table.State String -> Expectation
 footerCell index attributes expectations state =
     render attributes state
         |> Query.fromHtml
@@ -872,7 +873,7 @@ exportTests =
                     attributes =
                         Table.selectable :: exporting
                 in
-                open attributes (Table.setSelected [ "ORD-2002", "ORD-2005" ] True start)
+                open attributes (Table.setSelected Ids.strings [ "ORD-2002", "ORD-2005" ] True start)
                     |> expectOk (\s -> option 1 attributes (link (english [ 2002, 2005 ]) "orders-selected.csv") s)
         , test "in the bar of selected rows the selected rows come first" <|
             \_ ->
@@ -880,7 +881,7 @@ exportTests =
                     attributes =
                         Table.selectable :: exporting
                 in
-                press attributes (byId "orders-trigger-bulk-export") Event.click (Table.setSelected [ "ORD-2002" ] True start)
+                press attributes (byId "orders-trigger-bulk-export") Event.click (Table.setSelected Ids.strings [ "ORD-2002" ] True start)
                     |> expectOk (\s -> element attributes (byId "orders-popup-bulk-export-option-0") [ Selector.text "Selected rows", Selector.text "1 row" ] s)
         , test "a file name without an extension gets the suffix at the end" <|
             \_ ->
@@ -888,7 +889,7 @@ exportTests =
                     attributes =
                         [ Table.exportCsv "orders", Table.selectable ]
                 in
-                open attributes (Table.setSelected [ "ORD-2002" ] True start)
+                open attributes (Table.setSelected Ids.strings [ "ORD-2002" ] True start)
                     |> expectOk (\s -> option 1 attributes [ Selector.attribute (Attr.download "orders-selected") ] s)
         , test "a file name with several dots gets the suffix before the last one" <|
             \_ ->
@@ -896,7 +897,7 @@ exportTests =
                     attributes =
                         [ Table.exportCsv "orders.2026.csv", Table.selectable ]
                 in
-                open attributes (Table.setSelected [ "ORD-2002" ] True start)
+                open attributes (Table.setSelected Ids.strings [ "ORD-2002" ] True start)
                     |> expectOk (\s -> option 1 attributes [ Selector.attribute (Attr.download "orders.2026-selected.csv") ] s)
         , test "in server mode the table offers only the page it has" <|
             \_ ->

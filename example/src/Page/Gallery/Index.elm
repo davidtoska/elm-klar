@@ -10,6 +10,7 @@ import Klar.Button as Button
 import Klar.Card as Card
 import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon
+import Klar.Icon.Library as Library
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Search as Search
@@ -72,7 +73,7 @@ view locale model =
         [ Layout.grid [ Layout.minColumn 150, Layout.gap 4 ]
             [ Stat.view [ Stat.label "Components", Stat.int Catalog.componentCount, Stat.caption "in the library", Stat.locale locale ]
             , Stat.view [ Stat.label "Pages", Stat.int (List.length Catalog.all), Stat.caption "with live examples", Stat.locale locale ]
-            , Stat.view [ Stat.label "Icons", Stat.int (List.length Icon.all), Stat.caption "drawn with CSS", Stat.locale locale ]
+            , Stat.view [ Stat.label "Icons", Stat.int Library.count, Stat.caption "one style, all Elm", Stat.locale locale ]
             , Stat.view [ Stat.label "Packages", Stat.int 0, Stat.caption "besides the official elm/*", Stat.locale locale ]
             ]
         , Layout.stack [ Layout.gap 4 ]

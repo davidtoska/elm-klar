@@ -41,6 +41,7 @@ import Json.Encode as Encode
 import Klar.Date as Date exposing (Date)
 import Klar.Remote exposing (Remote(..))
 import Klar.Table as Table
+import Support.Ids as Ids
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
@@ -124,12 +125,12 @@ columns =
 {-| The table with the id `orders`, the curated orders in `columns`, and then
 the attributes of the test (later attributes win).
 -}
-render : List (Table.Attribute Order Msg) -> Table.State -> Html Msg
+render : List (Table.Attribute String Order Msg) -> Table.State String -> Html Msg
 render attributes state =
     Table.view TableMsg
         ([ Table.columns columns
          , Table.rows (Success curated)
-         , Table.rowId .number
+         , Table.rowId Ids.strings .number
          , Table.label "Orders"
          ]
             ++ attributes
@@ -137,7 +138,7 @@ render attributes state =
         state
 
 
-applyMsg : Msg -> Table.State -> Table.State
+applyMsg : Msg -> Table.State String -> Table.State String
 applyMsg msg state =
     case msg of
         TableMsg tableMsg ->
@@ -151,7 +152,7 @@ applyMsg msg state =
 event on it. The result is the message the element sends, or what went wrong:
 no such element, several, or an element that does not listen to the event.
 -}
-send : List (Table.Attribute Order Msg) -> List Selector -> ( String, Encode.Value ) -> Table.State -> Result String Msg
+send : List (Table.Attribute String Order Msg) -> List Selector -> ( String, Encode.Value ) -> Table.State String -> Result String Msg
 send attributes selectors event state =
     render attributes state
         |> Query.fromHtml
@@ -162,7 +163,7 @@ send attributes selectors event state =
 
 {-| `send`, and then give the message to `Table.update`.
 -}
-press : List (Table.Attribute Order Msg) -> List Selector -> ( String, Encode.Value ) -> Table.State -> Result String Table.State
+press : List (Table.Attribute String Order Msg) -> List Selector -> ( String, Encode.Value ) -> Table.State String -> Result String (Table.State String)
 press attributes selectors event state =
     send attributes selectors event state
         |> Result.map (\msg -> applyMsg msg state)
@@ -255,7 +256,7 @@ keyDownWith modifiers targetId key =
 page. (A control that is missing altogether is a failure, so that a mistake in
 the selectors does not look like success.)
 -}
-cannotUse : List (Table.Attribute Order Msg) -> List Selector -> ( String, Encode.Value ) -> Table.State -> Expectation
+cannotUse : List (Table.Attribute String Order Msg) -> List Selector -> ( String, Encode.Value ) -> Table.State String -> Expectation
 cannotUse attributes selectors event state =
     allOf
         [ render attributes state

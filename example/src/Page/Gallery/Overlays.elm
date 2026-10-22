@@ -335,7 +335,7 @@ remaining model samples =
 countryOptions : List (Select.Option String)
 countryOptions =
     List.map
-        (\country -> Select.option country.code country.name |> Select.withGroup country.region)
+        (\country -> Select.option (Types.countryCodeText country.code) country.name |> Select.withGroup country.region)
         Sample.countries
 
 
@@ -607,7 +607,7 @@ update msg model =
                             |> withToast
                                 [ Toast.success
                                 , Toast.title "Order deleted"
-                                , Toast.message (order.id ++ " was removed.")
+                                , Toast.message (Types.orderIdText order.id ++ " was removed.")
                                 , Toast.action "Undo" (UndoDelete order)
                                 ]
 
@@ -619,7 +619,7 @@ update msg model =
 
         UndoDelete order ->
             ( { model | deleted = List.filter (\id -> id /= order.id) model.deleted }, Cmd.none )
-                |> withToast [ Toast.info, Toast.message (order.id ++ " was restored.") ]
+                |> withToast [ Toast.info, Toast.message (Types.orderIdText order.id ++ " was restored.") ]
 
         RestoreOrders ->
             ( { model | deleted = [] }, Cmd.none )
@@ -875,7 +875,7 @@ searchOrders ticket text shouldFail =
                     Err (Remote.problem Remote.server |> Remote.withCode "HTTP 503")
 
                 else
-                    Ok (Search.filter (\order -> order.customer ++ " " ++ order.id) text Sample.orders |> List.take 6)
+                    Ok (Search.filter (\order -> order.customer ++ " " ++ Types.orderIdText order.id) text Sample.orders |> List.take 6)
             )
         |> Task.perform (GotHits ticket)
 
@@ -1124,14 +1124,14 @@ orderList model samples viewRow =
 
 deleteButtonId : Types.Order -> String
 deleteButtonId order =
-    "delete-" ++ order.id
+    "delete-" ++ Types.orderIdText order.id
 
 
 deleteRow : Types.Order -> Html Msg
 deleteRow order =
     Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.padding 2 ]
         [ Layout.stack [ Layout.gap 0, Layout.grow ]
-            [ Text.strong (order.id ++ " · " ++ order.customer)
+            [ Text.strong (Types.orderIdText order.id ++ " · " ++ order.customer)
             , Text.caption (order.email ++ " · " ++ order.city)
             ]
         , statusBadge order
@@ -1139,10 +1139,10 @@ deleteRow order =
             [ Button.ghost
             , Button.id (deleteButtonId order)
             , Button.onClick (AskDelete (deleteButtonId order) order)
-            , Button.htmlAttrs (Tooltip.attrs ("Delete " ++ order.id))
+            , Button.htmlAttrs (Tooltip.attrs ("Delete " ++ Types.orderIdText order.id))
             ]
             Icon.trash
-            ("Delete " ++ order.id)
+            ("Delete " ++ Types.orderIdText order.id)
         ]
 
 
@@ -1331,7 +1331,7 @@ contextRow model order =
         { id = contextRowId order, target = order }
         [ Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.padding 2 ]
             [ Layout.stack [ Layout.gap 0, Layout.grow ]
-                [ Text.strong (order.id ++ " · " ++ order.customer)
+                [ Text.strong (Types.orderIdText order.id ++ " · " ++ order.customer)
                 , Text.caption (order.email ++ " · " ++ order.city)
                 ]
             , statusBadge order
@@ -1345,14 +1345,14 @@ gone by then).
 -}
 contextRowId : Types.Order -> String
 contextRowId order =
-    "context-row-" ++ order.id
+    "context-row-" ++ Types.orderIdText order.id
 
 
 contextItems : Types.Order -> List (Menu.Item Msg)
 contextItems order =
-    [ Menu.heading order.id
+    [ Menu.heading (Types.orderIdText order.id)
     , Menu.item "Open in drawer" (OpenOrder (contextRowId order) order) |> Menu.withIcon Icon.externalLink |> Menu.withHint "Enter"
-    , Menu.item "Edit" (ContextAction ("Edit order " ++ order.id)) |> Menu.withIcon Icon.edit |> Menu.withHint "E"
+    , Menu.item "Edit" (ContextAction ("Edit order " ++ Types.orderIdText order.id)) |> Menu.withIcon Icon.edit |> Menu.withHint "E"
     , Menu.item "Copy email address" (ContextAction ("Copied the email address of " ++ order.customer)) |> Menu.withIcon Icon.copy
     , Menu.item "Send message" (ContextAction ("Message sent to " ++ order.customer)) |> Menu.withIcon Icon.mail |> Menu.disabledItem
     , Menu.separator
@@ -1753,7 +1753,7 @@ lifecycleDialog locale model =
         name =
             case model.lifecycleTarget of
                 Just order ->
-                    order.id ++ " (" ++ order.customer ++ ")"
+                    Types.orderIdText order.id ++ " (" ++ order.customer ++ ")"
 
                 Nothing ->
                     ""
@@ -1775,7 +1775,7 @@ drawerRightView locale model =
     case model.drawerOrder of
         Just order ->
             Drawer.view RightDrawerMsg
-                [ Drawer.title order.id
+                [ Drawer.title (Types.orderIdText order.id)
                 , Drawer.subtitle (order.customer ++ " · " ++ order.email)
                 , Drawer.locale locale
                 , Drawer.footer
@@ -1817,7 +1817,7 @@ orderDetails locale order =
             ]
         , Layout.grid [ Layout.columns 2, Layout.gap 5 ]
             [ row "City" order.city
-            , row "Owner" (Maybe.withDefault "Unassigned" order.owner)
+            , row "Owner" (order.owner |> Maybe.map Sample.ownerName |> Maybe.withDefault "Unassigned")
             , row "Created" (Format.date locale order.created)
             , row "Due" (Format.date locale order.due)
             , row "Lines" (String.fromInt order.lines)
@@ -1917,8 +1917,8 @@ orderItem : String -> Types.Order -> CommandPalette.Item Msg
 orderItem from order =
     CommandPalette.item order.customer (OpenOrder from order)
         |> CommandPalette.withIcon Icon.clipboard
-        |> CommandPalette.withDescription (order.id ++ " · " ++ Types.orderStatusLabel order.status)
-        |> CommandPalette.withId order.id
+        |> CommandPalette.withDescription (Types.orderIdText order.id ++ " · " ++ Types.orderStatusLabel order.status)
+        |> CommandPalette.withId (Types.orderIdText order.id)
 
 
 

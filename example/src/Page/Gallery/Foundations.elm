@@ -13,6 +13,7 @@ import Klar.Date as Date
 import Klar.EmptyState as EmptyState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
+import Klar.Icon.Library as Library
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Search as Search
@@ -365,7 +366,7 @@ selectSample =
 icons : Locale -> String -> Html Msg
 icons locale query =
     Doc.section "Icons"
-        "Line icons drawn with CSS. They take the color of the text around them and scale with a size. Every icon is one CSS rule and one value in Klar.Icon."
+        "A library of line icons in one style: a 24 by 24 grid, a 2 pixel stroke, round ends. Every icon is an Elm value that carries its own drawing, so the compiler leaves out the ones an application does not use. They take the color of the text around them and scale with a size."
         [ allIcons locale query
         , iconSizes
         , iconColors
@@ -377,29 +378,34 @@ allIcons : Locale -> String -> Html Msg
 allIcons locale query =
     let
         matching =
-            Search.filter Icon.name query Icon.all
+            Library.groups
+                |> List.map (\group -> { group | icons = Search.filter Icon.name query group.icons })
+                |> List.filter (\group -> not (List.isEmpty group.icons))
 
-        total =
-            List.length Icon.all
+        found =
+            List.sum (List.map (\group -> List.length group.icons) matching)
 
         summary =
-            if List.length matching == total then
-                Format.int locale total ++ " icons."
+            if found == Library.count then
+                Format.int locale Library.count ++ " icons in " ++ Format.int locale (List.length Library.groups) ++ " modules."
 
             else
-                Format.int locale (List.length matching) ++ " of " ++ Format.int locale total ++ " icons."
+                Format.int locale found ++ " of " ++ Format.int locale Library.count ++ " icons."
     in
     Doc.example
         { title = "All icons"
-        , description = Just (summary ++ " The name under each icon is its CSS name: chevron-down is Icon.chevronDown.")
-        , code = Just """Layout.row [ Layout.gap 4 ]
+        , description = Just (summary ++ " The name under each icon is its name in the stylesheet: chevron-down is Icon.chevronDown. The everyday icons are in Klar.Icon, the others in one module per theme, for example Klar.Icon.Arrows.")
+        , code = Just """import Klar.Icon as Icon
+import Klar.Icon.Logistics as Logistics
+
+Layout.row [ Layout.gap 4 ]
     [ Icon.view Icon.search
-    , Icon.sized Icon.Large Icon.warning
+    , Icon.sized Icon.Large Logistics.forklift
     , Icon.labelled "Delete" Icon.trash
     ]"""
         }
         (Layout.stack [ Layout.gap 4 ]
-            [ Layout.container [ Layout.maxWidth 360, Layout.alignStart ]
+            (Layout.container [ Layout.maxWidth 360, Layout.alignStart ]
                 [ TextInput.view
                     [ TextInput.id "foundations-icon-search"
                     , TextInput.label "Search icons"
@@ -412,19 +418,33 @@ allIcons locale query =
                     , TextInput.onInput IconQueryChanged
                     ]
                 ]
-            , if List.isEmpty matching then
-                EmptyState.view
-                    [ EmptyState.icon Icon.search
-                    , EmptyState.title "No icons found"
-                    , EmptyState.description "Try another word, for example \"file\" or \"chevron\"."
-                    , EmptyState.action (Button.view [ Button.onClick (IconQueryChanged "") ] "Clear search")
-                    ]
+                :: (if List.isEmpty matching then
+                        [ EmptyState.view
+                            [ EmptyState.icon Icon.search
+                            , EmptyState.title "No icons found"
+                            , EmptyState.description "Try another word, for example \"file\" or \"chevron\"."
+                            , EmptyState.action (Button.view [ Button.onClick (IconQueryChanged "") ] "Clear search")
+                            ]
+                        ]
 
-              else
-                Layout.grid [ Layout.minColumn 150, Layout.gap 2 ]
-                    (List.map iconCell matching)
-            ]
+                    else
+                        List.map iconGroup matching
+                   )
+            )
         )
+
+
+iconGroup : Library.Group -> Html Msg
+iconGroup group =
+    Layout.stack [ Layout.gap 3 ]
+        [ Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
+            [ Text.subheading group.title
+            , Text.mono group.moduleName
+            , Text.caption (String.fromInt (List.length group.icons) ++ " icons")
+            ]
+        , Layout.grid [ Layout.minColumn 150, Layout.gap 2 ]
+            (List.map iconCell group.icons)
+        ]
 
 
 iconCell : Icon -> Html Msg
@@ -496,31 +516,34 @@ ownIcons : Html Msg
 ownIcons =
     Doc.example
         { title = "Your own icons"
-        , description = Just "custom takes the CSS name of an icon: custom \"invoice\" renders the class klar-icon--invoice. The built-in names work as well, which is why the two icons below are the same. Draw a new one in your own stylesheet, as below."
-        , code = Just """Layout.row [ Layout.gap 3, Layout.alignCenter ]
-    [ Icon.sized Icon.Large (Icon.custom "heart")
-    , Icon.sized Icon.Large Icon.heart
-    , Icon.view (Icon.custom "invoice")
-    ]"""
+        , description = Just "fromSvg takes a name and the shapes of an SVG, drawn on a 24 by 24 grid with strokes only. The icon is a plain Elm value: it needs no stylesheet, and it fits next to the built-in icons because the stroke width and the round ends are set for you. custom is the other way: it takes the CSS name of an icon whose drawing is in your own stylesheet."
+        , code = Just invoiceIconSample
         }
-        (Layout.stack [ Layout.gap 4 ]
-            [ Layout.row [ Layout.gap 3, Layout.alignCenter ]
-                [ Icon.sized Icon.Large (Icon.custom "heart")
-                , Text.code "Icon.custom \"heart\""
-                , Text.secondary "is the same as"
-                , Icon.sized Icon.Large Icon.heart
-                , Text.code "Icon.heart"
-                ]
-            , Text.codeBlock invoiceIconCss
+        (Layout.row [ Layout.gap 4, Layout.alignCenter ]
+            [ Icon.sized Icon.Large invoiceIcon
+            , Text.code "Icon.fromSvg \"invoice\" ..."
+            , Icon.sized Icon.Large (Icon.custom "heart")
+            , Text.code "Icon.custom \"heart\""
+            , Text.secondary "is the built-in heart, by its name"
             ]
         )
 
 
-invoiceIconCss : String
-invoiceIconCss =
-    """.klar-icon--invoice {
-  --klar-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 3h14v18l-2.5-2-2.5 2-2.5-2-2.5 2-2.5-2-1.5 2z'/><line x1='9' y1='8' x2='15' y2='8'/><line x1='9' y1='12' x2='15' y2='12'/></svg>");
-}"""
+invoiceIcon : Icon
+invoiceIcon =
+    Icon.fromSvg "invoice"
+        "<path d='M5 3h14v18l-2.5-2-2.5 2-2.5-2-2.5 2-2.5-2-1.5 2z'/><line x1='9' y1='8' x2='15' y2='8'/><line x1='9' y1='12' x2='15' y2='12'/>"
+
+
+invoiceIconSample : String
+invoiceIconSample =
+    """invoice : Icon
+invoice =
+    Icon.fromSvg "invoice"
+        "<path d='M5 3h14v18l-2.5-2-2.5 2-2.5-2-2.5 2-2.5-2-1.5 2z'/><line x1='9' y1='8' x2='15' y2='8'/><line x1='9' y1='12' x2='15' y2='12'/>"
+
+Icon.view invoice
+"""
 
 
 
@@ -938,7 +961,7 @@ cardList =
 orderRow : Types.Order -> Html Msg
 orderRow order =
     Layout.row [ Layout.gap 3, Layout.padding 3 ]
-        [ Text.mono order.id
+        [ Text.mono (Types.orderIdText order.id)
         , Text.secondary order.customer
         , Layout.spacer
         , Labels.statusBadge order.status
@@ -1015,4 +1038,4 @@ orderNotes =
     Sample.orders
         |> List.filter (\order -> order.note /= "")
         |> List.take 3
-        |> List.map (\order -> ( order.id, order.note ))
+        |> List.map (\order -> ( Types.orderIdText order.id, order.note ))

@@ -1,5 +1,6 @@
 module Klar.SideNav exposing
     ( view
+    , Keys, keys, stringKeys
     , Entry, item, group, section, rule, withIcon, withCount, withBadge, disabledItem
     , Attribute, entries, current, collapsed, ariaLabel, onSelect, locale
     , State, init, isExpanded, expandGroup, collapseGroup, reveal, focusLink, Msg, update
@@ -11,7 +12,7 @@ icons and counts, and groups that open and close.
     import Klar.Icon as Icon
     import Klar.SideNav as SideNav
 
-    -- model: sideNav : SideNav.State
+    -- model: sideNav : SideNav.State String
     -- init:  SideNav.init "main-nav" |> SideNav.reveal "reports-monthly" menu
 
     -- update
@@ -30,17 +31,17 @@ icons and counts, and groups that open and close.
         ]
         model.sideNav
 
-    menu : List (SideNav.Entry msg)
+    menu : List (SideNav.Entry String msg)
     menu =
         [ SideNav.section "Workspace"
-            [ SideNav.item { key = "orders", label = "Orders", href = "#/orders" }
+            [ SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
                 |> SideNav.withIcon Icon.clipboardCheck
                 |> SideNav.withCount 12
-            , SideNav.item { key = "customers", label = "Customers", href = "#/customers" }
+            , SideNav.item SideNav.stringKeys { key = "customers", label = "Customers", href = "#/customers" }
                 |> SideNav.withIcon Icon.users
-            , SideNav.group { key = "reports", label = "Reports" }
-                [ SideNav.item { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" }
-                , SideNav.item { key = "reports-exports", label = "Exports", href = "#/reports/exports" }
+            , SideNav.group SideNav.stringKeys { key = "reports", label = "Reports" }
+                [ SideNav.item SideNav.stringKeys { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" }
+                , SideNav.item SideNav.stringKeys { key = "reports-exports", label = "Exports", href = "#/reports/exports" }
                 ]
                 |> SideNav.withIcon Icon.barChart
             ]
@@ -75,6 +76,15 @@ links are skipped. The menu is a `nav` landmark, named by `ariaLabel`
 @docs view
 
 
+# Keys
+
+Every link and group has a key. It is a value of your own type (a `Page`, a
+`ReportId`), so a misspelled key is a compile error. Say once how it is written
+as text (see `keys`); the menu is then typed by it (`SideNav.State Page`).
+
+@docs Keys, keys, stringKeys
+
+
 # Entries
 
 @docs Entry, item, group, section, rule, withIcon, withCount, withBadge, disabledItem
@@ -101,6 +111,44 @@ import Klar.Locale as Locale exposing (Locale)
 
 
 
+-- KEYS
+
+
+{-| How the key type of your menu (`Page`, `ReportId` ...) is written as text.
+Declare one value for the menu, once, and pass it to `item`, `group` and the
+functions that speak keys.
+
+    pageKeys : SideNav.Keys Page
+    pageKeys =
+        SideNav.keys pageToString
+
+The text is used for the DOM ids of the links, so give every key its own text.
+
+-}
+type Keys key
+    = Keys (key -> String)
+
+
+{-| Makes the `Keys` of a key type, see there.
+-}
+keys : (key -> String) -> Keys key
+keys =
+    Keys
+
+
+{-| Keys that are plain text, used as they are.
+-}
+stringKeys : Keys String
+stringKeys =
+    Keys identity
+
+
+textOf : Keys key -> key -> String
+textOf (Keys toText) key =
+    toText key
+
+
+
 -- ENTRIES
 
 
@@ -109,15 +157,16 @@ rule. Make entries with `item`, `group`, `section` and `rule`, and refine links
 and groups with `withIcon`, `withCount`, `withBadge` and `disabledItem`. The
 `msg` is the message type of the badges added with `withBadge`.
 -}
-type Entry msg
-    = LinkEntry (LinkData msg)
-    | GroupEntry (GroupData msg)
-    | SectionEntry String (List (Entry msg))
+type Entry key msg
+    = LinkEntry (LinkData key msg)
+    | GroupEntry (GroupData key msg)
+    | SectionEntry String (List (Entry key msg))
     | RuleEntry
 
 
-type alias LinkData msg =
+type alias LinkData key msg =
     { key : String
+    , value : key
     , label : String
     , href : String
     , icon : Maybe Icon
@@ -127,13 +176,14 @@ type alias LinkData msg =
     }
 
 
-type alias GroupData msg =
+type alias GroupData key msg =
     { key : String
+    , value : key
     , label : String
     , icon : Maybe Icon
     , count : Maybe Int
     , badge : Maybe (Html msg)
-    , children : List (Entry msg)
+    , children : List (Entry key msg)
     }
 
 
@@ -141,13 +191,14 @@ type alias GroupData msg =
 be unique in the menu, the `label` is its text, and the `href` is where it goes
 (`#/path` for navigation inside a single page application).
 
-    SideNav.item { key = "orders", label = "Orders", href = "#/orders" }
+    SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
 
 -}
-item : { key : String, label : String, href : String } -> Entry msg
-item options =
+item : Keys key -> { key : key, label : String, href : String } -> Entry key msg
+item k options =
     LinkEntry
-        { key = options.key
+        { key = textOf k options.key
+        , value = options.key
         , label = options.label
         , href = options.href
         , icon = Nothing
@@ -161,14 +212,16 @@ item options =
 identifies the group in the state (`isExpanded`, `expandGroup` and the others) and
 must be unique in the menu. A group is a button, not a link, so it has no `href`.
 
-    SideNav.group { key = "reports", label = "Reports" }
-        [ SideNav.item { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" } ]
+    SideNav.group SideNav.stringKeys
+        { key = "reports", label = "Reports" }
+        [ SideNav.item SideNav.stringKeys { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" } ]
 
 -}
-group : { key : String, label : String } -> List (Entry msg) -> Entry msg
-group options children =
+group : Keys key -> { key : key, label : String } -> List (Entry key msg) -> Entry key msg
+group k options children =
     GroupEntry
-        { key = options.key
+        { key = textOf k options.key
+        , value = options.key
         , label = options.label
         , icon = Nothing
         , count = Nothing
@@ -184,14 +237,14 @@ menu is collapsed the caption is replaced by a thin line.
     SideNav.section "Workspace" [ ordersLink, customersLink ]
 
 -}
-section : String -> List (Entry msg) -> Entry msg
+section : String -> List (Entry key msg) -> Entry key msg
 section heading children =
     SectionEntry heading children
 
 
 {-| A thin line between entries (`role="separator"`).
 -}
-rule : Entry msg
+rule : Entry key msg
 rule =
     RuleEntry
 
@@ -199,7 +252,7 @@ rule =
 {-| An icon before the label of a link or a group; any other entry is left
 unchanged. Give every top-level entry one: the collapsed menu shows nothing else.
 -}
-withIcon : Icon -> Entry msg -> Entry msg
+withIcon : Icon -> Entry key msg -> Entry key msg
 withIcon icon entry =
     case entry of
         LinkEntry data ->
@@ -216,7 +269,7 @@ withIcon icon entry =
 orders; any other entry is left unchanged. It reads "99+" above 99, and the exact
 number is in the tooltip. In the collapsed menu it becomes a small dot.
 -}
-withCount : Int -> Entry msg -> Entry msg
+withCount : Int -> Entry key msg -> Entry key msg
 withCount n entry =
     case entry of
         LinkEntry data ->
@@ -233,7 +286,7 @@ withCount n entry =
 `Badge.view [ Badge.tone Warning ] "New"`; any other entry is left unchanged. The
 badge is hidden in the collapsed menu.
 -}
-withBadge : Html msg -> Entry msg -> Entry msg
+withBadge : Html msg -> Entry key msg -> Entry key msg
 withBadge badge entry =
     case entry of
         LinkEntry data ->
@@ -251,7 +304,7 @@ feature that is not ready. It is drawn muted, marked `aria-disabled`, and skippe
 by Tab and the arrow keys. Only links can be disabled: a group, a section or a
 rule is left unchanged.
 -}
-disabledItem : Entry msg -> Entry msg
+disabledItem : Entry key msg -> Entry key msg
 disabledItem entry =
     case entry of
         LinkEntry data ->
@@ -269,25 +322,25 @@ disabledItem entry =
 `view`; later attributes win over earlier ones. The `msg` is your message type,
 used by `onSelect` and by the badges in the entries.
 -}
-type Attribute msg
-    = Attribute (Config msg -> Config msg)
+type Attribute key msg
+    = Attribute (Config key msg -> Config key msg)
 
 
-type alias Config msg =
-    { entries : List (Entry msg)
-    , current : String
+type alias Config key msg =
+    { entries : List (Entry key msg)
+    , current : Maybe key
     , collapsed : Bool
     , ariaLabel : Maybe String
-    , onSelect : Maybe (String -> msg)
+    , onSelect : Maybe (key -> msg)
     , locale : Locale
     }
 
 
-configure : List (Attribute msg) -> Config msg
+configure : List (Attribute key msg) -> Config key msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { entries = []
-        , current = ""
+        , current = Nothing
         , collapsed = False
         , ariaLabel = Nothing
         , onSelect = Nothing
@@ -299,7 +352,7 @@ configure attributes =
 {-| The menu: sections, links and groups, from top to bottom. Without entries the
 menu is empty.
 -}
-entries : List (Entry msg) -> Attribute msg
+entries : List (Entry key msg) -> Attribute key msg
 entries value =
     Attribute (\config -> { config | entries = value })
 
@@ -308,9 +361,9 @@ entries value =
 `aria-current="page"` and the current look, and a closed group that contains it
 is marked too. By default no entry is current.
 -}
-current : String -> Attribute msg
+current : key -> Attribute key msg
 current value =
-    Attribute (\config -> { config | current = value })
+    Attribute (\config -> { config | current = Just value })
 
 
 {-| Shows icons only: the labels stay in the page for screen readers, counts
@@ -318,7 +371,7 @@ become small dots, badges are hidden and a group opens as a flyout. Default
 `False`. Inside [Klar.AppShell](Klar-AppShell) pass the same flag to
 `AppShell.sidebarCollapsed`.
 -}
-collapsed : Bool -> Attribute msg
+collapsed : Bool -> Attribute key msg
 collapsed value =
     Attribute (\config -> { config | collapsed = value })
 
@@ -326,7 +379,7 @@ collapsed value =
 {-| The accessible name of the `nav` landmark. Default "Main menu" (in the language
 of `locale`).
 -}
-ariaLabel : String -> Attribute msg
+ariaLabel : String -> Attribute key msg
 ariaLabel value =
     Attribute (\config -> { config | ariaLabel = Just value })
 
@@ -341,7 +394,7 @@ decide what is current.
     SideNav.onSelect PageSelected
 
 -}
-onSelect : (String -> msg) -> Attribute msg
+onSelect : (key -> msg) -> Attribute key msg
 onSelect toMsg =
     Attribute (\config -> { config | onSelect = Just toMsg })
 
@@ -349,7 +402,7 @@ onSelect toMsg =
 {-| The language of the built-in text, which is the default name of the `nav`
 landmark. Default `Locale.en`.
 -}
-locale : Locale -> Attribute msg
+locale : Locale -> Attribute key msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -361,7 +414,7 @@ locale value =
 {-| The state of a menu: which groups are open. Make one with `init`, keep it in
 your model, and give it to `view`.
 -}
-type State
+type State key
     = State
         { id : String
         , expanded : List String
@@ -374,22 +427,27 @@ the DOM id of the `nav` element and the prefix of the ids of the links.
     SideNav.init "main-nav"
 
 -}
-init : String -> State
+init : String -> State key
 init id =
     State { id = id, expanded = [] }
 
 
 {-| Whether the group with this key is open in the state.
 -}
-isExpanded : String -> State -> Bool
-isExpanded key (State state) =
-    List.member key state.expanded
+isExpanded : Keys key -> key -> State key -> Bool
+isExpanded k key (State state) =
+    List.member (textOf k key) state.expanded
 
 
 {-| Opens the group with this key. Does nothing when it is already open.
 -}
-expandGroup : String -> State -> State
-expandGroup key (State state) =
+expandGroup : Keys key -> key -> State key -> State key
+expandGroup k value state =
+    expandText (textOf k value) state
+
+
+expandText : String -> State key -> State key
+expandText key (State state) =
     if List.member key state.expanded then
         State state
 
@@ -399,8 +457,13 @@ expandGroup key (State state) =
 
 {-| Closes the group with this key. Does nothing when it is already closed.
 -}
-collapseGroup : String -> State -> State
-collapseGroup key (State state) =
+collapseGroup : Keys key -> key -> State key -> State key
+collapseGroup k value state =
+    collapseText (textOf k value) state
+
+
+collapseText : String -> State key -> State key
+collapseText key (State state) =
     State { state | expanded = List.filter (\other -> other /= key) state.expanded }
 
 
@@ -412,12 +475,12 @@ when the route changes from somewhere else.
     SideNav.reveal "reports-monthly" menu model.sideNav
 
 -}
-reveal : String -> List (Entry msg) -> State -> State
+reveal : key -> List (Entry key msg) -> State key -> State key
 reveal key menu state =
-    List.foldl expandGroup state (ancestors key menu)
+    List.foldl expandText state (ancestors key menu)
 
 
-ancestors : String -> List (Entry msg) -> List String
+ancestors : key -> List (Entry key msg) -> List String
 ancestors target menu =
     List.concatMap
         (\entry ->
@@ -438,13 +501,13 @@ ancestors target menu =
         menu
 
 
-containsKey : String -> List (Entry msg) -> Bool
+containsKey : key -> List (Entry key msg) -> Bool
 containsKey target menu =
     List.any
         (\entry ->
             case entry of
                 LinkEntry data ->
-                    data.key == target
+                    data.value == target
 
                 GroupEntry data ->
                     containsKey target data.children
@@ -463,12 +526,12 @@ sidebar opens as a drawer. Does nothing if that link is not in the page (inside 
 closed group, say). The message is sent when it is done, whether the link was
 found or not, so use one that changes nothing.
 
-    SideNav.focusLink "orders" model.sideNav NoOp
+    SideNav.focusLink SideNav.stringKeys "orders" model.sideNav NoOp
 
 -}
-focusLink : String -> State -> msg -> Cmd msg
-focusLink key (State state) done =
-    Internal.focus (linkId state.id key) done
+focusLink : Keys key -> key -> State key -> msg -> Cmd msg
+focusLink k key (State state) done =
+    Internal.focus (linkId state.id (textOf k key)) done
 
 
 {-| The messages of a menu: a group was clicked, an arrow key was pressed. Wrap it
@@ -484,15 +547,15 @@ type Msg
 {-| Opens and closes groups and moves keyboard focus between the entries. The
 `Cmd` does the focus move, so map it with your message constructor.
 -}
-update : Msg -> State -> ( State, Cmd Msg )
+update : Msg -> State key -> ( State key, Cmd Msg )
 update msg ((State state) as currentState) =
     case msg of
         ToggleGroup key ->
-            if isExpanded key currentState then
-                ( collapseGroup key currentState, Cmd.none )
+            if List.member key state.expanded then
+                ( collapseText key currentState, Cmd.none )
 
             else
-                ( expandGroup key currentState, Cmd.none )
+                ( expandText key currentState, Cmd.none )
 
         Focus domId ->
             ( State state, Internal.focus domId Noop )
@@ -520,9 +583,9 @@ childrenId id key =
 -- VIEW
 
 
-type alias Context msg =
+type alias Context key msg =
     { toMsg : Msg -> msg
-    , config : Config msg
+    , config : Config key msg
     , id : String
     , expanded : List String
     , focusables : List String
@@ -533,7 +596,7 @@ type alias Context msg =
 your own message type. Put the result in `AppShell.sidebar` or in any column of
 your own.
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute key msg) -> State key -> Html msg
 view toMsg attributes (State state) =
     let
         config =
@@ -565,7 +628,7 @@ view toMsg attributes (State state) =
 
 {-| The DOM ids of everything the arrow keys can reach, in visual order.
 -}
-focusableIds : Config msg -> String -> List String -> List (Entry msg) -> List String
+focusableIds : Config key msg -> String -> List String -> List (Entry key msg) -> List String
 focusableIds config id expanded menu =
     List.concatMap
         (\entry ->
@@ -598,13 +661,13 @@ focusableIds config id expanded menu =
 {-| `path` is the place of the entries in the menu: "" for the top level, "2" for
 the children of the third entry, "2-0" for those of its first child, and so on.
 -}
-viewList : Context msg -> Int -> String -> List (Entry msg) -> Html msg
+viewList : Context key msg -> Int -> String -> List (Entry key msg) -> Html msg
 viewList context depth path menu =
     Html.ul [ Internal.cls [ "klar-side-nav__list" ] ]
         (viewEntries context depth path menu)
 
 
-viewEntries : Context msg -> Int -> String -> List (Entry msg) -> List (Html msg)
+viewEntries : Context key msg -> Int -> String -> List (Entry key msg) -> List (Html msg)
 viewEntries context depth path menu =
     List.indexedMap (\index entry -> viewEntry context depth (childPath path index) entry) menu
 
@@ -622,7 +685,7 @@ childPath path index =
 ids that are not made from a key unique, also for two sections with the same
 caption.
 -}
-viewEntry : Context msg -> Int -> String -> Entry msg -> Html msg
+viewEntry : Context key msg -> Int -> String -> Entry key msg -> Html msg
 viewEntry context depth path entry =
     case entry of
         LinkEntry data ->
@@ -655,11 +718,11 @@ depthStyle depth =
     Internal.styleVars [ ( "--klar-depth", String.fromInt depth ) ]
 
 
-viewLink : Context msg -> Int -> LinkData msg -> Html msg
+viewLink : Context key msg -> Int -> LinkData key msg -> Html msg
 viewLink context depth data =
     let
         isCurrent =
-            data.key == context.config.current
+            Just data.value == context.config.current
 
         domId =
             linkId context.id data.key
@@ -707,7 +770,7 @@ viewLink context depth data =
                 , Attr.id domId
                 , Attr.title data.label
                 , Internal.attrIf isCurrent (Attr.attribute "aria-current" "page")
-                , Internal.attrMaybe (\toMsg -> onPlainClick (toMsg data.key)) context.config.onSelect
+                , Internal.attrMaybe (\toMsg -> onPlainClick (toMsg data.value)) context.config.onSelect
                 , arrowKeys context domId
                 , depthStyle depth
                 ]
@@ -743,7 +806,7 @@ viewAside count badge =
                 ]
 
 
-viewGroup : Context msg -> Int -> String -> GroupData msg -> Html msg
+viewGroup : Context key msg -> Int -> String -> GroupData key msg -> Html msg
 viewGroup context depth path data =
     let
         isOpen =
@@ -756,7 +819,7 @@ viewGroup context depth path data =
             childrenId context.id data.key
 
         holdsCurrent =
-            containsKey context.config.current data.children
+            context.config.current |> Maybe.map (\target -> containsKey target data.children) |> Maybe.withDefault False
 
         -- A collapsed menu keeps the children in the page: they become the flyout.
         showChildren =
@@ -833,7 +896,7 @@ viewGroup context depth path data =
         ]
 
 
-arrowKeys : Context msg -> String -> Html.Attribute msg
+arrowKeys : Context key msg -> String -> Html.Attribute msg
 arrowKeys context domId =
     let
         ids =

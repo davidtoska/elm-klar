@@ -187,11 +187,11 @@ maybe encode value =
 orderJson : Order -> Encode.Value
 orderJson order =
     Encode.object
-        [ ( "id", Encode.string order.id )
+        [ ( "id", Encode.string (Types.orderIdText order.id) )
         , ( "customer", Encode.string order.customer )
         , ( "status", Encode.string (Types.orderStatusLabel order.status) )
         , ( "priority", Encode.string (Types.priorityLabel order.priority) )
-        , ( "owner", maybe Encode.string order.owner )
+        , ( "owner", maybe Encode.string (Maybe.map Sample.ownerName order.owner) )
         , ( "created", Encode.string (Date.toIso order.created) )
         , ( "due", Encode.string (Date.toIso order.due) )
         , ( "delivered", maybe (Date.toIso >> Encode.string) order.delivered )
@@ -205,7 +205,7 @@ orderJson order =
                 [ ( "street", Encode.string "Main Street 12" )
                 , ( "postalCode", Encode.string "1000" )
                 , ( "city", Encode.string order.city )
-                , ( "country", Encode.string order.country )
+                , ( "country", Encode.string (Types.countryCodeText order.country) )
                 , ( "coordinates", Encode.list Encode.float [ 50.8503, 4.3517 ] )
                 ]
           )
@@ -276,7 +276,7 @@ bigResponse =
         [ ( "readings", Encode.list Encode.int (List.range 1 450) )
         , ( "customers"
           , Encode.list
-                (\order -> Encode.object [ ( "id", Encode.string order.id ), ( "name", Encode.string order.customer ), ( "city", Encode.string order.city ) ])
+                (\order -> Encode.object [ ( "id", Encode.string (Types.orderIdText order.id) ), ( "name", Encode.string order.customer ), ( "city", Encode.string order.city ) ])
                 (List.take 150 Sample.orders)
           )
         , ( "deep", deepValue 16 )
@@ -309,12 +309,12 @@ hugeResponse =
           , Encode.list
                 (\order ->
                     Encode.object
-                        [ ( "id", Encode.string order.id )
+                        [ ( "id", Encode.string (Types.orderIdText order.id) )
                         , ( "customer", Encode.string order.customer )
                         , ( "email", Encode.string order.email )
                         , ( "city", Encode.string order.city )
                         , ( "status", Encode.string (Types.orderStatusLabel order.status) )
-                        , ( "owner", maybe Encode.string order.owner )
+                        , ( "owner", maybe Encode.string (Maybe.map Sample.ownerName order.owner) )
                         , ( "total", Encode.float order.total )
                         , ( "note", Encode.string order.note )
                         ]

@@ -17,6 +17,7 @@ static file server without rewrite rules.
 
 -}
 
+import Api.Types exposing (OrderId, orderId, orderIdText)
 import Url exposing (Url)
 import Url.Parser as Parser exposing ((</>), Parser)
 
@@ -24,7 +25,7 @@ import Url.Parser as Parser exposing ((</>), Parser)
 type Route
     = Overview
     | Orders
-    | OrderDetail String
+    | OrderDetail OrderId
     | Products
     | Components (Maybe String)
     | NotFound
@@ -42,7 +43,7 @@ parser =
     Parser.oneOf
         [ Parser.map Overview Parser.top
         , Parser.map Orders (Parser.s "orders")
-        , Parser.map OrderDetail (Parser.s "orders" </> Parser.string)
+        , Parser.map (orderId >> OrderDetail) (Parser.s "orders" </> Parser.string)
         , Parser.map Products (Parser.s "products")
         , Parser.map (Components Nothing) (Parser.s "components")
         , Parser.map (\slug -> Components (Just slug)) (Parser.s "components" </> Parser.string)
@@ -62,7 +63,7 @@ path route =
                     "orders"
 
                 OrderDetail id ->
-                    "orders/" ++ id
+                    "orders/" ++ orderIdText id
 
                 Products ->
                     "products"

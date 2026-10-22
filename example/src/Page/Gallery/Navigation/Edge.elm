@@ -36,7 +36,7 @@ import Showcase.Doc as Doc
 
 type alias Model =
     { crumbs : Breadcrumbs.State
-    , nav : SideNav.State
+    , nav : SideNav.State String
     , lastAction : Maybe String
     }
 
@@ -44,7 +44,7 @@ type alias Model =
 init : Model
 init =
     { crumbs = Breadcrumbs.init "nav-crumbs-long"
-    , nav = SideNav.init "nav-long" |> SideNav.expandGroup "g"
+    , nav = SideNav.init "nav-long" |> SideNav.expandGroup SideNav.stringKeys "g"
     , lastAction = Nothing
     }
 
@@ -190,17 +190,18 @@ section locale model =
         ]
 
 
-longMenu : List (SideNav.Entry msg)
+longMenu : List (SideNav.Entry String msg)
 longMenu =
     [ SideNav.section "Very long names"
-        [ SideNav.item { key = "a", label = "A menu entry with an incredibly long name that never fits", href = Demo.href "a" }
+        [ SideNav.item SideNav.stringKeys { key = "a", label = "A menu entry with an incredibly long name that never fits", href = Demo.href "a" }
             |> SideNav.withIcon Icon.fileText
             |> SideNav.withCount 1482
-        , SideNav.item { key = "b", label = "Short", href = Demo.href "b" }
+        , SideNav.item SideNav.stringKeys { key = "b", label = "Short", href = Demo.href "b" }
             |> SideNav.withIcon Icon.tag
             |> SideNav.withBadge (Badge.view [ Badge.tone Warning, Badge.size Small ] "Overdue")
-        , SideNav.group { key = "g", label = "A group with a rather long name too" }
-            [ SideNav.item { key = "g1", label = "A sub-entry with a name as long as the rest", href = Demo.href "g1" } ]
+        , SideNav.group SideNav.stringKeys
+            { key = "g", label = "A group with a rather long name too" }
+            [ SideNav.item SideNav.stringKeys { key = "g1", label = "A sub-entry with a name as long as the rest", href = Demo.href "g1" } ]
             |> SideNav.withIcon Icon.folder
         ]
     ]

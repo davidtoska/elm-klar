@@ -19,7 +19,7 @@ has the same customer, status and total.
 
 -}
 
-import Api.Types exposing (Country, Order, OrderStatus(..), Priority(..), Product, Warehouse)
+import Api.Types as Types exposing (Country, Order, OrderStatus(..), Owner, OwnerId, Priority(..), Product, Warehouse)
 import Bitwise
 import Klar.Date as Date exposing (Date)
 import Time
@@ -141,7 +141,7 @@ order i =
                 Nothing
 
             else
-                Just (pick owners (rand i 6))
+                ownerAt (rand i 6)
 
         age =
             modBy 150 (rand i 7)
@@ -178,10 +178,10 @@ order i =
         total =
             toFloat (round (toFloat lines * unitPrice * 100)) / 100
     in
-    { id = "ORD-" ++ String.fromInt (10000 + i)
+    { id = Types.orderId ("ORD-" ++ String.fromInt (10000 + i))
     , customer = customer
     , email = "orders@" ++ slug customer ++ ".example"
-    , country = country
+    , country = Types.countryCode country
     , city = city
     , status = status
     , priority = priority
@@ -272,9 +272,23 @@ slug name =
             )
 
 
-owners : List String
+owners : List Owner
 owners =
-    [ "Maya Patel", "Liam Chen", "Sofia Rossi", "Noah Berg", "Amara Okafor", "Lucas Meyer" ]
+    [ { id = Types.ownerId "maya", name = "Maya Patel" }
+    , { id = Types.ownerId "liam", name = "Liam Chen" }
+    , { id = Types.ownerId "sofia", name = "Sofia Rossi" }
+    , { id = Types.ownerId "noah", name = "Noah Berg" }
+    , { id = Types.ownerId "amara", name = "Amara Okafor" }
+    , { id = Types.ownerId "lucas", name = "Lucas Meyer" }
+    ]
+
+
+ownerAt : Int -> Maybe OwnerId
+ownerAt n =
+    owners
+        |> List.drop (modBy (List.length owners) n)
+        |> List.head
+        |> Maybe.map .id
 
 
 
@@ -295,12 +309,12 @@ cities =
 
 warehouses : List Warehouse
 warehouses =
-    [ { id = "RTM", name = "Rotterdam Hub", city = "Rotterdam", country = "NL" }
-    , { id = "HAM", name = "Hamburg Central", city = "Hamburg", country = "DE" }
-    , { id = "GOT", name = "Gothenburg Port", city = "Gothenburg", country = "SE" }
-    , { id = "CHI", name = "Chicago North", city = "Chicago", country = "US" }
-    , { id = "SIN", name = "Singapore East", city = "Singapore", country = "SG" }
-    , { id = "SYD", name = "Sydney South", city = "Sydney", country = "AU" }
+    [ { id = Types.warehouseId "RTM", name = "Rotterdam Hub", city = "Rotterdam", country = Types.countryCode "NL" }
+    , { id = Types.warehouseId "HAM", name = "Hamburg Central", city = "Hamburg", country = Types.countryCode "DE" }
+    , { id = Types.warehouseId "GOT", name = "Gothenburg Port", city = "Gothenburg", country = Types.countryCode "SE" }
+    , { id = Types.warehouseId "CHI", name = "Chicago North", city = "Chicago", country = Types.countryCode "US" }
+    , { id = Types.warehouseId "SIN", name = "Singapore East", city = "Singapore", country = Types.countryCode "SG" }
+    , { id = Types.warehouseId "SYD", name = "Sydney South", city = "Sydney", country = Types.countryCode "AU" }
     ]
 
 
@@ -309,7 +323,7 @@ pickWarehouse n =
     warehouses
         |> List.drop (modBy (List.length warehouses) n)
         |> List.head
-        |> Maybe.withDefault { id = "RTM", name = "Rotterdam Hub", city = "Rotterdam", country = "NL" }
+        |> Maybe.withDefault { id = Types.warehouseId "RTM", name = "Rotterdam Hub", city = "Rotterdam", country = Types.countryCode "NL" }
 
 
 
@@ -319,7 +333,7 @@ pickWarehouse n =
 countries : List Country
 countries =
     [ ( "AF", "Afghanistan", "Asia" ), ( "AL", "Albania", "Europe" ), ( "DZ", "Algeria", "Africa" ), ( "AD", "Andorra", "Europe" ), ( "AO", "Angola", "Africa" ), ( "AR", "Argentina", "South America" ), ( "AM", "Armenia", "Asia" ), ( "AU", "Australia", "Oceania" ), ( "AT", "Austria", "Europe" ), ( "AZ", "Azerbaijan", "Asia" ), ( "BH", "Bahrain", "Asia" ), ( "BD", "Bangladesh", "Asia" ), ( "BY", "Belarus", "Europe" ), ( "BE", "Belgium", "Europe" ), ( "BO", "Bolivia", "South America" ), ( "BA", "Bosnia and Herzegovina", "Europe" ), ( "BR", "Brazil", "South America" ), ( "BG", "Bulgaria", "Europe" ), ( "KH", "Cambodia", "Asia" ), ( "CM", "Cameroon", "Africa" ), ( "CA", "Canada", "North America" ), ( "CL", "Chile", "South America" ), ( "CN", "China", "Asia" ), ( "CO", "Colombia", "South America" ), ( "CD", "DR Congo", "Africa" ), ( "CR", "Costa Rica", "North America" ), ( "HR", "Croatia", "Europe" ), ( "CU", "Cuba", "North America" ), ( "CY", "Cyprus", "Europe" ), ( "CZ", "Czechia", "Europe" ), ( "DK", "Denmark", "Europe" ), ( "DO", "Dominican Republic", "North America" ), ( "EC", "Ecuador", "South America" ), ( "EG", "Egypt", "Africa" ), ( "ER", "Eritrea", "Africa" ), ( "EE", "Estonia", "Europe" ), ( "ET", "Ethiopia", "Africa" ), ( "FI", "Finland", "Europe" ), ( "FR", "France", "Europe" ), ( "GE", "Georgia", "Asia" ), ( "DE", "Germany", "Europe" ), ( "GH", "Ghana", "Africa" ), ( "GR", "Greece", "Europe" ), ( "GT", "Guatemala", "North America" ), ( "HN", "Honduras", "North America" ), ( "HU", "Hungary", "Europe" ), ( "IS", "Iceland", "Europe" ), ( "IN", "India", "Asia" ), ( "ID", "Indonesia", "Asia" ), ( "IR", "Iran", "Asia" ), ( "IQ", "Iraq", "Asia" ), ( "IE", "Ireland", "Europe" ), ( "IL", "Israel", "Asia" ), ( "IT", "Italy", "Europe" ), ( "JM", "Jamaica", "North America" ), ( "JP", "Japan", "Asia" ), ( "JO", "Jordan", "Asia" ), ( "KZ", "Kazakhstan", "Asia" ), ( "KE", "Kenya", "Africa" ), ( "KW", "Kuwait", "Asia" ), ( "LV", "Latvia", "Europe" ), ( "LB", "Lebanon", "Asia" ), ( "LY", "Libya", "Africa" ), ( "LT", "Lithuania", "Europe" ), ( "LU", "Luxembourg", "Europe" ), ( "MY", "Malaysia", "Asia" ), ( "MT", "Malta", "Europe" ), ( "MX", "Mexico", "North America" ), ( "MD", "Moldova", "Europe" ), ( "MA", "Morocco", "Africa" ), ( "NP", "Nepal", "Asia" ), ( "NL", "Netherlands", "Europe" ), ( "NZ", "New Zealand", "Oceania" ), ( "NG", "Nigeria", "Africa" ), ( "MK", "North Macedonia", "Europe" ), ( "NO", "Norway", "Europe" ), ( "PK", "Pakistan", "Asia" ), ( "PA", "Panama", "North America" ), ( "PY", "Paraguay", "South America" ), ( "PE", "Peru", "South America" ), ( "PH", "Philippines", "Asia" ), ( "PL", "Poland", "Europe" ), ( "PT", "Portugal", "Europe" ), ( "QA", "Qatar", "Asia" ), ( "RO", "Romania", "Europe" ), ( "RU", "Russia", "Europe" ), ( "SA", "Saudi Arabia", "Asia" ), ( "SN", "Senegal", "Africa" ), ( "RS", "Serbia", "Europe" ), ( "SG", "Singapore", "Asia" ), ( "SK", "Slovakia", "Europe" ), ( "SI", "Slovenia", "Europe" ), ( "SO", "Somalia", "Africa" ), ( "ZA", "South Africa", "Africa" ), ( "KR", "South Korea", "Asia" ), ( "SS", "South Sudan", "Africa" ), ( "ES", "Spain", "Europe" ), ( "LK", "Sri Lanka", "Asia" ), ( "SD", "Sudan", "Africa" ), ( "SE", "Sweden", "Europe" ), ( "CH", "Switzerland", "Europe" ), ( "SY", "Syria", "Asia" ), ( "TW", "Taiwan", "Asia" ), ( "TZ", "Tanzania", "Africa" ), ( "TH", "Thailand", "Asia" ), ( "TN", "Tunisia", "Africa" ), ( "TR", "Turkey", "Asia" ), ( "UG", "Uganda", "Africa" ), ( "UA", "Ukraine", "Europe" ), ( "AE", "United Arab Emirates", "Asia" ), ( "GB", "United Kingdom", "Europe" ), ( "US", "United States", "North America" ), ( "UY", "Uruguay", "South America" ), ( "UZ", "Uzbekistan", "Asia" ), ( "VE", "Venezuela", "South America" ), ( "VN", "Vietnam", "Asia" ), ( "YE", "Yemen", "Asia" ), ( "ZM", "Zambia", "Africa" ), ( "ZW", "Zimbabwe", "Africa" ) ]
-        |> List.map (\( code, name, region ) -> { code = code, name = name, region = region })
+        |> List.map (\( code, name, region ) -> { code = Types.countryCode code, name = name, region = region })
         |> List.sortBy .name
 
 

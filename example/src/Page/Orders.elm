@@ -51,6 +51,7 @@ import Klar.Theme exposing (Tone(..))
 import Page.Effect as Effect exposing (Context, Effect(..))
 import Page.Orders.Editor as Editor
 import Route
+import View.Ids exposing (orderRows)
 import View.Labels as Labels
 
 
@@ -59,7 +60,7 @@ import View.Labels as Labels
 
 
 type alias Model =
-    { table : Table.State
+    { table : Table.State OrderId
     , rows : Remote (List Order)
     , total : Int
     , refreshing : Bool
@@ -133,7 +134,7 @@ searchBoxId =
 {-| The table the first time: newest orders first, so that a new order is found at
 the start of the list.
 -}
-initialTable : Table.State
+initialTable : Table.State OrderId
 initialTable =
     Table.init tableId
         |> Table.setSort [ ( Table.columnId "created", Table.Descending ) ]
@@ -157,7 +158,7 @@ reenter context openId backend previous =
     start (previous.ticket + 1) (Table.clearSelection previous.table) context openId backend
 
 
-start : Int -> Table.State -> Context -> Maybe OrderId -> Backend -> ( Model, Backend, Cmd Msg )
+start : Int -> Table.State OrderId -> Context -> Maybe OrderId -> Backend -> ( Model, Backend, Cmd Msg )
 start ticket table _ openId backend =
     let
         ( backend1, listCmd ) =
@@ -513,10 +514,10 @@ update context msg backend model =
 
                 notice =
                     if created then
-                        Notify Success "Order created" (order.id ++ " was added as a draft for " ++ order.customer ++ ".")
+                        Notify Success "Order created" (Types.orderIdText order.id ++ " was added as a draft for " ++ order.customer ++ ".")
 
                     else
-                        Notify Success "Order saved" (order.id ++ " was updated.")
+                        Notify Success "Order saved" (Types.orderIdText order.id ++ " was updated.")
             in
             -- `fetched` keeps the effects of `closeEditor` (back to the list
             -- when the order was opened by its address).
@@ -566,14 +567,14 @@ update context msg backend model =
                     fetch backend model
 
                 notice =
-                    Notify Success "Status changed" (order.id ++ " is now " ++ String.toLower (Types.orderStatusLabel status) ++ ".")
+                    Notify Success "Status changed" (Types.orderIdText order.id ++ " is now " ++ String.toLower (Types.orderStatusLabel status) ++ ".")
             in
             ( { fetched | effects = Effect.push notice fetched.effects }, backend1, cmd )
 
         StatusChanged order _ (Err error) ->
             let
                 notice =
-                    Notify Danger ("Could not change " ++ order.id) (reason context error)
+                    Notify Danger ("Could not change " ++ Types.orderIdText order.id) (reason context error)
             in
             -- The server refuses what the order's status does not allow. That
             -- means the row on screen is out of date: show the real one.
@@ -606,7 +607,7 @@ update context msg backend model =
                 ( model, backend, Cmd.none )
 
             else
-                case Table.selection model.table of
+                case Table.selection orderRows model.table of
                     Table.Selected ids ->
                         let
                             ( asked, cmd ) =
@@ -740,12 +741,12 @@ update context msg backend model =
 
                 -- A deleted order cannot stay selected.
                 table =
-                    Table.setSelected [ id ] False model.table
+                    Table.setSelected orderRows [ id ] False model.table
 
                 ( fetched, backend1, fetchCmd ) =
                     fetch backend { model | confirm = confirm, pending = Nothing, table = table }
             in
-            ( { fetched | effects = Effect.push (Notify Success "Order deleted" (id ++ " was removed.")) fetched.effects }
+            ( { fetched | effects = Effect.push (Notify Success "Order deleted" (Types.orderIdText id ++ " was removed.")) fetched.effects }
             , backend1
             , Cmd.batch [ fetchCmd, Cmd.map TableMsg (Table.focus fetched.table) ]
             )
@@ -835,7 +836,7 @@ finishCancelling context batch backend model =
                 table =
                     model.table
                         |> Table.clearSelection
-                        |> Table.setSelected (List.map Tuple.first failed) True
+                        |> Table.setSelected orderRows (List.map Tuple.first failed) True
 
                 ( fetched, backend1, fetchCmd ) =
                     fetch backend { model | confirm = confirm, pending = Nothing, table = table }
@@ -858,7 +859,7 @@ cancelNotice context cancelled refused failed =
     if refused == 0 && failed == 0 then
         case cancelled of
             [ id ] ->
-                Notify Success "Order cancelled" (id ++ " was cancelled.")
+                Notify Success "Order cancelled" (Types.orderIdText id ++ " was cancelled.")
 
             _ ->
                 Notify Success
@@ -1234,7 +1235,7 @@ view context model =
                 , Table.rows model.rows
                 , Table.server { total = model.total }
                 , Table.refreshing model.refreshing
-                , Table.rowId .id
+                , Table.rowId orderRows .id
                 , Table.rowLabel (rowLabel context)
                 , Table.rowTone (overdueTone context.today)
                 , Table.searchPlaceholder "Search id, customer, city, email, owner or note"
@@ -1312,7 +1313,7 @@ noLookups =
 columns : Context -> Lookups -> List (Table.Column Order Msg)
 columns context lookups =
     [ -- The ids of the columns are the keys the server sorts by.
-      Table.text (Table.columnId "id") "Order id" .id [ Table.pinned, Table.width 112 ]
+      Table.text (Table.columnId "id") "Order id" (.id >> Types.orderIdText) [ Table.pinned, Table.width 112 ]
     , Table.text (Table.columnId "customer") "Customer" .customer [ Table.minWidth 190 ]
     , Table.badge (Table.columnId "status")
         "Status"
@@ -1328,11 +1329,12 @@ columns context lookups =
         (\order -> ( Labels.priorityTone order.priority, Types.priorityLabel order.priority ))
         [ Table.width 104 ]
 
-    -- A blank text is shown as a dash.
-    , Table.text (Table.columnId "owner") "Owner" (\order -> Maybe.withDefault "" order.owner) [ Table.width 136 ]
+    -- The orders hold ids; the names come from the reference data (until it has
+    -- arrived, the id is shown). A blank text is shown as a dash.
+    , Table.text (Table.columnId "owner") "Owner" (\order -> order.owner |> Maybe.map (Types.ownerName lookups.owners) |> Maybe.withDefault "") [ Table.width 136 ]
     , Table.text (Table.columnId "city") "City" .city [ Table.width 128 ]
-    , Table.text (Table.columnId "country") "Country" (.country >> countryName lookups) [ Table.width 148 ]
-    , Table.text (Table.columnId "warehouse") "Warehouse" (.warehouse >> warehouseName lookups) [ Table.width 148 ]
+    , Table.text (Table.columnId "country") "Country" (.country >> Types.countryName lookups.countries) [ Table.width 148 ]
+    , Table.text (Table.columnId "warehouse") "Warehouse" (.warehouse >> Types.warehouseName lookups.warehouses) [ Table.width 148 ]
     , Table.date (Table.columnId "created") "Created" .created []
     , Table.date (Table.columnId "due") "Due" .due []
     , Table.int (Table.columnId "lines") "Lines" .lines [ Table.width 88 ]
@@ -1347,27 +1349,6 @@ columns context lookups =
         , Table.cell (\order -> Html.text (Format.currency context.locale "$" 2 order.total))
         ]
     ]
-
-
-{-| The orders store the code of the country and the id of the warehouse. Until
-the reference data has arrived, the code is shown.
--}
-countryName : Lookups -> String -> String
-countryName lookups code =
-    lookups.countries
-        |> List.filter (\country -> country.code == code)
-        |> List.head
-        |> Maybe.map .name
-        |> Maybe.withDefault code
-
-
-warehouseName : Lookups -> String -> String
-warehouseName lookups id =
-    lookups.warehouses
-        |> List.filter (\warehouse -> warehouse.id == id)
-        |> List.head
-        |> Maybe.map .name
-        |> Maybe.withDefault id
 
 
 {-| A red edge on open orders that should have been delivered by now.
@@ -1399,10 +1380,10 @@ it too.
 rowLabel : Context -> Order -> String
 rowLabel context order =
     if isOverdue context.today order then
-        order.id ++ ", overdue"
+        Types.orderIdText order.id ++ ", overdue"
 
     else
-        order.id
+        Types.orderIdText order.id
 
 
 rowActions : Order -> List (Menu.Item Msg)
@@ -1568,7 +1549,7 @@ viewConfirm context model =
                 Just (Deleting order) ->
                     [ ConfirmDialog.danger
                     , ConfirmDialog.icon Icon.trash
-                    , ConfirmDialog.title ("Delete order " ++ order.id ++ "?")
+                    , ConfirmDialog.title ("Delete order " ++ Types.orderIdText order.id ++ "?")
                     , ConfirmDialog.message ("The order of " ++ order.customer ++ " is removed from all lists. This cannot be undone.")
                     , ConfirmDialog.confirmLabel "Delete order"
                     ]
@@ -1583,7 +1564,7 @@ viewConfirm context model =
                     , ConfirmDialog.title
                         (case batch.ids of
                             [ id ] ->
-                                "Cancel order " ++ id ++ "?"
+                                "Cancel order " ++ Types.orderIdText id ++ "?"
 
                             _ ->
                                 "Cancel " ++ String.fromInt count ++ " orders?"

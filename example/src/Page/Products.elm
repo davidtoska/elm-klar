@@ -58,8 +58,8 @@ type alias Model =
 
     -- The branch the table is narrowed to. The tree shows the same choice.
     , category : Maybe Category
-    , table : Table.State
-    , tree : Tree.State
+    , table : Table.State String
+    , tree : Tree.State String
 
     -- Which request the page is waiting for (see `request`).
     , latest : Int
@@ -164,8 +164,8 @@ update context msg backend model =
 
                 -- The tree reports nothing: compare its state before and after.
                 next =
-                    if Tree.selectedId tree /= Tree.selectedId model.tree then
-                        setCategory (Tree.selectedId tree |> Maybe.andThen (\id -> Category.find id model.categories)) moved
+                    if Tree.selectedId Tree.stringIds tree /= Tree.selectedId Tree.stringIds model.tree then
+                        setCategory (Tree.selectedId Tree.stringIds tree |> Maybe.andThen (\id -> Category.find id model.categories)) moved
 
                     else
                         moved
@@ -177,9 +177,9 @@ update context msg backend model =
             , backend
             , -- The button is gone now, so the keyboard goes back to the tree,
               -- where the next category is chosen.
-              case Tree.focused model.tree of
+              case Tree.focused Tree.stringIds model.tree of
                 Just id ->
-                    Cmd.map TreeMsg (Tree.focusNode model.tree id)
+                    Cmd.map TreeMsg (Tree.focusNode Tree.stringIds model.tree id)
 
                 Nothing ->
                     Cmd.none
@@ -193,7 +193,7 @@ update context msg backend model =
         ReorderSelected ->
             let
                 chosen =
-                    Set.fromList (Table.selectedIds model.table)
+                    Set.fromList (Table.selectedIds Table.stringIds model.table)
 
                 ( active, inactive ) =
                     model.products
@@ -232,7 +232,7 @@ loaded context result model =
                             model.tree
 
                         else
-                            Tree.setExpanded (List.map (\(Branch category _) -> category.id) categories) model.tree
+                            Tree.setExpanded Tree.stringIds (List.map (\(Branch category _) -> category.id) categories) model.tree
                 }
 
         Err error ->
@@ -262,10 +262,10 @@ setCategory category model =
         , tree =
             case category of
                 Just chosen ->
-                    Tree.select chosen.id model.tree
+                    Tree.select Tree.stringIds chosen.id model.tree
 
                 Nothing ->
-                    Tree.setSelected [] model.tree
+                    Tree.setSelected Tree.stringIds [] model.tree
         , table = Table.setPage 1 model.table
     }
 
@@ -441,14 +441,14 @@ viewCategories context model =
         ]
 
 
-treeNode : Branch -> Tree.Node
+treeNode : Branch -> Tree.Node String
 treeNode (Branch category below) =
     (case below of
         [] ->
-            Tree.leaf category.id category.name
+            Tree.leaf Tree.stringIds category.id category.name
 
         _ ->
-            Tree.branch category.id category.name (List.map treeNode below)
+            Tree.branch Tree.stringIds category.id category.name (List.map treeNode below)
     )
         |> Tree.withCount category.count
 
@@ -462,14 +462,14 @@ treeNode (Branch category below) =
 unchanged out of the model: a `Maybe` or a `Remote` made in `view` would be a
 new value every time.
 -}
-viewTable : Locale -> Maybe Category -> Bool -> Remote (List Product) -> Table.State -> Html Msg
+viewTable : Locale -> Maybe Category -> Bool -> Remote (List Product) -> Table.State String -> Html Msg
 viewTable locale category refreshing products table =
     Table.view TableMsg
         ([ Table.label "Products"
          , Table.locale locale
          , Table.columns (columns locale)
          , Table.rows products
-         , Table.rowId .sku
+         , Table.rowId Table.stringIds .sku
          , Table.rowLabel (\product -> product.name ++ " (" ++ product.sku ++ ")")
          , Table.searchable
          , Table.multiSort
@@ -496,7 +496,7 @@ rows that are not in it, and `activeExternalFilters` makes the table count it:
 "1 filter active" with a reset, and "No matches" instead of "No data" when it
 leaves nothing.
 -}
-narrowedTo : Maybe Category -> List (Table.Attribute Product Msg)
+narrowedTo : Maybe Category -> List (Table.Attribute String Product Msg)
 narrowedTo category =
     case category of
         Just branch ->

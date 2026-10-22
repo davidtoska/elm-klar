@@ -76,7 +76,7 @@ type alias Model =
     , backend : Api.Backend
     , sidebarCollapsed : Bool
     , drawerOpen : Bool
-    , sideNav : SideNav.State
+    , sideNav : SideNav.State String
     , userMenu : Menu.State
     , shortcuts : Shortcut.State
     , toasts : Toast.State Msg
@@ -336,7 +336,7 @@ update msg model =
                 -- The links come after the whole top bar: take the keyboard to the
                 -- current page instead of making it tab there.
                 ( { model | drawerOpen = True }
-                , SideNav.focusLink
+                , SideNav.focusLink SideNav.stringKeys
                     (if routeKey model.route == "" then
                         "overview"
 
@@ -762,10 +762,10 @@ searchOrders ticket model =
 
 orderHit : Types.Order -> CommandPalette.Item Msg
 orderHit order =
-    CommandPalette.item (order.id ++ " · " ++ order.customer) (GoTo (OrderDetail order.id))
+    CommandPalette.item (Types.orderIdText order.id ++ " · " ++ order.customer) (GoTo (OrderDetail order.id))
         |> CommandPalette.withIcon Icon.clipboard
         |> CommandPalette.withDescription (Types.orderStatusLabel order.status)
-        |> CommandPalette.withId ("order-" ++ order.id)
+        |> CommandPalette.withId ("order-" ++ Types.orderIdText order.id)
 
 
 
@@ -834,23 +834,24 @@ routeTitle route =
             Route.title route
 
 
-menu : List (SideNav.Entry Msg)
+menu : List (SideNav.Entry String Msg)
 menu =
     [ SideNav.section "Workspace"
-        [ SideNav.item { key = "overview", label = "Overview", href = Route.path Overview }
+        [ SideNav.item SideNav.stringKeys { key = "overview", label = "Overview", href = Route.path Overview }
             |> SideNav.withIcon Icon.home
-        , SideNav.item { key = "orders", label = "Orders", href = Route.path Orders }
+        , SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = Route.path Orders }
             |> SideNav.withIcon Icon.clipboard
-        , SideNav.item { key = "products", label = "Products", href = Route.path Products }
+        , SideNav.item SideNav.stringKeys { key = "products", label = "Products", href = Route.path Products }
             |> SideNav.withIcon Icon.database
         ]
     , SideNav.section "Component library"
-        [ SideNav.item { key = "components", label = "Overview", href = Route.path (Components Nothing) }
+        [ SideNav.item SideNav.stringKeys { key = "components", label = "Overview", href = Route.path (Components Nothing) }
             |> SideNav.withIcon Icon.layers
-        , SideNav.group { key = "components-pages", label = "Components" }
+        , SideNav.group SideNav.stringKeys
+            { key = "components-pages", label = "Components" }
             (List.map
                 (\section ->
-                    SideNav.item
+                    SideNav.item SideNav.stringKeys
                         { key = "components-" ++ Catalog.slug section
                         , label = Catalog.title section
                         , href = Route.path (Components (Just (Catalog.slug section)))

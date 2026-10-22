@@ -13,6 +13,13 @@ The first release.
   builder and filter bar, dialogs, drawers, toasts, a command palette, charts,
   trees, timelines and the pieces of an application shell.
 - Built-in text in English and Norwegian Bokmål (`Klar.Locale`).
+- An icon library of 500 line icons in one style (24 by 24 grid, 2 pixel stroke, round
+  ends), every one an Elm value that carries its own drawing: `Klar.Icon` has the
+  everyday icons and `Klar.Icon.Arrows`, `Business`, `Calendar`, `Communication`,
+  `Data`, `Developer`, `Devices`, `Documents`, `Editor`, `Interface`, `Logistics`,
+  `Media`, `Nature`, `People` and `Science` the rest. `elm make --optimize` leaves out
+  the icons an application does not use. `Icon.fromSvg` draws your own icon the same
+  way, and `Klar.Icon.Library` lists everything for galleries. See `ICONS.md`.
 - One stylesheet, delivered with the package (`Klar.stylesheet`), built on design
   tokens (CSS custom properties).
 - Pure helpers with unit tests: dates (`Klar.Date`), formatting (`Klar.Format`),
@@ -22,7 +29,9 @@ The first release.
   your own id type (`Select.State CustomerId`), a date can never be invalid
   (`Klar.Date` is opaque), columns, keyboard shortcuts and problems are values and
   not free text (`Table.columnId`, `Shortcut.mod (Shortcut.char 'k')`,
-  `Remote.problem Remote.timeout`), and a rule field offers only the operators you
-  choose (`Rule.withOperators`).
+  `Remote.problem Remote.timeout`), a rule field offers only the operators you
+  choose (`Rule.withOperators`), and a table speaks your row id type
+  (`Table.State OrderId`, `Table.rowIds`, `Table.selectedIds orderRows state`), and so do trees and the side menu
+  (`Tree.State RegionId`, `Tree.nodeIds`, `SideNav.State Page`, `SideNav.keys`).
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.

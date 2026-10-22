@@ -44,7 +44,7 @@ type Msg
 
 init : Model
 init =
-    { selected = ofPriority Normal 1 |> List.head |> Maybe.map .id
+    { selected = ofPriority Normal 1 |> List.head |> Maybe.map (.id >> Types.orderIdText)
     , edited = Nothing
     , retrying = False
     }
@@ -245,10 +245,10 @@ for the Tab key.
 rowAttributes : Locale -> Maybe String -> Order -> List (ListItem.Attribute Msg)
 rowAttributes locale selected order =
     [ ListItem.avatar order.customer
-    , ListItem.secondary (order.id ++ " · " ++ order.city ++ " · " ++ Types.orderStatusLabel order.status)
+    , ListItem.secondary (Types.orderIdText order.id ++ " · " ++ order.city ++ " · " ++ Types.orderStatusLabel order.status)
     , ListItem.meta (Format.currency locale "$" 2 order.total)
-    , ListItem.selected (selected == Just order.id)
-    , ListItem.onClick (Select order.id)
+    , ListItem.selected (selected == Just (Types.orderIdText order.id))
+    , ListItem.onClick (Select (Types.orderIdText order.id))
     ]
         ++ accentOf order
 
@@ -257,7 +257,7 @@ orderRow : Locale -> Maybe String -> Order -> Html Msg
 orderRow locale selected order =
     ListItem.view
         (ListItem.trailing
-            [ Button.iconOnly [ Button.ghost, Button.small, Button.onClick (Edit order.id) ] Icon.edit ("Edit " ++ order.id) ]
+            [ Button.iconOnly [ Button.ghost, Button.small, Button.onClick (Edit (Types.orderIdText order.id)) ] Icon.edit ("Edit " ++ Types.orderIdText order.id) ]
             :: rowAttributes locale selected order
         )
         order.customer

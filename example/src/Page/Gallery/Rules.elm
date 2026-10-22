@@ -7,7 +7,7 @@ table of the 3,000 sample orders is filtered with `Rule.matches`.
 
 -}
 
-import Api.Types as Types exposing (OrderStatus(..), Priority(..), allOrderStatuses, allPriorities, orderStatusLabel, priorityLabel)
+import Api.Types as Types exposing (OrderId, OrderStatus(..), Priority(..), allOrderStatuses, allPriorities, orderStatusLabel, priorityLabel)
 import Html exposing (Html)
 import Html.Lazy
 import Klar.Button as Button
@@ -30,6 +30,7 @@ import Process
 import Showcase.Doc as Doc
 import Showcase.Sample as Sample
 import Task
+import View.Ids exposing (orderRows)
 import View.Labels as Labels
 
 
@@ -39,7 +40,7 @@ import View.Labels as Labels
 
 type alias Model =
     { workbench : Bench
-    , table : Table.State
+    , table : Table.State OrderId
     , applied : Rule
     , matchCount : Int
     , slow : Bool
@@ -313,9 +314,9 @@ orderFields =
     , Rule.dateField "created" "Created" (.created >> Just) |> Rule.inGroup "Dates"
     , Rule.dateField "due" "Due date" (.due >> Just) |> Rule.inGroup "Dates"
     , Rule.dateField "delivered" "Delivered on" .delivered |> Rule.inGroup "Dates"
-    , Rule.choiceField "owner" "Owner" ownerChoices (.owner >> Maybe.withDefault "") |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Handling"
-    , Rule.choiceField "warehouse" "Warehouse" warehouseChoices .warehouse |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Handling"
-    , Rule.choiceField "country" "Country" countryChoices .country |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Delivery"
+    , Rule.choiceField "owner" "Owner" ownerChoices (.owner >> Maybe.map Sample.ownerName >> Maybe.withDefault "") |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Handling"
+    , Rule.choiceField "warehouse" "Warehouse" warehouseChoices (.warehouse >> Types.warehouseIdText) |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Handling"
+    , Rule.choiceField "country" "Country" countryChoices (.country >> Types.countryCodeText) |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Delivery"
     , Rule.choiceField "city" "City" cityChoices .city |> Rule.withOperators [ Rule.Is, Rule.IsNot, Rule.IsAnyOf, Rule.IsNoneOf ] |> Rule.inGroup "Delivery"
     ]
 
@@ -344,7 +345,7 @@ cityChoices =
 
 countryChoices : List Rule.Choice
 countryChoices =
-    List.map (\country -> { value = country.code, label = country.name }) Sample.countries
+    List.map (\country -> { value = Types.countryCodeText country.code, label = country.name }) Sample.countries
 
 
 ownerChoices : List Rule.Choice
@@ -354,7 +355,7 @@ ownerChoices =
 
 warehouseChoices : List Rule.Choice
 warehouseChoices =
-    List.map (\warehouse -> { value = warehouse.id, label = warehouse.name }) Sample.warehouses
+    List.map (\warehouse -> { value = Types.warehouseIdText warehouse.id, label = warehouse.name }) Sample.warehouses
 
 
 statusChoices : Locale -> List Rule.Choice
@@ -943,12 +944,12 @@ lazily keeps typing in the builder fast (it is redrawn when the applied rule,
 the counting flag or the table's own state changes, not on every keystroke
 elsewhere).
 -}
-viewTable : Locale -> Rule -> Bool -> Table.State -> Html Msg
+viewTable : Locale -> Rule -> Bool -> Table.State OrderId -> Html Msg
 viewTable locale applied counting table =
     Table.view TableMsg
         [ Table.columns orderColumns
         , Table.rows (Remote.Success Sample.orders)
-        , Table.rowId .id
+        , Table.rowId orderRows .id
         , Table.rowFilter (Rule.matches Sample.today orderFields applied)
         , Table.activeExternalFilters (completeConditions orderFields applied)
         , Table.onResetFilters ResetAll
@@ -963,11 +964,11 @@ viewTable locale applied counting table =
 
 orderColumns : List (Table.Column Types.Order Msg)
 orderColumns =
-    [ Table.text (Table.columnId "id") "Order" .id [ Table.width 100 ]
+    [ Table.text (Table.columnId "id") "Order" (.id >> Types.orderIdText) [ Table.width 100 ]
     , Table.text (Table.columnId "customer") "Customer" .customer [ Table.minWidth 180 ]
     , Table.badge (Table.columnId "status") "Status" (\order -> ( Labels.statusTone order.status, orderStatusLabel order.status )) [ Table.width 124 ]
     , Table.status (Table.columnId "priority") "Priority" (\order -> ( Labels.priorityTone order.priority, priorityLabel order.priority )) [ Table.width 100 ]
-    , Table.text (Table.columnId "owner") "Owner" (.owner >> Maybe.withDefault "") [ Table.width 130 ]
+    , Table.text (Table.columnId "owner") "Owner" (.owner >> Maybe.map Sample.ownerName >> Maybe.withDefault "") [ Table.width 130 ]
     , Table.int (Table.columnId "lines") "Lines" .lines [ Table.width 80 ]
     , Table.float (Table.columnId "total") "Total" 2 .total [ Table.width 112 ]
     , Table.date (Table.columnId "created") "Created" .created [ Table.width 112 ]
