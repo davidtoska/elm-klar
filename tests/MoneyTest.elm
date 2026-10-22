@@ -82,7 +82,7 @@ anyMinor =
         (Fuzz.intRange 0 999999)
 
 
-{-| A weight of any size up to 1.8 * 10^15: five of them still add up inside the exact
+{-| A weight of any size up to 1.8 \* 10^15: five of them still add up inside the exact
 range. (The fuzzers of the test library stay within 32 bits by themselves.)
 -}
 bigWeight : Fuzzer Int

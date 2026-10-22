@@ -262,6 +262,22 @@ masksTests =
             \_ ->
                 Expect.equal [ Ok "123 45", Ok "1234 AB", Ok "12-345" ]
                     [ postalTyped "SE" "12345", postalTyped "NL" "1234ab", postalTyped "PL" "12345" ]
+        , test "postalCode \"NO\" is the same mask as norwegianPostalCode, which has no Maybe" <|
+            \_ ->
+                case MaskedInput.postalCode "NO" of
+                    Just mask ->
+                        Expect.equal
+                            (after [ typeIn [] "0150" ] (MaskedInput.init "p" mask) |> Result.map (\state -> ( MaskedInput.text state, MaskedInput.value state )))
+                            (after [ typeIn [] "0150" ] (MaskedInput.init "p" MaskedInput.norwegianPostalCode) |> Result.map (\state -> ( MaskedInput.text state, MaskedInput.value state )))
+
+                    Nothing ->
+                        Expect.fail "NO is in the list"
+        , test "a pattern with a letter of any alphabet as a fixed character is nothing" <|
+            \_ ->
+                [ "å#", "é-####", "##ß" ]
+                    |> List.filterMap MaskedInput.pattern
+                    |> List.length
+                    |> Expect.equal 0
         , test "the order of the attributes does not matter" <|
             \_ ->
                 let
@@ -491,6 +507,36 @@ errorTests =
             \_ ->
                 after [ focusIn [], typeIn [] "+358 40 1", leave [] ] phoneField
                     |> expectError [] (Just "Too short: 6 of at least 7 digits")
+        , test "a (0) after the country code is shown at once, and the text stays exactly as it was typed" <|
+            \_ ->
+                after [ focusIn [], typeIn [] "+44 (0)20 7946 0958" ] phoneField
+                    |> Expect.all
+                        [ expectError [] (Just "Leave out the (0) after the country code")
+                        , expectText "+44 (0)20 7946 0958"
+                        , expectShown [] "+44 (0)20 7946 0958"
+                        , expectValue Nothing
+                        , expectFlags { complete = False, valid = False }
+                        ]
+        , test "it is not dropped when the field is left either" <|
+            \_ ->
+                after [ focusIn [], typeIn [] "+44 (0)20 7946 0958", leave [] ] phoneField
+                    |> Expect.all [ expectText "+44 (0)20 7946 0958", expectValue Nothing ]
+        , test "in Norwegian" <|
+            \_ ->
+                after [ focusIn norwegian, typeIn norwegian "+44 (0)20 7946 0958" ] phoneField
+                    |> expectError norwegian (Just "Utelat (0) etter landkoden")
+        , test "taking the (0) away makes the number right and written in groups" <|
+            \_ ->
+                after [ typeIn [] "+44 (0)20 7946 0958", typeIn [] "+44 20 7946 0958" ] phoneField
+                    |> Expect.all [ expectText "+44 207 946 095 8", expectValue (Just "+442079460958") ]
+        , test "a number with the area code in parentheses but no (0) is read" <|
+            \_ ->
+                after [ typeIn [] "+44 (20) 7946 0958" ] phoneField
+                    |> expectValue (Just "+442079460958")
+        , test "Norwegian service numbers" <|
+            \_ ->
+                after [ typeOneByOne [] "+4780030000" ] phoneField
+                    |> Expect.all [ expectText "+47 800 30 000", expectValue (Just "+4780030000") ]
         , test "fixing the text makes the error go" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 760 674", typeIn plain "974 760 673" ] orgnr

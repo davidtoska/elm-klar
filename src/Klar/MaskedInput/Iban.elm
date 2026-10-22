@@ -3,12 +3,15 @@ module Klar.MaskedInput.Iban exposing
     , lengthOf
     )
 
-{-| The countries that use IBANs, and how many characters an IBAN of each has.
+{-| The countries of the IBAN registry, and how many characters an IBAN of each has.
 
-The table follows the IBAN registry of SWIFT (ISO 13616): the country, then two check
-digits, then the national account number, so the length is fixed for each country. A
-country that joins the registry later is not here until this table is updated; an
-IBAN from it is then reported as "no IBAN country".
+The table follows the SWIFT IBAN registry as public copies of it listed it in May 2026
+(Wikipedia and iban.com, updated 2026-05-08). Each length is also checked, in
+`tests/MaskedShapeTest.elm`, against a published example IBAN whose check digits are
+right. A country that joins the registry later is not here until this table is
+updated; an IBAN from it is then reported as "no IBAN country". Countries whose banks
+use IBANs without the country being in the registry (Algeria is one) are not here
+either: sources disagree about their IBANs.
 
 French overseas territories use the code FR, and the Isle of Man, Jersey and
 Guernsey use GB.
@@ -43,6 +46,7 @@ countries =
     , ( "BE", 16 )
     , ( "BG", 22 )
     , ( "BH", 22 )
+    , ( "BI", 27 )
     , ( "BR", 29 )
     , ( "BY", 28 )
     , ( "CH", 21 )
@@ -53,7 +57,6 @@ countries =
     , ( "DJ", 27 )
     , ( "DK", 18 )
     , ( "DO", 28 )
-    , ( "DZ", 26 )
     , ( "EE", 20 )
     , ( "EG", 29 )
     , ( "ES", 24 )
@@ -67,6 +70,7 @@ countries =
     , ( "GL", 18 )
     , ( "GR", 27 )
     , ( "GT", 28 )
+    , ( "HN", 28 )
     , ( "HR", 21 )
     , ( "HU", 28 )
     , ( "IE", 22 )
@@ -121,4 +125,5 @@ countries =
     , ( "VA", 22 )
     , ( "VG", 24 )
     , ( "XK", 20 )
+    , ( "YE", 30 )
     ]

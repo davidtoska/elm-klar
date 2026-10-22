@@ -87,7 +87,9 @@ international form (`+`, the country code, the rest), accepts 7 to 15 digits as 
 standard for phone numbers says, and writes Norwegian (`+47 912 34 567`), Danish and
 North American numbers in their usual groups and others in groups of three. It does
 not know which numbers exist. National numbers without `+` are refused with a message
-that says what to do.
+that says what to do, and so is the national zero in parentheses after the country code
+(`+44 (0)20 7946 0958`): dropping the parentheses would leave a 0 in the number, so the
+field keeps the text as typed and asks for the number without `(0)`.
 
 **Keyboard and accessibility.** The input is a text field with the keyboard hint that
 suits the mask (numeric for digits, telephone pad for a phone number) and without
@@ -162,9 +164,12 @@ type Mask
 {-| An IBAN, the international bank account number: two letters for the country, two
 check digits and the national account number, `NO93 8601 1117 947`. The length must be
 the one of the country (15 for Norway, 22 for Germany), and the check digits must be
-right (ISO 7064, modulus 97). All the countries in the registry of SWIFT are known; the
-list is in `Klar.MaskedInput.Iban` of this package's source and grows when the registry
-does. The value is written without spaces: `NO9386011117947`.
+right (ISO 7064, modulus 97; the digits 00, 01 and 99, which ISO 13616 does not use, are
+refused). The countries are those of the SWIFT IBAN registry as public copies of it
+listed them in May 2026, 89 of them; an IBAN from a country that has joined since is
+reported as "no IBAN country" until this package is updated, and so is one from a
+country that has no IBANs in the registry. The value is written without spaces:
+`NO9386011117947`.
 -}
 iban : Mask
 iban =
@@ -195,7 +200,9 @@ norwegianBankAccount =
 
 
 {-| A Norwegian postal code: four digits, `0150`. There is no check digit, so any four
-digits are accepted; the application knows which postal codes exist.
+digits are accepted; the application knows which postal codes exist. It is the same
+mask as `postalCode "NO"`, without the `Maybe`: where the country is fixed, this one
+cannot fail.
 -}
 norwegianPostalCode : Mask
 norwegianPostalCode =
@@ -204,7 +211,10 @@ norwegianPostalCode =
 
 {-| The postal codes of a country, by its two-letter ISO 3166 code (`"SE"` for
 `123 45`, `"NL"` for `1234 AB`, `"PL"` for `12-345`). Upper or lower case, and spaces
-around the code, are fine. `Nothing` for a country that is not in the list (Norway,
+around the code, are fine. It is for a country that is not fixed, such as the one in an
+address, and `postalCode "NO"` is the Norwegian mask too, so every country of the list
+works the same way; where the country is Norway, `norwegianPostalCode` has no `Nothing`
+to handle. `Nothing` for a country that is not in the list (Norway,
 Sweden, Denmark, Finland, Iceland, Germany, Austria, Switzerland, Liechtenstein, the
 Netherlands, Belgium, Luxembourg, France, Spain, Italy, Portugal, Poland, Czechia,
 Slovakia, Estonia, the United States, Japan, Australia and New Zealand); the postal
@@ -250,9 +260,9 @@ The value is the characters of the slots (`AB1234`); `text` is what the field sh
 (`AB-1234`). Use the shown form when the hyphen belongs to the identifier.
 
 `Nothing` for a pattern without slots, a pattern that ends in a backslash, one with a
-letter or a digit that is not a slot (the user would have to type it; the application
-can add a fixed start itself), one with a control character, and one longer than 64
-characters. There is no check digit.
+letter (of any alphabet, `å` and `é` too) or a digit that is not a slot (the user would
+have to type it; the application can add a fixed start itself), one with a control
+character, and one longer than 64 characters. There is no check digit.
 
 -}
 pattern : String -> Maybe Mask
@@ -802,6 +812,11 @@ issueText lang found =
             pick
                 "Start med + og landkode, for eksempel +47"
                 "Start with + and the country code, like +47"
+
+        Shape.LeaveOutTrunkZero ->
+            pick
+                "Utelat (0) etter landkoden"
+                "Leave out the (0) after the country code"
 
         Shape.WrongCheckDigit ->
             pick "Kontrollsifferet er feil" "The check digit is wrong"

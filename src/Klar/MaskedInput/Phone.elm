@@ -84,8 +84,8 @@ callingCodeLength digits =
 
 
 {-| The sizes of the groups of the digits after the country calling code, from the
-start: a Norwegian number begins with 4 or 9 for a mobile (`912 34 567`) and is
-written `22 12 34 56` otherwise; Danish numbers are written in pairs; North American
+start: a Norwegian number begins with 4 or 9 for a mobile, or 8 for a service number
+(`912 34 567`, `800 30 000`) and is written `22 12 34 56` otherwise; Danish numbers are written in pairs; North American
 ones as `202 555 0123`. The last size repeats for all the digits there are left, so
 the rest of the world is written in groups of three.
 
@@ -97,7 +97,7 @@ groups : String -> String -> List Int
 groups callingCode national =
     case callingCode of
         "47" ->
-            if String.startsWith "4" national || String.startsWith "9" national then
+            if List.any (\prefix -> String.startsWith prefix national) [ "4", "8", "9" ] then
                 [ 3, 2, 3 ]
 
             else

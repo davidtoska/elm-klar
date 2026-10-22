@@ -240,5 +240,3 @@ allocate total weights =
 allOrNothing : List (Maybe a) -> Maybe (List a)
 allOrNothing maybes =
     List.foldr (\maybe rest -> Maybe.map2 (::) maybe rest) (Just []) maybes
-
-
