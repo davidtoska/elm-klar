@@ -2,6 +2,7 @@ module Klar.Table.Sort exposing
     ( Key(..)
     , Level(..)
     , collationKey
+    , compareKeys
     , numberKey
     , sort
     , textKey
@@ -197,7 +198,8 @@ compareLevels levels keysA keysB itemA itemB =
             EQ
 
 
-{-| Missing values always sort last, whatever the direction.
+{-| Compares two keys, the second argument says whether the order is reversed.
+Missing values always sort last, whatever the direction.
 -}
 compareKeys : Bool -> Key -> Key -> Order
 compareKeys descending a b =
