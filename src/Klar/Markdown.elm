@@ -49,11 +49,13 @@ what came before them and would make a half-written text jump around. A single
 **Unfinished text.** The parser never fails, and text that stops in the middle of
 something is shown as far as it goes: an open code fence runs to the end, an open
 `**bold` is bold, an open `` `code `` is code, a table row with too few cells is
-padded, and a link whose address has not arrived shows its words. The blocks that
-are complete never change when more text arrives; only the last one can. So the
-view of a text that grows, one piece after the other, stays still. (Anything in
-the last paragraph that is only open is shown as closed. If the paragraph is
-followed by a blank line, it is finished, and an unclosed `**` is text.)
+padded, and a link whose address has not arrived shows its words. What comes before
+the last blank line of a text does not change when more text arrives (a list or
+a block of code that goes on after a blank line can grow, but its earlier items
+and lines stay); only the paragraph that is still being written can change its
+shape. So the view of a text that grows, one piece after the other, stays still.
+(Anything in that last paragraph that is only open is shown as closed. When a
+blank line follows it, it is finished, and an unclosed `**` is text.)
 
 **Headings** get an `id` made from their text, unique in the document (`intro`,
 `intro-1`), for links to a section and for a table of contents (see `headings`).

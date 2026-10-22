@@ -26,8 +26,11 @@ tests read its result.
     construct as far as it goes. An open code fence runs to the end, a table row
     with too few cells is padded, a link whose address has not arrived shows its
     text (see [Klar.Markdown.Inline](Klar-Markdown-Inline)).
-  - It is stable: the blocks that are complete in a text do not change when more
-    text arrives. Only the last block can. (That is why reference links, which
+  - It is stable: a block that is followed by a blank line does not change when
+    more text arrives, except the last block before it, which a list or a block of
+    code can go on to fill. The lines after the last blank line can change
+    their shape: `***` may be a rule, and then, with a letter after it, a line of
+    the paragraph above. (That is why reference links, which
     work backwards, and setext headings, which turn the paragraph above into a
     heading, are not supported.)
 
