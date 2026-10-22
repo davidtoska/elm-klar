@@ -564,6 +564,15 @@ css =
  .klar-container--align-start{margin-inline: 0;padding-inline: 0}
  .klar-vlist{position: relative;overflow-x: hidden;overflow-y: auto;overscroll-behavior: contain;outline: none}
  .klar-vlist__spacer{pointer-events: none}
+ .klar-vlist--list{margin: 0;padding: 0;list-style: none;background: var(--klar-surface);border: 1px solid var(--klar-border);border-radius: var(--klar-radius-lg);box-sizing: content-box}
+ .klar-vlist--list:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: -2px}
+ .klar-vlist__item{display: flex;flex-direction: column;justify-content: center;box-sizing: border-box;height: var(--klar-vlist-row);overflow: hidden;border-bottom: 1px solid var(--klar-border-subtle);list-style: none}
+ .klar-vlist__item > .klar-list-item{flex: 1 1 auto;min-height: 0}
+ .klar-vlist__item .klar-list-item__main{min-height: 0;height: 100%}
+ .klar-vlist--interactive .klar-vlist__item{cursor: pointer}
+ .klar-vlist--interactive .klar-vlist__item:hover{background: var(--klar-surface-hover)}
+ .klar-vlist__item--selected,.klar-vlist--interactive .klar-vlist__item--selected:hover{background: var(--klar-primary-subtle)}
+ .klar-vlist--list:focus-visible .klar-vlist__item--active{outline: 2px solid var(--klar-focus-color);outline-offset: -2px}
  .klar-vlist__pinned{position: sticky;top: 0;z-index: 1;height: 0}
  .klar-vlist__pinned--active{height: var(--klar-vlist-row);margin-bottom: calc(-1 * var(--klar-vlist-row))}
  .klar-select,.klar-autocomplete{width: 100%}

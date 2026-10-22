@@ -1,5 +1,5 @@
 module Klar.ListItem exposing
-    ( view, heading, Attribute
+    ( view, content, heading, Attribute
     , secondary, meta, icon, avatar, leading, trailing, accent
     , onClick, href, selected, disabled, id, label
     , list, ListAttribute, listLabel, undivided, compact, bordered, maxHeight
@@ -48,7 +48,10 @@ There are two kinds of attributes: `Attribute` configures a row and goes to
 
 # Rows
 
-@docs view, heading, Attribute
+@docs view, content, heading, Attribute
+
+A row of a [Klar.VirtualList](Klar-VirtualList) is an `li` of the list's own, so what
+goes into it is `content`, the row without the `li` and without anything to click.
 
 
 # Row content
@@ -257,9 +260,30 @@ label text =
 -}
 view : List (Attribute msg) -> String -> Html msg
 view attributes title =
+    row Html.li (configureRow attributes) title
+
+
+{-| What is in a row, for a place that makes the `li` itself, such as a
+[Klar.VirtualList](Klar-VirtualList): the same look as `view` (a title, a second
+line, a meta text, an icon or an avatar, a colored edge) in a `div`. It is not a
+button or a link, so `onClick`, `href`, `label` and `trailing` do nothing in it:
+the row around it is what is clicked.
+
+    ListItem.content [ ListItem.secondary "Ada Lovelace", ListItem.meta "Today" ] "Order 1042"
+
+-}
+content : List (Attribute msg) -> String -> Html msg
+content attributes title =
     let
         config =
             configureRow attributes
+    in
+    row Html.div { config | onClick = Nothing, href = Nothing, trailing = [] } title
+
+
+row : (List (Html.Attribute msg) -> List (Html msg) -> Html msg) -> RowConfig msg -> String -> Html msg
+row root config title =
+    let
 
         interactive =
             not config.disabled && (config.onClick /= Nothing || config.href /= Nothing)
@@ -320,7 +344,7 @@ view attributes title =
                     )
                     mainContent
     in
-    Html.li
+    root
         [ Internal.cls
             [ "klar-list-item"
             , if interactive then
@@ -649,8 +673,8 @@ remote attributes toRow data =
         config =
             configureList attributes
 
-        framed content =
-            Html.div [ Internal.cls [ "klar-list-state" ], Internal.attrIf config.bordered (Internal.cls [ "klar-list-state--bordered" ]) ] [ content ]
+        framed inner =
+            Html.div [ Internal.cls [ "klar-list-state" ], Internal.attrIf config.bordered (Internal.cls [ "klar-list-state--bordered" ]) ] [ inner ]
     in
     case data of
         Remote.NotAsked ->

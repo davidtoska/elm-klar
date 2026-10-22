@@ -5,14 +5,20 @@ that a large collection is a normal case. The rows are made here, in the
 example, by a small deterministic generator; the library knows nothing about them.
 -}
 
-import Array
+import Array exposing (Array)
 import Html exposing (Html)
 import Klar.Button as Button
+import Klar.Format as Format
 import Klar.Layout as Layout
+import Klar.ListItem as ListItem
 import Klar.Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Search as Search
+import Klar.SearchInput as SearchInput
 import Klar.Switch as Switch
 import Klar.Table as Table
+import Klar.Text as Text
+import Klar.VirtualList as VirtualList
 import Showcase.Doc as Doc
 
 
@@ -73,7 +79,7 @@ item n =
     in
     { id = n
     , sku = "SKU-" ++ String.padLeft 6 '0' (String.fromInt (modBy 1000000 (n * 7 + modBy 97 a)))
-    , name = pick adjectives (a // 7) ++ " " ++ pick products (b // 7)
+    , name = pick adjectives (a // 7) ++ " " ++ pick products (b // 7) ++ " " ++ String.fromInt (100 + modBy 9000 (e // 11))
     , category = pick categories (c // 7)
     , warehouse = pick warehouses (d // 7)
     , quantity = modBy 5000 (e // 7)
@@ -108,9 +114,14 @@ warehouses =
 type alias Model =
     { items : Remote (Table.Rows Item)
     , list : Remote (List Item)
-    , prepared : Bool
+    , useRows : Bool
     , paged : Table.State Int
     , scrolling : Table.State Int
+    , texts : Array Search.Prepared
+    , search : SearchInput.State
+    , results : Array Item
+    , picked : Maybe Int
+    , listState : VirtualList.State
     }
 
 
@@ -118,9 +129,14 @@ init : Model
 init =
     { items = Remote.NotAsked
     , list = Remote.NotAsked
-    , prepared = True
+    , useRows = True
     , paged = Table.init "large-paged"
     , scrolling = Table.init "large-scrolling"
+    , texts = Array.empty
+    , search = SearchInput.init "large-search"
+    , results = Array.empty
+    , picked = Nothing
+    , listState = VirtualList.init "large-list"
     }
 
 
@@ -129,6 +145,9 @@ type Msg
     | PreparedToggled Bool
     | PagedMsg Table.Msg
     | ScrollingMsg Table.Msg
+    | SearchMsg SearchInput.Msg
+    | ListMsg VirtualList.Msg
+    | ItemPicked Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -138,16 +157,22 @@ update msg model =
             let
                 generated =
                     generate rowCount
+
+                rows =
+                    Table.prepareRows locale columns (Array.fromList generated)
             in
             ( { model
-                | items = Remote.Loaded (Table.prepareRows locale columns (Array.fromList generated))
+                | items = Remote.Loaded rows
                 , list = Remote.Loaded generated
+                , texts = Array.fromList (Search.prepareMany (List.map .name generated))
+                , results = Table.rowsArray rows
+                , picked = Nothing
               }
             , Cmd.none
             )
 
         PreparedToggled value ->
-            ( { model | prepared = value }, Cmd.none )
+            ( { model | useRows = value }, Cmd.none )
 
         PagedMsg inner ->
             Table.update inner model.paged
@@ -156,6 +181,56 @@ update msg model =
         ScrollingMsg inner ->
             Table.update inner model.scrolling
                 |> Tuple.mapBoth (\table -> { model | scrolling = table }) (Cmd.map ScrollingMsg)
+
+        SearchMsg inner ->
+            let
+                ( search, cmd ) =
+                    SearchInput.update inner model.search
+
+                changed =
+                    SearchInput.committed search /= SearchInput.committed model.search
+            in
+            ( if changed then
+                { model | search = search, results = find (SearchInput.committed search) model, picked = Nothing }
+
+              else
+                { model | search = search }
+            , Cmd.map SearchMsg cmd
+            )
+
+        ListMsg inner ->
+            VirtualList.update inner model.listState
+                |> Tuple.mapBoth (\state -> { model | listState = state }) (Cmd.map ListMsg)
+
+        ItemPicked index ->
+            ( { model | picked = Just index }, Cmd.none )
+
+
+{-| The items whose name matches, best matches first.
+-}
+find : String -> Model -> Array Item
+find text model =
+    case model.items of
+        Remote.Loaded rows ->
+            if String.isEmpty (String.trim text) then
+                Table.rowsArray rows
+
+            else
+                let
+                    query =
+                        Search.query text
+                in
+                List.map2 Tuple.pair (Array.toList model.texts) (Array.toList (Table.rowsArray rows))
+                    |> List.filterMap
+                        (\( prepared, found ) ->
+                            Search.scorePrepared query prepared |> Maybe.map (\points -> ( points, found ))
+                        )
+                    |> List.sortBy Tuple.first
+                    |> List.map Tuple.second
+                    |> Array.fromList
+
+        _ ->
+            Array.empty
 
 
 
@@ -181,7 +256,7 @@ columns =
 
 rowsAttribute : Model -> Table.Attribute Int Item msg
 rowsAttribute model =
-    if model.prepared then
+    if model.useRows then
         Table.preparedRows model.items
 
     else
@@ -191,24 +266,24 @@ rowsAttribute model =
 view : Locale -> Model -> Html Msg
 view locale model =
     Doc.section "50 000 rows"
-        "A table over 50 000 generated rows. The rows are prepared once, when they are loaded, and sorting, searching and paging then work on what is prepared."
+        "A large collection is a normal case: a table and a list over 50 000 generated rows, in one page. Search, sort and page or scroll, and every step stays under a tenth of a second."
         [ Doc.example
             { title = "Load"
-            , description = Just "The rows are made here, in the example, by a small generator. Turn the switch off to hand the table a plain list instead, and feel the difference."
-            , code = Nothing
+            , description = Just "The rows are made here, in the example, by a small generator. Prepared rows are made once, when the rows arrive; turn the switch off to give the table a plain list instead and feel the difference."
+            , code = Just loadCode
             }
             (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                 [ Button.view [ Button.onClick (Load locale) ] "Load 50 000 rows"
                 , Switch.view
                     [ Switch.label "Prepared rows"
-                    , Switch.checked model.prepared
+                    , Switch.checked model.useRows
                     , Switch.onToggle PreparedToggled
                     ]
                 ]
             )
         , Doc.example
-            { title = "Paged"
-            , description = Just "Pages of 25 rows: the way to read a table that people search and sort."
+            { title = "Table, in pages"
+            , description = Just "Pages of 25 rows: the way to read a table that people search, filter and sort to find a few rows."
             , code = Nothing
             }
             (Table.view PagedMsg
@@ -222,9 +297,9 @@ view locale model =
                 model.paged
             )
         , Doc.example
-            { title = "Scrolling"
-            , description = Just "The same rows in one list that scrolls, with the header and the totals in view. Only the rows in view are drawn. Click a row, then use the arrow keys, PageUp, PageDown, Home and End."
-            , code = Nothing
+            { title = "Table, scrolling"
+            , description = Just "The same rows in one list that scrolls, with the header and the totals in view: the way to read a long table from the top. Only the rows in view are drawn. Click a row, then use the arrow keys, PageUp, PageDown, Home and End."
+            , code = Just scrollingCode
             }
             (Table.view ScrollingMsg
                 [ Table.columns columns
@@ -239,4 +314,81 @@ view locale model =
                 ]
                 model.scrolling
             )
+        , Doc.example
+            { title = "List"
+            , description = Just "A plain list of equal rows that people scan and pick from. The list makes its own rows, so it needs no height and no style, and it is one tab stop: ArrowDown, ArrowUp, Home, End, PageDown and PageUp move through the rows, Enter picks one."
+            , code = Just listCode
+            }
+            (Layout.stack [ Layout.gap 3 ]
+                [ SearchInput.view SearchMsg
+                    [ SearchInput.placeholder "Search 50,000 names ..."
+                    , SearchInput.ariaLabel "Search the items"
+                    , SearchInput.locale locale
+                    ]
+                    model.search
+                , Text.secondary
+                    (Format.int locale (Array.length model.results)
+                        ++ " of "
+                        ++ Format.int locale (Array.length model.texts)
+                        ++ " items"
+                        ++ (case Maybe.andThen (\index -> Array.get index model.results) model.picked of
+                                Just picked ->
+                                    ". Picked: " ++ picked.name ++ ", " ++ picked.sku ++ "."
+
+                                Nothing ->
+                                    "."
+                           )
+                    )
+                , VirtualList.list ListMsg
+                    [ VirtualList.onSelect ItemPicked
+                    , VirtualList.selected model.picked
+                    , VirtualList.height 352
+                    ]
+                    { label = "Items", items = model.results, viewRow = viewItem }
+                    model.listState
+                ]
+            )
         ]
+
+
+viewItem : Item -> Html msg
+viewItem found =
+    ListItem.content
+        [ ListItem.secondary (found.category ++ ", " ++ found.warehouse)
+        , ListItem.meta (String.fromInt found.quantity ++ " in stock")
+        ]
+        found.name
+
+
+loadCode : String
+loadCode =
+    """GotItems (Ok items) ->
+    -- once, when the rows arrive: the table works out the search texts and the
+    -- order of every sortable column, and keeps them with the rows
+    ( { model | items = Loaded (Table.prepareRows locale columns (Array.fromList items)) }, Cmd.none )
+
+-- view
+Table.preparedRows model.items"""
+
+
+scrollingCode : String
+scrollingCode =
+    """Table.view TableMsg
+    [ Table.columns columns
+    , Table.preparedRows model.items
+    , Table.rowId itemIds .id
+    , Table.virtual
+    , Table.searchable
+    ]
+    model.table"""
+
+
+listCode : String
+listCode =
+    """VirtualList.list ListMsg
+    [ VirtualList.onSelect ItemPicked, VirtualList.selected model.picked ]
+    { label = "Items", items = Table.rowsArray rows, viewRow = viewItem }
+    model.listState
+
+viewItem item =
+    ListItem.content [ ListItem.secondary item.category, ListItem.meta item.stock ] item.name"""
