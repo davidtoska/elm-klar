@@ -2,7 +2,7 @@ module Klar.RuleBuilder exposing
     ( view
     , State, init, Msg, update
     , rule, setRule, clear
-    , showIssues, hideIssues
+    , showIssues, hideIssues, issues, focusId, focusNode, focusIssue
     , Attribute, fields, today, maxDepth, label, locale
     , matchCount, totalCount, counting
     , json, importJson, actions
@@ -70,7 +70,11 @@ no fields and "is empty" take no value.
 around the control and a short message. A node shows its issues once the user
 has tried to fill it in (typed, picked, or left a value field), so a fresh,
 empty condition is not red. `showIssues` shows every issue at once, for example
-when the user tries to save.
+when the user tries to save. `issues` lists them for the application, and
+`focusIssue` (or `focusNode` for one node) moves the focus to the control that
+needs attention, so that a Save that finds an incomplete rule never leaves the
+user looking at a button. `focusId` is the DOM id of that control, for a
+`Form.Problem` that points into the builder: nothing is read from the page.
 
 **Keyboard**: every control is reached with `Tab`. The pickers open with
 `Enter`, `Space` or `ArrowDown` and search as you type; "All" and "Any" switch
@@ -102,9 +106,9 @@ of fields and choices come from the application.
 @docs rule, setRule, clear
 
 
-# Issues
+# Issues and focus
 
-@docs showIssues, hideIssues
+@docs showIssues, hideIssues, issues, focusId, focusNode, focusIssue
 
 
 # Attributes
@@ -266,6 +270,72 @@ successful save.
 hideIssues : State -> State
 hideIssues (State s) =
     State { s | revealed = False, touched = Set.empty }
+
+
+{-| Every issue the builder can show, for the fields given: the checks of
+`Rule.validate` and the two the builder adds (an operator that does not fit the
+field, a number of days that cannot be read). Each names the node it belongs to.
+It is what a form or a save button asks before it lets the rule through; the
+language is the one of the messages.
+
+    RuleBuilder.issues Locale.en orderFields model.rules
+    -- [ { nodeId = 2, message = "Enter a valid number" } ]
+
+-}
+issues : Locale -> List (Field row) -> State -> List Rule.Issue
+issues lang fieldList (State s) =
+    Editor.extraIssues lang fieldList s.rule ++ Rule.validate lang fieldList s.rule
+
+
+{-| The DOM id of the control that stands for a node when the focus has to go
+there: the first control a user fills in on a condition (the field picker when no
+field is chosen, then the operator or the first value), the "add condition"
+button of a group. Use it as the `field` of a `Form.Problem` that points at the
+node, so that the summary of a form moves the focus into the builder. Nothing
+needs to be read from the page: the id is made from the id given to `init`.
+A node that does not exist leads to the "add condition" button of the whole rule.
+-}
+focusId : List (Field row) -> State -> Int -> String
+focusId fieldList (State s) node =
+    case findNode node s.rule of
+        Just (ConditionRule condition) ->
+            Editor.focusDomId s.id fieldList condition
+
+        Just (GroupRule group) ->
+            addRuleDomId s.id group.id
+
+        Nothing ->
+            addRuleDomId s.id 0
+
+
+{-| Moves the focus to a node of the rule (see `focusId`). Map the command with
+the constructor you wrap the builder's messages in.
+
+    RuleBuilder.focusNode orderFields model.rules 2 |> Cmd.map RulesMsg
+
+Nothing happens while the builder is not on screen.
+
+-}
+focusNode : List (Field row) -> State -> Int -> Cmd Msg
+focusNode fieldList state node =
+    Internal.focus (focusId fieldList state node) NoOp
+
+
+{-| Moves the focus to the first node that has an issue (see `issues`), or to
+the "add condition" button of the whole rule when there is none, for example
+when the user presses Save on an empty rule. Use it with `showIssues`:
+
+    ( RuleBuilder.showIssues rules, RuleBuilder.focusIssue orderFields rules |> Cmd.map RulesMsg )
+
+-}
+focusIssue : List (Field row) -> State -> Cmd Msg
+focusIssue fieldList state =
+    case issues Locale.default fieldList state of
+        first :: _ ->
+            focusNode fieldList state first.nodeId
+
+        [] ->
+            focusNode fieldList state 0
 
 
 normalize : Rule -> Rule
@@ -1002,6 +1072,7 @@ view toMsg attributes (State s) =
         , Attr.id s.id
         , Attr.attribute "role" "group"
         , Attr.attribute "aria-label" (Maybe.withDefault t.builder config.label)
+        , Attr.tabindex -1
         ]
         [ viewGroup ctx 0 Nothing (rootGroup s.rule)
         , viewFooter ctx
