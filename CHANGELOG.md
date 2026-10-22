@@ -256,3 +256,21 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   screen. `Layout.fillRest` was already there (A8). `Splitter.fillRest`: the splitter is as
   high as the room that is left in its parent, so it needs no pixel height inside a
   `Layout.stack [ Layout.fillRest ]`.
+- `Table` (R2F-007): `activeExternalFilters` no longer adds the outside filters to the
+  "N filters active" button, and the popover note "+ N filters outside the table" is gone. The
+  number only tells "No matches" from "No data" now; a `FilterBar` already shows its filters, so
+  the table's button counts its own column filters. Wire `onResetFilters` once (it clears both).
+  The text `externalFilters` in `Table.Texts` is removed.
+- `Table` (R2F-008): in server mode the CSV export offers "Selected rows" only when every
+  selected row is on the page; otherwise the menu says "N of M selected rows are on other
+  pages. Only this page can be exported here." and offers the page. The file can no longer
+  silently lack rows. (Building that file from the backend with `selectedIds` remains the
+  application's job; no download without JavaScript can fetch it.)
+- `Table` (R2S-009): the docs of "Narrow places" say how many columns fit (about 1000 px at
+  1280 px with a sidebar, from the `minWidth` defaults). Nothing new in the API: the table already
+  shows a shadow at the cut edge, and a count or a hint would be a second guess at the
+  application's layout.
+- `FilterBar` (R2F-012): not changed in behaviour, the docs are corrected. `Enter` in a date
+  field takes the typed text (a second `Enter` opens the calendar). Applying on `Enter` would
+  have the date picker report its commit and the filter bar validate in one step; that needs a
+  new message out of `DatePicker`, which is more API than the problem is worth.

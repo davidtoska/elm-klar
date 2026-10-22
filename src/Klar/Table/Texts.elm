@@ -28,7 +28,6 @@ type alias Texts =
     , done : String
     , filtersActive : Int -> String
     , activeFilters : String
-    , externalFilters : Int -> String
     , resetFilters : String
     , clearSearchAndFilters : String
     , describeContains : String -> String -> String
@@ -44,7 +43,7 @@ type alias Texts =
     , exportTitle : String
     , exportAll : String
     , exportSelected : String
-    , exportSelectedOnPage : String
+    , selectionOffPage : Int -> Int -> String
     , exportPage : String
     , exportNote : Int -> Char -> String
     , fileSelected : String
@@ -126,13 +125,6 @@ texts loc =
                     else
                         n count ++ " filtre aktive"
             , activeFilters = "Aktive filtre"
-            , externalFilters =
-                \count ->
-                    if count == 1 then
-                        "+ 1 filter utenfor tabellen"
-
-                    else
-                        "+ " ++ n count ++ " filtre utenfor tabellen"
             , resetFilters = "Nullstill filtre"
             , clearSearchAndFilters = "Nullstill søk og filtre"
             , describeContains = \title value -> title ++ " inneholder «" ++ value ++ "»"
@@ -148,7 +140,7 @@ texts loc =
             , exportTitle = "Eksporter som CSV"
             , exportAll = "Alle treff"
             , exportSelected = "Valgte rader"
-            , exportSelectedOnPage = "Valgte rader på denne siden"
+            , selectionOffPage = \off total -> n off ++ " av " ++ n total ++ " valgte rader er på andre sider. Bare denne siden kan eksporteres her."
             , exportPage = "Denne siden"
             , exportNote =
                 \count separator ->
@@ -268,13 +260,6 @@ texts loc =
                     else
                         n count ++ " filters active"
             , activeFilters = "Active filters"
-            , externalFilters =
-                \count ->
-                    if count == 1 then
-                        "+ 1 filter outside the table"
-
-                    else
-                        "+ " ++ n count ++ " filters outside the table"
             , resetFilters = "Reset filters"
             , clearSearchAndFilters = "Clear search and filters"
             , describeContains = \title value -> title ++ " contains “" ++ value ++ "”"
@@ -290,7 +275,7 @@ texts loc =
             , exportTitle = "Export as CSV"
             , exportAll = "All matching"
             , exportSelected = "Selected rows"
-            , exportSelectedOnPage = "Selected rows on this page"
+            , selectionOffPage = \off total -> n off ++ " of " ++ n total ++ " selected rows are on other pages. Only this page can be exported here."
             , exportPage = "This page"
             , exportNote =
                 \count separator ->
