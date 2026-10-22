@@ -880,7 +880,7 @@ headingLevel text =
         after =
             String.dropLeft hashes rest
     in
-    if indent <= 3 && hashes >= 1 && hashes <= 6 && (after == "" || String.startsWith " " after || String.startsWith "\t" after) then
+    if hashes >= 1 && hashes <= 6 && (after == "" || String.startsWith " " after || String.startsWith "\t" after) then
         hashes
 
     else
@@ -889,7 +889,7 @@ headingLevel text =
 
 isQuoted : String -> Bool
 isQuoted text =
-    indentOf text <= 3 && String.startsWith ">" (String.trimLeft text)
+    String.startsWith ">" (String.trimLeft text)
 
 
 {-| `> ` in front of every line that has text, `>` in front of the empty lines
