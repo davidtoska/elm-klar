@@ -41,6 +41,39 @@ suite =
         , disabledRowTests
         , resetButtonTests
         , filterDocumentationTests
+        , rangeTextTests
+        ]
+
+
+
+-- THE WORDS OF THE RANGE IN THE FOOTER
+
+
+rangeTextTests : Test
+rangeTextTests =
+    describe "Table.rangeText"
+        [ test "the footer says 1–4 of 4 by default" <|
+            \_ ->
+                page [] start
+                    |> Query.find [ Selector.class "klar-pagination__summary" ]
+                    |> Query.has [ Selector.text "1–4 of 4" ]
+        , test "the footer says what rangeText says" <|
+            \_ ->
+                page [ Table.rangeText (\first last total -> String.fromInt first ++ " to " ++ String.fromInt last ++ " of " ++ String.fromInt total) ] start
+                    |> Query.find [ Selector.class "klar-pagination__summary" ]
+                    |> Query.has [ Selector.text "1 to 4 of 4" ]
+        , test "with no rows the default words stand" <|
+            \_ ->
+                Query.fromHtml
+                    (Table.view TableMsg
+                        [ Table.columns columns
+                        , Table.rows (Loaded [])
+                        , Table.rowId Ids.strings .number
+                        , Table.rangeText (\_ _ _ -> "never")
+                        ]
+                        start
+                    )
+                    |> Query.hasNot [ Selector.text "never" ]
         ]
 
 

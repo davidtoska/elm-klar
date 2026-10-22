@@ -499,3 +499,20 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   `Chart` has no state and no message of its own to receive one, so the focus guard that dialogs
   use (CSS animation plus `animationstart`) would still need a message from the application; the
   one-line pattern needs the same and keeps the intent visible. The showcase pages do it.
+- `Table` with a large result (T07): in client mode with 37 000 of 50 000 rows matching, a page
+  change, a sort click or a keystroke cost 110 to 130 ms (headless Chrome, optimized build, including
+  two frames, with two footer sums), now 60 to 75 ms (50 to 55 for a keystroke); without a footer
+  sum 75 to 90 became 60 to 64. Profiling in Chrome showed the cause the builder named: while a
+  search or filter left rows out, every message turned all matching rows into a list of rows,
+  then into numbers, to sum the footers, and walked them again to count a selection. The
+  prepared rows now keep the number of every row for a footer column and the footers sum the
+  matching positions (`Index.totalsOver`), the selection counts positions (`Index.countMatching`),
+  and a search walks the list of search texts in one loop (a sort by a column walks its order
+  once). Not cached between messages: a cache needs the rows in `update`, which the table never
+  sees (see the A8 notes). The claims in the module doc now say what was measured: 40 ms
+  unfiltered, 60 to 75 ms with 37 000 matching rows, up to about 100 ms with a selection on top.
+- `Table.rangeText` and `Pagination.rangeText` word the range in the footer ("1 to 25 of 200",
+  T01) with a function of the first row, the last row and the total; the default "1–25 of 200"
+  is unchanged, and `ServerList.viewTable` takes it as any `Table.Attribute`. A function (not a
+  Locale text) because the order of the words differs from language to language, not only the
+  words.

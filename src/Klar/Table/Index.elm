@@ -5,12 +5,14 @@ module Klar.Table.Index exposing
     , Totals
     , allIndices
     , build
+    , countMatching
     , hasHaystack
     , hasRanks
     , matchCount
     , matching
     , pageIndices
     , totalsOf
+    , totalsOver
     )
 
 {-| What a client-mode table works out once per list of rows, and the one pipeline
@@ -43,8 +45,16 @@ column. It holds no functions.
 type Index
     = Index
         { haystack : Maybe (Array String)
+
+        -- The same texts as a list: a keystroke walks it once (a list is read
+        -- faster than an array, which has to be indexed for every row).
+        , scanText : Maybe (List String)
         , ranks : Dict String Ranks
         , totals : Dict String Totals
+
+        -- The number of every row for a footer column (NaN where it has none), so
+        -- that the sum over the matching rows reads positions, not rows.
+        , numbers : Dict String (Array Float)
         }
 
 
@@ -75,8 +85,13 @@ build :
     -> { search : Maybe (row -> String), sorts : List ( String, row -> Key ), totals : List ( String, row -> Maybe Float ) }
     -> Index
 build rows spec =
+    let
+        haystack =
+            Maybe.map (\text -> Array.map text rows) spec.search
+    in
     Index
-        { haystack = Maybe.map (\text -> Array.map text rows) spec.search
+        { haystack = haystack
+        , scanText = Maybe.map Array.toList haystack
         , ranks =
             spec.sorts
                 |> List.map (\( id, toKey ) -> ( id, ranksOf (Array.toList (Array.map toKey rows)) ))
@@ -102,7 +117,30 @@ build rows spec =
                         ( id, { sum = List.sum numbers, count = List.length numbers } )
                     )
                 |> Dict.fromList
+        , numbers =
+            spec.totals
+                |> List.map
+                    (\( id, toNumber ) ->
+                        ( id
+                        , Array.map
+                            (\row ->
+                                case toNumber row of
+                                    Just n ->
+                                        n
+
+                                    Nothing ->
+                                        nan
+                            )
+                            rows
+                        )
+                    )
+                |> Dict.fromList
         }
+
+
+nan : Float
+nan =
+    0 / 0
 
 
 {-| The sum and the count of a column over all the rows, if the index was asked
@@ -111,6 +149,96 @@ to keep them.
 totalsOf : String -> Index -> Maybe Totals
 totalsOf id (Index index) =
     Dict.get id index.totals
+
+
+{-| The sum and the count of a column over the rows that matched, if the index
+was asked to keep the numbers. It reads the numbers of the matching positions, so
+it costs no more than a pass over a list of integers, and the rows themselves
+are never needed (a footer used to turn every matching row into a number again
+on every message).
+-}
+totalsOver : String -> Matches -> Index -> Maybe Totals
+totalsOver id (Matches count positions) (Index index) =
+    case ( Dict.get id index.totals, Dict.get id index.numbers ) of
+        ( Just all, Just numbers ) ->
+            if count == Array.length numbers then
+                -- every row matched: the sum kept while building
+                Just all
+
+            else
+                Just (sumOver numbers positions)
+
+        _ ->
+            Nothing
+
+
+sumOver : Array Float -> Positions -> Totals
+sumOver numbers positions =
+    case positions of
+        Natural count ->
+            sumRange numbers 0 count 0 0
+
+        InArray array ->
+            sumArray numbers array 0 0 0
+
+        InList list ->
+            sumList numbers list 0 0
+
+
+sumRange : Array Float -> Int -> Int -> Float -> Int -> Totals
+sumRange numbers position end sum found =
+    if position >= end then
+        { sum = sum, count = found }
+
+    else
+        case Array.get position numbers of
+            Just n ->
+                if isNaN n then
+                    sumRange numbers (position + 1) end sum found
+
+                else
+                    sumRange numbers (position + 1) end (sum + n) (found + 1)
+
+            Nothing ->
+                sumRange numbers (position + 1) end sum found
+
+
+sumArray : Array Float -> Array Int -> Int -> Float -> Int -> Totals
+sumArray numbers positions at sum found =
+    case Array.get at positions of
+        Just position ->
+            case Array.get position numbers of
+                Just n ->
+                    if isNaN n then
+                        sumArray numbers positions (at + 1) sum found
+
+                    else
+                        sumArray numbers positions (at + 1) (sum + n) (found + 1)
+
+                Nothing ->
+                    sumArray numbers positions (at + 1) sum found
+
+        Nothing ->
+            { sum = sum, count = found }
+
+
+sumList : Array Float -> List Int -> Float -> Int -> Totals
+sumList numbers positions sum found =
+    case positions of
+        [] ->
+            { sum = sum, count = found }
+
+        position :: rest ->
+            case Array.get position numbers of
+                Just n ->
+                    if isNaN n then
+                        sumList numbers rest sum found
+
+                    else
+                        sumList numbers rest (sum + n) (found + 1)
+
+                Nothing ->
+                    sumList numbers rest sum found
 
 
 {-| Does the index have search texts?
@@ -235,7 +363,7 @@ matching maybeIndex spec =
                     [ \position ->
                         case Array.get position texts of
                             Just text ->
-                                List.all (\word -> String.contains word text) words
+                                containsAll words text
 
                             Nothing ->
                                 False
@@ -271,8 +399,22 @@ matching maybeIndex spec =
                 Nothing ->
                     Natural spec.count
 
+        -- No sort of the index in the way: walk the list of search texts once.
         kept =
-            keep tests base
+            case ( spec.words, base, maybeIndex |> Maybe.andThen (\(Index index) -> index.scanText) ) of
+                ( _ :: _, Natural _, Just texts ) ->
+                    scan spec.words spec.tests texts 0 []
+
+                ( _ :: _, InArray order, _ ) ->
+                    case haystack of
+                        Just texts ->
+                            scanOrder spec.words spec.tests texts (Array.toList order) []
+
+                        Nothing ->
+                            keep tests base
+
+                _ ->
+                    keep tests base
 
         computed =
             List.filter (isRanked >> not) spec.levels
@@ -308,7 +450,7 @@ keep tests positions =
         _ ->
             let
                 passes position =
-                    List.all (\test -> test position) tests
+                    allPass tests position
 
                 survivors =
                     case positions of
@@ -316,21 +458,106 @@ keep tests positions =
                             naturalFold passes (count - 1) []
 
                         InArray array ->
-                            Array.foldr
-                                (\position acc ->
-                                    if passes position then
-                                        position :: acc
-
-                                    else
-                                        acc
-                                )
-                                []
-                                array
+                            keepFrom passes (Array.toList array) []
 
                         InList list ->
                             List.filter passes list
             in
             Matches (List.length survivors) (InList survivors)
+
+
+{-| Every word is in the text. A loop of its own: this runs for every row of the table
+on every keystroke and every page change.
+-}
+containsAll : List String -> String -> Bool
+containsAll words text =
+    case words of
+        [] ->
+            True
+
+        word :: rest ->
+            if String.contains word text then
+                containsAll rest text
+
+            else
+                False
+
+
+allPass : List (Int -> Bool) -> Int -> Bool
+allPass tests position =
+    case tests of
+        [] ->
+            True
+
+        test :: rest ->
+            if test position then
+                allPass rest position
+
+            else
+                False
+
+
+{-| The positions whose search text has every word and that pass the other tests, from
+a list of all the texts in order.
+-}
+scan : List String -> List (Int -> Bool) -> List String -> Int -> List Int -> Matches
+scan words tests texts position found =
+    case texts of
+        [] ->
+            let
+                survivors =
+                    List.reverse found
+            in
+            Matches (List.length survivors) (InList survivors)
+
+        text :: rest ->
+            if containsAll words text && allPass tests position then
+                scan words tests rest (position + 1) (position :: found)
+
+            else
+                scan words tests rest (position + 1) found
+
+
+{-| The positions in the order of a sorted column that have every word in their search
+text and pass the other tests: the search texts are read by position, in that order.
+-}
+scanOrder : List String -> List (Int -> Bool) -> Array String -> List Int -> List Int -> Matches
+scanOrder words tests texts order found =
+    case order of
+        [] ->
+            let
+                survivors =
+                    List.reverse found
+            in
+            Matches (List.length survivors) (InList survivors)
+
+        position :: rest ->
+            case Array.get position texts of
+                Just text ->
+                    if containsAll words text && allPass tests position then
+                        scanOrder words tests texts rest (position :: found)
+
+                    else
+                        scanOrder words tests texts rest found
+
+                Nothing ->
+                    scanOrder words tests texts rest found
+
+
+{-| The positions of a list that pass, in order (a loop that walks the list once).
+-}
+keepFrom : (Int -> Bool) -> List Int -> List Int -> List Int
+keepFrom passes positions found =
+    case positions of
+        [] ->
+            List.reverse found
+
+        position :: rest ->
+            if passes position then
+                keepFrom passes rest (position :: found)
+
+            else
+                keepFrom passes rest found
 
 
 naturalFold : (Int -> Bool) -> Int -> List Int -> List Int
@@ -465,6 +692,63 @@ direct descending order =
 matchCount : Matches -> Int
 matchCount (Matches count _) =
     count
+
+
+{-| How many of the matches pass a test. It gets the place among the matches (0 for
+the first) and the position in the rows, and goes through the matches once, without
+a list of rows.
+-}
+countMatching : (Int -> Int -> Bool) -> Matches -> Int
+countMatching test (Matches _ positions) =
+    case positions of
+        Natural count ->
+            countRange test 0 count 0
+
+        InArray array ->
+            countArray test array 0 0
+
+        InList list ->
+            countList test list 0 0
+
+
+countRange : (Int -> Int -> Bool) -> Int -> Int -> Int -> Int
+countRange test position end found =
+    if position >= end then
+        found
+
+    else if test position position then
+        countRange test (position + 1) end (found + 1)
+
+    else
+        countRange test (position + 1) end found
+
+
+countArray : (Int -> Int -> Bool) -> Array Int -> Int -> Int -> Int
+countArray test positions at found =
+    case Array.get at positions of
+        Just position ->
+            if test at position then
+                countArray test positions (at + 1) (found + 1)
+
+            else
+                countArray test positions (at + 1) found
+
+        Nothing ->
+            found
+
+
+countList : (Int -> Int -> Bool) -> List Int -> Int -> Int -> Int
+countList test positions at found =
+    case positions of
+        [] ->
+            found
+
+        position :: rest ->
+            if test at position then
+                countList test rest (at + 1) (found + 1)
+
+            else
+                countList test rest (at + 1) found
 
 
 {-| The positions of `size` rows from the `offset`th match on.
