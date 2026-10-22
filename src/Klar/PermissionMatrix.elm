@@ -860,8 +860,11 @@ prepare toMsg config state (Matrix data) =
                 { query = state.query, collapsed = state.collapsed, maxRows = maxRows }
                 (List.map (\p -> { index = p.index, label = p.label, group = p.group }) permissions)
 
+        permissionKeys =
+            permissions |> List.map .key |> Array.fromList
+
         permissionKeyAt index =
-            permissions |> List.drop index |> List.head |> Maybe.map .key |> Maybe.withDefault ""
+            Array.get index permissionKeys |> Maybe.withDefault ""
 
         rowKeys =
             HeaderKey
