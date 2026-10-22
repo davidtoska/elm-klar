@@ -85,17 +85,19 @@ validatorSamples =
     , ( "norwegianPhone", Validate.norwegianPhone, "+47 912 34 567" )
     , ( "integerBetween 1 100", Validate.integerBetween 1 100, "101" )
     , ( "integerBetween 1 100", Validate.integerBetween 1 100, "42" )
-    , ( "matches \"secret\"", Validate.matches "secret", "secret2" )
+    , ( "sameAs \"secret\"", Validate.sameAs "secret", "secret2" )
+    , ( "digits 9", Validate.digits 9, "91234567" )
+    , ( "url", Validate.url, "example.com" )
     , ( "oneOf [ \"open\", \"paid\", \"void\" ]", Validate.oneOf [ "open", "paid", "void" ], "closed" )
     , ( "date", Validate.date, "31.02.2026" )
     , ( "date", Validate.date, "20.10.2026" )
     , ( "notInFuture today", Validate.notInFuture Sample.today, "21.10.2026" )
-    , ( "custom (starts with ORD-)", Validate.custom (String.startsWith "ORD-") { nb = "Må starte med ORD-", en = "Must start with ORD-" }, "10412" )
+    , ( "custom (starts with ORD-)", Validate.custom (String.startsWith "ORD-") (\locale -> Locale.pick locale { nb = "Må starte med ORD-", en = "Must start with ORD-" }), "10412" )
     , ( "customWith (order exists)", orderExists, "ORD-99999" )
     , ( "customWith (order exists)", orderExists, "ORD-10001" )
     , ( "all [ required, email ]", Validate.all [ Validate.required, Validate.email ], "" )
     , ( "when False required", Validate.when False Validate.required, "" )
-    , ( "required |> withMessage", Validate.required |> Validate.withMessage { nb = "Oppgi kundenavn", en = "Enter a customer name" }, " " )
+    , ( "required |> withMessage", Validate.required |> Validate.withMessage (\locale -> Locale.pick locale { nb = "Oppgi kundenavn", en = "Enter a customer name" }), " " )
     ]
 
 

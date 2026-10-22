@@ -300,14 +300,12 @@ f =
 
 registrationFormat : Validate.Validator
 registrationFormat =
-    Validate.custom (\text -> String.length text == 8 && String.all Char.isDigit text)
-        { nb = "Må ha 8 siffer", en = "Must be 8 digits" }
+    Validate.digits 8
 
 
 httpUrl : Validate.Validator
 httpUrl =
-    Validate.custom (\text -> String.startsWith "https://" text || String.startsWith "http://" text)
-        { nb = "Må starte med http:// eller https://", en = "Must start with http:// or https://" }
+    Validate.url
 
 
 {-| A rule over the rows together: at most one contact is the primary. It is a

@@ -659,7 +659,7 @@ docForm =
     Spec.define "doc" DocFields DocValues
         |> Spec.with
             (Spec.text "Note"
-                |> Spec.rules [ Validate.custom (String.startsWith "ok") { nb = "Må starte med ok", en = "Must start with ok" } ]
+                |> Spec.rules [ Validate.custom (String.startsWith "ok") (\locale -> Locale.pick locale { nb = "Må starte med ok", en = "Must start with ok" }) ]
             )
         |> Spec.with (Spec.tags "Certifications" |> Spec.atLeast 1)
         |> Spec.with

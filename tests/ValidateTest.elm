@@ -113,7 +113,7 @@ phones =
 
 numbersAndChoices : Test
 numbersAndChoices =
-    describe "numbers, matches and choices"
+    describe "numbers, sameAs and choices"
         [ ok (Validate.integerBetween 1 10) "1"
         , ok (Validate.integerBetween 1 10) " 10 "
         , bad (Validate.integerBetween 1 10) "0"
@@ -121,8 +121,32 @@ numbersAndChoices =
         , bad (Validate.integerBetween 1 10) "1.5"
         , bad (Validate.integerBetween 1 10) "ten"
         , ok (Validate.integerBetween 1 10) ""
-        , ok (Validate.matches "secret") "secret"
-        , bad (Validate.matches "secret") "Secret"
+        , ok (Validate.sameAs "secret") "secret"
+        , bad (Validate.sameAs "secret") "Secret"
+        , ok (Validate.digits 9) "912345678"
+        , bad (Validate.digits 9) "91234567"
+        , bad (Validate.digits 9) "9123456789"
+        , bad (Validate.digits 9) "912 345 678"
+        , bad (Validate.digits 9) "91234567a"
+        , test "digits says how many, in both languages" <|
+            \_ ->
+                Expect.equal [ Just "Enter 9 digits", Just "Oppgi 9 siffer" ]
+                    [ Validate.run Locale.en (Validate.digits 9) "1", Validate.run Locale.nb (Validate.digits 9) "1" ]
+        , ok Validate.url "https://example.com"
+        , ok Validate.url "http://example.com/a/b?c=d#e"
+        , ok Validate.url "https://sub.example.co.uk:8080/x"
+        , ok Validate.url "http://localhost:8000"
+        , ok Validate.url " https://example.com "
+        , test "digits and url let a blank value pass, as every validator but required" <|
+            \_ -> Expect.equal [ Nothing, Nothing ] [ Validate.run Locale.en (Validate.digits 9) "", Validate.run Locale.en Validate.url "" ]
+        , bad Validate.url "example.com"
+        , bad Validate.url "ftp://example.com"
+        , bad Validate.url "https://"
+        , bad Validate.url "https://example"
+        , bad Validate.url "https://exa mple.com"
+        , bad Validate.url "https://example.com:abc"
+        , bad Validate.url "https://example.com:123456"
+        , bad Validate.url "https://-example.com"
         , ok (Validate.oneOf [ "open", "paid" ]) "paid"
         , bad (Validate.oneOf [ "open", "paid" ]) "void"
         ]
@@ -178,17 +202,17 @@ combining =
             \_ ->
                 let
                     validator =
-                        Validate.required |> Validate.withMessage { nb = "Oppgi navn", en = "Enter a name" }
+                        Validate.required |> Validate.withMessage (\locale -> Locale.pick locale { nb = "Oppgi navn", en = "Enter a name" })
                 in
                 Expect.equal [ Just "Enter a name", Just "Oppgi navn" ] [ Validate.run Locale.en validator "", Validate.run Locale.nb validator "" ]
         , test "withMessage keeps a passing value passing" <|
             \_ ->
                 Expect.equal Nothing
-                    (Validate.run Locale.en (Validate.required |> Validate.withMessage { nb = "x", en = "y" }) "ok")
+                    (Validate.run Locale.en (Validate.required |> Validate.withMessage (always "y")) "ok")
         , test "custom sees the empty value" <|
             \_ ->
                 Expect.equal (Just "Must start with ORD-")
-                    (Validate.run Locale.en (Validate.custom (String.startsWith "ORD-") { nb = "Må starte med ORD-", en = "Must start with ORD-" }) "")
+                    (Validate.run Locale.en (Validate.custom (String.startsWith "ORD-") (\locale -> Locale.pick locale { nb = "Må starte med ORD-", en = "Must start with ORD-" })) "")
         , test "customWith builds its own message" <|
             \_ ->
                 Expect.equal (Just "en:3")
