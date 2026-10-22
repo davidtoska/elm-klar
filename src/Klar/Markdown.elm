@@ -2,8 +2,7 @@ module Klar.Markdown exposing
     ( view, viewDocument
     , Document, parse, plainText
     , Heading, headings, headingLevel, headingText, headingId
-    , Attribute, locale, headingOffset, idPrefix, images, imagesFrom
-    , ImageHost, imageHost
+    , Attribute, locale, headingOffset, idPrefix, images, ImageHost, imageHost, imagesFrom
     )
 
 {-| Markdown as safe, calm HTML: for the text of a note, a description, a help
