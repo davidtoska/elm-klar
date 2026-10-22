@@ -6,6 +6,7 @@ module Klar.Transfer.Lists exposing
     , Source
     , availableRows
     , buildSource
+    , emptySource
     , chosenRows
     , filterWords
     , moveIn
@@ -81,6 +82,11 @@ buildSource ids options =
                 options
     in
     { items = Array.fromList (List.reverse reversed), byKey = byKey, position = position }
+
+
+emptySource : Source id
+emptySource =
+    { items = Array.empty, byKey = Dict.empty, position = Dict.empty }
 
 
 {-| The order of the chosen list, and of `values`: the order of the source, or the
