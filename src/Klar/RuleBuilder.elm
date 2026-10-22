@@ -76,6 +76,23 @@ needs attention, so that a Save that finds an incomplete rule never leaves the
 user looking at a button. `focusId` is the DOM id of that control, for a
 `Form.Problem` that points into the builder: nothing is read from the page.
 
+**A rule with an outcome.** The builder only says _when_; what happens then (a
+discount, a label, a route) is the application's. In a form, declare it as a
+row: `Spec.conditions` and the outcome's own field in one sub-form, `Spec.rows`
+around it, and the form adds, removes, saves and checks the pairs (see
+[`Klar.Form`](Klar-Form)). Outside a form, keep one record per rule, with a number
+that stays with it when others are removed, and give each builder an id made from
+that number:
+
+    type alias PriceRule =
+        { key : Int
+        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
+        , discount : Maybe Float
+        }
+
+Draw the discount next to `RuleBuilder.view` in the same card, and focus the
+first unfinished builder with `focusIssue`.
+
 **Keyboard**: every control is reached with `Tab`. The pickers open with
 `Enter`, `Space` or `ArrowDown` and search as you type; "All" and "Any" switch
 with the arrow keys; the menu of a group (the three dots) moves, duplicates and

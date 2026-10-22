@@ -1,6 +1,6 @@
 module Klar.Form.Spec exposing
     ( Builder, define, with, step, check, build
-    , Spec, text, number, choice, choices, toggle, tags, files, rows
+    , Spec, text, number, choice, choices, toggle, tags, files, conditions, rows
     , required, atLeast, one, rule, rules, range, whole, hint, withMessage
     )
 
@@ -94,7 +94,7 @@ A kind says what the field holds and what the form produces. Every kind takes a
 label; it is the label of the control, the line in the summary and the base of
 the DOM id.
 
-@docs Spec, text, number, choice, choices, toggle, tags, files, rows
+@docs Spec, text, number, choice, choices, toggle, tags, files, conditions, rows
 
 
 # Rules
@@ -108,6 +108,7 @@ import Klar.Form as Form
 import Klar.Form.Core as Core
 import Klar.Ids exposing (Ids)
 import Klar.Locale exposing (Locale)
+import Klar.Rule as Rule
 import Klar.Validate as Validate
 
 
@@ -283,6 +284,29 @@ for a file that must be there). The size and type limits belong to the view
 files : String -> Spec (List FileDrop.FileInfo) (List FileDrop.FileInfo)
 files =
     Core.files
+
+
+{-| The conditions of a rule, edited in a rule builder and drawn with
+`Form.ruleBuilder`: "if the category is X and the quantity is above Y". The value
+is a [`Rule`](Klar-Rule); empty (no condition) is `Nothing`, and `required`
+asks for at least one. The fields say what a rule can talk about and are used to
+check it (`RuleBuilder.issues`), so a rule with an unfinished condition is a
+problem of the field; the choices' options are not read there, so the declaration
+can hold the fields without them and the view the same fields with the options
+that have arrived.
+
+    Spec.conditions "Conditions" (priceFields [])
+        |> Spec.required
+        |> Spec.withMessage (\locale -> Locale.pick locale { nb = "Legg til en betingelse", en = "Add a condition" })
+
+The usual place is the row of a group: the conditions of a price rule next to the
+outcome it gives, so that adding, removing, dirty, problems and the focus
+are the form's (see `rows`).
+
+-}
+conditions : String -> List (Rule.Field ()) -> Spec Rule.Rule (Maybe Rule.Rule)
+conditions =
+    Core.conditions
 
 
 {-| A repeating group, such as the contacts of a supplier: every row has the

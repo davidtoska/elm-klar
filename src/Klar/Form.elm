@@ -2,9 +2,9 @@ module Klar.Form exposing
     ( Form, State, Msg, Field, Rows, Problem, View
     , fields
     , init, set, get, rowFields, fillRows, toValues, isDirty, markClean, revert, update
-    , problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
+    , problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, goToProblem
     , currentStep, attempted, advance, back, goTo
-    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
+    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, summary
     )
 
 {-| A form as one value: the text and choices of every field, which fields the
@@ -181,9 +181,18 @@ that stays with it while it lives, so the DOM ids, the focus and the state of a
 select follow the row when another row is removed; "Contact 2" in the words is
 the position.
 
-**Things outside the form.** Something the model does not hold, such as the rule
-builder of a price rule, gives its problems to `outside`, and they are then in
-the summary, the stepper marks and `toValues` like any other.
+**A rule builder in a row.** `Spec.conditions` is the kind for the conditions of a
+rule, drawn with `ruleBuilder`. In a row of a group it sits next to the outcome of
+the rule, so "if the category is X and the quantity is above Y, give Z % off" is one
+sub-form (`conditions` and a `number`) and a list of them is `Spec.rows`: the state
+of each builder follows its row, and dirty, problems, the summary and the focus are
+the form's. A refused discount in the third rule is
+`Form.problemInRow f.priceRules 2 .discount message`.
+
+**Things outside the form.** Something the model does not hold, such as a rule
+builder on a page of its own, gives its problems to `outside` (point their `field`
+at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks and
+`toValues` like any other.
 
 
 # Types
@@ -203,7 +212,7 @@ the summary, the stepper marks and `toValues` like any other.
 
 # Problems and focus
 
-@docs problems, hasProblems, outside, problem, rejected, reveal, focus, goToProblem
+@docs problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, goToProblem
 
 
 # Steps
@@ -213,7 +222,7 @@ the summary, the stepper marks and `toValues` like any other.
 
 # Drawing the form
 
-@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, addRow, removeRow, stepper, summary
+@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, summary
 
 -}
 
@@ -225,6 +234,8 @@ import Klar.Locale exposing (Locale)
 import Klar.MultiSelect as MultiSelect
 import Klar.NumberInput as NumberInput
 import Klar.Remote exposing (Remote)
+import Klar.Rule as Rule
+import Klar.RuleBuilder as RuleBuilder
 import Klar.Select as Select
 import Klar.Stepper as Stepper
 import Klar.Switch as Switch
@@ -265,8 +276,8 @@ type alias Msg =
 
 {-| A handle to one field. The type says what the value looks like while it is
 edited: `String` for a text, `Maybe id` for a choice, `List id` for several,
-`Maybe Float` for a number, `Bool` for a switch, `List String` for tags and a
-list of files for files. Get the handles from `fields form`; there is no other
+`Maybe Float` for a number, `Bool` for a switch, `List String` for tags, a list of
+files for files and a `Rule` for conditions. Get the handles from `fields form`; there is no other
 way to make one.
 -}
 type alias Field control =
@@ -525,6 +536,29 @@ problem =
     Core.problem
 
 
+{-| A message from the server for a field in a row of a repeating group, at the
+position the server counted (from 0, in the list it was sent). The handle of the
+row is found for you, so the mapping needs no `List.drop`. `Nothing` when the
+group has no row at that position, for example because the user has removed it
+since.
+
+    fromBackend : Backend.Problem -> Form.State Step -> Maybe (Form.Problem Step)
+    fromBackend p state =
+        case p.field of
+            Backend.ContactEmail position ->
+                Form.problemInRow f.contacts position .email p.message state
+
+            Backend.Name ->
+                Just (Form.problem f.name p.message)
+
+Hand the list to `rejected` (`List.filterMap` drops the `Nothing`s).
+
+-}
+problemInRow : Field (Rows rowFields) -> Int -> (rowFields -> Field c) -> String -> State step -> Maybe (Problem step)
+problemInRow =
+    Core.problemInRow
+
+
 {-| Gives the form the problems of a failed save. Each is shown at its field
 and in the summary until that field is edited, and counts as a problem
 (`problems`, `toValues`) for as long. Every problem of the form shows from now
@@ -730,6 +764,24 @@ files are the application's attributes (`FileDrop.accept`, `FileDrop.maxSize`,
 fileDrop : View msg -> Field (List FileDrop.FileInfo) -> List (FileDrop.Attribute msg) -> Html msg
 fileDrop =
     Core.fileDrop
+
+
+{-| A rule builder for a `conditions` field. The label, the language and the DOM
+ids are set by the form; the fields (what a rule can talk about, now with the
+options the user chooses among) are an argument, so a rule builder without fields
+cannot be drawn. The other settings (`RuleBuilder.maxDepth`, `RuleBuilder.json`)
+are the application's attributes.
+
+    Form.ruleBuilder v row.conditions (priceFields options) []
+
+Issues of the rule show on the node that has them once the step has been tried
+(`advance`, `reveal`, `rejected`); the summary leads to the control that needs
+attention.
+
+-}
+ruleBuilder : View msg -> Field Rule.Rule -> List (Rule.Field ()) -> List (RuleBuilder.Attribute () msg) -> Html msg
+ruleBuilder =
+    Core.ruleBuilder
 
 
 {-| The button that adds a row to a group, with the group's problem under it
