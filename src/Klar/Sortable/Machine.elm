@@ -36,11 +36,15 @@ type alias State =
     }
 
 
-{-| The move of the last drop: the key of the item and the index it was given.
+{-| The move of the last drop: the key of the item, the index it was given and the
+keys of the drawn list as they are after the drop. With the keys the application's
+list can be rearranged next to the neighbours of the new place, also when it is not
+the list that was drawn (a filter hides some items, others came or went).
 -}
 type alias Landing =
     { key : String
     , to : Int
+    , placed : List String
     }
 
 
@@ -75,6 +79,7 @@ type Msg
     | Jump Bool
     | Cancel
     | Blurred String
+    | Focused (List String)
     | Noop
 
 
@@ -177,6 +182,20 @@ update msg s =
                 Nothing ->
                     ( s, Cmd.none )
 
+        Focused keys ->
+            -- a handle got the focus: a held item that is not in the list any more
+            -- (it was taken away while it was held) has nothing to be held by
+            case s.session of
+                Just session ->
+                    if List.member session.source keys then
+                        ( s, Cmd.none )
+
+                    else
+                        ( { s | session = Nothing }, Cmd.none )
+
+                Nothing ->
+                    ( s, Cmd.none )
+
         Blurred key ->
             case s.session of
                 Just session ->
@@ -273,7 +292,7 @@ drop keys session s =
             ( { s
                 | session = Nothing
                 , drops = s.drops + 1
-                , last = Just { key = session.source, to = target }
+                , last = Just { key = session.source, to = target, placed = Order.move session.from target session.order }
                 , note = Just (Dropped session.source (target + 1) total)
               }
             , refocus

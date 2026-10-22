@@ -238,7 +238,7 @@ structureTests =
             \_ ->
                 rendered five
                     |> Query.find [ Selector.id "list-help" ]
-                    |> Query.has [ Selector.text "Press Space or Enter to pick up this item. Then use the Up and Down arrow keys" ]
+                    |> Query.has [ Selector.text "Press Space or Enter to pick up. Then use the Up and Down arrow keys" ]
         , test "the content of an item is drawn as it is" <|
             \_ ->
                 rendered five
@@ -313,9 +313,9 @@ structureTests =
                 Expect.all
                     [ \m -> rendered m |> Query.find (handleOf "a") |> Query.has [ Selector.attribute (Attr.attribute "aria-roledescription" "sorterbart element") ]
                     , \m -> rendered m |> Query.find [ Selector.id "list-help" ] |> Query.has [ Selector.text "Trykk mellomrom eller Enter for å løfte" ]
-                    , \m -> check (afterKeys [ ( "b", space ) ] m) [ says "Step b løftet, posisjon 2 av 5." ]
+                    , \m -> check (afterKeys [ ( "b", space ) ] m) [ says "Step b er løftet, posisjon 2 av 5." ]
                     , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ) ] m) [ says "Flyttet til posisjon 3 av 5." ]
-                    , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", space ) ] m) [ says "Step b sluppet på posisjon 3 av 5." ]
+                    , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", space ) ] m) [ says "Step b er sluppet på posisjon 3 av 5." ]
                     , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", key "Escape" ) ] m) [ says "Avbrutt. Step b er tilbake på posisjon 2 av 5." ]
                     , \m -> check (afterKeys [ ( "a", space ), ( "a", key "ArrowUp" ) ] m) [ says "Posisjon 1 av 5. Kan ikke flyttes lenger." ]
                     ]
@@ -488,7 +488,85 @@ keyboardTests =
             \_ ->
                 check (afterKeys [ ( "b", space ), ( "d", space ) ] five)
                     [ \m -> Expect.equal (Just "d") (held m) ]
+        , test "an item that is taken out of the list while it is held is not shown as held, and nothing is stuck" <|
+            \_ ->
+                let
+                    removed model =
+                        { model | items = [ "a", "c", "d", "e" ] }
+                in
+                check (afterKeys [ ( "b", space ) ] five |> Result.map removed)
+                    [ \m -> rendered m |> Query.findAll [ Selector.class "klar-sortable--dragging" ] |> Query.count (Expect.equal 0)
+                    , \m -> rendered m |> Query.findAll [ Selector.class "klar-sortable__item--lifted" ] |> Query.count (Expect.equal 0)
+                    , \m -> rendered m |> Query.findAll [ Selector.attribute (Attr.attribute "aria-pressed" "true") ] |> Query.count (Expect.equal 0)
+                    , \m -> rendered m |> Query.findAll [ Selector.class "klar-sortable__ghost" ] |> Query.count (Expect.equal 0)
+                    ]
+        , test "the state lets go of an item that is gone when a handle gets the focus" <|
+            \_ ->
+                let
+                    removed model =
+                        { model | items = [ "a", "c", "d", "e" ] }
+
+                    focus =
+                        Event.custom "focus" (Encode.object [])
+                in
+                afterKeys [ ( "b", space ) ] five
+                    |> Result.map removed
+                    |> Result.andThen (send (handleOf "a") focus)
+                    |> Result.map held
+                    |> Expect.equal (Ok Nothing)
+        , test "a handle that gets the focus while the held item is in the list changes nothing" <|
+            \_ ->
+                let
+                    focus =
+                        Event.custom "focus" (Encode.object [])
+                in
+                afterKeys [ ( "b", space ) ] five
+                    |> Result.andThen (send (handleOf "a") focus)
+                    |> Result.map held
+                    |> Expect.equal (Ok (Just "b"))
+        , test "a held item that was removed does not keep a new press from working" <|
+            \_ ->
+                let
+                    removed model =
+                        { model | items = [ "a", "c", "d", "e" ] }
+                in
+                afterKeys [ ( "b", space ) ] five
+                    |> Result.map removed
+                    |> Result.andThen (afterKeys [ ( "a", space ) ])
+                    |> Result.map held
+                    |> Expect.equal (Ok (Just "a"))
+        , test "the handle that was just dropped goes without the long instructions, so that the announcement is not cut; the others keep them" <|
+            \_ ->
+                let
+                    describedBy name model =
+                        rendered model
+                            |> Query.find (handleOf name)
+                            |> Query.has [ Selector.attribute (Attr.attribute "aria-describedby" "list-help") ]
+                in
+                check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", space ) ] five)
+                    [ \m -> Expect.equal [ False, True ] (List.map (\name -> isPassing (describedBy name m)) [ "b", "c" ])
+                    ]
+        , test "and after a cancel too, until something else happens" <|
+            \_ ->
+                let
+                    withHelp name model =
+                        isPassing
+                            (rendered model
+                                |> Query.find (handleOf name)
+                                |> Query.has [ Selector.attribute (Attr.attribute "aria-describedby" "list-help") ]
+                            )
+                in
+                Expect.equal
+                    [ Ok False, Ok True ]
+                    [ afterKeys [ ( "b", space ), ( "b", key "Escape" ) ] five |> Result.map (withHelp "b")
+                    , afterKeys [ ( "b", space ), ( "b", key "Escape" ), ( "c", space ) ] five |> Result.map (withHelp "b")
+                    ]
         ]
+
+
+isPassing : Expectation -> Bool
+isPassing expectation =
+    expectation == Expect.pass
 
 
 
@@ -537,7 +615,93 @@ reorderTests =
                                 |> List.map .name
                         )
                     |> Expect.equal (Ok [ "a", "c", "b" ])
+        , test "a filter hides some items: the dropped item goes among its visible neighbours in the full list" <|
+            \_ ->
+                let
+                    full =
+                        [ "a", "b", "c", "d", "e" ]
+
+                    visible =
+                        start [ "a", "c", "e" ]
+
+                    result presses =
+                        dropAfter visible presses
+                            |> Result.map (\( before, after ) -> Sortable.reorder Sortable.stringIds identity before after full)
+                in
+                Expect.equal
+                    [ Ok [ "b", "c", "d", "e", "a" ]
+                    , Ok [ "a", "e", "b", "c", "d" ]
+                    , Ok [ "e", "a", "b", "c", "d" ]
+                    ]
+                    [ -- the visible order becomes c, e, a
+                      result [ ( "a", space ), ( "a", key "ArrowDown" ), ( "a", key "ArrowDown" ) ]
+                    , -- a, e, c
+                      result [ ( "e", space ), ( "e", key "ArrowUp" ) ]
+                    , -- e, a, c
+                      result [ ( "e", space ), ( "e", key "ArrowUp" ), ( "e", key "ArrowUp" ) ]
+                    ]
+        , test "the visible order is what the user chose, whichever items are hidden" <|
+            \_ ->
+                let
+                    full =
+                        [ "a", "b", "c", "d", "e", "f" ]
+
+                    visible =
+                        start [ "b", "d", "f" ]
+                in
+                dropAfter visible [ ( "b", space ), ( "b", key "End" ) ]
+                    |> Result.map (\( before, after ) -> Sortable.reorder Sortable.stringIds identity before after full)
+                    |> Result.map (List.filter (\name -> List.member name [ "b", "d", "f" ]))
+                    |> Expect.equal (Ok [ "d", "f", "b" ])
+        , test "an item that was removed from your list while it was held is skipped for the nearest one that is left" <|
+            \_ ->
+                dropAfter five [ ( "c", space ), ( "c", key "ArrowDown" ), ( "c", key "ArrowDown" ) ]
+                    |> Result.map (\( before, after ) -> Sortable.reorder Sortable.stringIds identity before after [ "a", "b", "c", "e" ])
+                    |> Expect.equal (Ok [ "a", "b", "e", "c" ])
+        , test "a drop is only applied when exactly one drop happened between the two states" <|
+            \_ ->
+                let
+                    list =
+                        [ "a", "b", "c", "d", "e" ]
+                in
+                dropAfter five [ ( "b", space ), ( "b", key "ArrowDown" ) ]
+                    |> Result.map
+                        (\( before, after ) ->
+                            [ Sortable.reorder Sortable.stringIds identity before after list
+                            , Sortable.reorder Sortable.stringIds identity after after list
+                            , Sortable.reorder Sortable.stringIds identity after before list
+                            ]
+                        )
+                    |> Expect.equal (Ok [ [ "a", "c", "b", "d", "e" ], list, list ])
+        , test "a state that is two drops old does not move anything, so an old state cannot move an item twice" <|
+            \_ ->
+                let
+                    list =
+                        [ "a", "b", "c", "d", "e" ]
+                in
+                afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", space ) ] five
+                    |> Result.andThen (\once -> dropAfter once [ ( "d", space ), ( "d", key "ArrowUp" ) ])
+                    |> Result.map (\( _, twice ) -> Sortable.reorder Sortable.stringIds identity five.sortable twice list)
+                    |> Expect.equal (Ok list)
         ]
+
+
+{-| The state before and after a drop: the key presses pick an item up and move it, and
+the drop (Space on the same handle) is added here.
+-}
+dropAfter : Model -> List ( String, ( String, Encode.Value ) ) -> Result String ( Sortable.State String, Sortable.State String )
+dropAfter model presses =
+    afterKeys presses model
+        |> Result.andThen
+            (\lifted ->
+                case List.head (List.reverse presses) of
+                    Just ( name, _ ) ->
+                        messageOf (handleOf name) space lifted
+                            |> Result.map (\msg -> ( lifted.sortable, Tuple.first (Sortable.update msg lifted.sortable) ))
+
+                    Nothing ->
+                        Err "no key presses"
+            )
 
 
 
@@ -717,6 +881,31 @@ pointerTests =
                     [ isOk (send (itemOf "b") (pointerDownOn "touch" 0 "handle") whole)
                     , isOk (send (itemOf "b") (pointerDownOn "touch" 0 "text") whole)
                     ]
+        , test "a pen is treated like a finger: the handle only, and it is followed on the item" <|
+            \_ ->
+                let
+                    whole =
+                        withAttributes [ Sortable.wholeItem ] five
+
+                    penMove =
+                        Event.custom "pointermove"
+                            (Encode.object
+                                [ ( "pageX", Encode.float 20 )
+                                , ( "pageY", Encode.float 100 )
+                                , ( "clientX", Encode.float 20 )
+                                , ( "clientY", Encode.float 100 )
+                                , ( "buttons", Encode.int 1 )
+                                ]
+                            )
+                in
+                Expect.equal
+                    ( [ True, False, False ], Ok (Just "b") )
+                    ( [ isOk (send (itemOf "b") (pointerDownOn "pen" 0 "handle") whole)
+                      , isOk (send (itemOf "b") (pointerDownOn "pen" 0 "text") whole)
+                      , isOk (send (itemOf "b") (pointerDownOn "pen" 0 "item") whole)
+                      ]
+                    , drive [ ( itemOf "b", pointerDownOn "pen" 0 "handle" ), ( [], penMove ) ] whole |> Result.map held
+                    )
         , test "a finger is followed on the item itself, not on a layer over the window" <|
             \_ ->
                 let

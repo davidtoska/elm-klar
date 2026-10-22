@@ -28,7 +28,7 @@ import Showcase.Sample as Sample
 
 type alias Model =
     { masterDetail : Splitter.State
-    , saved : Maybe (List Splitter.Size)
+    , saved : Maybe (List Splitter.Share)
     , selected : Int
     , workspace : Splitter.State
     , center : Splitter.State

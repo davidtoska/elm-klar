@@ -239,6 +239,39 @@ structureTests =
                 rendered model
                     |> Query.find (separator 0)
                     |> Query.has [ Selector.attribute (Attr.attribute "aria-valuenow" "30") ]
+        , test "the range of a pane that can fold starts at the sliver that Home gives it, not at 0" <|
+            \_ ->
+                let
+                    model =
+                        { twoPanes | panes = [ pane "Orders" |> Splitter.collapsible, pane "Details" ] }
+                in
+                Expect.all
+                    [ \m -> rendered m |> Query.find (separator 0) |> Query.has [ Selector.attribute (Attr.attribute "aria-valuemin" "2") ]
+                    , \m ->
+                        send (separator 0) (key "Home") m
+                            |> Result.map percentages
+                            |> Expect.equal (Ok [ 2, 98 ])
+                    ]
+                    model
+        , test "the smallest size is the larger of a share and pixels, and a smallest size above the largest wins" <|
+            \_ ->
+                let
+                    model =
+                        { twoPanes
+                            | panes =
+                                [ pane "Orders" |> Splitter.minSize (Splitter.percent 30) |> Splitter.maxSize (Splitter.percent 20)
+                                , pane "Details"
+                                ]
+                        }
+                in
+                Expect.all
+                    [ \m -> rendered m |> Query.find (separator 0) |> Query.has [ Selector.attribute (Attr.attribute "aria-valuenow" "30") ]
+                    , \m ->
+                        send (separator 0) (key "End") m
+                            |> Result.map percentages
+                            |> Expect.equal (Ok [ 30, 70 ])
+                    ]
+                    model
         , test "a pane that is folded away says so, and is hidden" <|
             \_ ->
                 let

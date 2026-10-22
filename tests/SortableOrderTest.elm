@@ -12,6 +12,7 @@ suite =
     describe "Sortable: the pure part (order, limits, gaps)"
         [ moveTests
         , publicMoveTests
+        , placeTests
         , boundsTests
         , fixedTests
         , gapTests
@@ -136,6 +137,104 @@ publicMoveTests =
                 Sortable.move { from = from, to = to } list
                     |> List.sort
                     |> Expect.equal (List.sort list)
+        ]
+
+
+
+-- PLACING AMONG THE NEIGHBOURS
+
+
+placeTests : Test
+placeTests =
+    describe "place (a drop in a list that is not the list that was drawn)"
+        [ test "a filter hides b and d: a goes behind e, and the visible order is c, e, a" <|
+            \_ ->
+                Order.place identity "a" 2 [ "c", "e", "a" ] [ "a", "b", "c", "d", "e" ]
+                    |> Expect.equal [ "b", "c", "d", "e", "a" ]
+        , test "moving up goes right behind the item above" <|
+            \_ ->
+                Order.place identity "e" 1 [ "a", "e", "c" ] [ "a", "b", "c", "d", "e" ]
+                    |> Expect.equal [ "a", "e", "b", "c", "d" ]
+        , test "at the top it goes in front of the item below" <|
+            \_ ->
+                Order.place identity "c" 0 [ "c", "a", "e" ] [ "a", "b", "c", "d", "e" ]
+                    |> Expect.equal [ "c", "a", "b", "d", "e" ]
+        , test "when the item above has gone, the nearest one that is still there is used" <|
+            \_ ->
+                -- drawn a, x, y, c with c dropped behind y; x and y are gone, so behind a
+                Order.place identity "c" 3 [ "a", "x", "y", "c" ] [ "a", "b", "c", "d" ]
+                    |> Expect.equal [ "a", "c", "b", "d" ]
+        , test "when nothing above is left, the one below is used" <|
+            \_ ->
+                Order.place identity "c" 1 [ "x", "c", "d" ] [ "a", "b", "c", "d" ]
+                    |> Expect.equal [ "a", "b", "c", "d" ]
+        , test "when no other drawn item is left, the index is used, kept inside the list" <|
+            \_ ->
+                Expect.equal [ [ "b", "c", "a" ], [ "c", "a", "b" ] ]
+                    [ Order.place identity "a" 99 [ "x", "a" ] [ "a", "b", "c" ]
+                    , Order.place identity "c" -5 [ "c", "x" ] [ "a", "b", "c" ]
+                    ]
+        , test "an item that is not in the list changes nothing" <|
+            \_ ->
+                Expect.equal [ "a", "b" ] (Order.place identity "z" 0 [ "z", "a" ] [ "a", "b" ])
+        , test "the first of two equal keys is the one that moves, and the first of two neighbours is the one it goes behind" <|
+            \_ ->
+                Expect.equal [ [ "x", "b", "b" ], [ "a", "b", "x", "b", "c" ] ]
+                    [ Order.place identity "b" 1 [ "x", "b" ] [ "b", "x", "b" ]
+                    , Order.place identity "a" 0 [ "a", "b" ] [ "b", "x", "a", "b", "c" ]
+                    ]
+        , test "empty lists" <|
+            \_ -> Expect.equal [ [], [ "a" ] ] [ Order.place identity "a" 0 [] [], Order.place identity "a" 0 [ "a" ] [ "a" ] ]
+        , fuzz3 distinct position position "when the whole list was drawn it is the same as move" <|
+            \list from to ->
+                let
+                    keys =
+                        List.map String.fromInt list
+
+                    target =
+                        clamp 0 (List.length list - 1) to
+
+                    moved =
+                        Order.move from to keys
+                in
+                case List.head (List.drop from keys) of
+                    Just key ->
+                        if from < 0 then
+                            Expect.pass
+
+                        else
+                            Order.place identity key target moved keys
+                                |> Expect.equal moved
+
+                    Nothing ->
+                        Expect.pass
+        , fuzz3 letters (Fuzz.list (Fuzz.intRange 0 6)) position "never loses or invents an element, whatever was drawn" <|
+            \list drawn index ->
+                case List.head list of
+                    Just first ->
+                        Order.place String.fromInt (String.fromInt first) index (List.map String.fromInt drawn) list
+                            |> List.sort
+                            |> Expect.equal (List.sort list)
+
+                    Nothing ->
+                        Expect.pass
+        , fuzz2 distinct (Fuzz.list (Fuzz.intRange 0 12)) "the items that did not move keep their order in relation to each other" <|
+            \list drawnNumbers ->
+                case List.head list of
+                    Just first ->
+                        let
+                            keys =
+                                List.map String.fromInt list
+
+                            result =
+                                Order.place identity (String.fromInt first) 0 (List.map String.fromInt drawnNumbers) keys
+                        in
+                        Expect.equal
+                            (List.filter (\key -> key /= String.fromInt first) keys)
+                            (List.filter (\key -> key /= String.fromInt first) result)
+
+                    Nothing ->
+                        Expect.pass
         ]
 
 

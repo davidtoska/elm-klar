@@ -219,7 +219,7 @@ keyboardFlowTests =
                         run [ Lift (layout "b"), Step 1, Step 1, Drop keys ] fresh
                 in
                 Expect.equal
-                    { drops = 1, last = Just { key = "b", to = 3 }, session = Nothing, note = Just (Dropped "b" 4 5) }
+                    { drops = 1, last = Just { key = "b", to = 3, placed = [ "a", "c", "d", "b", "e" ] }, session = Nothing, note = Just (Dropped "b" 4 5) }
                     { drops = state.drops, last = state.last, session = state.session, note = state.note }
         , test "dropping where it was is not a move" <|
             \_ ->
@@ -270,7 +270,30 @@ keyboardFlowTests =
                 Expect.equal ( 0, Nothing, Just (Cancelled "b" 2 5) ) ( state.drops, state.session, state.note )
         , test "keys while nothing is held do nothing" <|
             \_ ->
-                Expect.equal fresh (run [ Step 1, Jump True, Cancel, Drop keys, Blurred "a" ] fresh)
+                Expect.equal fresh (run [ Step 1, Jump True, Cancel, Drop keys, Blurred "a", Focused keys ] fresh)
+        , test "an item that was taken out of the list while it was held is let go when a handle gets the focus" <|
+            \_ ->
+                let
+                    held =
+                        run [ Lift (layout "b"), Step 1 ] fresh
+                in
+                Expect.equal
+                    ( Just 2, Nothing )
+                    ( toOf (run [ Focused keys ] held)
+                    , .session (run [ Focused [ "a", "c", "d", "e" ] ] held)
+                    )
+        , test "a handle that gets the focus while the item is still in the list changes nothing" <|
+            \_ ->
+                let
+                    held =
+                        run [ Lift (layout "b"), Step 1 ] fresh
+                in
+                Expect.equal held (run [ Focused keys, Focused [ "b", "a" ] ] held)
+        , test "a drop remembers the keys as they are after the move, for a list that is not the drawn one" <|
+            \_ ->
+                run [ Lift (layout "a"), Step 1, Step 1, Drop keys ] fresh
+                    |> .last
+                    |> Expect.equal (Just { key = "a", to = 2, placed = [ "b", "c", "a", "d", "e" ] })
         ]
 
 
@@ -317,12 +340,12 @@ pointerFlowTests =
                     state =
                         run [ sample 50 38 1, Drop keys ] ready
                 in
-                Expect.equal ( 1, Just { key = "a", to = 3 }, Nothing ) ( state.drops, state.last, state.session )
+                Expect.equal ( 1, Just { key = "a", to = 3, placed = [ "b", "c", "d", "a", "e" ] }, Nothing ) ( state.drops, state.last, state.session )
         , test "dropping below the last item puts it last" <|
             \_ ->
                 run [ sample 50 400 1, Drop keys ] ready
                     |> .last
-                    |> Expect.equal (Just { key = "a", to = 4 })
+                    |> Expect.equal (Just { key = "a", to = 4, placed = [ "b", "c", "d", "e", "a" ] })
         , test "a plain click does nothing" <|
             \_ ->
                 let
@@ -370,7 +393,7 @@ pointerFlowTests =
                     state =
                         run (measuredAll (serialOf start) ++ [ sample 50 45 1, Drop keys ]) start
                 in
-                Expect.equal ( Just { key = "a", to = 1 }, 1 ) ( state.last, state.drops )
+                Expect.equal ( Just { key = "a", to = 1, placed = [ "b", "a", "c", "d", "e" ] }, 1 ) ( state.last, state.drops )
         ]
 
 

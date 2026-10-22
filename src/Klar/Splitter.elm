@@ -1,7 +1,7 @@
 module Klar.Splitter exposing
     ( view, Pane, pane, minSize, maxSize, minPixels, maxPixels, collapsible
     , State, Msg, init, update, sizes, setSizes, isDragging
-    , Size, percent, toPercent
+    , Share, percent, toPercent
     , Attribute, stacked, height, locale
     )
 
@@ -47,8 +47,10 @@ the first pane is the first size.
 Each pane has a name, which names its separator for screen readers ("Resize
 Orders"). A pane can have a smallest and a largest size, in percent of the room or in
 pixels, and can be `collapsible`. The panes scroll inside themselves when their
-content is larger than they are. The container needs a height (give the parent one,
-or use `height`).
+content is larger than they are; a pane that has nothing in it that can take the focus
+is scrolled with the keyboard in current Chrome and Firefox, which make a scrolling
+box focusable, but not in every browser, so give such a pane a button or a link if it
+matters. The container needs a height (give the parent one, or use `height`).
 
 Keyboard: a separator is a tab stop. `Left` and `Right` move it by 1 percent (`Up`
 and `Down` when the panes are `stacked`), with `Shift` by 10 percent, `Home` and
@@ -85,9 +87,9 @@ folded away. Right-to-left languages are not mirrored yet.
 @docs State, Msg, init, update, sizes, setSizes, isDragging
 
 
-# Sizes
+# Shares
 
-@docs Size, percent, toPercent
+@docs Share, percent, toPercent
 
 
 # Attributes
@@ -113,8 +115,8 @@ import Klar.Splitter.Machine as Machine exposing (Device(..))
 {-| A share of the room that the panes have together, from 0 to 100 percent. Make
 one with `percent`.
 -}
-type Size
-    = Size Float
+type Share
+    = Share Float
 
 
 {-| A share in percent. A number below 0 counts as 0, above 100 as 100, and what is
@@ -123,19 +125,19 @@ not a number as 0.
     Splitter.percent 35
 
 -}
-percent : Float -> Size
+percent : Float -> Share
 percent value =
     if isNaN value then
-        Size 0
+        Share 0
 
     else
-        Size (clamp 0 100 value)
+        Share (clamp 0 100 value)
 
 
 {-| The share in percent, from 0 to 100.
 -}
-toPercent : Size -> Float
-toPercent (Size value) =
+toPercent : Share -> Float
+toPercent (Share value) =
     value
 
 
@@ -173,18 +175,21 @@ pane label content =
 
 
 {-| The smallest share of the room the pane may have. The default is no smallest
-size.
+size. With `minPixels` as well, the larger of the two counts. A smallest size that is
+above the largest (`maxSize`, `maxPixels`) wins: the largest is raised to it, so a
+pane can never be asked for something that cannot be.
 -}
-minSize : Size -> Pane msg -> Pane msg
-minSize (Size value) (Pane data) =
+minSize : Share -> Pane msg -> Pane msg
+minSize (Share value) (Pane data) =
     Pane { data | request = withRequest (\request -> { request | minShare = value / 100 }) data.request }
 
 
 {-| The largest share of the room the pane may have. The default is no largest
-size.
+size. With `maxPixels` as well, the smaller of the two counts. When it is below the
+smallest size, the smallest size wins.
 -}
-maxSize : Size -> Pane msg -> Pane msg
-maxSize (Size value) (Pane data) =
+maxSize : Share -> Pane msg -> Pane msg
+maxSize (Share value) (Pane data) =
     Pane { data | request = withRequest (\request -> { request | maxShare = value / 100 }) data.request }
 
 
@@ -319,7 +324,7 @@ the page: the container, the panes and the separators get ids that start with it
     Splitter.init "orders-split" [ Splitter.percent 35, Splitter.percent 65 ]
 
 -}
-init : String -> List Size -> State
+init : String -> List Share -> State
 init domId initial =
     State (Machine.init domId (List.map toPercent initial))
 
@@ -330,16 +335,16 @@ separator is dragged they change with every movement; `isDragging` tells when it
 done. A list that is shorter or longer than the number of panes is only brought in
 line when the user moves a separator.
 -}
-sizes : State -> List Size
+sizes : State -> List Share
 sizes (State s) =
-    List.map (\fraction -> Size (fraction * 100)) s.sizes
+    List.map (\fraction -> Share (fraction * 100)) s.sizes
 
 
 {-| Sets the sizes of all the panes, for example to restore a saved layout, or
 `[ percent 0, percent 100 ]` to fold the first pane away. They are scaled to add up
 to 100 percent, like those of `init`.
 -}
-setSizes : List Size -> State -> State
+setSizes : List Share -> State -> State
 setSizes values (State s) =
     State (Machine.setSizes (List.map toPercent values) s)
 
@@ -572,16 +577,6 @@ viewSeparatorAt send config t s layout panes sizeList limits index =
         ( lowest, highest ) =
             Layout.range index limits sizeList
 
-        primaryFolds =
-            canFold index
-
-        valueMin =
-            if primaryFolds then
-                0
-
-            else
-                lowest
-
         foldsSomething =
             canFold index || canFold (index + 1)
 
@@ -649,7 +644,7 @@ viewSeparatorAt send config t s layout panes sizeList limits index =
          , Attr.attribute "aria-label" (t.resize (labelAt index))
          , Attr.attribute "aria-controls" (Machine.paneDomId s.domId index ++ " " ++ Machine.paneDomId s.domId (index + 1))
          , Attr.attribute "aria-valuenow" (String.fromInt now)
-         , Attr.attribute "aria-valuemin" (String.fromInt (round (valueMin * 100)))
+         , Attr.attribute "aria-valuemin" (String.fromInt (round (lowest * 100)))
          , Attr.attribute "aria-valuemax" (String.fromInt (round (highest * 100)))
          , Attr.attribute "aria-valuetext"
             (if Machine.isFolded layout sizeList index then
