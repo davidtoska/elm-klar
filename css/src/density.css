@@ -16,7 +16,7 @@
    ========================================================================== */
 
 [data-klar-density="compact"] {
-  --klar-control-sm: 24px;
+  /* --klar-control-sm stays 26px: smaller buttons in a group, which overlap by a border, fall under the 24px of a target */
   --klar-control: 28px;
   --klar-control-lg: 36px;
   --klar-control-px: 8px;

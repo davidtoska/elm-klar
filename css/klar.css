@@ -11600,7 +11600,8 @@ html:has(.klar-modal-lock) {
 /* The arrow is a little narrower than a square button. It has no text: Klar.Menu
    draws an empty label before the chevron. */
 .klar-split > .klar-menu .klar-button {
-  width: calc(var(--klar-control) * 0.85);
+  /* never narrower than the 24px that a target needs, in a compact density too */
+  width: max(24px, calc(var(--klar-control) * 0.85));
   padding: 0;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
@@ -14448,7 +14449,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
    ========================================================================== */
 
 [data-klar-density="compact"] {
-  --klar-control-sm: 24px;
+  /* --klar-control-sm stays 26px: smaller buttons in a group, which overlap by a border, fall under the 24px of a target */
   --klar-control: 28px;
   --klar-control-lg: 36px;
   --klar-control-px: 8px;
