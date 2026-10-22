@@ -62,7 +62,7 @@ locale : Locale.Locale -> Attribute msg
 The "are you sure?" dialog, with the whole life of the request it guards.
 
 Use when: the user must confirm an action that is hard to undo or that affects others, such as deleting an order or canceling a shipment.
-Do not use when: the dialog needs form fields (use `Klar.Modal`).
+Do not use when: the dialog is a form with several fields to fill in (use `Klar.Modal`); one or two controls in `body`, such as a reason or a target to choose, are fine.
 Quick path: `init`, `open`, `update`, `view`, `setBusy`, `close`
 
 The life of a request:

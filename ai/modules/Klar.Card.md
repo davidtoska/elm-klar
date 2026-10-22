@@ -93,7 +93,7 @@ A setting of a card. Make them with the functions below and pass a list to
 title : String -> Attribute msg
 ```
 
-The title in the header, an `h3` unless you set another level with
+The title in the header, an `h2` unless you set another level with
 `headingLevel`. A card without a title, a subtitle or actions has no header.
 
 ### `headingLevel`

@@ -57,7 +57,7 @@ Do not use when: a short text label or status is shown, use `Klar.Badge`.
 
     Avatar.view [ Avatar.icon Icon.server, Avatar.square ] "Order service"
 
-    Avatar.group [ Avatar.maxShown 4 ] (List.map (\person -> Avatar.member person.name) people)
+    Avatar.group [ Avatar.maxShown 4 ] (List.map (\person -> Avatar.entry person.name) people)
 
 Without an image the avatar shows the initials of the name on a muted
 background. The color is derived from the name, so the same name has the same
@@ -102,10 +102,10 @@ accessible name that tells how many avatars it holds, such as "3 avatars". An
 empty list shows nothing.
 
     Avatar.group [ Avatar.maxShown 3 ]
-        [ Avatar.member "Ada Lovelace"
-        , Avatar.member "Grace Hopper"
+        [ Avatar.entry "Ada Lovelace"
+        , Avatar.entry "Grace Hopper"
         , { name = "Alan Turing", image = Just "/images/alan.jpg" }
-        , Avatar.member "Edsger Dijkstra"
+        , Avatar.entry "Edsger Dijkstra"
         ]
 
 ## Look
@@ -213,7 +213,7 @@ entry : String -> Entry
 
 An entry for `group` with this name and no picture.
 
-    Avatar.member "Ada Lovelace"
+    Avatar.entry "Ada Lovelace"
 
 ### `maxShown`
 

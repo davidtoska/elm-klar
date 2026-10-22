@@ -118,6 +118,7 @@ check, run against your rows, describe in words and store as JSON.
 
 Use when: filter conditions are data that the application stores, runs against its rows or describes in words.
 Do not use when: the user must edit the conditions (use `Klar.RuleBuilder` or `Klar.FilterBar`).
+Quick path: `textField`, `choiceField`, `numberField`, `matches`, `describe`, `encode`, `decoder`
 
 A rule is what a filter builder lets the user say, for example "Status is Paid
 and Total is greater than 100". This module has no HTML.
