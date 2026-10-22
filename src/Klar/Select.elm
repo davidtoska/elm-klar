@@ -2,7 +2,7 @@ module Klar.Select exposing
     ( State, init, Msg, update, view
     , value, setValue, setOption, clear, query, isOpen, open, close
     , Option, option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption, filter
-    , Attribute, options, remote, serverSearch, onRetry, zone
+    , Attribute, options, remote, serverSearch, onRetry
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale
     )
@@ -104,7 +104,7 @@ so one import is enough.
 
 Pass attributes to `view` in a list; later ones win over earlier ones.
 
-@docs Attribute, options, remote, serverSearch, onRetry, zone
+@docs Attribute, options, remote, serverSearch, onRetry
 
 
 # Field
@@ -623,7 +623,6 @@ type alias Config id msg =
     { field : Field.Config
     , options : Remote (List (Option id))
     , freshness : Freshness
-    , zone : Time.Zone
     , serverSearch : Bool
     , placeholder : Maybe String
     , searchPlaceholder : Maybe String
@@ -645,7 +644,6 @@ configure attributes =
         { field = Field.empty
         , options = Loaded []
         , freshness = Freshness.Fresh
-        , zone = Time.utc
         , serverSearch = False
         , placeholder = Nothing
         , searchPlaceholder = Nothing
@@ -696,13 +694,6 @@ remote data =
             Freshness.settle data
     in
     Attribute (\config -> { config | options = current, freshness = freshness })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> Attribute id msg
-zone value_ =
-    Attribute (\config -> { config | zone = value_ })
 
 
 {-| The server does the searching. The select shows the options exactly as they
@@ -1313,7 +1304,7 @@ viewPopup toMsg config t env (State state) =
                 Html.div
                     [ Internal.cls [ Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
                     [ Freshness.notice
-                        { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                        { locale = config.locale, onRetry = config.onRetry, inline = False }
                         config.freshness
                     , list
                     , Popup.viewFooter (Popup.statusText t env.filterLocally state.query rows) []

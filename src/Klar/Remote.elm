@@ -37,7 +37,7 @@ when the refresh failed):
 
     -- the answer comes back, good or bad; `at` is when it came
     GotOrders result at ->
-        ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
+        ( { model | orders = Remote.refreshWith model.orders result (Settings.at model.settings at) }, Cmd.none )
 
     -- one notice for the whole page
     Alert.stale [] Refresh (Remote.staleIn "orders" model.orders)
@@ -96,7 +96,7 @@ already on the screen:
 -}
 
 import Klar.Locale as Locale exposing (Locale)
-import Time
+import Klar.Settings exposing (Moment)
 
 
 {-| Data you ask for. Start in `NotAsked` (or `Loading` if the request is sent
@@ -131,7 +131,7 @@ failed (if it did). The type is opaque; read it with `toMaybe`, `loadedAt`,
 type Kept a
     = KeptData
         { data : a
-        , at : Maybe Time.Posix
+        , at : Maybe Moment
         , refreshing : Bool
         , failure : Maybe Problem
         }
@@ -534,17 +534,18 @@ refresh remote =
 
 
 {-| Takes the answer of a request into the state, in one line. `Ok` gives fresh
-data that remembers when it was loaded (give the time of the answer). `Err` while
+data that remembers when it was loaded (give the time of the answer as a `Moment`,
+made with the settings, so that "Old data from 14:05" is in the zone of the user). `Err` while
 there is data to show keeps the data and makes it stale, with the problem; `Err`
 when there is nothing to show is a plain `Failed`.
 
     GotOrders result at ->
-        ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
+        ( { model | orders = Remote.refreshWith model.orders result (Settings.at model.settings at) }, Cmd.none )
 
 The same line works for the first load.
 
 -}
-refreshWith : Remote a -> Result Problem a -> Time.Posix -> Remote a
+refreshWith : Remote a -> Result Problem a -> Moment -> Remote a
 refreshWith before result at =
     case result of
         Ok a ->
@@ -594,10 +595,10 @@ staleProblem remote =
             Nothing
 
 
-{-| When the data was loaded: the time given to `refreshWith` for the answer that
-brought it. `Nothing` when it is not known.
+{-| When the data was loaded: the moment given to `refreshWith` for the answer that
+brought it. `Nothing` when it is not known. `Settings.toPosix` gives the time.
 -}
-loadedAt : Remote a -> Maybe Time.Posix
+loadedAt : Remote a -> Maybe Moment
 loadedAt remote =
     case remote of
         Kept (KeptData value) ->

@@ -1,7 +1,7 @@
 module Klar.Timeline exposing
     ( view
-    , Event, event, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
-    , Attribute, zone, now, compact, ungrouped, ariaLabel, maxHeight, locale
+    , Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
+    , Attribute, now, compact, ungrouped, ariaLabel, maxHeight, locale
     , onLoadMore, loadingMore, moreFailed, hasMore
     , loading, failed, onRetry, remote, skeletonRows, emptyTitle, emptyDescription
     )
@@ -12,34 +12,37 @@ Use when: a history of events is shown newest first, grouped by day, such as an 
 Do not use when: the events are rules and decisions of an approval process, use `Klar.ApprovalFlow`.
 
     import Klar.Icon as Icon
+    import Klar.Settings as Settings
     import Klar.Text as Text
     import Klar.Theme exposing (Tone(..))
     import Klar.Timeline as Timeline
 
     Timeline.view
-        [ Timeline.zone model.zone
-        , Timeline.now model.now
+        [ Timeline.now (Settings.at model.settings model.now)
         , Timeline.onLoadMore LoadMore
         , Timeline.loadingMore model.loadingMore
         ]
-        [ Timeline.event "e2" delayedAt "Status changed to Delayed"
+        [ Timeline.event "e2" (Settings.at model.settings delayedAt) "Status changed to Delayed"
             |> Timeline.withTone Warning
             |> Timeline.withDetails (Text.paragraph "From In transit to Delayed. Reason: customs inspection.")
-        , Timeline.event "e1" shippedAt "Order shipped"
+        , Timeline.event "e1" (Settings.at model.settings shippedAt) "Order shipped"
             |> Timeline.withAuthor "Ada Lovelace"
             |> Timeline.withIcon Icon.send
             |> Timeline.withDescription "Parcel handed to the carrier at warehouse B."
         ]
 
-Here `model.zone` is a `Time.Zone`, `model.now` and the times of the events
-(`shippedAt`, `delayedAt`) are `Time.Posix` values.
+Here `model.settings` is the `Klar.Settings` of the application, and `model.now`,
+`shippedAt` and `delayedAt` are `Time.Posix` values. The times are `Moment`s because
+a time is only right in a zone: the clock and the day of an event are those of
+the zone in the settings, so the application states its zone once and no
+timeline can forget it.
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
 share a heading, so give them sorted by time. The headings are `h3` elements.
-Times and days are shown in the `zone` you give the timeline, which is UTC unless
-you set it. Give the timeline `now` and the headings say "Today" and
-"Yesterday". A thin gray line connects the markers of a day; a marker is an icon
+Something that happened on a day, with no time of day (a delivery date, a
+deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
+timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
 in the tone of the event, or a dot. The marker is decoration only (hidden from
 screen readers), so the title of an event must say what its color means.
 
@@ -62,12 +65,12 @@ set `locale`.
 
 # Events
 
-@docs Event, event, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
+@docs Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
 
 
 # Look and time
 
-@docs Attribute, zone, now, compact, ungrouped, ariaLabel, maxHeight, locale
+@docs Attribute, now, compact, ungrouped, ariaLabel, maxHeight, locale
 
 
 # Loading more
@@ -95,6 +98,7 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.Settings as Settings exposing (Moment)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
@@ -112,9 +116,14 @@ type Event msg
     = Event (EventData msg)
 
 
+type When
+    = At Moment
+    | OnDay Date
+
+
 type alias EventData msg =
     { id : String
-    , time : Time.Posix
+    , when : When
     , title : String
     , description : Maybe String
     , tone : Tone
@@ -125,9 +134,9 @@ type alias EventData msg =
     }
 
 
-{-| An event with an id, the time it happened and a short title.
+{-| An event with an id, the moment it happened and a short title.
 
-    Timeline.event "ev-1042" shippedAt "Order shipped"
+    Timeline.event "ev-1042" (Settings.at model.settings shippedAt) "Order shipped"
 
 The id must be unique among the events and stay the same for the same event
 between renders (use the id from your database, not the position in the list).
@@ -136,11 +145,29 @@ events is added. The title is the headline of the event: a few words, in
 sentence case.
 
 -}
-event : String -> Time.Posix -> String -> Event msg
-event id time title =
+event : String -> Moment -> String -> Event msg
+event id moment title =
+    eventWhen id (At moment) title
+
+
+{-| An event that happened on a day, with no time of day: a delivery date, a
+deadline, an invoice date. It sits under the heading of its day and no time is
+written next to it (there is no "00:00"). Give the events sorted, and put the
+day events of a day together with the timed events of that day.
+
+    Timeline.dayEvent "ev-77" invoiceDate "Invoice dated"
+
+-}
+dayEvent : String -> Date -> String -> Event msg
+dayEvent id day title =
+    eventWhen id (OnDay day) title
+
+
+eventWhen : String -> When -> String -> Event msg
+eventWhen id when title =
     Event
         { id = id
-        , time = time
+        , when = when
         , title = title
         , description = Nothing
         , tone = Neutral
@@ -227,8 +254,7 @@ type State
 
 type alias Config msg =
     { locale : Locale
-    , zone : Time.Zone
-    , now : Maybe Time.Posix
+    , now : Maybe Moment
     , compact : Bool
     , grouped : Bool
     , label : Maybe String
@@ -251,7 +277,6 @@ configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { locale = Locale.default
-        , zone = Time.utc
         , now = Nothing
         , compact = False
         , grouped = True
@@ -281,21 +306,12 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| The time zone that decides the clock times and which day an event belongs
-to. The default is UTC, so you will usually want the user's own zone: get it with
-`Time.here` when the application starts and keep it in your model.
--}
-zone : Time.Zone -> Attribute msg
-zone value =
-    Attribute (\config -> { config | zone = value })
-
-
 {-| The current time. It lets the day headings say "Today" and "Yesterday" and
 the tooltip of each time add how long ago it was ("3 hours ago"). Without it the
 headings always show the full date. The timeline does not read the clock itself:
 keep the value in your model and update it, for example with `Time.every`.
 -}
-now : Time.Posix -> Attribute msg
+now : Moment -> Attribute msg
 now value =
     Attribute (\config -> { config | now = Just value })
 
@@ -352,7 +368,7 @@ themselves are passed to `view` as usual. `NotAsked` and `Loading` show the
 skeleton, `Failed` shows the problem and `Loaded` shows the events. Data that is
 `Kept` stays on the screen: dimmed and busy while it is refreshed, and with
 "Old data from 14:05" and a retry (`onRetry`) when the last refresh failed. The
-time is shown in the `zone` of the timeline.
+time is in the zone of the settings.
 
     Timeline.view [ Timeline.remote model.history ]
         (List.map toEvent (Remote.withDefault [] model.history))
@@ -514,10 +530,10 @@ texts loc =
 
 
 {-| The timeline. Events are shown in the order given; events that follow each
-other on the same day (in the `zone` of the timeline) share a day heading, so
+other on the same day (in the zone of the moments) share a day heading, so
 sort them by time first.
 
-    Timeline.view [ Timeline.zone model.zone ] (List.map toEvent model.history)
+    Timeline.view [ Timeline.now (Settings.at model.settings model.now) ] (List.map toEvent model.history)
 
 -}
 view : List (Attribute msg) -> List (Event msg) -> Html msg
@@ -576,7 +592,7 @@ view attributes events =
 
         notice =
             Freshness.notice
-                { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                { locale = config.locale, onRetry = config.onRetry, inline = False }
                 config.freshness
     in
     case state of
@@ -612,7 +628,7 @@ view attributes events =
                     [ notice
                     , if config.grouped then
                         Html.div [ Internal.cls [ "klar-timeline__days" ] ]
-                            (List.map (viewDay config) (groupByDay config.zone events))
+                            (List.map (viewDay config) (groupByDay events))
 
                       else
                         viewList config events
@@ -636,13 +652,18 @@ failureView config problem =
 -- DAYS
 
 
-groupByDay : Time.Zone -> List (Event msg) -> List ( Date, List (Event msg) )
-groupByDay timeZone events =
+groupByDay : List (Event msg) -> List ( Date, List (Event msg) )
+groupByDay events =
     List.foldr
         (\((Event data) as current) groups ->
             let
                 day =
-                    Date.fromPosix timeZone data.time
+                    case data.when of
+                        At moment ->
+                            Settings.toDate moment
+
+                        OnDay value ->
+                            value
             in
             case groups of
                 ( groupDay, items ) :: rest ->
@@ -671,7 +692,7 @@ viewDay config ( day, events ) =
         relativeName =
             case config.now of
                 Just current ->
-                    case Date.diffDays day (Date.fromPosix config.zone current) of
+                    case Date.diffDays day (Settings.toDate current) of
                         0 ->
                             Just t.today
 
@@ -715,26 +736,33 @@ viewEvent config (Event data) =
         t =
             texts config.locale
 
-        clock =
-            Format.time config.zone data.time
-
-        tooltip =
-            Format.dateTime config.locale config.zone data.time
-                ++ (case config.now of
-                        Just current ->
-                            "  ·  " ++ Format.relative config.locale current data.time
-
-                        Nothing ->
-                            ""
-                   )
-
         timeElement className =
-            Html.time
-                [ Internal.cls [ className, "klar-tabular" ]
-                , Attr.attribute "datetime" (isoTime data.time)
-                , Attr.title tooltip
-                ]
-                [ Html.text clock ]
+            case data.when of
+                At moment ->
+                    Html.time
+                        [ Internal.cls [ className, "klar-tabular" ]
+                        , Attr.attribute "datetime" (isoTime (Settings.toPosix moment))
+                        , Attr.title
+                            (Settings.dateTime config.locale moment
+                                ++ (case config.now of
+                                        Just current ->
+                                            "  ·  " ++ Format.relative config.locale (Settings.toPosix current) (Settings.toPosix moment)
+
+                                        Nothing ->
+                                            ""
+                                   )
+                            )
+                        ]
+                        [ Html.text (Settings.time moment) ]
+
+                OnDay day ->
+                    -- A day has no clock: the cell stays, so the columns line up.
+                    Html.span
+                        [ Internal.cls [ className ]
+                        , Attr.attribute "aria-hidden" "true"
+                        , Attr.title (Format.date config.locale day)
+                        ]
+                        []
 
         marker =
             Html.span

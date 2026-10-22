@@ -4,7 +4,7 @@ module Klar.CommandPalette exposing
     , open, close, isOpen, openedFrom, query, setQuery
     , Item, item, withDescription, withIcon, withShortcut, withKeywords, withId
     , Section, section, remote, onRetry, emptyText
-    , Attribute, sections, recent, placeholder, label, noResults, locale, zone
+    , Attribute, sections, recent, placeholder, label, noResults, locale
     )
 
 {-| A command palette: one search box, usually opened with `Ctrl K`, for commands
@@ -177,7 +177,7 @@ closed would otherwise answer into the next opening, under an empty query.
 
 # Attributes
 
-@docs Attribute, sections, recent, placeholder, label, noResults, locale, zone
+@docs Attribute, sections, recent, placeholder, label, noResults, locale
 
 -}
 
@@ -626,7 +626,6 @@ type alias Config msg =
     , label : Maybe String
     , noResults : Maybe String
     , locale : Locale
-    , zone : Time.Zone
     }
 
 
@@ -639,7 +638,6 @@ configure attributes =
         , label = Nothing
         , noResults = Nothing
         , locale = Locale.default
-        , zone = Time.utc
         }
         attributes
 
@@ -690,14 +688,6 @@ is `Locale.default`, which is `Locale.en`.
 locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
-
-
-{-| The time zone of the time in "Old data from 14:05", the note at the top of a
-remote section whose data is `Kept` after a failed refresh. The default is UTC.
--}
-zone : Time.Zone -> Attribute msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 
@@ -836,7 +826,7 @@ buildBlocks config text =
                               , body =
                                     (case Tuple.second (Freshness.settle data.remote) of
                                         Freshness.Stale old ->
-                                            [ EmptyBody (Freshness.text config.locale config.zone old.at) ]
+                                            [ EmptyBody (Freshness.text config.locale old.at) ]
 
                                         _ ->
                                             []

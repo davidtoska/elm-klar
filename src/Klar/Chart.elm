@@ -3,9 +3,9 @@ module Klar.Chart exposing
     , Series, series, seriesMaybe, withColor, withTone, dashed
     , Segment, segment, segmentColor, segmentTone
     , Attribute, title, description, ariaLabel, size, height, tone, locale, unit, valueFormat
-    , categories, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
+    , categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
     , centerLabel, centerCaption, range, thresholds
-    , loading, failed, onRetry, remote, emptyText, zone
+    , loading, failed, onRetry, remote, emptyText
     )
 
 {-| Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart
@@ -99,7 +99,7 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Line and bar charts
 
-@docs categories, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
+@docs categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
 
 
 # Donut, gauge and meter
@@ -109,13 +109,14 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Loading, failure and empty
 
-@docs loading, failed, onRetry, remote, emptyText, zone
+@docs loading, failed, onRetry, remote, emptyText
 
 -}
 
 import Array exposing (Array)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
@@ -273,6 +274,7 @@ type alias Config msg =
     , description : Maybe String
     , ariaLabel : Maybe String
     , categories : List String
+    , dates : List Date
     , height : Maybe Int
     , size : Maybe Int
     , area : Bool
@@ -291,7 +293,6 @@ type alias Config msg =
     , busy : Bool
     , failure : Maybe Problem
     , freshness : Freshness
-    , zone : Time.Zone
     , onRetry : Maybe msg
     , emptyText : Maybe String
     , centerLabel : Maybe String
@@ -310,6 +311,7 @@ configure attributes =
         , description = Nothing
         , ariaLabel = Nothing
         , categories = []
+        , dates = []
         , height = Nothing
         , size = Nothing
         , area = False
@@ -328,7 +330,6 @@ configure attributes =
         , busy = False
         , failure = Nothing
         , freshness = Freshness.Fresh
-        , zone = Time.utc
         , onRetry = Nothing
         , emptyText = Nothing
         , centerLabel = Nothing
@@ -380,7 +381,21 @@ beyond the longest series add empty categories.
 -}
 categories : List String -> Attribute msg
 categories labels =
-    Attribute (\config -> { config | categories = labels })
+    Attribute (\config -> { config | categories = labels, dates = [] })
+
+
+{-| The categories of a line or bar chart when they are days, one per value, in
+the order of the values. The axis writes them as short as a label can be (`21 Sep`
+in English, `21. sep.` in Norwegian, see `Format.dateShort`), so that eight of them
+fit under a half page chart, and the tooltip and the text alternative write the
+whole date. `categories` and `dates` replace each other.
+
+    Chart.line [ Chart.dates (List.map .day model.sales) ]
+
+-}
+dates : List Date -> Attribute msg
+dates days =
+    Attribute (\config -> { config | dates = days, categories = [] })
 
 
 {-| The height of the plot in pixels, kept between 16 and 1200. The defaults are
@@ -561,13 +576,6 @@ none.
 onRetry : msg -> Attribute msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> Attribute msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 {-| Takes loading, failure, refreshing and old data from a `Remote`. The data
@@ -799,7 +807,7 @@ withState config kind placeholderHeight hasData body =
                             , Freshness.busyAttr config.freshness
                             ]
                             [ Freshness.notice
-                                { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                                { locale = config.locale, onRetry = config.onRetry, inline = False }
                                 config.freshness
                             , body ()
                             ]
@@ -861,6 +869,7 @@ type alias PSeries =
 type alias Prepared =
     { n : Int
     , cats : Array String
+    , short : Array String
     , series : List PSeries
     }
 
@@ -875,13 +884,27 @@ prepare config list =
                 |> Maybe.withDefault 0
 
         n =
-            max (List.length config.categories) longest
+            max (max (List.length config.categories) (List.length config.dates)) longest
 
         catArray =
-            Array.fromList config.categories
+            if List.isEmpty config.dates then
+                Array.fromList config.categories
 
-        labelAt i =
-            Array.get i catArray |> Maybe.withDefault (String.fromInt (i + 1))
+            else
+                Array.fromList (List.map (Format.date config.locale) config.dates)
+
+        shortArray =
+            if List.isEmpty config.dates then
+                catArray
+
+            else
+                Array.fromList (List.map (Format.dateShort config.locale) config.dates)
+
+        labelAtIn array i =
+            Array.get i array |> Maybe.withDefault (String.fromInt (i + 1))
+
+        labelAt =
+            labelAtIn catArray
 
         build index (Series s) =
             { name = s.name
@@ -892,6 +915,7 @@ prepare config list =
     in
     { n = n
     , cats = Array.fromList (List.map labelAt (List.range 0 (n - 1)))
+    , short = Array.fromList (List.map (labelAtIn shortArray) (List.range 0 (n - 1)))
     , series = List.indexedMap build list
     }
 
@@ -935,6 +959,13 @@ hasAnyValue prepared =
 categoryAt : Prepared -> Int -> String
 categoryAt prepared i =
     Array.get i prepared.cats |> Maybe.withDefault ""
+
+
+{-| The label under the axis: as short as the category can be written.
+-}
+shortAt : Prepared -> Int -> String
+shortAt prepared i =
+    Array.get i prepared.short |> Maybe.withDefault ""
 
 
 
@@ -1572,12 +1603,12 @@ yLabel y text =
 {-| A label on the horizontal axis, centered at an x percentage and as wide
 as the room it may use.
 -}
-xLabel : Float -> Float -> String -> Html msg
-xLabel center room text =
+xLabel : Float -> Float -> String -> String -> Html msg
+xLabel center room full text =
     Html.span
         [ Internal.cls [ "klar-chart__xlabel", "klar-tabular" ]
         , Internal.styleVars [ ( "left", pct center ), ( "width", pct room ) ]
-        , Attr.title text
+        , Attr.title full
         ]
         [ Html.text text ]
 
@@ -1682,7 +1713,7 @@ lineBody config prepared =
                 |> List.filter (\i -> modBy every i == 0)
                 |> List.map
                     (\i ->
-                        xLabel ((toFloat i + 0.5) * slotWidth) (slotWidth * toFloat every) (categoryAt prepared i)
+                        xLabel ((toFloat i + 0.5) * slotWidth) (slotWidth * toFloat every) (categoryAt prepared i) (shortAt prepared i)
                     )
 
         yLabels =
@@ -2056,7 +2087,7 @@ barBody config prepared =
                                 [ Html.text (categoryAt prepared i) ]
 
                         else
-                            xLabel ((toFloat i + 0.5) * slotSize) (slotSize * toFloat every) (categoryAt prepared i)
+                            xLabel ((toFloat i + 0.5) * slotSize) (slotSize * toFloat every) (categoryAt prepared i) (shortAt prepared i)
                     )
 
         tickLabels =
@@ -3017,7 +3048,7 @@ sparkline attributes rawValues =
                     described =
                         case config.freshness of
                             Freshness.Stale value ->
-                                summary ++ ". " ++ Freshness.text config.locale config.zone value.at
+                                summary ++ ". " ++ Freshness.text config.locale value.at
 
                             _ ->
                                 summary

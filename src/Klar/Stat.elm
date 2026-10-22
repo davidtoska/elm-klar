@@ -1,10 +1,10 @@
 module Klar.Stat exposing
     ( view, row
-    , Attribute, label, value, int, decimal, compact, unit, caption, icon
-    , delta, change, deltaText, deltaLabel, lowerIsBetter, deltaTone
+    , Attribute, label, value, int, decimal, compact, money, unit, caption, icon
+    , delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
     , size, flat, onClick, locale
-    , loading, failed, onRetry, remote, zone
+    , loading, failed, onRetry, remote
     )
 
 {-| A KPI tile: one number with its label, the change since last time, a short
@@ -50,7 +50,7 @@ the top of a page. For several label and value pairs use
 [Klar.DescriptionList](Klar-DescriptionList); for one value against a scale use
 `gauge` or `meter` from [Klar.Chart](Klar-Chart).
 
-Give the number as `int`, `decimal` or `compact` and the tile writes it with the
+Give the number as `int`, `decimal`, `compact` or `money` and the tile writes it with the
 separators of its `locale` (English by default: `1,284`, `4.2M`), or pass a
 string you have formatted yourself to `value`. A long number is set in a smaller
 type so that it is always written out in full.
@@ -74,12 +74,12 @@ only its retry button is a control).
 
 # Content
 
-@docs Attribute, label, value, int, decimal, compact, unit, caption, icon
+@docs Attribute, label, value, int, decimal, compact, money, unit, caption, icon
 
 
 # Change since last time
 
-@docs delta, change, deltaText, deltaLabel, lowerIsBetter, deltaTone
+@docs delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
 
 
 # Trend
@@ -94,7 +94,7 @@ only its retry button is a control).
 
 # Loading and failure
 
-@docs loading, failed, onRetry, remote, zone
+@docs loading, failed, onRetry, remote
 
 -}
 
@@ -108,6 +108,7 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Money as Money exposing (Money)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
@@ -126,6 +127,7 @@ type Number
     | Whole Int
     | Fixed Int Float
     | Compact Float
+    | Amount Money
 
 
 type State
@@ -154,7 +156,6 @@ type alias Config msg =
     , busy : Bool
     , failure : Maybe Problem
     , freshness : Freshness
-    , zone : Time.Zone
     , locale : Locale
     }
 
@@ -181,7 +182,6 @@ configure attributes =
         , busy = False
         , failure = Nothing
         , freshness = Freshness.Fresh
-        , zone = Time.utc
         , locale = Locale.default
         }
         attributes
@@ -225,6 +225,17 @@ shown as an en dash.
 decimal : Int -> Float -> Attribute msg
 decimal decimals n =
     Attribute (\config -> { config | value = Just (Fixed decimals n) })
+
+
+{-| An amount of money, written with its currency code in the conventions of the
+tile's `locale` (`NOK 1,234.50` in English, `1 234,50 NOK` in Norwegian), exactly
+as `Money.toString` writes it. Use it instead of formatting the amount yourself, so
+that money stays `Klar.Money` all the way to the screen. For the symbol of the
+currency use `value (Money.toSymbolString locale amount)`.
+-}
+money : Money -> Attribute msg
+money amount =
+    Attribute (\config -> { config | value = Just (Amount amount) })
 
 
 {-| A number that shortens itself when it is large: `12900` stays "12,900", but
@@ -286,6 +297,26 @@ change values =
 
     else
         delta ((values.current - values.previous) / abs values.previous * 100)
+
+
+{-| The change between two amounts of money, as a percentage, worked out in minor
+units: the same as `change`, and nothing is shown when the two are in different
+currencies (a percentage of two currencies means nothing) or the previous amount
+is zero.
+
+    Stat.moneyChange { current = stockValueNow, previous = stockValueLastWeek }
+
+-}
+moneyChange : { current : Money, previous : Money } -> Attribute msg
+moneyChange values =
+    if Money.currencyOf values.current == Money.currencyOf values.previous then
+        change
+            { current = toFloat (Money.toMinor values.current)
+            , previous = toFloat (Money.toMinor values.previous)
+            }
+
+    else
+        Attribute identity
 
 
 {-| The change as text of your own: "+12 orders". Pair it with `delta` to set
@@ -416,13 +447,6 @@ failure from a `Remote`.
 failed : Problem -> Attribute msg
 failed problem =
     Attribute (\config -> { config | failure = Just problem })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> Attribute msg
-zone value_ =
-    Attribute (\config -> { config | zone = value_ })
 
 
 {-| Takes the content of the tile from a `Remote`. While the data is `NotAsked`
@@ -563,7 +587,7 @@ view attributes =
                         , Internal.viewMaybe (\text -> Html.span [ Internal.cls [ "klar-stat__caption" ] ] [ Html.text text ]) config.caption
                         , viewTrend config
                         , Freshness.notice
-                            { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = True }
+                            { locale = config.locale, onRetry = config.onRetry, inline = True }
                             config.freshness
                         ]
             ]
@@ -645,6 +669,9 @@ numberText loc number =
 
             else
                 missingNumber
+
+        Amount amount ->
+            Money.toString loc amount
 
 
 {-| An en dash: what a number is shown as when it is not finite (NaN or

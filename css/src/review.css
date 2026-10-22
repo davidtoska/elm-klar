@@ -490,14 +490,16 @@
   overflow: clip;
 }
 
-.klar-compare--compact {
+.klar-compare--compact,
+:where([data-klar-density="compact"]) .klar-compare:where(:not(.klar-compare--compact, .klar-compare--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_cell-py: var(--klar-space-1);
   --_font: var(--klar-text-sm);
 }
 
-.klar-compare--comfortable {
+.klar-compare--comfortable,
+:where([data-klar-density="comfortable"]) .klar-compare:where(:not(.klar-compare--compact, .klar-compare--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_cell-px: var(--klar-space-4);
   --_cell-py: var(--klar-space-3);

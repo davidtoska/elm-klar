@@ -7,7 +7,7 @@ module Klar.Tree exposing
     , selected, selectedId, select, setSelected, checked, setChecked, clearChecked
     , focused, focusNode, query, setQuery
     , loadRequests, onLoadChildren, onRetry, onReload
-    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
+    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
     )
 
 {-| A tree view for hierarchies: regions and warehouses, folders, product
@@ -161,7 +161,7 @@ selected and checked nodes come back in your own type:
 
 # Attributes
 
-@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
+@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
 
 -}
 
@@ -1109,7 +1109,6 @@ type alias Config id msg =
     , maxChildren : Int
     , emptyText : Maybe String
     , locale : Locale
-    , zone : Time.Zone
     }
 
 
@@ -1131,7 +1130,6 @@ configure attributes =
         , maxChildren = 300
         , emptyText = Nothing
         , locale = Locale.default
-        , zone = Time.utc
         }
         attributes
 
@@ -1279,14 +1277,6 @@ default is `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
 locale : Locale -> Attribute id msg
 locale value =
     Attribute (\config -> { config | locale = value })
-
-
-{-| The time zone of the time in "Old data from 14:05", the marker of data that
-is `Kept` after a failed refresh. The default is UTC.
--}
-zone : Time.Zone -> Attribute id msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 
@@ -1775,7 +1765,7 @@ viewRemote toMsg attributes state data =
                 , Freshness.busyAttr freshness
                 ]
                 [ Freshness.notice
-                    { locale = config.locale, zone = config.zone, onRetry = config.onReload, inline = False }
+                    { locale = config.locale, onRetry = config.onReload, inline = False }
                     freshness
                 , view toMsg attributes state nodes
                 ]
@@ -2242,7 +2232,6 @@ viewChildren env depth parentId parentValue children =
                 notice =
                     Freshness.notice
                         { locale = env.config.locale
-                        , zone = env.config.zone
                         , onRetry = Maybe.map (\toApp -> toApp parentValue) env.config.onRetry
                         , inline = True
                         }

@@ -18,18 +18,17 @@ calm marker with the time and a retry). The component settles its `Remote` once
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Button as Button
-import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
-import Time
+import Klar.Settings as Settings exposing (Moment)
 
 
 type Freshness
     = Fresh
     | Refreshing
-    | Stale { problem : Problem, at : Maybe Time.Posix, refreshing : Bool }
+    | Stale { problem : Problem, at : Maybe Moment, refreshing : Bool }
 
 
 {-| The data as `Loaded` (or the other states untouched), and how fresh it is.
@@ -110,11 +109,11 @@ className freshness =
 
 {-| "Old data from 14:05", for places that only have room for a label.
 -}
-text : Locale -> Time.Zone -> Maybe Time.Posix -> String
-text locale zone maybeAt =
+text : Locale -> Maybe Moment -> String
+text locale maybeAt =
     case maybeAt of
         Just at ->
-            Locale.pick locale { nb = "Gamle data fra kl. " ++ Format.time zone at, en = "Old data from " ++ Format.time zone at }
+            Locale.pick locale { nb = "Gamle data fra kl. " ++ Settings.time at, en = "Old data from " ++ Settings.time at }
 
         Nothing ->
             Locale.pick locale { nb = "Gamle data", en = "Old data" }
@@ -124,7 +123,7 @@ text locale zone maybeAt =
 trying again could help. Nothing for fresh or refreshing data.
 -}
 notice :
-    { locale : Locale, zone : Time.Zone, onRetry : Maybe msg, inline : Bool }
+    { locale : Locale, onRetry : Maybe msg, inline : Bool }
     -> Freshness
     -> Html msg
 notice config freshness =
@@ -140,7 +139,7 @@ notice config freshness =
                 full =
                     case value.at of
                         Just at ->
-                            Format.dateTime config.locale config.zone at
+                            Settings.dateTime config.locale at
 
                         Nothing ->
                             ""
@@ -158,7 +157,7 @@ notice config freshness =
                 , Attr.title (String.trim (why ++ " " ++ full))
                 ]
                 [ Icon.view Icon.clock
-                , Html.span [ Internal.cls [ "klar-stale__text" ] ] [ Html.text (text config.locale config.zone value.at) ]
+                , Html.span [ Internal.cls [ "klar-stale__text" ] ] [ Html.text (text config.locale value.at) ]
                 , Html.span
                     [ Internal.cls
                         [ "klar-stale__reason"

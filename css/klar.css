@@ -1249,7 +1249,8 @@ table {
 .klar-alert--warning { --_bg: var(--klar-warning-subtle); --_border: var(--klar-warning-border); --_icon: var(--klar-amber-600); }
 .klar-alert--danger { --_bg: var(--klar-danger-subtle); --_border: var(--klar-danger-border); --_icon: var(--klar-red-600); }
 
-.klar-alert--compact { padding: var(--klar-space-2) var(--klar-space-3); font-size: var(--klar-text-sm); }
+.klar-alert--compact,
+:where([data-klar-density="compact"]) .klar-alert:where(:not(.klar-alert--compact, .klar-alert--comfortable)) { padding: var(--klar-space-2) var(--klar-space-3); font-size: var(--klar-text-sm); }
 
 .klar-alert--banner {
   border-radius: 0;
@@ -1299,7 +1300,8 @@ table {
   color: var(--klar-text-secondary);
 }
 
-.klar-state--compact { padding: var(--klar-space-6) var(--klar-space-4); gap: var(--klar-space-1); }
+.klar-state--compact,
+:where([data-klar-density="compact"]) .klar-state:where(:not(.klar-state--compact, .klar-state--comfortable)) { padding: var(--klar-space-6) var(--klar-space-4); gap: var(--klar-space-1); }
 
 .klar-state__icon {
   display: flex;
@@ -1313,7 +1315,8 @@ table {
   color: var(--klar-gray-500);
 }
 
-.klar-state--compact .klar-state__icon { width: 36px; height: 36px; }
+.klar-state--compact .klar-state__icon,
+:where([data-klar-density="compact"]) .klar-state:where(:not(.klar-state--compact, .klar-state--comfortable)) .klar-state__icon { width: 36px; height: 36px; }
 .klar-state--error .klar-state__icon { background: var(--klar-danger-subtle); color: var(--klar-red-600); }
 
 /* Titles and details come from the backend: a long word or an address breaks
@@ -4435,14 +4438,16 @@ table {
   timeline-scope: --klar-table-x, --klar-table-y;
 }
 
-.klar-table--compact {
+.klar-table--compact,
+:where([data-klar-density="compact"]) .klar-table:where(:not(.klar-table--compact, .klar-table--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_head-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_font: var(--klar-text-sm);
 }
 
-.klar-table--comfortable {
+.klar-table--comfortable,
+:where([data-klar-density="comfortable"]) .klar-table:where(:not(.klar-table--compact, .klar-table--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_head-h: var(--klar-row);
   --_cell-px: var(--klar-space-4);
@@ -6951,7 +6956,8 @@ table {
   margin: 0;
 }
 
-.klar-description-list--compact { row-gap: var(--klar-space-2); }
+.klar-description-list--compact,
+:where([data-klar-density="compact"]) .klar-description-list:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) { row-gap: var(--klar-space-2); }
 
 .klar-description-list__item {
   display: flex;
@@ -6999,7 +7005,8 @@ table {
   border-bottom: 1px solid var(--klar-border-subtle);
 }
 
-.klar-description-list--bordered.klar-description-list--compact .klar-description-list__item { padding: 6px 0; }
+.klar-description-list--bordered.klar-description-list--compact .klar-description-list__item,
+:where([data-klar-density="compact"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) .klar-description-list__item { padding: 6px 0; }
 
 /* ---- Stepper --------------------------------------------------------------- */
 
@@ -8378,7 +8385,8 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
   text-decoration: none;
 }
 
-.klar-list--compact .klar-list-item__main {
+.klar-list--compact .klar-list-item__main,
+:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--compact, .klar-list--comfortable)) .klar-list-item__main {
   gap: 8px;
   min-height: 32px;
   padding: 4px 10px;
@@ -8425,7 +8433,8 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
   color: var(--klar-gray-600);
 }
 
-.klar-list--compact .klar-list-item__leading--icon { width: 22px; height: 22px; }
+.klar-list--compact .klar-list-item__leading--icon,
+:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--compact, .klar-list--comfortable)) .klar-list-item__leading--icon { width: 22px; height: 22px; }
 
 .klar-list-item__body {
   display: flex;
@@ -8719,35 +8728,46 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
 
 /* Compact: a dot, one line per event, the time at the right. */
 
-.klar-timeline--compact {
+.klar-timeline--compact,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) {
   --_time-w: 0px;
   --_rail-w: 16px;
   gap: 10px;
 }
 
-.klar-timeline--compact .klar-timeline__days { gap: 10px; }
+.klar-timeline--compact .klar-timeline__days,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__days { gap: 10px; }
 
-.klar-timeline--compact .klar-timeline__day-title { padding-left: 0; }
-.klar-timeline--compact .klar-timeline__footer { padding-left: 0; }
+.klar-timeline--compact .klar-timeline__day-title,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__day-title { padding-left: 0; }
+.klar-timeline--compact .klar-timeline__footer,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__footer { padding-left: 0; }
 
-.klar-timeline--compact .klar-timeline__item {
+.klar-timeline--compact .klar-timeline__item,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__item {
   grid-template-columns: var(--_rail-w) minmax(0, 1fr);
   padding-bottom: 4px;
 }
 
-.klar-timeline--compact .klar-timeline__item:last-child { padding-bottom: 0; }
-.klar-timeline--compact .klar-timeline__item::before { left: calc(var(--_rail-w) / 2); }
-.klar-timeline--compact .klar-timeline__item:first-child::before { top: 10px; }
-.klar-timeline--compact .klar-timeline__item:last-child::before { height: 10px; }
+.klar-timeline--compact .klar-timeline__item:last-child,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__item:last-child { padding-bottom: 0; }
+.klar-timeline--compact .klar-timeline__item::before,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__item::before { left: calc(var(--_rail-w) / 2); }
+.klar-timeline--compact .klar-timeline__item:first-child::before,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__item:first-child::before { top: 10px; }
+.klar-timeline--compact .klar-timeline__item:last-child::before,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__item:last-child::before { height: 10px; }
 
-.klar-timeline--compact .klar-timeline__marker--dot {
+.klar-timeline--compact .klar-timeline__marker--dot,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__marker--dot {
   width: 7px;
   height: 7px;
   margin-top: 6.5px;
   box-shadow: 0 0 0 2px var(--klar-surface);
 }
 
-.klar-timeline--compact .klar-timeline__content { padding-left: 6px; }
+.klar-timeline--compact .klar-timeline__content,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__content { padding-left: 6px; }
 
 .klar-timeline__line {
   display: flex;
@@ -8757,7 +8777,8 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
   min-width: 0;
 }
 
-.klar-timeline--compact .klar-timeline__title {
+.klar-timeline--compact .klar-timeline__title,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__title {
   flex: none;
   max-width: 55%;
   overflow: hidden;
@@ -8767,7 +8788,8 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
 
 /* The description gives way first (shrink factor 20), then the author's name. */
 
-.klar-timeline--compact .klar-timeline__description {
+.klar-timeline--compact .klar-timeline__description,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__description {
   flex: 1 20 auto;
   min-width: 0;
   max-width: none;
@@ -8775,14 +8797,17 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
   color: var(--klar-text-muted);
 }
 
-.klar-timeline--compact .klar-timeline__time {
+.klar-timeline--compact .klar-timeline__time,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__time {
   flex: none;
   margin-left: auto;
   padding: 0;
 }
 
-.klar-timeline--compact .klar-timeline__details-body { margin-top: 4px; }
-.klar-timeline--compact .klar-timeline__details { margin-top: 0; }
+.klar-timeline--compact .klar-timeline__details-body,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__details-body { margin-top: 4px; }
+.klar-timeline--compact .klar-timeline__details,
+:where([data-klar-density="compact"]) .klar-timeline:where(:not(.klar-timeline--compact, .klar-timeline--comfortable)) .klar-timeline__details { margin-top: 0; }
 
 
 /* ==========================================================================
@@ -8928,7 +8953,8 @@ button.klar-stepper__head:disabled { cursor: not-allowed; }
   min-width: 0;
 }
 
-.klar-tree--compact { --_h: 24px; }
+.klar-tree--compact,
+:where([data-klar-density="compact"]) .klar-tree:where(:not(.klar-tree--compact, .klar-tree--comfortable)) { --_h: 24px; }
 
 .klar-tree__scroll { overflow: auto; }
 
@@ -12834,14 +12860,16 @@ a.klar-md__placeholder:hover { border-style: solid; }
   overflow: clip;
 }
 
-.klar-compare--compact {
+.klar-compare--compact,
+:where([data-klar-density="compact"]) .klar-compare:where(:not(.klar-compare--compact, .klar-compare--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_cell-py: var(--klar-space-1);
   --_font: var(--klar-text-sm);
 }
 
-.klar-compare--comfortable {
+.klar-compare--comfortable,
+:where([data-klar-density="comfortable"]) .klar-compare:where(:not(.klar-compare--compact, .klar-compare--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_cell-px: var(--klar-space-4);
   --_cell-py: var(--klar-space-3);
@@ -13556,7 +13584,8 @@ a.klar-md__placeholder:hover { border-style: solid; }
   --_cell-px: var(--klar-space-3);
 }
 
-.klar-permissions--compact {
+.klar-permissions--compact,
+:where([data-klar-density="compact"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_font: var(--klar-text-sm);
@@ -13564,7 +13593,8 @@ a.klar-md__placeholder:hover { border-style: solid; }
   --_col-w: 108px;
 }
 
-.klar-permissions--comfortable {
+.klar-permissions--comfortable,
+:where([data-klar-density="comfortable"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_cell-px: var(--klar-space-4);
 }
@@ -14413,3 +14443,55 @@ a.klar-md__placeholder:hover { border-style: solid; }
 .klar-recurrence__skipped-item {
   min-width: 0;
 }
+
+/* ==== density.css ==== */
+
+/* ==========================================================================
+   Density of the whole application.
+
+   The application states its density once (Klar.Settings, given to the app shell or to
+   `Settings.scope`). The shell carries data-klar-density="compact" or "comfortable" (nothing for
+   normal) and everything inside follows:
+
+   - the control tokens below, which buttons, inputs, selects, menus and options already use;
+   - the compact and comfortable rules of the components that have their own density, which are
+     written next to each component as a second selector (`:where([data-klar-density=...])`).
+     Those have the specificity of the component's own class and leave out a component that has
+     its own explicit density, so `Table.setDensity` still wins for that table.
+
+   The rows of a table, compare and permission matrix follow through those component rules, so
+   --klar-row is not changed here.
+   ========================================================================== */
+
+[data-klar-density="compact"] {
+  --klar-control-sm: 24px;
+  --klar-control: 28px;
+  --klar-control-lg: 36px;
+  --klar-control-px: 8px;
+  --klar-option-h: 28px;
+}
+
+[data-klar-density="comfortable"] {
+  --klar-control-sm: 32px;
+  --klar-control: 40px;
+  --klar-control-lg: 48px;
+  --klar-control-px: 12px;
+  --klar-option-h: 40px;
+}
+
+/* ---- Card ------------------------------------------------------------------ */
+
+[data-klar-density="compact"] .klar-card__header { padding: var(--klar-space-2) var(--klar-space-3); }
+[data-klar-density="compact"] .klar-card__body { padding: var(--klar-space-3); }
+[data-klar-density="compact"] .klar-card__footer { padding: var(--klar-space-2) var(--klar-space-3); }
+
+[data-klar-density="comfortable"] .klar-card__header { padding: var(--klar-space-4) var(--klar-space-5); }
+[data-klar-density="comfortable"] .klar-card__body { padding: var(--klar-space-5); }
+[data-klar-density="comfortable"] .klar-card__footer { padding: var(--klar-space-4) var(--klar-space-5); }
+
+[data-klar-density] .klar-card--flush > .klar-card__body { padding: 0; }
+
+/* ---- Stat ------------------------------------------------------------------ */
+
+:where([data-klar-density="compact"]) .klar-stat:where(:not(.klar-stat--sm, .klar-stat--lg)) { --_fs: 20px; }
+:where([data-klar-density="comfortable"]) .klar-stat:where(:not(.klar-stat--sm, .klar-stat--lg)) { --_fs: 30px; }

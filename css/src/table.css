@@ -27,14 +27,16 @@
   timeline-scope: --klar-table-x, --klar-table-y;
 }
 
-.klar-table--compact {
+.klar-table--compact,
+:where([data-klar-density="compact"]) .klar-table:where(:not(.klar-table--compact, .klar-table--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_head-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_font: var(--klar-text-sm);
 }
 
-.klar-table--comfortable {
+.klar-table--comfortable,
+:where([data-klar-density="comfortable"]) .klar-table:where(:not(.klar-table--compact, .klar-table--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_head-h: var(--klar-row);
   --_cell-px: var(--klar-space-4);

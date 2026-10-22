@@ -7,7 +7,7 @@ module Klar.AppShell exposing
     , overlays
     , onSkipToContent, focusContent, shortcuts
     , id, height, width, onStrayDrop
-    , locale
+    , locale, settings
     )
 
 {-| The frame of a whole application: a top bar, a sidebar and a content area
@@ -273,7 +273,7 @@ change without JavaScript.
 
 # Language
 
-@docs locale
+@docs locale, settings
 
 -}
 
@@ -289,8 +289,10 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay exposing (Overlay)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.SideNav as SideNav
 import Klar.Text as Text
+import Klar.Theme exposing (Density(..))
 import Task
 import Url exposing (Url)
 
@@ -334,6 +336,7 @@ type alias Config msg =
     , onStrayDrop : Maybe msg
     , shortcuts : Maybe (Html.Attribute msg)
     , locale : Locale
+    , density : Density
     }
 
 
@@ -366,6 +369,7 @@ configure attributes =
         , onStrayDrop = Nothing
         , shortcuts = Nothing
         , locale = Locale.default
+        , density = Normal
         }
         attributes
 
@@ -647,6 +651,19 @@ the right language.
 locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
+
+
+{-| The density of the application, from its `Klar.Settings`: everything inside
+the shell follows it (the rows of tables, controls, cards, lists and trees), with
+no attribute on the components. A component that is given its own density
+(`Table.setDensity`) keeps it.
+
+    AppShell.settings model.settings
+
+-}
+settings : Settings -> Attribute msg
+settings value =
+    Attribute (\config -> { config | density = Settings.density value })
 
 
 
@@ -1106,6 +1123,7 @@ view attributes content =
                 "klar-app-shell--no-sidebar"
             ]
          , Attr.id config.id
+         , Internal.densityAttr config.density
 
          -- `<html lang>` cannot change without JavaScript; the language of the
          -- application's own subtree can, so screen readers pronounce it right.

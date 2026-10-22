@@ -9,7 +9,7 @@ module Klar.Table exposing
     , Attribute, columns, rows, rowId, rowLabel, server, label, locale
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
-    , zone, onRefresh, onRetry, emptyState
+    , onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
     , pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
     , Rows, prepareRows, rowsArray, preparedRows
@@ -261,7 +261,7 @@ a saved view.
 
 # Loading and empty states
 
-@docs zone, onRefresh, onRetry, emptyState
+@docs onRefresh, onRetry, emptyState
 
 
 # Toolbar and export
@@ -2356,7 +2356,6 @@ type alias Config row msg =
     , onRefresh : Maybe msg
     , refreshing : Bool
     , freshness : Freshness
-    , zone : Time.Zone
     , onRetry : Maybe msg
     , export : Maybe String
     , csvSeparator : Maybe Char
@@ -2400,7 +2399,6 @@ configure attributes =
         , onRefresh = Nothing
         , refreshing = False
         , freshness = Freshness.Fresh
-        , zone = Time.utc
         , onRetry = Nothing
         , export = Nothing
         , csvSeparator = Nothing
@@ -2828,13 +2826,6 @@ shows a spinner while the rows are refreshing (`Remote.refresh`) or loading.
 onRefresh : msg -> Attribute id row msg
 onRefresh msg =
     Attribute (\config -> { config | onRefresh = Just msg })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> Attribute id row msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 {-| The message to send when the user clicks "Try again" in the error state, which
@@ -3752,7 +3743,7 @@ view toMsg attributes (State model) =
                 -- the retry button goes away when the data is fresh: focus waits on the table
                 Html.div [ Events.on "click" (retryClicked ctx) ]
                     [ Freshness.notice
-                        { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                        { locale = config.locale, onRetry = config.onRetry, inline = False }
                         config.freshness
                     ]
 

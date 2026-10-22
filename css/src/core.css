@@ -663,7 +663,8 @@
 .klar-alert--warning { --_bg: var(--klar-warning-subtle); --_border: var(--klar-warning-border); --_icon: var(--klar-amber-600); }
 .klar-alert--danger { --_bg: var(--klar-danger-subtle); --_border: var(--klar-danger-border); --_icon: var(--klar-red-600); }
 
-.klar-alert--compact { padding: var(--klar-space-2) var(--klar-space-3); font-size: var(--klar-text-sm); }
+.klar-alert--compact,
+:where([data-klar-density="compact"]) .klar-alert:where(:not(.klar-alert--compact, .klar-alert--comfortable)) { padding: var(--klar-space-2) var(--klar-space-3); font-size: var(--klar-text-sm); }
 
 .klar-alert--banner {
   border-radius: 0;
@@ -713,7 +714,8 @@
   color: var(--klar-text-secondary);
 }
 
-.klar-state--compact { padding: var(--klar-space-6) var(--klar-space-4); gap: var(--klar-space-1); }
+.klar-state--compact,
+:where([data-klar-density="compact"]) .klar-state:where(:not(.klar-state--compact, .klar-state--comfortable)) { padding: var(--klar-space-6) var(--klar-space-4); gap: var(--klar-space-1); }
 
 .klar-state__icon {
   display: flex;
@@ -727,7 +729,8 @@
   color: var(--klar-gray-500);
 }
 
-.klar-state--compact .klar-state__icon { width: 36px; height: 36px; }
+.klar-state--compact .klar-state__icon,
+:where([data-klar-density="compact"]) .klar-state:where(:not(.klar-state--compact, .klar-state--comfortable)) .klar-state__icon { width: 36px; height: 36px; }
 .klar-state--error .klar-state__icon { background: var(--klar-danger-subtle); color: var(--klar-red-600); }
 
 /* Titles and details come from the backend: a long word or an address breaks

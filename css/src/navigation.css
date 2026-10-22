@@ -1353,7 +1353,8 @@
   margin: 0;
 }
 
-.klar-description-list--compact { row-gap: var(--klar-space-2); }
+.klar-description-list--compact,
+:where([data-klar-density="compact"]) .klar-description-list:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) { row-gap: var(--klar-space-2); }
 
 .klar-description-list__item {
   display: flex;
@@ -1401,7 +1402,8 @@
   border-bottom: 1px solid var(--klar-border-subtle);
 }
 
-.klar-description-list--bordered.klar-description-list--compact .klar-description-list__item { padding: 6px 0; }
+.klar-description-list--bordered.klar-description-list--compact .klar-description-list__item,
+:where([data-klar-density="compact"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) .klar-description-list__item { padding: 6px 0; }
 
 /* ---- Stepper --------------------------------------------------------------- */
 

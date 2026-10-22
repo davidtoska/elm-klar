@@ -1,6 +1,6 @@
 module Klar.RemoteView exposing
     ( view
-    , Attribute, onRetry, loadingLabel, skeleton, zone, locale
+    , Attribute, onRetry, loadingLabel, skeleton, locale
     )
 
 {-| The body of a card, a dialog or a drawer that shows one piece of remote data:
@@ -45,7 +45,7 @@ the dialog by itself; in a `Card` it falls to the page, so move it yourself
 
 # Attributes
 
-@docs Attribute, onRetry, loadingLabel, skeleton, zone, locale
+@docs Attribute, onRetry, loadingLabel, skeleton, locale
 
 -}
 
@@ -71,7 +71,6 @@ type alias Config msg =
     { onRetry : Maybe msg
     , loadingLabel : Maybe String
     , skeleton : Maybe (Html msg)
-    , zone : Time.Zone
     , locale : Locale
     }
 
@@ -79,7 +78,7 @@ type alias Config msg =
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { onRetry = Nothing, loadingLabel = Nothing, skeleton = Nothing, zone = Time.utc, locale = Locale.default }
+        { onRetry = Nothing, loadingLabel = Nothing, skeleton = Nothing, locale = Locale.default }
         attributes
 
 
@@ -106,13 +105,6 @@ The default is a title line and a few lines of text.
 skeleton : Html msg -> Attribute msg
 skeleton html =
     Attribute (\config -> { config | skeleton = Just html })
-
-
-{-| The time zone of the time in "Old data from 14:05". The default is UTC.
--}
-zone : Time.Zone -> Attribute msg
-zone value =
-    Attribute (\config -> { config | zone = value })
 
 
 {-| The language of the built-in text ("Loading", "Try again", "Old data from").
@@ -166,7 +158,7 @@ view attributes data toBody =
                         , Freshness.busyAttr freshness
                         ]
                         (Freshness.notice
-                            { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                            { locale = config.locale, onRetry = config.onRetry, inline = False }
                             freshness
                             :: toBody value
                         )
