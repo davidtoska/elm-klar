@@ -53,34 +53,48 @@ Klar field, the state holds the value and there are no out-messages: compare
 
 An item is in one of the lists and never in both: "Available" is the source without
 what is chosen. The chosen ids are kept in the order of the source by default, so
-the same set always gives the same value; `order movedOrder` keeps them in the
-order the user moved them in instead (for a list of columns, say). An id that the
-source no longer has stays in "Chosen" with the text "Unknown value" (or what
-`valueText` writes) and can be taken out; it is never dropped quietly. An item that
-is disabled and chosen is locked: it stays in "Chosen".
+the same set gives the same value; `order movedOrder` keeps them in the order the
+user moved them in instead (for a list of columns, say). Only a move changes the
+order of the value: marking, filtering and looking never do. Ids that you set with
+`setValues` are put in the order of the items at once when the field has seen the
+items (it has once it was looked at), and otherwise kept as you gave them until the
+first move, so give them in the order of the items to have the same value from the
+start. An id that the source no longer has stays in "Chosen" with the text
+"Unknown value" (or what `valueText` writes) and can be taken out; it is never
+dropped quietly. An item that is disabled and chosen is locked: it stays in
+"Chosen".
 
 Each list has a filter box above it and a header check box that marks everything
 that is shown (a dash when only some are marked), with the count ("3 of 120
 selected"). Items are marked with a click or Space and moved with the arrow
 buttons between the lists (">" moves the marked items, ">>" all that are shown
-after the filter), with a double click, or with the keyboard. Both lists show only
+after the filter), with a double click, or with the keyboard. The filter only
+hides: an item that is marked and hidden by the filter stays marked, and is not
+moved by ">" while it is hidden (the count says how many marked items are shown).
+Both lists show only
 the rows that are visible (see [Klar.VirtualList](Klar-VirtualList)), so a source
 with many thousands of items stays fast. On a narrow space the lists are stacked
-and the buttons sit between them.
+and the buttons sit between them (the field fills the width of its container, so
+put it in one that has a width). Right-to-left languages are not supported: the
+keys for moving between the lists assume left-to-right text.
 
 Keyboard: Tab goes from the filter box to the list, to the buttons and on. In a
+filter box Enter or ArrowDown moves on to the list (and never submits a form). In a
 list ArrowDown and ArrowUp, Home and End, and PageUp and PageDown move the
-highlight, and Shift with the arrows marks a range. Space marks or unmarks the
+highlight, and Shift with the arrows marks a range from where the last mark was
+made (going back shrinks it). Space marks or unmarks the
 highlighted item and Ctrl+A marks all that are shown. Enter moves the marked items
 to the other list (the highlighted item when none is marked), Ctrl+ArrowRight in
 "Available" and Ctrl+ArrowLeft in "Chosen" do the same, and with Shift they move
-all that are shown. Typing letters jumps to the next item that starts with them.
+all that are shown. Typing letters jumps to the next item that starts with them
+(an item that is disabled is skipped, as it is by the arrow keys).
 
 Accessibility: the field is a `group` with the label; each list is a `listbox` with
 `aria-multiselectable`, with the highlighted row named by `aria-activedescendant`,
 and its rows are `option`s with `aria-selected` for the mark. The move buttons have
-names ("Move selected to Chosen"). After a move a polite live region says what
-happened ("3 items moved to Chosen"). The built-in text follows `locale` and is
+names ("Move selected to “Chosen”"). After a move, and after the filter changed, a
+polite live region says what happened ("3 items moved to “Chosen”", "12 shown in
+“Available”"). The built-in text follows `locale` and is
 English by default (see [Klar.Locale](Klar-Locale)).
 
 
@@ -174,6 +188,7 @@ type alias Data id =
     , marks : Both (Set String)
     , cursors : Both (Maybe String)
     , anchors : Both (Maybe String)
+    , ranges : Both (Set String)
     , lists : Both VirtualList.State
     , typed : { buffer : String, seq : Int }
     , announcement : Maybe { text : String, tick : Int }
@@ -239,6 +254,7 @@ init domId =
         , marks = { available = Set.empty, chosen = Set.empty }
         , cursors = { available = Nothing, chosen = Nothing }
         , anchors = { available = Nothing, chosen = Nothing }
+        , ranges = { available = Set.empty, chosen = Set.empty }
         , lists = { available = VirtualList.init (listId domId Available), chosen = VirtualList.init (listId domId ChosenSide) }
         , typed = { buffer = "", seq = 0 }
         , announcement = Nothing
@@ -317,8 +333,18 @@ setValues ids newValues (State data) =
                 ( [], Set.empty )
                 newValues
 
-        ordered =
+        given =
             List.reverse chosen
+
+        -- once the component knows the items, what is set is put in order at
+        -- once, so that the value is the same for the same set from the start
+        ordered =
+            case data.cache of
+                Just cache ->
+                    Lists.normalize cache.order cache.source given
+
+                Nothing ->
+                    given
     in
     State (settle { data | chosen = ordered, chosenKeys = Set.fromList (List.map .key ordered) })
 
@@ -385,9 +411,9 @@ rebuild env data =
                 Nothing ->
                     env.source
 
-        chosen =
-            Lists.normalize env.order source data.chosen
-
+        -- the order of the chosen ids changes only when the user moves items (or
+        -- when ids are set from the code and the items are known): looking at the
+        -- lists, marking and filtering never change the value
         remembered =
             List.map
                 (\c ->
@@ -398,7 +424,7 @@ rebuild env data =
                         Nothing ->
                             c
                 )
-                chosen
+                data.chosen
 
         keys =
             Set.fromList (List.map .key remembered)
@@ -472,6 +498,7 @@ type Msg id
     | Typed Side (Env id) String
     | ClearTyped Int
     | FocusList Side
+    | Warm (Env id)
     | ListMsg Side VirtualList.Msg
     | NoOp
 
@@ -561,8 +588,27 @@ advance msg data0 =
 
                 ( list, scroll ) =
                     VirtualList.scrollTo 0 (pick side changed.lists)
+
+                shown =
+                    Array.length (rowsOf side changed)
+
+                announced =
+                    if List.isEmpty (Lists.filterWords text) then
+                        changed.announcement
+
+                    else
+                        Just
+                            { text = (Texts.texts env.locale).filtered shown (pick side env.titles)
+                            , tick = changed.ticks + 1
+                            }
             in
-            ( { changed | lists = put side list changed.lists }, Cmd.map (ListMsg side) scroll )
+            ( { changed
+                | lists = put side list changed.lists
+                , announcement = announced
+                , ticks = changed.ticks + 1
+              }
+            , Cmd.map (ListMsg side) scroll
+            )
 
         Key side env move ->
             keyMove side env move (ensure env data0)
@@ -582,7 +628,18 @@ advance msg data0 =
                     cursorIndex side data
 
                 target =
-                    Lists.typeahead buffer current (Array.map .labelNorm rows)
+                    Lists.typeahead buffer
+                        current
+                        (Array.map
+                            (\row ->
+                                if row.option.disabled then
+                                    ""
+
+                                else
+                                    row.labelNorm
+                            )
+                            rows
+                        )
 
                 sequence =
                     data.typed.seq + 1
@@ -613,8 +670,13 @@ advance msg data0 =
             , Cmd.none
             )
 
-        FocusList _ ->
-            ( data0, Cmd.none )
+        FocusList side ->
+            ( data0, Internal.focus (listId data0.id side) NoOp )
+
+        Warm env ->
+            -- the first look at the field (the pointer or the focus comes in)
+            -- works the lists out once, so that no later draw has to
+            ( ensure env data0, Cmd.none )
 
         ListMsg side inner ->
             let
@@ -662,55 +724,83 @@ markItem side key extend data =
 
         Just index ->
             let
-                rows =
-                    rowsOf side data
-
                 enabled =
-                    Array.get index rows |> Maybe.map rowIsEnabled |> Maybe.withDefault False
+                    Array.get index (rowsOf side data) |> Maybe.map rowIsEnabled |> Maybe.withDefault False
 
                 marks =
                     pick side data.marks
-
-                rangeFrom =
-                    if extend then
-                        pick side data.anchors |> Maybe.andThen (\anchor -> Dict.get anchor (positionsOf side data))
-
-                    else
-                        Nothing
             in
             if not enabled then
                 data
 
+            else if extend && pick side data.anchors /= Nothing then
+                extendRange side key data
+
             else
-                case rangeFrom of
-                    Just from ->
-                        let
-                            inRange =
-                                rows
-                                    |> Array.toList
-                                    |> List.indexedMap Tuple.pair
-                                    |> List.filter (\( i, row ) -> i >= min from index && i <= max from index && rowIsEnabled row)
-                                    |> List.map (Tuple.second >> .key)
-                        in
-                        { data
-                            | marks = put side (List.foldl Set.insert marks inRange) data.marks
-                            , cursors = put side (Just key) data.cursors
-                        }
+                { data
+                    | marks =
+                        put side
+                            (if Set.member key marks then
+                                Set.remove key marks
 
-                    Nothing ->
-                        { data
-                            | marks =
-                                put side
-                                    (if Set.member key marks then
-                                        Set.remove key marks
+                             else
+                                Set.insert key marks
+                            )
+                            data.marks
+                    , cursors = put side (Just key) data.cursors
+                    , anchors = put side (Just key) data.anchors
+                    , ranges = put side Set.empty data.ranges
+                }
 
-                                     else
-                                        Set.insert key marks
-                                    )
-                                    data.marks
-                            , cursors = put side (Just key) data.cursors
-                            , anchors = put side (Just key) data.anchors
-                        }
+
+{-| Marks the range from the anchor to a row (Shift+click, Shift+arrow). The range
+is the only thing that grows or shrinks while the user goes on: what was marked
+before it started stays marked, and what the previous step of the range marked
+and this one does not is unmarked.
+-}
+extendRange : Side -> String -> Data id -> Data id
+extendRange side key data =
+    let
+        positions =
+            positionsOf side data
+
+        rows =
+            rowsOf side data
+
+        marks =
+            pick side data.marks
+
+        previous =
+            pick side data.ranges
+
+        from =
+            pick side data.anchors |> Maybe.andThen (\anchor -> Dict.get anchor positions)
+
+        to =
+            Dict.get key positions
+    in
+    case ( from, to ) of
+        ( Just a, Just b ) ->
+            let
+                inRange =
+                    rows
+                        |> Array.toList
+                        |> List.indexedMap Tuple.pair
+                        |> List.filter (\( i, row ) -> i >= min a b && i <= max a b && rowIsEnabled row)
+                        |> List.map (Tuple.second >> .key)
+                        |> Set.fromList
+
+                before =
+                    Set.diff marks previous
+            in
+            { data
+                | marks = put side (Set.union before inRange) data.marks
+                , ranges = put side (Set.diff inRange before) data.ranges
+                , cursors = put side (Just key) data.cursors
+            }
+
+        _ ->
+            data
 
 
 markAll : Side -> Bool -> Data id -> Data id
@@ -732,6 +822,7 @@ markAll side on data =
                     List.foldl Set.remove marks keys
                 )
                 data.marks
+        , ranges = put side Set.empty data.ranges
     }
 
 
@@ -827,7 +918,16 @@ keyMove side env move data =
         goTo target =
             case target of
                 Just i ->
-                    cursorTo env side i data
+                    let
+                        ( moved, scroll ) =
+                            cursorTo env side i data
+                    in
+                    ( { moved
+                        | anchors = put side (pick side moved.cursors) moved.anchors
+                        , ranges = put side Set.empty moved.ranges
+                      }
+                    , scroll
+                    )
 
                 Nothing ->
                     stay
@@ -986,6 +1086,7 @@ transfer env side keys data =
                         { available = Set.diff data.marks.available keyset
                         , chosen = Set.diff data.marks.chosen keyset
                         }
+                    , ranges = { available = Set.empty, chosen = Set.empty }
                 }
 
         after =
@@ -1102,8 +1203,8 @@ onRetry msg =
 
 {-| The titles of the two lists. The default is "Available" and "Chosen" (in the
 language of `locale`). The titles name the lists for screen readers, label the
-buttons and are used in the announcement after a move ("3 items moved to In the
-promotion").
+buttons and are used in the announcement after a move ("3 items moved to “In the
+promotion”"), in quotes wherever a title is part of a sentence.
 
     Transfer.titles { available = "All products", chosen = "In the promotion" }
 
@@ -1121,9 +1222,10 @@ type Order
 
 
 {-| The chosen ids are kept in the order of the items, whatever the order in which
-the user moved them. This is the default: the same set of ids is always the same
-value, so comparing the value before and after an update tells whether anything
-changed.
+the user moved them. This is the default: after a move the same set of ids is always
+the same value, so comparing the value before and after an update tells whether
+anything changed. The value changes order only when the user moves items (or when
+ids are set from the code and the field knows the items).
 -}
 sourceOrder : Order
 sourceOrder =
@@ -1131,7 +1233,8 @@ sourceOrder =
 
 
 {-| The chosen ids are kept in the order in which the user moved them, the newest
-last. Use it when the order means something, such as the columns of an export.
+last: that order is the value, and `setValues` keeps the order it is given. Use it
+when the order means something, such as the columns of an export.
 -}
 movedOrder : Order
 movedOrder =
@@ -1224,7 +1327,8 @@ disabled value_ =
 
 {-| While `True` the field shows its lists but does not let the user change them,
 and the lists can still be scrolled and read. Unlike `disabled` it is not dimmed.
-The default is `False`.
+The two are independent; with both set the field is disabled. The default is
+`False`.
 -}
 readOnly : Bool -> Attribute id msg
 readOnly value_ =
@@ -1330,6 +1434,14 @@ view toMsg attributes (State data) =
 
         interactive =
             not config.disabled && not config.readOnly
+
+        fresh =
+            case data.cache of
+                Just cache ->
+                    cache.options == items && cache.order == config.order
+
+                Nothing ->
+                    False
     in
     Field.viewGroup field
         (Html.fieldset
@@ -1351,6 +1463,18 @@ view toMsg attributes (State data) =
                    , Attr.attribute "role" "group"
                    , Internal.attrIf (field.label /= Nothing) (Attr.attribute "aria-labelledby" (Field.labelId field))
                    ]
+                ++ (if fresh then
+                        []
+
+                    else
+                        -- the first time the pointer or the focus comes in, the lists
+                        -- are worked out once and kept, so that later draws do not
+                        -- have to (the field cannot do it before: it has no items
+                        -- until it is drawn)
+                        [ Events.on "mouseenter" (Decode.succeed (toMsg (Warm env)))
+                        , Events.on "focusin" (Decode.succeed (toMsg (Warm env)))
+                        ]
+                   )
             )
             [ viewLegend field
             , Html.div
@@ -1646,6 +1770,12 @@ viewPane toMsg config t env data interactive side =
                 , Attr.spellcheck False
                 , Attr.disabled config.disabled
                 , Events.onInput (QueryChanged side env >> toMsg)
+
+                -- Enter never submits a surrounding form: it goes on to the list
+                , View.onKeydown
+                    { handled = [ ( "Enter", toMsg (FocusList side) ), ( "ArrowDown", toMsg (FocusList side) ) ]
+                    , passive = []
+                    }
                 ]
                 []
             , if query /= "" then
