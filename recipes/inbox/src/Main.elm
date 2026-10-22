@@ -5,8 +5,9 @@ that edit one `Rule` and the table's query, and the glue that every such list ne
 
   - compare the query and the rule before and after each `update`;
   - go back to page 1 when the rule changed;
-  - wait a moment (debounce) so a changing filter does not ask the server on every edit (the
-    search box has its own debounce in server mode);
+  - nothing to debounce: the search box and the filter fields of the table already wait 350 ms in
+    server mode, the filter bar changes its rule only when the user applies a filter, and a sort
+    click or a page change should ask at once;
   - give each request a ticket and drop answers that are not for the latest one.
 
 The "server" is `search`, a function over an in-memory list behind `Process.sleep`.
@@ -115,7 +116,6 @@ type Msg
     | FilterBarMsg FilterBar.Msg
     | ViewsMsg SavedViews.Msg
     | SaveView
-    | Debounced Int
     | GotPage Int Time.Posix (Result Remote.Problem Page)
     | Retry
 
@@ -162,14 +162,14 @@ update msg model =
                 ( table, cmd ) =
                     Table.update m model.table
             in
-            changed model { model | table = table } (Cmd.map TableMsg cmd)
+            askIfChanged model { model | table = table } (Cmd.map TableMsg cmd)
 
         FilterBarMsg m ->
             let
                 ( filterBar, cmd ) =
                     FilterBar.update m model.filterBar
             in
-            changed model { model | filterBar = filterBar } (Cmd.map FilterBarMsg cmd)
+            askIfChanged model { model | filterBar = filterBar } (Cmd.map FilterBarMsg cmd)
 
         ViewsMsg m ->
             let
@@ -197,7 +197,7 @@ update msg model =
                             Nothing ->
                                 next.table
                 in
-                changed model { next | filterBar = FilterBar.setRule rule next.filterBar, table = table } (Cmd.map ViewsMsg cmd)
+                askIfChanged model { next | filterBar = FilterBar.setRule rule next.filterBar, table = table } (Cmd.map ViewsMsg cmd)
 
             else
                 ( next, Cmd.map ViewsMsg cmd )
@@ -209,13 +209,6 @@ update msg model =
                     SavedViews.startSave model.views
             in
             ( { model | views = views }, Cmd.map ViewsMsg cmd )
-
-        Debounced ticket ->
-            if ticket == model.ticket then
-                fetch model
-
-            else
-                ( model, Cmd.none )
 
         GotPage ticket at result ->
             if ticket /= model.ticket then
@@ -232,20 +225,20 @@ update msg model =
                         ( { model | page = Remote.refreshWith model.page (Err problem) at }, Cmd.none )
 
         Retry ->
-            fetch model
+            request model
 
 
-{-| Compare before and after. If the query or the rule changed, ask again, after a pause. A new
+{-| Compare before and after. If the query or the rule changed, ask again with a new ticket. A new
 rule starts at page 1: page 7 of the old answer means nothing for the new one.
 -}
 
 
 
--- KLAR GAP: no server-mode helper; comparing query and rule, resetting the page, the debounce and the ticket (about 40 lines) are the same in every server-mode list.
+-- KLAR GAP: no server-mode helper; comparing query and rule, resetting the page and the ticket (about 30 lines) are the same in every server-mode list.
 
 
-changed : Model -> Model -> Cmd Msg -> ( Model, Cmd Msg )
-changed before after cmd =
+askIfChanged : Model -> Model -> Cmd Msg -> ( Model, Cmd Msg )
+askIfChanged before after cmd =
     let
         ruleChanged =
             FilterBar.rule after.filterBar /= FilterBar.rule before.filterBar
@@ -259,12 +252,10 @@ changed before after cmd =
     in
     if ruleChanged || Table.query next.table /= Table.query before.table then
         let
-            ticket =
-                next.ticket + 1
+            ( asked, askCmd ) =
+                request { next | ticket = next.ticket + 1 }
         in
-        ( { next | ticket = ticket }
-        , Cmd.batch [ cmd, Process.sleep 250 |> Task.perform (\_ -> Debounced ticket) ]
-        )
+        ( asked, Cmd.batch [ cmd, askCmd ] )
 
     else
         ( next, cmd )
@@ -272,11 +263,6 @@ changed before after cmd =
 
 {-| Ask now. Rows that are already on the screen stay (dimmed and busy, see `Remote.refresh`) while the answer comes.
 -}
-fetch : Model -> ( Model, Cmd Msg )
-fetch model =
-    request model
-
-
 request : Model -> ( Model, Cmd Msg )
 request model =
     ( { model | page = Remote.refresh model.page }

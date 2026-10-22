@@ -11,7 +11,12 @@ icons and counts, and groups that open and close.
 
 Use when: the sidebar needs vertical navigation with sections, links, counts and groups that open and close.
 Do not use when: you need tabs inside a page (use `Klar.Tabs`) or the path to the current page (use `Klar.Breadcrumbs`).
-Quick path: `init`, `update`, `view`, `reveal`
+Quick path: `keys`, `item`, `section`, `withIcon`, `entries`; the state, `init`, `update`, `view` and `reveal`, belong to the shell
+
+**In an application, `Klar.AppShell` holds the state and the messages of the side menu**: you write the
+entries (`keys`, `item`, `withIcon`) and give `AppShell.sideNav ShellMsg [ SideNav.entries menu ] model.shell` to the shell's
+`sidebar`. Do not add a `SideNav.State` of your own beside it. The wiring below is for a side menu
+without the shell (a gallery, a drawer of your own).
 
     import Klar.Icon as Icon
     import Klar.SideNav as SideNav

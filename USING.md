@@ -9,10 +9,8 @@ parts fit together in an application that talks to a backend.
 
 *Writing the application with an AI? Point it at [AI.md](AI.md) first; section 4 below has the paragraph for the application's own `CLAUDE.md`.*
 
-A complete application with the frame of Klar: a `Browser.application` with an
-`AppShell`, a side menu typed by your own `Page`, and a `Remote` that a table draws.
-It compiles as it stands. Copy it, then replace `fetchOrders` with a real request
-(see section 3).
+A complete application with the frame of Klar is in AI.md and in `template/`. The parts
+you set up around it are `elm.json`, `index.html` and the request to your backend.
 
 **`elm.json`.** An application that uses `Browser.application` imports `Url`, so
 `elm/url` must be a *direct* dependency next to the ones Klar needs
@@ -48,199 +46,12 @@ the margin of the `body`, so the page needs no CSS of its own:
 URL after `#`, so any static file server works and nothing has to be configured to
 send every path to `index.html`.
 
-**`src/Main.elm`.**
-
-```elm
-module Main exposing (main)
-
-import Browser
-import Browser.Navigation as Nav
-import Html exposing (Html)
-import Klar
-import Klar.AppShell as AppShell
-import Klar.Icon as Icon
-import Klar.PageHeader as PageHeader
-import Klar.Remote as Remote exposing (Remote(..))
-import Klar.SideNav as SideNav
-import Klar.Table as Table
-import Process
-import Task
-import Url exposing (Url)
-
-
-type Page
-    = Orders
-    | Customers
-
-
-type alias Order =
-    { id : String, customer : String, total : Float }
-
-
-type alias Model =
-    { page : Page
-    , shell : AppShell.State Page
-    , table : Table.State String
-    , orders : Remote (List Order)
-    }
-
-
-type Msg
-    = ShellMsg AppShell.Msg
-    | TableMsg Table.Msg
-    | GotOrders (Result Remote.Problem (List Order))
-    | Reload
-
-
-main : Program () Model Msg
-main =
-    Browser.application
-        { init = init
-        , update = update
-        , view = view
-        , subscriptions = \_ -> Sub.none
-        , onUrlRequest = AppShell.onUrlRequest ShellMsg
-        , onUrlChange = AppShell.onUrlChange ShellMsg
-        }
-
-
-init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key =
-    let
-        page =
-            pageFromUrl url
-    in
-    ( { page = page
-      , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
-      , table = Table.init "orders"
-      , orders = Loading
-      }
-    , fetchOrders
-    )
-
-
-{-| Stands for a request: replace it with `Http.get` and `Result.mapError`.
--}
-fetchOrders : Cmd Msg
-fetchOrders =
-    Process.sleep 600
-        |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics Ltd" 1250.5, Order "1043" "Fjord Foods" 310 ])
-        |> Task.perform GotOrders
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        ShellMsg m ->
-            let
-                ( shell, cmd, changed ) =
-                    AppShell.update m model.shell
-            in
-            case changed of
-                Just url ->
-                    -- the one place that learns of a new route
-                    let
-                        page =
-                            pageFromUrl url
-                    in
-                    ( { model | page = page, shell = AppShell.setPage navigation page shell }
-                    , Cmd.map ShellMsg cmd
-                    )
-
-                Nothing ->
-                    ( { model | shell = shell }, Cmd.map ShellMsg cmd )
-
-        TableMsg m ->
-            let
-                ( table, cmd ) =
-                    Table.update m model.table
-            in
-            ( { model | table = table }, Cmd.map TableMsg cmd )
-
-        Reload ->
-            ( { model | orders = Loading }, fetchOrders )
-
-        GotOrders result ->
-            ( { model | orders = Remote.fromResult result }, Cmd.none )
-
-
-view : Model -> Browser.Document Msg
-view model =
-    { title = "Acme Operations"
-    , body =
-        [ Klar.stylesheet
-        , AppShell.view
-            [ AppShell.state ShellMsg model.shell
-            , AppShell.brand
-                (AppShell.brandLink { name = "Acme Operations", href = "#/", logo = Nothing })
-            , AppShell.sidebar
-                (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
-            ]
-            [ viewPage model ]
-        ]
-    }
-
-
-viewPage : Model -> Html Msg
-viewPage model =
-    case model.page of
-        Orders ->
-            Html.div []
-                [ PageHeader.view [ PageHeader.title "Orders" ]
-                , Table.view TableMsg
-                    [ Table.columns
-                        [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
-                        , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
-                        , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
-                        ]
-                    , Table.rows model.orders
-                    , Table.rowId Table.stringIds .id
-                    , Table.onRetry Reload
-                    ]
-                    model.table
-                ]
-
-        Customers ->
-            PageHeader.view [ PageHeader.title "Customers" ]
-
-
-
--- NAVIGATION
-
-
-pageToString : Page -> String
-pageToString page =
-    case page of
-        Orders ->
-            "orders"
-
-        Customers ->
-            "customers"
-
-
-pageKeys : SideNav.Keys Page
-pageKeys =
-    SideNav.keys pageToString
-
-
-navigation : List (SideNav.Entry Page msg)
-navigation =
-    [ SideNav.item pageKeys { key = Orders, label = "Orders", href = "#/orders" }
-        |> SideNav.withIcon Icon.clipboardCheck
-    , SideNav.item pageKeys { key = Customers, label = "Customers", href = "#/customers" }
-        |> SideNav.withIcon Icon.users
-    ]
-
-
-pageFromUrl : Url -> Page
-pageFromUrl url =
-    case url.fragment of
-        Just "/customers" ->
-            Customers
-
-        _ ->
-            Orders
-```
+**`src/Main.elm`.** Copy the program in [AI.md](AI.md) ("The standard application"), or
+[template/src/Main.elm](template/src/Main.elm), which adds a confirmation dialog. Both are the
+same application: a `Browser.application` with an `AppShell` that owns the address, the
+sidebar and the focus, a side menu typed by your own `Page`, and a `Remote` that a table draws.
+There is one way to wire the frame (AI.md, "The frame"); do not write a `LinkClicked` or a
+`SideNav.init` next to it. Replace `fetchOrders` with a real request (see section 3).
 
 ## 1. Getting Klar into a project
 
@@ -422,7 +233,7 @@ your own, `List.map (Overlay.map PageMsg) overlays` gives the list to the main m
 link, on your own navigation and on the browser's Back and Forward buttons. Six
 functions, and the complete application is at the top of
 [`Klar.LeaveGuard`](src/Klar/LeaveGuard.elm): `initAt` (with the `Key` and the `Url`),
-`setDirty` (with the comparison, `draft /= saved`), `request` (for links and your own
+`setDirty` (with the comparison, `draft /= saved`; in the branches of the messages that edit a form, never in a wrapper after every message, because "Leave" gives the changes up and a flag that says "dirty" again re-arms the guard), `request` (for links and your own
 navigation), `onUrlChange` (call it from your `onUrlChange`: it answers the buttons and
 says which page to show), `update` and `view`. You do not write: a field for the
 address you are going back from, a target type that remembers where the request came

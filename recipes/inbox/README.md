@@ -6,9 +6,9 @@ Klar modules: `Klar.Table` (server mode), `Klar.FilterBar`, `Klar.SavedViews`, `
 
 The pattern, all in `update`:
 
-1. `Table`, `FilterBar` and `SavedViews` only record what the user asked for. After each of their `update` calls, compare `Table.query` and `FilterBar.rule` with the values before (`changed`).
+1. `Table`, `FilterBar` and `SavedViews` only record what the user asked for. After each of their `update` calls, compare `Table.query` and `FilterBar.rule` with the values before (`askIfChanged`).
 2. When the rule changed, `Table.setPage 1`.
-3. When anything changed, bump `ticket` and start `Process.sleep 250 |> Task.perform (\_ -> Debounced ticket)`. Only the `Debounced` message that carries the latest ticket sends the request.
+3. When anything changed, bump `ticket` and send the request. Write **no debounce**: in server mode the table already waits 350 ms after typing in its search box and filter fields (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change should ask at once.
 4. The answer `GotPage ticket result` is dropped when its ticket is not the latest one.
 5. `SavedViews.revision` changed means a view was applied: `FilterBar.setRule` with the rule of `SavedViews.active`, and `Table.setQuery` with its `query` when it has one (`SavedViews.currentQuery` makes saved views hold search, sort and filters). A button calls `SavedViews.startSave` to open the save form; `asShared` marks a view as the team's.
 6. `Remote.refresh` when the request leaves and `Remote.refreshWith` when the answer comes keep the old rows (dimmed and busy) and, if the request fails, show them as old data with a retry; `Table.onRetry` handles a failure with no rows, `Table.onRefresh` adds a refresh button.

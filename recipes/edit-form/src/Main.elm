@@ -150,6 +150,7 @@ type Msg
     | FormMsg Form.Msg
     | ToastMsg Toast.Msg
     | Submit
+    | Retry
     | Saved (Result (List SaveProblem) ())
     | Discard
     | Reload
@@ -218,6 +219,14 @@ update msg model =
                                 Form.reveal form model.state
                         in
                         ( { model | state = state }, Cmd.map FormMsg cmd )
+
+        Retry ->
+            -- "Try again" is replaced by "Saving ..." the moment it is pressed: move focus to the status line
+            let
+                ( retried, cmd ) =
+                    update Submit model
+            in
+            ( retried, Cmd.batch [ cmd, FormLayout.focusStatus "customer-form" NoOp ] )
 
         Saved (Ok ()) ->
             let
@@ -327,7 +336,7 @@ viewForm model =
             Form.bind Locale.default FormMsg form model.state
 
         attributes =
-            [ FormLayout.id "customer-form", FormLayout.onSubmit Submit, FormLayout.onRetry Submit ]
+            [ FormLayout.id "customer-form", FormLayout.onSubmit Submit, FormLayout.onRetry Retry ]
     in
     FormLayout.view attributes
         [ FormLayout.unsavedChanges [ FormLayout.onDiscard Discard, FormLayout.saving (model.status == FormLayout.Submitting) ] (Form.isDirty model.state)

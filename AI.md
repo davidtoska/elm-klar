@@ -5,47 +5,48 @@ applications: tables with 50 000 rows, filters, forms, dialogs, dashboards. You 
 application, a person reviews it. An application is **Klar plus your own Elm code**: no CSS, no
 JavaScript, no class names, no `style`.
 
-Read in this order, and stop when you can write the screen:
+Read in this order, and stop when you can write the screen: this file; `ai/klar-index.json` (search
+`keywords`, `purpose`, `whenToUse`, `whenNot`, `quickPath`, `related` before you open anything);
+`ai/modules/<Module>.md` (every signature, then the documentation; the long ones start with a Quick
+path); `recipes/<name>/src/Main.elm` (six compiled screens) and `template/` (the starting
+application); `USING.md` (project set-up, a backend). Do not read `docs.json`, `src/`, `example/` or `apps/`.
 
-1. This file (about 10 minutes).
-2. `ai/klar-index.json`: search `keywords`, `purpose`, `whenToUse`, `whenNot`, `related` before you open anything.
-3. `ai/modules/<Module>.md`: every signature first, then the documentation. `ai/modules/README.md` lists them.
-4. `recipes/<name>/src/Main.elm`: a complete compiled program for the six common screens. `template/`: the starting application.
-5. `USING.md`: getting Klar into a project, `elm.json`, `index.html`, talking to a backend.
+## Start here
 
-Do not read `docs.json`, `src/`, `example/` or `apps/`. Everything you need is in the files above.
+**The model.**
 
-## The mental model
+- **A component is `State` + `Msg` + `update` + `view`**, wired like any child in the Elm Architecture:
+  `Foo.State` in your model, a `FooMsg Foo.Msg` in your `Msg`, `Foo.update m model.foo` with `Cmd.map FooMsg`,
+  `Foo.view FooMsg [ attributes ] model.foo`. Read the value with `Foo.value model.foo` and compare before and
+  after `update` to react. There are no out-messages.
+- **A view-only component is one function and a list of attributes**: `Button.view [ Button.primary, Button.onClick Save ] "Save"`.
+  Attributes are opaque; their order does not matter; the last one of a kind wins.
+- **The `String` you give to `init` is the DOM id**, unique on the page. Keep them as named values in one place.
+- **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem`, and `Kept`, see the traps). Give it to
+  `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.options` ...: they draw the skeleton, the failure
+  with retry and the empty state. Klar never sends a request; you turn the result into a `Remote` with `Remote.fromResult`.
+- **Your ids are your own types**, given once: `Table.rowIds { toKey, fromKey }`, `Tree.nodeIds`, `SideNav.keys`, `Klar.Ids`.
+  A table column is a `Table.columnId "total"`, named once.
+- **Overlays go in one list**: `Modal`, `Drawer`, `ConfirmDialog`, `CommandPalette`, `ShortcutHelp`, `Toast`, `LeaveGuard` return an
+  `Overlay`; give the list to `AppShell.overlays` (or `Overlay.host`). The layer makes the page inert and returns focus.
+- **Dates are `Klar.Date`, money is `Klar.Money`, built-in text follows `Locale.en` or `Locale.nb`.**
 
-- **A component is `State` + `Msg` + `update` + `view`**, wired like any child in the Elm
-  Architecture. Keep `Foo.State` in your model, a `FooMsg Foo.Msg` in your `Msg`, call
-  `Foo.update m model.foo` and `Cmd.map FooMsg`, and `Foo.view FooMsg [ attributes ] model.foo`.
-  The state holds the value: read it with `Foo.value model.foo` and compare before and after
-  `update` to react. There are no out-messages.
-- **A view-only component is one function with a list of attributes**: `Button.view [ Button.primary, Button.onClick Save ] "Save"`.
-  Attributes are opaque values of the module; their order does not matter; the last one of a kind wins.
-- **The `String` you give to `init` is the DOM id** and must be unique on the page. Keep them as named values in one place.
-- **Data from a backend is a `Remote a`**: `NotAsked | Loading | Loaded a | Failed Problem`. Give it to
-  `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Timeline.remote`,
-  `Select.options` ... and they draw the skeleton, the failure with retry and the empty state.
-  Klar never sends a request. You turn the result into a `Remote` (`Remote.fromResult`).
-- **Your ids are your own types.** `Table.rowIds { toKey, fromKey }` once, then `Table.selectedIds`
-  returns `List OrderId`. The same for `Tree.nodeIds`, `SideNav.keys`, `Select.option id label`,
-  `Picking.ids`, `Klar.Ids` (`Ids.make`, once). Never pass a bare `String` where an id belongs. A table column is a
-  `Table.columnId "total"`, named once.
-- **Overlays go in one list.** `Modal`, `Drawer`, `ConfirmDialog`, `CommandPalette`, `ShortcutHelp` and `Toast`
-  return an `Overlay`. Give the list to `AppShell.overlays` (or `Overlay.host`). The layer makes the page inert, keeps
-  the toasts reachable and returns focus to the opener. You write no focus code.
-- **Dates are `Klar.Date`** (no time zone, no 31 February), money is `Klar.Money` (minor units), text you write
-  yourself is plain `String`, built-in text follows `Locale.en` or `Locale.nb`.
-- **A form is `Klar.Form`**: declare it once with `Klar.Form.Spec`, keep one `Form.State` and one `Form.Msg`, get the record back with `Form.toValues`.
-- **Navigation is hash routes** in a `Browser.application`: `AppShell` + `SideNav`, a `Page` type of your own.
+**The frame.** There is one way to wire the application frame: `AppShell` keeps the sidebar, the drawer, the current link and
+the key. The model holds `page : Page` and `shell : AppShell.State Page`; the messages hold one `ShellMsg AppShell.Msg`; `main` passes
+`AppShell.onUrlRequest ShellMsg` and `AppShell.onUrlChange ShellMsg`; `init` makes the shell with `AppShell.init { id, key }` and
+`AppShell.setPage navigation page`; `update` calls `AppShell.update` and gets `( shell, cmd, address )`. The **address** is the only place
+that learns of a new route (a link, Back, a `pushUrl`): set `page` from it and call `AppShell.setPage` again. Following links,
+`pushUrl`, scroll to the top, the drawer and its focus are done for you. You write no `LinkClicked`, `UrlChanged` or `SideNav.init`. Only
+when a click must be held back (`LeaveGuard`) give `Browser.application` a `onUrlRequest` message of your own and call `Nav.pushUrl` when
+it may go on; everything else stays. `elm.json` needs `elm/url` as a **direct** dependency, and `Elm.Main.init()` takes no `node`.
+
+**The three rules that matter most.** (1) Backend data is a `Remote` given to the component, and ids are your own types.
+(2) Every overlay is in the one overlay list, also while closed, and an opener has an id (`Button.id`). (3) You write no CSS, focus,
+popup, scroll, date or keyboard code: if you feel you need it, a module does it (the table at the end).
 
 ## The standard application
 
-This compiles as it stands (`npm run check:ai-docs` compiles it). `elm.json` needs `elm/browser`, `elm/core`,
-`elm/html`, `elm/json`, `elm/time` and **`elm/url` as direct dependencies**; mount it with `Elm.Main.init()` (no
-`node`). The full version with a confirmation dialog is `template/src/Main.elm`.
+This compiles as it stands (`npm run check:ai-names` compiles it). The full version with a confirmation dialog is `template/src/Main.elm`.
 
 ```elm
 module Main exposing (main)
@@ -77,9 +78,8 @@ type alias Order =
 
 
 type alias Model =
-    { key : Nav.Key
-    , page : Page
-    , sideNav : SideNav.State Page
+    { page : Page
+    , shell : AppShell.State Page
     , table : Table.State String
     , orders : Remote (List Order)
     , toasts : Toast.State Msg
@@ -87,14 +87,11 @@ type alias Model =
 
 
 type Msg
-    = LinkClicked Browser.UrlRequest
-    | UrlChanged Url
-    | SideNavMsg SideNav.Msg
+    = ShellMsg AppShell.Msg
     | TableMsg Table.Msg
     | ToastMsg Toast.Msg
     | GotOrders (Result Remote.Problem (List Order))
     | Reload
-    | NoOp
 
 
 main : Program () Model Msg
@@ -104,8 +101,8 @@ main =
         , update = update
         , view = view
         , subscriptions = \_ -> Sub.none
-        , onUrlRequest = LinkClicked
-        , onUrlChange = UrlChanged
+        , onUrlRequest = AppShell.onUrlRequest ShellMsg
+        , onUrlChange = AppShell.onUrlChange ShellMsg
         }
 
 
@@ -115,9 +112,8 @@ init _ url key =
         page =
             pageFromUrl url
     in
-    ( { key = key
-      , page = page
-      , sideNav = SideNav.init "main-nav" |> SideNav.reveal page navigation
+    ( { page = page
+      , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
       , table = Table.init "orders"
       , orders = Loading
       , toasts = Toast.init
@@ -137,27 +133,24 @@ fetchOrders =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        LinkClicked (Browser.Internal url) ->
-            ( model, Nav.pushUrl model.key (Url.toString url) )
-
-        LinkClicked (Browser.External href) ->
-            ( model, Nav.load href )
-
-        UrlChanged url ->
+        ShellMsg m ->
             let
-                page =
-                    pageFromUrl url
+                ( shell, cmd, address ) =
+                    AppShell.update m model.shell
             in
-            ( { model | page = page, sideNav = SideNav.reveal page navigation model.sideNav }
-            , AppShell.resetScroll "shell" NoOp
-            )
+            case address of
+                Just url ->
+                    -- the one place that learns of a new route
+                    let
+                        page =
+                            pageFromUrl url
+                    in
+                    ( { model | page = page, shell = AppShell.setPage navigation page shell }
+                    , Cmd.map ShellMsg cmd
+                    )
 
-        SideNavMsg m ->
-            let
-                ( sideNav, cmd ) =
-                    SideNav.update m model.sideNav
-            in
-            ( { model | sideNav = sideNav }, Cmd.map SideNavMsg cmd )
+                Nothing ->
+                    ( { model | shell = shell }, Cmd.map ShellMsg cmd )
 
         TableMsg m ->
             let
@@ -183,9 +176,6 @@ update msg model =
         Reload ->
             ( { model | orders = Loading }, fetchOrders )
 
-        NoOp ->
-            ( model, Cmd.none )
-
 
 view : Model -> Browser.Document Msg
 view model =
@@ -193,9 +183,9 @@ view model =
     , body =
         [ Klar.stylesheet
         , AppShell.view
-            [ AppShell.id "shell"
+            [ AppShell.state ShellMsg model.shell
             , AppShell.brand (AppShell.brandLink { name = "Acme Operations", href = "#/", logo = Nothing })
-            , AppShell.sidebar (SideNav.view SideNavMsg [ SideNav.entries navigation, SideNav.current model.page ] model.sideNav)
+            , AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
             , AppShell.overlays [ Toast.view ToastMsg [] model.toasts ]
             ]
             [ viewPage model ]
@@ -261,13 +251,38 @@ pageFromUrl url =
 1. **Import only exposed modules** (`Klar`, `Klar.Button`, ...; the list is in `elm.json`). Never `Klar.Internal.*`, `Klar.Table.Sort` or a copy of a component.
 2. **No CSS, no class, no `style`, no `Html.node "style"`.** Put `Klar.stylesheet` once in the view. Looks come from `Theme` values, layout from `Klar.Layout`, text from `Klar.Text`.
 3. **Your own id types.** A `type OrderId = OrderId Int`, with `toKey` and `fromKey` given once; DOM ids and column ids are named values.
-4. **Backend data is a `Remote`.** Do not write the four cases; give the `Remote` to the component. Turn your error into `Remote.problem Remote.timeout` (or `network`, `notFound`, `forbidden`, `server` ...).
+4. **Backend data is a `Remote`.** Do not write its cases; give it to the component. Turn your error into `Remote.problem Remote.timeout` (or `network`, `notFound`, `forbidden`, `server` ...).
 5. **Overlays go in the overlay list**, always, also while closed. Give the opener an id (`Button.id`) and pass it to `open`.
-6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. If you feel you need it, find the module in the table below.
+6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. Find the module in the table below.
 7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** A `Time.Posix` is needed once, for today.
 8. **Forms use `Klar.Form`** (declared with `Klar.Form.Spec`, framed with `Klar.Form.Layout`). Server problems go in with `Form.rejected`, steps with `Form.advance`; do not keep a second copy of field values or of the problems.
-9. **Server mode is the same four steps everywhere**: compare the query before and after `update`, reset the page to 1 when a filter changed, debounce, and ticket the answer so a late one is dropped. See `recipes/inbox`.
+9. **Server mode is four steps**: compare `Table.query` (and the `FilterBar` rule) before and after `update`; `Table.setPage 1` when the rule changed; ask with a new ticket; drop an answer whose ticket is not the latest (`recipes/inbox`). **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. Debounce only what Klar does not: the query of a `CommandPalette.remote` section (a counter, see its doc) and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
 10. **When Klar lacks something, say so.** Write the best honest version, put a comment `-- KLAR GAP: what is missing` above it, and carry on. Do not copy a component, wrap it in your own CSS or import an internal module.
+
+## Small things that come up
+
+- **A day count from a data set to a date and back**: `Date.fromEpochDay (baseDay + n)` and `Date.toEpochDay date - baseDay` (day 0 is 1 January 1970); `Date.addDays` and `Date.diffDays` do the rest.
+- **A price rule ("if the category is X and the quantity above Y, take Z off")**: `Rule` and `RuleBuilder` hold only the condition. The outcome is yours: one `RuleBuilder.State` per outcome in a list, `{ when : RuleBuilder.State, discountPercent : Float }`, and `Rule.matches today fields (RuleBuilder.rule r.when) row` to ask a row. The example is in `ai/modules/Klar.RuleBuilder.md`.
+- **A failed save with "Try again"**: `FormLayout.onRetry` gets its own message, and that branch runs the save and `FormLayout.focusStatus`; "Try again" is replaced by "Saving ..." and focus would fall to the page. Server problems per field are `Form.rejected`, which also focuses the summary (`recipes/edit-form`).
+- **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave when the user answers "Leave" (`recipes/multi-step`).
+- **A sidebar that is not a `SideNav`**: `AppShell.sidebar` takes any `Html` (a `Tree`, a list of saved views).
+
+## Common traps
+
+Each is checked against the current source; the ones the library has fixed are gone.
+
+- **Give a component its data once.** `Chart.remote`, `Stat.remote`, `Table.rows` take a `Remote`, including its old data; do not add `loading` or `failed` next to them.
+- **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs, or after it failed). A `case` of your own needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a refresh with `Remote.refresh`, finish it with `Remote.refreshWith old result now`; never write a failed refresh over good data.
+- **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
+- **Focus returns to an opener only if it has an id** (`Button.id`, a `SideNav` link, a field). Without one it goes to the last element that had an id, which may be elsewhere (`LeaveGuard` "Stay" too).
+- **A `ConfirmDialog` may hold one or two controls in `body`** (a reason, a target); a real form is a `Modal`. **Server-mode `Table.exportCsv`** offers the selection only while every selected row is on the page; export from the backend for a selection that spans pages.
+- **`Table.activeExternalFilters n`** tells "no matches" from "no data" for filters outside the table; wire `onResetFilters` once to clear the filter bar and the table's own filters.
+- **The first type parameter of `Form` and `Form.State` is the step type** (`()` for a form without steps). Declare the form in `Klar.Form.Spec` once, at the top of a file.
+- **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
+- **Toasts move to the top while a dialog or drawer is open** and can cover the drawer title for a few seconds.
+- **`Card.title` is an `h2`, and so is a `Form.Layout.section` title.** A card inside a section, or under any `h2`, needs `Card.headingLevel 3`.
+- **The page needs an `h1` in every state.** A `RemoteView` or `ErrorState` draws none while it loads or has failed, so keep the `PageHeader` outside it. Their "Try again" also loses keyboard focus (a known gap): follow the retry with `AppShell.goToContent model.shell |> Cmd.map ShellMsg`.
+- **`Time.Posix` is needed once**, for today (`Date.fromPosix`); `Remote.refreshWith` also takes the time of the answer.
 
 ## I need X, use module Y
 
@@ -304,24 +319,6 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 
 **Date and time**
 - The date type: `Date`. A date field: `DatePicker`. A period: `DateRangePicker`. Time: `TimePicker`. Both: `DateTimePicker`. A month with marks: `Calendar`. "Every second Tuesday": `Recurrence` with `RecurrencePicker`.
-
-## Common traps
-## Common traps
-
-Found while building three applications twice. Those the library has fixed since are gone; each one left is checked against the current source.
-
-- **Attribute order is free, but the last of a kind wins.** Give a component its data once: `Chart.remote`, `Stat.remote`, `Table.rows` take a `Remote`, including its old data (`Kept`). Do not add `loading` or `failed` next to them.
-- **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs or after it failed). A `case` on a `Remote` needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a refresh with `Remote.refresh` and finish it with `Remote.refreshWith old result now`; do not write a failed refresh over good data.
-- **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
-- **Focus returns to an opener only if it has an id.** `Button.id` for a button that opens a dialog; a link or row without an id returns focus to the last element that had one, which may be elsewhere (`LeaveGuard` "Stay" too).
-- **Server-mode `Table.exportCsv` offers the selection only while every selected row is on the page.** Export from the backend for a selection that spans pages.
-- **`Table.activeExternalFilters n`** only tells "no matches" from "no data"; wire `onResetFilters` once to clear the filter bar and the table's own filters.
-- **11 columns do not fit next to the sidebar at 1280 px**; the footer sums can end up behind a scroll. Set `minWidth`, `hiddenByDefault` or a narrower column.
-- **`Klar.Form` is the form model**, and its layout functions are in `Klar.Form.Layout`. Declare in `Klar.Form.Spec` once at the top of a file; the first type parameter of `Form` and `State` is the step type (`()` for a form without steps).
-- **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
-- **Toasts move to the top while a dialog or drawer is open** and cover the drawer title for a few seconds.
-- **`Time.Posix` is needed once**, for today (`Date.fromPosix`); `Remote.refreshWith` also takes the time of the answer.
-- **`import Url` needs `elm/url` as a direct dependency**, and `Elm.Main.init()` for `Browser.application` takes no `node` (`Browser.element` does).
 
 ## Links
 
