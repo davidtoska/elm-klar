@@ -62,10 +62,18 @@ to rely on.
 When the page replaces what the user was looking at without a navigation (the
 form that was just submitted, a list that failed to load), the focused button is
 gone with it and focus falls to the page body, so nothing is read. Give the page an
-`id` and, in the same `update` that shows it, call `focusTitle`: the title takes
-focus and the screen reader reads the result.
+`id` and, in the same `update` that shows it, call `focusTitle` with the same text:
+the title takes focus and the screen reader reads the result. Keep the text in one
+place, a value of your own, so that the two cannot differ; `focusTitle` does nothing
+when no element has the id.
 
-    StatusPage.focusTitle "order-created" NoOp
+    orderCreated : String
+    orderCreated =
+        "order-created"
+
+    StatusPage.view [ StatusPage.id orderCreated ] StatusPage.success
+
+    StatusPage.focusTitle orderCreated NoOp
 
 The page fills the height of the region it is in (the content of an `AppShell`, a
 panel with a height) without making it scroll, and grows when its content needs
@@ -287,7 +295,8 @@ actions value =
 {-| A correlation id for support, such as the id of the failed request, shown
 small under the actions as "Reference: req-7f3a-91c2". The text is selected
 completely by one click, so that `Ctrl C` copies it (a button that copies needs
-JavaScript). There is none by default.
+JavaScript). There is none by default, and a blank one is left out, like a blank
+title.
 -}
 reference : String -> Attribute msg
 reference value =
@@ -324,8 +333,11 @@ standalone =
     Attribute (\config -> { config | standalone = True })
 
 
-{-| The DOM id of the page, which must be unique on the page. It makes the title
-focusable, and `focusTitle` moves focus to it. There is no id by default.
+{-| The DOM id of the element that `focusTitle` moves focus to, which must be unique
+on the page: the title, which becomes focusable, or the whole page when it has no
+title (a blank `title`), so that there is always something to focus. Give `focusTitle`
+the same text. There is no id by default, and without one `focusTitle` finds nothing
+and does nothing.
 -}
 id : String -> Attribute msg
 id value =
@@ -346,22 +358,18 @@ locale value =
 -- FOCUS
 
 
-{-| Moves focus to the title of the page with this `id` (see the attribute `id`).
-Call it in the same `update` that starts to show the page, when the page replaces
-what the user was working with. The message is sent when it is done, whether it
-worked or not.
+{-| Moves focus to the title of the page that has this `id` (the page itself when it
+has no title; see the attribute `id`). Pass the same text as to `id`: if no element
+has it, nothing happens. Call it in the same `update` that starts to show the page,
+when the page replaces what the user was working with. The message is sent when it is
+done, whether it worked or not.
 
     StatusPage.focusTitle "order-created" NoOp
 
 -}
 focusTitle : String -> msg -> Cmd msg
 focusTitle pageId done =
-    Internal.focus (titleId pageId) done
-
-
-titleId : String -> String
-titleId pageId =
-    pageId ++ "-title"
+    Internal.focus pageId done
 
 
 
@@ -410,9 +418,21 @@ view attributes kind =
 
         details =
             List.filterMap identity
-                [ Maybe.map (\code -> ( Locale.pick config.locale { nb = "Kode", en = "Code" }, code )) facts.code
-                , Maybe.map (\ref -> ( Locale.pick config.locale { nb = "Referanse", en = "Reference" }, ref )) config.reference
+                [ Maybe.map (\code -> ( Locale.pick config.locale { nb = "Kode", en = "Code" }, code )) (Maybe.andThen Internal.nonEmpty facts.code)
+                , Maybe.map (\ref -> ( Locale.pick config.locale { nb = "Referanse", en = "Reference" }, ref )) (Maybe.andThen Internal.nonEmpty config.reference)
                 ]
+
+        shownTitleText =
+            Internal.nonEmpty shownTitle
+
+        -- The element `focusTitle` finds: the title, or the page when it has none.
+        focusable =
+            case config.id of
+                Just pageId ->
+                    [ Attr.id pageId, Attr.tabindex -1 ]
+
+                Nothing ->
+                    []
 
         root =
             if config.standalone then
@@ -422,7 +442,7 @@ view attributes kind =
                 Html.div
     in
     root
-        [ Internal.cls
+        (Internal.cls
             [ "klar-status-page"
             , "klar-status-page--" ++ facts.tone
             , if config.standalone then
@@ -431,22 +451,20 @@ view attributes kind =
               else
                 ""
             ]
-        , Internal.attrMaybe Attr.id config.id
-        ]
+            :: (case shownTitleText of
+                    Just _ ->
+                        []
+
+                    Nothing ->
+                        focusable
+               )
+        )
         [ Html.span [ Internal.cls [ "klar-status-page__icon" ] ]
             [ Icon.sized Icon.ExtraLarge (Maybe.withDefault facts.icon config.icon) ]
-        , case Internal.nonEmpty shownTitle of
+        , case shownTitleText of
             Just text ->
                 Internal.heading config.headingLevel
-                    ([ Internal.cls [ "klar-status-page__title" ] ]
-                        ++ (case config.id of
-                                Just pageId ->
-                                    [ Attr.id (titleId pageId), Attr.tabindex -1 ]
-
-                                Nothing ->
-                                    []
-                           )
-                    )
+                    (Internal.cls [ "klar-status-page__title" ] :: focusable)
                     [ Html.text text ]
 
             Nothing ->

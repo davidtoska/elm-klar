@@ -165,6 +165,15 @@ init =
 
 
 
+-- THE ID OF THE PAGE THAT REPLACES THE FORM: one place, so that `id` and `focusTitle` agree
+
+
+createdId : String
+createdId =
+    "flow-created"
+
+
+
 -- SAMPLE DATA
 
 
@@ -254,7 +263,7 @@ update msg model =
         CreateOrder ->
             -- the form is gone in the next frame, and so is the focused button:
             -- the title of the page that replaces it takes focus
-            ( { model | created = True }, StatusPage.focusTitle "flow-created" NoOp )
+            ( { model | created = True }, StatusPage.focusTitle createdId NoOp )
 
         CreateAnother ->
             ( { model | created = False, customer = "" }
@@ -570,7 +579,7 @@ statusSection locale model =
                 (if model.created then
                     StatusPage.view
                         [ StatusPage.locale locale
-                        , StatusPage.id "flow-created"
+                        , StatusPage.id createdId
                         , StatusPage.title ("Order created for " ++ model.customer)
                         , StatusPage.description "A confirmation was sent to the customer."
                         , StatusPage.icon Icon.package
