@@ -12,17 +12,23 @@ mechanical.
 
 import Html exposing (Html)
 import Klar.Locale exposing (Locale)
+import Page.Gallery.Actions as Actions
+import Page.Gallery.Arranging as Arranging
 import Page.Gallery.Basics as Basics
 import Page.Gallery.Catalog as Catalog exposing (Section(..))
 import Page.Gallery.DataDisplay as DataDisplay
 import Page.Gallery.DateTime as DateTime
+import Page.Gallery.Flow as Flow
 import Page.Gallery.Forms as Forms
 import Page.Gallery.Foundations as Foundations
 import Page.Gallery.Index as Index
+import Page.Gallery.Markdown as Markdown
 import Page.Gallery.Navigation as Navigation
 import Page.Gallery.Overlays as Overlays
+import Page.Gallery.Review as Review
 import Page.Gallery.Rules as Rules
 import Page.Gallery.Selects as Selects
+import Page.Gallery.Structured as Structured
 import Page.Gallery.Tables as Tables
 
 
@@ -42,6 +48,12 @@ type alias Model =
     , navigation : Maybe Navigation.Model
     , dataDisplay : Maybe DataDisplay.Model
     , rules : Maybe Rules.Model
+    , arranging : Maybe Arranging.Model
+    , actions : Maybe Actions.Model
+    , flow : Maybe Flow.Model
+    , markdown : Maybe Markdown.Model
+    , review : Maybe Review.Model
+    , structured : Maybe Structured.Model
     }
 
 
@@ -58,6 +70,12 @@ init =
     , navigation = Nothing
     , dataDisplay = Nothing
     , rules = Nothing
+    , arranging = Nothing
+    , actions = Nothing
+    , flow = Nothing
+    , markdown = Nothing
+    , review = Nothing
+    , structured = Nothing
     }
 
 
@@ -77,6 +95,12 @@ type Msg
     | NavigationMsg Navigation.Msg
     | DataDisplayMsg DataDisplay.Msg
     | RulesMsg Rules.Msg
+    | ArrangingMsg Arranging.Msg
+    | ActionsMsg Actions.Msg
+    | FlowMsg Flow.Msg
+    | MarkdownMsg Markdown.Msg
+    | ReviewMsg Review.Msg
+    | StructuredMsg Structured.Msg
 
 
 {-| Creates the page for a section if it has not been visited yet. Call it when
@@ -114,6 +138,24 @@ ensure section model =
 
         Rules ->
             create model.rules Rules.init (\page -> { model | rules = page }) RulesMsg model
+
+        Arranging ->
+            create model.arranging Arranging.init (\page -> { model | arranging = page }) ArrangingMsg model
+
+        Actions ->
+            create model.actions Actions.init (\page -> { model | actions = page }) ActionsMsg model
+
+        Flow ->
+            create model.flow Flow.init (\page -> { model | flow = page }) FlowMsg model
+
+        Markdown ->
+            create model.markdown Markdown.init (\page -> { model | markdown = page }) MarkdownMsg model
+
+        Review ->
+            create model.review Review.init (\page -> { model | review = page }) ReviewMsg model
+
+        Structured ->
+            create model.structured Structured.init (\page -> { model | structured = page }) StructuredMsg model
 
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
@@ -161,6 +203,24 @@ update msg model =
 
         RulesMsg inner ->
             step model.rules (Rules.update inner) (\page -> { model | rules = page }) RulesMsg model
+
+        ArrangingMsg inner ->
+            step model.arranging (Arranging.update inner) (\page -> { model | arranging = page }) ArrangingMsg model
+
+        ActionsMsg inner ->
+            step model.actions (Actions.update inner) (\page -> { model | actions = page }) ActionsMsg model
+
+        FlowMsg inner ->
+            step model.flow (Flow.update inner) (\page -> { model | flow = page }) FlowMsg model
+
+        MarkdownMsg inner ->
+            step model.markdown (Markdown.update inner) (\page -> { model | markdown = page }) MarkdownMsg model
+
+        ReviewMsg inner ->
+            step model.review (Review.update inner) (\page -> { model | review = page }) ReviewMsg model
+
+        StructuredMsg inner ->
+            step model.structured (Structured.update inner) (\page -> { model | structured = page }) StructuredMsg model
 
 
 {-| Runs a page's update on its model, if the page exists.
@@ -221,6 +281,24 @@ view locale maybeSection model =
                 Rules ->
                     show RulesMsg (Rules.view locale) model.rules
 
+                Arranging ->
+                    show ArrangingMsg (Arranging.view locale) model.arranging
+
+                Actions ->
+                    show ActionsMsg (Actions.view locale) model.actions
+
+                Flow ->
+                    show FlowMsg (Flow.view locale) model.flow
+
+                Markdown ->
+                    show MarkdownMsg (Markdown.view locale) model.markdown
+
+                Review ->
+                    show ReviewMsg (Review.view locale) model.review
+
+                Structured ->
+                    show StructuredMsg (Structured.view locale) model.structured
+
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
 show toMsg viewPage maybePage =
@@ -275,6 +353,24 @@ subscriptions maybeSection model =
 
                 Rules ->
                     sub RulesMsg Rules.subscriptions model.rules
+
+                Arranging ->
+                    sub ArrangingMsg Arranging.subscriptions model.arranging
+
+                Actions ->
+                    sub ActionsMsg Actions.subscriptions model.actions
+
+                Flow ->
+                    sub FlowMsg Flow.subscriptions model.flow
+
+                Markdown ->
+                    sub MarkdownMsg Markdown.subscriptions model.markdown
+
+                Review ->
+                    sub ReviewMsg Review.subscriptions model.review
+
+                Structured ->
+                    sub StructuredMsg Structured.subscriptions model.structured
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

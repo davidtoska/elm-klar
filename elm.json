@@ -18,7 +18,12 @@
         ],
         "Actions": [
             "Klar.Button",
-            "Klar.Menu"
+            "Klar.Menu",
+            "Klar.ButtonGroup",
+            "Klar.ToggleGroup",
+            "Klar.SplitButton",
+            "Klar.Link",
+            "Klar.Kbd"
         ],
         "Status and feedback": [
             "Klar.Badge",
@@ -49,7 +54,10 @@
             "Klar.Radio",
             "Klar.Switch",
             "Klar.Slider",
-            "Klar.SegmentedControl"
+            "Klar.SegmentedControl",
+            "Klar.MaskedInput",
+            "Klar.Money",
+            "Klar.MoneyInput"
         ],
         "Choosing": [
             "Klar.Select",
@@ -95,6 +103,22 @@
             "Klar.Accordion",
             "Klar.Toolbar",
             "Klar.DescriptionList"
+        ],
+        "Arranging": [
+            "Klar.Sortable",
+            "Klar.Splitter"
+        ],
+        "Pages and flow": [
+            "Klar.StatusPage",
+            "Klar.BulkBar",
+            "Klar.LeaveGuard",
+            "Klar.History"
+        ],
+        "Text and change": [
+            "Klar.Markdown",
+            "Klar.MarkdownEditor",
+            "Klar.Diff",
+            "Klar.Compare"
         ],
         "Data display": [
             "Klar.Stat",

@@ -10778,3 +10778,27 @@ html:has(.klar-modal-lock) {
   color: var(--klar-text-muted);
   font-size: var(--klar-text-sm);
 }
+
+/* ==== arranging.css ==== */
+
+/* Sortable, Splitter. */
+
+/* ==== actions.css ==== */
+
+/* ButtonGroup, ToggleGroup, SplitButton, Link, Kbd. */
+
+/* ==== flow.css ==== */
+
+/* StatusPage, BulkBar, LeaveGuard, History. */
+
+/* ==== markdown.css ==== */
+
+/* Markdown, MarkdownEditor. */
+
+/* ==== review.css ==== */
+
+/* Diff, Compare. */
+
+/* ==== structured.css ==== */
+
+/* MaskedInput, Money, MoneyInput. */

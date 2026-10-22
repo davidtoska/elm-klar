@@ -28,11 +28,17 @@ type Section
     | Navigation
     | DataDisplay
     | Rules
+    | Arranging
+    | Actions
+    | Flow
+    | Markdown
+    | Review
+    | Structured
 
 
 all : List Section
 all =
-    [ Foundations, Basics, Selects, Tables, Forms, DateTime, Overlays, Navigation, DataDisplay, Rules ]
+    [ Foundations, Basics, Selects, Tables, Forms, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured ]
 
 
 slug : Section -> String
@@ -67,6 +73,24 @@ slug section =
 
         Rules ->
             "rules"
+
+        Arranging ->
+            "arranging"
+
+        Actions ->
+            "actions"
+
+        Flow ->
+            "flow"
+
+        Markdown ->
+            "markdown"
+
+        Review ->
+            "review"
+
+        Structured ->
+            "structured-input"
 
 
 fromSlug : String -> Maybe Section
@@ -107,6 +131,24 @@ title section =
         Rules ->
             "Rules and filters"
 
+        Arranging ->
+            "Arranging and resizing"
+
+        Actions ->
+            "Actions and links"
+
+        Flow ->
+            "Pages and flow"
+
+        Markdown ->
+            "Markdown"
+
+        Review ->
+            "Diff and compare"
+
+        Structured ->
+            "Structured input"
+
 
 icon : Section -> Icon
 icon section =
@@ -141,6 +183,24 @@ icon section =
         Rules ->
             Icon.sliders
 
+        Arranging ->
+            Icon.move
+
+        Actions ->
+            Icon.zap
+
+        Flow ->
+            Icon.flag
+
+        Markdown ->
+            Icon.fileText
+
+        Review ->
+            Icon.gitBranch
+
+        Structured ->
+            Icon.keyboard
+
 
 description : Section -> String
 description section =
@@ -174,6 +234,24 @@ description section =
 
         Rules ->
             "The rule builder, the filter bar and saved views."
+
+        Arranging ->
+            "Drag or key a list into a new order, and resize panes by dragging or with the keyboard."
+
+        Actions ->
+            "Button groups, toggle groups, split buttons, links and keyboard keys."
+
+        Flow ->
+            "Result pages, the bulk action bar, the leave guard and undo history."
+
+        Markdown ->
+            "A safe Markdown renderer that copes with unfinished text, and an editor with preview."
+
+        Review ->
+            "What changed: text, JSON and record diffs, and records side by side."
+
+        Structured ->
+            "Masked input for phone numbers, IBAN and the like, and exact money input."
 
 
 {-| The components shown on each page.
@@ -210,6 +288,24 @@ components section =
 
         Rules ->
             [ "RuleBuilder", "FilterBar", "SavedViews" ]
+
+        Arranging ->
+            [ "Sortable", "Splitter" ]
+
+        Actions ->
+            [ "ButtonGroup", "ToggleGroup", "SplitButton", "Link", "Kbd" ]
+
+        Flow ->
+            [ "StatusPage", "BulkBar", "LeaveGuard", "History" ]
+
+        Markdown ->
+            [ "Markdown", "MarkdownEditor" ]
+
+        Review ->
+            [ "Diff", "Compare" ]
+
+        Structured ->
+            [ "MaskedInput", "Money", "MoneyInput" ]
 
 
 componentCount : Int
