@@ -146,7 +146,8 @@
             "Klar.Rule",
             "Klar.RuleBuilder",
             "Klar.FilterBar",
-            "Klar.SavedViews"
+            "Klar.SavedViews",
+            "Klar.ServerList"
         ],
         "Data and utilities": [
             "Klar.Remote",

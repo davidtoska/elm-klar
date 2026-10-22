@@ -4,7 +4,7 @@ module Klar.Table exposing
     , RowIds, rowIds, stringIds, intIds
     , ColumnId, columnId, columnName
     , Query, Direction(..), Filter(..), query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
-    , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection
+    , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection, dropAllMatching
     , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
     , Attribute, columns, rows, rowId, rowLabel, server, label, locale
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
@@ -236,7 +236,7 @@ a saved view.
 
 # Selection
 
-@docs Selection, selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection
+@docs Selection, selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection, dropAllMatching
 
 
 # Expanded rows, columns and density
@@ -631,14 +631,14 @@ types a new search or filter (`commit`). The rows picked one by one stay.
 settled : Model -> Model -> Model
 settled before after =
     if before.search /= after.search || Dict.toList before.filters /= Dict.toList after.filters then
-        { after | selection = dropAllMatching after.selection }
+        { after | selection = dropAllMatchingOf after.selection }
 
     else
         after
 
 
-dropAllMatching : Picked -> Picked
-dropAllMatching picked =
+dropAllMatchingOf : Picked -> Picked
+dropAllMatchingOf picked =
     case picked of
         AllPicked _ ->
             Picked Set.empty
@@ -832,6 +832,16 @@ bulk action has done its work.
 clearSelection : State id -> State id
 clearSelection (State model) =
     State { model | selection = Picked Set.empty }
+
+
+{-| Drops an "all matching" selection (see `Selection`) and keeps the rows that were
+picked one by one. The table does it by itself when its own search or filters change; call
+it when something else changes what "all matching" means, such as a filter bar next to
+the table.
+-}
+dropAllMatching : State id -> State id
+dropAllMatching (State model) =
+    State { model | selection = dropAllMatchingOf model.selection }
 
 
 {-| Moves keyboard focus to the table (its scroll area; Tab goes on to the
@@ -1365,7 +1375,7 @@ commit model =
             , page = 1
             , activeRow = 0
             , scroll = 0
-            , selection = dropAllMatching model.selection
+            , selection = dropAllMatchingOf model.selection
         }
 
     else
