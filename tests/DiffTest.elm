@@ -811,6 +811,34 @@ entryViewTests =
                 press [] (button "Next change") order
                     |> Result.map (\moved -> Query.has [ Selector.text "Change 1 of 3" ] (query [] moved))
                     |> resultExpectation
+        , test "the buttons that step through the changes are a group with a name" <|
+            \_ ->
+                query [] order
+                    |> Query.find [ Selector.class "klar-diff__nav" ]
+                    |> Query.has
+                        [ Selector.attribute (Attr.attribute "role" "group")
+                        , Selector.attribute (Attr.attribute "aria-label" "Go through the changes")
+                        ]
+        , test "a list of fields that cannot scroll is not a tab stop" <|
+            \_ ->
+                query [] order
+                    |> Query.find [ Selector.class "klar-diff__scroll" ]
+                    |> Query.hasNot [ Selector.attribute (Attr.tabindex 0), region ]
+        , test "a list of fields in a box with a height is a named tab stop" <|
+            \_ ->
+                query [ Diff.maxHeight 200 ] order
+                    |> Query.find [ Selector.class "klar-diff__scroll" ]
+                    |> Query.has [ Selector.attribute (Attr.tabindex 0), region ]
+        , test "the n key goes to the next field in a box that is not a tab stop" <|
+            \_ ->
+                typeKey [] "n" order
+                    |> Result.map (\moved -> Query.has [ Selector.text "Change 1 of 3" ] (query [] moved))
+                    |> resultExpectation
+        , test "the n key goes to the next field in a box that is a tab stop" <|
+            \_ ->
+                typeKey [ Diff.maxHeight 200 ] "n" order
+                    |> Result.map (\moved -> Query.has [ Selector.text "Change 1 of 3" ] (query [ Diff.maxHeight 200 ] moved))
+                    |> resultExpectation
         , test "a field diff has no layout buttons" <|
             \_ -> query [] order |> Query.hasNot [ Selector.class "klar-diff__layout" ]
         , test "equal fields say No changes" <|
@@ -898,6 +926,19 @@ staticViewTests =
                 Diff.viewStatic [ Diff.ariaLabel "Changes made on 4 March" ] order
                     |> Query.fromHtml
                     |> Query.has [ Selector.attribute (Attr.attribute "role" "group"), Selector.attribute (Attr.attribute "aria-label" "Changes made on 4 March") ]
+        , test "the lines of a text diff scroll sideways, so the box is a named tab stop without an id" <|
+            \_ ->
+                Diff.viewStatic [ Diff.ariaLabel "Changes to the policy" ] text
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-diff__scroll" ]
+                    |> Expect.all
+                        [ Query.has
+                            [ region
+                            , Selector.attribute (Attr.tabindex 0)
+                            , Selector.attribute (Attr.attribute "aria-label" "Changes to the policy")
+                            ]
+                        , Query.hasNot [ Selector.attribute (Attr.id "-scroll") ]
+                        ]
         , test "it has no toolbar, no buttons and no id" <|
             \_ ->
                 Diff.viewStatic [] order
