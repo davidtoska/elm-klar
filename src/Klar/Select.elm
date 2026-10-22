@@ -1,7 +1,7 @@
 module Klar.Select exposing
     ( State, init, Msg, update, view
     , value, setValue, setOption, clear, query, isOpen, open, close
-    , Option, option, withDescription, withGroup, withIcon, withKeywords, disabledOption, filter
+    , Option, option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption, filter
     , Attribute, options, remote, serverSearch, onRetry
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale
@@ -93,7 +93,7 @@ Options are plain records, shared with `MultiSelect` and `Autocomplete`. These
 are the helpers of [Klar.Select.Option](Klar-Select-Option) that a select needs,
 so one import is enough.
 
-@docs Option, option, withDescription, withGroup, withIcon, withKeywords, disabledOption, filter
+@docs Option, option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption, filter
 
 
 # Attributes
@@ -203,6 +203,19 @@ be clicked or highlighted, and the arrow keys skip it. It is still searched.
 disabledOption : Option id -> Option id
 disabledOption =
     Option.disabledOption
+
+
+{-| Gives the option another kind of value and keeps the label, description,
+group, icon, keywords and disabled flag. Handy to turn options over your own id
+type into options over a text key, or the other way round.
+
+    Select.option (CustomerId 7) "Contoso Ltd"
+        |> Select.mapOption (\(CustomerId n) -> String.fromInt n)
+
+-}
+mapOption : (a -> b) -> Option a -> Option b
+mapOption =
+    Option.mapOption
 
 
 {-| The options matching a query, best first, exactly as the select filters

@@ -1,7 +1,10 @@
 # Form model
 
-Design for ROADMAP A8 "Form model" (EVALUATION item 10). Paper only: no code under `src/`,
-`tests/`, `example/` or `css/` was written. Status: **proposal for the owner**.
+Design for ROADMAP A8 "Form model" (EVALUATION item 10). Status: **approved by the owner
+with five amendments (section 9); steps 1 and 2 of the plan are built on the branch
+`form-model` as a prototype, to be judged before anything else is built.** The first version
+of this document was paper only; the amendments, and the deviations the build forced, are
+collected in section 9 and applied in the text above it.
 
 Method: the onboarding app (`apps/onboarding/src`) is the test. Line counts are physical
 lines of the file ranges named; the counts of the proposal are non-blank lines of the
@@ -107,8 +110,7 @@ tags    : String -> Spec (List String) (List String)
 files   : String -> Spec (List FileInfo) (List FileInfo)
 toggle  : String -> Spec Bool Bool
 day     : String -> Spec (Maybe Date) (Maybe Date)
-custom  : String -> { empty : a, encode : a -> Value, decoder : Decoder a } -> Spec a a   -- application-owned editor (rule builder, list in a dialog)
-rows    : String -> Form () rf rv -> Spec (Rows rf) (List rv)                             -- 2.7
+-- NOT in the first version: custom (application-owned editor with a Value codec) and rows (2.7)
 
 -- rules; each returns the same kind of spec, a few change the output type
 required : Spec c (Maybe a) -> Spec c a              -- also draws the "*"; removes Maybe from the output
@@ -118,7 +120,7 @@ rules    : List Validate.Validator -> Spec String o -> Spec String o   -- the ex
 range    : Float -> Float -> Spec (Maybe Float) o -> Spec (Maybe Float) o
 whole    : Spec (Maybe Float) o -> Spec (Maybe Float) o               -- no decimals, shown and checked
 hint     : String -> Spec c o -> Spec c o
-withMessage : { nb : String, en : String } -> Spec c o -> Spec c o   -- replaces the message of the rule just added
+withMessage : (Locale -> String) -> Spec c o -> Spec c o   -- replaces the message of the rule just added
 ```
 
 How a mistake becomes a compile error (principle 5):
@@ -193,8 +195,7 @@ type Slot                                   -- private
     | SFiles FileDrop.State
     | SDate DatePicker.State
     | SToggle Bool
-    | SJson String                          -- `custom`: the value as encoded text, compared as text
-    | SRows ...
+    -- later (amendment 3): SJson for `custom`, SRows for `rows`
 ```
 
 The **existing component states stay as they are** and the form holds them (answer to
@@ -230,21 +231,26 @@ Each view sets `id`, `label`, `required`, `value`, `errorMaybe` and the message 
 application's attributes, so they win: the application cannot give a control a second id.
 The attributes that remain are the ones the declaration does not know (a placeholder, a
 suffix text, `TextInput.url`, `FileDrop.accept`, `Select.onRetry`). The existing attribute
-types are reused, so there is no second vocabulary to learn (principle 10). For a `custom` or
-`rows` field the application draws the control and uses three helpers:
-`errorFor : View msg -> Field c -> Maybe String`, `domId : Field c -> String` (for
-`Form.focusField` and `Card.id`), `isRequired`.
+types are reused, so there is no second vocabulary to learn (principle 10).
 
-Exposed names (the budget, for `check:api`): types `Form State Msg Field Ids Problem View Spec
-Builder Rows`; declaration `define with step build fields ids`, kinds 9, rules 8; state `init
-set get toValues isDirty markClean revert update bind`; steps and problems 12 (section 4 and
-3); views 10. About 55 names, against 25 today in `Klar.Form`. No new exposed union.
+**Naming (found while building).** The first draft gave the kinds and the views the same
+names (`text`, `number`, `toggle`), which cannot both be exposed from one module. A view is
+named after the component it draws and a kind after the value it declares: kinds `text
+number choice choices toggle`, views `textInput numberInput select multiSelect switch`. The
+sketches in this document that say `Fm.text v fields.name` mean `Fm.textInput v fields.name`.
 
-### 2.7 Repeating groups and application-owned values
+Exposed names: see section 9.5 for the count of the first version and the proposal to split
+it. The full design (steps, rows, custom, tags, files, day) was estimated at about 55 names.
+No new exposed union.
+
+### 2.7 Repeating groups and application-owned values (NOT in the first version)
 
 The onboarding contacts step is a list of rows with five fields each, and the price rules are
-edited in a dialog that returns one finished rule. Both are common. They are in scope, but they
-are the last piece (plan step 5), because they are the hard one:
+edited in a dialog that returns one finished rule. Both are common. **Amendment 3 of the
+owner: neither `rows` nor `custom` is built in this round.** They are the hard part, they
+freeze names in a published API, and the core must first be proved by a real second round of
+A0. What must be true before they are added is in section 9.3. The sketch below stays as the
+direction, not as a promise:
 
 ```elm
 rows   : String -> Form () rf rv -> Spec (Rows rf) (List rv)     -- a sub-declaration per row
@@ -623,7 +629,7 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
    be found only in the browser, where the three applications found all their bugs.
    Mitigation: `ids` exports a test helper that checks a list of values round-trips; every
    kind is checked with real key presses and `document.activeElement` before the step is done.
-3. **Scope: rows and application-owned editors.** The flat form is well defined; contacts
+3. **Scope: rows and application-owned editors (deferred, section 9.3).** The flat form is well defined; contacts
    (rows with a cross-row rule) and pricing rules (an editor in a dialog) are what the
    onboarding app actually needs. If they turn out awkward, the model covers only half of the
    app, and the 820 lines drop to 500, not 260. They are built last (step 5) so that the
@@ -639,9 +645,8 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
    application's model, which is design C.
 2. **Is a positional pipeline acceptable?** See risk 1. *Recommend: yes*, with the round-trip
    test in the recipe. Say no only if the owner wants the compiler to refuse a swap.
-3. **Rows and custom values in the first version, or later?** *Recommend: in the first
-   version, but as the last implementation step*, so that the core can be reviewed and used
-   by the three applications without waiting for them.
+3. **Rows and custom values in the first version, or later?** *Decided by the owner: not in
+   this round* (section 9.3). They are added only when the conditions listed there hold.
 4. **When is a field's problem shown?** Proposed: after the field was left once or edited,
    after its step was attempted, after the form was reviewed. The alternative (only after a
    Next or Save) shows less while typing. *Recommend: the proposed rule*; it is one function
@@ -663,7 +668,7 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
    typing and undoing; id derivation is unique for equal labels; and the "must not compile"
    list that A5 asks for (a half-declared form, a text handle given to `select`). Breaks:
    nothing; the new module is added to `exposed-modules`. Showcase page.
-3. **The remaining kinds**: tags, files, day, radio, `textArea`, and `custom`. Tests: each
+3. **The remaining kinds**: tags, files, day, radio and `textArea` (`custom` is out, section 9.3). Tests: each
    kind's parse, empty value and snapshot. A browser pass with the keyboard on every kind,
    checking focus after an edit and after opening a list (the CONTRIBUTING rules). Breaks:
    nothing.
@@ -672,7 +677,8 @@ dialog functions that read `Fm.get` 60), with `Msg` shrinking by about 25 constr
    `stepHasProblems`. Tests: the rule of visibility for every combination of touched,
    attempted and reviewed; `advance` on every step; a server problem clears when its field is
    edited; `rejected` goes to the right step. Breaks: nothing.
-5. **Rows and `check`.** `rows`, `row`, `addRow`, `removeRow`, row ids, `check`. Tests: ids
+5. **Rows, `custom` and `check`** (deferred by amendment 3; only after the conditions of
+   section 9.3). `rows`, `row`, `addRow`, `removeRow`, row ids, `check`. Tests: ids
    of row 0 and 2 stay stable when row 1 is removed (the keys follow the position, so the
    summary says "Contact 2"); a cross-row rule; dirty after adding and removing a row. Breaks:
    nothing. This is the step that can change the design of 2.7; review it separately.

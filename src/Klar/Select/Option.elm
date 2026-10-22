@@ -1,6 +1,6 @@
 module Klar.Select.Option exposing
     ( Option
-    , option, withDescription, withGroup, withIcon, withKeywords, disabledOption
+    , option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption
     )
 
 {-| The option model shared by [Klar.Select](Klar-Select),
@@ -32,7 +32,7 @@ type of your own. To search a list of options the way a select does, use
 # Options
 
 @docs Option
-@docs option, withDescription, withGroup, withIcon, withKeywords, disabledOption
+@docs option, withDescription, withGroup, withIcon, withKeywords, disabledOption, mapOption
 
 -}
 
@@ -126,3 +126,24 @@ highlighted or reached with the arrow keys. It is still searched and counted.
 disabledOption : Option id -> Option id
 disabledOption opt =
     { opt | disabled = True }
+
+
+{-| Gives the option another kind of value and keeps everything else (label,
+description, group, icon, keywords, disabled). It is how an option over an
+application's id type becomes an option over its text key.
+
+    Option.option (CountryId "de") "Germany"
+        |> Option.mapOption (\(CountryId code) -> code)
+    -- an option over "de", still labelled "Germany"
+
+-}
+mapOption : (a -> b) -> Option a -> Option b
+mapOption change opt =
+    { value = change opt.value
+    , label = opt.label
+    , description = opt.description
+    , group = opt.group
+    , disabled = opt.disabled
+    , icon = opt.icon
+    , keywords = opt.keywords
+    }
