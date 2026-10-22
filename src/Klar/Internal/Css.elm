@@ -1799,4 +1799,32 @@ css =
  .klar-savedviews__action-icon{display: flex;flex: none;width: 16px;color: var(--klar-text-secondary)}
  .klar-savedviews__action-label{flex: 0 1 auto}
  .klar-savedviews__action-hint{flex: 0 1 auto;margin-left: auto;padding-left: 12px;color: var(--klar-text-muted);font-size: var(--klar-text-sm)}
+ .klar-status-page{display: flex;flex-direction: column;align-items: center;justify-content: center;gap: var(--klar-space-2);min-height: 100%;min-width: 0;padding: var(--klar-space-8) var(--klar-space-6);text-align: center;color: var(--klar-text-secondary)}
+ .klar-status-page--standalone{min-height: 100vh;min-height: 100dvh;background: var(--klar-bg)}
+ .klar-app-shell__page:has(> .klar-status-page){height: 100%}
+ .klar-status-page__icon{display: flex;align-items: center;justify-content: center;flex: none;width: 64px;height: 64px;margin-bottom: var(--klar-space-3);border-radius: 50%;background: var(--klar-gray-100);color: var(--klar-gray-600)}
+ .klar-status-page__icon .klar-icon{--klar-icon-size: 32px}
+ .klar-status-page--success .klar-status-page__icon{background: var(--klar-success-subtle);color: var(--klar-success)}
+ .klar-status-page--warning .klar-status-page__icon{background: var(--klar-warning-subtle);color: var(--klar-warning)}
+ .klar-status-page--danger .klar-status-page__icon{background: var(--klar-danger-subtle);color: var(--klar-danger)}
+ .klar-status-page__title{max-width: 32ch;font-size: var(--klar-text-2xl);font-weight: var(--klar-weight-bold);line-height: var(--klar-leading-tight);color: var(--klar-text);overflow-wrap: anywhere}
+ .klar-status-page__title:focus-visible{outline-offset: 4px;border-radius: var(--klar-radius)}
+ .klar-status-page__description{max-width: 52ch;font-size: var(--klar-text-lg);overflow-wrap: anywhere}
+ .klar-status-page__actions{display: flex;flex-wrap: wrap;justify-content: center;gap: var(--klar-space-2);margin-top: var(--klar-space-4)}
+ .klar-status-page__meta{display: flex;flex-wrap: wrap;justify-content: center;gap: 2px var(--klar-space-4);margin-top: var(--klar-space-6);max-width: 100%;font-size: var(--klar-text-xs);color: var(--klar-text-muted)}
+ .klar-status-page__detail{min-width: 0;overflow-wrap: anywhere}
+ .klar-status-page__detail-name{font-weight: var(--klar-weight-medium)}
+ .klar-status-page__value{font-family: var(--klar-font-mono);color: var(--klar-text-secondary);-webkit-user-select: all;user-select: all}
+ .klar-bulk{position: relative;display: grid;grid-template-columns: minmax(0,1fr);min-width: 0}
+ .klar-bulk__under,.klar-bulk__bar{grid-area: 1 / 1;min-width: 0}
+ .klar-bulk__under--covered{visibility: hidden}
+ .klar-bulk__live{pointer-events: none}
+ .klar-bulk__bar{display: flex;flex-wrap: wrap;align-items: center;align-content: center;gap: 6px var(--klar-space-3);padding: 6px var(--klar-space-2);background: var(--klar-primary-subtle);border: 1px solid var(--klar-primary-border);border-radius: var(--klar-radius-lg);color: var(--klar-blue-800);animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
+ .klar-bulk__bar:focus-visible{outline: 2px solid var(--klar-focus-color);outline-offset: -2px}
+ .klar-bulk__count{flex: none;padding: 0 var(--klar-space-1);font-weight: var(--klar-weight-bold);white-space: nowrap}
+ .klar-bulk__offer{display: flex;flex-wrap: wrap;align-items: center;min-width: 0}
+ .klar-bulk__actions{display: flex;flex-wrap: wrap;align-items: center;justify-content: flex-end;gap: var(--klar-space-2);margin-left: auto;max-width: 100%}
+ .klar-leave__message{color: var(--klar-text);overflow-wrap: anywhere}
+ .klar-history{position: relative;display: inline-flex;align-items: center;gap: var(--klar-space-1)}
+ .klar-history__live{pointer-events: none}
 """
