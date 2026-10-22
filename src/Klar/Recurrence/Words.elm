@@ -1,4 +1,4 @@
-module Klar.Recurrence.Words exposing (describe, problemText)
+module Klar.Recurrence.Words exposing (describe, ordinalDay, problemText)
 
 {-| The words of a rule: the description in plain language and the text of a
 problem, in English and Norwegian Bokmål.
