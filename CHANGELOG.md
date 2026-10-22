@@ -55,6 +55,36 @@ The first release.
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
 
+### LeaveGuard and the browser's buttons (A0 round 2: R2O-008, 009, 010, 015, 019)
+
+The Back-button recipe of `Klar.LeaveGuard` looped forever and froze the tab: `Nav.forward 1`
+reports the address it is leaving at once (before the move), so a handler that asked again
+called it again, and the documented sentence "ignore the call whose address is the page you
+are showing" was wrong. Reproduced in headless Chrome, and measured: `Nav.back` and
+`Nav.forward` call `onUrlChange` twice (at once with the address being left, later with the
+new one), the buttons once, `pushUrl` and `replaceUrl` once, at once. Nothing was released
+before this, so the first API changes.
+
+- `LeaveGuard.onUrlChange` is the one function for the buttons: call it from `onUrlChange`.
+  It returns the page to show, or nothing when the guard dealt with the change. The guard
+  never moves in the history to undo a button: the page stays, the question is asked with
+  the address bar already at the page the user wanted, "Leave" replaces the address with
+  itself (no new entry) and "Stay" pushes the address of the page that is shown. The
+  application no longer needs `pushing` or `restoring` fields, a `GoBack` target, or
+  `Nav.forward`/`Nav.back` in its update.
+- `LeaveGuard.initAt` makes a guard that knows the `Key` and the `Url` of the page. `init`
+  stays for a flow without addresses. `elm/url` moves from the test dependencies to the
+  dependencies of the package.
+- Focus: "Stay", `Escape` and the backdrop return focus to the element that asked when it
+  has an `id`; the rule for an element without one is written down (the last element with an
+  id that had focus). "Leave" is followed by the focus of the page the application enters.
+- Documented: one source per page for the dirty flags (twenty parts are one function of the
+  application), and `Form.unsavedChanges` and `Form.unsavedFlag` point to each other and to
+  the guard.
+- `scripts/test-leave-guard.mjs` runs the guard against the real Back and Forward buttons in
+  headless Chrome (`scripts/leave-guard-browser` is the example of the module documentation);
+  the pure parts (`Klar.Internal.Leave`) are tested against a model of the browser.
+
 ### The overlay layer (A8)
 
 What the three applications had to write around dialogs, drawers and toasts is

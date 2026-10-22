@@ -855,9 +855,12 @@ Reads `onSave`, `onDiscard`, `saving`, `sticky` and `locale`.
         [ Form.onSave SaveOrder, Form.onDiscard DiscardChanges, Form.saving model.saving ]
         (model.draft /= model.saved)
 
-Keeping people from leaving the page with unsaved changes is the job of the
-application's navigation (for example a confirmation dialog); a page without
-JavaScript cannot intercept the browser's own back button or tab close.
+The banner appears above the fields when the first change is made, and pushes
+them down. In a long form or flow prefer [`unsavedFlag`](#unsavedFlag), which takes
+no room of its own. Keeping people from leaving the page with unsaved changes is
+[`LeaveGuard`](Klar-LeaveGuard): tell it the same fact with `LeaveGuard.setDirty`
+and it asks on links, in your code and on the browser's Back and Forward buttons.
+Closing the tab cannot be intercepted without JavaScript.
 
 -}
 unsavedChanges : List (Attribute msg) -> Bool -> Html msg
@@ -927,9 +930,11 @@ unsavedChanges attributes dirty =
 (`Drawer.footerStart`, `Modal.footerStart`) or the button row of a form. The
 `Bool` says whether there are unsaved changes, as for `unsavedChanges`. The mark
 takes no room of its own while the form is clean and does not push the fields
-around when the first key is typed, which the banner of `unsavedChanges` does.
-The empty live region is always there, so a screen reader announces the text
-when it appears. Reads `locale`.
+around when the first key is typed, which the banner of `unsavedChanges` does:
+this is the one for a long form or flow. The empty live region is always there, so a
+screen reader announces the text when it appears. Reads `locale`. The question
+"Leave without saving?" when the user goes away is
+[`LeaveGuard`](Klar-LeaveGuard), fed with the same `Bool`.
 
     Form.unsavedFlag [] (model.draft /= model.saved)
 

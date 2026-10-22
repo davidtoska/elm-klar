@@ -404,6 +404,21 @@ window and `Tab` reaches them after the footer), or anything for the landmarks. 
 every overlay in the list all the time, also while it is closed. In a page module of
 your own, `List.map (Overlay.map PageMsg) overlays` gives the list to the main module.
 
+**Leaving a page with unsaved work.** `LeaveGuard` asks "Leave without saving?" on a
+link, on your own navigation and on the browser's Back and Forward buttons. Six
+functions, and the complete application is at the top of
+[`Klar.LeaveGuard`](src/Klar/LeaveGuard.elm): `initAt` (with the `Key` and the `Url`),
+`setDirty` (with the comparison, `draft /= saved`), `request` (for links and your own
+navigation), `onUrlChange` (call it from your `onUrlChange`: it answers the buttons and
+says which page to show), `update` and `view`. You do not write: a field for the
+address you are going back from, a target type that remembers where the request came
+from, a call to `Nav.forward`, or the code that remembers where focus was. Do not undo
+a Back with `Nav.forward 1` yourself: it reports the address it leaves, once at once,
+and a handler that asks again loops forever (measured; the guard never does it). Give
+the links that can ask an `id` so that focus returns to them after "Stay". Run
+`node scripts/test-leave-guard.mjs` (needs Chrome) to see the buttons answered in a
+real browser.
+
 **Ids from your database, in the selects.** The value of an option is your own
 type, and the select hands the same value back:
 

@@ -757,7 +757,7 @@ guardAttributes locale model =
 guardSection : Locale -> Model -> Html Msg
 guardSection locale model =
     Doc.section "Leave guard"
-        "Asks \"Leave without saving?\" when the user navigates inside the application while something is not saved. Every navigation goes through LeaveGuard.request: a clean guard answers Proceed with the value, a dirty one answers Hold and opens the dialog, and the held value comes back as data when the user chooses. Several forms are independent sources, and the guard is clean only when all are. Closing the tab, reloading and typing another address cannot be intercepted without JavaScript."
+        "Asks \"Leave without saving?\" when the user navigates inside the application while something is not saved. Every navigation goes through LeaveGuard.request: a clean guard answers Proceed with the value, a dirty one answers Hold and opens the dialog, and the held value comes back as data when the user chooses. Several forms are independent sources, and the guard is clean only when all are. The browser's Back and Forward buttons are answered by one more function, LeaveGuard.onUrlChange (second example). Closing the tab, reloading and typing another address cannot be intercepted without JavaScript."
         [ Doc.example
             { title = "A fake application with two forms"
             , description = Just "Change the note or the address, then press Customers or Settings. Focus goes to Stay, Escape means Stay, and focus returns to the button you pressed. Save the forms, or undo the edit by hand, and the next move is free. Save and leave saves for a moment and then goes."
@@ -845,6 +845,17 @@ guardSection locale model =
                         Nothing ->
                             Html.text ""
                     ]
+                ]
+            )
+        , Doc.example
+            { title = "The Back and Forward buttons"
+            , description = Just "This page keeps its route in its own model, so the buttons of your browser do not reach it. The wiring below is for an application with addresses. To try it for real: node scripts/test-leave-guard.mjs builds scripts/leave-guard-browser (the example at the top of Klar.LeaveGuard), presses Back and Forward in headless Chrome and checks the answers; or build that application, make the form dirty and press Back. Back asks with the address bar already at the page you wanted, Stay puts the address right, Leave goes there."
+            , code = Just guardBrowserCode
+            }
+            (Layout.stack [ Layout.gap 2 ]
+                [ Text.paragraph "Back while something is dirty: the page stays, the question opens, the address bar is already at the page you pressed Back to."
+                , Text.paragraph "Stay pushes the address of the page that is shown. Leave shows the page you wanted. A second Back after Stay asks again."
+                , Text.caption "The guard never moves in the history to undo a button, which is what looped in the first recipe."
                 ]
             )
         ]
@@ -1078,6 +1089,50 @@ Overlay.host
     , page = [ page ]
     , overlays = [ LeaveGuard.view GuardMsg [ LeaveGuard.saveAndLeave ] model.guard ]
     }"""
+
+
+guardBrowserCode : String
+guardBrowserCode =
+    """-- init: the guard knows the address of the page
+init _ url key =
+    ( { key = key
+      , route = Route.fromUrl url
+      , guard = LeaveGuard.initAt "leave-dialog" key url
+      }
+    , Cmd.none
+    )
+
+-- links and your own navigation still ask first
+LinkClicked (Browser.Internal url) ->
+    case LeaveGuard.request (Route.fromUrl url) model.guard of
+        Proceed route ->
+            ( model, Nav.pushUrl model.key (Route.toPath route) )
+
+        Hold guard cmd ->
+            ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+-- every change of the address, the Back and Forward buttons included
+UrlChanged url ->
+    case LeaveGuard.onUrlChange Route.fromUrl url model.guard of
+        ( guard, cmd, Just route ) ->
+            -- show this page, and move focus to its content
+            enter route { model | guard = guard }
+                |> addCmd (Cmd.map GuardMsg cmd)
+
+        ( guard, cmd, Nothing ) ->
+            -- asked, or nothing to do
+            ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+-- "Leave" on a link or a call hands the route back; the browser buttons need nothing
+GuardMsg inner ->
+    case LeaveGuard.update inner model.guard of
+        ( guard, cmd, Just answer ) ->
+            ( { model | guard = guard }
+            , Cmd.batch [ Cmd.map GuardMsg cmd, Nav.pushUrl model.key (Route.toPath (LeaveGuard.destination answer)) ]
+            )
+
+        ( guard, cmd, Nothing ) ->
+            ( { model | guard = guard }, Cmd.map GuardMsg cmd )"""
 
 
 historyCode : String
