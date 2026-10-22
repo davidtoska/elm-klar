@@ -376,8 +376,8 @@ open opener (State state) =
 close : State -> ( State, Cmd Msg )
 close (State state) =
     ( State { state | open = False }
-    , if state.open && state.opener /= "" then
-        Internal.focus state.opener Noop
+    , if state.open then
+        Internal.focusFirst (List.filter ((/=) "") [ state.opener ] ++ [ Internal.pageStartId ]) Noop
 
       else
         Cmd.none

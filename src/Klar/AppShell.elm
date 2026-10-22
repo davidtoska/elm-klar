@@ -1119,7 +1119,10 @@ viewContent config content =
             ]
         ]
         [ Html.div
-            ([ Internal.cls [ "klar-app-shell__page" ] ]
+            ([ Internal.cls [ "klar-app-shell__page" ]
+             , Attr.id Internal.pageStartId
+             , Attr.tabindex -1
+             ]
                 ++ (case config.contentMaxWidth of
                         Just px ->
                             [ Internal.styleVars [ ( "max-width", String.fromInt px ++ "px" ) ] ]

@@ -127,7 +127,10 @@ dialog. Three ways to change that:
   - On `close` focus returns to the opener. If that element is gone, or there was
     none (`""`), to the most recent element of the page that had focus before the
     dialog opened and still exists. A dialog opened by a route change or by a
-    command from the palette therefore needs no opener.
+    command from the palette therefore needs no opener. If there is no such element
+    either, to the start of the page content (the content area of an `AppShell`,
+    the page of an `Overlay.host`), so that the next `Tab` starts there and not
+    at the top of the window.
   - If the element that has focus inside the dialog is removed or disabled (a
     button replaced after an action), focus moves to the dialog itself. No call
     is needed for that.
@@ -343,7 +346,7 @@ close : State -> ( State, Cmd Msg )
 close (State state) =
     ( State { state | open = False }
     , if state.open then
-        focusChain (List.filter ((/=) "") (state.opener :: state.trail))
+        focusChain (List.filter ((/=) "") (state.opener :: state.trail) ++ [ Internal.pageStartId ])
 
       else
         Cmd.none

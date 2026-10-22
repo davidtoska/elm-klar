@@ -6,6 +6,7 @@ module Klar.Internal exposing
     , cls
     , ensureVisible
     , focus
+    , focusFirst
     , hasLatinLetters
     , heading
     , keyEvent
@@ -17,6 +18,7 @@ module Klar.Internal exposing
     , onKeys
     , onKeysPassive
     , onMouseDownPrevent
+    , pageStartId
     , percentEncode
     , px
     , sanitizeId
@@ -447,6 +449,36 @@ onKeysPassive bindings =
 focus : String -> msg -> Cmd msg
 focus id done =
     Task.attempt (\_ -> done) (Dom.focus id)
+
+
+{-| Focus the first element of the list that exists, and send the message when it
+is done. The ids of a dialog's way back end with `pageStartId`, so that closing a
+dialog that nobody remembers an opener for leaves focus in the page and not on
+`body`.
+-}
+focusFirst : List String -> msg -> Cmd msg
+focusFirst ids done =
+    case ids of
+        [] ->
+            Cmd.none
+
+        first :: rest ->
+            List.foldl
+                (\id task -> Task.onError (\_ -> Dom.focus id) task)
+                (Dom.focus first)
+                rest
+                |> Task.attempt (\_ -> done)
+
+
+{-| The DOM id of the start of the page content: the content area of an
+`AppShell`, the page of an `Overlay.host`. It can take focus (`tabindex` -1). It is
+where focus goes when a dialog closes and neither its opener nor any element that
+had focus before it opened exists, so the next `Tab` starts in the content and not
+at the top of the window.
+-}
+pageStartId : String
+pageStartId =
+    "klar-page-start"
 
 
 {-| Scroll a fixed-row-height list so that row `index` is fully visible.

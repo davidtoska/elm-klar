@@ -274,3 +274,14 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   field takes the typed text (a second `Enter` opens the calendar). Applying on `Enter` would
   have the date picker report its commit and the filter bar validate in one step; that needs a
   new message out of `DatePicker`, which is more API than the problem is worth.
+- Toasts beside a drawer (R2F-013): they leave the top of the window and go to the bottom of
+  the side the drawer leaves free (bottom left for a right drawer, the usual corner for a left
+  one), so the title and the close button stay in reach for the mouse; on a narrow screen,
+  where the drawer fills the window, they stay at the top. A centered modal is as before. Only
+  the stylesheet changed; the `Tab` loop is in the order of the DOM and was not touched.
+- Focus after a dialog that was opened from nothing (R2F-014): when a dialog or the command
+  palette closes and neither its opener nor any element that had focus before exists, focus goes
+  to the start of the page content (the content area of an `AppShell`, the page of an
+  `Overlay.host`; it has the id `klar-page-start` and `tabindex="-1"`), not to `body`. The next
+  `Tab` starts in the content instead of at the top of the window. The palette had no fallback
+  at all when it was opened without an opener.

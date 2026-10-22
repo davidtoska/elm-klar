@@ -985,6 +985,7 @@ css =
  .klar-app-shell__sidebar{flex: none;width: var(--klar-sidebar-w);padding: var(--klar-space-2);overflow-x: hidden;overflow-y: auto;background: var(--klar-surface);border-right: 1px solid var(--klar-border);transition: width var(--klar-dur) var(--klar-ease)}
  .klar-app-shell__content{--klar-content-pad: var(--klar-content-pad-wide,var(--klar-space-6));flex: 1 1 auto;min-width: 0;padding: var(--klar-content-pad);overflow: auto}
  .klar-app-shell__content:focus{outline: none}
+ .klar-app-shell__page:focus{outline: none}
  .klar-app-shell__page{width: 100%;margin-inline: auto}
  .klar-app-shell__page:has(> .klar-fill-rest){display: flex;flex-direction: column;height: 100%}
  .klar-app-shell__backdrop{display: none}
@@ -1529,6 +1530,7 @@ css =
  .klar-tree__skeleton-row{padding-left: calc(var(--klar-level,0) * 16px + 22px)}
  @media (forced-colors: active){.klar-chart__bar,.klar-chart__segment,.klar-chart__point,.klar-chart__line,.klar-chart__area,.klar-chart__swatch,.klar-chart__gauge-arc,.klar-meter__zone,.klar-meter__marker,.klar-progress__bar,.klar-progress__segment,.klar-progress-ring__arc,.klar-avatar,.klar-timeline__marker{forced-color-adjust: none}.klar-tree__row--selected,.klar-list-item--selected{outline: 2px solid Highlight;outline-offset: -2px}}
  .klar-overlay-host{min-height: 100%}
+ .klar-overlay-host__page:focus{outline: none}
  .klar-overlay-host:focus{outline: none}
  .klar-contents{display: contents}
  .klar-modal-lock{display: none}
@@ -1585,6 +1587,9 @@ css =
  .klar-confirm__retry{display: contents}
  .klar-toasts{position: fixed;right: var(--klar-space-4);bottom: var(--klar-space-4);z-index: var(--klar-z-toast);display: flex;flex-direction: column;align-items: stretch;gap: var(--klar-space-2);width: 380px;max-width: calc(100vw - 2 * var(--klar-space-4));pointer-events: none}
  :root:has(.klar-modal-lock) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}
+ :root:has(.klar-modal--side.klar-modal--right) .klar-toasts{top: auto;bottom: var(--klar-space-4);left: var(--klar-space-4);right: auto;margin-inline: 0}
+ :root:has(.klar-modal--side.klar-modal--left) .klar-toasts{top: auto;bottom: var(--klar-space-4);left: auto;right: var(--klar-space-4);margin-inline: 0}
+ @media (max-width: 640px){:root:has(.klar-modal--side) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}}
  .klar-toast{--_accent: var(--klar-blue-600);pointer-events: auto;display: flex;align-items: flex-start;gap: var(--klar-space-3);padding: var(--klar-space-3) var(--klar-space-2) var(--klar-space-3) var(--klar-space-3);background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-left: 3px solid var(--_accent);border-radius: var(--klar-radius-lg);box-shadow: var(--klar-shadow-md);color: var(--klar-text);animation: klar-slide-in-right var(--klar-dur-slow) var(--klar-ease)}
  .klar-toast--success{--_accent: var(--klar-green-600)}
  .klar-toast--warning{--_accent: var(--klar-amber-600)}
