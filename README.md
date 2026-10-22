@@ -52,6 +52,10 @@ Klar works with Elm 0.19.x (developed and tested with 0.19.3). To use it before 
 is published, or to keep an exact, untouched copy in an application, see
 [USING.md](USING.md).
 
+An AI that builds the application starts with [AI.md](AI.md) (and [llms.txt](llms.txt)):
+the mental model, the ten rules, which module to use for what, and complete programs in
+[recipes/](recipes/README.md) and [template/](template/README.md).
+
 ## A first program
 
 ```elm
