@@ -32,7 +32,6 @@ options : List (Select.Option.Option id) -> Attribute id msg
 remote : Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
 serverSearch : Attribute id msg
 onRetry : msg -> Attribute id msg
-zone : Time.Zone -> Attribute id msg
 
 -- Field
 label : String -> Attribute id msg
@@ -54,6 +53,7 @@ readOnly : Bool -> Attribute id msg
 size : Theme.Size -> Attribute id msg
 visibleRows : Int -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 
 -- Limits and chips
 maxSelected : Int -> Attribute id msg
@@ -375,14 +375,6 @@ access, not found ...) nothing is retried, and Enter does nothing.
 
     MultiSelect.onRetry ReloadCategories
 
-### `zone`
-
-```elm
-zone : Time.Zone -> Attribute id msg
-```
-
-The time zone of the time in "Old data from 14:05". The default is UTC.
-
 ## Field
 
 The label, hint and error around the field work the same in every Klar form
@@ -564,6 +556,17 @@ and the labels for screen readers. The default is `Locale.default`, which is
 English. See [Klar.Locale](Klar.Locale.md).
 
     MultiSelect.locale Locale.nb
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute id msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    MultiSelect.settings model.settings
 
 ## Limits and chips
 

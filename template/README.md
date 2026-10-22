@@ -12,6 +12,7 @@ What is in it:
 | `SideNav` typed by the application's own `Page` (`SideNav.keys`) | `pageKeys`, `navigation` |
 | Two pages (`Orders`, `Settings`) chosen by `pageFromUrl` | `viewPage` |
 | A `Remote` from a backend stand-in, drawn by `Table` (loading, failure with retry, empty) | `fetchOrders`, `GotOrders` |
+| The `Klar.Settings` of the application (density and time zone, `Time.here` at the start), given to `AppShell.settings` and `Table.settings` | `settings`, `GotZone` |
 | One list of overlays: a `ConfirmDialog` and the `Toast` stack | `overlays` |
 | `elm.json` with `elm/url` as a **direct** dependency | `elm.json` |
 | `index.html` that mounts the program with `Elm.Main.init()` | `index.html` |

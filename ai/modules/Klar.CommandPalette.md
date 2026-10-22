@@ -50,7 +50,7 @@ placeholder : String -> Attribute msg
 label : String -> Attribute msg
 noResults : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
-zone : Time.Zone -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 ```
 
 ## Documentation
@@ -516,11 +516,13 @@ The language of the built-in texts: the placeholder, the footer, the heading
 of the recent items and the announcement of the number of results. The default
 is `Locale.default`, which is `Locale.en`.
 
-### `zone`
+### `settings`
 
 ```elm
-zone : Time.Zone -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 ```
 
-The time zone of the time in "Old data from 14:05", the note at the top of a
-remote section whose data is `Kept` after a failed refresh. The default is UTC.
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    CommandPalette.settings model.settings

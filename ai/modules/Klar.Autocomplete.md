@@ -28,7 +28,6 @@ options : List (Select.Option.Option String) -> Attribute msg
 suggestions : Remote.Remote (List (Select.Option.Option String)) -> Attribute msg
 onRetry : msg -> Attribute msg
 onEnter : msg -> Attribute msg
-zone : Time.Zone -> Attribute msg
 
 -- Field
 label : String -> Attribute msg
@@ -49,6 +48,7 @@ size : Theme.Size -> Attribute msg
 visibleRows : Int -> Attribute msg
 prefixIcon : Icon.Icon -> Attribute msg
 locale : Locale.Locale -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 ```
 
 ## Documentation
@@ -301,14 +301,6 @@ after to react to it.
 
     Autocomplete.onEnter SearchSubmitted
 
-### `zone`
-
-```elm
-zone : Time.Zone -> Attribute msg
-```
-
-The time zone of the time in "Old data from 14:05". The default is UTC.
-
 ## Field
 
 The label, hint and error around the field work the same in every Klar form
@@ -473,3 +465,14 @@ state. The default is `Locale.default`, which is English. See
 [Klar.Locale](Klar.Locale.md).
 
     Autocomplete.locale Locale.nb
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Autocomplete.settings model.settings

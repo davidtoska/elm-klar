@@ -85,7 +85,7 @@ maxHeight : Int -> Attribute id msg
 maxChildren : Int -> Attribute id msg
 emptyText : String -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
-zone : Time.Zone -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
 ## Documentation
@@ -807,7 +807,9 @@ and a double click opens or closes. Nodes that are `disabled` are not activated.
 compact : Attribute id msg
 ```
 
-Shorter rows (24px instead of 28px): for dense layouts and side panels.
+Shorter rows (24px instead of 28px): for dense layouts and side panels. A tree
+in an application with a compact density (`Klar.Settings`) is already compact; this
+makes just this tree compact.
 
 ### `maxHeight`
 
@@ -847,11 +849,13 @@ The language of the built-in text (the filter box, "Loading ...", "Load",
 "Try again", "No items", "No matches", "Show N more") and of the numbers. The
 default is `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
 
-### `zone`
+### `settings`
 
 ```elm
-zone : Time.Zone -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
-The time zone of the time in "Old data from 14:05", the marker of data that
-is `Kept` after a failed refresh. The default is UTC.
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Tree.settings model.settings

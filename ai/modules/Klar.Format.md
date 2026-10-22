@@ -20,6 +20,7 @@ duration : Locale.Locale -> Int -> String
 
 -- Dates and times
 date : Locale.Locale -> Date.Date -> String
+dateShort : Locale.Locale -> Date.Date -> String
 dateLong : Locale.Locale -> Date.Date -> String
 time : Time.Zone -> Time.Posix -> String
 dateTime : Locale.Locale -> Time.Zone -> Time.Posix -> String
@@ -211,6 +212,20 @@ Norwegian, and the unambiguous ISO form `2026-10-20` in English.
     Format.date Locale.en october20 -- "2026-10-20"
 
     Format.date Locale.nb october20 -- "20.10.2026"
+
+### `dateShort`
+
+```elm
+dateShort : Locale.Locale -> Date.Date -> String
+```
+
+The day and the month as short as a label can be, for the axis of a chart or
+a narrow column: `21 Sep` in English and `21. sep.` in Norwegian. There is no year,
+so use it where the year is obvious from the context.
+
+    Format.dateShort Locale.en september21 -- "21 Sep"
+
+    Format.dateShort Locale.nb september21 -- "21. sep."
 
 ### `dateLong`
 

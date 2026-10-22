@@ -621,7 +621,8 @@ density : Theme.Density -> Attribute role permission msg
 ```
 
 The height of the rows: `Compact`, `Normal` (the default) or `Comfortable`, the same as
-[Klar.Table](Klar.Table.md) (see [Klar.Theme](Klar.Theme.md)).
+[Klar.Table](Klar.Table.md) (see [Klar.Theme](Klar.Theme.md)). Without it the rows follow the
+density of the application (`Klar.Settings`).
 
 ### `ariaLabel`
 

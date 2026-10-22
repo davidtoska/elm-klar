@@ -69,6 +69,7 @@ onStrayDrop : msg -> Attribute msg
 
 -- Language
 locale : Locale.Locale -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 ```
 
 ## Documentation
@@ -87,6 +88,10 @@ or the drawer is open, the side menu and the current page. The parts normally co
 from other modules: a [Klar.SideNav](Klar.SideNav.md) for the
 sidebar, a [Klar.Menu](Klar.Menu.md) for the user menu and a
 [Klar.PageHeader](Klar.PageHeader.md) at the top of every page.
+
+The density and the time zone of the application are stated once, in a
+[Klar.Settings](Klar.Settings.md) that you keep in the model: `AppShell.settings
+model.settings` makes everything inside the shell follow the density.
 
 A small application, "Acme Operations", with the pages Orders, Customers and
 Reports needs this model and these messages. The shell keeps the sidebar, the drawer,
@@ -847,3 +852,16 @@ its root element to match, so that screen readers pronounce the application in
 the right language.
 
     AppShell.locale Locale.nb
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute msg
+```
+
+The density of the application, from its `Klar.Settings`: everything inside
+the shell follows it (the rows of tables, controls, cards, lists and trees), with
+no attribute on the components. A component that is given its own density
+(`Table.setDensity`) keeps it.
+
+    AppShell.settings model.settings

@@ -519,7 +519,8 @@ undivided =
     ListAttribute (\config -> { config | divided = False })
 
 
-{-| Tighter rows: less padding and a smaller box around the `icon`.
+{-| Tighter rows: less padding and a smaller box around the `icon`. Lists follow a
+compact density of the application (`Klar.Settings`) without it.
 -}
 compact : ListAttribute msg
 compact =

@@ -57,7 +57,7 @@ viewer : Maybe approver -> Attribute approver msg
 onApprove : msg -> Attribute approver msg
 onReject : msg -> Attribute approver msg
 now : Time.Posix -> Attribute approver msg
-zone : Time.Zone -> Attribute approver msg
+settings : Settings.Settings -> Attribute approver msg
 horizontal : Attribute approver msg
 ariaLabel : String -> Attribute approver msg
 onRetry : msg -> Attribute approver msg
@@ -101,7 +101,7 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
         , ApprovalFlow.onApprove Approve
         , ApprovalFlow.onReject AskWhyRejected
         , ApprovalFlow.now model.now
-        , ApprovalFlow.zone model.zone
+        , ApprovalFlow.settings model.settings
         ]
         (creditNoteFlow model.deadline)
 
@@ -166,7 +166,7 @@ the reason of a rejection, the request to the server and the new decision are
 yours. A reject message is the place to open a comment field; when the answer
 comes back, put it in the decision (`rejected { at = ..., comment = ... }`).
 
-**Times** are shown in the `zone` you give and in the format of `locale`, with
+**Times** are shown in the zone of the `settings` you give (`Klar.Settings`, UTC and marked as such if you give none) and in the format of `locale`, with
 [Klar.Format](Klar.Format.md). The built-in text (statuses, rules, "Overdue", the
 buttons) is English unless you set `locale`. Names and comments come from you.
 
@@ -546,15 +546,17 @@ The current time. It decides whether a step is overdue and lets the times
 carry a tooltip such as "3 days ago". Without it nothing is marked overdue. The
 viewer does not read the clock: keep the value in your model and update it.
 
-### `zone`
+### `settings`
 
 ```elm
-zone : Time.Zone -> Attribute approver msg
+settings : Settings.Settings -> Attribute approver msg
 ```
 
-The time zone for the times of decisions and deadlines. The default is UTC, so
-you will usually want the user's own zone: get it with `Time.here` when the
-application starts and keep it in your model.
+The settings of the application (`Klar.Settings`): the time zone of the times
+of decisions and deadlines. Without it the times are written in UTC and end in
+"UTC".
+
+    ApprovalFlow.settings model.settings
 
 ### `horizontal`
 

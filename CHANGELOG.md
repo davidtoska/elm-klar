@@ -40,7 +40,7 @@ The first release.
   `Autocomplete`, `ListItem.remote` and the command palette draw it with no attribute (the
   data stays, dimmed and busy while refreshing; a calm "Old data from 14:05" with a retry
   and a polite announcement when it is old; texts in English and Norwegian, the time in the
-  component's new `zone`). `Klar.RemoteView` is the body of a card, dialog or drawer: the
+  zone of the `Klar.Settings` that the component is given). `Klar.RemoteView` is the body of a card, dialog or drawer: the
   skeleton that screen readers hear, the failure with a retry, old and refreshing data.
   `Alert.stale` is the one notice for a page, `Remote.staleIn` names what is old. `Table.refreshing`
   is gone (use `Remote.refresh`).
@@ -82,6 +82,31 @@ The first release.
   (`Tree.State RegionId`, `Tree.nodeIds`, `SideNav.State Page`, `SideNav.keys`).
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
+
+### Settings: density and time zone, stated once (A0 round 3: R3S-004, 005, 007, 011, 012, S-022)
+
+Every dense component had its own density switch and every component that writes a time had
+its own `zone` that defaulted to UTC, so "Old data from 11:32" was two hours off in Norway
+unless each of `Stat`, `Chart`, `Table` and `Timeline` was told. Nothing was released before
+this, so it changes the first API. See `design/SETTINGS.md`.
+
+- New module `Klar.Settings`: `Settings` (`default`, `withDensity`, `withZone`, `density`,
+  `zone`), `scope` (a box that carries the density, for a page outside the shell) and the
+  functions that write a time in the zone of the settings (`time`, `dateTime`, `toDate`).
+- Density: `AppShell.settings` (or `Settings.scope`) marks the page and the stylesheet follows,
+  so buttons, inputs, selects, options, cards, tables, comparisons, permission matrices, lists,
+  trees, alerts, empty states, description lists and the tiles of `Stat` are packed as the
+  settings say, with no attribute on any component. A component that is given its own density
+  (`Table.setDensity`, `Tree.compact`, ...) keeps it.
+- Time zone: `Table`, `Stat`, `Chart`, `Tree`, `ListItem`, `Select`, `MultiSelect`,
+  `Autocomplete`, `CommandPalette`, `RemoteView`, `Timeline` and `ApprovalFlow` take
+  `settings` instead of `zone` (the `zone` attributes are gone). **A time is never UTC by
+  accident**: without a zone it is written in UTC and ends in "UTC" (`Old data from 14:05 UTC`).
+- `Timeline.dayEvent` is an event of a day with no time of day; it draws no "00:00".
+- `Format.dateShort` (`21 Sep`, `21. sep.`) and `Chart.dates`, categories that are days, whose
+  axis uses it and whose tooltip has the whole date.
+- `Stat.money` and `Stat.moneyChange` take `Klar.Money` values, so money stays `Money` to the screen.
+- The showcase has a density switch and a zone switch in the top bar, working on every page.
 
 ### LeaveGuard and the browser's buttons (A0 round 2: R2O-008, 009, 010, 015, 019)
 

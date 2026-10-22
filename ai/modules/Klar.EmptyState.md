@@ -120,4 +120,4 @@ compact : Attribute msg
 ```
 
 Less vertical space and a smaller icon, for use inside tables and small
-panels.
+panels. It follows a compact density of the application (`Klar.Settings`) without it.

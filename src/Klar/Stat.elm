@@ -388,7 +388,9 @@ icon value_ =
 
 
 {-| The size of the number: `Small` (20px), `Medium` (26px, the default) or
-`Large` (34px). The `Size` type is in [Klar.Theme](Klar-Theme).
+`Large` (34px). The `Size` type is in [Klar.Theme](Klar-Theme). Without it the
+size follows the density of the application (`Klar.Settings`): 20px when compact, 26px
+when normal, 30px when comfortable.
 -}
 size : Size -> Attribute msg
 size value_ =

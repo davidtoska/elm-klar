@@ -1241,7 +1241,9 @@ onReload msg =
     Attribute (\config -> { config | onReload = Just msg })
 
 
-{-| Shorter rows (24px instead of 28px): for dense layouts and side panels.
+{-| Shorter rows (24px instead of 28px): for dense layouts and side panels. A tree
+in an application with a compact density (`Klar.Settings`) is already compact; this
+makes just this tree compact.
 -}
 compact : Attribute id msg
 compact =

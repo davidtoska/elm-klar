@@ -20,6 +20,7 @@ value : String -> Attribute msg
 int : Int -> Attribute msg
 decimal : Int -> Float -> Attribute msg
 compact : Float -> Attribute msg
+money : Money.Money -> Attribute msg
 unit : String -> Attribute msg
 caption : String -> Attribute msg
 icon : Icon.Icon -> Attribute msg
@@ -27,6 +28,7 @@ icon : Icon.Icon -> Attribute msg
 -- Change since last time
 delta : Float -> Attribute msg
 change : { current : Float, previous : Float } -> Attribute msg
+moneyChange : { current : Money.Money, previous : Money.Money } -> Attribute msg
 deltaText : String -> Attribute msg
 deltaLabel : String -> Attribute msg
 lowerIsBetter : Attribute msg
@@ -41,13 +43,13 @@ size : Theme.Size -> Attribute msg
 flat : Attribute msg
 onClick : msg -> Attribute msg
 locale : Locale.Locale -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 
 -- Loading and failure
 loading : Bool -> Attribute msg
 failed : Remote.Problem -> Attribute msg
 onRetry : msg -> Attribute msg
 remote : Remote.Remote a -> (a -> List (Attribute msg)) -> Attribute msg
-zone : Time.Zone -> Attribute msg
 ```
 
 ## Documentation
@@ -95,7 +97,7 @@ the top of a page. For several label and value pairs use
 [Klar.DescriptionList](Klar.DescriptionList.md); for one value against a scale use
 `gauge` or `meter` from [Klar.Chart](Klar.Chart.md).
 
-Give the number as `int`, `decimal` or `compact` and the tile writes it with the
+Give the number as `int`, `decimal`, `compact` or `money` and the tile writes it with the
 separators of its `locale` (English by default: `1,284`, `4.2M`), or pass a
 string you have formatted yourself to `value`. A long number is set in a smaller
 type so that it is always written out in full.
@@ -200,6 +202,18 @@ A number that shortens itself when it is large: `12900` stays "12,900", but
 "T" (English). Below a million the number is written in full, with at most one
 decimal. A number that is not finite (NaN or infinity) is shown as an en dash.
 
+### `money`
+
+```elm
+money : Money.Money -> Attribute msg
+```
+
+An amount of money, written with its currency code in the conventions of the
+tile's `locale` (`NOK 1,234.50` in English, `1 234,50 NOK` in Norwegian), exactly
+as `Money.toString` writes it. Use it instead of formatting the amount yourself, so
+that money stays `Klar.Money` all the way to the screen. For the symbol of the
+currency use `value (Money.toSymbolString locale amount)`.
+
 ### `unit`
 
 ```elm
@@ -252,6 +266,19 @@ never `NaN` or infinity.
     Stat.change { current = 3, previous = 0 } -- no change shown
 
     Stat.change { current = 150, previous = 120 } -- +25%
+
+### `moneyChange`
+
+```elm
+moneyChange : { current : Money.Money, previous : Money.Money } -> Attribute msg
+```
+
+The change between two amounts of money, as a percentage, worked out in minor
+units: the same as `change`, and nothing is shown when the two are in different
+currencies (a percentage of two currencies means nothing) or the previous amount
+is zero.
+
+    Stat.moneyChange { current = stockValueNow, previous = stockValueLastWeek }
 
 ### `deltaText`
 
@@ -321,7 +348,9 @@ size : Theme.Size -> Attribute msg
 ```
 
 The size of the number: `Small` (20px), `Medium` (26px, the default) or
-`Large` (34px). The `Size` type is in [Klar.Theme](Klar.Theme.md).
+`Large` (34px). The `Size` type is in [Klar.Theme](Klar.Theme.md). Without it the
+size follows the density of the application (`Klar.Settings`): 20px when compact, 26px
+when normal, 30px when comfortable.
 
 ### `flat`
 
@@ -356,6 +385,17 @@ locale : Locale.Locale -> Attribute msg
 The language of the built-in text ("Loading", "Try again" and the hidden
 "increase" and "decrease") and of the number format. The default is
 `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Stat.settings model.settings
 
 ## Loading and failure
 
@@ -415,11 +455,3 @@ refresh failed. A tile with that retry is a plain block, like a failed tile.
 
 Attributes that do not depend on the data, such as `label`, belong next to
 `remote` in the list.
-
-### `zone`
-
-```elm
-zone : Time.Zone -> Attribute msg
-```
-
-The time zone of the time in "Old data from 14:05". The default is UTC.

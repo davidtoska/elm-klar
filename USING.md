@@ -328,6 +328,29 @@ application can import Klar's internal modules (`Klar.Internal`, `Klar.Table.Sor
 
 **One stylesheet.** `Klar.stylesheet` once in the view of the root (see the README).
 
+**Density and time zone, stated once.** Keep one `Klar.Settings` in the model, ask the browser
+for the zone when the program starts, and give the settings to the shell:
+
+```elm
+-- init
+( { settings = Settings.default, ... }, Task.perform GotZone Time.here )
+
+-- update
+GotZone zone ->
+    ( { model | settings = Settings.withZone zone model.settings }, Cmd.none )
+
+-- view: everything inside the shell follows the density, with no attribute on any component
+AppShell.view [ AppShell.settings model.settings, ... ] [ page ]
+```
+
+The density (`Settings.withDensity Compact`) is carried by the page, so every table, card, list,
+tree, button and input follows it; a component that is given its own density keeps it. The
+zone reaches the components that write a time: give each of them `X.settings model.settings`
+(`Table`, `Stat`, `Chart`, `Tree`, `ListItem`, `Select`, `MultiSelect`, `Autocomplete`,
+`CommandPalette`, `RemoteView`, `Timeline`, `ApprovalFlow`). Without it a time is written in UTC
+**and ends in "UTC"**, so a forgotten zone is seen, not found by a user two hours off. For a
+time you write yourself: `Settings.time model.settings posix`. See `design/SETTINGS.md`.
+
 **Data from a backend, with `elm/http` in the application.** Klar never sends a
 request and never imports `elm/http`. It draws the state of one, as a
 [`Remote`](src/Klar/Remote.elm). Turn the result of a request into a `Remote` and
@@ -380,8 +403,9 @@ GotOrders result at ->
 Alert.stale [] Reload (List.concat [ Remote.staleIn "orders" model.orders, Remote.staleIn "figures" model.figures ])
 ```
 
-The time is shown in the zone you give the component (`Table.zone model.zone`; UTC
-by default). Read the data with `Remote.toMaybe`, `withDefault` or `map`: they see
+The time is shown in the zone of the application's settings (see "Density and time
+zone" below: `Table.settings model.settings`; UTC, and marked "UTC", until the zone is
+given). Read the data with `Remote.toMaybe`, `withDefault` or `map`: they see
 refreshed data too. A `case` of your own on a `Remote` needs a branch for `Kept`.
 `Remote.refresh` on nothing is `Loading`; for a new question (another customer, another
 period) set `Loading` yourself.

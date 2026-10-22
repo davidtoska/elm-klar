@@ -58,7 +58,9 @@
         "sizeSuffix",
         "densitySuffix"
       ],
-      "related": [],
+      "related": [
+        "Klar.Settings"
+      ],
       "keywords": [
         "theme",
         "foundations",
@@ -74,6 +76,51 @@
         "color"
       ],
       "reference": "ai/modules/Klar.Theme.md"
+    },
+    {
+      "name": "Klar.Settings",
+      "import": "import Klar.Settings as Settings",
+      "group": "Foundations",
+      "purpose": "What the application says once and every component follows: how tightly things are packed (the density) and the time zone of the times people read.",
+      "whenToUse": "the application chooses a density or knows the time zone of its users, which is every application with a clock in it.",
+      "whenNot": "you want the look of the components changed (colors, fonts, radius), which is done with the CSS custom properties described in `Klar.Theme`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [
+        "default",
+        "withZone",
+        "withDensity",
+        "AppShell.settings"
+      ],
+      "mainFunctions": [
+        "default",
+        "withDensity",
+        "withZone",
+        "density",
+        "zone",
+        "scope",
+        "time",
+        "dateTime"
+      ],
+      "related": [],
+      "keywords": [
+        "settings",
+        "foundations",
+        "density",
+        "compact",
+        "comfortable",
+        "time zone",
+        "zone",
+        "utc",
+        "application",
+        "every",
+        "component",
+        "follows",
+        "tightly"
+      ],
+      "reference": "ai/modules/Klar.Settings.md"
     },
     {
       "name": "Klar.Locale",
@@ -4183,12 +4230,12 @@
       "mainFunctions": [
         "view",
         "event",
+        "dayEvent",
         "withDescription",
         "withTone",
         "withIcon",
         "withAuthor",
-        "withAuthorImage",
-        "withDetails"
+        "withAuthorImage"
       ],
       "related": [
         "Klar.Locale",

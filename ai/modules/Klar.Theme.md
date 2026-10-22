@@ -119,6 +119,9 @@ How tightly rows and cells are packed: `Compact` (28px rows), `Normal`
 space when it is compact, and is easier to hit with a finger when it is
 comfortable.
 
+The application says its density once, in its [Klar.Settings](Klar.Settings.md), and
+every component follows it; a component that is given a density of its own keeps it.
+
 ## Building your own components
 
 If you make components of your own that should look like Klar's, the suffixes

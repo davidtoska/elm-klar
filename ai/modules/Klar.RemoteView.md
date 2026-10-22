@@ -16,8 +16,8 @@ type Attribute msg  -- opaque: no constructors are exposed
 onRetry : msg -> Attribute msg
 loadingLabel : String -> Attribute msg
 skeleton : Html msg -> Attribute msg
-zone : Time.Zone -> Attribute msg
 locale : Locale.Locale -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 ```
 
 ## Documentation
@@ -107,14 +107,6 @@ skeleton : Html msg -> Attribute msg
 The placeholder shown while loading, drawn with [Klar.Skeleton](Klar.Skeleton.md).
 The default is a title line and a few lines of text.
 
-### `zone`
-
-```elm
-zone : Time.Zone -> Attribute msg
-```
-
-The time zone of the time in "Old data from 14:05". The default is UTC.
-
 ### `locale`
 
 ```elm
@@ -123,3 +115,14 @@ locale : Locale.Locale -> Attribute msg
 
 The language of the built-in text ("Loading", "Try again", "Old data from").
 The default is `Locale.default`, which is English.
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    RemoteView.settings model.settings

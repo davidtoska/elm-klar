@@ -40,11 +40,13 @@ size : Int -> Attribute msg
 height : Int -> Attribute msg
 tone : Theme.Tone -> Attribute msg
 locale : Locale.Locale -> Attribute msg
+settings : Settings.Settings -> Attribute msg
 unit : String -> Attribute msg
 valueFormat : (Float -> String) -> Attribute msg
 
 -- Line and bar charts
 categories : List String -> Attribute msg
+dates : List Date.Date -> Attribute msg
 area : Attribute msg
 points : Bool -> Attribute msg
 stacked : Attribute msg
@@ -68,7 +70,6 @@ failed : Remote.Problem -> Attribute msg
 onRetry : msg -> Attribute msg
 remote : Remote.Remote a -> Attribute msg
 emptyText : String -> Attribute msg
-zone : Time.Zone -> Attribute msg
 ```
 
 ## Documentation
@@ -441,6 +442,17 @@ The language of the built-in text ("No data to show", "Line chart",
 "Loading chart" and so on) and of the number format. The default is
 `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
 
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Chart.settings model.settings
+
 ### `unit`
 
 ```elm
@@ -481,6 +493,20 @@ chart). A missing name is replaced by its position (1, 2, 3 ...), and names
 beyond the longest series add empty categories.
 
     Chart.categories [ "Jan", "Feb", "Mar", "Apr" ]
+
+### `dates`
+
+```elm
+dates : List Date.Date -> Attribute msg
+```
+
+The categories of a line or bar chart when they are days, one per value, in
+the order of the values. The axis writes them as short as a label can be (`21 Sep`
+in English, `21. sep.` in Norwegian, see `Format.dateShort`), so that eight of them
+fit under a half page chart, and the tooltip and the text alternative write the
+whole date. `categories` and `dates` replace each other.
+
+    Chart.line [ Chart.dates (List.map .day model.sales) ]
 
 ### `area`
 
@@ -698,11 +724,3 @@ The text of the empty state, shown when there is nothing to draw: no series,
 no values, or a donut whose slices add up to 0. The default is "No data to show".
 A sparkline uses it as its accessible label. A gauge and a meter always have a
 value, so they never show it.
-
-### `zone`
-
-```elm
-zone : Time.Zone -> Attribute msg
-```
-
-The time zone of the time in "Old data from 14:05". The default is UTC.

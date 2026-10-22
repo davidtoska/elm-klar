@@ -25,6 +25,10 @@ from other modules: a [Klar.SideNav](Klar-SideNav) for the
 sidebar, a [Klar.Menu](Klar-Menu) for the user menu and a
 [Klar.PageHeader](Klar-PageHeader) at the top of every page.
 
+The density and the time zone of the application are stated once, in a
+[Klar.Settings](Klar-Settings) that you keep in the model: `AppShell.settings
+model.settings` makes everything inside the shell follow the density.
+
 A small application, "Acme Operations", with the pages Orders, Customers and
 Reports needs this model and these messages. The shell keeps the sidebar, the drawer,
 the side menu and the skip link in one `AppShell.State`, and all its messages are one

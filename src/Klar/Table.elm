@@ -745,6 +745,8 @@ clearFilters (State model) =
 
 {-| The row density: `Compact`, `Normal` (the default) or `Comfortable`, from
 [Klar.Theme](Klar-Theme). The user changes it with the buttons of `densityToggle`.
+A table whose density was not set (or is `Normal`) follows the density of the
+application (`Klar.Settings`); a `Compact` or `Comfortable` table keeps its own.
 -}
 density : State id -> Density
 density (State model) =

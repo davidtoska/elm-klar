@@ -275,7 +275,8 @@ density : Theme.Density -> Attribute id msg
 ```
 
 How tightly the rows are packed, like the density of [Klar.Table](Klar.Table.md):
-`Compact`, `Normal` (the default) or `Comfortable`.
+`Compact`, `Normal` or `Comfortable`. Without it the rows follow the density of
+the application (`Klar.Settings`).
 
 ### `maxHeight`
 
