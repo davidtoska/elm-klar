@@ -33,6 +33,10 @@ asDefault : SavedView -> SavedView
 asShared : SavedView -> SavedView
 withQuery : Table.Query -> SavedView -> SavedView
 
+-- Keeping the views
+encode : SavedView -> Json.Encode.Value
+decoder : Json.Decode.Decoder SavedView
+
 -- Reading and replacing the list
 views : State -> List SavedView
 active : State -> Maybe SavedView
@@ -160,6 +164,14 @@ of `active`. (With [Klar.ServerList](Klar.ServerList.md), `ServerList.applyView 
 both.) There is no clipboard in pure Elm, so a "Copy link" is the link in a read-only
 [Klar.TextInput](Klar.TextInput.md) that the user selects (`TextInput.readOnly True`), shown
 in a dialog or a toast of your own.
+
+**A dialog, not a menu**: the list holds forms (the name of a new view, a rename, the
+confirmation of a deletion), and a menu may not hold text fields. It is a non-modal
+dialog, `role="dialog"` named "Saved views", opened by a button with
+`aria-haspopup="dialog"` and `aria-expanded`; the page behind stays usable, focus
+goes to the active view, `Escape` closes it and gives focus back to the button, and
+leaving it with `Tab` closes it. Checked with axe (wcag2a to wcag22aa and best
+practice) with the list open, with a deletion to confirm, a rename and the save form.
 
 **Keyboard**: `ArrowDown` on the button opens the list. `ArrowUp`, `ArrowDown`,
 `Home` and `End` move between the views, `Enter` applies the view that has focus,
@@ -299,6 +311,44 @@ withQuery : Table.Query -> SavedView -> SavedView
 Gives the view a table query: search text, sort, column filters and page size
 (the page is not kept). Use it for views you make yourself; the ones the user saves
 get it from `currentQuery`.
+
+### Keeping the views
+
+The library keeps nothing. `encode` and `decoder` write and read one view as JSON, so
+the application can keep its list wherever it keeps user settings: its backend, the
+address, a cookie that it sets through a port of its own.
+
+    -- the list, as text
+    Encode.encode 0 (Encode.list SavedViews.encode (SavedViews.views model.views))
+
+    -- and back (a text that does not read gives no views)
+    Decode.decodeString (Decode.list SavedViews.decoder) text
+        |> Result.withDefault []
+        |> (\stored -> SavedViews.setViews stored model.views)
+
+### `encode`
+
+```elm
+encode : SavedView -> Json.Encode.Value
+```
+
+One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags and
+the table query (`Table.encodeQuery`) when it has one. It carries a version, `"v": 1`.
+
+### `decoder`
+
+```elm
+decoder : Json.Decode.Decoder SavedView
+```
+
+Reads what `encode` wrote. The name (not empty) and the rule are required; the note,
+the flags and the query may be missing, a field it does not know is ignored, and a version
+newer than 1 is refused. A query that is there but cannot be read (see
+`Table.queryDecoder`) fails the view: silently dropping it would apply the rule alone
+and show another table than the one that was saved. The rule is read as `Rule.decoder`
+reads it.
+
+    Decode.decodeString SavedViews.decoder text
 
 ## Reading and replacing the list
 

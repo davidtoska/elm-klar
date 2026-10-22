@@ -1,10 +1,9 @@
 module Klar.Timeline exposing
     ( view
     , Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
-    , Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, locale
+    , Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, headingLevel, id, locale
     , onLoadMore, loadingMore, moreFailed, hasMore
     , loading, failed, onRetry, remote, skeletonRows, emptyTitle, emptyDescription
-    , headingLevel, id
     )
 
 {-| A vertical history of events: an audit trail, an order log, an activity feed.
@@ -75,7 +74,7 @@ set `locale`.
 
 # Look and time
 
-@docs Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, locale
+@docs Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, headingLevel, id, locale
 
 
 # Loading more

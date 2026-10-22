@@ -2,11 +2,10 @@ module Klar.Chart exposing
     ( line, bar, donut, gauge, meter, sparkline
     , Series, series, seriesMaybe, withColor, withTone, dashed
     , Segment, segment, segmentColor, segmentTone
-    , Attribute, title, description, ariaLabel, size, height, tone, locale, settings, unit, valueFormat
+    , Attribute, title, description, ariaLabel, id, size, height, tone, locale, settings, unit, valueFormat
     , categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
     , centerLabel, centerCaption, range, thresholds
     , loading, failed, onRetry, remote, emptyText
-    , id
     )
 
 {-| Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart
@@ -95,7 +94,7 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Attributes
 
-@docs Attribute, title, description, ariaLabel, size, height, tone, locale, settings, unit, valueFormat
+@docs Attribute, title, description, ariaLabel, id, size, height, tone, locale, settings, unit, valueFormat
 
 
 # Line and bar charts

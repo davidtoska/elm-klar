@@ -232,7 +232,11 @@ Drawer.view DrawerMsg [ Drawer.title "Order 1042" ] model.drawer
 
 On a page or in a card, "Try again" is replaced by the skeleton and focus would fall to the
 page: give the body an `id` and move focus to it in the same `update` branch that asks again
-(`RemoteView.focus "order-body" NoOp`). A page that is only a `RemoteView` draws its title
+(`RemoteView.focus "order-body" NoOp`). The same holds for every region that shows a retry:
+`Stat.id`, `Chart.id` and `Timeline.id` give the tile, the chart or the timeline the id,
+`RemoteView.focus` moves focus to it, and a `Tree` branch has `Tree.focusNode`. Use a
+message of its own for the retry of the region, so that a "Reload" button elsewhere does not
+take focus. A page that is only a `RemoteView` draws its title
 (`PageHeader`) outside it, so that there is one `h1` while it loads and when it fails.
 
 **Dialogs, drawers, toasts and the palette.** Each has a `State` in your model and a
@@ -264,7 +268,10 @@ functions, and the complete application is at the top of
 [`Klar.LeaveGuard`](src/Klar/LeaveGuard.elm): `initAt` (with the `Key` and the `Url`),
 `setDirty` (with the comparison, `draft /= saved`; in the branches of the messages that edit a form, never in a wrapper after every message, because "Leave" gives the changes up and a flag that says "dirty" again re-arms the guard), `request` (for links and your own
 navigation), `onUrlChange` (call it from your `onUrlChange`: it answers the buttons and
-says which page to show), `update` and `view`. You do not write: a field for the
+says which page to show), `update` and `view`. With an `AppShell` the link click is a message of
+your own (`LeaveGuard.request`, then `Nav.pushUrl`), `onUrlChange` stays the shell's
+(`AppShell.onUrlChange ShellMsg`) and the `Url` that `AppShell.update` returns goes to
+`LeaveGuard.onUrlChange`: the wiring, tried in Chrome, is in the docs of `LeaveGuard`. You do not write: a field for the
 address you are going back from, a target type that remembers where the request came
 from, a call to `Nav.forward`, or the code that remembers where focus was. Do not undo
 a Back with `Nav.forward 1` yourself: it reports the address it leaves, once at once,
@@ -299,7 +306,10 @@ let v = Form.bind Locale.default FormMsg form model.form
 in FormLayout.view [ FormLayout.onSubmit Save ] [ Form.summary v, Form.textInput v fields.name [], Form.select v fields.country options [] ]
 ```
 
-A wizard adds `Spec.step` and `Form.advance`, `Form.back`, `Form.stepper`; a group such as the
+A wizard adds `Spec.step` and `Form.advance`, `Form.back`, `Form.stepper` and draws the fields
+of the current step inside `Form.stepBody v [ ... ]` (without it Elm reuses the focused input
+of one step for the field at the same place in the next, and `advance` shows "Required" on a
+field nobody touched); a group such as the
 contacts of a supplier is `Spec.rows` with `Form.rowFields`, `Form.addRow` and
 `Form.removeRow`. You do not write: a state, a message or a DOM id for any field, a dirty
 test (`Form.isDirty`), "validate before Next", the list of everything that is wrong on the

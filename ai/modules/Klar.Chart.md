@@ -36,6 +36,7 @@ type Attribute msg  -- opaque: no constructors are exposed
 title : String -> Attribute msg
 description : String -> Attribute msg
 ariaLabel : String -> Attribute msg
+id : String -> Attribute msg
 size : Int -> Attribute msg
 height : Int -> Attribute msg
 tone : Theme.Tone -> Attribute msg
@@ -399,6 +400,18 @@ visible `title`; when both are set, the `ariaLabel` is the accessible name (and
 the caption of the hidden data table) and the title is only shown. A sparkline
 has no title, so give it an `ariaLabel` that says what it shows: "Orders, last 7
 days".
+
+### `id`
+
+```elm
+id : String -> Attribute msg
+```
+
+The DOM id of the chart, which then sits in an element that can take focus
+in every state (loading, failed, old data, drawn). The "Try again" button is
+replaced when the request starts again and focus would fall back to the page: call
+[`RemoteView.focus`](Klar.RemoteView.md#focus) with this id in the same `update`
+branch. The id must be unique on the page.
 
 ### `size`
 

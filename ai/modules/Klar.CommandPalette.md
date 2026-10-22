@@ -33,7 +33,11 @@ withDescription : String -> Item msg -> Item msg
 withIcon : Icon.Icon -> Item msg -> Item msg
 withShortcut : Shortcut.Keys -> Item msg -> Item msg
 withKeywords : List String -> Item msg -> Item msg
+withCommand : String -> Item msg -> Item msg
 withId : String -> Item msg -> Item msg
+
+-- Command words
+argument : List (Item msg) -> State -> String
 
 -- Sections
 type Section msg  -- opaque: no constructors are exposed
@@ -107,8 +111,9 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
         ]
         model.palette
 
-Picking an item sends the item's own message and closes the palette. `Escape`
-and a click outside close it without running anything. The palette is a modal
+Picking an item closes the palette, gives focus back to its opener and sends the
+item's own message (a message that moves focus, such as one that opens a drawer,
+wins). `Escape` and a click outside close it without running anything. The palette is a modal
 dialog: `view` returns an [`Overlay`](Klar.Overlay.md#overlay), and while it is open
 the page behind it is inert.
 Pressing the shortcut again while the palette is open starts over with an empty
@@ -323,6 +328,21 @@ keyword ranks below a match on the label.
     CommandPalette.item "New order" NewOrder
         |> CommandPalette.withKeywords [ "create", "add" ]
 
+### `withCommand`
+
+```elm
+withCommand : String -> Item msg -> Item msg
+```
+
+The words that call the item, for an item that takes an argument: "go to
+order" in "go to order 1001". The item matches while the query starts with these
+words (any case, any accents), also after an argument has been typed. Use
+`argument` to get the part of the query after the words. An item can have several
+commands (one for each language, say); the words are not shown.
+
+    CommandPalette.item "Go to order ..." (GoTo Orders)
+        |> CommandPalette.withCommand "go to order"
+
 ### `withId`
 
 ```elm
@@ -331,6 +351,29 @@ withId : String -> Item msg -> Item msg
 
 A stable identity, for items with the same label (two customers called "Ada
 Lovelace"). It keeps the highlight on the right item when the results change.
+
+### Command words
+
+A palette often has a section that searches the backend next to the commands:
+the user types "go to order 1001" and the section should ask for "1001", not for
+the words of the command. Declare the words on the item with `withCommand` and ask
+`argument` for what follows them. The item stays in the list while its words are
+followed by an argument (without `withCommand` no item matches "go to order
+1001", as "1001" is nowhere in "Go to order").
+
+### `argument`
+
+```elm
+argument : List (Item msg) -> State -> String
+```
+
+The query without the command words of the items that are called by them, for
+the request to the backend. When the query starts with the `withCommand` words of
+one of the items (the longest wins), the rest of the query is returned, trimmed;
+otherwise the whole query, trimmed. Give it the same items as the view, so a
+function that makes them can be shared.
+
+    CommandPalette.argument [ goToOrder ] palette -- "1001", for "Go to order 1001"
 
 ## Sections
 

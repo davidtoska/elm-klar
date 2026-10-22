@@ -3,9 +3,8 @@ module Klar.Stat exposing
     , Attribute, label, value, int, decimal, compact, money, unit, caption, icon
     , delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
-    , size, flat, onClick, locale, settings
+    , size, flat, onClick, id, locale, settings
     , loading, failed, onRetry, remote
-    , id
     )
 
 {-| A KPI tile: one number with its label, the change since last time, a short
@@ -90,7 +89,7 @@ only its retry button is a control).
 
 # Look and behavior
 
-@docs size, flat, onClick, locale, settings
+@docs size, flat, onClick, id, locale, settings
 
 
 # Loading and failure

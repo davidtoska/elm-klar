@@ -21,6 +21,7 @@ compact : Attribute msg
 jumpToPage : Attribute msg
 siblings : Int -> Attribute msg
 summary : List (Html msg) -> Attribute msg
+rangeText : (Int -> Int -> Int -> String) -> Attribute msg
 disabled : Bool -> Attribute msg
 id : String -> Attribute msg
 label : String -> Attribute msg
@@ -187,6 +188,23 @@ list) when the range would describe rows that are not on screen. The controls
 stay.
 
     Pagination.summary [ Html.text "Loading ..." ]
+
+### `rangeText`
+
+```elm
+rangeText : (Int -> Int -> Int -> String) -> Attribute msg
+```
+
+Words the range yourself: the first and last item of the page and the total in,
+the text out. The default is "1–25 of 3,000" ("1–25 av 3 000" in Norwegian). It is
+not called when there is nothing to count, and `summary` wins over it.
+
+    Pagination.rangeText
+        (\first last total ->
+            String.fromInt first ++ " to " ++ String.fromInt last ++ " of " ++ String.fromInt total
+        )
+
+Format the numbers with [Klar.Format](Klar.Format.md).
 
 ### `disabled`
 
