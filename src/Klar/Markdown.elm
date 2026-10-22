@@ -115,7 +115,7 @@ text area and this view side by side.
 
 # Attributes
 
-@docs Attribute, locale, headingOffset, idPrefix, images, imagesFrom
+@docs Attribute, locale, headingOffset, idPrefix, images, ImageHost, imageHost, imagesFrom
 
 -}
 
