@@ -1878,7 +1878,7 @@ diagnose locale (Form form) data defs =
                             (\f ->
                                 case Dict.get f.field byKey of
                                     Just def ->
-                                        { field = f.field, target = f.target, label = def.label, message = f.message, step = def.step, origin = FromRule }
+                                        { field = f.field, target = reachable def f.target, label = def.label, message = f.message, step = def.step, origin = FromRule }
 
                                     Nothing ->
                                         { field = f.field, target = f.target, label = f.label, message = f.message, step = 0, origin = FromRule }
@@ -1889,7 +1889,7 @@ diagnose locale (Form form) data defs =
                 |> List.filterMap
                     (\def ->
                         Dict.get def.key data.server
-                            |> Maybe.map (\message -> { field = def.key, target = def.key, label = def.label, message = message, step = def.step, origin = FromServer })
+                            |> Maybe.map (\message -> { field = def.key, target = entryOf def, label = def.label, message = message, step = def.step, origin = FromServer })
                     )
 
         fromOutside =
@@ -1900,6 +1900,19 @@ diagnose locale (Form form) data defs =
                     )
     in
     client ++ server ++ fromOutside
+
+
+{-| Where the focus goes for a problem: the target the rule named, or the way
+into the field when it named the field itself (a rule builder is a group, not a
+control).
+-}
+reachable : Def -> String -> String
+reachable def target =
+    if target == def.key then
+        entryOf def
+
+    else
+        target
 
 
 {-| Every problem once, in the order of the declaration: a field has its own

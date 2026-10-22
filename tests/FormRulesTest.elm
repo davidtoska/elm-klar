@@ -231,6 +231,31 @@ suite =
                         |> withConditions 1 (rootOf [])
                         |> problemTexts
                         |> Expect.equal [ ( "Price rule 2, Conditions", "Add a condition" ) ]
+            , test "a row with no conditions points at the button that adds one, also when the server refused it" <|
+                \_ ->
+                    let
+                        emptied =
+                            filled |> withConditions 0 (rootOf [])
+
+                        refused =
+                            Form.rejected
+                                ([ Form.problemInRow f.rules 1 .conditions "Overlaps" filled ] |> List.filterMap identity)
+                                form
+                                filled
+                                |> Tuple.first
+                    in
+                    case ( rowsOf emptied |> List.head, rowsOf refused |> List.drop 1 |> List.head ) of
+                        ( Just first, Just second ) ->
+                            Expect.equal
+                                [ [ (Form.problem first.conditions "").field ++ "-n0-add-rule" ]
+                                , [ (Form.problem second.conditions "").field ++ "-n0-add-rule" ]
+                                ]
+                                [ Form.problems Locale.en form emptied |> List.map .field
+                                , Form.problems Locale.en form refused |> List.map .field
+                                ]
+
+                        _ ->
+                            Expect.fail "expected two rows"
             , test "an unfinished condition is a problem that points at the control to fill in" <|
                 \_ ->
                     let
