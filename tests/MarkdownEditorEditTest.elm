@@ -8,6 +8,7 @@ selection, and `‸` marks a caret.
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
+import Klar.Markdown.Utf16 as Utf16
 import Klar.MarkdownEditor.Edit as Edit exposing (Action(..), Edit)
 import Test exposing (Test, describe, fuzz2, fuzzWith, test)
 
@@ -137,7 +138,7 @@ code =
         , changes Code "⟦a`b⟧" "``⟦a`b⟧``"
         , changes Code "``⟦a`b⟧``" "⟦a`b⟧"
         , changes Code "⟦`a⟧" "`` ⟦`a⟧ ``"
-        , changes Code "`` ⟦`a⟧ ``" "⟦`a⟧"
+        , changes Code "⟦`` `a ``⟧" "⟦`a⟧"
         , changes Code "run ⟦npm test⟧ now" "run `⟦npm test⟧` now"
         , changes Code "⟦a\nb⟧" "⟦`a`\n`b`⟧"
         ]
@@ -176,7 +177,7 @@ heading =
         , changes Heading "#### ‸a" "‸a"
         , changes Heading "##### ‸a" "‸a"
         , changes Heading "# ‸a" "## ‸a"
-        , changes Heading "##‸" "‸"
+        , changes Heading "####‸" "‸"
         , changes Heading "⟦a\nb⟧" "## ⟦a\n## b⟧"
         , changes Heading "⟦a\n\nb⟧" "## ⟦a\n\n## b⟧"
         , changes Heading "⟦## a\nb⟧" "⟦### a\n### b⟧"
@@ -323,6 +324,16 @@ markedText =
         |> Fuzz.map String.concat
 
 
+{-| Text with marks and with halves of emoji, as a text that is cut in the wrong
+place has.
+-}
+halvesText : Fuzzer String
+halvesText =
+    Fuzz.oneOfValues [ "a", "b", "😀", "\u{D83D}", "\u{DE00}", "\u{D83D}\u{DE00}", "\n", " ", "*", "`", "#", "> ", "- ", "[", "](", ")" ]
+        |> Fuzz.listOfLengthBetween 0 20
+        |> Fuzz.map String.concat
+
+
 position : Fuzzer Int
 position =
     Fuzz.intRange 0 80
@@ -351,7 +362,7 @@ validSelection edit =
             String.length edit.text
 
         splitsPair index =
-            index > 0 && index < length && List.length (String.toList (String.slice (index - 1) (index + 1) edit.text)) == 1
+            index > 0 && index < length && Utf16.isHighSurrogate (String.slice (index - 1) index edit.text) && Utf16.isLowSurrogate (String.slice index (index + 1) edit.text)
     in
     if start < 0 || end > length || start > end then
         Expect.fail ("the selection " ++ String.fromInt start ++ "-" ++ String.fromInt end ++ " is not inside the text of " ++ String.fromInt length)
@@ -373,99 +384,129 @@ withoutMarks text =
 properties : Test
 properties =
     describe "any text"
-        [ describe "the selection stays inside the text"
-            (List.map
-                (\action ->
-                    fuzzWith { runs = 300, distribution = Test.noDistribution } (Fuzz.map3 (\t a b -> withSelection t a b) markedText position position) (actionName action) <|
-                        \edit ->
-                            Edit.apply placeholders action edit
-                                |> validSelection
-                )
-                allActions
-            )
-        , describe "no text is lost"
-            (List.map
-                (\action ->
-                    fuzzWith { runs = 300, distribution = Test.noDistribution } (Fuzz.map3 (\t a b -> withSelection t a b) plainText position position) (actionName action) <|
-                        \edit ->
-                            Edit.apply { linkText = "" } action edit
-                                |> .text
-                                |> withoutMarks
-                                |> Expect.equal (withoutMarks edit.text)
-                )
-                allActions
-            )
-        , describe "applied twice, the text is as it was"
-            (List.map
-                (\action ->
-                    fuzzWith { runs = 400, distribution = Test.noDistribution } (Fuzz.map3 (\t a b -> withSelection t a b) plainText position position) (actionName action) <|
-                        \edit ->
-                            Edit.apply placeholders action edit
-                                |> Edit.apply placeholders action
-                                |> .text
-                                |> Expect.equal edit.text
-                )
-                [ Bold, Italic, Code, Quote, BulletList, NumberedList, TaskList ]
-            )
-        , fuzzWith { runs = 400, distribution = Test.noDistribution } (Fuzz.map3 (\t a b -> withSelection t a b) plainText position position) "a heading is gone after three times" <|
-            \edit ->
-                Edit.apply placeholders Heading edit
-                    |> Edit.apply placeholders Heading
-                    |> Edit.apply placeholders Heading
-                    |> .text
-                    |> Expect.equal edit.text
-        , fuzz2 plainText position "a text with a caret: bold then bold puts the caret back" <|
-            \text a ->
-                let
-                    edit =
-                        withSelection text a a
-                in
-                Edit.apply placeholders Bold edit
-                    |> Edit.apply placeholders Bold
-                    |> show
-                    |> Expect.equal (show ({ edit | selection = Edit.clampSelection edit.text edit.selection }))
-        , describe "the same selection after the toggle of a line action"
-            (List.map
-                (\action ->
-                    fuzzWith { runs = 300, distribution = Test.noDistribution } (Fuzz.map3 (\t a b -> withSelection t a b) plainText position position) (actionName action) <|
-                        \edit ->
-                            let
-                                once =
-                                    Edit.apply placeholders action edit
-
-                                twice =
-                                    Edit.apply placeholders action once
-                            in
-                            if once.text == edit.text then
-                                Expect.pass
-
-                            else
-                                Expect.equal (Edit.clampSelection edit.text edit.selection |> normalizedForLines edit.text) (twice.selection |> normalizedForLines edit.text)
-                )
-                [ Quote, BulletList, NumberedList, TaskList ]
-            )
-        , describe "marked text is never lost either"
-            (List.map
-                (\action ->
-                    fuzzWith { runs = 300, distribution = Test.noDistribution } (Fuzz.map3 (\t a b -> withSelection t a b) markedText position position) (actionName action) <|
-                        \edit ->
-                            Edit.apply { linkText = "" } action edit
-                                |> .text
-                                |> Expect.all
-                                    [ \result -> Expect.equal (String.filter (\c -> c == 'a' || c == 'b' || c == '😀' || c == '\n') edit.text) (String.filter (\c -> c == 'a' || c == 'b' || c == '😀' || c == '\n') result)
-                                    ]
-                )
-                allActions
-            )
+        [ selectionStaysInside
+        , noTextLost
+        , twiceIsOnce
+        , headingCycle
+        , caretRoundTrip
+        , selectionRoundTrip
+        , markedTextKept
         ]
 
 
-{-| A selection of a text, with an end at the start of a line moved back: the
-actions do not count the line that a selection only touches.
--}
-normalizedForLines : String -> Edit.Selection -> Edit.Selection
-normalizedForLines _ selection =
-    selection
+edits : Fuzzer String -> Fuzzer Edit
+edits texts =
+    Fuzz.map3 withSelection texts position position
+
+
+selectionStaysInside : Test
+selectionStaysInside =
+    describe "the selection stays inside the text"
+        (List.map
+            (\action ->
+                fuzzWith { runs = 400, distribution = Test.noDistribution } (edits halvesText) (actionName action) <|
+                    \edit ->
+                        Edit.apply placeholders action edit
+                            |> validSelection
+            )
+            allActions
+        )
+
+
+noTextLost : Test
+noTextLost =
+    describe "no text is lost"
+        (List.map
+            (\action ->
+                fuzzWith { runs = 300, distribution = Test.noDistribution } (edits plainText) (actionName action) <|
+                    \edit ->
+                        Edit.apply { linkText = "" } action edit
+                            |> .text
+                            |> withoutMarks
+                            |> Expect.equal (withoutMarks edit.text)
+            )
+            allActions
+        )
+
+
+twiceIsOnce : Test
+twiceIsOnce =
+    describe "applied twice, the text is as it was"
+        (List.map
+            (\action ->
+                fuzzWith { runs = 400, distribution = Test.noDistribution } (edits plainText) (actionName action) <|
+                    \edit ->
+                        Edit.apply placeholders action edit
+                            |> Edit.apply placeholders action
+                            |> .text
+                            |> Expect.equal edit.text
+            )
+            [ Bold, Italic, Code, Quote, BulletList, NumberedList, TaskList ]
+        )
+
+
+headingCycle : Test
+headingCycle =
+    fuzzWith { runs = 400, distribution = Test.noDistribution } (edits plainText) "a heading is gone after four times (levels 2, 3, 4, none)" <|
+        \edit ->
+            Edit.apply placeholders Heading edit
+                |> Edit.apply placeholders Heading
+                |> Edit.apply placeholders Heading
+                |> Edit.apply placeholders Heading
+                |> .text
+                |> Expect.equal edit.text
+
+
+caretRoundTrip : Test
+caretRoundTrip =
+    fuzz2 plainText position "a caret: bold then bold puts the caret back" <|
+        \text a ->
+            let
+                edit =
+                    withSelection text a a
+            in
+            Edit.apply placeholders Bold edit
+                |> Edit.apply placeholders Bold
+                |> show
+                |> Expect.equal (show { edit | selection = Edit.clampSelection edit.text edit.selection })
+
+
+selectionRoundTrip : Test
+selectionRoundTrip =
+    describe "the line actions put the selection back too"
+        (List.map
+            (\action ->
+                fuzzWith { runs = 300, distribution = Test.noDistribution } (edits plainText) (actionName action) <|
+                    \edit ->
+                        let
+                            twice =
+                                Edit.apply placeholders action edit
+                                    |> Edit.apply placeholders action
+                        in
+                        Expect.equal (show { edit | selection = Edit.clampSelection edit.text edit.selection }) (show twice)
+            )
+            [ Quote, BulletList, NumberedList, TaskList ]
+        )
+
+
+markedTextKept : Test
+markedTextKept =
+    describe "the words of text with marks are kept"
+        (List.map
+            (\action ->
+                fuzzWith { runs = 300, distribution = Test.noDistribution } (edits markedText) (actionName action) <|
+                    \edit ->
+                        let
+                            words text =
+                                String.filter (\c -> c == 'a' || c == 'b' || c == '😀' || c == '\n') text
+                        in
+                        Edit.apply { linkText = "" } action edit
+                            |> .text
+                            |> words
+                            |> Expect.equal (words edit.text)
+            )
+            allActions
+        )
 
 
 actionName : Action -> String

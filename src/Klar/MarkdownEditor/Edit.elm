@@ -19,11 +19,13 @@ cover both. Text is never lost: an action adds or removes only the marks it is a
 the text is touched.
 
 Every action is a toggle where that makes sense: apply it twice and the text is as
-it was (for a heading, three times: it goes through three levels).
+it was (for a heading, four times: it goes through the levels 2, 3 and 4 and then
+has none).
 
 -}
 
 import Dict exposing (Dict)
+import Klar.Markdown.Utf16 as Utf16
 
 
 {-| The part of the text that is selected: where it starts and where it ends, in code
@@ -151,7 +153,12 @@ around it then read as one character.
 -}
 insidePair : String -> Int -> Bool
 insidePair text position =
-    position > 0 && position < String.length text && List.length (String.toList (String.slice (position - 1) (position + 1) text)) == 1
+    position
+        > 0
+        && position
+        < String.length text
+        && Utf16.isHighSurrogate (String.slice (position - 1) position text)
+        && Utf16.isLowSurrogate (String.slice position (position + 1) text)
 
 
 {-| The number of lines of a text: one more than its line breaks.
@@ -313,43 +320,43 @@ codeMarker =
     }
 
 
+{-| The runs below look at single code units with `String.slice`, never at
+characters: `String.toList` and `String.foldl` fail on text with half of an emoji.
+-}
 leadingRun : Char -> String -> Int
 leadingRun char text =
-    runHelp char (String.toList text) 0
+    runFrom (String.fromChar char) text 0 1 0
 
 
 trailingRun : Char -> String -> Int
 trailingRun char text =
-    runHelp char (String.toList (String.reverse text)) 0
+    runFrom (String.fromChar char) text (String.length text - 1) -1 0
 
 
-runHelp : Char -> List Char -> Int -> Int
-runHelp char chars count =
-    case chars of
-        c :: rest ->
-            if c == char then
-                runHelp char rest (count + 1)
+runFrom : String -> String -> Int -> Int -> Int -> Int
+runFrom unit text index step count =
+    if index >= 0 && index < String.length text && String.slice index (index + 1) text == unit then
+        runFrom unit text (index + step) step (count + 1)
 
-            else
-                count
-
-        [] ->
-            count
+    else
+        count
 
 
 longestRun : Char -> String -> Int
 longestRun char text =
-    String.foldl
-        (\c ( current, longest ) ->
-            if c == char then
-                ( current + 1, max longest (current + 1) )
+    longestFrom (String.fromChar char) text 0 0 0
 
-            else
-                ( 0, longest )
-        )
-        ( 0, 0 )
-        text
-        |> Tuple.second
+
+longestFrom : String -> String -> Int -> Int -> Int -> Int
+longestFrom unit text index current longest =
+    if index >= String.length text then
+        longest
+
+    else if String.slice index (index + 1) text == unit then
+        longestFrom unit text (index + 1) (current + 1) (max longest (current + 1))
+
+    else
+        longestFrom unit text (index + 1) 0 longest
 
 
 inline : Marker -> Edit -> Edit
@@ -610,7 +617,7 @@ asLink text =
 looksLikeAddress : String -> Bool
 looksLikeAddress text =
     (String.startsWith "http://" text || String.startsWith "https://" text || String.startsWith "mailto:" text)
-        && not (String.any (\c -> c == ' ' || c == '\n' || c == '\t') text)
+        && not (String.contains " " text || String.contains "\n" text || String.contains "\t" text)
 
 
 
@@ -1014,17 +1021,17 @@ boxLength afterMarker =
 
 leadingDigits : String -> Int
 leadingDigits text =
-    String.toList text
-        |> List.foldl
-            (\c ( count, going ) ->
-                if going && c >= '0' && c <= '9' then
-                    ( count + 1, True )
+    digitsFrom text 0
 
-                else
-                    ( count, False )
-            )
-            ( 0, True )
-        |> Tuple.first
+
+digitsFrom : String -> Int -> Int
+digitsFrom text index =
+    case String.toInt (String.slice index (index + 1) text) of
+        Just _ ->
+            digitsFrom text (index + 1)
+
+        Nothing ->
+            index
 
 
 {-| A list marker in front of every line that has text, in place of the one it has;

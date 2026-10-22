@@ -41,6 +41,7 @@ and hard line breaks. Raw HTML and entities are not interpreted: they are text.
 
 import Dict exposing (Dict)
 import Klar.Markdown.Inline as Inline exposing (Inline)
+import Klar.Markdown.Utf16 as Utf16
 import Set exposing (Set)
 
 
@@ -103,8 +104,11 @@ type alias Parsed =
 {-| Reads a text.
 -}
 parse : String -> Document
-parse text =
+parse input =
     let
+        text =
+            Utf16.repair input
+
         total =
             String.length text
 
@@ -143,12 +147,8 @@ cut n text =
     let
         head =
             String.left n text
-
-        lastCode =
-            String.right 1 head |> String.toList |> List.map Char.toCode |> List.head |> Maybe.withDefault 0
     in
-    -- a half of a pair has no code at all (NaN) when it is the first half
-    if isNaN (toFloat lastCode) then
+    if Utf16.isHighSurrogate (String.right 1 head) then
         String.dropRight 1 head
 
     else
