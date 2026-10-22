@@ -6667,11 +6667,15 @@ viewRange ctx =
 
     else
         let
+            top =
+                Window.clampScroll ctx.geometry ctx.model.scroll
+
+            -- the rows that are in view in full
             first =
-                clamp 1 ctx.data.total (floor (ctx.model.scroll / toFloat ctx.geometry.rowHeight) + 1)
+                clamp 1 ctx.data.total (ceiling (top / toFloat ctx.geometry.rowHeight) + 1)
 
             last =
-                min ctx.data.total (first + Window.rowsPerScreen ctx.geometry - 1)
+                clamp first ctx.data.total (floor ((top + toFloat ctx.geometry.viewport) / toFloat ctx.geometry.rowHeight))
         in
         Html.div [ Internal.cls [ "klar-table__footer" ], Attr.attribute "aria-hidden" "true" ]
             [ Html.span [ Internal.cls [ "klar-table__footer-range", "klar-tabular" ] ] [ Html.text (ctx.t.summary first last ctx.data.total) ] ]

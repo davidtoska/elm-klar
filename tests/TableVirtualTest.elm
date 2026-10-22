@@ -146,6 +146,10 @@ scrolling =
                 drawn (view longTable (scrolledTo 1.0e9 start))
                     |> Tuple.second
                     |> Expect.equal 999
+        , test "the range in view ends with the last row at the end of the table" <|
+            \_ ->
+                view longTable (scrolledTo 1.0e9 start)
+                    |> Query.has [ Selector.text "Showing 990–1,000 of 1,000 rows." ]
         , test "sorting goes back to the top" <|
             \_ ->
                 let
