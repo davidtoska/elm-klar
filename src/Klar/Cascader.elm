@@ -11,7 +11,7 @@ module Klar.Cascader exposing
 Subcategory, Product. The popup shows one column for each level, like a file
 browser, and the closed field shows the path ("Europe / Norway / Oslo").
 
-Use when: the user thinks in levels and knows where to look.
+Use when: the user picks one value by drilling down through levels they know, such as country, region and city.
 Do not use when: the user picks from a tree with check boxes (as `Klar.TreeSelect`) or from one flat list (as `Klar.Select`).
 Quick path: `init`, `update`, `view`, `nodes`, `value`
 

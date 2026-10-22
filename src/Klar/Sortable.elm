@@ -10,7 +10,7 @@ module Klar.Sortable exposing
 with the keyboard.
 
 Use when: a short list has an order that matters, such as the steps of a pick sequence or the filters of a saved view.
-Do not use when: the columns of a table are to be moved, use the column order of `Klar.Table`.
+Do not use when: the user only chooses which columns of a table to show (use `Table.columnChooser`); a table has no way to reorder its columns.
 Quick path: `itemIds`, `init`, `update`, `view`, `reorder`
 
     import Klar.Sortable as Sortable

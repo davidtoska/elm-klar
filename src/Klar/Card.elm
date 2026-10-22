@@ -102,7 +102,7 @@ configure attributes =
         attributes
 
 
-{-| The title in the header, an `h3` unless you set another level with
+{-| The title in the header, an `h2` unless you set another level with
 `headingLevel`. A card without a title, a subtitle or actions has no header.
 -}
 title : String -> Attribute msg
