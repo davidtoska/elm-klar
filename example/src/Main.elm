@@ -60,7 +60,7 @@ main =
         , update = update
         , subscriptions = subscriptions
         , onUrlRequest = UrlRequested
-        , onUrlChange = UrlChanged
+        , onUrlChange = AppShell.onUrlChange ShellMsg
         }
 
 
@@ -75,9 +75,7 @@ type alias Model =
     , zone : Time.Zone
     , today : Date
     , backend : Api.Backend
-    , sidebarCollapsed : Bool
-    , drawerOpen : Bool
-    , sideNav : SideNav.State String
+    , shell : AppShell.State String
     , userMenu : Menu.State
     , shortcuts : Shortcut.State
     , toasts : Toast.State Msg
@@ -123,9 +121,7 @@ init _ url key =
             , zone = Time.utc
             , today = Sample.today
             , backend = backend3
-            , sidebarCollapsed = False
-            , drawerOpen = False
-            , sideNav = SideNav.init "main-nav" |> SideNav.reveal (routeKey route) menu
+            , shell = AppShell.init { id = shellId, key = key } |> AppShell.setPage menu (routeKey route)
             , userMenu = Menu.init "user-menu"
             , shortcuts = Shortcut.init
             , toasts = Toast.init |> Toast.maxVisible 3
@@ -149,7 +145,7 @@ init _ url key =
           -- The others start empty and fetch when they are visited.
           enterCmd
         , Time.here |> Task.perform GotZone
-        , AppShell.focusContent shellId NoOp
+        , Cmd.map ShellMsg (AppShell.goToContent entered.shell)
         ]
     )
 
@@ -171,17 +167,12 @@ pageContext model =
 type Msg
     = NoOp
     | UrlRequested Browser.UrlRequest
-    | UrlChanged Url
     | GotZone Time.Zone
     | GoTo Route
       -- shell
-    | ToggleSidebar
+    | ShellMsg AppShell.Msg
     | ToggleSidebarKey
-    | GotWidth Float
-    | ToggleDrawer
-    | CloseDrawer
-    | SkipToContent
-    | SideNavMsg SideNav.Msg
+    | FocusContent
     | UserMenuMsg Menu.Msg
     | ShortcutMsg Shortcut.Msg
     | ToastMsg Toast.Msg
@@ -212,6 +203,37 @@ type Msg
     | GalleryMsg Gallery.Msg
 
 
+
+-- The one place that learns of a route change (see `AppShell.update`).
+
+
+routeChanged : Url -> Model -> ( Model, Cmd Msg )
+routeChanged url model =
+    let
+        route =
+            Route.fromUrl url
+
+        next =
+            { model
+                | route = route
+                , shell = AppShell.setPage menu (routeKey route) model.shell
+            }
+    in
+    -- Closing an order opened by link (`#/orders/ORD-10001` back to
+    -- `#/orders`) keeps the list as it is. When the browser's back
+    -- button did it, the editor closes too.
+    case ( model.route, route ) of
+        ( OrderDetail _, Orders ) ->
+            let
+                ( orders, ordersCmd ) =
+                    Orders.routeLeft next.orders
+            in
+            ( { next | orders = orders }, Cmd.map OrdersMsg ordersCmd )
+
+        _ ->
+            enter route next
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -230,47 +252,24 @@ update msg model =
         UrlRequested (Browser.External href) ->
             ( model, Nav.load href )
 
-        UrlChanged url ->
+        ShellMsg inner ->
             let
-                route =
-                    Route.fromUrl url
+                ( shell, shellCmd, changed ) =
+                    AppShell.update inner model.shell
 
                 next =
-                    { model
-                        | route = route
-                        , drawerOpen = False
-                        , sideNav = SideNav.reveal (routeKey route) menu model.sideNav
-                    }
-
-                -- Closing an order opened by link (`#/orders/ORD-10001` back to
-                -- `#/orders`) keeps the list as it is. When the browser's back
-                -- button did it, the editor closes too.
-                ( entered, cmd ) =
-                    case ( model.route, route ) of
-                        ( OrderDetail _, Orders ) ->
-                            let
-                                ( orders, ordersCmd ) =
-                                    Orders.routeLeft next.orders
-                            in
-                            ( { next | orders = orders }, Cmd.map OrdersMsg ordersCmd )
-
-                        _ ->
-                            enter route next
+                    { model | shell = shell }
             in
-            ( entered
-            , Cmd.batch
-                [ cmd
-                , AppShell.resetScroll shellId NoOp
+            case changed of
+                Just url ->
+                    let
+                        ( entered, cmd ) =
+                            routeChanged url next
+                    in
+                    ( entered, Cmd.batch [ cmd, Cmd.map ShellMsg shellCmd ] )
 
-                -- Chosen in the drawer: it closes and its link loses focus, so the
-                -- new page gets it.
-                , if model.drawerOpen then
-                    AppShell.focusContent shellId NoOp
-
-                  else
-                    Cmd.none
-                ]
-            )
+                Nothing ->
+                    ( next, Cmd.map ShellMsg shellCmd )
 
         GotZone zone ->
             -- The time zone is the visitor's, but the day is the one the dummy backend
@@ -310,57 +309,17 @@ update msg model =
                                 Cmd.none
 
                             _ ->
-                                Process.sleep 60 |> Task.perform (\_ -> SkipToContent)
+                                Process.sleep 60 |> Task.perform (\_ -> FocusContent)
                         ]
                     )
-
-        ToggleSidebar ->
-            ( { model | sidebarCollapsed = not model.sidebarCollapsed }, Cmd.none )
 
         ToggleSidebarKey ->
             -- `[` hides the sidebar on a wide screen and opens or closes the drawer
             -- on a narrow one (below 900 px, see `Klar.AppShell`).
-            ( model, Dom.getViewport |> Task.perform (\viewport -> GotWidth viewport.viewport.width) )
+            ( model, Cmd.map ShellMsg (AppShell.toggleSidebar model.shell) )
 
-        GotWidth width ->
-            if width < 900 then
-                update ToggleDrawer model
-
-            else
-                update ToggleSidebar model
-
-        ToggleDrawer ->
-            if model.drawerOpen then
-                update CloseDrawer model
-
-            else
-                -- The links come after the whole top bar: take the keyboard to the
-                -- current page instead of making it tab there.
-                ( { model | drawerOpen = True }
-                , SideNav.focusLink SideNav.stringKeys
-                    (if routeKey model.route == "" then
-                        "overview"
-
-                     else
-                        routeKey model.route
-                    )
-                    model.sideNav
-                    NoOp
-                )
-
-        CloseDrawer ->
-            -- The links of a closed drawer cannot hold focus: give it to the button.
-            ( { model | drawerOpen = False }, AppShell.focusMenuButton shellId NoOp )
-
-        SkipToContent ->
-            ( model, AppShell.focusContent shellId NoOp )
-
-        SideNavMsg inner ->
-            let
-                ( sideNav, cmd ) =
-                    SideNav.update inner model.sideNav
-            in
-            ( { model | sideNav = sideNav }, Cmd.map SideNavMsg cmd )
+        FocusContent ->
+            ( model, Cmd.map ShellMsg (AppShell.goToContent model.shell) )
 
         UserMenuMsg inner ->
             let
@@ -919,30 +878,16 @@ view model =
           -- nothing to link or bundle.
           Klar.stylesheet
         , AppShell.view
-            ([ AppShell.id shellId
+            ([ AppShell.state ShellMsg model.shell
              , AppShell.locale model.locale
              , AppShell.brand (AppShell.brandLink { name = "Klar", href = Route.path Overview, logo = Just (Icon.sized Icon.Large Icon.layers) })
-             , AppShell.sidebar
-                (SideNav.view SideNavMsg
-                    [ SideNav.entries menu
-                    , SideNav.current (routeKey model.route)
-                    , SideNav.collapsed model.sidebarCollapsed
-                    , SideNav.locale model.locale
-                    ]
-                    model.sideNav
-                )
-             , AppShell.sidebarCollapsed model.sidebarCollapsed
-             , AppShell.onToggleSidebar ToggleSidebar
-             , AppShell.drawerOpen model.drawerOpen
-             , AppShell.onToggleDrawer ToggleDrawer
-             , AppShell.onCloseDrawer CloseDrawer
+             , AppShell.sidebar (AppShell.sideNav ShellMsg [ SideNav.entries menu, SideNav.locale model.locale ] model.shell)
              , AppShell.onSearch OpenPalette
              , AppShell.searchPlaceholder "Search orders, pages and components ..."
              , AppShell.actions (topBarActions model)
              , AppShell.userName "Demo user"
              , AppShell.userRole "Operations"
              , AppShell.userMenu (viewUserMenu model)
-             , AppShell.onSkipToContent SkipToContent
              , AppShell.onStrayDrop NoOp
              , AppShell.shortcuts (Shortcut.listen ShortcutMsg shortcuts model.shortcuts)
              , AppShell.overlays overlays

@@ -4,7 +4,6 @@ klar-app-shell--modal-open
 klar-app-shell--no-sidebar
 klar-autocomplete--open
 klar-avatar--c
-klar-button--md
 klar-calendar__body
 klar-calendar__cell--empty
 klar-calendar__weekday--weekend
@@ -27,7 +26,7 @@ klar-json__row--more
 klar-list-item--accent
 klar-list-state
 klar-number
-klar-overlay-host__page
+klar-page-start
 klar-pagination--disabled
 klar-pagination__jump-label
 klar-pagination__size-label

@@ -1,7 +1,9 @@
 module J_NumberHandleToTextInput exposing (form)
 
 import Html
-import Klar.Form.Model as Fm
+import Klar.Form as Form
+import Klar.Form.Spec as Spec
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Remote as Remote
 
 
@@ -9,12 +11,12 @@ type Country
     = Country String
 
 
-countries : Fm.Ids Country
+countries : Ids Country
 countries =
-    Fm.ids { toKey = \(Country c) -> c, fromKey = Just << Country }
+    Ids.make { toKey = \(Country c) -> c, fromKey = Just << Country }
 
 type alias Fields =
-    { age : Fm.Field (Maybe Float)
+    { age : Form.Field (Maybe Float)
     }
 
 
@@ -23,19 +25,19 @@ type alias Values =
     }
 
 
-form : Fm.Form () Fields Values
+form : Form.Form () Fields Values
 form =
-    Fm.define "p" Fields Values
-        |> Fm.with (Fm.number "Age")
-        |> Fm.build
+    Spec.define "p" Fields Values
+        |> Spec.with (Spec.number "Age")
+        |> Spec.build
 
 
 f : Fields
 f =
-    Fm.fields form
+    Form.fields form
 
 
-page : Fm.View msg -> Html.Html msg
+page : Form.View msg -> Html.Html msg
 page v =
-    Fm.textInput v f.age []
+    Form.textInput v f.age []
 

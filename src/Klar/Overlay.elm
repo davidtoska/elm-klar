@@ -39,9 +39,12 @@ forget one:
     last elements that had focus on the page. When the dialog closes, focus goes to
     its opener, or else to the most recent of those that still exist. A drawer
     opened by a route change, or by a command from the palette, returns focus to the
-    row the user came from without being told.
+    row the user came from without being told. When nothing is known (the
+    shortcut was pressed with focus on `body`), focus goes to the start of the page
+    content, so the next `Tab` does not start at the top of the window.
   - **The toasts stay reachable.** While a dialog is open they move to the top of
-    the window (they never cover the footer buttons) and are the last stop of the
+    the window, or to the bottom of the side that a drawer leaves free (they never
+    cover the footer buttons, the title or the close button), and are the last stop of the
     `Tab` loop of the dialog: after the footer, `Tab` goes through the buttons of
     the toasts and then back to the first element of the dialog.
 
@@ -283,6 +286,8 @@ host options =
         (around.watch
             (Html.div
                 [ Internal.cls [ "klar-overlay-host__page" ]
+                , Attr.id Internal.pageStartId
+                , Attr.tabindex -1
                 , Internal.attrIf around.blocked (Attr.attribute "inert" "")
                 ]
                 options.page

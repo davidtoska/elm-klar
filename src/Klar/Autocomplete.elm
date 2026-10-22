@@ -1,7 +1,7 @@
 module Klar.Autocomplete exposing
     ( State, init, Msg, update, view
     , text, setText, picked, isOpen
-    , Attribute, options, suggestions, onRetry, onEnter
+    , Attribute, options, suggestions, onRetry, onEnter, zone
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale
     )
@@ -73,7 +73,7 @@ follow `locale` and are English by default (see [Klar.Locale](Klar-Locale)).
 
 Pass attributes to `view` in a list; later ones win over earlier ones.
 
-@docs Attribute, options, suggestions, onRetry, onEnter
+@docs Attribute, options, suggestions, onRetry, onEnter, zone
 
 
 # Field
@@ -96,6 +96,7 @@ import Html.Events as Events
 import Klar.Field as Field
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select.Match as Match
@@ -104,6 +105,7 @@ import Klar.Select.Popup as Popup
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..))
 import Klar.VirtualList as VirtualList
+import Time
 
 
 
@@ -343,6 +345,8 @@ type Source
 type alias Config msg =
     { field : Field.Config
     , source : Source
+    , freshness : Freshness
+    , zone : Time.Zone
     , placeholder : String
     , minChars : Int
     , clearable : Bool
@@ -362,6 +366,8 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
         , source = Local []
+        , freshness = Freshness.Fresh
+        , zone = Time.utc
         , placeholder = ""
         , minChars = 1
         , clearable = False
@@ -394,7 +400,7 @@ the later one wins.
 -}
 options : List (Option String) -> Attribute msg
 options list =
-    Attribute (\config -> { config | source = Local list })
+    Attribute (\config -> { config | source = Local list, freshness = Freshness.Fresh })
 
 
 {-| Suggestions from the application, usually the backend, as a `Remote` (see
@@ -403,13 +409,28 @@ component does not filter them; the typed text is highlighted in them. Fetch
 when `Autocomplete.text` changes. The list is hidden while the data is
 `NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, an
 error on `Failed` (see `onRetry`), and "No suggestions" on `Loaded []`.
+Suggestions that are `Kept` stay in the list: dimmed and busy while they are
+refreshed, and with "Old data from 14:05" at the top of the list when the last
+refresh failed (the list is not a place for a button: the focus stays in the
+field, so use the notice of the page for the retry).
 
     Autocomplete.suggestions model.citySuggestions
 
 -}
 suggestions : Remote (List (Option String)) -> Attribute msg
 suggestions data =
-    Attribute (\config -> { config | source = FromApp data })
+    let
+        ( current, freshness ) =
+            Freshness.settle data
+    in
+    Attribute (\config -> { config | source = FromApp current, freshness = freshness })
+
+
+{-| The time zone of the time in "Old data from 14:05". The default is UTC.
+-}
+zone : Time.Zone -> Attribute msg
+zone value_ =
+    Attribute (\config -> { config | zone = value_ })
 
 
 {-| The message to send when the user presses the "Try again" button of the error
@@ -639,6 +660,17 @@ view toMsg attributes (State state) =
         rows () =
             Popup.cachedRows state.cache env state.text
 
+        loadedContent () =
+            let
+                built =
+                    rows ()
+            in
+            if built.optionRows == 0 then
+                NoSuggestions
+
+            else
+                Rows built
+
         content =
             if not (state.open && interactive) then
                 Hidden
@@ -671,15 +703,11 @@ view toMsg attributes (State state) =
                                 NoSuggestions
 
                             Remote.Loaded _ ->
-                                let
-                                    built =
-                                        rows ()
-                                in
-                                if built.optionRows == 0 then
-                                    NoSuggestions
+                                loadedContent ()
 
-                                else
-                                    Rows built
+                            Remote.Kept _ ->
+                                -- settled when it was given: never here
+                                loadedContent ()
 
         -- What Enter and Tab do on a failure depends on whether a "Try again"
         -- button is on screen: the problem must be worth retrying and the
@@ -924,7 +952,8 @@ viewPopup toMsg config t id list highlighted query retry content =
     let
         popup children =
             Html.div
-                [ Internal.cls [ "klar-popup", "klar-select__popup", "klar-select__popup--suggest" ]
+                [ Internal.cls [ "klar-popup", "klar-select__popup", "klar-select__popup--suggest", Freshness.className config.freshness ]
+                , Freshness.busyAttr config.freshness
                 , Internal.onMouseDownPrevent (toMsg NoOp)
                 ]
                 children
@@ -980,7 +1009,10 @@ viewPopup toMsg config t id list highlighted query retry content =
                     ]
             in
             popup
-                [ if rows.grouped then
+                [ Freshness.notice
+                    { locale = config.locale, zone = config.zone, onRetry = Nothing, inline = False }
+                    config.freshness
+                , if rows.grouped then
                     VirtualList.viewGrouped (ListMsg >> toMsg)
                         listAttributes
                         { items = rows.rows, viewRow = Popup.viewRow rowConfig, viewHeader = Popup.viewPinned }

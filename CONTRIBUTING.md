@@ -63,8 +63,9 @@ its dependencies that `elm.json` allows (check both before a release, see
 ## The rules
 
 1. **Official packages only**: `elm/core`, `elm/html`, `elm/browser`, `elm/json`,
-   `elm/time`. No `elm/url` (its `percentEncode` throws on half of an emoji; use
-   `Klar.Internal.percentEncode`), no `elm/svg`, no `elm/http`, no `elm/file`. No ports, no
+   `elm/time`, and `elm/url` for `Klar.AppShell` alone (the `Url` of a route change; never
+   its `percentEncode`, which throws on half of an emoji: use `Klar.Internal.percentEncode`),
+   no `elm/svg`, no `elm/http`, no `elm/file`. No ports, no
    kernel code, no `Debug`. If you think you need JavaScript, you do not: see
    "Tricks" below. (Elm tuples have at most three elements: use records.)
 2. **The library never imports from an application.** The `example/` application
@@ -77,9 +78,11 @@ its dependencies that `elm.json` allows (check both before a release, see
    `aria-expanded`, `aria-selected`, `aria-sort`, `aria-live` for async changes,
    `aria-label` on icon-only buttons). ARIA references (`aria-controls`,
    `aria-labelledby`, `aria-describedby`) always name ids that exist.
-5. **Every component that shows remote data has all four states**: loading,
-   failed (with retry), empty, and data. Use `Klar.Remote`, `Klar.Skeleton`,
-   `Klar.Spinner`, `Klar.EmptyState`, `Klar.ErrorState`.
+5. **Every component that shows remote data has every state**: loading, failed (with
+   retry), empty, data, and data that is being refreshed or is old because the last
+   refresh failed (`Remote.Kept`). Use `Klar.Remote`, `Klar.Skeleton`,
+   `Klar.Spinner`, `Klar.EmptyState`, `Klar.ErrorState`, and for the last two states
+   `Klar.Internal.Freshness`, so that every component says the same thing in the same way.
 6. **Text**: no English or Norwegian text is hard-wired into a component except
    through `Klar.Locale` (see "Locale"). Application text always comes from the
    application.
@@ -103,7 +106,8 @@ its dependencies that `elm.json` allows (check both before a release, see
    `Rule.Rule`, `Rule.Combinator`, `Rule.Operator`, `Rule.Operands` and
    `Rule.FieldKind` (a rule is data an application translates to its own query),
    `Table.Filter`, `Table.Direction` and `Table.Selection` (the answer a server-mode
-   table gives), `Remote.Remote` (the four states of a request), `Form.Status`,
+   table gives), `Remote.Remote` (the five states of a request: the fifth, `Kept`, has an
+   opaque payload that only `Remote.refresh` and `Remote.refreshWith` make), `Form.Layout.Status`,
    `FileDrop.Problem`, `Pagination.Item`, `Calendar.Event` and `Avatar.Status`
    (a result or a state an application reads), and the small design vocabularies
    `Theme.Tone`, `Theme.Size`, `Theme.Density`, `Icon.Size`, `Modal.Side` and
@@ -182,12 +186,54 @@ compares before and after to react (`Select.value new /= Select.value old`). The
 are no out-messages. Row clicks, row actions and other things that are not state
 changes are plain `msg` callbacks given as attributes.
 
+### One implementation, several public modules
+
+When one piece is too big for one page of documentation, split the *documentation*,
+not the implementation: the form model is `src/Klar/Form/Core.elm` (not exposed, no
+documentation to keep), and `Klar.Form` (using a form), `Klar.Form.Spec` (declaring one)
+and `Klar.Form.Check` (testing one) are thin modules that carry the docs. Their types are
+aliases of the types in `Core` (`type alias Form step fields values = Core.Form step fields
+values`), and their functions are `name = Core.name` with the signature and the comment
+written out. `npm run check:api` accepts exactly this shape: an alias whose body is only a
+type of an internal module, because the user names the type through the alias.
+
 ### Remote data
 
 Components that show data from a backend take it as a `Remote`:
 `Table.rows (Remote (List row))`, `Select.remote (Remote (List Option))`. They render
 the loading skeleton, the failure state with a retry callback (`onRetry : msg`) and
 the empty state themselves.
+
+Data that is already on the screen and is refreshed again is `Remote.refresh`; the
+answer, good or bad, is `Remote.refreshWith` with the time it came. The result is
+`Kept`: a component settles it once on the way in (`Freshness.settle` turns it back
+into `Loaded` and says how fresh it is) and then draws what it always drew, plus:
+
+- **Refreshing**: `aria-busy="true"`, `klar-refreshing` on the content (a thin moving
+  line and a slight dimming; muted text must stay at 4.5:1, so do not dim below about
+  92 %, and check with axe in that state).
+- **Old**: `Freshness.notice`, the calm marker "Old data from 14:05" (`role="status"`, a
+  retry button when the problem is retryable and the component has an `onRetry`). A
+  component that has no room for a button inside (a clickable tile, a combobox list)
+  leaves the retry out or makes the tile a plain block, as `Stat` and `Autocomplete` do.
+- A `zone : Time.Zone -> Attribute` to show the time in (default UTC), as `Timeline` has.
+
+Never add an attribute or a flag for "stale" or "refreshing": it comes from the `Remote`.
+A body for a card, dialog or drawer is `RemoteView.view`, not a `case` in the page.
+
+### Attributes that set related things
+
+Later attributes win over earlier ones, and that is only safe for attributes that set
+the same thing (`label`, `placeholder`). Two attributes that look like different
+concerns must never cancel each other through one hidden field:
+
+- State flags only add up. `Chart.loading`, `Stat.loading` and `Timeline.loading` are `busy
+  OR flag`, and `failed` and `remote` only add a failure; a later `loading False` cannot
+  hide what `remote` set (R2S-005: it used to, and showed "No data" while loading).
+- If two attributes do set the same thing (`Select.options` and `Select.remote` both set the
+  options), say so in both docs: "the later one wins".
+- Test the pair in both orders when you add a component that has such a pair
+  (`tests/StaleDataTest.elm`, "attributes that used to cancel each other").
 
 ### Locale
 
@@ -292,6 +338,12 @@ Dropdowns, menus, date pickers and popovers share one mechanism (`css/src/base.c
   `Open`, and a fast typist gets keys in between. The trigger of `Select` and
   `MultiSelect` handles those keys itself and works out the effect in `update` from the
   latest state, never from the state the view had when it sent the message.
+- **A retry button that goes away takes focus with it.** The stale marker is replaced by
+  nothing when the data is fresh again, so focus on its button falls to `BODY` unless
+  something takes it: `Table` focuses its own scroll area (a second `click` handler on the
+  marker, as for its failure retry); `Modal`, `Drawer` and the palette take focus back
+  through their guard; the other components cannot do it without a `Cmd`, and the
+  application moves focus in its own `update` when that matters.
 - **Notices that appear while the user types** (an "unsaved changes" mark) must not
   interrupt a screen reader (`Alert.polite`) and must not push the form around.
 - **A file dropped outside a drop zone** is opened by the browser and replaces the

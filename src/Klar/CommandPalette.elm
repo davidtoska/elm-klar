@@ -4,7 +4,7 @@ module Klar.CommandPalette exposing
     , open, close, isOpen, openedFrom, query, setQuery
     , Item, item, withDescription, withIcon, withShortcut, withKeywords, withId
     , Section, section, remote, onRetry, emptyText
-    , Attribute, sections, recent, placeholder, label, noResults, locale
+    , Attribute, sections, recent, placeholder, label, noResults, locale, zone
     )
 
 {-| A command palette: one search box, usually opened with `Ctrl K`, for commands
@@ -122,8 +122,14 @@ application fills, for example with the result of a search in the backend. The
 palette shows a skeleton while it is `Loading`, a short failure message when it
 is `Failed` (with a "Try again" button if the section has an `onRetry` and the
 problem can be retried), "No results" when it is `Loaded []` (see `emptyText`),
-and nothing while it is `NotAsked`. The items of a remote section are not
-filtered again: the backend already did that.
+and nothing while it is `NotAsked` and the search box is empty. Once the user has
+typed, `NotAsked` also shows the skeleton (the request is about to start), so the
+palette never says "No results" before the answer is there: set the section to
+`Loading` or `NotAsked` only while a request is pending, and leave the section
+out for a text that is too short to search for. Items that are `Kept` stay in the
+list; when the last refresh failed a line "Old data from 14:05" stands above
+them. The items of a remote section are not filtered again: the backend already
+did that.
 
 The query lives in the state, so the application watches it and starts the
 request. Compare before and after the update, and debounce with a counter:
@@ -171,7 +177,7 @@ closed would otherwise answer into the next opening, under an empty query.
 
 # Attributes
 
-@docs Attribute, sections, recent, placeholder, label, noResults, locale
+@docs Attribute, sections, recent, placeholder, label, noResults, locale, zone
 
 -}
 
@@ -185,6 +191,7 @@ import Klar.Button as Button
 import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem, Remote(..))
@@ -193,6 +200,7 @@ import Klar.Shortcut as Shortcut
 import Klar.Skeleton as Skeleton
 import Klar.Text as Text
 import Task
+import Time
 
 
 
@@ -376,8 +384,8 @@ open opener (State state) =
 close : State -> ( State, Cmd Msg )
 close (State state) =
     ( State { state | open = False }
-    , if state.open && state.opener /= "" then
-        Internal.focus state.opener Noop
+    , if state.open then
+        Internal.focusFirst (List.filter ((/=) "") [ state.opener ] ++ [ Internal.pageStartId ]) Noop
 
       else
         Cmd.none
@@ -618,6 +626,7 @@ type alias Config msg =
     , label : Maybe String
     , noResults : Maybe String
     , locale : Locale
+    , zone : Time.Zone
     }
 
 
@@ -630,6 +639,7 @@ configure attributes =
         , label = Nothing
         , noResults = Nothing
         , locale = Locale.default
+        , zone = Time.utc
         }
         attributes
 
@@ -680,6 +690,14 @@ is `Locale.default`, which is `Locale.en`.
 locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
+
+
+{-| The time zone of the time in "Old data from 14:05", the note at the top of a
+remote section whose data is `Kept` after a failed refresh. The default is UTC.
+-}
+zone : Time.Zone -> Attribute msg
+zone value =
+    Attribute (\config -> { config | zone = value })
 
 
 
@@ -795,9 +813,13 @@ buildBlocks config text =
                         [ { key = key, title = title, body = keyedBody key matching } ]
 
                 RemoteSection data ->
-                    case data.remote of
+                    case Tuple.first (Freshness.settle data.remote) of
                         NotAsked ->
-                            []
+                            if words == "" then
+                                []
+
+                            else
+                                [ { key = key, title = data.title, body = [ LoadingBody, LoadingBody, LoadingBody ] } ]
 
                         Loading ->
                             [ { key = key, title = data.title, body = [ LoadingBody, LoadingBody, LoadingBody ] } ]
@@ -809,7 +831,22 @@ buildBlocks config text =
                             [ { key = key, title = data.title, body = [ EmptyBody (Maybe.withDefault language.noResults data.emptyText) ] } ]
 
                         Loaded items ->
-                            [ { key = key, title = data.title, body = keyedBody key items } ]
+                            [ { key = key
+                              , title = data.title
+                              , body =
+                                    (case Tuple.second (Freshness.settle data.remote) of
+                                        Freshness.Stale old ->
+                                            [ EmptyBody (Freshness.text config.locale config.zone old.at) ]
+
+                                        _ ->
+                                            []
+                                    )
+                                        ++ keyedBody key items
+                              }
+                            ]
+
+                        Kept _ ->
+                            []
     in
     recentBlock ++ List.concat (List.indexedMap blockFor config.sections)
 

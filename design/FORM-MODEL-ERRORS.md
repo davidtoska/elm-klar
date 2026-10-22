@@ -1,5 +1,7 @@
 # Form model: what the compiler says
 
+*Updated for the module split (`Klar.Form`, `Klar.Form.Spec`): the cases are ported and the output below is the compiler's output on the new names. Cases K and L are new (a rows handle given to a text input; a `check` before the last field).*
+
 Owner amendment 4 of `design/FORM-MODEL.md`: the type `Form step fields values` has four
 parameters (with `Builder step fields values` and `Spec control output` next to it), and the
 Elm errors might be unreadable. This is the test. Every case is a real file in
@@ -20,22 +22,22 @@ read out of it.
 ### (a) A field in the pipeline but not in `Fields` (A) or not in `Values` (A2)
 
 ```elm
-type alias Fields = { name : Fm.Field String, nickname : Fm.Field String }   -- 2 fields; the pipeline has 3
+type alias Fields = { name : Form.Field String, nickname : Form.Field String }   -- 2 fields; the pipeline has 3
 ```
 
 ```
 -- TYPE MISMATCH -- cases\A_FieldNotInFields.elm
 This function cannot handle the argument sent through the (|>) pipe:
 
-31|     Fm.define "p" Fields Values
-32|         |> Fm.with (Fm.text "Name" |> Fm.required)
-33|         |> Fm.with (Fm.text "Nickname")
-34|         |> Fm.with (Fm.choice countries "Country" |> Fm.required)
+31|     Spec.define "p" Fields Values
+32|         |> Spec.with (Spec.text "Name" |> Spec.required)
+33|         |> Spec.with (Spec.text "Nickname")
+34|         |> Spec.with (Spec.choice countries "Country" |> Spec.required)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
-    Fm.Builder step Fields (Country -> Values)
+    Spec.Builder step Fields (Country -> Values)
 But (|>) is piping it to a function that expects:
-    Fm.Builder step (Fm.Field (Maybe Country) -> f) (Country -> Values)
+    Spec.Builder step (Form.Field (Maybe Country) -> f) (Country -> Values)
 ```
 
 Same shape for A2 (`Values` has two fields): the argument is `Builder step (Field (Maybe
@@ -55,14 +57,14 @@ Country) -> Fields) Values`, the function expects `... (Country -> v)`.
 ```
 -- TYPE MISMATCH -- cases\B_FieldNotInPipeline.elm
 Something is off with the body of the `form` definition:
-32|>    Fm.define "p" Fields Values
-33|>        |> Fm.with (Fm.text "Name" |> Fm.required)
-34|>        |> Fm.with (Fm.text "Nickname")
-35|>        |> Fm.build
+32|>    Spec.define "p" Fields Values
+33|>        |> Spec.with (Spec.text "Name" |> Spec.required)
+34|>        |> Spec.with (Spec.text "Nickname")
+35|>        |> Spec.build
 The body is:
-    Fm.Form () (Fm.Field (Maybe Country) -> Fields) (Country -> Values)
+    Form.Form () (Form.Field (Maybe Country) -> Fields) (Country -> Values)
 But the type annotation on `form` says it should be:
-    Fm.Form () Fields Values
+    Form.Form () Fields Values
 ```
 
 * **Where:** the whole definition (it is the annotation that disagrees). Correct, and the only
@@ -80,17 +82,17 @@ first.
 ```
 -- TYPE MISMATCH -- cases\C_DifferentTypesSwapped.elm
 This function cannot handle the argument sent through the (|>) pipe:
-32|     Fm.define "p" Fields Values
-33|         |> Fm.with (Fm.text "Name" |> Fm.required)
-34|         |> Fm.with (Fm.text "Nickname")
+32|     Spec.define "p" Fields Values
+33|         |> Spec.with (Spec.text "Name" |> Spec.required)
+34|         |> Spec.with (Spec.text "Nickname")
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
-    Fm.Builder
+    Spec.Builder
         step
-        (Fm.Field (Maybe Country) -> Fm.Field String -> Fields)
+        (Form.Field (Maybe Country) -> Form.Field String -> Fields)
         (Country -> Maybe String -> Values)
 But (|>) is piping it to a function that expects:
-    Fm.Builder step (Fm.Field String -> f) (Maybe String -> v)
+    Spec.Builder step (Form.Field String -> f) (Maybe String -> v)
 Hint: It looks like it takes too many arguments. I see 1 extra.
 ```
 
@@ -114,11 +116,11 @@ Hint: It looks like it takes too many arguments. I see 1 extra.
 Success! Compiled 1 module.
 ```
 
-It compiles, as designed. It is caught at run time by `Fm.roundTrip`, a one-line test; see
+It compiles, as designed. It is caught at run time by `Check.roundTrip`, a one-line test; see
 `tests/FormModelTest.elm`, "two same-typed fields swapped in Values compile but roundTrip
 catches them": the sample `{ first = Just "one", second = Just "two" }` comes back as
 `{ first = Just "two", second = Just "one" }`, and
-`Fm.roundTrip swapped fill sample |> Expect.equal (Ok sample)` fails with elm-test's diff of the two
+`Check.roundTrip swapped fill sample |> Expect.equal (Ok sample)` fails with elm-test's diff of the two
 records, naming the fields. That is as good as a runtime check gets, and it needs the one
 test line. **This is the one hole in design A** (risk 1 of the design); it is a hole in B too
 for a different reason (B has no pipeline, but a value read as the wrong kind compiles).
@@ -128,16 +130,16 @@ for a different reason (B has no pipeline, but a value read as the wrong kind co
 ```
 -- TYPE MISMATCH -- cases\E_TextHandleToSelect.elm
 The 2nd argument to `select` is not what I expect:
-46|     Fm.select v f.name (Remote.Loaded []) []
+46|     Form.select v f.name (Remote.Loaded []) []
                     ^^^^^^
 The value at .name is a:
-    Fm.Field String
+    Form.Field String
 But `select` needs the 2nd argument to be:
-    Fm.Field (Maybe id)
+    Form.Field (Maybe id)
 ```
 
-(a number handle given to `textInput`, case J, reads the same: `Fm.Field (Maybe Float)`
-against `Fm.Field String`.) **Verdict: excellent.** Points at the argument, names the field
+(a number handle given to `textInput`, case J, reads the same: `Form.Field (Maybe Float)`
+against `Form.Field String`.) **Verdict: excellent.** Points at the argument, names the field
 (`.name`), says what a select needs. The word `id` in `Maybe id` tells the AI that a select
 wants a choice.
 
@@ -148,20 +150,20 @@ F1 declares `country : Maybe Country` in `Values` although the pipeline says `re
 ```
 -- TYPE MISMATCH -- cases\F1_RequiredChoiceDeclaredOptional.elm
 This function cannot handle the argument sent through the (|>) pipe:
-35|         |> Fm.with (Fm.choice countries "Country" |> Fm.required)
+35|         |> Spec.with (Spec.choice countries "Country" |> Spec.required)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The argument is:
-    Fm.Builder step (Fm.Field (Maybe Country) -> Fields) (Maybe Country -> Values)
+    Spec.Builder step (Form.Field (Maybe Country) -> Fields) (Maybe Country -> Values)
 But (|>) is piping it to a function that expects:
-    Fm.Builder step (Fm.Field (Maybe Country) -> Fields) (Country -> v)
+    Spec.Builder step (Form.Field (Maybe Country) -> Fields) (Country -> v)
 Hint: Use Maybe.withDefault to handle possible errors. ...
 ```
 
-F2 reads `Fm.get f.country state` where a `Country` is wanted:
+F2 reads `Form.get f.country state` where a `Country` is wanted:
 
 ```
 Something is off with the body of the `country` definition:
-46|     Fm.get f.country state
+46|     Form.get f.country state
 This `get` call produces:
     Maybe Country
 But the type annotation on `country` says it should be:
@@ -172,24 +174,26 @@ But the type annotation on `country` says it should be:
 * **Verdict:** F2 is as clear as Elm gets. F1 is readable (`Maybe Country -> Values`
   against `Country -> v`), but the hint ("use `Maybe.withDefault`") would send an AI the wrong
   way: the right fix is `Values.country : Country`, because the field is required. The
-  message never says "required" or "`Fm.required` removes the `Maybe`"; the documentation
+  message never says "required" or "`Spec.required` removes the `Maybe`"; the documentation
   of `required` must say it, and the module doc does.
 
 ### Extra cases found while building
 
 | Case | Mistake | Where / what it says | Verdict |
 |---|---|---|---|
-| G | forgot `Fm.build` | the definition; body is `Fm.Builder step Fields Values`, annotation says `Fm.Form () Fields Values` | clear: the name `Builder` says "not finished" |
-| H | `Fm.required` on a `toggle` | `Spec Bool Bool` piped to a function that expects `Spec Bool (Maybe a)` | clear; the second `Bool` is the output that cannot be empty |
-| I | one field, forgot the `Values` constructor: `Fm.define "p" Fields` | `values -> Builder step (Field String -> Fields) values` against `Builder step (Field String -> f) (String -> v)` | poor: `values ->` is the unapplied argument, nothing says "`define` takes the values constructor third"; it happened to the author of the tests once |
+| G | forgot `Spec.build` | the definition; body is `Spec.Builder step Fields Values`, annotation says `Form.Form () Fields Values` | clear: the name `Builder` says "not finished" |
+| H | `Spec.required` on a `toggle` | `Spec Bool Bool` piped to a function that expects `Spec Bool (Maybe a)` | clear; the second `Bool` is the output that cannot be empty |
+| I | one field, forgot the `Values` constructor: `Spec.define "p" Fields` | `values -> Builder step (Field String -> Fields) values` against `Builder step (Field String -> f) (String -> v)` | poor: `values ->` is the unapplied argument, nothing says "`define` takes the values constructor third"; it happened to the author of the tests once |
+| K | a rows handle given to `Form.textInput` | `Form.Field (Form.Rows ContactFields)` where `Form.Field String` is wanted | clear: the type of the handle names the kind, and a group is not a text |
+| L | `Spec.check` before the last `with` | the `check` function wants `Fields` but the pipeline has not finished it: `Spec.Builder step { a \| nickname : Form.Field c } ...` against `Spec.Builder step (Form.Field String -> Fields) ...` | readable: it is a compile error to put `check` early, which is the point |
 
 ## Verdict on readability
 
 **Readable enough: yes, with two blemishes. Design A is not made unreadable by its four
 parameters.** The reasons:
 
-1. The compiler prints the types in the user's own words: `Fm.Field (Maybe Country)`,
-   `Fm.Form () Fields Values`, `Fm.Builder step Fields (Country -> Values)`. The
+1. The compiler prints the types in the user's own words: `Form.Field (Maybe Country)`,
+   `Form.Form () Fields Values`, `Spec.Builder step Fields (Country -> Values)`. The
    unresolved `step` is noise (a lower-case variable in a message), but it is always the
    first parameter, and it is `()` in a finished form.
 2. In 9 of the 11 mistakes tried (A, A2, B, E, F1, F2, G, H, J) the location is the right line and
@@ -197,7 +201,7 @@ parameters.** The reasons:
    records or the missing argument and the location is only close.
 3. What an AI needs to know is a rule it can read in the module doc: "the n-th `with` fills the
    n-th argument of `Fields` and `Values`; `Builder step A B` is A the fields and B the
-   values; `required` removes `Maybe`". All three are in `Klar.Form.Model`'s documentation.
+   values; `required` removes `Maybe`". All three are in the documentation of `Klar.Form.Spec`.
 4. The two blemishes: the compiler's hints in C ("takes too many arguments") and F1 ("use
    `Maybe.withDefault`") point the wrong way, so an AI that follows the hint instead of the
    types makes it worse. Nothing in Klar can change that; the documentation can only warn.
@@ -219,23 +223,23 @@ key type and one exhaustive function; the type of the value of a field is not in
 ```elm
 type FieldKey = Name | LegalName | Registration | Website | Country | Segments
 
-spec : FieldKey -> Fm.Spec            -- a `case` that is exhaustive: a key without a spec does not compile
+spec : FieldKey -> Spec.Spec            -- a `case` that is exhaustive: a key without a spec does not compile
 spec key =
     case key of
-        Name -> Fm.text "Name" |> Fm.required |> Fm.maxLength 80
-        Country -> Fm.choice "Country" |> Fm.required
+        Name -> Spec.text "Name" |> Spec.required |> Form.maxLength 80
+        Country -> Spec.choice "Country" |> Spec.required
         ...
 
 -- the view, the getters
-Fm.textInput v Name []
-Fm.select v Country options []
-Fm.text Name state            -- : String   (a number key here compiles and is a run-time "wrong kind")
-Fm.choice countryIds Country state   -- : Maybe CountryId
+Form.textInput v Name []
+Form.select v Country options []
+Spec.text Name state            -- : String   (a number key here compiles and is a run-time "wrong kind")
+Spec.choice countryIds Country state   -- : Maybe CountryId
 ```
 
 What B gains on the error messages: they are *plain Elm errors* (a missing `case` branch:
 "This `case` does not have branches for all possibilities: Segments"), the best messages Elm
 has. What it loses: cases (c), (e), (f) stop being compile errors and become wrong-kind
-values at run time (`Fm.text Country state`), which is exactly what design A removes. So the
+values at run time (`Spec.text Country state`), which is exactly what design A removes. So the
 choice is: A, with two blemishes in the messages and one hole (d) closed by a test line; or B, with the best
 messages and three kinds of mistake that move to run time. On this evidence, A.

@@ -119,7 +119,9 @@ view model =
 This program is mounted with `Elm.Main.init({ node: document.getElementById("app") })`,
 because `Browser.sandbox` and `Browser.element` need a node. A whole application with
 the `AppShell` is a `Browser.application` (or `Browser.document`) and is mounted with
-plain `Elm.Main.init()`; it also needs `elm/url` as a direct dependency. The complete
+plain `Elm.Main.init()`; it also needs `elm/url` as a direct dependency. The shell keeps
+its sidebar, drawer, side menu and skip link in one `AppShell.State`, so the wiring in
+your `update` is one `ShellMsg` branch that tells you when the route changed. The complete
 recipe, with `index.html`, is "Start here" in [USING.md](USING.md).
 
 Components are configured with a list of attributes, like `Html`. A component that
@@ -137,7 +139,7 @@ every module has an example.
 | **Icon library** | 500 icons in one style: `Icon` and `Icon.Library`, plus `Icon.Arrows`, `Icon.Business`, `Icon.Data`, `Icon.Documents`, `Icon.Logistics` and more (see [ICONS.md](ICONS.md)) |
 | **Actions** | `Button`, `Menu`, `ButtonGroup`, `ToggleGroup`, `SplitButton`, `Link`, `Kbd` |
 | **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
-| **Forms** | `Form`, `Field`, `Validate` |
+| **Forms** | `Form` (the form model), `Form.Spec` (declaring a form), `Form.Layout` (the frame), `Form.Check` (tests), `Ids`, `Field`, `Validate` |
 | **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
 | **Choosing** | `Select`, `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
@@ -165,7 +167,7 @@ Some of the pure modules are useful on their own:
 * `Klar.Search`: search that ignores case and diacritics and ranks results.
 * `Klar.Validate`: composable validators with messages in two languages.
 * `Klar.Rule`: a tree of conditions, evaluated against your own records, with JSON.
-* `Klar.Remote`: `NotAsked | Loading | Loaded a | Failed Problem`.
+* `Klar.Remote`: `NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`.
 
 ## The showcase
 

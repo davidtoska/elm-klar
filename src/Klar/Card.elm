@@ -19,11 +19,19 @@ footer.
         [ content ]
 
 The header is shown when the card has a title, a subtitle or actions. The card
-is a `section` element and its title is an `h3` unless you choose another level
+is a `section` element and its title is an `h2`, the level under the `h1` of a
+`PageHeader`, unless you choose another level
 with `headingLevel`, so that the title fits the outline of the page (see
 [Klar.Text](Klar-Text) for the other headings). `flush` removes the padding of
 the body, for tables and lists that go edge to edge; `accent`, `sunken` and
 `raised` change the look.
+
+A card that shows one piece of remote data takes its body from
+[Klar.RemoteView](Klar-RemoteView): the loading skeleton, the failure with a
+retry, and old or refreshing data, without a `case` of your own.
+
+    Card.view [ Card.title "Order 1042" ]
+        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 
 # View
@@ -78,7 +86,7 @@ configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { title = Nothing
-        , headingLevel = 3
+        , headingLevel = 2
         , subtitle = Nothing
         , actions = []
         , footer = Nothing
@@ -99,13 +107,14 @@ title value =
     Attribute (\config -> { config | title = Just value })
 
 
-{-| The level of the heading element of the title, from 1 to 6: `headingLevel 2`
-makes it an `h2`. The default is 3. A number outside the range counts as the
-nearest level. Choose the level that fits the outline of the page: one below the
-heading of the section the card is in. The level changes the element, not the
-look of the title.
+{-| The level of the heading element of the title, from 1 to 6: `headingLevel 3`
+makes it an `h3`. The default is 2, the level under the `h1` of a
+[PageHeader](Klar-PageHeader). A number outside the range counts as the nearest
+level. Choose another level for a card inside a section that has its own `h2`
+(the card then takes 3): one below the heading of the section the card is in. The
+level changes the element, not the look of the title.
 
-    Card.view [ Card.title "Recent activity", Card.headingLevel 2 ] [ content ]
+    Card.view [ Card.title "Recent activity", Card.headingLevel 3 ] [ content ]
 
 -}
 headingLevel : Int -> Attribute msg

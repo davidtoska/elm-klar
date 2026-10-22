@@ -74,6 +74,7 @@ exactly that); an application rarely needs them.
 -}
 
 import Klar.Icon exposing (Icon)
+import Klar.Internal.Freshness as Freshness
 import Klar.Remote as Remote exposing (Remote)
 
 
@@ -159,7 +160,12 @@ type alias Data id =
 
 
 make : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
-make (Ids write) nodeId nodeLabel kids =
+make (Ids write) nodeId nodeLabel givenKids =
+    let
+        -- children that are `Kept` are shown as they are; the pickers have no room for a marker
+        kids =
+            Tuple.first (Freshness.settle givenKids)
+    in
     Node
         { key = write nodeId
         , id = nodeId
@@ -206,7 +212,8 @@ looks like something that can be opened, until its children arrive empty.
 
 The component tells you which node was opened first (`TreeSelect.loadRequests`,
 `Cascader.loadRequests`); you set its children to `Loading`, fetch them, and put
-the answer in the node the next time you build the tree.
+the answer in the node the next time you build the tree. Children that are `Kept`
+(refreshed, or old after a failed refresh) are shown as if they were `Loaded`.
 
 -}
 lazy : Ids id -> id -> String -> Remote (List (Node id)) -> Node id

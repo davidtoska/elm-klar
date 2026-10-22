@@ -4,7 +4,9 @@
 //   node scripts/check-api.mjs
 //
 // Builds the documentation (`elm make --docs`) and reads every type that appears in an
-// exposed signature, alias or constructor. A type of a Klar module that the module does
+// exposed signature, alias or constructor. An alias that only re-exports a type of an internal
+// module (`type alias Form step f v = Klar.Form.Core.Form step f v`) is accepted: the user names
+// the type through the alias. A type of a Klar module that the module does
 // not export (or a module that is not in "exposed-modules") could be used but not named,
 // imported or read about, so it is a mistake. Also lists the exposed unions whose
 // constructors are public: adding a constructor to one is a breaking change, so there
@@ -50,7 +52,13 @@ function check(typeText, place) {
 const openUnions = [];
 for (const mod of docs) {
   for (const v of mod.values) check(v.type, `${mod.name}.${v.name}`);
-  for (const a of mod.aliases) check(a.type, `${mod.name}.${a.name}`);
+  for (const a of mod.aliases) {
+    // `type alias Form step f v = Klar.Form.Core.Form step f v` is a re-export: the user names the
+    // type through the alias, so the module behind it need not be exposed (this is how Klar.Form
+    // and Klar.Form.Spec share one implementation).
+    const reexport = /^Klar(\.[A-Z]\w*)+( [a-z]\w*)*$/.test(a.type) && a.args.length > 0 || /^Klar(\.[A-Z]\w*)+$/.test(a.type) && a.args.length === 0;
+    if (!reexport) check(a.type, `${mod.name}.${a.name}`);
+  }
   for (const b of mod.binops) check(b.type, `${mod.name}.${b.name}`);
   for (const u of mod.unions) {
     for (const [, args] of u.cases) for (const arg of args) check(arg, `${mod.name}.${u.name}`);

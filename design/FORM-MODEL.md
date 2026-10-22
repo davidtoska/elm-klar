@@ -1,16 +1,18 @@
 # Form model
 
-Design for ROADMAP A8 "Form model" (EVALUATION item 10). Status: **approved by the owner
-with five amendments (section 9); steps 1 and 2 of the plan are built on the branch
-`form-model` as a prototype, to be judged before anything else is built.** The first version
-of this document was paper only; the amendments, and the deviations the build forced, are
-collected in section 9 and applied in the text above it.
+Design for ROADMAP A8 "Form model" (EVALUATION item 10). Status: **built.** The core was
+built on the branch `form-model` and judged by the second A0 round; the seam that round found
+(steps, rows, tags, files, problems the application can see, focus, one `Ids`) was closed on
+the branch `t-form`, and the modules were renamed and split. Section 10 at the end records
+what is built now, the decisions taken, the numbers and the proof; sections 1 to 9 are the
+design and the prototype as they were written, with their names (`Fm` is `Klar.Form.Model`
+there, which is now `Klar.Form`, with the declaration in `Klar.Form.Spec`).
 
 Method: the onboarding app (`apps/onboarding/src`) is the test. Line counts are physical
 lines of the file ranges named; the counts of the proposal are non-blank lines of the
 sketches in section 7. One piece was checked with the compiler (in a scratch directory, not
-in the repository): the typing of the builder pipeline (section 2). A text handle given to a
-select view is a type error, as intended. Everything else here is a design, not a build.
+in the repository): the typing of the builder pipeline (section 2). The rest of sections 1
+to 8 is a design, not a build.
 
 ## 1. The problem in numbers
 
@@ -911,3 +913,119 @@ Headless Chrome over the DevTools protocol with real key events (script:
 * axe-core 4.10.2 (wcag2a, wcag2aa, wcag21aa, wcag22aa, best-practice): no violations on
   the initial page, with server problems showing, with client problems showing, and at the
   end.
+
+## 10. What is built now (branch `t-form`)
+
+The seam of A0 round 2 (`apps/ROUND2-EVALUATION.md` item 3; 110 `KLAR GAP` lines and 19
+frictions in `apps/round2/onboarding`) is closed. The order of the work and what it changed:
+
+1. **Problems the application can see (R2O-005, 006, 007, 018).** `Form.problems` and
+   `Form.hasProblems` return everything wrong, with the field's label and its step: the
+   rules of every field, the server's problems that still stand, and `Form.outside`
+   (problems of things the model does not hold, written as plain `Problem` records).
+   `toValues` fails while any of them stands, so a record is never produced behind a server
+   problem. `Form.focus` and `Form.goToProblem` replace the hand-typed DOM ids. `rejected`
+   stores the problems whether or not the form is on screen, goes to the step of the first
+   problem and focuses a summary that may not exist (a no-op), which is the whole answer to
+   R2O-018.
+2. **Kinds and ids (R2O-001, 004, 011, 014, 017).** `Spec.tags`, `Spec.files` (with
+   `required`, `atLeast`, `one`; refused files are a problem of the field), `Form.textArea`
+   (a second view of a text field, not a kind), and `Klar.Ids`: the one place an id type is
+   written as text, taken by `Spec.choice`, `Spec.choices` and `Rule.choiceFieldOf`. `rules`
+   now lets a blank text pass every rule, `Validate.custom` included; a field that must be
+   filled in says `required`.
+3. **Steps and rows (R2O-003, 013, 015, 016).** `Spec.step` declares the application's own
+   step type. `advance`, `back`, `goTo`, `stepper` and `summary` own the current step, the
+   validation on the way when jumping forward, the failed marks, the focus on the new step
+   and the review list. `Spec.rows` declares a repeating group once; its sub-declaration is
+   an ordinary `Form`. `Form.isDirty` is one flag over every step and row.
+4. **Module shape (9.2, 9.5).** `Klar.Form` is the model, `Klar.Form.Layout` the old frame,
+   `Klar.Form.Spec` the declaration, `Klar.Form.Check` the test helpers. One implementation
+   (`Klar.Form.Core`, not exposed) behind three documented faces; `check:api` accepts an
+   alias that only re-exports an internal type.
+
+### Decisions
+
+* **Row keys are stable numbers, not positions.** Section 9.3 proposed `contacts-2-email`
+  by position (removing row 1 renames row 2). It is not what was built. Every row gets a
+  number from a counter in the state when it is added (`supplier-contacts-3-email`), the
+  number stays with the row for as long as it lives and is never used twice, also after
+  `revert` and `fillRows`. Why: the state of a select, a tag field or a file field is in a
+  slot keyed by the DOM id, so a position key would move or lose it when a row is removed;
+  the focus after a remove and the server's problems of a removed row need ids that do not
+  shift; an application that keeps a handle keeps a right one. The position is only for
+  words: the summary says "Contact 2, Email" and the remove button "Remove contact 2", and
+  the server's own position (the list it was sent) is mapped with
+  `Form.rowFields f.contacts state |> List.drop i`. The cost: a DOM id is not predictable
+  from the position, which nobody should need.
+* **`custom` stays out**, as asked. The price rules of the onboarding app (a rule builder
+  and a discount) are the application's; they are handed to the form as problems with
+  `outside`, and the form counts them, lists them, marks their step and blocks the Next
+  button on them.
+* **A `check` runs when every field of the form is valid on its own**, so on a form with
+  steps it shows up when the last step is reached. A rule that belongs to a step goes on the
+  field: `Spec.rule` takes a rule over the whole list of a list-valued field, `rows`
+  included ("at most one primary contact"). The sub-form of a group has its own `check`,
+  which runs row by row. Found in the browser, not in the unit tests.
+* **A step with no fields of the form** gets an empty named region where `summary` goes, so
+  the focus has a place to land when the form moves to it (the review step; a step whose
+  fields the application draws). The review list is the `summary` on the last step when it
+  has no fields.
+* **No `disabled` steps and no `furthest`.** The stepper allows every click; going forward
+  checks every step on the way and stops at the first with problems. That is "validate the
+  steps on the way", and it needs no state besides the current step.
+* **Dirty over the part the form does not hold** is the application's `||` with its own
+  snapshot (the rules). It is one line, but it is the one place a leave guard needs two
+  questions.
+
+### The API, by module
+
+| Module | Names | Of which types |
+|---|---|---|
+| `Klar.Form` | 44 | `Form State Msg Field Rows Problem View` |
+| `Klar.Form.Spec` | 24 | `Builder Spec` |
+| `Klar.Form.Check` | 2 | |
+| `Klar.Form.Layout` | 28 | `Status(..) Attribute` |
+| `Klar.Ids` | 4 | `Ids` |
+
+The form model is 70 names (the prototype of section 9.5 had 47 for text, number, choice,
+choices and toggle). The common path of a flat form is about 22: `Spec.define with build
+text choice choices required atLeast`, `Form.fields init update bind toValues summary
+textInput select multiSelect problem rejected reveal markClean isDirty`, `Ids.make`. A wizard
+adds `Spec.step rows`, `Form.advance back goTo stepper currentStep rowFields addRow
+removeRow fillRows`.
+
+### The proof
+
+`apps/round2/onboarding` was copied to a scratch folder and its forms rewritten on the model
+(`design/form-model-proof/Flow.elm`; the other modules changed by two lines each: `Domain`
+takes `Klar.Ids`, `Main` focuses with `Flow.firstFocus`).
+
+| | Round 2 | On the finished model |
+|---|---|---|
+| `Flow.elm`, physical lines | 2 011 | 1 299 |
+| `Flow.elm`, code lines (no blanks, no comments) | 1 631 | 1 030 |
+| Section by section, code lines | declarations 73, model 198, issues 216, update 624, view 447 | the form (declaration, load, server mapping, record) 180, model 88, price rules 67, update 283, view 367 |
+| `KLAR GAP` lines | 110 | 45, all for the price rules |
+| Copy of the server's problems | 79 lines | none |
+| Hand-typed DOM ids for fields | 14 `focusField` call sites | none (`Form.focus`, the summary) |
+| Own stepper bookkeeping (`step`, `tried`, `attempt`, `enter`, `SelectStep`, marks; R2O-016 says about 90) | about 90 lines | none |
+| Rows (contacts): a form per row, `reveal` per row, `allJust` (R2O-003, 013) | not counted separately | `Spec.rows`, `rowFields`, `addRow`, `removeRow`: no code of its own |
+| Own OR of dirty flags (R2O-015) | about 20 lines | 1 line (`Form.isDirty ... || rules`) |
+
+What still needs glue, and why: the 45 lines are the price rules, the one editor that is
+the application's (the model has no `custom`): (a) `sync`, the call of `Form.outside` at the
+end of every update (6 lines); (b) the server's refusals of a rule, kept by the application
+with the rule because the form cannot place them (12 lines); (c) `moved`, which focuses the
+first rule when the form has moved to the Pricing step, because the form has nothing to focus
+there (27 lines). The list of rules, the rule builder, the discounts and their own problems
+(67 lines) are the editor itself and are not counted as a gap.
+
+Walked in headless Chrome over the DevTools protocol with real key events (scripts in the
+shared notes folder, `t-form-browser-tests`): every kind (text, select, multi select,
+switch, tags, files, number, long text), Enter in a field to go to the next step, the
+stepper, add and remove rows with Enter on the buttons (focus after each), a rejected save
+(focus on the summary of the step of the first problem), editing the refused field (only
+its problem goes), the conflict flow, the offline retry, and the unsaved mark. axe-core 4.10
+(wcag2a, 2aa, 21aa, 22aa, best-practice): no violations in the states of the application
+that were walked and in 11 states of the showcase page.

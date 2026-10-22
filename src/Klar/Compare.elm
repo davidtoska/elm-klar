@@ -104,6 +104,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Skeleton as Skeleton
@@ -406,7 +407,7 @@ view attributes config =
         t =
             texts settings.locale
     in
-    case config.records of
+    case Tuple.first (Freshness.settle config.records) of
         Remote.Loaded [] ->
             frame settings
                 []

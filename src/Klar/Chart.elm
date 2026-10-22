@@ -5,7 +5,7 @@ module Klar.Chart exposing
     , Attribute, title, description, ariaLabel, size, height, tone, locale, unit, valueFormat
     , categories, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
     , centerLabel, centerCaption, range, thresholds
-    , loading, failed, onRetry, remote, emptyText
+    , loading, failed, onRetry, remote, emptyText, zone
     )
 
 {-| Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart
@@ -106,7 +106,7 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Loading, failure and empty
 
-@docs loading, failed, onRetry, remote, emptyText
+@docs loading, failed, onRetry, remote, emptyText, zone
 
 -}
 
@@ -118,10 +118,12 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Tone(..))
+import Time
 
 
 
@@ -283,7 +285,10 @@ type alias Config msg =
     , unit : String
     , locale : Locale
     , tone : Maybe Tone
-    , state : State
+    , busy : Bool
+    , failure : Maybe Problem
+    , freshness : Freshness
+    , zone : Time.Zone
     , onRetry : Maybe msg
     , emptyText : Maybe String
     , centerLabel : Maybe String
@@ -317,7 +322,10 @@ configure attributes =
         , unit = ""
         , locale = Locale.default
         , tone = Nothing
-        , state = Ready
+        , busy = False
+        , failure = Nothing
+        , freshness = Freshness.Fresh
+        , zone = Time.utc
         , onRetry = Nothing
         , emptyText = Nothing
         , centerLabel = Nothing
@@ -517,23 +525,19 @@ tone value =
     Attribute (\config -> { config | tone = Just value })
 
 
-{-| While `True` a skeleton of about the same height replaces the chart, and
-screen readers hear "Loading chart" (a sparkline becomes a skeleton line that is
-marked as busy). Pass a field of your model. Default: `False`.
+{-| Shows a skeleton of about the same height in place of the chart while `True`,
+and screen readers hear "Loading chart" (a sparkline becomes a skeleton line that
+is marked as busy). Pass a field of your model. Default: `False`.
+
+`loading`, `failed` and `remote` only add up: a chart is busy when any of them
+says so, and shows a failure when any of them has one, whatever the order. So
+`Chart.remote model.sales` followed by `Chart.loading False` keeps the loading
+and the failure that `remote` set.
+
 -}
 loading : Bool -> Attribute msg
 loading value =
-    Attribute
-        (\config ->
-            { config
-                | state =
-                    if value then
-                        Busy
-
-                    else
-                        Ready
-            }
-        )
+    Attribute (\config -> { config | busy = config.busy || value })
 
 
 {-| Shows the problem instead of the chart, with a "Try again" button if
@@ -543,21 +547,31 @@ it shows a dash with the title of the problem as its tooltip.
 -}
 failed : Problem -> Attribute msg
 failed problem =
-    Attribute (\config -> { config | state = Failed problem })
+    Attribute (\config -> { config | failure = Just problem })
 
 
-{-| The message sent by the "Try again" button in the failure state. The button is
-only shown when the problem is worth retrying (see `Klar.Remote.isRetryable` in
-[Klar.Remote](Klar-Remote)); a sparkline has none.
+{-| The message sent by the "Try again" button in the failure state and in the
+marker of old data. The button is only shown when the problem is worth retrying
+(see `Klar.Remote.isRetryable` in [Klar.Remote](Klar-Remote)); a sparkline has
+none.
 -}
 onRetry : msg -> Attribute msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
 
-{-| Takes loading and failure from a `Remote`. The data itself is passed to the
-chart as usual. `NotAsked` and `Loading` show the skeleton, `Failed` shows the
-problem and `Loaded` shows the chart.
+{-| The time zone of the time in "Old data from 14:05". The default is UTC.
+-}
+zone : Time.Zone -> Attribute msg
+zone value =
+    Attribute (\config -> { config | zone = value })
+
+
+{-| Takes loading, failure, refreshing and old data from a `Remote`. The data
+itself is passed to the chart as usual. `NotAsked` and `Loading` show the
+skeleton, `Failed` shows the problem and `Loaded` shows the chart. Data that is
+`Kept` stays on the screen: dimmed and busy while it is refreshed, and with the
+marker "Old data from 14:05" and a retry when the last refresh failed.
 
     Chart.line [ Chart.remote model.sales ] (Remote.withDefault [] model.sales)
 
@@ -568,20 +582,20 @@ remote : Remote a -> Attribute msg
 remote data =
     Attribute
         (\config ->
+            let
+                ( settled, freshness ) =
+                    Freshness.settle data
+            in
             { config
-                | state =
-                    case data of
-                        Remote.NotAsked ->
-                            Busy
-
-                        Remote.Loading ->
-                            Busy
-
+                | busy = config.busy || Freshness.waiting settled
+                , failure =
+                    case settled of
                         Remote.Failed problem ->
-                            Failed problem
+                            Just problem
 
-                        Remote.Loaded _ ->
-                            Ready
+                        _ ->
+                            config.failure
+                , freshness = freshness
             }
         )
 
@@ -725,13 +739,27 @@ texts loc =
 -- STATES AND SHELL
 
 
+stateOf : Config msg -> State
+stateOf config =
+    case config.failure of
+        Just problem ->
+            Failed problem
+
+        Nothing ->
+            if config.busy then
+                Busy
+
+            else
+                Ready
+
+
 withState : Config msg -> String -> Int -> Bool -> (() -> Html msg) -> Html msg
 withState config kind placeholderHeight hasData body =
     let
         t =
             texts config.locale
     in
-    case config.state of
+    case stateOf config of
         Busy ->
             shell config
                 kind
@@ -758,7 +786,20 @@ withState config kind placeholderHeight hasData body =
 
         Ready ->
             if hasData then
-                body ()
+                case config.freshness of
+                    Freshness.Fresh ->
+                        body ()
+
+                    _ ->
+                        Html.div
+                            [ Internal.cls [ "klar-chart-fresh", Freshness.className config.freshness ]
+                            , Freshness.busyAttr config.freshness
+                            ]
+                            [ Freshness.notice
+                                { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                                config.freshness
+                            , body ()
+                            ]
 
             else
                 shell config
@@ -2938,7 +2979,7 @@ sparkline attributes rawValues =
                     ]
                 )
     in
-    case config.state of
+    case stateOf config of
         Busy ->
             Html.span [ Internal.cls [ "klar-chart-spark", "klar-chart-spark--loading" ], boxStyle, Attr.attribute "aria-busy" "true" ]
                 [ Skeleton.line 100 ]
@@ -2969,12 +3010,22 @@ sparkline attributes rawValues =
                     [ Html.span [ Attr.attribute "aria-hidden" "true" ] [ Html.text "–" ] ]
 
             else
+                let
+                    described =
+                        case config.freshness of
+                            Freshness.Stale value ->
+                                summary ++ ". " ++ Freshness.text config.locale config.zone value.at
+
+                            _ ->
+                                summary
+                in
                 Html.span
-                    [ Internal.cls [ "klar-chart-spark" ]
+                    [ Internal.cls [ "klar-chart-spark", Freshness.className config.freshness ]
                     , boxStyle
                     , Attr.attribute "role" "img"
-                    , Attr.attribute "aria-label" summary
-                    , Attr.title summary
+                    , Attr.attribute "aria-label" described
+                    , Attr.title described
+                    , Freshness.busyAttr config.freshness
                     ]
                     [ Html.span [ Internal.cls [ "klar-chart-spark__field" ] ]
                         (layers

@@ -111,6 +111,7 @@ css =
  .klar-scroll:focus-visible{outline-offset: -2px}
  .klar-fill{width: 100%}
  .klar-grow{flex: 1 1 0;min-width: 0}
+ .klar-fixed-w{flex: 0 0 var(--klar-fixed-w);width: var(--klar-fixed-w);max-width: 100%;min-width: 0}
  .klar-fill-rest{flex: 1 1 auto;min-height: 0}
  .klar-padded{padding: var(--klar-pad,0)}
  .klar-spacer{flex: 1 1 auto}
@@ -301,6 +302,19 @@ css =
  .klar-menu__hint{margin-left: 16px;font-size: var(--klar-text-sm);color: var(--klar-text-muted)}
  .klar-menu__separator{height: 1px;margin: 4px -4px;background: var(--klar-border)}
  .klar-menu__heading{padding: 6px 8px 2px;font-size: var(--klar-text-xs);font-weight: var(--klar-weight-bold);letter-spacing: 0.06em;text-transform: uppercase;color: var(--klar-text-muted)}
+ .klar-stale{display: flex;flex-wrap: wrap;align-items: center;gap: var(--klar-space-1) var(--klar-space-2);padding: var(--klar-space-1) var(--klar-space-3);background: var(--klar-warning-subtle);border: 1px solid var(--klar-warning-border);border-radius: var(--klar-radius);color: var(--klar-amber-700);font-size: var(--klar-text-sm);line-height: 1.4}
+ .klar-stale--inline{padding: 0 var(--klar-space-2);border-radius: var(--klar-radius-full)}
+ .klar-stale__text{font-weight: 500}
+ .klar-stale__reason{color: var(--klar-text-secondary)}
+ .klar-stale__action{margin-left: auto}
+ .klar-refreshing{position: relative;cursor: progress}
+ .klar-refreshing::after{content: "";position: absolute;inset: 0 0 auto 0;height: 2px;background: linear-gradient(90deg,transparent,var(--klar-blue-500),transparent) 0 0 / 40% 100% no-repeat;animation: klar-refreshing-line 1.2s var(--klar-ease) infinite;pointer-events: none}
+ @keyframes klar-refreshing-line{from{background-position: -40% 0}to{background-position: 140% 0}}
+ @media (prefers-reduced-motion: reduce){.klar-refreshing::after{animation: none;background-position: 0 0;background-size: 100% 100%;background-color: var(--klar-blue-200);background-image: none}}
+ .klar-refreshing > :not(.klar-stale):not(.klar-sr-only){opacity: 0.92;transition: opacity var(--klar-dur) var(--klar-ease)}
+ .klar-remote-body{display: flex;flex-direction: column;gap: var(--klar-space-3)}
+ .klar-remote-body--loading{min-height: 96px}
+ .klar-chart-fresh,.klar-list-fresh,.klar-tree-fresh{display: flex;flex-direction: column;gap: var(--klar-space-2)}
  .klar-textarea-wrap{display: flex;flex-direction: column;gap: 4px;min-width: 0}
  .klar-textarea{--_pad-y: 6px;--_pad-x: var(--klar-control-px);display: grid;width: 100%;background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-radius: var(--klar-radius);color: var(--klar-text);transition: border-color var(--klar-dur-fast) var(--klar-ease),box-shadow var(--klar-dur-fast) var(--klar-ease)}
  .klar-textarea--sm{--_pad-y: 4px;--_pad-x: 8px;font-size: var(--klar-text-sm)}
@@ -876,7 +890,7 @@ css =
  .klar-table__detail-inner{position: sticky;left: 0;width: 100cqw;max-width: 100%;padding: var(--klar-space-3) var(--_cell-px) var(--klar-space-4) calc(var(--_indent,0px) + var(--_cell-px));box-shadow: inset 3px 0 0 var(--klar-primary-border);white-space: normal;animation: klar-fade-in var(--klar-dur) var(--klar-ease)}
  .klar-table__state-cell{padding: 0;background: var(--klar-surface)}
  .klar-table__state{position: sticky;left: 50%;width: max-content;max-width: min(560px,92vw);transform: translateX(-50%);white-space: normal}
- .klar-table--refreshing .klar-table__body .klar-table__cell,.klar-table--refreshing .klar-table__body .klar-check,.klar-table--refreshing .klar-table__body .klar-table__expand{opacity: 0.5;transition: opacity var(--klar-dur) var(--klar-ease)}
+ .klar-table--refreshing .klar-table__body .klar-table__cell,.klar-table--refreshing .klar-table__body .klar-check,.klar-table--refreshing .klar-table__body .klar-table__expand{opacity: 0.8;transition: opacity var(--klar-dur) var(--klar-ease)}
  .klar-table__progress{position: absolute;top: calc(var(--_head-h) - 1px);left: 0;right: 0;z-index: calc(var(--klar-z-sticky) + 3);height: 2px;overflow: hidden;background: var(--klar-primary-subtle);pointer-events: none}
  .klar-table__progress::after{content: "";position: absolute;top: 0;bottom: 0;left: 0;width: 25%;background: var(--klar-primary);animation: klar-table-progress 1.2s var(--klar-ease) infinite}
  @keyframes klar-table-progress{from{transform: translateX(-100%)}to{transform: translateX(400%)}}
@@ -984,6 +998,7 @@ css =
  .klar-app-shell__sidebar{flex: none;width: var(--klar-sidebar-w);padding: var(--klar-space-2);overflow-x: hidden;overflow-y: auto;background: var(--klar-surface);border-right: 1px solid var(--klar-border);transition: width var(--klar-dur) var(--klar-ease)}
  .klar-app-shell__content{--klar-content-pad: var(--klar-content-pad-wide,var(--klar-space-6));flex: 1 1 auto;min-width: 0;padding: var(--klar-content-pad);overflow: auto}
  .klar-app-shell__content:focus{outline: none}
+ .klar-app-shell__page:focus{outline: none}
  .klar-app-shell__page{width: 100%;margin-inline: auto}
  .klar-app-shell__page:has(> .klar-fill-rest){display: flex;flex-direction: column;height: 100%}
  .klar-app-shell__backdrop{display: none}
@@ -1528,6 +1543,7 @@ css =
  .klar-tree__skeleton-row{padding-left: calc(var(--klar-level,0) * 16px + 22px)}
  @media (forced-colors: active){.klar-chart__bar,.klar-chart__segment,.klar-chart__point,.klar-chart__line,.klar-chart__area,.klar-chart__swatch,.klar-chart__gauge-arc,.klar-meter__zone,.klar-meter__marker,.klar-progress__bar,.klar-progress__segment,.klar-progress-ring__arc,.klar-avatar,.klar-timeline__marker{forced-color-adjust: none}.klar-tree__row--selected,.klar-list-item--selected{outline: 2px solid Highlight;outline-offset: -2px}}
  .klar-overlay-host{min-height: 100%}
+ .klar-overlay-host__page:focus{outline: none}
  .klar-overlay-host:focus{outline: none}
  .klar-contents{display: contents}
  .klar-modal-lock{display: none}
@@ -1584,6 +1600,9 @@ css =
  .klar-confirm__retry{display: contents}
  .klar-toasts{position: fixed;right: var(--klar-space-4);bottom: var(--klar-space-4);z-index: var(--klar-z-toast);display: flex;flex-direction: column;align-items: stretch;gap: var(--klar-space-2);width: 380px;max-width: calc(100vw - 2 * var(--klar-space-4));pointer-events: none}
  :root:has(.klar-modal-lock) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}
+ :root:has(.klar-modal--side.klar-modal--right) .klar-toasts{top: auto;bottom: var(--klar-space-4);left: var(--klar-space-4);right: auto;margin-inline: 0}
+ :root:has(.klar-modal--side.klar-modal--left) .klar-toasts{top: auto;bottom: var(--klar-space-4);left: auto;right: var(--klar-space-4);margin-inline: 0}
+ @media (max-width: 640px){:root:has(.klar-modal--side.klar-modal--right) .klar-toasts,:root:has(.klar-modal--side.klar-modal--left) .klar-toasts{top: var(--klar-space-4);bottom: auto;left: 0;right: 0;margin-inline: auto}}
  .klar-toast{--_accent: var(--klar-blue-600);pointer-events: auto;display: flex;align-items: flex-start;gap: var(--klar-space-3);padding: var(--klar-space-3) var(--klar-space-2) var(--klar-space-3) var(--klar-space-3);background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-left: 3px solid var(--_accent);border-radius: var(--klar-radius-lg);box-shadow: var(--klar-shadow-md);color: var(--klar-text);animation: klar-slide-in-right var(--klar-dur-slow) var(--klar-ease)}
  .klar-toast--success{--_accent: var(--klar-green-600)}
  .klar-toast--warning{--_accent: var(--klar-amber-600)}
@@ -1858,6 +1877,7 @@ css =
  @media (forced-colors: active){.klar-sortable__item--drop-before::before,.klar-sortable__item--drop-after::after{forced-color-adjust: none;background: Highlight}.klar-sortable__item--lifted{outline: 2px solid Highlight;outline-offset: -2px}}
  .klar-splitter{--klar-split-gutter: 8px;position: relative;display: flex;flex-direction: row;width: 100%;height: var(--klar-split-h,100%);min-width: 0;min-height: 0}
  .klar-splitter--stacked{flex-direction: column}
+ .klar-splitter--fill-rest{height: auto}
  .klar-splitter__pane{position: relative;flex: var(--klar-grow,1) 1 0px;min-width: var(--klar-min,0px);max-width: var(--klar-max,none);min-height: 0;overflow: auto}
  .klar-splitter--stacked > .klar-splitter__pane{min-width: 0;max-width: none;min-height: var(--klar-min,0px);max-height: var(--klar-max,none)}
  .klar-splitter__pane--folded{min-width: 0;min-height: 0;overflow: hidden;visibility: hidden}

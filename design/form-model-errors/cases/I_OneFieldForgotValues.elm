@@ -1,7 +1,9 @@
 module I_OneFieldForgotValues exposing (form)
 
 import Html
-import Klar.Form.Model as Fm
+import Klar.Form as Form
+import Klar.Form.Spec as Spec
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Remote as Remote
 
 
@@ -9,18 +11,18 @@ type Country
     = Country String
 
 
-countries : Fm.Ids Country
+countries : Ids Country
 countries =
-    Fm.ids { toKey = \(Country c) -> c, fromKey = Just << Country }
+    Ids.make { toKey = \(Country c) -> c, fromKey = Just << Country }
 
 type alias Fields =
-    { name : Fm.Field String
+    { name : Form.Field String
     }
 
 
-form : Fm.Form () Fields String
+form : Form.Form () Fields String
 form =
-    Fm.define "p" Fields
-        |> Fm.with (Fm.text "Name" |> Fm.required)
-        |> Fm.build
+    Spec.define "p" Fields
+        |> Spec.with (Spec.text "Name" |> Spec.required)
+        |> Spec.build
 

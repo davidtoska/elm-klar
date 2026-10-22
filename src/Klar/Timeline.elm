@@ -89,6 +89,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
@@ -228,7 +229,9 @@ type alias Config msg =
     , compact : Bool
     , grouped : Bool
     , label : Maybe String
-    , state : State
+    , busy : Bool
+    , failure : Maybe Problem
+    , freshness : Freshness
     , onRetry : Maybe msg
     , onLoadMore : Maybe msg
     , loadingMore : Bool
@@ -250,7 +253,9 @@ configure attributes =
         , compact = False
         , grouped = True
         , label = Nothing
-        , state = Ready
+        , busy = False
+        , failure = Nothing
+        , freshness = Freshness.Fresh
         , onRetry = Nothing
         , onLoadMore = Nothing
         , loadingMore = False
@@ -320,20 +325,14 @@ ariaLabel text =
 {-| While `True` a skeleton is shown instead of the events (see `skeletonRows`),
 and screen readers hear "Loading events". Pass a field of your model. Default:
 `False`.
+
+`loading`, `failed` and `remote` only add up: the timeline is busy when any of
+them says so, and shows a failure when any of them has one, whatever the order.
+
 -}
 loading : Bool -> Attribute msg
 loading isLoading =
-    Attribute
-        (\config ->
-            { config
-                | state =
-                    if isLoading then
-                        Busy
-
-                    else
-                        Ready
-            }
-        )
+    Attribute (\config -> { config | busy = config.busy || isLoading })
 
 
 {-| Shows the problem instead of the events, with a "Try again" button if
@@ -342,12 +341,15 @@ loading isLoading =
 -}
 failed : Problem -> Attribute msg
 failed problem =
-    Attribute (\config -> { config | state = Failed problem })
+    Attribute (\config -> { config | failure = Just problem })
 
 
-{-| Takes loading and failure from a `Remote`. The events themselves are passed
-to `view` as usual. `NotAsked` and `Loading` show the skeleton, `Failed` shows
-the problem and `Loaded` shows the events.
+{-| Takes loading, failure, refreshing and old data from a `Remote`. The events
+themselves are passed to `view` as usual. `NotAsked` and `Loading` show the
+skeleton, `Failed` shows the problem and `Loaded` shows the events. Data that is
+`Kept` stays on the screen: dimmed and busy while it is refreshed, and with
+"Old data from 14:05" and a retry (`onRetry`) when the last refresh failed. The
+time is shown in the `zone` of the timeline.
 
     Timeline.view [ Timeline.remote model.history ]
         (List.map toEvent (Remote.withDefault [] model.history))
@@ -357,20 +359,20 @@ remote : Remote a -> Attribute msg
 remote data =
     Attribute
         (\config ->
+            let
+                ( settled, freshness ) =
+                    Freshness.settle data
+            in
             { config
-                | state =
-                    case data of
-                        Remote.NotAsked ->
-                            Busy
-
-                        Remote.Loading ->
-                            Busy
-
+                | busy = config.busy || Freshness.waiting settled
+                , failure =
+                    case settled of
                         Remote.Failed problem ->
-                            Failed problem
+                            Just problem
 
-                        Remote.Loaded _ ->
-                            Ready
+                        _ ->
+                            config.failure
+                , freshness = freshness
             }
         )
 
@@ -532,6 +534,7 @@ view attributes events =
             Html.section
                 [ Internal.cls
                     [ "klar-timeline"
+                    , Freshness.className config.freshness
                     , if config.compact then
                         "klar-timeline--compact"
 
@@ -551,11 +554,29 @@ view attributes events =
                     Internal.attrMaybe (Attr.attribute "aria-label") config.label
                 , Internal.attrIf scrollsWithoutButton (Attr.tabindex 0)
                 , Internal.attrIf scrollsWithoutButton (Attr.attribute "role" "region")
-                , Internal.attrIf (config.state == Busy) (Attr.attribute "aria-busy" "true")
+                , Internal.attrIf (state == Busy) (Attr.attribute "aria-busy" "true")
+                , Freshness.busyAttr config.freshness
                 ]
                 children
+
+        state =
+            case config.failure of
+                Just problem ->
+                    Failed problem
+
+                Nothing ->
+                    if config.busy then
+                        Busy
+
+                    else
+                        Ready
+
+        notice =
+            Freshness.notice
+                { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                config.freshness
     in
-    case config.state of
+    case state of
         Busy ->
             wrap
                 [ Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
@@ -569,7 +590,8 @@ view attributes events =
         Ready ->
             if List.isEmpty events then
                 wrap
-                    [ EmptyState.view
+                    [ notice
+                    , EmptyState.view
                         (List.filterMap identity
                             [ Just EmptyState.compact
                             , Just (EmptyState.icon Icon.history)
@@ -584,7 +606,8 @@ view attributes events =
                 -- always the next child: it keeps its place (and the focus of
                 -- the button in it) when a page of events is added above it.
                 wrap
-                    [ if config.grouped then
+                    [ notice
+                    , if config.grouped then
                         Html.div [ Internal.cls [ "klar-timeline__days" ] ]
                             (List.map (viewDay config) (groupByDay config.zone events))
 

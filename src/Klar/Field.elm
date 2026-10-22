@@ -31,7 +31,7 @@ the message about a problem, in red under the control. `required` puts a `*`
 after the label, and `optionalText` writes something like "(optional)" after
 the label of a field that is not required. `id` is the DOM id of the control:
 give every control its own, because the ids of the other parts are made from it
-and the error summary of [Klar.Form](Klar-Form) moves focus to a control by its
+and the error summary of [Klar.Form.Layout](Klar-Form-Layout) moves focus to a control by its
 id. [Klar.Checkbox](Klar-Checkbox) and [Klar.Switch](Klar-Switch) draw their
 label, hint and error beside the box themselves and do not use this module.
 
@@ -50,7 +50,7 @@ the message of one control, as above:
 
 Call it when the user submits or leaves a control, keep the result in the model
 (`model.errors` above), hand each message to its control, and drop it when the
-value is fixed. [Klar.Form](Klar-Form) turns the same list of problems into an
+value is fixed. [Klar.Form.Layout](Klar-Form-Layout) turns the same list of problems into an
 error summary at the top of the form and shows the state of the submit; its
 documentation walks through a whole form.
 

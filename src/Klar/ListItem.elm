@@ -3,7 +3,7 @@ module Klar.ListItem exposing
     , secondary, meta, icon, avatar, leading, trailing, accent
     , onClick, href, selected, disabled, id, label
     , list, ListAttribute, listLabel, undivided, compact, bordered, maxHeight
-    , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale
+    , remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, zone
     )
 
 {-| A dense list row, and the list that holds the rows. Use it for records such
@@ -71,7 +71,7 @@ goes into it is `content`, the row without the `li` and without anything to clic
 
 # Data from a backend
 
-@docs remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale
+@docs remote, skeleton, skeletonRows, onRetry, emptyTitle, emptyDescription, emptyIcon, locale, zone
 
 -}
 
@@ -84,10 +84,12 @@ import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Tone)
+import Time
 
 
 
@@ -485,6 +487,7 @@ type alias ListConfig msg =
     , emptyIcon : Icon
     , skeletonRows : Int
     , locale : Locale
+    , zone : Time.Zone
     }
 
 
@@ -502,6 +505,7 @@ configureList attributes =
         , emptyIcon = Icon.inbox
         , skeletonRows = 4
         , locale = Locale.default
+        , zone = Time.utc
         }
         attributes
 
@@ -596,6 +600,13 @@ locale value =
     ListAttribute (\config -> { config | locale = value })
 
 
+{-| The time zone of the time in "Old data from 14:05". The default is UTC.
+-}
+zone : Time.Zone -> ListAttribute msg
+zone value =
+    ListAttribute (\config -> { config | zone = value })
+
+
 {-| The container of the rows: a `ul` with the role `list`. Its children are rows
 made with `view` and, between groups, `heading`s.
 
@@ -661,7 +672,9 @@ listClass config =
 usually with `view`. While the data is `NotAsked` or `Loading` the list shows
 placeholder rows (`skeletonRows`), a `Failed` shows an error state with a retry
 button (`onRetry`), an empty list shows an empty state (`emptyTitle`) and
-otherwise the rows are shown in a `list`.
+otherwise the rows are shown in a `list`. Data that is `Kept` stays: dimmed and
+busy while it is refreshed, and under "Old data from 14:05" with a retry
+(`onRetry`) when the last refresh failed.
 
     ListItem.remote [ ListItem.onRetry ReloadOrders ] viewOrder model.orders
 
@@ -675,6 +688,33 @@ remote attributes toRow data =
         framed inner =
             Html.div [ Internal.cls [ "klar-list-state" ], Internal.attrIf config.bordered (Internal.cls [ "klar-list-state--bordered" ]) ] [ inner ]
     in
+    case Freshness.settle data of
+        ( Remote.Loaded items, freshness ) ->
+            if List.isEmpty items then
+                framed (emptyView config)
+
+            else
+                case freshness of
+                    Freshness.Fresh ->
+                        list attributes (List.map toRow items)
+
+                    _ ->
+                        Html.div
+                            [ Internal.cls [ "klar-list-fresh", Freshness.className freshness ]
+                            , Freshness.busyAttr freshness
+                            ]
+                            [ Freshness.notice
+                                { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                                freshness
+                            , list attributes (List.map toRow items)
+                            ]
+
+        ( settled, _ ) ->
+            remoteWithout config framed settled
+
+
+remoteWithout : ListConfig msg -> (Html msg -> Html msg) -> Remote (List a) -> Html msg
+remoteWithout config framed data =
     case data of
         Remote.NotAsked ->
             skeletonList config
@@ -685,23 +725,23 @@ remote attributes toRow data =
         Remote.Failed problem ->
             framed (failureView config problem)
 
-        Remote.Loaded [] ->
-            framed
-                (EmptyState.view
-                    (List.filterMap identity
-                        [ Just EmptyState.compact
-                        , Just (EmptyState.icon config.emptyIcon)
-                        , Just
-                            (EmptyState.title
-                                (Maybe.withDefault (Locale.pick config.locale { nb = "Ingenting å vise", en = "Nothing to show" }) config.emptyTitle)
-                            )
-                        , Maybe.map EmptyState.description config.emptyDescription
-                        ]
-                    )
-                )
+        _ ->
+            skeletonList config
 
-        Remote.Loaded items ->
-            list attributes (List.map toRow items)
+
+emptyView : ListConfig msg -> Html msg
+emptyView config =
+    EmptyState.view
+        (List.filterMap identity
+            [ Just EmptyState.compact
+            , Just (EmptyState.icon config.emptyIcon)
+            , Just
+                (EmptyState.title
+                    (Maybe.withDefault (Locale.pick config.locale { nb = "Ingenting å vise", en = "Nothing to show" }) config.emptyTitle)
+                )
+            , Maybe.map EmptyState.description config.emptyDescription
+            ]
+        )
 
 
 skeletonList : ListConfig msg -> Html msg

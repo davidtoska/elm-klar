@@ -99,12 +99,19 @@ named with `Table.columnId`, and the same advice holds: name it once.
 **Data from a backend.** Components that show data take a [Klar.Remote](Klar-Remote)
 (`NotAsked | Loading | Loaded a | Failed Problem`) and draw the loading skeleton, the failure
 with a retry button and the empty state themselves. A screen is correct in every
-state without you writing the four cases every time.
+state without you writing the four cases every time. Data you already have stays on
+the screen while it is refreshed (`Remote.refresh`), and when a refresh fails it is
+marked "Old data from 14:05" with a retry (`Remote.refreshWith`), in every data
+component. The body of a card, dialog or drawer does the same with
+[Klar.RemoteView](Klar-RemoteView).
 
 **Forms.** Every input accepts the same field attributes (`label`, `hint`, `error`,
 `required` ...) and wraps itself in a [Klar.Field](Klar-Field). Validators in
-[Klar.Validate](Klar-Validate) are plain functions; [Klar.Form](Klar-Form) lays out
-sections, shows an error summary and the state of the submit.
+[Klar.Validate](Klar-Validate) are plain functions. [Klar.Form](Klar-Form) holds a whole
+form in one state (declared once with [Klar.Form.Spec](Klar-Form-Spec)): the values, the
+rows of a repeating group, the step, what the server refused and whether anything changed.
+[Klar.Form.Layout](Klar-Form-Layout) lays out sections, shows an error summary and the state
+of the submit, for a form you wire by hand.
 
 **Language.** Built-in text (placeholders, labels read by screen readers, month
 names) is English by default and Norwegian Bokmål with `locale Locale.nb`; see
@@ -141,7 +148,9 @@ them again after Klar's CSS to restyle everything at once; they are listed in
     [Klar.Alert](Klar-Alert), [Klar.Spinner](Klar-Spinner),
     [Klar.Skeleton](Klar-Skeleton), [Klar.Progress](Klar-Progress),
     [Klar.EmptyState](Klar-EmptyState), [Klar.ErrorState](Klar-ErrorState)
-  - **Forms and inputs**: [Klar.Form](Klar-Form), [Klar.Field](Klar-Field),
+  - **Forms and inputs**: [Klar.Form](Klar-Form), [Klar.Form.Spec](Klar-Form-Spec),
+    [Klar.Form.Layout](Klar-Form-Layout), [Klar.Form.Check](Klar-Form-Check),
+    [Klar.Ids](Klar-Ids), [Klar.Field](Klar-Field),
     [Klar.Validate](Klar-Validate), [Klar.TextInput](Klar-TextInput),
     [Klar.TextArea](Klar-TextArea), [Klar.NumberInput](Klar-NumberInput),
     [Klar.PasswordInput](Klar-PasswordInput), [Klar.SearchInput](Klar-SearchInput),
@@ -188,7 +197,8 @@ them again after Klar's CSS to restyle everything at once; they are listed in
   - **Rules and filters**: [Klar.Rule](Klar-Rule),
     [Klar.RuleBuilder](Klar-RuleBuilder), [Klar.FilterBar](Klar-FilterBar),
     [Klar.SavedViews](Klar-SavedViews)
-  - **Data and utilities**: [Klar.Remote](Klar-Remote), [Klar.Search](Klar-Search),
+  - **Data and utilities**: [Klar.Remote](Klar-Remote), [Klar.RemoteView](Klar-RemoteView),
+    [Klar.Search](Klar-Search),
     [Klar.Format](Klar-Format), [Klar.Shortcut](Klar-Shortcut)
 
 

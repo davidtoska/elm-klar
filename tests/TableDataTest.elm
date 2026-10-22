@@ -5,7 +5,7 @@ import Html
 import Html.Attributes as Attr
 import Klar.Date as Date
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Remote exposing (Remote(..))
+import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Table as Table exposing (Direction(..), Filter(..))
 import Klar.Table.Csv as Csv
 import Support.Ids as Ids
@@ -543,10 +543,10 @@ outsideFilterTests =
             \_ -> shows [ 2001 ] [ Table.rowFilter large ] (Table.setSearch "supplies" start)
         , test "and with the column filters" <|
             \_ -> shows [ 2004 ] [ Table.rowFilter large ] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start |> Table.setFilter (Table.columnId "total") (Just (Between (Just 1000) Nothing)))
-        , test "activeExternalFilters is counted as a filter" <|
-            \_ -> element [ Table.rowFilter large, Table.activeExternalFilters 1 ] (byId "orders-trigger-filters") [ Selector.text "1 filter active" ] start
-        , test "and added to the filters of the table" <|
-            \_ -> element [ Table.rowFilter large, Table.activeExternalFilters 2 ] (byId "orders-trigger-filters") [ Selector.text "3 filters active" ] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start)
+        , test "activeExternalFilters draws no summary of its own: the outside control shows them" <|
+            \_ -> noElement [ Table.rowFilter large, Table.activeExternalFilters 2 ] (byId "orders-trigger-filters") start
+        , test "and the filters of the table are counted without them" <|
+            \_ -> element [ Table.rowFilter large, Table.activeExternalFilters 2 ] (byId "orders-trigger-filters") [ Selector.text "1 filter active" ] (Table.setFilter (Table.columnId "city") (Just (OneOf [ "Oslo" ])) start)
         , test "without them the table says nothing about filters" <|
             \_ -> noElement [] (byId "orders-trigger-filters") start
         , test "a table whose rows are all filtered out says 'No matches'" <|
@@ -555,10 +555,6 @@ outsideFilterTests =
             \_ -> element [ Table.rows (Loaded []) ] [ Selector.class "klar-state" ] [ Selector.text "No data" ] start
         , test "with an outside filter active, a table without rows says 'No matches': the filter may be why" <|
             \_ -> element [ Table.rows (Loaded []), Table.activeExternalFilters 1 ] [ Selector.class "klar-state" ] [ Selector.text "No matches" ] start
-        , test "the popover lists the number of outside filters in a note" <|
-            \_ ->
-                press [ Table.activeExternalFilters 2, Table.rowFilter large ] (byId "orders-trigger-filters") Event.click start
-                    |> expectOk (\s -> element [ Table.activeExternalFilters 2, Table.rowFilter large ] (byId "orders-popup-filters") [ Selector.text "+ 2 filters outside the table" ] s)
         , test "rowFilter is left alone in server mode, where the backend filters" <|
             \_ -> shows [ 2001, 2002 ] [ Table.rowFilter (always False), Table.server { total = 2 }, Table.rows (Loaded (List.take 2 Orders.curated)) ] start
         ]
@@ -674,6 +670,9 @@ serverModeTests =
         server =
             [ Table.server { total = 120 }, Table.rows (Loaded (generated 25)) ]
 
+        refreshingServer =
+            [ Table.server { total = 120 }, Table.rows (Remote.refresh (Loaded (generated 25))) ]
+
         page =
             List.range 3001 3025
 
@@ -715,8 +714,8 @@ serverModeTests =
         , test "while a new page is on its way the rows stay, dimmed, and the pagination stays" <|
             \_ ->
                 allOf
-                    [ root (Table.refreshing True :: server) [ Selector.class "klar-table--refreshing" ] start
-                    , element (Table.refreshing True :: server) (byId "orders-pagination") [] start
+                    [ root refreshingServer [ Selector.class "klar-table--refreshing" ] start
+                    , element refreshingServer (byId "orders-pagination") [] start
                     ]
         , test "while the first rows are loading the pagination is not there for a table that does not know its total" <|
             \_ -> noElement [ Table.rows Loading ] [ Selector.class "klar-pagination" ] start
@@ -907,6 +906,20 @@ exportTests =
                 in
                 open attributes start
                     |> expectOk (\s -> option 0 attributes [ Selector.text "This page", Selector.text "25 rows" ] s)
+        , test "in server mode selected rows on other pages are not exported without a sign" <|
+            \_ ->
+                let
+                    attributes =
+                        Table.server { total = 120 } :: Table.selectable :: Table.rows (Loaded (generated 25)) :: exporting
+
+                    selected =
+                        Table.setSelected Ids.strings [ "ORD-3001", "ORD-9999" ] True start
+                in
+                open attributes selected
+                    |> expectOk
+                        (\s ->
+                            element attributes (byId "orders-popup-export") [ Selector.text "1 of 2 selected rows are on other pages" ] s
+                        )
         , test "the export button is disabled while the rows are loading" <|
             \_ -> element (Table.rows Loading :: exporting) (byId "orders-trigger-export") [ Selector.disabled True ] start
         ]

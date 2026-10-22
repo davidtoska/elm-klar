@@ -10,7 +10,7 @@ import Klar.Button as Button
 import Klar.Card as Card
 import Klar.Checkbox as Checkbox
 import Klar.FileDrop as FileDrop
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
@@ -56,7 +56,7 @@ type alias Model =
     -- where the user has been and what the submit is doing
     , touched : List String
     , submitted : Bool
-    , status : Form.Status
+    , status : FormLayout.Status
     , simulateFailure : Bool
     , baseline : Snapshot
     }
@@ -143,7 +143,7 @@ fromSnapshot saved =
     , accepted = saved.accepted
     , touched = []
     , submitted = False
-    , status = Form.Idle
+    , status = FormLayout.Idle
     , simulateFailure = False
     , baseline = saved
     }
@@ -407,18 +407,18 @@ update msg order =
             ( touch termsId { order | accepted = value }, Cmd.none )
 
         Submit ->
-            if order.status == Form.Submitting then
+            if order.status == FormLayout.Submitting then
                 ( order, Cmd.none )
 
             else if List.isEmpty (errorsOf Locale.default order) then
-                ( { order | submitted = True, status = Form.Submitting }
+                ( { order | submitted = True, status = FormLayout.Submitting }
                 , Cmd.batch
                     [ Process.sleep 1400 |> Task.perform (\_ -> SubmitFinished)
                     , case order.status of
                         -- "Try again" is about to be replaced by "Saving ...":
                         -- focus follows to the status region
-                        Form.Failed _ ->
-                            Form.focusStatus formId NoOp
+                        FormLayout.Failed _ ->
+                            FormLayout.focusStatus formId NoOp
 
                         _ ->
                             Cmd.none
@@ -426,19 +426,19 @@ update msg order =
                 )
 
             else
-                ( { order | submitted = True, status = Form.Idle }
-                , Form.focusSummary formId NoOp
+                ( { order | submitted = True, status = FormLayout.Idle }
+                , FormLayout.focusSummary formId NoOp
                 )
 
         SubmitFinished ->
             if order.simulateFailure then
-                ( { order | status = Form.Failed (Remote.problem Remote.server |> Remote.withCode "HTTP 503") }
+                ( { order | status = FormLayout.Failed (Remote.problem Remote.server |> Remote.withCode "HTTP 503") }
                 , Cmd.none
                 )
 
             else
                 ( { order
-                    | status = Form.Succeeded "The order was placed."
+                    | status = FormLayout.Succeeded "The order was placed."
                     , baseline = snapshot order
                     , submitted = False
                     , touched = []
@@ -456,13 +456,13 @@ update msg order =
         DismissStatus ->
             -- the close button goes with the message: focus moves to the button
             -- that sent the form
-            ( { order | status = Form.Idle }, Form.focusField submitId NoOp )
+            ( { order | status = FormLayout.Idle }, FormLayout.focusField submitId NoOp )
 
         SimulateFailureToggled value ->
             ( { order | simulateFailure = value }, Cmd.none )
 
         FocusField fieldId ->
-            ( order, Form.focusField fieldId NoOp )
+            ( order, FormLayout.focusField fieldId NoOp )
 
 
 
@@ -499,7 +499,7 @@ newOrder lang order =
             snapshot order /= order.baseline
 
         submitting =
-            order.status == Form.Submitting
+            order.status == FormLayout.Submitting
 
         text fieldId label toMsg value extra =
             TextInput.view
@@ -514,7 +514,7 @@ newOrder lang order =
                 )
 
         formAttributes =
-            [ Form.id formId, Form.locale lang ]
+            [ FormLayout.id formId, FormLayout.locale lang ]
     in
     Doc.section "Complete example: new order"
         "All the controls in one form. The fields are checked when you leave them and when you submit. Problems give a summary at the top with links to the fields. The submit is a fake request (1.4 seconds) that can succeed or fail. When you change something, the banner about unsaved changes appears."
@@ -524,44 +524,44 @@ newOrder lang order =
             , code = Just """-- customerFields, deliveryFields ... are functions of your own: each returns
 -- the controls of one section (TextInput, Radio, Slider, NumberInput, Switch,
 -- TagInput, TextArea, FileDrop, Checkbox)
-Form.view [ Form.id "new-order-form", Form.onSubmit Submit ]
-    [ Form.unsavedChanges [ Form.onSave Submit, Form.onDiscard Discard, Form.sticky ] dirty
-    , Form.errorSummary [ Form.id "new-order-form", Form.onFocusField FocusField, Form.labels labels ] errors
-    , Form.section "Customer" "Who orders." [ customerFields model errors ]
-    , Form.section "Delivery" "How the goods are shipped." [ deliveryFields model errors ]
-    , Form.section "Notifications and notes" "Updates and a note." [ notificationFields model ]
-    , Form.section "Attachments and terms" "Documents and consent." [ attachmentFields model errors ]
-    , Form.stickyActions
-        [ Form.status [ Form.id "new-order-form", Form.onRetry Submit ] model.status
+FormLayout.view [ FormLayout.id "new-order-form", FormLayout.onSubmit Submit ]
+    [ FormLayout.unsavedChanges [ FormLayout.onSave Submit, FormLayout.onDiscard Discard, FormLayout.sticky ] dirty
+    , FormLayout.errorSummary [ FormLayout.id "new-order-form", FormLayout.onFocusField FocusField, FormLayout.labels labels ] errors
+    , FormLayout.section "Customer" "Who orders." [ customerFields model errors ]
+    , FormLayout.section "Delivery" "How the goods are shipped." [ deliveryFields model errors ]
+    , FormLayout.section "Notifications and notes" "Updates and a note." [ notificationFields model ]
+    , FormLayout.section "Attachments and terms" "Documents and consent." [ attachmentFields model errors ]
+    , FormLayout.stickyActions
+        [ FormLayout.status [ FormLayout.id "new-order-form", FormLayout.onRetry Submit ] model.status
         , Layout.spacer
         , Button.view [ Button.primary, Button.submit ] "Place order"
         ]
     ]"""
             }
-            (Form.view
-                (formAttributes ++ [ Form.onSubmit Submit, Form.ariaLabel "New order" ])
-                [ Form.unsavedChanges
+            (FormLayout.view
+                (formAttributes ++ [ FormLayout.onSubmit Submit, FormLayout.ariaLabel "New order" ])
+                [ FormLayout.unsavedChanges
                     (formAttributes
-                        ++ [ Form.onSave Submit
-                           , Form.onDiscard Discard
-                           , Form.saving submitting
-                           , Form.sticky
+                        ++ [ FormLayout.onSave Submit
+                           , FormLayout.onDiscard Discard
+                           , FormLayout.saving submitting
+                           , FormLayout.sticky
                            ]
                     )
                     dirty
                 , if order.submitted then
-                    Form.errorSummary
-                        (formAttributes ++ [ Form.labels fieldLabels, Form.onFocusField FocusField ])
+                    FormLayout.errorSummary
+                        (formAttributes ++ [ FormLayout.labels fieldLabels, FormLayout.onFocusField FocusField ])
                         errors
 
                   else
                     Text.text ""
-                , Form.section "Customer"
+                , FormLayout.section "Customer"
                     "Who orders and how to reach them. A phone number is required when SMS updates are on."
-                    [ Form.grid 2
+                    [ FormLayout.grid 2
                         [ text customerId "Customer" CustomerChanged order.customer [ TextInput.required, TextInput.autocomplete "organization" ]
                         , text contactId "Contact name" ContactChanged order.contact [ TextInput.required, TextInput.autocomplete "name" ]
-                        , Form.fullRow
+                        , FormLayout.fullRow
                             (text emailId "Email" EmailChanged order.email [ TextInput.email, TextInput.required, TextInput.placeholder "name@example.com", TextInput.autocomplete "email" ])
                         , text phoneId
                             "Phone"
@@ -578,7 +578,7 @@ Form.view [ Form.id "new-order-form", Form.onSubmit Submit ]
                         , text dateId "Order date" DateChanged order.orderDate [ TextInput.required, TextInput.placeholder "dd.mm.yyyy", TextInput.hint "For example 14.10.2026, not later than today" ]
                         ]
                     ]
-                , Form.section "Delivery"
+                , FormLayout.section "Delivery"
                     "How the goods are shipped, how urgent the order is and what is paid up front."
                     [ Radio.view
                         [ Radio.label "Shipping method"
@@ -635,7 +635,7 @@ Form.view [ Form.id "new-order-form", Form.onSubmit Submit ]
                         ]
                         order.deposit
                     ]
-                , Form.section "Notifications and notes"
+                , FormLayout.section "Notifications and notes"
                     "Updates about the order, labels and a free note."
                     [ Card.view [ Card.title "Updates" ]
                         [ Layout.stack [ Layout.gap 4 ]
@@ -680,7 +680,7 @@ Form.view [ Form.id "new-order-form", Form.onSubmit Submit ]
                         , TextArea.locale lang
                         ]
                     ]
-                , Form.section "Attachments and terms"
+                , FormLayout.section "Attachments and terms"
                     "The purchase order and other documents. The files are not uploaded in this example."
                     [ FileDrop.view AttachmentsMsg
                         [ FileDrop.label "Attachments"
@@ -705,7 +705,7 @@ Form.view [ Form.id "new-order-form", Form.onSubmit Submit ]
                                 Checkbox.hint "Required to place the order."
                         ]
                     ]
-                , Form.stickyActions
+                , FormLayout.stickyActions
                     [ Switch.view
                         [ Switch.label "Simulate a failure"
                         , Switch.id "new-order-simulate-failure"
@@ -714,9 +714,9 @@ Form.view [ Form.id "new-order-form", Form.onSubmit Submit ]
                         , Switch.size Small
                         ]
                     , Layout.spacer
-                    , Form.status
+                    , FormLayout.status
                         (formAttributes
-                            ++ [ Form.onRetry Submit, Form.onDismiss DismissStatus ]
+                            ++ [ FormLayout.onRetry Submit, FormLayout.onDismiss DismissStatus ]
                         )
                         order.status
                     , Button.view [ Button.disabled submitting, Button.onClick Discard ] "Reset"

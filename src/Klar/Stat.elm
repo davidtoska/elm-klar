@@ -4,7 +4,7 @@ module Klar.Stat exposing
     , delta, change, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
     , size, flat, onClick, locale
-    , loading, failed, onRetry, remote
+    , loading, failed, onRetry, remote, zone
     )
 
 {-| A KPI tile: one number with its label, the change since last time, a short
@@ -91,7 +91,7 @@ only its retry button is a control).
 
 # Loading and failure
 
-@docs loading, failed, onRetry, remote
+@docs loading, failed, onRetry, remote, zone
 
 -}
 
@@ -103,10 +103,12 @@ import Klar.Chart as Chart
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
+import Time
 
 
 {-| A setting of a tile. Make them with the functions below and pass a list to
@@ -146,7 +148,10 @@ type alias Config msg =
     , flat : Bool
     , onClick : Maybe msg
     , onRetry : Maybe msg
-    , state : State
+    , busy : Bool
+    , failure : Maybe Problem
+    , freshness : Freshness
+    , zone : Time.Zone
     , locale : Locale
     }
 
@@ -170,7 +175,10 @@ configure attributes =
         , flat = False
         , onClick = Nothing
         , onRetry = Nothing
-        , state = Ready
+        , busy = False
+        , failure = Nothing
+        , freshness = Freshness.Fresh
+        , zone = Time.utc
         , locale = Locale.default
         }
         attributes
@@ -385,20 +393,16 @@ onRetry msg =
 {-| While `True` the tile shows a skeleton in place of the number, the change and
 the trend, and tells screen readers that it is loading. The label stays, so the
 layout does not jump. Pass a field of your model. Default: `False`.
+
+`loading`, `failed` and `remote` only add up: a tile is busy when any of them says
+so, and shows a failure when any of them has one, whatever the order. So
+`Stat.remote model.shipments f` followed by `Stat.loading False` keeps what
+`remote` set.
+
 -}
 loading : Bool -> Attribute msg
 loading isLoading =
-    Attribute
-        (\config ->
-            { config
-                | state =
-                    if isLoading then
-                        Busy
-
-                    else
-                        Ready
-            }
-        )
+    Attribute (\config -> { config | busy = config.busy || isLoading })
 
 
 {-| Shows a failure in place of the number: the title of the problem next to an
@@ -408,13 +412,22 @@ failure from a `Remote`.
 -}
 failed : Problem -> Attribute msg
 failed problem =
-    Attribute (\config -> { config | state = Failed problem })
+    Attribute (\config -> { config | failure = Just problem })
+
+
+{-| The time zone of the time in "Old data from 14:05". The default is UTC.
+-}
+zone : Time.Zone -> Attribute msg
+zone value_ =
+    Attribute (\config -> { config | zone = value_ })
 
 
 {-| Takes the content of the tile from a `Remote`. While the data is `NotAsked`
 or `Loading` the tile shows a skeleton, on `Failed` it shows the problem, and
 when the data has arrived it applies the attributes that the function returns
-for it.
+for it. Data that is `Kept` stays on the tile: dimmed and busy while it is
+refreshed, and with "Old data from 14:05" and a retry (`onRetry`) when the last
+refresh failed. A tile with that retry is a plain block, like a failed tile.
 
     Stat.view
         [ Stat.label "Shipments"
@@ -429,18 +442,19 @@ remote : Remote a -> (a -> List (Attribute msg)) -> Attribute msg
 remote data toAttributes =
     Attribute
         (\config ->
-            case data of
+            let
+                ( settled, freshness ) =
+                    Freshness.settle data
+            in
+            case settled of
                 Remote.Loaded payload ->
-                    List.foldl (\(Attribute apply) c -> apply c) { config | state = Ready } (toAttributes payload)
+                    List.foldl (\(Attribute apply) c -> apply c) { config | freshness = freshness } (toAttributes payload)
 
                 Remote.Failed problem ->
-                    { config | state = Failed problem }
+                    { config | failure = Just problem }
 
-                Remote.NotAsked ->
-                    { config | state = Busy }
-
-                Remote.Loading ->
-                    { config | state = Busy }
+                _ ->
+                    { config | busy = True }
         )
 
 
@@ -473,13 +487,38 @@ view attributes =
         -- button must not sit inside another button (nested controls are
         -- invalid, and a click on retry would also send the tile's message),
         -- and a failure has nothing to drill down into.
+        state =
+            case config.failure of
+                Just problem ->
+                    Failed problem
+
+                Nothing ->
+                    if config.busy then
+                        Busy
+
+                    else
+                        Ready
+
+        -- Old data with its own retry button is a plain block for the same reason.
+        retryInside =
+            case ( config.freshness, config.onRetry ) of
+                ( Freshness.Stale old, Just _ ) ->
+                    Remote.isRetryable old.problem
+
+                _ ->
+                    False
+
         clickMessage =
-            case config.state of
+            case state of
                 Failed _ ->
                     Nothing
 
                 _ ->
-                    config.onClick
+                    if retryInside then
+                        Nothing
+
+                    else
+                        config.onClick
 
         classNames =
             Internal.cls
@@ -502,7 +541,7 @@ view attributes =
                 [ Html.span [ Internal.cls [ "klar-stat__label" ], Attr.title config.label ] [ Html.text config.label ]
                 , Internal.viewMaybe (\glyph -> Html.span [ Internal.cls [ "klar-stat__icon" ] ] [ Icon.view glyph ]) config.icon
                 ]
-            , case config.state of
+            , case state of
                 Busy ->
                     Html.span [ Internal.cls [ "klar-stat__body" ], Attr.attribute "aria-busy" "true" ]
                         [ Html.span [ Internal.cls [ "klar-stat__skeleton" ] ] [ Skeleton.block (skeletonHeight config.size) ]
@@ -515,11 +554,14 @@ view attributes =
                     Html.span [ Internal.cls [ "klar-stat__body" ] ] [ viewFailure config problem ]
 
                 Ready ->
-                    Html.span [ Internal.cls [ "klar-stat__body" ] ]
+                    Html.span [ Internal.cls [ "klar-stat__body", Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
                         [ viewValue config
                         , viewDelta config
                         , Internal.viewMaybe (\text -> Html.span [ Internal.cls [ "klar-stat__caption" ] ] [ Html.text text ]) config.caption
                         , viewTrend config
+                        , Freshness.notice
+                            { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = True }
+                            config.freshness
                         ]
             ]
     in

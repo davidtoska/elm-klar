@@ -60,6 +60,7 @@ until more languages are added.
 
 import Klar.Date as Date exposing (Date)
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Money.Currencies as Currencies
 import Time
 
 
@@ -160,25 +161,66 @@ percent locale decimals ratio =
 the currency, a symbol or a code, as you want it written. English puts it in
 front of the number, Norwegian after it.
 
+An ISO 4217 code that has a well-known symbol is written with the symbol (`"USD"`
+becomes `$`, `"EUR"` `€`, `"NOK"` `kr`; the table is the one `Klar.Money` uses). Any other
+text is written as given, and a text that ends in a letter (a code, `"kr"`) is
+separated from the number by a non-breaking space, so that it never reads
+`USD645.15`.
+
     Format.currency Locale.en "$" 2 1234.5 -- "$1,234.50"
+
+    Format.currency Locale.en "USD" 2 645.15 -- "$645.15"
+
+    Format.currency Locale.en "CHF" 2 645.15 -- "CHF 645.15" (non-breaking space)
 
     Format.currency Locale.en "$" 2 -3 -- "−$3.00"
 
     Format.currency Locale.nb "kr" 2 1234.5 -- "1 234,50 kr"
 
+    Format.currency Locale.nb "NOK" 2 1234.5 -- "1 234,50 kr"
+
     Format.currency Locale.en "JPY " 0 1500 -- "JPY 1,500"
 
 -}
 currency : Locale -> String -> Int -> Float -> String
-currency locale symbol decimals value =
+currency locale mark decimals value =
     let
         parts =
             formatParts locale 0 decimals value
+
+        symbol =
+            if isCode mark then
+                Currencies.symbolOf mark
+
+            else
+                mark
+
+        apart =
+            if endsInLetter symbol then
+                nbsp
+
+            else
+                ""
     in
     Locale.pick locale
         { nb = signOf parts ++ parts.text ++ nbsp ++ symbol
-        , en = signOf parts ++ symbol ++ parts.text
+        , en = signOf parts ++ symbol ++ apart ++ parts.text
         }
+
+
+isCode : String -> Bool
+isCode text =
+    String.length text == 3 && String.all Char.isUpper text
+
+
+endsInLetter : String -> Bool
+endsInLetter text =
+    case String.right 1 text |> String.toList of
+        [ c ] ->
+            Char.isAlpha c
+
+        _ ->
+            False
 
 
 {-| Chooses the singular or plural form for a count.

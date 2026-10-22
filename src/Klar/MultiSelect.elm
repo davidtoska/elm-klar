@@ -1,7 +1,7 @@
 module Klar.MultiSelect exposing
     ( State, init, Msg, update, view
     , values, setValues, setOptions, clear, query, isOpen, open, close
-    , Attribute, options, remote, serverSearch, onRetry
+    , Attribute, options, remote, serverSearch, onRetry, zone
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale
     , maxSelected, maxVisibleChips
@@ -87,7 +87,7 @@ default (see [Klar.Locale](Klar-Locale)).
 
 Pass attributes to `view` in a list; later ones win over earlier ones.
 
-@docs Attribute, options, remote, serverSearch, onRetry
+@docs Attribute, options, remote, serverSearch, onRetry, zone
 
 
 # Field
@@ -118,6 +118,7 @@ import Klar.Button as Button
 import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select.Option as Option exposing (Option)
@@ -125,6 +126,7 @@ import Klar.Select.Popup as Popup
 import Klar.Tag as Tag
 import Klar.Theme as Theme exposing (Size(..))
 import Klar.VirtualList as VirtualList
+import Time
 
 
 
@@ -582,6 +584,8 @@ type Attribute id msg
 type alias Config id msg =
     { field : Field.Config
     , options : Remote (List (Option id))
+    , freshness : Freshness
+    , zone : Time.Zone
     , serverSearch : Bool
     , placeholder : Maybe String
     , searchPlaceholder : Maybe String
@@ -604,6 +608,8 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
         , options = Loaded []
+        , freshness = Freshness.Fresh
+        , zone = Time.utc
         , serverSearch = False
         , placeholder = Nothing
         , searchPlaceholder = Nothing
@@ -636,20 +642,33 @@ one wins.
 -}
 options : List (Option id) -> Attribute id msg
 options list =
-    Attribute (\config -> { config | options = Loaded list })
+    Attribute (\config -> { config | options = Loaded list, freshness = Freshness.Fresh })
 
 
 {-| Options from the backend, as a `Remote` (see [Klar.Remote](Klar-Remote)).
 The list shows loading rows while the data is `Loading` or `NotAsked`, a compact
 error with a retry button on `Failed` (see `onRetry`), the empty state on
-`Loaded []`, and the options on `Loaded`.
+`Loaded []`, and the options on `Loaded`. Options that are `Kept` stay in the
+list: dimmed and busy while they are refreshed, and with "Old data from 14:05"
+and a retry (`onRetry`) at the top of the list when the last refresh failed.
 
     MultiSelect.remote model.categories
 
 -}
 remote : Remote (List (Option id)) -> Attribute id msg
 remote data =
-    Attribute (\config -> { config | options = data })
+    let
+        ( current, freshness ) =
+            Freshness.settle data
+    in
+    Attribute (\config -> { config | options = current, freshness = freshness })
+
+
+{-| The time zone of the time in "Old data from 14:05". The default is UTC.
+-}
+zone : Time.Zone -> Attribute id msg
+zone value_ =
+    Attribute (\config -> { config | zone = value_ })
 
 
 {-| The server does the searching. The component shows the options exactly as
@@ -985,6 +1004,9 @@ resolve config available selection =
                 else
                     case config.options of
                         Loaded _ ->
+                            unlisted value
+
+                        Kept _ ->
                             unlisted value
 
                         Failed _ ->
@@ -1349,6 +1371,9 @@ viewPopup toMsg config t env (State state) =
                 Loaded _ ->
                     True
 
+                Kept _ ->
+                    True
+
                 _ ->
                     False
 
@@ -1542,18 +1567,31 @@ viewPopup toMsg config t env (State state) =
                     { items = rows.rows, viewRow = Popup.viewRow rowConfig }
                     state.list
 
+        loadedBody =
+            if rows.optionRows == 0 then
+                if String.isEmpty (String.trim state.query) then
+                    Popup.viewEmpty Icon.inbox t.noOptions Nothing
+
+                else
+                    Popup.viewEmpty Icon.search t.noMatches (Just (t.noMatchesFor (String.trim state.query)))
+
+            else
+                Html.div
+                    [ Internal.cls [ Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
+                    [ Freshness.notice
+                        { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+                        config.freshness
+                    , list
+                    , Popup.viewFooter status actions
+                    ]
+
         body =
             case config.options of
                 Loaded _ ->
-                    if rows.optionRows == 0 then
-                        if String.isEmpty (String.trim state.query) then
-                            Popup.viewEmpty Icon.inbox t.noOptions Nothing
+                    loadedBody
 
-                        else
-                            Popup.viewEmpty Icon.search t.noMatches (Just (t.noMatchesFor (String.trim state.query)))
-
-                    else
-                        Html.div [] [ list, Popup.viewFooter status actions ]
+                Kept _ ->
+                    loadedBody
 
                 Failed problem ->
                     Popup.viewFailure

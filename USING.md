@@ -78,22 +78,18 @@ type alias Order =
 
 
 type alias Model =
-    { key : Nav.Key
-    , page : Page
-    , sideNav : SideNav.State Page
+    { page : Page
+    , shell : AppShell.State Page
     , table : Table.State String
     , orders : Remote (List Order)
     }
 
 
 type Msg
-    = LinkClicked Browser.UrlRequest
-    | UrlChanged Url
-    | SideNavMsg SideNav.Msg
+    = ShellMsg AppShell.Msg
     | TableMsg Table.Msg
     | GotOrders (Result Remote.Problem (List Order))
     | Reload
-    | NoOp
 
 
 main : Program () Model Msg
@@ -103,8 +99,8 @@ main =
         , update = update
         , view = view
         , subscriptions = \_ -> Sub.none
-        , onUrlRequest = LinkClicked
-        , onUrlChange = UrlChanged
+        , onUrlRequest = AppShell.onUrlRequest ShellMsg
+        , onUrlChange = AppShell.onUrlChange ShellMsg
         }
 
 
@@ -114,9 +110,8 @@ init _ url key =
         page =
             pageFromUrl url
     in
-    ( { key = key
-      , page = page
-      , sideNav = SideNav.init "main-nav" |> SideNav.reveal page navigation
+    ( { page = page
+      , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
       , table = Table.init "orders"
       , orders = Loading
       }
@@ -136,27 +131,24 @@ fetchOrders =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        LinkClicked (Browser.Internal url) ->
-            ( model, Nav.pushUrl model.key (Url.toString url) )
-
-        LinkClicked (Browser.External href) ->
-            ( model, Nav.load href )
-
-        UrlChanged url ->
+        ShellMsg m ->
             let
-                page =
-                    pageFromUrl url
+                ( shell, cmd, changed ) =
+                    AppShell.update m model.shell
             in
-            ( { model | page = page, sideNav = SideNav.reveal page navigation model.sideNav }
-            , AppShell.resetScroll shellId NoOp
-            )
+            case changed of
+                Just url ->
+                    -- the one place that learns of a new route
+                    let
+                        page =
+                            pageFromUrl url
+                    in
+                    ( { model | page = page, shell = AppShell.setPage navigation page shell }
+                    , Cmd.map ShellMsg cmd
+                    )
 
-        SideNavMsg m ->
-            let
-                ( sideNav, cmd ) =
-                    SideNav.update m model.sideNav
-            in
-            ( { model | sideNav = sideNav }, Cmd.map SideNavMsg cmd )
+                Nothing ->
+                    ( { model | shell = shell }, Cmd.map ShellMsg cmd )
 
         TableMsg m ->
             let
@@ -168,9 +160,6 @@ update msg model =
         Reload ->
             ( { model | orders = Loading }, fetchOrders )
 
-        NoOp ->
-            ( model, Cmd.none )
-
         GotOrders result ->
             ( { model | orders = Remote.fromResult result }, Cmd.none )
 
@@ -181,14 +170,11 @@ view model =
     , body =
         [ Klar.stylesheet
         , AppShell.view
-            [ AppShell.id shellId
+            [ AppShell.state ShellMsg model.shell
             , AppShell.brand
                 (AppShell.brandLink { name = "Acme Operations", href = "#/", logo = Nothing })
             , AppShell.sidebar
-                (SideNav.view SideNavMsg
-                    [ SideNav.entries navigation, SideNav.current model.page ]
-                    model.sideNav
-                )
+                (AppShell.sideNav ShellMsg [ SideNav.entries navigation ] model.shell)
             ]
             [ viewPage model ]
         ]
@@ -220,11 +206,6 @@ viewPage model =
 
 
 -- NAVIGATION
-
-
-shellId : String
-shellId =
-    "app-shell"
 
 
 pageToString : Page -> String
@@ -298,8 +279,8 @@ the dependencies of the application and not of a folder:
 ```
 
 `elm/url` is only needed by an application that uses `Browser.application` (every
-application with an `AppShell` does, see "Start here"); Klar itself does not
-import it. Add the packages your own code imports (`elm/http` for requests, say) the
+application with an `AppShell` does, see "Start here"); Klar itself imports it
+only in `AppShell`, whose state follows the address. Add the packages your own code imports (`elm/http` for requests, say) the
 same way.
 
 Replacing the submodule with `elm install davidtoska/elm-klar` later changes
@@ -380,8 +361,39 @@ Table.view TableMsg [ Table.columns columns, Table.rows model.orders, Table.onRe
 Loading, the failure with a retry button and the empty state are drawn by the
 table. The texts of a problem are chosen when it is drawn, in the language of the
 component, so a language switch changes a failure that is already on the screen.
-When you refresh data that is already there, keep the old `Loaded` and add
-`Table.refreshing True`: the rows stay, dimmed.
+
+**Refreshing, and old data when a refresh fails.** Two lines carry it, and every data
+component (`Table`, `Stat`, `Chart`, `Timeline`, `Tree`, `Select`, `MultiSelect`,
+`Autocomplete`, `ListItem.remote`, the palette) draws it with no attribute: the data
+stays on the screen, dimmed and busy while it is refreshed, and marked "Old data from
+14:05" with a retry when the last refresh failed.
+
+```elm
+-- the request leaves (the old rows stay)
+( { model | orders = Remote.refresh model.orders }, fetchOrders )
+
+-- the answer comes back, good or bad; `at` is the time it came (Time.now, or your clock)
+GotOrders result at ->
+    ( { model | orders = Remote.refreshWith model.orders (Result.mapError toProblem result) at }, Cmd.none )
+
+-- one notice for the page: "The last refresh failed. Showing the previous data for: orders."
+Alert.stale [] Reload (List.concat [ Remote.staleIn "orders" model.orders, Remote.staleIn "figures" model.figures ])
+```
+
+The time is shown in the zone you give the component (`Table.zone model.zone`; UTC
+by default). Read the data with `Remote.toMaybe`, `withDefault` or `map`: they see
+refreshed data too. A `case` of your own on a `Remote` needs a branch for `Kept`.
+`Remote.refresh` on nothing is `Loading`; for a new question (another customer, another
+period) set `Loading` yourself.
+
+**The body of a card, drawer or dialog.** `RemoteView.view` is the loading skeleton (read
+out to screen readers), the failure with a retry, and old or refreshing data, so you write
+only what the data looks like:
+
+```elm
+Drawer.view DrawerMsg [ Drawer.title "Order 1042" ] model.drawer
+    (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+```
 
 **Dialogs, drawers, toasts and the palette.** Each has a `State` in your model and a
 `view` that returns an `Overlay`. Give the list of them to the page; the layer does
@@ -405,6 +417,55 @@ that had it, the id of the opener of a dialog that a route or the palette opens
 window and `Tab` reaches them after the footer), or anything for the landmarks. Keep
 every overlay in the list all the time, also while it is closed. In a page module of
 your own, `List.map (Overlay.map PageMsg) overlays` gives the list to the main module.
+
+**Leaving a page with unsaved work.** `LeaveGuard` asks "Leave without saving?" on a
+link, on your own navigation and on the browser's Back and Forward buttons. Six
+functions, and the complete application is at the top of
+[`Klar.LeaveGuard`](src/Klar/LeaveGuard.elm): `initAt` (with the `Key` and the `Url`),
+`setDirty` (with the comparison, `draft /= saved`), `request` (for links and your own
+navigation), `onUrlChange` (call it from your `onUrlChange`: it answers the buttons and
+says which page to show), `update` and `view`. You do not write: a field for the
+address you are going back from, a target type that remembers where the request came
+from, a call to `Nav.forward`, or the code that remembers where focus was. Do not undo
+a Back with `Nav.forward 1` yourself: it reports the address it leaves, once at once,
+and a handler that asks again loops forever (measured; the guard never does it). Give
+the links that can ask an `id` so that focus returns to them after "Stay". Run
+`node scripts/test-leave-guard.mjs` (needs Chrome) to see the buttons answered in a
+real browser.
+
+**A form: declare it once.** The values, the rules, the steps, the rows of a repeating
+group, what the server refused and whether anything changed live in one `Form.State`.
+Declare the form as a constant with `Klar.Form.Spec`, keep the state and one message in
+your model, and draw each control with one call:
+
+```elm
+form : Form.Form () Fields Values
+form =
+    Spec.define "customer" Fields Values
+        |> Spec.with (Spec.text "Name" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])
+        |> Spec.with (Spec.choice countryIds "Country" |> Spec.required)
+        |> Spec.build
+
+-- update
+FormMsg inner -> Form.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+Save ->
+    case Form.toValues Locale.default form model.form of
+        Ok values -> ( { model | status = FormLayout.Submitting }, send values )
+        Err _ -> Form.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+Refused problems -> Form.rejected problems form model.form |> Tuple.mapBoth ...
+
+-- view
+let v = Form.bind Locale.default FormMsg form model.form
+in FormLayout.view [ FormLayout.onSubmit Save ] [ Form.summary v, Form.textInput v fields.name [], Form.select v fields.country options [] ]
+```
+
+A wizard adds `Spec.step` and `Form.advance`, `Form.back`, `Form.stepper`; a group such as the
+contacts of a supplier is `Spec.rows` with `Form.rowFields`, `Form.addRow` and
+`Form.removeRow`. You do not write: a state, a message or a DOM id for any field, a dirty
+test (`Form.isDirty`), "validate before Next", the list of everything that is wrong on the
+review step, the focus after an add, a remove, a step or a refused save, or a second copy
+of the server's problems. `Klar.Form`'s module documentation has a complete example; the
+`Klar.Ids` of your id types are written once and shared with the rule builder.
 
 **Ids from your database, in the selects.** The value of an option is your own
 type, and the select hands the same value back:

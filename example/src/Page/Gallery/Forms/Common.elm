@@ -12,7 +12,7 @@ module Page.Gallery.Forms.Common exposing
 -}
 
 import Html exposing (Html)
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Remote as Remote

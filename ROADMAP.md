@@ -321,6 +321,17 @@ new ones.
 | Layout and density: a fixed width, fill the rest, `auto-fit`, one density that every component follows, sidebar width | M |
 | axe in `npm run check` on every showcase page | S |
 
+**Status of the stale state and the `Remote`-aware containers: done** (see
+`design/STALE-DATA.md` and the CHANGELOG). `Remote` has a fifth state, `Kept`, made by
+`Remote.refresh` and `Remote.refreshWith`; `Table`, `Stat`, `Chart`, `Timeline`, `Tree`, the
+select family, `ListItem.remote` and the command palette draw refreshing and old data with
+no attribute; `Klar.RemoteView` is the body of a card, dialog or drawer; `Alert.stale` is
+the notice of a page; `loading` can no longer cancel `remote`. The Stock application of
+round 2, rewritten on it, lost its `Feed` module, `settle`, `anyStale` and `viewNotices`.
+Not done: a focus that survives a successful retry outside `Table` and the overlays (it needs
+a `Cmd`, see CONTRIBUTING), and a marker in `Cascader`, `TreeSelect`, `Transfer`,
+`PermissionMatrix`, `ApprovalFlow` and `Compare`, which show `Kept` data as if it were `Loaded`.
+
 **Status of data-dense performance: done in the library, to be measured again in the
 second round.** Cause found by profiling in Chrome: every message turned every row into
 text again (the search text, the sort keys, number formatting), and a page change sorted
@@ -333,6 +344,14 @@ including two animation frames (see CHANGELOG.md for the numbers). Not done: S-0
 column hidden below a width) became documentation, and the filtered rows are still found
 again on each view while a search is active (a scan of the search texts, a few
 milliseconds at 50 000 rows).
+
+**Status of the form model: built, seam closed.** `Klar.Form` (using a form), `Klar.Form.Spec`
+(declaring it), `Klar.Form.Check` (tests), `Klar.Form.Layout` (the frame) and `Klar.Ids`:
+text, long text, number, choices, switches, tags, files, steps with a stepper and a review
+list, repeating rows, server problems and problems from outside the model, focus by handle,
+one dirty flag. The onboarding flow of round 2 shrinks from 1 631 to 1 030 code lines and from
+110 `KLAR GAP` lines to 45, all for the price rules (`custom` is not built). See
+[design/FORM-MODEL.md](design/FORM-MODEL.md) section 10.
 
 Second round of A0 after these: rebuild the three applications and compare compile errors,
 iterations, `KLAR GAP` lines and behaviour bugs with the first round.

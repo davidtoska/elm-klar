@@ -7,7 +7,7 @@ module Klar.Tree exposing
     , selected, selectedId, select, setSelected, checked, setChecked, clearChecked
     , focused, focusNode, query, setQuery
     , loadRequests, onLoadChildren, onRetry, onReload
-    , Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+    , Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
     )
 
 {-| A tree view for hierarchies: regions and warehouses, folders, product
@@ -63,7 +63,9 @@ into the tree and `Escape` clears the filter. With the mouse, a click selects, t
 arrow in front of a node opens and closes it, and a double click activates (or,
 without `onActivate`, opens or closes the node).
 
-Selection: single by default; `multiSelect` allows `Ctrl`+click to add and
+Selection: single by default (a tree that filters something else adds
+`allowEmptySelection`, so that a click on the selected node clears it); `multiSelect`
+allows `Ctrl`+click to add and
 `Shift`+click for a range. With `checkboxes` every node has a tri-state
 checkbox, and a click on a row toggles it: checking a parent checks everything
 below it, and a parent with some children checked shows a dash. `checked`
@@ -153,7 +155,7 @@ selected and checked nodes come back in your own type:
 
 # Attributes
 
-@docs Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+@docs Attribute, ariaLabel, multiSelect, allowEmptySelection, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
 
 -}
 
@@ -171,6 +173,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
@@ -181,6 +184,7 @@ import Klar.Theme as Theme exposing (Size(..), Tone)
 import Process
 import Set exposing (Set)
 import Task
+import Time
 
 
 
@@ -275,6 +279,7 @@ type Children id
     = Leaf
     | Branch (List (Node id))
     | Lazy (Remote (List (Node id)))
+    | LazyKept Freshness (List (Node id))
 
 
 make : Ids id -> id -> String -> Children id -> Node id
@@ -337,7 +342,19 @@ the list is empty.
 -}
 lazy : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
 lazy ids id label children =
-    make ids id label (Lazy children)
+    make ids
+        id
+        label
+        (case Freshness.settle children of
+            ( Remote.Loaded nodes, Freshness.Fresh ) ->
+                Lazy (Remote.Loaded nodes)
+
+            ( Remote.Loaded nodes, freshness ) ->
+                LazyKept freshness nodes
+
+            ( settled, _ ) ->
+                Lazy settled
+        )
 
 
 {-| A node whose children have not been asked for yet: `lazy` with `NotAsked`.
@@ -406,6 +423,9 @@ childNodes children =
         Lazy (Remote.Loaded nodes) ->
             nodes
 
+        LazyKept _ nodes ->
+            nodes
+
         _ ->
             []
 
@@ -421,6 +441,19 @@ isExpandable children =
 
         Lazy _ ->
             True
+
+        LazyKept _ _ ->
+            True
+
+
+lazyBusy : Children id -> Bool
+lazyBusy children =
+    case children of
+        LazyKept freshness _ ->
+            Freshness.busy freshness
+
+        _ ->
+            False
 
 
 isUnloaded : Children id -> Bool
@@ -691,6 +724,7 @@ setQuery text (State s) =
 
 type ClickMode
     = Replace
+    | ReplaceOrClear
     | Toggle
     | Range
 
@@ -972,6 +1006,13 @@ applyClick id mode visible s =
         Replace ->
             { s | selected = Set.singleton id, anchor = Just id, focused = Just id }
 
+        ReplaceOrClear ->
+            if s.selected == Set.singleton id then
+                { s | selected = Set.empty, anchor = Just id, focused = Just id }
+
+            else
+                { s | selected = Set.singleton id, anchor = Just id, focused = Just id }
+
         Toggle ->
             { s
                 | selected =
@@ -1049,6 +1090,7 @@ type Attribute id msg
 type alias Config id msg =
     { label : Maybe String
     , multiSelect : Bool
+    , allowEmptySelection : Bool
     , checkboxes : Bool
     , filterBox : Bool
     , filterPlaceholder : Maybe String
@@ -1061,6 +1103,7 @@ type alias Config id msg =
     , maxChildren : Int
     , emptyText : Maybe String
     , locale : Locale
+    , zone : Time.Zone
     }
 
 
@@ -1069,6 +1112,7 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { label = Nothing
         , multiSelect = False
+        , allowEmptySelection = False
         , checkboxes = False
         , filterBox = False
         , filterPlaceholder = Nothing
@@ -1081,6 +1125,7 @@ configure attributes =
         , maxChildren = 300
         , emptyText = Nothing
         , locale = Locale.default
+        , zone = Time.utc
         }
         attributes
 
@@ -1102,6 +1147,21 @@ Read the result with `selected`. It does not change how clicks work in a tree wi
 multiSelect : Attribute id msg
 multiSelect =
     Attribute (\config -> { config | multiSelect = True })
+
+
+{-| A click on the selected node (or `Space`, or `Enter` without `onActivate`) selects
+nothing, so the selection can go back to "no node", the normal state of a tree that
+filters something else ("all locations"). Without it a selected node stays selected
+until another is chosen (or `setSelected` clears it). In a `multiSelect` tree a plain
+click on the only selected node clears it too; `Ctrl`+click toggles as before. The
+node loses `aria-selected="true"` and its highlight, and keeps the focus.
+
+    Tree.view TreeMsg [ Tree.allowEmptySelection, Tree.ariaLabel "Locations" ] nodes state
+
+-}
+allowEmptySelection : Attribute id msg
+allowEmptySelection =
+    Attribute (\config -> { config | allowEmptySelection = True })
 
 
 {-| A tri-state checkbox on every node. Checking a parent checks all the leaves
@@ -1213,6 +1273,14 @@ default is `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
 locale : Locale -> Attribute id msg
 locale value =
     Attribute (\config -> { config | locale = value })
+
+
+{-| The time zone of the time in "Old data from 14:05", the marker of data that
+is `Kept` after a failed refresh. The default is UTC.
+-}
+zone : Time.Zone -> Attribute id msg
+zone value =
+    Attribute (\config -> { config | zone = value })
 
 
 
@@ -1333,6 +1401,9 @@ filterNode words (Node n) =
 
                     Lazy (Remote.Loaded _) ->
                         Lazy (Remote.Loaded inner.nodes)
+
+                    LazyKept freshness _ ->
+                        LazyKept freshness inner.nodes
 
                     other ->
                         other
@@ -1688,11 +1759,22 @@ viewRemote toMsg attributes state data =
         config =
             configure attributes
     in
-    case data of
-        Remote.Loaded nodes ->
+    case Freshness.settle data of
+        ( Remote.Loaded nodes, Freshness.Fresh ) ->
             view toMsg attributes state nodes
 
-        Remote.Failed problem ->
+        ( Remote.Loaded nodes, freshness ) ->
+            Html.div
+                [ Internal.cls [ "klar-tree-fresh", Freshness.className freshness ]
+                , Freshness.busyAttr freshness
+                ]
+                [ Freshness.notice
+                    { locale = config.locale, zone = config.zone, onRetry = config.onReload, inline = False }
+                    freshness
+                , view toMsg attributes state nodes
+                ]
+
+        ( Remote.Failed problem, _ ) ->
             ErrorState.view
                 (List.filterMap identity
                     [ Just ErrorState.compact
@@ -1856,6 +1938,9 @@ viewNode env depth parent index total ((Node n) as node) =
                         Lazy (Remote.Loaded _) ->
                             False
 
+                        LazyKept _ _ ->
+                            False
+
                         Lazy _ ->
                             True
 
@@ -1878,6 +1963,13 @@ viewNode env depth parent index total ((Node n) as node) =
             else
                 Click n.id mode env.selectableIds
 
+        plainClick =
+            if config.allowEmptySelection then
+                ReplaceOrClear
+
+            else
+                Replace
+
         clickDecoder =
             Decode.map3
                 (\ctrl meta shift ->
@@ -1885,7 +1977,7 @@ viewNode env depth parent index total ((Node n) as node) =
                         env.toMsg (ToggleCheck terminals (not allChecked) n.id)
 
                     else if not config.multiSelect then
-                        env.toMsg (selectMsg Replace)
+                        env.toMsg (selectMsg plainClick)
 
                     else if shift then
                         env.toMsg (selectMsg Range)
@@ -1894,7 +1986,7 @@ viewNode env depth parent index total ((Node n) as node) =
                         env.toMsg (selectMsg Toggle)
 
                     else
-                        env.toMsg (selectMsg Replace)
+                        env.toMsg (selectMsg plainClick)
                 )
                 (Decode.field "ctrlKey" Decode.bool)
                 (Decode.field "metaKey" Decode.bool)
@@ -2079,7 +2171,7 @@ viewNode env depth parent index total ((Node n) as node) =
                 else
                     []
                )
-            ++ (if open && n.children == Lazy Remote.Loading then
+            ++ (if open && (n.children == Lazy Remote.Loading || lazyBusy n.children) then
                     [ Attr.attribute "aria-busy" "true" ]
 
                 else
@@ -2139,6 +2231,32 @@ viewChildren env depth parentId parentValue children =
         Lazy (Remote.Loaded []) ->
             statusRow (Html.span [ Internal.cls [ "klar-tree__status-text" ] ] [ Html.text env.t.emptyBranch ])
 
+        LazyKept freshness nodes ->
+            let
+                notice =
+                    Freshness.notice
+                        { locale = env.config.locale
+                        , zone = env.config.zone
+                        , onRetry = Maybe.map (\toApp -> toApp parentValue) env.config.onRetry
+                        , inline = True
+                        }
+                        freshness
+            in
+            case freshness of
+                Freshness.Stale _ ->
+                    Html.ul [ Internal.cls [ "klar-tree__group" ], Attr.attribute "role" "group" ]
+                        (Html.li
+                            [ Internal.cls [ "klar-tree__status" ]
+                            , Attr.attribute "role" "none"
+                            , Internal.styleVars [ ( "--klar-level", String.fromInt (depth + 1) ) ]
+                            ]
+                            [ notice ]
+                            :: [ viewGroup env False (depth + 1) (Just parentId) nodes ]
+                        )
+
+                _ ->
+                    viewGroup env False (depth + 1) (Just parentId) nodes
+
         _ ->
             viewGroup env False (depth + 1) (Just parentId) (childNodes children)
 
@@ -2170,6 +2288,9 @@ terminalsOf (Node n) =
             own
 
         Lazy (Remote.Loaded nodes) ->
+            List.concatMap terminalsOf nodes
+
+        LazyKept _ nodes ->
             List.concatMap terminalsOf nodes
 
         Lazy _ ->
@@ -2320,6 +2441,13 @@ keyBindings env nodeId =
                 _ ->
                     Nothing
 
+        plainSelect =
+            if env.config.allowEmptySelection then
+                ReplaceOrClear
+
+            else
+                Replace
+
         selectKey mode =
             if env.config.checkboxes then
                 held (ToggleCheck (checkTargets env nodeId) (not (allCheckedFor env nodeId)) nodeId)
@@ -2346,10 +2474,10 @@ keyBindings env nodeId =
                             env.toMsg Noop
 
                     else
-                        selectKey Replace
+                        selectKey plainSelect
 
                 ( Nothing, Nothing ) ->
-                    selectKey Replace
+                    selectKey plainSelect
     in
     List.filterMap identity
         [ Just ( "ArrowDown", env.toMsg (Step 1 env.visibleIds) )
@@ -2395,7 +2523,7 @@ keyBindings env nodeId =
                     Toggle
 
                  else
-                    Replace
+                    plainSelect
                 )
             )
         , if env.config.multiSelect && not env.config.checkboxes then

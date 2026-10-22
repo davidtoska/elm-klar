@@ -3,7 +3,7 @@ module Klar.SideNav exposing
     , Keys, keys, stringKeys
     , Entry, item, group, section, rule, withIcon, withCount, withBadge, disabledItem
     , Attribute, entries, current, collapsed, ariaLabel, onSelect, locale
-    , State, init, isExpanded, expandGroup, collapseGroup, reveal, focusLink, Msg, update
+    , State, init, isExpanded, expandGroup, collapseGroup, reveal, focusLink, focusCurrent, Msg, update
     )
 
 {-| Vertical navigation for the sidebar of an application: sections, links with
@@ -97,7 +97,7 @@ as text (see `keys`); the menu is then typed by it (`SideNav.State Page`).
 
 # State
 
-@docs State, init, isExpanded, expandGroup, collapseGroup, reveal, focusLink, Msg, update
+@docs State, init, isExpanded, expandGroup, collapseGroup, reveal, focusLink, focusCurrent, Msg, update
 
 -}
 
@@ -418,6 +418,7 @@ type State key
     = State
         { id : String
         , expanded : List String
+        , revealed : Maybe String
         }
 
 
@@ -429,7 +430,7 @@ the DOM id of the `nav` element and the prefix of the ids of the links.
 -}
 init : String -> State key
 init id =
-    State { id = id, expanded = [] }
+    State { id = id, expanded = [], revealed = Nothing }
 
 
 {-| Whether the group with this key is open in the state.
@@ -470,14 +471,45 @@ collapseText key (State state) =
 {-| Opens every group that contains the entry with this key, groups inside groups
 included, so that the entry is visible; other open groups stay open. Pass the
 same entries you give to `entries`, and call it when the application starts and
-when the route changes from somewhere else.
+when the route changes from somewhere else. The state also remembers this entry as
+the current one, for `focusCurrent`.
 
     SideNav.reveal "reports-monthly" menu model.sideNav
 
 -}
 reveal : key -> List (Entry key msg) -> State key -> State key
 reveal key menu state =
-    List.foldl expandText state (ancestors key menu)
+    List.foldl expandText (remember key menu state) (ancestors key menu)
+
+
+remember : key -> List (Entry key msg) -> State key -> State key
+remember key menu (State state) =
+    State { state | revealed = linkText key menu }
+
+
+linkText : key -> List (Entry key msg) -> Maybe String
+linkText target menu =
+    menu
+        |> List.filterMap
+            (\entry ->
+                case entry of
+                    LinkEntry data ->
+                        if data.value == target then
+                            Just data.key
+
+                        else
+                            Nothing
+
+                    GroupEntry data ->
+                        linkText target data.children
+
+                    SectionEntry _ children ->
+                        linkText target children
+
+                    RuleEntry ->
+                        Nothing
+            )
+        |> List.head
 
 
 ancestors : key -> List (Entry key msg) -> List String
@@ -532,6 +564,21 @@ found or not, so use one that changes nothing.
 focusLink : Keys key -> key -> State key -> msg -> Cmd msg
 focusLink k key (State state) done =
     Internal.focus (linkId state.id (textOf k key)) done
+
+
+{-| Moves keyboard focus to the link that `reveal` was last called with, the current
+page, without needing its key: `AppShell` uses it when the sidebar drawer opens.
+Does nothing before `reveal`, or when the link is not on the page. The message is sent
+when it is done.
+-}
+focusCurrent : State key -> msg -> Cmd msg
+focusCurrent (State state) done =
+    case state.revealed of
+        Just text ->
+            Internal.focus (linkId state.id text) done
+
+        Nothing ->
+            Cmd.none
 
 
 {-| The messages of a menu: a group was clicked, an arrow key was pressed. Wrap it

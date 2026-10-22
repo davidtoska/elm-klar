@@ -39,7 +39,7 @@ import Klar.ConfirmDialog as ConfirmDialog
 import Klar.Date as Date exposing (Date)
 import Klar.Drawer as Drawer
 import Klar.EmptyState as EmptyState
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
@@ -64,7 +64,6 @@ type alias Model =
     { table : Table.State OrderId
     , rows : Remote (List Order)
     , total : Int
-    , refreshing : Bool
 
     -- Counts the requests for rows. An answer carries the number it was asked
     -- with, and is dropped when a newer request has been made since.
@@ -179,7 +178,6 @@ start ticket table _ openId backend =
     ( { table = table
       , rows = Remote.Loading
       , total = 0
-      , refreshing = False
       , ticket = ticket
       , lookups = Remote.Loading
       , drawer = Drawer.init drawerId
@@ -318,7 +316,6 @@ update context msg backend model =
                         ( { model
                             | rows = Remote.Loaded page.rows
                             , total = page.total
-                            , refreshing = False
 
                             -- The server shows the last page when asked for one
                             -- past the end (after the last row of a page was
@@ -330,7 +327,7 @@ update context msg backend model =
                         )
 
                     Err error ->
-                        ( { model | rows = Remote.Failed (Problem.toProblem error), refreshing = False }
+                        ( { model | rows = Remote.Failed (Problem.toProblem error) }
                         , backend
                         , Cmd.none
                         )
@@ -492,7 +489,7 @@ update context msg backend model =
                 ( next, backend1, cmd ) =
                     update context Submit backend model
             in
-            ( next, backend1, Cmd.batch [ cmd, Form.focusStatus Editor.formId NoOp ] )
+            ( next, backend1, Cmd.batch [ cmd, FormLayout.focusStatus Editor.formId NoOp ] )
 
         Saved (Ok order) ->
             let
@@ -532,15 +529,15 @@ update context msg backend model =
                 ( Just _, ValidationFailed errors ) ->
                     -- The server's messages go to the fields they are about and
                     -- into the summary, which takes the focus.
-                    ( editWith (\editor -> { editor | submit = Form.Idle, errors = errors }) model
+                    ( editWith (\editor -> { editor | submit = FormLayout.Idle, errors = errors }) model
                     , backend
-                    , Form.focusSummary Editor.formId NoOp
+                    , FormLayout.focusSummary Editor.formId NoOp
                     )
 
                 ( Just _, _ ) ->
                     -- The status line in the footer says what went wrong, and
                     -- offers to try again.
-                    ( editWith (\editor -> { editor | submit = Form.Failed (Problem.toProblem error) }) model
+                    ( editWith (\editor -> { editor | submit = FormLayout.Failed (Problem.toProblem error) }) model
                     , backend
                     , Cmd.none
                     )
@@ -553,7 +550,7 @@ update context msg backend model =
                     )
 
         FocusField id ->
-            ( model, backend, Form.focusField id NoOp )
+            ( model, backend, FormLayout.focusField id NoOp )
 
         ChangeStatus order status ->
             let
@@ -902,7 +899,7 @@ cancelNotice context cancelled refused failed =
 -}
 submit : Context -> Backend -> Editor.Editor -> Model -> ( Model, Backend, Cmd Msg )
 submit context backend editor model =
-    if editor.submit == Form.Submitting || not (Editor.isEditable editor) then
+    if editor.submit == FormLayout.Submitting || not (Editor.isEditable editor) then
         -- Enter in a field while the save is under way, or in an order that
         -- cannot be changed.
         ( model, backend, Cmd.none )
@@ -920,7 +917,7 @@ submit context backend editor model =
             -- the server. The summary covers them all, and takes the focus.
             ( { model | editing = Just { settled | errors = problems } }
             , backend
-            , Form.focusSummary Editor.formId NoOp
+            , FormLayout.focusSummary Editor.formId NoOp
             )
 
         else
@@ -936,7 +933,7 @@ submit context backend editor model =
                         Editor.ExistingOrder order ->
                             Api.updateOrder order.id input Saved backend
             in
-            ( { model | editing = Just { settled | submit = Form.Submitting, errors = [] } }, backend1, cmd )
+            ( { model | editing = Just { settled | submit = FormLayout.Submitting, errors = [] } }, backend1, cmd )
 
 
 {-| Asks the server for the rows the table currently wants. Rows already on screen
@@ -950,19 +947,12 @@ fetch backend model =
 
         ( backend1, cmd ) =
             Api.listOrders (toOrderQuery (Table.query model.table)) (Loaded ticket) backend
-
-        hasRows =
-            Remote.isLoaded model.rows
     in
     ( { model
         | ticket = ticket
-        , refreshing = hasRows
         , rows =
-            if hasRows then
-                model.rows
-
-            else
-                Remote.Loading
+            -- the rows stay, dimmed, until the new ones are here
+            Remote.refresh model.rows
       }
     , backend1
     , cmd
@@ -1118,8 +1108,8 @@ first is 0) the DOM id `<table id>-row-<n>`. Without the row on screen: `""`.
 -}
 rowDomId : Model -> OrderId -> String
 rowDomId model id =
-    case model.rows of
-        Remote.Loaded rows ->
+    case Remote.toMaybe model.rows of
+        Just rows ->
             rows
                 |> List.indexedMap Tuple.pair
                 |> List.filter (\( _, order ) -> order.id == id)
@@ -1127,7 +1117,7 @@ rowDomId model id =
                 |> Maybe.map (\( index, _ ) -> tableId ++ "-row-" ++ String.fromInt index)
                 |> Maybe.withDefault ""
 
-        _ ->
+        Nothing ->
             ""
 
 
@@ -1144,7 +1134,7 @@ confirmLeave model =
     else
         case model.editing of
             Just editor ->
-                if editor.submit == Form.Submitting then
+                if editor.submit == FormLayout.Submitting then
                     Just ( model, Cmd.none )
 
                 else if not (Editor.isDirty editor) then
@@ -1173,7 +1163,7 @@ routeLeft model =
     in
     case model.editing of
         Just editor ->
-            if Editor.isDirty editor || editor.submit == Form.Submitting then
+            if Editor.isDirty editor || editor.submit == FormLayout.Submitting then
                 ( unrouted, Cmd.none )
 
             else
@@ -1209,13 +1199,12 @@ view context model =
                 , PageHeader.subtitle "Search, filter and sort the orders. Click a row to open it. Open orders past their due date have a red edge."
                 , PageHeader.meta
                     [ PageHeader.metaItem "Results"
-                        (case model.rows of
-                            Remote.Loaded _ ->
-                                Format.int context.locale model.total
+                        (if Remote.isLoaded model.rows then
+                            Format.int context.locale model.total
 
+                         else
                             -- Not "0" while the first answer is on its way or failed.
-                            _ ->
-                                "–"
+                            "–"
                         )
                     ]
                 , PageHeader.actions
@@ -1235,7 +1224,6 @@ view context model =
                 , Table.columns (columns context lookups)
                 , Table.rows model.rows
                 , Table.server { total = model.total }
-                , Table.refreshing model.refreshing
                 , Table.rowId orderRows .id
                 , Table.rowLabel (rowLabel context)
                 , Table.rowTone (overdueTone context.today)
@@ -1454,7 +1442,7 @@ viewEditor context model =
                     Editor.isEditable editor
 
                 submitting =
-                    editor.submit == Form.Submitting
+                    editor.submit == FormLayout.Submitting
             in
             Drawer.view DrawerMsg
                 ([ Drawer.title (Editor.title editor)
@@ -1513,11 +1501,11 @@ the "Try again" button is replaced.
 viewSubmitStatus : Context -> Editor.Editor -> Html Msg
 viewSubmitStatus context editor =
     case editor.submit of
-        Form.Idle ->
-            Form.unsavedFlag [ Form.locale context.locale ] (Editor.isDirty editor)
+        FormLayout.Idle ->
+            FormLayout.unsavedFlag [ FormLayout.locale context.locale ] (Editor.isDirty editor)
 
         status ->
-            Form.status [ Form.id Editor.formId, Form.onRetry Retry, Form.locale context.locale ] status
+            FormLayout.status [ FormLayout.id Editor.formId, FormLayout.onRetry Retry, FormLayout.locale context.locale ] status
 
 
 viewDiscard : Context -> Model -> Overlay Msg

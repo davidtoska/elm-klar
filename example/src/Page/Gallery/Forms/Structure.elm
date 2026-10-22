@@ -7,7 +7,7 @@ summary, the status of a submit and the reminder of unsaved changes.
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Klar.Button as Button
-import Klar.Form as Form
+import Klar.Form.Layout as FormLayout
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote
@@ -32,7 +32,7 @@ type alias Model =
     , texts : Dict String String
     , mini : Mini
     , statusKind : Maybe String
-    , status : Form.Status
+    , status : FormLayout.Status
     , unsavedText : String
     , unsavedBaseline : String
     }
@@ -73,25 +73,25 @@ textOf key model =
     Dict.get key model.texts |> Maybe.withDefault ""
 
 
-failedStatus : Form.Status
+failedStatus : FormLayout.Status
 failedStatus =
-    Form.Failed (Remote.problem Remote.server |> Remote.withCode "HTTP 503")
+    FormLayout.Failed (Remote.problem Remote.server |> Remote.withCode "HTTP 503")
 
 
-statusFor : String -> Form.Status
+statusFor : String -> FormLayout.Status
 statusFor kind =
     case kind of
         "submitting" ->
-            Form.Submitting
+            FormLayout.Submitting
 
         "succeeded" ->
-            Form.Succeeded "The order was saved."
+            FormLayout.Succeeded "The order was saved."
 
         "failed" ->
             failedStatus
 
         _ ->
-            Form.Idle
+            FormLayout.Idle
 
 
 {-| The id of the form that owns the status line of the example.
@@ -165,11 +165,11 @@ update msg model =
                 Cmd.none
 
               else
-                Form.focusSummary "mini-form" NoOp
+                FormLayout.focusSummary "mini-form" NoOp
             )
 
         FocusField fieldId ->
-            ( model, Form.focusField fieldId NoOp )
+            ( model, FormLayout.focusField fieldId NoOp )
 
         StatusKindSelected kind ->
             ( { model | statusKind = Just kind, status = statusFor kind }, Cmd.none )
@@ -177,16 +177,16 @@ update msg model =
         StatusRetry ->
             -- "Try again" is replaced by "Saving ...": focus follows to the
             -- status region instead of falling back to the page
-            ( { model | statusKind = Just "submitting", status = Form.Submitting }
+            ( { model | statusKind = Just "submitting", status = FormLayout.Submitting }
             , Cmd.batch
                 [ Process.sleep 1100 |> Task.perform (\_ -> StatusRetried)
-                , Form.focusStatus statusDemoId NoOp
+                , FormLayout.focusStatus statusDemoId NoOp
                 ]
             )
 
         StatusRetried ->
             -- the answer is ignored when the example was switched to another status meanwhile
-            if model.status == Form.Submitting then
+            if model.status == FormLayout.Submitting then
                 ( { model | statusKind = Just "succeeded", status = statusFor "succeeded" }, Cmd.none )
 
             else
@@ -195,8 +195,8 @@ update msg model =
         StatusDismiss ->
             -- the close button goes with the message: focus moves to the control
             -- that drives this example instead of falling back to the page
-            ( { model | statusKind = Just "idle", status = Form.Idle }
-            , Form.focusField "status-kind" NoOp
+            ( { model | statusKind = Just "idle", status = FormLayout.Idle }
+            , FormLayout.focusField "status-kind" NoOp
             )
 
         UnsavedChanged value ->
@@ -257,19 +257,19 @@ formLayout lang model =
             model.unsavedText /= model.unsavedBaseline
     in
     Doc.section "Form layout"
-        "Form.view makes a form without the browser's own validation. Sections have a title and an explanation on the left and the fields on the right (above each other on a narrow screen, or with \"stacked\"). Form.grid puts fields in columns. The error summary links to each field, and the link moves keyboard focus there."
+        "FormLayout.view makes a form without the browser's own validation. Sections have a title and an explanation on the left and the fields on the right (above each other on a narrow screen, or with \"stacked\"). FormLayout.grid puts fields in columns. The error summary links to each field, and the link moves keyboard focus there."
         [ Doc.example
             { title = "Sections and columns"
             , description = Just "Turn on \"Stacked layout\" to see the version for narrow places such as dialogs. Below 880 pixels of width everything stacks by itself."
-            , code = Just """Form.view [ Form.onSubmit Submit ]
-    [ Form.section "Contact" "Used for order confirmations."
-        [ Form.grid 2
+            , code = Just """FormLayout.view [ FormLayout.onSubmit Submit ]
+    [ FormLayout.section "Contact" "Used for order confirmations."
+        [ FormLayout.grid 2
             [ TextInput.view [ TextInput.label "First name" ]
             , TextInput.view [ TextInput.label "Last name" ]
-            , Form.fullRow (TextInput.view [ TextInput.label "Email" ])
+            , FormLayout.fullRow (TextInput.view [ TextInput.label "Email" ])
             ]
         ]
-    , Form.actions [ Button.view [] "Cancel", Button.view [ Button.primary, Button.submit ] "Save" ]
+    , FormLayout.actions [ Button.view [] "Cancel", Button.view [ Button.primary, Button.submit ] "Save" ]
     ]"""
             }
             (stack
@@ -279,33 +279,33 @@ formLayout lang model =
                     , Switch.checked model.stacked
                     , Switch.onToggle StackedToggled
                     ]
-                , Form.view
-                    ([ Form.onSubmit NoOp, Form.ariaLabel "Example form", Form.locale lang ]
+                , FormLayout.view
+                    ([ FormLayout.onSubmit NoOp, FormLayout.ariaLabel "Example form", FormLayout.locale lang ]
                         ++ (if model.stacked then
-                                [ Form.stacked ]
+                                [ FormLayout.stacked ]
 
                             else
                                 []
                            )
                     )
-                    [ Form.section "Contact"
+                    [ FormLayout.section "Contact"
                         "Used for order confirmations and invoices. We never share the address."
-                        [ Form.grid 2
+                        [ FormLayout.grid 2
                             [ layoutField model "lay-first" "First name" [ TextInput.required ]
                             , layoutField model "lay-last" "Last name" [ TextInput.required ]
-                            , Form.fullRow (layoutField model "lay-email" "Email" [ TextInput.email ])
+                            , FormLayout.fullRow (layoutField model "lay-email" "Email" [ TextInput.email ])
                             ]
                         ]
-                    , Form.section "Address"
+                    , FormLayout.section "Address"
                         "Where the goods are delivered."
                         [ layoutField model "lay-street" "Street" []
-                        , Form.grid 3
+                        , FormLayout.grid 3
                             [ layoutField model "lay-zip" "Postcode" []
                             , layoutField model "lay-city" "City" []
                             , TextInput.view [ TextInput.label "Country", TextInput.id "lay-country", TextInput.value "Netherlands", TextInput.disabled True ]
                             ]
                         ]
-                    , Form.actions
+                    , FormLayout.actions
                         [ Button.view [ Button.ghost, Button.danger ] "Delete"
                         , Layout.spacer
                         , Button.view [] "Cancel"
@@ -317,30 +317,30 @@ formLayout lang model =
         , Doc.example
             { title = "Error summary"
             , description = Just "Press \"Create\" with errors in the fields. The summary gets focus; each link moves focus to its field."
-            , code = Just """Form.errorSummary
-    [ Form.id "mini-form"
-    , Form.labels [ ( "mini-name", "Name" ) ]
-    , Form.onFocusField FocusField
+            , code = Just """FormLayout.errorSummary
+    [ FormLayout.id "mini-form"
+    , FormLayout.labels [ ( "mini-name", "Name" ) ]
+    , FormLayout.onFocusField FocusField
     ]
     (Validate.collect Locale.en [ ( "mini-name", [ Validate.required ], model.name ) ])
 
 -- update
 FocusField fieldId ->
-    ( model, Form.focusField fieldId NoOp )"""
+    ( model, FormLayout.focusField fieldId NoOp )"""
             }
-            (Form.view [ Form.id "mini-form", Form.onSubmit MiniSubmit, Form.ariaLabel "Small form", Form.stacked ]
+            (FormLayout.view [ FormLayout.id "mini-form", FormLayout.onSubmit MiniSubmit, FormLayout.ariaLabel "Small form", FormLayout.stacked ]
                 [ if mini.submitted then
-                    Form.errorSummary
-                        [ Form.id "mini-form"
-                        , Form.locale lang
-                        , Form.onFocusField FocusField
-                        , Form.labels [ ( "mini-name", "Name" ), ( "mini-email", "Email" ), ( "mini-phone", "Phone" ) ]
+                    FormLayout.errorSummary
+                        [ FormLayout.id "mini-form"
+                        , FormLayout.locale lang
+                        , FormLayout.onFocusField FocusField
+                        , FormLayout.labels [ ( "mini-name", "Name" ), ( "mini-email", "Email" ), ( "mini-phone", "Phone" ) ]
                         ]
                         errors
 
                   else
                     Text.text ""
-                , Form.grid 3
+                , FormLayout.grid 3
                     [ TextInput.view
                         [ TextInput.label "Name"
                         , TextInput.id "mini-name"
@@ -367,15 +367,15 @@ FocusField fieldId ->
                         , TextInput.errorMaybe (shown "mini-phone")
                         ]
                     ]
-                , Form.actions [ Button.view [ Button.primary, Button.submit ] "Create" ]
+                , FormLayout.actions [ Button.view [ Button.primary, Button.submit ] "Create" ]
                 ]
             )
         , Doc.example
             { title = "Status of the submit"
             , description = Just "Where the submit is: nothing, saving, saved or failed. A failure is shown with an explanation, and with \"Try again\" when that can help."
-            , code = Just """-- model.status : Form.Status
+            , code = Just """-- model.status : FormLayout.Status
 --     = Idle | Submitting | Succeeded String | Failed Remote.Problem
-Form.status [ Form.id "order-form", Form.onRetry Retry, Form.onDismiss Dismiss ] model.status"""
+FormLayout.status [ FormLayout.id "order-form", FormLayout.onRetry Retry, FormLayout.onDismiss Dismiss ] model.status"""
             }
             (stack
                 [ SegmentedControl.view
@@ -391,11 +391,11 @@ Form.status [ Form.id "order-form", Form.onRetry Retry, Form.onDismiss Dismiss ]
                     , SegmentedControl.selected model.statusKind
                     , SegmentedControl.onSelect StatusKindSelected
                     ]
-                , Form.status
-                    [ Form.id statusDemoId
-                    , Form.onRetry StatusRetry
-                    , Form.onDismiss StatusDismiss
-                    , Form.locale lang
+                , FormLayout.status
+                    [ FormLayout.id statusDemoId
+                    , FormLayout.onRetry StatusRetry
+                    , FormLayout.onDismiss StatusDismiss
+                    , FormLayout.locale lang
                     ]
                     model.status
                 ]
@@ -403,15 +403,15 @@ Form.status [ Form.id "order-form", Form.onRetry Retry, Form.onDismiss Dismiss ]
         , Doc.example
             { title = "Unsaved changes"
             , description = Just "The banner is shown for as long as the form differs from what is saved, and it can stick to the top while the page scrolls. The small flag takes no room while the form is clean: it fits the footer of a dialog or a drawer."
-            , code = Just """Form.unsavedChanges [ Form.onSave Save, Form.onDiscard Discard ] (model.draft /= model.saved)
+            , code = Just """FormLayout.unsavedChanges [ FormLayout.onSave Save, FormLayout.onDiscard Discard ] (model.draft /= model.saved)
 
-Form.unsavedFlag [] (model.draft /= model.saved)"""
+FormLayout.unsavedFlag [] (model.draft /= model.saved)"""
             }
             (stack
-                [ Form.unsavedChanges
-                    [ Form.onSave UnsavedSave
-                    , Form.onDiscard UnsavedDiscard
-                    , Form.locale lang
+                [ FormLayout.unsavedChanges
+                    [ FormLayout.onSave UnsavedSave
+                    , FormLayout.onDiscard UnsavedDiscard
+                    , FormLayout.locale lang
                     ]
                     dirty
                 , TextInput.view
@@ -423,7 +423,7 @@ Form.unsavedFlag [] (model.draft /= model.saved)"""
                     ]
                 , Layout.row [ Layout.gap 3 ]
                     [ Button.view [ Button.primary, Button.disabled (not dirty), Button.onClick UnsavedSave ] "Save"
-                    , Form.unsavedFlag [ Form.locale lang ] dirty
+                    , FormLayout.unsavedFlag [ FormLayout.locale lang ] dirty
                     ]
                 ]
             )

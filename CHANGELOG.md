@@ -32,6 +32,34 @@ The first release.
   one state that owns every field's value, knows when it is dirty, loads and returns a
   record, and ties problems from the server to fields. Text, number, one choice, several
   choices and switches so far. `Select.mapOption` gives an option another kind of value.
+- Refreshing and old data (see `design/STALE-DATA.md`). `Remote` has a fifth state,
+  `Kept`, made only by `Remote.refresh` (the request leaves: the data stays) and
+  `Remote.refreshWith` (the answer, good or bad, with its time), so "refreshing, showing
+  the old data" and "refresh failed, showing old data from 14:05" are one line each in an
+  application. `Table`, `Stat`, `Chart`, `Timeline`, `Tree`, `Select`, `MultiSelect`,
+  `Autocomplete`, `ListItem.remote` and the command palette draw it with no attribute (the
+  data stays, dimmed and busy while refreshing; a calm "Old data from 14:05" with a retry
+  and a polite announcement when it is old; texts in English and Norwegian, the time in the
+  component's new `zone`). `Klar.RemoteView` is the body of a card, dialog or drawer: the
+  skeleton that screen readers hear, the failure with a retry, old and refreshing data.
+  `Alert.stale` is the one notice for a page, `Remote.staleIn` names what is old. `Table.refreshing`
+  is gone (use `Remote.refresh`).
+- Attributes no longer cancel each other: `Chart.loading`, `Stat.loading` and
+  `Timeline.loading` only add to what `remote` and `failed` say, whatever the order (a
+  `loading False` after `remote` used to hide the loading state and the failure). The
+  command palette no longer says "No results" while a remote section is still on its way.
+
+- The form model (`Klar.Form`, declared with `Klar.Form.Spec`, tested with `Klar.Form.Check`;
+  see `design/FORM-MODEL.md`): a form declared once, with one state that owns every field's
+  value, knows when it is dirty, loads and returns a record, and ties problems from the
+  server to fields. Text, long text, number, one choice, several choices, switches, tags and
+  files; steps with a stepper, validation on the way and a review step that lists every
+  problem; repeating rows with stable keys, add and remove buttons and rules across rows
+  (`Spec.rows`, `Spec.check`); `Form.problems` and `Form.outside` for everything that is
+  showing, also what the model does not hold (a rule builder); `Form.focus` so that an
+  application never writes a DOM id. `Klar.Ids` is the one place an id type is written as
+  text, shared with `Rule.choiceFieldOf`. The old `Klar.Form` (the frame of a form) is now
+  `Klar.Form.Layout`. `Select.mapOption` gives an option another kind of value.
 - An icon library of 500 line icons in one style (24 by 24 grid, 2 pixel stroke, round
   ends), every one an Elm value that carries its own drawing: `Klar.Icon` has the
   everyday icons and `Klar.Icon.Arrows`, `Business`, `Calendar`, `Communication`,
@@ -54,6 +82,36 @@ The first release.
   (`Tree.State RegionId`, `Tree.nodeIds`, `SideNav.State Page`, `SideNav.keys`).
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
+
+### LeaveGuard and the browser's buttons (A0 round 2: R2O-008, 009, 010, 015, 019)
+
+The Back-button recipe of `Klar.LeaveGuard` looped forever and froze the tab: `Nav.forward 1`
+reports the address it is leaving at once (before the move), so a handler that asked again
+called it again, and the documented sentence "ignore the call whose address is the page you
+are showing" was wrong. Reproduced in headless Chrome, and measured: `Nav.back` and
+`Nav.forward` call `onUrlChange` twice (at once with the address being left, later with the
+new one), the buttons once, `pushUrl` and `replaceUrl` once, at once. Nothing was released
+before this, so the first API changes.
+
+- `LeaveGuard.onUrlChange` is the one function for the buttons: call it from `onUrlChange`.
+  It returns the page to show, or nothing when the guard dealt with the change. The guard
+  never moves in the history to undo a button: the page stays, the question is asked with
+  the address bar already at the page the user wanted, "Leave" replaces the address with
+  itself (no new entry) and "Stay" pushes the address of the page that is shown. The
+  application no longer needs `pushing` or `restoring` fields, a `GoBack` target, or
+  `Nav.forward`/`Nav.back` in its update.
+- `LeaveGuard.initAt` makes a guard that knows the `Key` and the `Url` of the page. `init`
+  stays for a flow without addresses. `elm/url` moves from the test dependencies to the
+  dependencies of the package.
+- Focus: "Stay", `Escape` and the backdrop return focus to the element that asked when it
+  has an `id`; the rule for an element without one is written down (the last element with an
+  id that had focus). "Leave" is followed by the focus of the page the application enters.
+- Documented: one source per page for the dirty flags (twenty parts are one function of the
+  application), and `Form.unsavedChanges` and `Form.unsavedFlag` point to each other and to
+  the guard.
+- `scripts/test-leave-guard.mjs` runs the guard against the real Back and Forward buttons in
+  headless Chrome (`scripts/leave-guard-browser` is the example of the module documentation);
+  the pure parts (`Klar.Internal.Leave`) are tested against a model of the browser.
 
 ### The overlay layer (A8)
 
@@ -244,3 +302,85 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   A0. `scripts/bench-workspace.mjs` builds the folder a fresh session gets.
 - USING.md has the paragraph for the `CLAUDE.md` of an application. The scaffold of the round 1
   Stock application lists `elm/url` as a direct dependency.
+
+### Small fixes after A0 round 2
+
+- `Format.currency` no longer prints `USD645.15` (R2F-006): an ISO code with a well-known
+  symbol is written as the symbol (the table `Klar.Money` already uses), any other text
+  that ends in a letter is separated from the number by a non-breaking space in English.
+  Norwegian already did.
+- `Card` titles are `h2` by default (R2S-006): the level under the `h1` of a `PageHeader`, so a
+  dashboard passes axe `heading-order` without `headingLevel`. Use `headingLevel 3` for a card
+  inside a section that has its own `h2`. (`Form.section` already was an `h2`.)
+- `AppShell.sidebar` renders an `aside` named "Sidebar" ("Sidepanel" in Norwegian), so a caption
+  or a filter tree next to the `SideNav` is inside a landmark (R2S-007, axe `region`). The
+  `SideNav` stays its own `nav` inside it; the roles differ, so no landmark is duplicated.
+- `SavedViews` (R2F-002, R2F-003, R2F-004): `startSave` opens the list with the save form open and
+  focus in its name, so a command or a shortcut needs no dialog of its own. A view can be shared
+  (`asShared`, `isShared`): the list shows a "Shared" badge, and `apply name` marks a view active
+  and bumps `revision` for a link that names it (the docs show the `?view=` recipe; Klar stores and
+  shares nothing). A view can hold the table's query (`query : Maybe Table.Query`, `withQuery`,
+  and `currentQuery (Table.query table)` on `view`): search text, sort, column filters and page
+  size are saved with the rule, compared for "modified", and applied with `Table.setQuery`. This
+  was the smallest bridge: no JSON payload, no second state; the page is not kept. Views built
+  without `currentQuery` hold only the rule, as before. The `SavedView` record has two new fields
+  (`isShared`, `query`); build it with `savedView`.
+- `Tree.allowEmptySelection` (R2S-008): a click on the selected node, `Space`, or `Enter`
+  (without `onActivate`) selects nothing, for a tree that filters something else ("all
+  locations"). Chosen over a documented `setSelected []` recipe because the keyboard and
+  `aria-selected` then follow the same rule as the mouse, and over "always deselectable"
+  because a navigation tree must not lose its current page. Off by default.
+- `Layout.width px` (R2S-003): a fixed-width column next to a `grow` one in a `row` (a tree, a
+  filter panel beside a table); it keeps its width and shrinks to its parent on a narrow
+  screen. `Layout.fillRest` was already there (A8). `Splitter.fillRest`: the splitter is as
+  high as the room that is left in its parent, so it needs no pixel height inside a
+  `Layout.stack [ Layout.fillRest ]`.
+- `Table` (R2F-007): `activeExternalFilters` no longer adds the outside filters to the
+  "N filters active" button, and the popover note "+ N filters outside the table" is gone. The
+  number only tells "No matches" from "No data" now; a `FilterBar` already shows its filters, so
+  the table's button counts its own column filters. Wire `onResetFilters` once (it clears both).
+  The text `externalFilters` in `Table.Texts` is removed.
+- `Table` (R2F-008): in server mode the CSV export offers "Selected rows" only when every
+  selected row is on the page; otherwise the menu says "N of M selected rows are on other
+  pages. Only this page can be exported here." and offers the page. The file can no longer
+  silently lack rows. (Building that file from the backend with `selectedIds` remains the
+  application's job; no download without JavaScript can fetch it.)
+- `Table` (R2S-009): the docs of "Narrow places" say how many columns fit (about 1000 px at
+  1280 px with a sidebar, from the `minWidth` defaults). Nothing new in the API: the table already
+  shows a shadow at the cut edge, and a count or a hint would be a second guess at the
+  application's layout.
+- `FilterBar` (R2F-012): not changed in behaviour, the docs are corrected. `Enter` in a date
+  field takes the typed text (a second `Enter` opens the calendar). Applying on `Enter` would
+  have the date picker report its commit and the filter bar validate in one step; that needs a
+  new message out of `DatePicker`, which is more API than the problem is worth.
+- Toasts beside a drawer (R2F-013): they leave the top of the window and go to the bottom of
+  the side the drawer leaves free (bottom left for a right drawer, the usual corner for a left
+  one), so the title and the close button stay in reach for the mouse; on a narrow screen,
+  where the drawer fills the window, they stay at the top. A centered modal is as before. Only
+  the stylesheet changed; the `Tab` loop is in the order of the DOM and was not touched.
+- Focus after a dialog that was opened from nothing (R2F-014): when a dialog or the command
+  palette closes and neither its opener nor any element that had focus before exists, focus goes
+  to the start of the page content (the content area of an `AppShell`, the page of an
+  `Overlay.host`; it has the id `klar-page-start` and `tabindex="-1"`), not to `body`. The next
+  `Tab` starts in the content instead of at the top of the window. The palette had no fallback
+  at all when it was opened without an opener.
+- `AppShell` wiring (R2S-010): the 45 lines every application wrote (`LinkClicked`, `UrlChanged`,
+  `ToggleDrawer`, `CloseDrawer`, `SkipToContent`, `SideNavMsg`, the drawer and collapsed flags,
+  `resetScroll`, `focusMenuButton`, `focusContent`) are one `AppShell.State page` and one
+  `AppShell.Msg`. `init { id, key }` and `setPage entries page` make and update the state;
+  `AppShell.state ShellMsg shell` is the one attribute that wires the toggles and the skip link,
+  `AppShell.sideNav` draws the side menu with the shell's state (the page is current, it follows
+  the collapsed flag, groups open on `setPage`), `onUrlRequest` and `onUrlChange` replace the two
+  `Browser.application` constructors, and `update` returns `( state, Cmd Msg, Maybe Url )`: the
+  `Url` is the single place where the application learns of a route change (the drawer is already
+  closed, the content already scrolled to the top, and focus already on the content if the
+  page was chosen in the drawer). `toggleSidebar` is for a `[` shortcut and `goToContent` for a
+  command that replaced the page. A click that must be held back (a `LeaveGuard`) uses an own
+  `onUrlRequest` message and `Nav.pushUrl`, as before. `SideNav.focusCurrent` focuses the link that
+  `SideNav.reveal` was last called with. The attributes of the frame stay (they draw the
+  gallery's demo and serve a shell that keeps its flags itself), but the docs now start with the
+  state. `elm/url` is a direct dependency of the package for this (`Url` in `update`); Klar still
+  never uses its `percentEncode`.
+- The showcase uses the new pieces: the Products tree can be cleared by clicking the chosen
+  category again, the saved views of the rules page have a "New view ..." button (`startSave`)
+  and a shared view, and the application frame is wired with `AppShell.State`.
