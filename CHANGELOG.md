@@ -8,10 +8,25 @@ computes the next version from the changes in the public API.
 
 The first release.
 
-- More than 60 components for data-intensive applications: a data table with client
+- About 90 components for data-intensive applications: a data table with client
   and server mode, searchable selects, pickers for dates, periods and times, a rule
   builder and filter bar, dialogs, drawers, toasts, a command palette, charts,
   trees, timelines and the pieces of an application shell.
+- Components for working with data, arranging a workspace, and seeing what changed:
+  `Klar.Sortable` (drag or key a list into a new order, with announcements) and
+  `Klar.Splitter` (resizable panes); `Klar.ButtonGroup`, `Klar.ToggleGroup`,
+  `Klar.SplitButton`, `Klar.Link` (a link that cannot lead anywhere unsafe) and
+  `Klar.Kbd`; `Klar.StatusPage` (403, 404, 500, offline), `Klar.BulkBar`,
+  `Klar.LeaveGuard` (unsaved changes inside the application) and `Klar.History`
+  (undo and redo); `Klar.Markdown` (a safe renderer that tolerates unfinished text) and
+  `Klar.MarkdownEditor`; `Klar.Diff` (text, JSON and field diffs) and `Klar.Compare`
+  (records side by side); `Klar.Money`, `Klar.MoneyInput` (exact money in minor units,
+  never rounded behind the user's back) and `Klar.MaskedInput` (IBAN, organisation
+  number, bank account, postal code, phone, with check digits); `Klar.TreeSelect`,
+  `Klar.Cascader`, `Klar.Transfer` (typed ids, lazy children, thousands of nodes);
+  `Klar.Recurrence` and `Klar.RecurrencePicker` (every second Tuesday, with RFC 5545
+  RRULE in and out); `Klar.PermissionMatrix` and `Klar.ApprovalFlow`. No new package
+  dependency was added for any of them.
 - Built-in text in English and Norwegian Bokmål (`Klar.Locale`).
 - An icon library of 500 line icons in one style (24 by 24 grid, 2 pixel stroke, round
   ends), every one an Elm value that carries its own drawing: `Klar.Icon` has the

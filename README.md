@@ -24,10 +24,11 @@ Table.view TableMsg
     model.table
 ```
 
-* **A complete toolkit.** More than sixty components: a data table (client and server
-  mode), searchable selects, date and time pickers, a rule builder and filter bar,
-  dialogs and drawers, toasts, a command palette, charts, trees, timelines and the
-  frame of an application.
+* **A complete toolkit.** About ninety components: a data table (client and server
+  mode), searchable selects and tree pickers, date, time and recurrence pickers, exact
+  money and checksum-checked identifiers, a rule builder and filter bar, dialogs and
+  drawers, toasts, a command palette, charts, trees, timelines, drag-to-reorder lists,
+  resizable panes, diffs, a safe Markdown renderer and the frame of an application.
 * **Plain Elm, plain CSS.** The package depends on `elm/core`, `elm/html`,
   `elm/browser`, `elm/json` and `elm/time`, and on nothing else. No ports,
   no JavaScript, no `elm/svg`, no external fonts, no CDN.
@@ -124,16 +125,20 @@ every module has an example.
 | --- | --- |
 | **Foundations** | `Theme`, `Locale`, `Layout`, `Card`, `Text`, `Icon` |
 | **Icon library** | 500 icons in one style: `Icon` and `Icon.Library`, plus `Icon.Arrows`, `Icon.Business`, `Icon.Data`, `Icon.Documents`, `Icon.Logistics` and more (see [ICONS.md](ICONS.md)) |
-| **Actions** | `Button`, `Menu` |
+| **Actions** | `Button`, `Menu`, `ButtonGroup`, `ToggleGroup`, `SplitButton`, `Link`, `Kbd` |
 | **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
 | **Forms** | `Form`, `Field`, `Validate` |
-| **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl` |
-| **Choosing** | `Select`, `MultiSelect`, `Autocomplete`, `VirtualList` |
-| **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar` |
+| **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
+| **Choosing** | `Select`, `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
+| **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
 | **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree` |
 | **Overlays** | `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
+| **Arranging** | `Sortable`, `Splitter` |
+| **Pages and flow** | `StatusPage`, `BulkBar`, `LeaveGuard`, `History` |
+| **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare` |
+| **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
 | **Data display** | `Stat`, `Chart` (line, bar, donut, gauge, meter, sparkline), `Timeline`, `Avatar`, `JsonViewer` |
 | **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews` |
 | **Data and utilities** | `Remote`, `Search`, `Format`, `Shortcut` |
