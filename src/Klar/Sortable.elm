@@ -88,7 +88,9 @@ position 3 of 5", "Scan the tote dropped at position 3 of 5", "Cancelled". The t
 English or Norwegian Bokmål (see `locale`).
 
 What the state remembers: the item that is held, the list as it was when the user
-picked it up, and where it would land. Nothing else; the order is yours.
+picked it up, where it would land, and, until the next drop, where the last drop put
+its item (the keys of its neighbours, which `reorder` reads). Nothing else; the order
+is yours, and `reorder` also works on a list that is not the one that was drawn.
 
 Limits: lists are drawn in full (there is no windowing), so keep them to a few
 hundred items. A drag with the pointer does not scroll the page or a box around the
