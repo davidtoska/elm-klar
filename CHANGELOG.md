@@ -543,3 +543,12 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   no page size). `SavedViews`' list stays a non-modal `dialog`: it holds text fields and a
   confirmation, which a menu may not; the docs say why, and axe is clean with the list open, a
   deletion to confirm, a rename and the save form.
+- Documentation the editing pass missed (run 1): `LeaveGuard`'s second paragraph "The browser's own
+  buttons", which still described the `Nav.forward 1` recipe that the first paragraph says loops forever,
+  is gone, and the module doc now says how the guard and an `AppShell` share the address: the guard answers
+  the clicks (`onUrlRequest` is the application's own), the shell reports the address
+  (`AppShell.onUrlChange ShellMsg`) and the `Url` from `AppShell.update` goes to `LeaveGuard.onUrlChange`. It
+  is the builder's T12 with that one change, tried in Chrome (Back with unsaved input asks, "Stay" restores
+  the address, "Leave" shows the page and focus goes to the content). No new function: the wiring is the
+  four lines of the doc. `AI.md` (333 lines) has the traps that are still true after the fixes of this
+  round and loses the "known gap" of the retry focus; `USING.md` and `ai/` follow.
