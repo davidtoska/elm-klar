@@ -13,6 +13,7 @@ module Klar.Picking.Index exposing
     , failureIndex
     , filter
     , findLabels
+    , followPath
     , get
     , isAncestorOf
     , labelPath
@@ -274,6 +275,50 @@ findLabelsIn wanted nodes found =
                                 here
                 in
                 findLabelsIn wanted rest below
+
+
+
+{-| The labels of a path of keys from the top down, found by walking only the
+nodes along the path (no index needed): `Nothing` when the keys are not a path of
+these nodes (a gap, the wrong order, a branch that is not loaded).
+-}
+followPath : List String -> List (Node id) -> Maybe (List String)
+followPath keys nodes =
+    case keys of
+        [] ->
+            Nothing
+
+        key :: rest ->
+            case firstWithKey key nodes of
+                Just node ->
+                    case rest of
+                        [] ->
+                            Just [ Picking.label node ]
+
+                        _ ->
+                            case Picking.children node of
+                                Remote.Loaded kids ->
+                                    followPath rest kids |> Maybe.map (\labels -> Picking.label node :: labels)
+
+                                _ ->
+                                    Nothing
+
+                Nothing ->
+                    Nothing
+
+
+firstWithKey : String -> List (Node id) -> Maybe (Node id)
+firstWithKey key nodes =
+    case nodes of
+        [] ->
+            Nothing
+
+        node :: rest ->
+            if Picking.key node == key then
+                Just node
+
+            else
+                firstWithKey key rest
 
 
 

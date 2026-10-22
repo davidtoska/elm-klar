@@ -706,7 +706,7 @@ lazyTests =
             opened areas |> sendTo areas "ArrowRight" |> sendTo areas "ArrowRight"
     in
     describe "lazy children"
-        [ test "opening a branch whose children are not asked for is reported by loadRequests" <|
+        [ test "an open branch whose children are not asked for is named by loadRequests, until the application marks it as loading" <|
             \_ ->
                 let
                     before =
@@ -714,9 +714,13 @@ lazyTests =
 
                     after =
                         before |> sendTo NotAsked "ArrowRight"
+
+                    marked =
+                        after |> sendTo Loading "Home"
                 in
-                Expect.equal ( [], [ "japan" ] ) ( Cascader.loadRequests field before, Cascader.loadRequests before after )
-        , test "a click on a branch that is not loaded is reported too, once" <|
+                Expect.equal [ [], [ "japan" ], [ "japan" ], [] ]
+                    [ Cascader.loadRequests before, Cascader.loadRequests after, Cascader.loadRequests after, Cascader.loadRequests marked ]
+        , test "a click on a branch that is not loaded is named too; when the popup is opened again the branches start closed" <|
             \_ ->
                 let
                     before =
@@ -727,8 +731,20 @@ lazyTests =
 
                     next =
                         feed (Drive.fire [ itemId 1 0 ] Event.click (withAreas NotAsked after)) after
+
+                    closed =
+                        next |> sendTo NotAsked "Escape"
+
+                    reopened =
+                        feed (Drive.fire [ Selector.id "place" ] (Drive.key "Enter") (withAreas NotAsked closed)) closed
                 in
-                Expect.equal ( [], [ "japan" ], [] ) ( Cascader.loadRequests before after, Cascader.loadRequests after next, Cascader.loadRequests next next )
+                Expect.all
+                    [ \_ ->
+                        Expect.equal [ [], [], [ "japan" ], [] ]
+                            [ Cascader.loadRequests before, Cascader.loadRequests after, Cascader.loadRequests next, Cascader.loadRequests closed ]
+                    , \_ -> Expect.equal ( True, [] ) ( Cascader.isOpen reopened, Cascader.loadRequests reopened )
+                    ]
+                    ()
         , test "a branch that is loading shows a loading row in its column; the other columns work" <|
             \_ ->
                 let

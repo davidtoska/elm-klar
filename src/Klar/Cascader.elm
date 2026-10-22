@@ -68,7 +68,7 @@ so a level with thousands of nodes stays fast.
 
 Nodes can come from the backend, the top level as a `Remote` (`remote`) and the
 children of a node with `Picking.lazy`. When the user opens a lazy node whose
-children are `NotAsked`, `loadRequests` tells you which one; mark it `Loading`,
+children are `NotAsked`, `loadRequests` names it (call it after every update); mark it `Loading`,
 fetch it, and put the answer in the node the next time you build the tree. A branch
 that failed shows the problem with a "Try again" button (`onRetryChildren`).
 
@@ -95,7 +95,8 @@ built-in text follows `locale` and is English by default (see
 [Klar.Locale](Klar-Locale)).
 
 On a narrow screen the columns do not wrap: the popup scrolls sideways, and
-opening a branch scrolls to its column.
+opening a branch scrolls to its column. Right-to-left languages are not supported:
+the arrow keys and the order of the columns assume left-to-right text.
 
 
 # State
@@ -181,6 +182,7 @@ type alias Data id =
     , path : List (Step id)
     , trail : List String
     , cursor : Maybe Pos
+    , revealed : Bool
     , found : Maybe Int
     , lists : Dict Int VirtualList.State
     , results : VirtualList.State
@@ -233,6 +235,7 @@ init domId =
         , path = []
         , trail = []
         , cursor = Nothing
+        , revealed = False
         , found = Nothing
         , lists = Dict.empty
         , results = VirtualList.init (resultsId domId)
@@ -364,10 +367,12 @@ close (State data) =
     )
 
 
-{-| The lazy nodes whose children the user just asked for, found by comparing the
-state before and after an update: the branches that were opened and whose children
-are `NotAsked`. Set the children of these nodes to `Loading` in your data and fetch
-them; the next time you build the nodes they hold the answer.
+{-| The lazy nodes whose children somebody is waiting for: the open branches of the
+open popup whose children are `NotAsked`. Usually zero or one. Call it after every
+`update` of the field. Set the children of the nodes it names to `Loading` in your
+data and fetch them; the next time you build the nodes they hold the answer.
+Asking again is harmless, because a node you have marked `Loading` is not named
+any more.
 
     PlaceMsg inner ->
         let
@@ -375,22 +380,23 @@ them; the next time you build the nodes they hold the answer.
                 Cascader.update inner model.place
 
             requested =
-                Cascader.loadRequests model.place place
+                Cascader.loadRequests place
         in
         ( { model | place = place, areas = markLoading requested model.areas }
         , Cmd.batch (Cmd.map PlaceMsg cmd :: List.map fetchAreas requested)
         )
 
-Once a node is not `NotAsked` it is not requested again; after a failure the user
-retries with the button that `onRetryChildren` adds.
+The answer is worked out from the nodes of the last message the field got, so if
+you set a node back to `NotAsked` yourself (to load it again), you also fetch it
+yourself: the field asks again only after its next message. After a failure the
+user retries with the button that `onRetryChildren` adds.
 
 -}
-loadRequests : State id -> State id -> List id
-loadRequests (State before) (State after) =
-    case after.cache of
-        Just cache ->
-            after.trail
-                |> List.filter (\key -> not (List.member key before.trail))
+loadRequests : State id -> List id
+loadRequests (State data) =
+    case ( data.open, data.cache ) of
+        ( True, Just cache ) ->
+            data.trail
                 |> List.filterMap
                     (\key ->
                         case Index.get key cache.index of
@@ -406,7 +412,7 @@ loadRequests (State before) (State after) =
                                 Nothing
                     )
 
-        Nothing ->
+        _ ->
             []
 
 
@@ -430,10 +436,10 @@ type alias Env id =
 text. The index and the search texts are reused while the nodes are the same list.
 -}
 refreshWith : Env id -> Data id -> Data id
-refreshWith env data =
+refreshWith env data0 =
     let
         reusable =
-            case data.cache of
+            case data0.cache of
                 Just cache ->
                     if cache.nodes == env.nodes then
                         Just cache
@@ -451,6 +457,11 @@ refreshWith env data =
 
                 Nothing ->
                     Index.build env.nodes
+
+        -- a field that opened before its nodes had arrived opens on its value as
+        -- soon as they have
+        data =
+            reveal index data0
 
         searching =
             not (String.isEmpty (String.trim data.query))
@@ -547,6 +558,34 @@ refreshWith env data =
                 , columns = Columns.columns index trail
                 }
     }
+
+
+{-| An open field shows its value: the branches above it are open and it is
+highlighted. It happens once for each time the popup opens, as soon as the nodes
+have the path (they may come from the backend after the popup opened).
+-}
+reveal : Index id -> Data id -> Data id
+reveal index data =
+    if data.revealed || not data.open then
+        data
+
+    else
+        let
+            pathKeys =
+                List.map .key data.path
+        in
+        if List.isEmpty pathKeys then
+            { data | revealed = True }
+
+        else if Columns.isValidPath index pathKeys then
+            { data
+                | trail = List.take (List.length pathKeys - 1) pathKeys
+                , cursor = Maybe.map AtNode (List.head (List.reverse pathKeys))
+                , revealed = True
+            }
+
+        else
+            data
 
 
 refreshCached : Data id -> Data id
@@ -806,25 +845,18 @@ the first node of the top level is highlighted.
 openWith : Env id -> String -> Data id -> ( Data id, Cmd (Msg id) )
 openWith env text data =
     let
-        prepared =
-            refreshWith env { data | open = True, query = text, found = Nothing, cursor = Nothing, trail = [], lists = Dict.empty, results = VirtualList.reset data.results }
-
-        index =
-            prepared.cache |> Maybe.map .index |> Maybe.withDefault Index.empty
-
-        pathKeys =
-            List.map .key data.path
-
         revealed =
-            if text == "" && Columns.isValidPath index pathKeys then
-                refreshWith env
-                    { prepared
-                        | trail = List.take (List.length pathKeys - 1) pathKeys
-                        , cursor = Maybe.map AtNode (List.head (List.reverse pathKeys))
-                    }
-
-            else
-                prepared
+            refreshWith env
+                { data
+                    | open = True
+                    , query = text
+                    , found = Nothing
+                    , cursor = Nothing
+                    , trail = []
+                    , revealed = text /= ""
+                    , lists = Dict.empty
+                    , results = VirtualList.reset data.results
+                }
 
         ( final, scrolls ) =
             centerAll env revealed
@@ -1603,7 +1635,8 @@ disabled value_ =
 
 {-| While `True` the field shows its value but does not let the user change it:
 the popup does not open, and there is no chevron or clear button. Unlike
-`disabled`, a read-only field can be focused. The default is `False`.
+`disabled`, a read-only field can be focused. The two are independent; with both
+set the field is disabled. The default is `False`.
 -}
 readOnly : Bool -> Attribute id msg
 readOnly value_ =
@@ -1752,37 +1785,10 @@ shownPath config data =
             let
                 remembered =
                     List.filterMap .label steps
-
-                fromTree =
-                    case data.cache of
-                        Just cache ->
-                            if Columns.isValidPath cache.index (List.map .key steps) then
-                                Just (Index.labelPath (List.map .key steps |> List.reverse |> List.head |> Maybe.withDefault "") cache.index)
-
-                            else
-                                Nothing
-
-                        Nothing ->
-                            Nothing
-
-                fromNodes =
-                    let
-                        keys =
-                            List.map .key steps
-
-                        index =
-                            Index.build (Remote.withDefault [] config.nodes)
-                    in
-                    if List.all (\s -> s.label /= Nothing) steps then
-                        Nothing
-
-                    else if Columns.isValidPath index keys then
-                        Just (Index.labelPath (List.reverse keys |> List.head |> Maybe.withDefault "") index)
-
-                    else
-                        Nothing
             in
-            case fromTree of
+            -- the labels that the nodes have now win over the ones remembered
+            -- when the path was chosen; only the nodes along the path are walked
+            case Index.followPath (List.map .key steps) (Remote.withDefault [] config.nodes) of
                 Just labels ->
                     Just (Path labels)
 
@@ -1791,25 +1797,20 @@ shownPath config data =
                         Just (Path remembered)
 
                     else
-                        case fromNodes of
-                            Just labels ->
-                                Just (Path labels)
+                        case config.valueText of
+                            Just toText ->
+                                Just (Path (List.map (\s -> Maybe.withDefault (toText s.id) s.label) steps))
 
                             Nothing ->
-                                case config.valueText of
-                                    Just toText ->
-                                        Just (Path (List.map (\s -> Maybe.withDefault (toText s.id) s.label) steps))
+                                case config.nodes of
+                                    Loaded _ ->
+                                        Just Unknown
 
-                                    Nothing ->
-                                        case config.nodes of
-                                            Loaded _ ->
-                                                Just Unknown
+                                    Failed _ ->
+                                        Just LoadFailed
 
-                                            Failed _ ->
-                                                Just LoadFailed
-
-                                            _ ->
-                                                Just NotLoadedYet
+                                    _ ->
+                                        Just NotLoadedYet
 
 
 {-| A long path with its middle left out: the top, "…", and the last label.
