@@ -1,4 +1,4 @@
-module Klar.Markdown.Url exposing (Kind(..), classify, host, maxLength)
+module Klar.Markdown.Url exposing (Kind(..), classify, host, hostName, maxLength)
 
 {-| Which addresses a piece of Markdown may link to.
 
@@ -9,7 +9,8 @@ is
 
   - a fragment (`#intro`),
   - a relative path (`/orders/17`, `../orders`, `orders?page=2`),
-  - an `http:` or `https:` address (or one that starts with `//`),
+  - an `http:` or `https:` address, which must have `//` straight after the
+    colon (`https://example.com`), or one that starts with `//`,
   - a `mailto:` or `tel:` address.
 
 Everything else is refused: other schemes (`javascript:`, `data:`, `vbscript:`,
@@ -69,13 +70,15 @@ classify raw =
                             Just Relative
 
                     position :: _ ->
-                        schemeKind (String.toLower (String.left position first))
+                        schemeKind (String.toLower (String.left position first)) (String.dropLeft (position + 1) raw)
 
 
 {-| The host of an `http:` or `https:` address, in lower case, or `Nothing` for
-anything that is not clearly one: an address with a user name, a backslash, a
-percent sign or brackets in the host part is refused on purpose. A protocol
-relative address (`//host/path`) has a host as well.
+anything that is not clearly one. The host is read from the `//` that comes
+straight after the scheme (or from the start of an address that begins with `//`),
+and from nowhere else. An address with a user name, a port, a backslash, a percent
+sign, brackets, a trailing dot or characters other than letters, digits, hyphens and
+dots in the host is refused on purpose: it has no host that can be compared.
 -}
 host : String -> Maybe String
 host raw =
@@ -87,41 +90,65 @@ host raw =
                         String.dropLeft 2 raw
 
                     else
-                        case String.indexes "//" raw of
+                        case String.indexes ":" raw of
                             position :: _ ->
-                                String.dropLeft (position + 2) raw
+                                String.dropLeft (position + 3) raw
 
                             [] ->
                                 ""
-
-                authority =
-                    firstSegment afterScheme
-
-                name =
-                    case String.indexes ":" authority of
-                        position :: _ ->
-                            String.left position authority
-
-                        [] ->
-                            authority
             in
-            if name == "" || String.any (\c -> c == '@' || c == '%' || c == '[' || c == ']') authority then
-                Nothing
-
-            else
-                Just (String.toLower name)
+            hostName (firstSegment afterScheme)
 
         _ ->
             Nothing
 
 
-schemeKind : String -> Maybe Kind
-schemeKind scheme =
+{-| A host name as it is written in an address: labels of letters, digits and
+hyphens (not at the ends of a label) separated by dots, each 1 to 63 and all
+together at most 253 characters. Capitals become small letters. No port, no
+trailing dot, no wildcard, no user name.
+-}
+hostName : String -> Maybe String
+hostName text =
+    let
+        lower =
+            String.toLower text
+
+        labels =
+            String.split "." lower
+    in
+    if lower == "" || String.length lower > 253 || not (List.all validLabel labels) then
+        Nothing
+
+    else
+        Just lower
+
+
+validLabel : String -> Bool
+validLabel label =
+    String.length label
+        >= 1
+        && String.length label
+        <= 63
+        && String.all (\c -> (c >= 'a' && c <= 'z') || isDigit c || c == '-') label
+        && not (String.startsWith "-" label)
+        && not (String.endsWith "-" label)
+
+
+schemeKind : String -> String -> Maybe Kind
+schemeKind scheme afterColon =
     if not (validScheme scheme) then
         Nothing
 
     else if scheme == "http" || scheme == "https" then
-        Just External
+        -- the `//` must come straight after the colon: a browser reads `http:evil.example`
+        -- and `http:/evil.example` as addresses on evil.example, and a check of the host that
+        -- looks for the first `//` anywhere would be fooled by `http:evil.example//cdn.example.com`
+        if String.startsWith "//" afterColon then
+            Just External
+
+        else
+            Nothing
 
     else if scheme == "mailto" || scheme == "tel" then
         Just Contact

@@ -109,22 +109,21 @@ type alias Parsed =
 parse : String -> Document
 parse input =
     let
-        text =
-            Utf16.repair input
-
         total =
-            String.length text
+            String.length input
 
+        -- cut first and repair what is left: a very long text with halves of characters
+        -- is not worked through from end to end
         ( kept, truncated ) =
             if total > maxChars then
                 let
                     shown =
-                        cut maxChars text
+                        Utf16.repair (Utf16.left maxChars input)
                 in
                 ( shown, Just { shown = String.length shown, total = total } )
 
             else
-                ( text, Nothing )
+                ( Utf16.repair input, Nothing )
 
         lines =
             kept
@@ -141,21 +140,6 @@ parse input =
     { blocks = numberHeadings parsed.blocks
     , truncated = truncated
     }
-
-
-{-| The first `n` characters, not ending in the middle of a surrogate pair.
--}
-cut : Int -> String -> String
-cut n text =
-    let
-        head =
-            String.left n text
-    in
-    if Utf16.isHighSurrogate (String.right 1 head) then
-        String.dropRight 1 head
-
-    else
-        head
 
 
 dropLastEmpty : List String -> List String
@@ -1459,7 +1443,7 @@ slug text =
                 |> String.split "-"
                 |> List.filter (\part -> part /= "")
                 |> String.join "-"
-                |> String.left 80
+                |> Utf16.left 80
                 |> String.split "-"
                 |> List.filter (\part -> part /= "")
                 |> String.join "-"
