@@ -120,6 +120,7 @@ type alias Word =
     { text : String
     , spaced : String
     , letters : List String
+    , distinct : List String
     , fuzzy : Bool
     }
 
@@ -188,6 +189,7 @@ query text =
                 { text = word
                 , spaced = " " ++ word
                 , letters = String.split "" word
+                , distinct = distinctLetters word
                 , fuzzy = String.length word >= 3
                 }
             )
@@ -253,11 +255,44 @@ scoreWord word (Prepared prepared) =
     else if String.contains word.text prepared.text then
         Just 3
 
-    else if word.fuzzy && inOrder word.letters prepared.text then
+    else if word.fuzzy && hasEveryLetter word.distinct prepared.text && inOrder word.letters prepared.text then
         Just 6
 
     else
         Nothing
+
+
+{-| The letters of a word, each once, in the order they first appear.
+-}
+distinctLetters : String -> List String
+distinctLetters word =
+    String.split "" word
+        |> List.foldl
+            (\letter seen ->
+                if List.member letter seen then
+                    seen
+
+                else
+                    letter :: seen
+            )
+            []
+        |> List.reverse
+
+
+{-| A cheap test that comes before the typo-tolerant one: a text that lacks one of
+the letters cannot match loosely, and `String.contains` is a single native
+search. Most texts fail on the first letter or two, so a query that matches
+few texts (the slow case for the walk below) costs little more than one that
+matches many.
+-}
+hasEveryLetter : List String -> String -> Bool
+hasEveryLetter letters haystack =
+    case letters of
+        [] ->
+            True
+
+        letter :: rest ->
+            String.contains letter haystack && hasEveryLetter rest haystack
 
 
 {-| Whether the letters appear in this order and reasonably close together

@@ -1,10 +1,10 @@
 module SearchTest exposing (suite)
 
 import Expect
-import Fuzz
+import Fuzz exposing (Fuzzer)
 import Html
 import Klar.Search as Search
-import Test exposing (Test, describe, fuzz, test)
+import Test exposing (Test, describe, fuzz, fuzz2, test)
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
 
@@ -15,6 +15,7 @@ suite =
         [ scoring
         , normalizing
         , prepared
+        , equivalence
         , filtering
         , highlighting
         ]
@@ -118,6 +119,119 @@ prepared =
                     (Search.prepareMany [ "a\u{0001}b", "c" ]
                         |> List.map2 (\q p -> Search.scorePrepared (Search.query q) p) [ "a\u{0001}b", "c" ]
                     )
+        ]
+
+
+-- EQUIVALENCE
+
+
+{-| The scoring as it was before the cheap letter test, written out on plain
+strings: the pre-filter may only make it faster, never change an answer.
+-}
+referenceScore : String -> String -> Maybe Int
+referenceScore queryText text =
+    let
+        haystack =
+            Search.normalize text
+
+        spaced =
+            " " ++ String.replace "-" " " (String.replace "/" " " haystack)
+
+        words =
+            Search.normalize queryText |> String.words |> List.filter (\w -> w /= "")
+
+        scoreWord word =
+            if haystack == word then
+                Just 0
+
+            else if String.startsWith word haystack then
+                Just 1
+
+            else if String.contains (" " ++ word) spaced then
+                Just 2
+
+            else if String.contains word haystack then
+                Just 3
+
+            else if String.length word >= 3 && loose (String.split "" word) haystack then
+                Just 6
+
+            else
+                Nothing
+    in
+    List.foldl (\word total -> Maybe.map2 (+) total (scoreWord word)) (Just 0) words
+
+
+loose : List String -> String -> Bool
+loose letters haystack =
+    let
+        step letter ( rest, offset, first ) =
+            case ( rest, first ) of
+                ( Nothing, _ ) ->
+                    ( Nothing, offset, first )
+
+                ( Just text, _ ) ->
+                    case String.indexes letter text of
+                        position :: _ ->
+                            ( Just (String.dropLeft (position + String.length letter) text)
+                            , offset + position + String.length letter
+                            , Maybe.withDefault (offset + position) first |> Just
+                            )
+
+                        [] ->
+                            ( Nothing, offset, first )
+
+        ( outcome, end, start ) =
+            List.foldl step ( Just haystack, 0, Nothing ) letters
+    in
+    case ( outcome, start ) of
+        ( Just _, Just from ) ->
+            end - from <= 2 * List.length letters + 2
+
+        _ ->
+            False
+
+
+{-| Short texts over a small alphabet, so loose matches, exact matches and
+misses all happen often.
+-}
+corpusText : Fuzzer String
+corpusText =
+    Fuzz.listOfLengthBetween 0 14 (Fuzz.oneOfValues [ "a", "b", "c", "d", "e", " ", "-", "/", "A", "Ø" ])
+        |> Fuzz.map String.concat
+
+
+corpusQuery : Fuzzer String
+corpusQuery =
+    Fuzz.listOfLengthBetween 0 6 (Fuzz.oneOfValues [ "a", "b", "c", "d", "e", " ", "A" ])
+        |> Fuzz.map String.concat
+
+
+equivalence : Test
+equivalence =
+    describe "the pre-filter changes no score"
+        [ fuzz2 corpusQuery (Fuzz.listOfLengthBetween 0 40 corpusText) "scorePrepared equals the plain scoring on a random corpus" <|
+            \queryText texts ->
+                let
+                    query =
+                        Search.query queryText
+                in
+                Expect.equal
+                    (List.map (referenceScore queryText) texts)
+                    (List.map (Search.scorePrepared query) (Search.prepareMany texts))
+        , fuzz2 corpusQuery (Fuzz.listOfLengthBetween 0 40 corpusText) "rank keeps the same texts and scores" <|
+            \queryText texts ->
+                let
+                    expected =
+                        texts
+                            |> List.filterMap (\text -> referenceScore queryText text |> Maybe.map (\points -> ( points, text )))
+                            |> List.sortBy Tuple.first
+                in
+                if String.isEmpty (String.trim queryText) then
+                    Expect.pass
+
+                else
+                    Expect.equal expected (Search.rank identity queryText texts)
         ]
 
 
