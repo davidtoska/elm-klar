@@ -689,7 +689,7 @@ keyboard shape =
 {-| Reads a pattern: `#` is a digit, `@` a letter, `*` a letter or a digit, and any
 other character is shown by the field and not part of the value (a hyphen, a space, a
 point). A backslash makes the next character one of those fixed ones, so `\#` is a
-hash sign. Letters and digits can not be fixed characters, because the user would
+hash sign. Letters and digits cannot be fixed characters, because the user would
 have to type them.
 
 `Nothing` for a pattern without a slot, one that ends in a backslash, one with a

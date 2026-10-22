@@ -466,7 +466,7 @@ negativeCode =
 viewSharing : Locale -> Model -> Html Msg
 viewSharing locale model =
     Doc.section "Exact arithmetic"
-        "Splitting an amount never loses a minor unit, and a percentage is rounded half away from zero, as a person does by hand. Money of different currencies can not be added: that is an Err, not a wrong sum."
+        "Splitting an amount never loses a minor unit, and a percentage is rounded half away from zero, as a person does by hand. Money of different currencies cannot be added: that is an Err, not a wrong sum."
         [ Doc.example
             { title = "Split an amount"
             , description = Just "100.00 in three is 33.34, 33.33 and 33.33: the unit that does not divide goes to the first part. The parts always add up to the amount."
@@ -543,4 +543,4 @@ Money.percentOf 25 amount
     --> Ok 25.00                     -- half away from zero
 
 Money.add nokAmount eurAmount
-    --> Err (Can not mix NOK and EUR)"""
+    --> Err (Cannot mix NOK and EUR)"""

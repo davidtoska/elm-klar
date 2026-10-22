@@ -2,20 +2,26 @@ module Klar.Money.Currencies exposing
     ( Entry
     , decimalsOf
     , entries
+    , isActive
     , marks
     , symbolOf
+    , withdrawn
     )
 
-{-| The table of ISO 4217 currencies: every active alphabetic code with the number
-of digits of its minor unit (the "exponent"), and the symbols people write for the
-most common ones.
+{-| The table of ISO 4217 currencies: the active alphabetic codes with the number of
+digits of their minor unit (the "exponent"), the codes that were withdrawn recently
+enough to be in data that is still used, and the symbols people write for the most
+common currencies.
 
-Not in the table, on purpose: the precious metals (XAU, XAG, XPD, XPT), the test
-code XTS, the "no currency" code XXX, the bond market units (XBA, XBB, XBC, XBD),
-and the units of account that have no minor unit (XDR, XSU, XUA). They are not money
-that anyone enters into a field.
+The active list follows "List one" of ISO 4217 as the maintenance agency (SIX)
+published it on 2026-09-17. Not in it, on purpose: the precious metals (XAU, XAG, XPD,
+XPT), the test code XTS, the "no currency" code XXX, the bond market units (XBA, XBB,
+XBC, XBD), and the units of account that have no minor unit (XDR, XSU, XUA). They are
+not money that anyone enters into a field. A currency that ISO has withdrawn is not in
+`entries`; the two that ended most recently (ANG and BGN) are in `withdrawn`, so that
+data that still has them can be read.
 
-The table is data in this file. `tests/MoneyTest.elm` checks that no code is there
+The tables are data in this file. `tests/MoneyTest.elm` checks that no code is there
 twice and that every exponent is between 0 and 4.
 
 -}
@@ -31,7 +37,7 @@ type alias Entry =
     }
 
 
-{-| Every currency, in the order of the codes.
+{-| Every active currency, in the order of the codes.
 -}
 entries : List Entry
 entries =
@@ -43,13 +49,40 @@ entries =
         |> List.sortBy .code
 
 
+{-| Currencies that ISO 4217 has withdrawn, kept so that old data can be read: the
+Netherlands Antillean guilder was replaced by the Caribbean guilder (XCG) on
+2025-03-31, and Bulgaria joined the euro on 2026-01-01 (the lev ended 2025-12-31).
+-}
+withdrawn : List Entry
+withdrawn =
+    [ { code = "ANG", decimals = 2 }
+    , { code = "BGN", decimals = 2 }
+    ]
+
+
+{-| The digits of the minor unit of a currency, active or withdrawn.
+-}
 decimalsOf : String -> Maybe Int
 decimalsOf code =
     Dict.get code decimalTable
 
 
+{-| Is the code on the active list?
+-}
+isActive : String -> Bool
+isActive code =
+    Dict.member code activeTable
+
+
 decimalTable : Dict String Int
 decimalTable =
+    (entries ++ withdrawn)
+        |> List.map (\entry -> ( entry.code, entry.decimals ))
+        |> Dict.fromList
+
+
+activeTable : Dict String Int
+activeTable =
     entries
         |> List.map (\entry -> ( entry.code, entry.decimals ))
         |> Dict.fromList
@@ -62,10 +95,8 @@ noDecimals =
     [ "BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "UYI", "VND", "VUV", "XAF", "XOF", "XPF" ]
 
 
-{-| ANG and BGN are still listed: the Netherlands Antillean guilder was replaced by
-the Caribbean guilder (XCG) in 2025, and Bulgaria joined the euro on 1 January 2026,
-but old documents and old data still hold both. HUF, MGA and MRU are listed with the
-exponent 2 that ISO 4217 gives them, although their small units are not in use.
+{-| HUF, MGA and MRU are listed with the exponent 2 that ISO 4217 gives them, although
+their small units are not in use. XAD is the Arab Accounting Dinar.
 -}
 twoDecimals : List String
 twoDecimals =
@@ -73,7 +104,6 @@ twoDecimals =
     , "AFN"
     , "ALL"
     , "AMD"
-    , "ANG"
     , "AOA"
     , "ARS"
     , "AUD"
@@ -82,7 +112,6 @@ twoDecimals =
     , "BAM"
     , "BBD"
     , "BDT"
-    , "BGN"
     , "BMD"
     , "BND"
     , "BOB"
@@ -203,6 +232,7 @@ twoDecimals =
     , "VED"
     , "VES"
     , "WST"
+    , "XAD"
     , "XCD"
     , "XCG"
     , "YER"

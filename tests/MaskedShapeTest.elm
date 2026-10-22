@@ -1027,7 +1027,7 @@ issueTests =
                     , issueOf Iban "N"
                     , issueOf Iban "1"
                     ]
-        , test "what more typing can not fix is final, and what is only unfinished is not" <|
+        , test "what more typing cannot fix is final, and what is only unfinished is not" <|
             \_ ->
                 Expect.equal [ True, True, True, True, True, False, False, False, True, False, True ]
                     [ Shape.isFinal (Shape.Unexpected 'x' Shape.ExpectDigit)

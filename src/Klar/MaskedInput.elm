@@ -67,7 +67,7 @@ reported. `value` is `Nothing` until all of that is fixed.
 
 **Errors.** The messages are specific: "The check digit is wrong", "An IBAN from NO
 has 15 characters (12 entered)", "Too short: 6 of 9 digits". An error that more typing
-can not fix (a character that does not belong, a value that is too long, a wrong check
+cannot fix (a character that does not belong, a value that is too long, a wrong check
 digit in a complete value) is shown at once. An unfinished value is not an error while
 the user is typing; it becomes one when the field is left or Enter is pressed (the
 field is then touched), or when the application calls `touch`. The `error` and
@@ -77,7 +77,7 @@ field has no message of its own.
 **The caret.** The field writes the text in its groups while the user types at the end
 of it, which is where nearly everyone types and where a pasted identifier ends up. The
 browser moves the caret to the end of the field whenever the value is set, and plain
-Elm can not put it back, so an edit in the middle of the text (a character inserted or
+Elm cannot put it back, so an edit in the middle of the text (a character inserted or
 deleted before the end) is kept exactly as typed, and written in its groups once the
 user goes on typing at the end or leaves the field. Nothing is ever lost or moved; the
 groups are just a little late after such an edit.
@@ -612,7 +612,7 @@ view toMsg attributes (State state) =
             Shape.read shape state.text
 
         -- Built-in errors win over the application's own until they are fixed.
-        -- An error that more typing can not fix shows at once; an unfinished value
+        -- An error that more typing cannot fix shows at once; an unfinished value
         -- waits until the field is left.
         builtIn =
             Shape.issue shape reading
@@ -780,12 +780,12 @@ issueText lang found =
 
             else
                 pick
-                    ("For lang: " ++ number details.have ++ " av høyst " ++ number details.want ++ " " ++ unitText details.unit)
+                    ("For lang: " ++ number details.have ++ " av maksimalt " ++ number details.want ++ " " ++ unitText details.unit)
                     ("Too long: " ++ number details.have ++ " of at most " ++ number details.want ++ " " ++ unitText details.unit)
 
         Shape.WrongIbanLength details ->
             pick
-                ("En IBAN fra " ++ details.country ++ " har " ++ number details.want ++ " tegn (" ++ number details.have ++ " skrevet)")
+                ("Et IBAN-nummer fra " ++ details.country ++ " har " ++ number details.want ++ " tegn (" ++ number details.have ++ " skrevet)")
                 ("An IBAN from " ++ details.country ++ " has " ++ number details.want ++ " characters (" ++ number details.have ++ " entered)")
 
         Shape.UnknownIbanCountry country ->

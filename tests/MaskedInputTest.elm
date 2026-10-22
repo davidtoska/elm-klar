@@ -544,7 +544,7 @@ languageTests =
         , test "the IBAN" <|
             \_ ->
                 Expect.all
-                    [ \_ -> after [ typeIn norwegian "NO93 8601 1117", leave norwegian ] ibanField |> expectError norwegian (Just "En IBAN fra NO har 15 tegn (12 skrevet)")
+                    [ \_ -> after [ typeIn norwegian "NO93 8601 1117", leave norwegian ] ibanField |> expectError norwegian (Just "Et IBAN-nummer fra NO har 15 tegn (12 skrevet)")
                     , \_ -> after [ typeIn norwegian "NO94 8601 1117 947" ] ibanField |> expectError norwegian (Just "IBAN-kontrollsifrene er feil")
                     , \_ -> after [ typeIn norwegian "XX" ] ibanField |> expectError norwegian (Just "XX er ikke et IBAN-land")
                     ]

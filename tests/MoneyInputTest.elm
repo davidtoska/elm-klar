@@ -384,11 +384,55 @@ notAnAmountTests =
             \_ ->
                 after (typedAndLeft price "-") fresh
                     |> Expect.all [ expectError price (Just "Must be an amount"), expectShown price "-" ]
-        , test "separators that can not be read wait until the field is left" <|
+        , test "separators that cannot be read wait until the field is left" <|
             \_ ->
                 Expect.all
                     [ \_ -> after (typing price "1.2.3") fresh |> expectError price Nothing
                     , \_ -> after (typedAndLeft price "1.2.3") fresh |> expectError price (Just "The separators are unclear: write the amount with one decimal separator")
+                    ]
+                    ()
+        , test "the marks that are read around an amount are not errors while they are typed: the code, the symbol and the other ways of writing it" <|
+            \_ ->
+                let
+                    inCurrency code text =
+                        case Money.currency code of
+                            Just cur ->
+                                after (typing price text) (MoneyInput.init "price" cur)
+
+                            Nothing ->
+                                Err "no such currency"
+                in
+                Expect.all
+                    [ \_ -> inCurrency "CNY" "RM" |> expectError price Nothing
+                    , \_ -> inCurrency "CNY" "RMB" |> expectError price Nothing
+                    , \_ -> inCurrency "CNY" "RMB 100" |> Expect.all [ expectError price Nothing, expectValue (Just 10000) ]
+                    , \_ -> inCurrency "CNY" "元" |> expectError price Nothing
+                    , \_ -> inCurrency "CNY" "¥" |> expectError price Nothing
+                    , \_ -> inCurrency "JPY" "円" |> expectError price Nothing
+                    , \_ -> inCurrency "JPY" "￥1500" |> expectValue (Just 1500)
+                    , \_ -> inCurrency "MXN" "Mex" |> expectError price Nothing
+                    , \_ -> inCurrency "MXN" "Mex$ 5" |> Expect.all [ expectError price Nothing, expectValue (Just 500) ]
+                    , \_ -> inCurrency "NOK" "NK" |> expectError price Nothing
+                    , \_ -> inCurrency "NOK" "NKr 5" |> expectValue (Just 500)
+                    , \_ -> inCurrency "USD" "US$" |> expectError price Nothing
+                    ]
+                    ()
+        , test "other letters, and the marks of another currency, are errors at once" <|
+            \_ ->
+                let
+                    inCurrency code text =
+                        case Money.currency code of
+                            Just cur ->
+                                after (typing price text) (MoneyInput.init "price" cur)
+
+                            Nothing ->
+                                Err "no such currency"
+                in
+                Expect.all
+                    [ \_ -> inCurrency "CNY" "xyz" |> expectError price (Just "Must be an amount")
+                    , \_ -> inCurrency "CNY" "$" |> expectError price (Just "Must be an amount")
+                    , \_ -> inCurrency "NOK" "€" |> expectError price (Just "Must be an amount")
+                    , \_ -> inCurrency "USD" "kr" |> expectError price (Just "Must be an amount")
                     ]
                     ()
         , test "the code of the currency being typed is not an error while typing" <|
@@ -402,7 +446,7 @@ notAnAmountTests =
         , test "the message is in Norwegian" <|
             \_ ->
                 after (typing norwegian "abc") fresh
-                    |> expectError norwegian (Just "Må være et beløp")
+                    |> expectError norwegian (Just "Må være et gyldig beløp")
         , test "a message of the application is shown when the field has nothing to say itself" <|
             \_ ->
                 after (typedAndLeft (MoneyInput.error "Already invoiced" :: price) "5") fresh
@@ -466,6 +510,20 @@ limitTests =
                 in
                 after (typedAndLeft attributes "1") fresh
                     |> expectError attributes (Just ("Must be at least 10.00" ++ nbsp ++ "NOK"))
+        , test "the minimum and the maximum in Norwegian" <|
+            \_ ->
+                let
+                    minimum =
+                        norwegian ++ [ MoneyInput.min (nok 1000) ]
+
+                    maximum =
+                        norwegian ++ [ MoneyInput.max (nok 1000) ]
+                in
+                Expect.all
+                    [ \_ -> after (typedAndLeft minimum "1") fresh |> expectError minimum (Just ("Må være minst 10,00" ++ nbsp ++ "NOK"))
+                    , \_ -> after (typedAndLeft maximum "11") fresh |> expectError maximum (Just ("Må være maksimalt 10,00" ++ nbsp ++ "NOK"))
+                    ]
+                    ()
         , test "only a maximum" <|
             \_ ->
                 let
@@ -535,7 +593,7 @@ negativeTests =
         , test "the message is in Norwegian" <|
             \_ ->
                 after (typedAndLeft norwegian "-5") fresh
-                    |> expectError norwegian (Just "Kan ikke være negativ")
+                    |> expectError norwegian (Just "Beløpet kan ikke være negativt")
         , test "a negative amount inside a negative range is fine" <|
             \_ ->
                 let
@@ -598,7 +656,7 @@ stateTests =
             \_ ->
                 Expect.equal
                     { value = Nothing, touched = False, valid = True, currency = Money.nok }
-                    { value = MoneyInput.value fresh, touched = MoneyInput.isTouched fresh, valid = MoneyInput.isValid fresh, currency = MoneyInput.currency fresh }
+                    { value = MoneyInput.value fresh, touched = MoneyInput.isTouched fresh, valid = MoneyInput.isValid fresh, currency = MoneyInput.currencyOf fresh }
         , test "setValue shows the amount, written like the field writes it" <|
             \_ ->
                 Ok (MoneyInput.setValue (Just (nok 123450)) fresh)
@@ -612,13 +670,13 @@ stateTests =
             \_ ->
                 MoneyInput.init "price" Money.jpy
                     |> MoneyInput.setValue Nothing
-                    |> MoneyInput.currency
+                    |> MoneyInput.currencyOf
                     |> Expect.equal Money.jpy
         , test "setValue with an amount in another currency makes that the currency of the field" <|
             \_ ->
                 fresh
                     |> MoneyInput.setValue (Money.fromMinor Money.eur 500)
-                    |> MoneyInput.currency
+                    |> MoneyInput.currencyOf
                     |> Expect.equal Money.eur
         , test "setValue does not move an amount into the limits" <|
             \_ ->
@@ -651,13 +709,40 @@ stateTests =
             \_ ->
                 after (typedAndLeft limited "6000") (MoneyInput.init "price" Money.usd)
                     |> Result.map MoneyInput.reset
-                    |> Result.map (\state -> ( MoneyInput.value state, MoneyInput.isTouched state, MoneyInput.currency state ))
+                    |> Result.map (\state -> ( MoneyInput.value state, MoneyInput.isTouched state, MoneyInput.currencyOf state ))
                     |> Expect.equal (Ok ( Nothing, False, Money.usd ))
         , test "touch counts the field as visited, without changing anything else" <|
             \_ ->
                 after (typing price "5") fresh
                     |> Result.map MoneyInput.touch
                     |> Expect.all [ expectValue (Just 500), \result -> Expect.equal (Ok True) (Result.map MoneyInput.isTouched result) ]
+        , test "a credit note that is loaded into a field that allows negative amounts is not invalid, before the field has seen anything" <|
+            \_ ->
+                Expect.equal [ True, True, True ]
+                    [ MoneyInput.setValue (Just (nok -500)) fresh |> MoneyInput.isValid
+                    , MoneyInput.setLimits [ MoneyInput.allowNegative ] fresh |> MoneyInput.setValue (Just (nok -500)) |> MoneyInput.isValid
+                    , MoneyInput.setValue (Just (nok -500)) fresh |> MoneyInput.setLimits [ MoneyInput.allowNegative ] |> MoneyInput.isValid
+                    ]
+        , test "and the field draws no error for it" <|
+            \_ ->
+                Ok (MoneyInput.setValue (Just (nok -500)) fresh |> MoneyInput.touch)
+                    |> expectError (MoneyInput.allowNegative :: price) Nothing
+        , test "once the field is told the limits, the same amount is judged by them" <|
+            \_ ->
+                Expect.equal [ False, True ]
+                    [ MoneyInput.setValue (Just (nok -500)) fresh |> MoneyInput.setLimits price |> MoneyInput.isValid
+                    , MoneyInput.setValue (Just (nok -500)) fresh |> MoneyInput.setLimits (MoneyInput.allowNegative :: price) |> MoneyInput.isValid
+                    ]
+        , test "a loaded amount that is not told the limits is only judged by being an amount" <|
+            \_ ->
+                Expect.equal [ True, True ]
+                    [ MoneyInput.setValue (Just (nok 600000)) fresh |> MoneyInput.isValid
+                    , Ok (MoneyInput.setValue (Just (nok 600000)) fresh) |> Result.map MoneyInput.isValid |> Result.withDefault False
+                    ]
+        , test "the first event tells the field the limits, and then it judges by them" <|
+            \_ ->
+                after [ focusIn limited ] (MoneyInput.setValue (Just (nok 600000)) fresh)
+                    |> expectValid False
         , test "a touched field draws the errors that were waiting" <|
             \_ ->
                 after (typing limited "6000") fresh
@@ -679,7 +764,7 @@ currencyTests =
                     |> Result.map (MoneyInput.setCurrency Money.usd)
                     |> Expect.all
                         [ expectValue (Just 10050)
-                        , \result -> Expect.equal (Ok Money.usd) (Result.map MoneyInput.currency result)
+                        , \result -> Expect.equal (Ok Money.usd) (Result.map MoneyInput.currencyOf result)
                         , expectShown price "100.50"
                         ]
         , test "into a currency with fewer decimals the amount is not rounded: the field says so" <|
@@ -715,7 +800,7 @@ currencyTests =
         , test "an empty field changes its currency" <|
             \_ ->
                 Ok (MoneyInput.setCurrency Money.eur fresh)
-                    |> Result.map MoneyInput.currency
+                    |> Result.map MoneyInput.currencyOf
                     |> Expect.equal (Ok Money.eur)
         ]
 

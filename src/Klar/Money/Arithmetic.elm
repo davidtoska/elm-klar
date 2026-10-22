@@ -2,6 +2,7 @@ module Klar.Money.Arithmetic exposing
     ( allocate
     , fromDigits
     , maxMinor
+    , mulDivMod
     , mulDivRound
     , quotient
     )
@@ -62,56 +63,116 @@ quotient a b =
     round (toFloat (a - remainderBy b a) / toFloat b)
 
 
-{-| `a * n / d`, rounded half away from zero (a half goes up, as a person rounds by
-hand). `a` and `n` must not be negative and `d` must be at least 1.
+{-| `a * b` divided by `c`, as the whole number of times `c` goes into it and what is
+left: `( floor (a * b / c), a * b mod c )`, exactly. `a` and `b` must not be negative and
+`c` must be at least 1. `Nothing` when the whole number is beyond the exact range; the
+product `a * b` itself may be far beyond it (up to about 10^32).
 
-The product is not formed in one go: `a` is split into whole `d`s and a remainder, so
-`a * n` may be far above the exact range as long as the answer, and `remainder * n`,
-are not. `Nothing` when something does not fit.
+The product is never formed. `a` is split into whole `c`s and a remainder (smaller than
+`c`), which leaves `remainder * b / c`. When that product is small it is divided at once.
+When it is not, it is built one binary digit of `b` at a time, in the way a person
+multiplies by doubling and adding: the value so far is kept as a whole number of `c`s and
+a remainder, doubling it or adding `remainder` never needs a number beyond `c`, and the
+checks are written as `x >= c - y`, so that nothing is added before it is known to fit.
 
 -}
-mulDivRound : Int -> Int -> Int -> Maybe Int
-mulDivRound a n d =
+mulDivMod : Int -> Int -> Int -> Maybe ( Int, Int )
+mulDivMod a b c =
     let
         wholes =
-            quotient a d
+            quotient a c
 
         remainder =
-            a - wholes * d
+            a - wholes * c
 
         fromWholes =
-            wholes * n
+            wholes * b
 
-        fromRemainder =
-            remainder * n
+        ( extra, left ) =
+            if remainder * b <= maxMinor then
+                let
+                    product =
+                        remainder * b
+
+                    times =
+                        quotient product c
+                in
+                ( times, product - times * c )
+
+            else
+                List.foldl (doubleAndAdd c remainder) ( 0, 0 ) (binaryDigits b)
+
+        total =
+            fromWholes + extra
     in
-    if fromWholes > maxMinor || fromRemainder > maxMinor then
+    if fromWholes > maxMinor || total > maxMinor then
         Nothing
 
     else
-        let
-            extra =
-                quotient fromRemainder d
+        Just ( total, left )
 
-            left =
-                fromRemainder - extra * d
 
-            -- 2 * left >= d, written so that nothing doubles
-            roundUp =
-                if left >= d - left then
-                    1
+{-| The binary digits of a whole number, the largest first.
+-}
+binaryDigits : Int -> List Int
+binaryDigits n =
+    let
+        collect rest digits =
+            if rest == 0 then
+                digits
 
-                else
-                    0
+            else
+                collect (quotient rest 2) (remainderBy 2 rest :: digits)
+    in
+    collect n []
 
-            total =
-                fromWholes + extra + roundUp
-        in
-        if total > maxMinor then
-            Nothing
+
+{-| One step of multiplying `r * b` by doubling and adding: the value so far, written as
+`times * c + left`, is doubled, and `r` is added when the binary digit is 1. `left` and
+`r` are both below `c`.
+-}
+doubleAndAdd : Int -> Int -> Int -> ( Int, Int ) -> ( Int, Int )
+doubleAndAdd c r digit ( times, left ) =
+    let
+        ( doubledTimes, doubledLeft ) =
+            if left >= c - left then
+                ( 2 * times + 1, left - (c - left) )
+
+            else
+                ( 2 * times, left + left )
+    in
+    if digit == 1 then
+        if doubledLeft >= c - r then
+            ( doubledTimes + 1, doubledLeft - (c - r) )
 
         else
-            Just total
+            ( doubledTimes, doubledLeft + r )
+
+    else
+        ( doubledTimes, doubledLeft )
+
+
+{-| `a * n / d`, rounded half away from zero (a half goes up, as a person rounds by
+hand). `a` and `n` must not be negative and `d` must be at least 1. Exact for every
+`a`, `n` and `d` in the exact range, whatever the size of the product `a * n`;
+`Nothing` only when the answer does not fit.
+-}
+mulDivRound : Int -> Int -> Int -> Maybe Int
+mulDivRound a n d =
+    mulDivMod a n d
+        |> Maybe.andThen
+            (\( times, left ) ->
+                -- 2 * left >= d, written so that nothing doubles
+                if left >= d - left then
+                    if times + 1 > maxMinor then
+                        Nothing
+
+                    else
+                        Just (times + 1)
+
+                else
+                    Just times
+            )
 
 
 {-| Splits `total` (not negative) in proportion to the `weights` (none negative,
@@ -122,8 +183,9 @@ that are left over (fewer than there are parts) go one by one to the parts with 
 biggest fractions, and to the earlier part when two fractions are equal. 100.00 in
 three equal parts is 33.34, 33.33 and 33.33. A part with the weight 0 gets 0.
 
-`Nothing` when the weights are not usable, or when the numbers are so large that the
-working would leave the exact range (the weights add up to some tens of millions).
+The shares are exact for every list of weights whose sum is in the exact range, however
+large the weights and the total are. `Nothing` when the weights are not usable (none, a
+negative one, all zero), and when their sum is beyond the exact range.
 
 -}
 allocate : Int -> List Int -> Maybe (List Int)
@@ -136,65 +198,47 @@ allocate total weights =
         Nothing
 
     else
-        let
-            wholes =
-                quotient total sum
+        -- the share of a weight is floor (total * weight / sum), and what is left of it
+        case allOrNothing (List.map (\weight -> mulDivMod total weight sum) weights) of
+            Nothing ->
+                Nothing
 
-            left =
-                total - wholes * sum
-
-            -- the share of one weight: floor (total * weight / sum), and what is left of it
-            shareOf weight =
+            Just shares ->
                 let
-                    scaled =
-                        left * weight
+                    leftOver =
+                        total - List.sum (List.map Tuple.first shares)
 
-                    extra =
-                        quotient scaled sum
+                    -- the earliest of the biggest fractions
+                    chosen =
+                        shares
+                            |> List.indexedMap (\index ( _, fraction ) -> ( index, fraction ))
+                            |> List.sortWith
+                                (\( indexA, fractionA ) ( indexB, fractionB ) ->
+                                    case compare fractionB fractionA of
+                                        EQ ->
+                                            compare indexA indexB
+
+                                        order ->
+                                            order
+                                )
+                            |> List.take leftOver
+                            |> List.map Tuple.first
+                            |> Set.fromList
                 in
-                { amount = wholes * weight + extra
-                , fraction = scaled - extra * sum
-                , fits = scaled <= maxMinor
-                }
+                shares
+                    |> List.indexedMap
+                        (\index ( amount, _ ) ->
+                            if Set.member index chosen then
+                                amount + 1
 
-            shares =
-                List.map shareOf weights
-        in
-        if List.any (\share -> not share.fits) shares then
-            Nothing
+                            else
+                                amount
+                        )
+                    |> Just
 
-        else
-            let
-                floors =
-                    List.sum (List.map .amount shares)
 
-                leftOver =
-                    total - floors
+allOrNothing : List (Maybe a) -> Maybe (List a)
+allOrNothing maybes =
+    List.foldr (\maybe rest -> Maybe.map2 (::) maybe rest) (Just []) maybes
 
-                -- the earliest of the biggest fractions
-                chosen =
-                    shares
-                        |> List.indexedMap (\index share -> ( index, share.fraction ))
-                        |> List.sortWith
-                            (\( indexA, fractionA ) ( indexB, fractionB ) ->
-                                case compare fractionB fractionA of
-                                    EQ ->
-                                        compare indexA indexB
 
-                                    order ->
-                                        order
-                            )
-                        |> List.take leftOver
-                        |> List.map Tuple.first
-                        |> Set.fromList
-            in
-            shares
-                |> List.indexedMap
-                    (\index share ->
-                        if Set.member index chosen then
-                            share.amount + 1
-
-                        else
-                            share.amount
-                    )
-                |> Just
