@@ -238,7 +238,7 @@ structureTests =
             \_ ->
                 rendered five
                     |> Query.find [ Selector.id "list-help" ]
-                    |> Query.has [ Selector.text "Press Space or Enter to pick up this item. Then use the Up and Down arrow keys" ]
+                    |> Query.has [ Selector.text "Press Space or Enter to pick up. Then use the Up and Down arrow keys" ]
         , test "the content of an item is drawn as it is" <|
             \_ ->
                 rendered five
@@ -313,9 +313,9 @@ structureTests =
                 Expect.all
                     [ \m -> rendered m |> Query.find (handleOf "a") |> Query.has [ Selector.attribute (Attr.attribute "aria-roledescription" "sorterbart element") ]
                     , \m -> rendered m |> Query.find [ Selector.id "list-help" ] |> Query.has [ Selector.text "Trykk mellomrom eller Enter for å løfte" ]
-                    , \m -> check (afterKeys [ ( "b", space ) ] m) [ says "Step b løftet, posisjon 2 av 5." ]
+                    , \m -> check (afterKeys [ ( "b", space ) ] m) [ says "Step b er løftet, posisjon 2 av 5." ]
                     , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ) ] m) [ says "Flyttet til posisjon 3 av 5." ]
-                    , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", space ) ] m) [ says "Step b sluppet på posisjon 3 av 5." ]
+                    , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", space ) ] m) [ says "Step b er sluppet på posisjon 3 av 5." ]
                     , \m -> check (afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", key "Escape" ) ] m) [ says "Avbrutt. Step b er tilbake på posisjon 2 av 5." ]
                     , \m -> check (afterKeys [ ( "a", space ), ( "a", key "ArrowUp" ) ] m) [ says "Posisjon 1 av 5. Kan ikke flyttes lenger." ]
                     ]
