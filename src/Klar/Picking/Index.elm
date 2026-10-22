@@ -9,15 +9,12 @@ module Klar.Picking.Index exposing
     , View
     , ancestors
     , build
-    , descendantKeys
     , empty
     , failureIndex
     , filter
     , findLabels
     , get
     , isAncestorOf
-    , isOpen
-    , keysBelow
     , labelPath
     , lastRow
     , matches
@@ -319,34 +316,6 @@ isAncestorOf : String -> String -> Index id -> Bool
 isAncestorOf ancestor key index =
     List.member ancestor (ancestors key index)
 
-
-childKeys : Entry id -> List String
-childKeys entry =
-    case entry.kids of
-        Kids keys ->
-            keys
-
-        _ ->
-            []
-
-
-{-| Every key below a node (not the node itself), parents before children.
--}
-descendantKeys : String -> Index id -> List String
-descendantKeys key index =
-    case get key index of
-        Just entry ->
-            List.concatMap (\child -> child :: descendantKeys child index) (childKeys entry)
-
-        Nothing ->
-            []
-
-
-{-| The key itself and every key below it.
--}
-keysBelow : String -> Index id -> List String
-keysBelow key index =
-    key :: descendantKeys key index
 
 
 

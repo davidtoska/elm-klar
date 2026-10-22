@@ -7,6 +7,7 @@ module Klar.Picking.Cover exposing
     , dropNested
     , isCovered
     , leaves
+    , normalize
     , stateOf
     , toggle
     , uncheck
@@ -52,11 +53,15 @@ type alias Cover =
 
 
 {-| What the cover says about the nodes of one tree: the ancestors of the
-members, and the state of every node that cannot be a member itself. Work it out
-again when the cover or the tree changes, and not on every draw.
+members (`partial`), the nodes that are not members but have all their children
+checked (`complete`, which only happens for a cover that was set from the code
+and is not in its shortest form), and the state of every node that cannot be a
+member itself. Work it out again when the cover or the tree changes, and not on
+every draw.
 -}
 type alias Derived =
     { partial : Set String
+    , complete : Set String
     , groups : Dict String Check
     }
 
@@ -111,6 +116,9 @@ derive index cover =
         partial =
             Set.foldl (\key found -> addAncestors index key found) Set.empty cover
 
+        complete =
+            completeNodes index cover partial
+
         groups =
             if Set.isEmpty cover then
                 Dict.empty
@@ -124,7 +132,7 @@ derive index cover =
                                     found
 
                                 else
-                                    case groupState index cover partial found entry of
+                                    case groupState index cover partial complete found entry of
                                         Just state ->
                                             Dict.insert key state found
 
@@ -137,7 +145,32 @@ derive index cover =
                     Dict.empty
                     (List.reverse index.order)
     in
-    { partial = partial, groups = groups }
+    { partial = partial, complete = complete, groups = groups }
+
+
+{-| The clean nodes that are not members but have every child checked (a member,
+or complete themselves): the deepest first, so that the children are known.
+-}
+completeNodes : Index id -> Cover -> Set String -> Set String
+completeNodes index cover partial =
+    partial
+        |> Set.toList
+        |> List.filterMap (\key -> Index.get key index)
+        |> List.sortBy (\entry -> negate entry.depth)
+        |> List.foldl
+            (\entry found ->
+                case entry.kids of
+                    Kids keys ->
+                        if isClean entry && not (Set.member entry.key cover) && List.all (\k -> Set.member k cover || Set.member k found) keys then
+                            Set.insert entry.key found
+
+                        else
+                            found
+
+                    _ ->
+                        found
+            )
+            Set.empty
 
 
 addAncestors : Index id -> String -> Set String -> Set String
@@ -157,13 +190,13 @@ addAncestors index key found =
 {-| The state of a node that cannot be a member, from the states of its
 children. `Nothing` when nothing below it can be chosen.
 -}
-groupState : Index id -> Cover -> Set String -> Dict String Check -> Entry id -> Maybe Check
-groupState index cover partial groups entry =
+groupState : Index id -> Cover -> Set String -> Set String -> Dict String Check -> Entry id -> Maybe Check
+groupState index cover partial complete groups entry =
     case entry.kids of
         Kids keys ->
             let
                 states =
-                    List.filterMap (childState index cover partial groups) keys
+                    List.filterMap (childState index cover partial complete groups) keys
             in
             if List.isEmpty states then
                 Nothing
@@ -181,9 +214,9 @@ groupState index cover partial groups entry =
             Nothing
 
 
-childState : Index id -> Cover -> Set String -> Dict String Check -> String -> Maybe Check
-childState index cover partial groups key =
-    if Set.member key cover then
+childState : Index id -> Cover -> Set String -> Set String -> Dict String Check -> String -> Maybe Check
+childState index cover partial complete groups key =
+    if Set.member key cover || Set.member key complete then
         Just Checked
 
     else
@@ -205,7 +238,7 @@ childState index cover partial groups key =
 
 stateOf : Index id -> Cover -> Derived -> String -> Check
 stateOf index cover derived key =
-    if isCovered index cover key then
+    if isCovered index cover key || Set.member key derived.complete then
         Checked
 
     else
@@ -223,6 +256,31 @@ stateOf index cover derived key =
 
             Nothing ->
                 Unchecked
+
+
+{-| The cover in its shortest form: no member inside another, and the children
+of a node that can be a member replaced by the node.
+-}
+normalize : Index id -> Cover -> Cover
+normalize index cover0 =
+    let
+        cover =
+            dropNested index cover0
+
+        parents =
+            Set.foldl
+                (\key found ->
+                    case Index.get key index |> Maybe.andThen .parent of
+                        Just parent ->
+                            Set.insert parent found
+
+                        Nothing ->
+                            found
+                )
+                Set.empty
+                cover
+    in
+    collapse index cover parents
 
 
 {-| Checks the node: everything below it is now chosen. A node that is covered
