@@ -1,8 +1,8 @@
 module Klar.Toast exposing
     ( view
     , State, Msg, init, update, maxVisible, count, queued
-    , push, clear, dismissAll
-    , Attribute, title, message, action
+    , push, dismiss, clear, dismissAll
+    , Attribute, title, message, action, key
     , tone, info, success, warning, danger, duration, sticky
     , locale
     )
@@ -72,12 +72,12 @@ raise `maxVisible`).
 
 # Showing and removing toasts
 
-@docs push, clear, dismissAll
+@docs push, dismiss, clear, dismissAll
 
 
 # Content
 
-@docs Attribute, title, message, action
+@docs Attribute, title, message, action, key
 
 
 # Tone and time
@@ -136,6 +136,7 @@ type alias Item msg =
     , title : Maybe String
     , message : String
     , action : Maybe ( String, msg )
+    , key : Maybe String
     , duration : Maybe Int
     , hovered : Bool
     , focused : Bool
@@ -177,6 +178,30 @@ already on screen.
 queued : State msg -> Int
 queued (State state) =
     List.length state.waiting
+
+
+{-| Removes the toast with this key (see `key`), on screen or waiting, and lets the
+next one in the queue take its place. A key that no toast has changes nothing, so it is
+safe to call when the toast may already be gone. Call it from `update`, for example
+when a retry succeeded and the failure toast of the first try is stale:
+
+    Toast.dismiss "note-save" model.toasts
+
+-}
+dismiss : String -> State msg -> State msg
+dismiss wanted (State state) =
+    State (promote (withoutKey wanted state))
+
+
+withoutKey :
+    String
+    -> { state | visible : List (Item msg), waiting : List (Item msg) }
+    -> { state | visible : List (Item msg), waiting : List (Item msg) }
+withoutKey wanted state =
+    { state
+        | visible = List.filter (\item -> item.key /= Just wanted) state.visible
+        , waiting = List.filter (\item -> item.key /= Just wanted) state.waiting
+    }
 
 
 {-| Removes every toast at once, the ones on screen and the ones in the queue.
@@ -265,10 +290,19 @@ one waits in the queue.
 
 -}
 push : List (Attribute msg) -> State msg -> ( State msg, Cmd Msg )
-push attributes (State state) =
+push attributes (State previous) =
     let
         config =
             configure attributes
+
+        -- a toast with the same key is replaced, on screen or waiting
+        state =
+            case config.key of
+                Just wanted ->
+                    withoutKey wanted previous
+
+                Nothing ->
+                    previous
 
         item =
             { id = state.nextId
@@ -277,6 +311,7 @@ push attributes (State state) =
             , title = config.title
             , message = config.message
             , action = config.action
+            , key = config.key
             , duration = resolveDuration config
             , hovered = False
             , focused = False
@@ -458,6 +493,7 @@ type alias Config msg =
     , title : Maybe String
     , message : String
     , action : Maybe ( String, msg )
+    , key : Maybe String
     , duration : Maybe (Maybe Int)
     , locale : Locale
     }
@@ -470,6 +506,7 @@ configure attributes =
         , title = Nothing
         , message = ""
         , action = Nothing
+        , key = Nothing
         , duration = Nothing
         , locale = Locale.default
         }
@@ -542,6 +579,18 @@ A toast with an action stays at least 8 seconds, unless you set `duration` or
 action : String -> msg -> Attribute msg
 action label msg =
     Attribute (\config -> { config | action = Just ( label, msg ) })
+
+
+{-| Names the toast, so that the application can take it away from `update` with
+`dismiss`, and so that a new toast with the same key replaces the old one instead of
+stacking next to it (a second failed save shows one toast, not two).
+
+    Toast.push [ Toast.danger, Toast.key "note-save", Toast.title "Could not save the note" ] model.toasts
+
+-}
+key : String -> Attribute msg
+key value =
+    Attribute (\config -> { config | key = Just value })
 
 
 {-| Dismiss after this many milliseconds, whatever the tone. The timer stops
