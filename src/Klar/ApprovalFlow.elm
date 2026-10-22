@@ -2,14 +2,16 @@ module Klar.ApprovalFlow exposing
     ( view, viewRemote
     , Flow, flow, Step, step, withDue, Quorum, all, any
     , Approver, approver, Decision, pending, approved, rejected
-    , Status(..), status, stepStatuses, currentStep, pendingApprovers
+    , Status, status, isInProgress, isApproved, isRejected
+    , StepStatus, stepStatuses, stepIsWaiting, stepIsInProgress, stepIsApproved, stepIsRejected, stepIsSkipped
+    , currentStep, pendingApprovers
     , Attribute, viewer, onApprove, onReject, now, zone, horizontal, ariaLabel, onRetry, locale
     )
 
 {-| The approval process of one item: an ordered list of steps, each with one or
 several approvers and a decision from each, and where the item stands.
 
-    import Klar.ApprovalFlow as ApprovalFlow exposing (Status(..))
+    import Klar.ApprovalFlow as ApprovalFlow
     import Klar.Avatar as Avatar
 
     creditNoteFlow : Time.Posix -> ApprovalFlow.Flow UserId
@@ -62,18 +64,25 @@ cannot contradict its own data. The steps are taken in order:
     with `all` as soon as one approver rejected, with `any` when all of them did.
     A rejection in an `all` step wins over approvals; an approval in an `any` step
     wins over rejections.
-  - Going from the first step, the steps that are met are `Approved`. The first
-    step that is neither met nor failed is `InProgress` and the steps after it
-    `Waiting`. The first step that failed is `Rejected` and the steps after it
-    `Skipped` ("Not reached"): nobody is asked once the flow is rejected.
-  - A decision recorded on a step that is `Waiting` or `Skipped` is shown, but it
-    does not count: the order of the steps is respected.
-  - The flow is `Rejected` when a step is, `Approved` when every step is (a flow
-    without steps requires nothing and counts as approved) and `InProgress`
-    otherwise. A flow is never `Waiting` or `Skipped`.
+  - Going from the first step, the steps that are met are approved. The first step
+    that is neither met nor failed is in progress and the steps after it wait. The
+    first step that failed is rejected and the steps after it are skipped ("Not
+    reached"): nobody is asked once the flow is rejected.
+  - A decision recorded on a step that waits or is skipped is shown, but it does
+    not count: the order of the steps is respected.
+  - The flow is rejected when a step is, approved when every step is (a flow
+    without steps requires nothing and counts as approved) and in progress
+    otherwise. A flow is never "waiting" or "skipped": those are states of a step.
 
-`status`, `currentStep` and `pendingApprovers` give you the same answers the
-viewer draws, for a list of requests, a badge or a check on the server.
+`status`, `stepStatuses`, `currentStep` and `pendingApprovers` give you the same
+answers the viewer draws, for a list of requests, a badge or a check on the server:
+
+    if ApprovalFlow.isApproved (ApprovalFlow.status flow) then
+        shipOrder
+
+Both kinds of status are opaque and asked with `isApproved`, `stepIsSkipped` and
+the like, so that states such as "withdrawn" or "returned for changes" can be added
+without breaking an application.
 
 **What is shown.** The steps form an ordered list, connected by a line. Each step
 shows its status as an icon and in words (never in colour alone), its rule ("All
@@ -118,7 +127,11 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 
 # Where the flow stands
 
-@docs Status, status, stepStatuses, currentStep, pendingApprovers
+@docs Status, status, isInProgress, isApproved, isRejected
+
+@docs StepStatus, stepStatuses, stepIsWaiting, stepIsInProgress, stepIsApproved, stepIsRejected, stepIsSkipped
+
+@docs currentStep, pendingApprovers
 
 
 # Attributes
@@ -206,7 +219,7 @@ type alias Details =
 
 
 {-| The steps, first step first. The list may be empty: then nothing is required
-(the flow is `Approved` and the viewer says "No approval is required").
+(the flow counts as approved and the viewer says "No approval is required").
 
     ApprovalFlow.flow
         [ ApprovalFlow.step "Team lead" ApprovalFlow.all (ApprovalFlow.approver ada ApprovalFlow.pending) []
@@ -240,7 +253,7 @@ step title quorum first rest =
 
 
 {-| The time by which the step should be decided. It is shown on a step that is
-`InProgress` or `Waiting`, and marks the current step "Overdue" once the `now` of
+in progress or waiting, and marks the current step "Overdue" once the `now` of
 the viewer is later. Without it a step has no deadline.
 -}
 withDue : Time.Posix -> Step approver -> Step approver
@@ -313,26 +326,85 @@ tidy details =
 -- STATUS
 
 
-{-| Where a step, or the whole flow, stands:
-
-  - `Waiting`: an earlier step has not been approved yet (steps only)
-  - `InProgress`: the step is being decided; for a flow, it is not finished
-  - `Approved`: the rule of the step is met; for a flow, every step is
-  - `Rejected`: the step failed; for a flow, a step did
-  - `Skipped`: the step is not reached because an earlier step was rejected
-    (steps only; the viewer says "Not reached")
-
-It is a small, closed vocabulary that you read, for example to choose a badge or
-to allow shipping, so it is a plain union. How it is derived is described in the
-module documentation.
-
+{-| Where the whole flow stands: in progress, approved or rejected. Get it with
+`status` and ask it with `isApproved`, `isRejected` and `isInProgress`. It is opaque,
+so that a state such as "withdrawn" or "returned for changes" can be added later
+without breaking anyone. How it is derived is described in the module documentation.
 -}
 type Status
-    = Waiting
-    | InProgress
-    | Approved
-    | Rejected
-    | Skipped
+    = FlowInProgress
+    | FlowApproved
+    | FlowRejected
+
+
+{-| Where one step stands: waiting, in progress, approved, rejected or skipped
+(shown as "Not reached"). Get the list with `stepStatuses` and ask each with
+`stepIsWaiting`, `stepIsInProgress`, `stepIsApproved`, `stepIsRejected` and
+`stepIsSkipped`. It is opaque for the same reason as `Status`.
+-}
+type StepStatus
+    = StepWaiting
+    | StepInProgress
+    | StepApproved
+    | StepRejected
+    | StepSkipped
+
+
+{-| The flow is not finished: a step is being decided.
+-}
+isInProgress : Status -> Bool
+isInProgress theStatus =
+    theStatus == FlowInProgress
+
+
+{-| Every step is approved (also when there are no steps): the item may go on.
+-}
+isApproved : Status -> Bool
+isApproved theStatus =
+    theStatus == FlowApproved
+
+
+{-| A step was rejected: the item stops here.
+-}
+isRejected : Status -> Bool
+isRejected theStatus =
+    theStatus == FlowRejected
+
+
+{-| An earlier step has not been approved yet, so this one has not been reached.
+-}
+stepIsWaiting : StepStatus -> Bool
+stepIsWaiting theStatus =
+    theStatus == StepWaiting
+
+
+{-| The step is being decided.
+-}
+stepIsInProgress : StepStatus -> Bool
+stepIsInProgress theStatus =
+    theStatus == StepInProgress
+
+
+{-| The rule of the step is met.
+-}
+stepIsApproved : StepStatus -> Bool
+stepIsApproved theStatus =
+    theStatus == StepApproved
+
+
+{-| The step can no longer be met: it was rejected.
+-}
+stepIsRejected : StepStatus -> Bool
+stepIsRejected theStatus =
+    theStatus == StepRejected
+
+
+{-| The step is not reached because an earlier step was rejected (the viewer says
+"Not reached").
+-}
+stepIsSkipped : StepStatus -> Bool
+stepIsSkipped theStatus =
+    theStatus == StepSkipped
 
 
 type Outcome
@@ -422,16 +494,16 @@ type Phase
 
 
 {-| Where each step stands, in the order of the steps. The list always has as many
-entries as the flow has steps and has one of three shapes: some steps `Approved`,
-then either nothing more, or one `InProgress` followed by `Waiting` steps, or one
-`Rejected` followed by `Skipped` steps.
+entries as the flow has steps and has one of three shapes: some approved steps,
+then either nothing more, or one step in progress followed by waiting steps, or one
+rejected step followed by skipped steps.
 -}
-stepStatuses : Flow approver -> List Status
+stepStatuses : Flow approver -> List StepStatus
 stepStatuses (Flow steps) =
     walk Walking steps
 
 
-walk : Phase -> List (Step approver) -> List Status
+walk : Phase -> List (Step approver) -> List StepStatus
 walk phase steps =
     case steps of
         [] ->
@@ -442,26 +514,26 @@ walk phase steps =
                 Walking ->
                     case outcome data of
                         Met ->
-                            Approved :: walk Walking rest
+                            StepApproved :: walk Walking rest
 
                         Open ->
-                            InProgress :: walk Blocked rest
+                            StepInProgress :: walk Blocked rest
 
                         Failed ->
-                            Rejected :: walk Stopped rest
+                            StepRejected :: walk Stopped rest
 
                 Blocked ->
-                    Waiting :: walk Blocked rest
+                    StepWaiting :: walk Blocked rest
 
                 Stopped ->
-                    Skipped :: walk Stopped rest
+                    StepSkipped :: walk Stopped rest
 
 
-{-| Where the whole flow stands: `Rejected` when a step was rejected, `Approved`
-when every step is approved (also when there are no steps), `InProgress`
-otherwise. It never answers `Waiting` or `Skipped`.
+{-| Where the whole flow stands: rejected when a step was rejected, approved when
+every step is approved (also when there are no steps, which require nothing), in
+progress otherwise.
 
-    ApprovalFlow.status (creditNoteFlow deadline) --> InProgress
+    ApprovalFlow.isInProgress (ApprovalFlow.status (creditNoteFlow deadline)) --> True
 
 -}
 status : Flow approver -> Status
@@ -470,14 +542,14 @@ status theFlow =
         list =
             stepStatuses theFlow
     in
-    if List.member Rejected list then
-        Rejected
+    if List.member StepRejected list then
+        FlowRejected
 
-    else if List.all (\each -> each == Approved) list then
-        Approved
+    else if List.all (\each -> each == StepApproved) list then
+        FlowApproved
 
     else
-        InProgress
+        FlowInProgress
 
 
 {-| The step the flow stands at, counting from 0 like [Klar.Stepper](Klar-Stepper):
@@ -489,7 +561,7 @@ currentStep : Flow approver -> Maybe Int
 currentStep theFlow =
     stepStatuses theFlow
         |> List.indexedMap Tuple.pair
-        |> List.filter (\( _, each ) -> each == InProgress || each == Rejected)
+        |> List.filter (\( _, each ) -> each == StepInProgress || each == StepRejected)
         |> List.head
         |> Maybe.map Tuple.first
 
@@ -505,7 +577,7 @@ and you can use it to find the requests that wait for a person.
 pendingApprovers : Flow approver -> List approver
 pendingApprovers ((Flow steps) as theFlow) =
     List.map2 Tuple.pair steps (stepStatuses theFlow)
-        |> List.filter (\( _, each ) -> each == InProgress)
+        |> List.filter (\( _, each ) -> each == StepInProgress)
         |> List.head
         |> Maybe.map
             (\( Step data, _ ) ->
@@ -687,23 +759,23 @@ texts loc =
     , inProgress = pick "Pågår" "In progress"
     , approved = pick "Godkjent" "Approved"
     , rejected = pick "Avvist" "Rejected"
-    , notReached = pick "Ikke nådd" "Not reached"
-    , pending = pick "Venter" "Pending"
+    , notReached = pick "Ikke aktuelt" "Not reached"
+    , pending = pick "Venter på svar" "Pending"
     , everyone = pick "Alle må godkjenne" "All must approve"
     , anyOne = \n -> pick ("Én av " ++ number n ++ " må godkjenne") ("Any one of " ++ number n ++ " must approve")
     , countApproved = \yes total -> pick (number yes ++ " av " ++ number total ++ " godkjent") (number yes ++ " of " ++ number total ++ " approved")
     , due = pick "Frist" "Due"
-    , overdue = pick "Forfalt" "Overdue"
+    , overdue = pick "Over fristen" "Overdue"
     , approve = pick "Godkjenn" "Approve"
     , reject = pick "Avvis" "Reject"
     , yourDecision = \title -> pick ("Din beslutning om " ++ title) ("Your decision on " ++ title)
-    , you = pick "deg" "you"
+    , you = pick "du" "you"
     , stepNumber = \n -> pick ("Steg " ++ number n) ("Step " ++ number n)
     , empty = pick "Ingen godkjenning kreves" "No approval is required"
     , loading = pick "Laster godkjenningen" "Loading the approval"
     , summaryApproved = pick "Godkjent" "Approved"
-    , summaryRejected = \n title -> pick ("Avvist i steg " ++ number n ++ ": " ++ title) ("Rejected at step " ++ number n ++ ": " ++ title)
-    , summaryInProgress = \n total title -> pick ("Pågår: steg " ++ number n ++ " av " ++ number total ++ ": " ++ title) ("In progress: step " ++ number n ++ " of " ++ number total ++ ": " ++ title)
+    , summaryRejected = \n title -> pick ("Avvist i steg " ++ number n ++ " (" ++ title ++ ")") ("Rejected at step " ++ number n ++ " (" ++ title ++ ")")
+    , summaryInProgress = \n total title -> pick ("Pågår: steg " ++ number n ++ " av " ++ number total ++ " (" ++ title ++ ")") ("In progress: step " ++ number n ++ " of " ++ number total ++ " (" ++ title ++ ")")
     }
 
 
@@ -829,10 +901,10 @@ viewSteps person config t theFlow steps =
 
         summaryText =
             case status theFlow of
-                Approved ->
+                FlowApproved ->
                     t.summaryApproved
 
-                Rejected ->
+                FlowRejected ->
                     t.summaryRejected (Maybe.withDefault 0 current + 1) (titleOf (Maybe.withDefault 0 current))
 
                 _ ->
@@ -840,10 +912,10 @@ viewSteps person config t theFlow steps =
 
         summaryIcon =
             case status theFlow of
-                Approved ->
+                FlowApproved ->
                     Icon.checkCircle
 
-                Rejected ->
+                FlowRejected ->
                     Icon.xCircle
 
                 _ ->
@@ -861,77 +933,90 @@ viewSteps person config t theFlow steps =
         , Attr.attribute "aria-label" (Maybe.withDefault t.label config.label)
         ]
         [ Html.p
-            [ Internal.cls [ "klar-approval__summary", "klar-approval__summary--" ++ statusSuffix (status theFlow) ]
+            [ Internal.cls [ "klar-approval__summary", "klar-approval__summary--" ++ flowSuffix (status theFlow) ]
             , Attr.attribute "role" "status"
             ]
             [ Icon.view summaryIcon
             , Html.span [] [ Html.text summaryText ]
             ]
-        , Html.ol [ Internal.cls [ "klar-approval__steps" ] ]
+        , Html.ol [ Internal.cls [ "klar-approval__steps" ], Attr.attribute "role" "list" ]
             (List.map2 Tuple.pair steps (stepStatuses theFlow)
                 |> List.indexedMap (\index ( each, state ) -> viewStep env index each state)
             )
         ]
 
 
-statusSuffix : Status -> String
-statusSuffix state =
-    case state of
-        Waiting ->
-            "waiting"
-
-        InProgress ->
+flowSuffix : Status -> String
+flowSuffix theStatus =
+    case theStatus of
+        FlowInProgress ->
             "in-progress"
 
-        Approved ->
+        FlowApproved ->
             "approved"
 
-        Rejected ->
+        FlowRejected ->
             "rejected"
 
-        Skipped ->
+
+statusSuffix : StepStatus -> String
+statusSuffix state =
+    case state of
+        StepWaiting ->
+            "waiting"
+
+        StepInProgress ->
+            "in-progress"
+
+        StepApproved ->
+            "approved"
+
+        StepRejected ->
+            "rejected"
+
+        StepSkipped ->
             "skipped"
 
 
-statusIcon : Status -> Icon
+statusIcon : StepStatus -> Icon
 statusIcon state =
     case state of
-        Waiting ->
+        StepWaiting ->
             Icon.hourglass
 
-        InProgress ->
+        StepInProgress ->
             Icon.clock
 
-        Approved ->
+        StepApproved ->
             Icon.checkCircle
 
-        Rejected ->
+        StepRejected ->
             Icon.xCircle
 
-        Skipped ->
+        StepSkipped ->
             Icon.minusCircle
 
 
-statusText : Env approver msg -> Status -> String
+statusText : Env approver msg -> StepStatus -> String
 statusText env state =
     case state of
-        Waiting ->
+        StepWaiting ->
             env.t.waitingFor (Maybe.withDefault 0 env.current + 1)
 
-        InProgress ->
+        StepInProgress ->
             env.t.inProgress
 
-        Approved ->
+        StepApproved ->
             env.t.approved
 
-        Rejected ->
+        StepRejected ->
             env.t.rejected
 
-        Skipped ->
+        StepSkipped ->
             env.t.notReached
 
 
-viewStep : Env approver msg -> Int -> Step approver -> Status -> Html msg
+viewStep : Env approver msg -> Int -> Step approver -> StepStatus -> Html msg
 viewStep env index (Step data) state =
     let
         t =
@@ -952,7 +1037,7 @@ viewStep env index (Step data) state =
         isOverdue =
             case ( data.due, env.config.now ) of
                 ( Just due, Just current ) ->
-                    state == InProgress && Time.posixToMillis current > Time.posixToMillis due
+                    state == StepInProgress && Time.posixToMillis current > Time.posixToMillis due
 
                 _ ->
                     False
@@ -972,7 +1057,7 @@ viewStep env index (Step data) state =
                     )
 
         progress =
-            if total > 1 && data.quorum == Everyone && (state == InProgress || state == Approved) then
+            if total > 1 && data.quorum == Everyone && (state == StepInProgress || state == StepApproved) then
                 Just (t.countApproved yes total)
 
             else
@@ -981,7 +1066,7 @@ viewStep env index (Step data) state =
         dueNote =
             case data.due of
                 Just due ->
-                    if state == InProgress || state == Waiting then
+                    if state == StepInProgress || state == StepWaiting then
                         Just (viewDue env isOverdue due)
 
                     else
@@ -1000,19 +1085,19 @@ viewStep env index (Step data) state =
         marker =
             Html.span [ Internal.cls [ "klar-approval__marker" ], Attr.attribute "aria-hidden" "true" ]
                 [ case state of
-                    Approved ->
+                    StepApproved ->
                         Icon.sized Icon.Small Icon.check
 
-                    Rejected ->
+                    StepRejected ->
                         Icon.sized Icon.Small Icon.close
 
-                    InProgress ->
+                    StepInProgress ->
                         Icon.sized Icon.Small Icon.clock
 
-                    Skipped ->
+                    StepSkipped ->
                         Icon.sized Icon.Small Icon.minus
 
-                    Waiting ->
+                    StepWaiting ->
                         Html.text (String.fromInt (index + 1))
                 ]
     in
@@ -1055,7 +1140,7 @@ viewStep env index (Step data) state =
                 ]
             , Internal.viewIf (not (List.isEmpty notes))
                 (Html.p [ Internal.cls [ "klar-approval__meta" ] ] notes)
-            , Html.ul [ Internal.cls [ "klar-approval__people" ] ]
+            , Html.ul [ Internal.cls [ "klar-approval__people" ], Attr.attribute "role" "list" ]
                 (List.map (viewPerson env) people)
             , viewActions env state isCurrent data.title
             ]
@@ -1170,7 +1255,7 @@ viewPerson env (Approver who decision) =
         ]
 
 
-viewActions : Env approver msg -> Status -> Bool -> String -> Html msg
+viewActions : Env approver msg -> StepStatus -> Bool -> String -> Html msg
 viewActions env state isCurrent title =
     let
         t =
@@ -1182,7 +1267,7 @@ viewActions env state isCurrent title =
                 , Maybe.map (\msg -> Button.view [ Button.small, Button.danger, Button.icon Icon.close, Button.onClick msg ] t.reject) env.config.onReject
                 ]
     in
-    if state == InProgress && isCurrent && env.canDecide && not (List.isEmpty buttons) then
+    if state == StepInProgress && isCurrent && env.canDecide && not (List.isEmpty buttons) then
         Html.div
             [ Internal.cls [ "klar-approval__actions" ]
             , Attr.attribute "role" "group"
