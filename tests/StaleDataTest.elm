@@ -15,6 +15,7 @@ import Klar.Locale as Locale
 import Klar.Overlay as Overlay
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.RemoteView as RemoteView
+import Klar.Settings as Settings exposing (Moment)
 import Klar.Stat as Stat
 import Klar.Table as Table
 import Klar.Timeline as Timeline
@@ -44,14 +45,16 @@ suite =
         ]
 
 
-at : Int -> Time.Posix
+{-| A moment in a zone that is known to be UTC, so the clock reads as the minutes say.
+-}
+at : Int -> Moment
 at minutes =
-    Time.millisToPosix (minutes * 60 * 1000)
+    Settings.at (Settings.withZone Time.utc Settings.default) (Time.millisToPosix (minutes * 60 * 1000))
 
 
 {-| 14:05 in UTC.
 -}
-fourteenOhFive : Time.Posix
+fourteenOhFive : Moment
 fourteenOhFive =
     at (14 * 60 + 5)
 
@@ -61,7 +64,7 @@ failure =
     Remote.problem Remote.network
 
 
-look : Remote a -> { data : Maybe a, at : Maybe Time.Posix, stale : Bool, refreshing : Bool }
+look : Remote a -> { data : Maybe a, at : Maybe Moment, stale : Bool, refreshing : Bool }
 look remote =
     { data = Remote.toMaybe remote, at = Remote.loadedAt remote, stale = Remote.isStale remote, refreshing = Remote.isRefreshing remote }
 
@@ -179,6 +182,12 @@ components =
         oldOrders =
             Remote.refreshWith (Remote.refreshWith Loading (Ok Orders.curated) fourteenOhFive) (Err failure) (at 1000)
 
+        oldIn settings =
+            Remote.refreshWith
+                (Remote.refreshWith Loading (Ok Orders.curated) (Settings.at settings (Settings.toPosix fourteenOhFive)))
+                (Err failure)
+                (at 1000)
+
         tile extra =
             Stat.view ([ Stat.label "Open orders", Stat.onRetry Retry ] ++ extra)
 
@@ -206,7 +215,9 @@ components =
         , test "the table speaks Norwegian when asked" <|
             \_ -> orders oldOrders [ Table.locale Locale.nb ] |> Query.has [ text "Gamle data fra kl. 14:05" ]
         , test "the zone decides the time" <|
-            \_ -> orders oldOrders [ Table.zone (Time.customZone 120 []) ] |> Query.has [ text "Old data from 16:05" ]
+            \_ -> orders (oldIn (Settings.withZone (Time.customZone 120 []) Settings.default)) [] |> Query.has [ text "Old data from 16:05" ]
+        , test "a zone that was never given says so: the time ends in UTC" <|
+            \_ -> orders (oldIn Settings.default) [] |> Query.has [ text "Old data from 14:05 UTC" ]
         , test "a tile shows the old number with the time, and is a plain block with its retry" <|
             \_ ->
                 html (tile [ Stat.remote stale (\n -> [ Stat.int n ]), Stat.onClick Retry ])
