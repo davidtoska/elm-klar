@@ -9,7 +9,7 @@ module Klar.Table exposing
     , Attribute, columns, rows, rowId, rowLabel, server, label, locale
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
-    , refreshing, onRefresh, onRetry, emptyState
+    , zone, onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
     , pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
     , Rows, prepareRows, rowsArray, preparedRows
@@ -99,7 +99,6 @@ that match, and the table only records what the user asks for. Compare
         [ Table.columns columns
         , Table.server { total = model.total }
         , Table.rows model.page -- Remote (List Order): the current page only
-        , Table.refreshing model.fetching -- keep the old rows, dimmed, meanwhile
         , Table.onRetry Retry
         ]
         model.table
@@ -252,7 +251,7 @@ a saved view.
 
 # Loading and empty states
 
-@docs refreshing, onRefresh, onRetry, emptyState
+@docs zone, onRefresh, onRetry, emptyState
 
 
 # Toolbar and export
@@ -321,6 +320,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Internal.Window as Window
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
@@ -339,6 +339,7 @@ import Klar.Theme as Theme exposing (Density(..), Tone)
 import Process
 import Set exposing (Set)
 import Task
+import Time
 
 
 
@@ -2344,6 +2345,8 @@ type alias Config row msg =
     , toolbarActions : List (Html msg)
     , onRefresh : Maybe msg
     , refreshing : Bool
+    , freshness : Freshness
+    , zone : Time.Zone
     , onRetry : Maybe msg
     , export : Maybe String
     , csvSeparator : Maybe Char
@@ -2386,6 +2389,8 @@ configure attributes =
         , toolbarActions = []
         , onRefresh = Nothing
         , refreshing = False
+        , freshness = Freshness.Fresh
+        , zone = Time.utc
         , onRetry = Nothing
         , export = Nothing
         , csvSeparator = Nothing
@@ -2434,10 +2439,24 @@ shows skeleton rows under the header, `Failed` shows the error with a retry
 button (see `onRetry`), and `Loaded []` shows the empty state (see
 `emptyState`). In server mode these are the rows of the current page only.
 Without `rows` the table shows the loading skeleton.
+
+Rows that are `Kept` stay on the screen. While they are refreshed (the next page
+in server mode, a refresh button: `Remote.refresh`) they are dimmed, with a
+progress line under the header, and screen readers hear "Refreshing ...". When the
+last refresh failed they carry the marker "Old data from 14:05" with a retry
+button (`onRetry`).
+
 -}
 rows : Remote (List row) -> Attribute id row msg
 rows value =
-    Attribute (\config -> { config | rows = Remote.map FromList value })
+    Attribute
+        (\config ->
+            let
+                ( current, freshness ) =
+                    Freshness.settle value
+            in
+            { config | rows = Remote.map FromList current, freshness = freshness, refreshing = Freshness.busy freshness }
+        )
 
 
 {-| The rows of a client-mode table that has thousands of them, as `Rows` made
@@ -2446,7 +2465,14 @@ and the search and the sorting no longer format every value again on each messag
 -}
 preparedRows : Remote (Rows row) -> Attribute id row msg
 preparedRows value =
-    Attribute (\config -> { config | rows = Remote.map FromRows value })
+    Attribute
+        (\config ->
+            let
+                ( current, freshness ) =
+                    Freshness.settle value
+            in
+            { config | rows = Remote.map FromRows current, freshness = freshness, refreshing = Freshness.busy freshness }
+        )
 
 
 {-| Rows that the table has worked on in advance: for each row the text the search
@@ -2784,22 +2810,18 @@ toolbarActions value =
 
 
 {-| Adds a refresh button to the toolbar that sends this message. The button
-shows a spinner while the table is `refreshing` or its rows are loading.
+shows a spinner while the rows are refreshing (`Remote.refresh`) or loading.
 -}
 onRefresh : msg -> Attribute id row msg
 onRefresh msg =
     Attribute (\config -> { config | onRefresh = Just msg })
 
 
-{-| Pass `True` while new data is on its way and you still hold the old rows
-(the next page in server mode, a manual refresh): the rows stay, dimmed, with a
-progress line under the header, and screen readers hear "Refreshing ...". It
-only applies to `Loaded` rows; while `rows` is `Loading` the skeleton is shown
-instead. The default is `False`.
+{-| The time zone of the time in "Old data from 14:05". The default is UTC.
 -}
-refreshing : Bool -> Attribute id row msg
-refreshing value =
-    Attribute (\config -> { config | refreshing = value })
+zone : Time.Zone -> Attribute id row msg
+zone value =
+    Attribute (\config -> { config | zone = value })
 
 
 {-| The message to send when the user clicks "Try again" in the error state, which
@@ -3709,6 +3731,9 @@ view toMsg attributes (State model) =
         , Internal.attrIf config.virtual (Internal.styleVars [ ( "--_row-h", Internal.px ctx.geometry.rowHeight ) ])
         ]
         [ viewToolbar ctx
+        , Freshness.notice
+            { locale = config.locale, zone = config.zone, onRetry = config.onRetry, inline = False }
+            config.freshness
         , viewFrame ctx
         , viewFooter ctx
         , Html.div [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status", Attr.attribute "aria-live" "polite" ]

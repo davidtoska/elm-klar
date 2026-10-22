@@ -301,6 +301,16 @@ css =
  .klar-menu__hint{margin-left: 16px;font-size: var(--klar-text-sm);color: var(--klar-text-muted)}
  .klar-menu__separator{height: 1px;margin: 4px -4px;background: var(--klar-border)}
  .klar-menu__heading{padding: 6px 8px 2px;font-size: var(--klar-text-xs);font-weight: var(--klar-weight-bold);letter-spacing: 0.06em;text-transform: uppercase;color: var(--klar-text-muted)}
+ .klar-stale{display: flex;flex-wrap: wrap;align-items: center;gap: var(--klar-space-1) var(--klar-space-2);padding: var(--klar-space-1) var(--klar-space-3);background: var(--klar-warning-subtle);border: 1px solid var(--klar-warning-border);border-radius: var(--klar-radius);color: var(--klar-amber-700);font-size: var(--klar-text-sm);line-height: 1.4}
+ .klar-stale--inline{padding: 0 var(--klar-space-2);border-radius: var(--klar-radius-full)}
+ .klar-stale__text{font-weight: 500}
+ .klar-stale__reason{color: var(--klar-text-secondary)}
+ .klar-stale__action{margin-left: auto}
+ .klar-refreshing{cursor: progress}
+ .klar-refreshing > :not(.klar-stale):not(.klar-sr-only){opacity: 0.55;transition: opacity var(--klar-dur) var(--klar-ease)}
+ .klar-remote-body{display: flex;flex-direction: column;gap: var(--klar-space-3)}
+ .klar-remote-body--loading{min-height: 96px}
+ .klar-chart-fresh,.klar-list-fresh,.klar-tree-fresh{display: flex;flex-direction: column;gap: var(--klar-space-2)}
  .klar-textarea-wrap{display: flex;flex-direction: column;gap: 4px;min-width: 0}
  .klar-textarea{--_pad-y: 6px;--_pad-x: var(--klar-control-px);display: grid;width: 100%;background: var(--klar-surface);border: 1px solid var(--klar-border-strong);border-radius: var(--klar-radius);color: var(--klar-text);transition: border-color var(--klar-dur-fast) var(--klar-ease),box-shadow var(--klar-dur-fast) var(--klar-ease)}
  .klar-textarea--sm{--_pad-y: 4px;--_pad-x: 8px;font-size: var(--klar-text-sm)}

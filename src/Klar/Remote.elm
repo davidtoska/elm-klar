@@ -1,5 +1,6 @@
 module Klar.Remote exposing
     ( Remote(..), fromResult, map, toMaybe, withDefault, isLoading, isLoaded, isFailed
+    , Kept, refresh, refreshWith, isRefreshing, isStale, staleProblem, loadedAt, staleIn
     , Problem, problem, withTitle, withDetail, withCode, isRetryable
     , title, detail, code, kind
     , Kind, network, timeout, server, notFound, forbidden, unauthorized, validation, conflict, unknown
@@ -51,6 +52,11 @@ already on the screen:
 @docs Remote, fromResult, map, toMaybe, withDefault, isLoading, isLoaded, isFailed
 
 
+# Refreshing and old data
+
+@docs Kept, refresh, refreshWith, isRefreshing, isStale, staleProblem, loadedAt, staleIn
+
+
 # Problems
 
 @docs Problem, problem, withTitle, withDetail, withCode, isRetryable
@@ -68,18 +74,45 @@ already on the screen:
 -}
 
 import Klar.Locale as Locale exposing (Locale)
+import Time
 
 
 {-| Data you ask for. Start in `NotAsked` (or `Loading` if the request is sent
-in `init`), then move to `Loaded` or `Failed`. Refreshing data that is already
-there is up to you: keep the `Loaded` value and show your own indicator, or go
-back to `Loading` to show the skeleton again.
+in `init`), then move to `Loaded` or `Failed`.
+
+`Kept` is data you still show while it is refreshed, or after a refresh failed:
+it carries the data, when it was loaded, and why the last refresh failed. You
+never build it by hand. `refresh` and `refreshWith` move between the states, and
+every component that takes a `Remote` draws it: the old data stays, with a calm
+"Old data from 14:05" and a retry when the refresh failed, and dimmed with a busy
+state while it is refreshing.
+
+To read the data, use `toMaybe`, `withDefault` or `map`: they work for `Loaded`
+and `Kept` alike. When you `case` on a `Remote` yourself, give `Kept` its own
+branch (or take the data with `toMaybe`), so that a refreshed value is not
+mistaken for "no data".
+
 -}
 type Remote a
     = NotAsked
     | Loading
     | Loaded a
     | Failed Problem
+    | Kept (Kept a)
+
+
+{-| Data that is kept on the screen across a refresh: the data, when it was
+loaded (if known), whether a refresh is on its way, and why the last refresh
+failed (if it did). The type is opaque; read it with `toMaybe`, `loadedAt`,
+`isRefreshing`, `isStale` and `staleProblem`.
+-}
+type Kept a
+    = KeptData
+        { data : a
+        , at : Maybe Time.Posix
+        , refreshing : Bool
+        , failure : Maybe Problem
+        }
 
 
 {-| What went wrong, in terms that decide what to tell the user. The type is
@@ -359,6 +392,9 @@ map change remote =
         Loaded a ->
             Loaded (change a)
 
+        Kept (KeptData value) ->
+            Kept (KeptData { data = change value.data, at = value.at, refreshing = value.refreshing, failure = value.failure })
+
 
 {-| The data, if it is there.
 -}
@@ -367,6 +403,9 @@ toMaybe remote =
     case remote of
         Loaded a ->
             Just a
+
+        Kept (KeptData value) ->
+            Just value.data
 
         _ ->
             Nothing
@@ -382,6 +421,9 @@ withDefault fallback remote =
     case remote of
         Loaded a ->
             a
+
+        Kept (KeptData value) ->
+            value.data
 
         _ ->
             fallback
@@ -404,7 +446,8 @@ fromResult result =
             Failed p
 
 
-{-| Whether the request is on its way.
+{-| Whether the first request is on its way and there is nothing to show yet.
+Data that is being refreshed is not loading: see `isRefreshing`.
 -}
 isLoading : Remote a -> Bool
 isLoading remote =
@@ -416,7 +459,7 @@ isLoading remote =
             False
 
 
-{-| Whether the data is there.
+{-| Whether the data is there, fresh or old.
 -}
 isLoaded : Remote a -> Bool
 isLoaded remote =
@@ -424,11 +467,15 @@ isLoaded remote =
         Loaded _ ->
             True
 
+        Kept _ ->
+            True
+
         _ ->
             False
 
 
-{-| Whether the request failed.
+{-| Whether the request failed and there is no data to show. When a refresh failed
+and the old data is still there, the data is stale: see `isStale`.
 -}
 isFailed : Remote a -> Bool
 isFailed remote =
@@ -438,3 +485,119 @@ isFailed remote =
 
         _ ->
             False
+
+
+{-| Starts a refresh: call it when you send the request again. Data that is there
+stays (`Loaded` becomes `Kept`, marked as refreshing; old data stays old until the
+answer comes), and anything else goes to `Loading`. Components dim the data and
+set it busy.
+
+    ( { model | orders = Remote.refresh model.orders }, fetchOrders )
+
+For a new question (another customer, another period) the old answer does not
+apply: set `Loading` instead.
+
+-}
+refresh : Remote a -> Remote a
+refresh remote =
+    case remote of
+        Loaded a ->
+            Kept (KeptData { data = a, at = Nothing, refreshing = True, failure = Nothing })
+
+        Kept (KeptData value) ->
+            Kept (KeptData { value | refreshing = True })
+
+        _ ->
+            Loading
+
+
+{-| Takes the answer of a request into the state, in one line. `Ok` gives fresh
+data that remembers when it was loaded (give the time of the answer). `Err` while
+there is data to show keeps the data and makes it stale, with the problem; `Err`
+when there is nothing to show is a plain `Failed`.
+
+    GotOrders result at ->
+        ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
+
+The same line works for the first load.
+
+-}
+refreshWith : Remote a -> Result Problem a -> Time.Posix -> Remote a
+refreshWith before result at =
+    case result of
+        Ok a ->
+            Kept (KeptData { data = a, at = Just at, refreshing = False, failure = Nothing })
+
+        Err problem_ ->
+            case before of
+                Loaded a ->
+                    Kept (KeptData { data = a, at = Nothing, refreshing = False, failure = Just problem_ })
+
+                Kept (KeptData value) ->
+                    Kept (KeptData { value | refreshing = False, failure = Just problem_ })
+
+                _ ->
+                    Failed problem_
+
+
+{-| Whether a refresh is on its way while the data is shown.
+-}
+isRefreshing : Remote a -> Bool
+isRefreshing remote =
+    case remote of
+        Kept (KeptData value) ->
+            value.refreshing
+
+        _ ->
+            False
+
+
+{-| Whether the data on the screen is old because the last refresh failed. Use it
+for a notice on the page; the components mark old data themselves.
+-}
+isStale : Remote a -> Bool
+isStale remote =
+    staleProblem remote /= Nothing
+
+
+{-| Why the last refresh failed, while the old data is still shown.
+-}
+staleProblem : Remote a -> Maybe Problem
+staleProblem remote =
+    case remote of
+        Kept (KeptData value) ->
+            value.failure
+
+        _ ->
+            Nothing
+
+
+{-| When the data was loaded: the time given to `refreshWith` for the answer that
+brought it. `Nothing` when it is not known.
+-}
+loadedAt : Remote a -> Maybe Time.Posix
+loadedAt remote =
+    case remote of
+        Kept (KeptData value) ->
+            value.at
+
+        _ ->
+            Nothing
+
+
+{-| A name for each stale `Remote`, for the notice of the whole page
+(`Klar.Alert.stale`): the name when the data is stale, nothing otherwise.
+
+    List.concat
+        [ Remote.staleIn "orders" model.orders
+        , Remote.staleIn "figures" model.summary
+        ]
+
+-}
+staleIn : String -> Remote a -> List String
+staleIn name remote =
+    if isStale remote then
+        [ name ]
+
+    else
+        []

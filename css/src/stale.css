@@ -1,0 +1,47 @@
+/* ==========================================================================
+   Old and refreshing data (Klar.Remote.Kept): the marker every data component
+   draws, and the dimming while a refresh is on its way.
+   ========================================================================== */
+
+.klar-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-1) var(--klar-space-2);
+  padding: var(--klar-space-1) var(--klar-space-3);
+  background: var(--klar-warning-subtle);
+  border: 1px solid var(--klar-warning-border);
+  border-radius: var(--klar-radius);
+  color: var(--klar-amber-700);
+  font-size: var(--klar-text-sm);
+  line-height: 1.4;
+}
+
+.klar-stale--inline { padding: 0 var(--klar-space-2); border-radius: var(--klar-radius-full); }
+
+.klar-stale__text { font-weight: 500; }
+
+.klar-stale__reason { color: var(--klar-text-secondary); }
+
+.klar-stale__action { margin-left: auto; }
+
+.klar-refreshing { cursor: progress; }
+
+.klar-refreshing > :not(.klar-stale):not(.klar-sr-only) {
+  opacity: 0.55;
+  transition: opacity var(--klar-dur) var(--klar-ease);
+}
+
+/* The body of a card, dialog or drawer that shows remote data. */
+.klar-remote-body { display: flex; flex-direction: column; gap: var(--klar-space-3); }
+
+.klar-remote-body--loading { min-height: 96px; }
+
+/* Wrappers that put the marker above a component. */
+.klar-chart-fresh,
+.klar-list-fresh,
+.klar-tree-fresh {
+  display: flex;
+  flex-direction: column;
+  gap: var(--klar-space-2);
+}

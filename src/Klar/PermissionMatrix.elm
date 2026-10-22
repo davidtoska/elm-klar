@@ -190,6 +190,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.PermissionMatrix.Grid as Grid exposing (ColumnKey(..), RowKey(..))
 import Klar.Remote as Remote exposing (Remote)
@@ -1335,7 +1336,7 @@ viewRemote toMsg attributes state data =
         t =
             texts config.locale
     in
-    case data of
+    case Tuple.first (Freshness.settle data) of
         Remote.Loaded theMatrix ->
             view toMsg attributes state theMatrix
 

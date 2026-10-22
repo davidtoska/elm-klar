@@ -167,6 +167,7 @@ import Klar.Checkbox as Checkbox
 import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Picking as Picking exposing (Ids, Node)
 import Klar.Picking.Cover as Cover exposing (Check(..))
@@ -1439,7 +1440,7 @@ nodes list =
 -}
 remote : Remote (List (Node id)) -> Attribute id msg
 remote data =
-    Attribute (\config -> { config | nodes = data })
+    Attribute (\config -> { config | nodes = Tuple.first (Freshness.settle data) })
 
 
 {-| The message to send when the user presses the "Try again" button of the error

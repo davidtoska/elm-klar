@@ -7,7 +7,7 @@ module Klar.Tree exposing
     , selected, selectedId, select, setSelected, checked, setChecked, clearChecked
     , focused, focusNode, query, setQuery
     , loadRequests, onLoadChildren, onRetry, onReload
-    , Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+    , Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
     )
 
 {-| A tree view for hierarchies: regions and warehouses, folders, product
@@ -153,7 +153,7 @@ selected and checked nodes come back in your own type:
 
 # Attributes
 
-@docs Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale
+@docs Attribute, ariaLabel, multiSelect, checkboxes, filterBox, filterPlaceholder, onActivate, compact, maxHeight, maxChildren, emptyText, locale, zone
 
 -}
 
@@ -171,6 +171,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
@@ -181,6 +182,7 @@ import Klar.Theme as Theme exposing (Size(..), Tone)
 import Process
 import Set exposing (Set)
 import Task
+import Time
 
 
 
@@ -275,6 +277,7 @@ type Children id
     = Leaf
     | Branch (List (Node id))
     | Lazy (Remote (List (Node id)))
+    | LazyKept Freshness (List (Node id))
 
 
 make : Ids id -> id -> String -> Children id -> Node id
@@ -337,7 +340,19 @@ the list is empty.
 -}
 lazy : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
 lazy ids id label children =
-    make ids id label (Lazy children)
+    make ids
+        id
+        label
+        (case Freshness.settle children of
+            ( Remote.Loaded nodes, Freshness.Fresh ) ->
+                Lazy (Remote.Loaded nodes)
+
+            ( Remote.Loaded nodes, freshness ) ->
+                LazyKept freshness nodes
+
+            ( settled, _ ) ->
+                Lazy settled
+        )
 
 
 {-| A node whose children have not been asked for yet: `lazy` with `NotAsked`.
@@ -406,6 +421,9 @@ childNodes children =
         Lazy (Remote.Loaded nodes) ->
             nodes
 
+        LazyKept _ nodes ->
+            nodes
+
         _ ->
             []
 
@@ -421,6 +439,19 @@ isExpandable children =
 
         Lazy _ ->
             True
+
+        LazyKept _ _ ->
+            True
+
+
+lazyBusy : Children id -> Bool
+lazyBusy children =
+    case children of
+        LazyKept freshness _ ->
+            Freshness.busy freshness
+
+        _ ->
+            False
 
 
 isUnloaded : Children id -> Bool
@@ -1061,6 +1092,7 @@ type alias Config id msg =
     , maxChildren : Int
     , emptyText : Maybe String
     , locale : Locale
+    , zone : Time.Zone
     }
 
 
@@ -1081,6 +1113,7 @@ configure attributes =
         , maxChildren = 300
         , emptyText = Nothing
         , locale = Locale.default
+        , zone = Time.utc
         }
         attributes
 
@@ -1215,6 +1248,14 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
+{-| The time zone of the time in "Old data from 14:05", the marker of data that
+is `Kept` after a failed refresh. The default is UTC.
+-}
+zone : Time.Zone -> Attribute id msg
+zone value =
+    Attribute (\config -> { config | zone = value })
+
+
 
 -- TEXT
 
@@ -1333,6 +1374,9 @@ filterNode words (Node n) =
 
                     Lazy (Remote.Loaded _) ->
                         Lazy (Remote.Loaded inner.nodes)
+
+                    LazyKept freshness _ ->
+                        LazyKept freshness inner.nodes
 
                     other ->
                         other
@@ -1688,11 +1732,22 @@ viewRemote toMsg attributes state data =
         config =
             configure attributes
     in
-    case data of
-        Remote.Loaded nodes ->
+    case Freshness.settle data of
+        ( Remote.Loaded nodes, Freshness.Fresh ) ->
             view toMsg attributes state nodes
 
-        Remote.Failed problem ->
+        ( Remote.Loaded nodes, freshness ) ->
+            Html.div
+                [ Internal.cls [ "klar-tree-fresh", Freshness.className freshness ]
+                , Freshness.busyAttr freshness
+                ]
+                [ Freshness.notice
+                    { locale = config.locale, zone = config.zone, onRetry = config.onReload, inline = False }
+                    freshness
+                , view toMsg attributes state nodes
+                ]
+
+        ( Remote.Failed problem, _ ) ->
             ErrorState.view
                 (List.filterMap identity
                     [ Just ErrorState.compact
@@ -1854,6 +1909,9 @@ viewNode env depth parent index total ((Node n) as node) =
                 || List.isEmpty terminals
                 || (case n.children of
                         Lazy (Remote.Loaded _) ->
+                            False
+
+                        LazyKept _ _ ->
                             False
 
                         Lazy _ ->
@@ -2079,7 +2137,7 @@ viewNode env depth parent index total ((Node n) as node) =
                 else
                     []
                )
-            ++ (if open && n.children == Lazy Remote.Loading then
+            ++ (if open && (n.children == Lazy Remote.Loading || lazyBusy n.children) then
                     [ Attr.attribute "aria-busy" "true" ]
 
                 else
@@ -2139,6 +2197,32 @@ viewChildren env depth parentId parentValue children =
         Lazy (Remote.Loaded []) ->
             statusRow (Html.span [ Internal.cls [ "klar-tree__status-text" ] ] [ Html.text env.t.emptyBranch ])
 
+        LazyKept freshness nodes ->
+            let
+                notice =
+                    Freshness.notice
+                        { locale = env.config.locale
+                        , zone = env.config.zone
+                        , onRetry = Maybe.map (\toApp -> toApp parentValue) env.config.onRetry
+                        , inline = True
+                        }
+                        freshness
+            in
+            case freshness of
+                Freshness.Stale _ ->
+                    Html.ul [ Internal.cls [ "klar-tree__group" ], Attr.attribute "role" "group" ]
+                        (Html.li
+                            [ Internal.cls [ "klar-tree__status" ]
+                            , Attr.attribute "role" "none"
+                            , Internal.styleVars [ ( "--klar-level", String.fromInt (depth + 1) ) ]
+                            ]
+                            [ notice ]
+                            :: [ viewGroup env False (depth + 1) (Just parentId) nodes ]
+                        )
+
+                _ ->
+                    viewGroup env False (depth + 1) (Just parentId) nodes
+
         _ ->
             viewGroup env False (depth + 1) (Just parentId) (childNodes children)
 
@@ -2170,6 +2254,9 @@ terminalsOf (Node n) =
             own
 
         Lazy (Remote.Loaded nodes) ->
+            List.concatMap terminalsOf nodes
+
+        LazyKept _ nodes ->
             List.concatMap terminalsOf nodes
 
         Lazy _ ->
