@@ -25,6 +25,13 @@ with `headingLevel`, so that the title fits the outline of the page (see
 the body, for tables and lists that go edge to edge; `accent`, `sunken` and
 `raised` change the look.
 
+A card that shows one piece of remote data takes its body from
+[Klar.RemoteView](Klar-RemoteView): the loading skeleton, the failure with a
+retry, and old or refreshing data, without a `case` of your own.
+
+    Card.view [ Card.title "Order 1042" ]
+        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+
 
 # View
 

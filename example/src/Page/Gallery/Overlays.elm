@@ -30,6 +30,7 @@ import Klar.Modal as Modal
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Popover as Popover
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.RemoteView as RemoteView
 import Klar.Search as Search
 import Klar.Select as Select
 import Klar.Shortcut as Shortcut exposing (Shortcut)
@@ -1882,21 +1883,21 @@ drawerRightView locale model =
             ]
         ]
         model.drawerRight
-        [ case model.drawerData of
-            Remote.Loaded loaded ->
-                Layout.stack [ Layout.gap 5 ] [ orderDetails locale loaded, workflow model ]
-
-            Remote.Failed problem ->
-                ErrorState.view [ ErrorState.compact, ErrorState.onRetry RetryDrawer, ErrorState.locale locale ] problem
-
-            _ ->
-                Layout.stack [ Layout.gap 5 ]
-                    [ Spinner.view [ Spinner.size Small, Spinner.label "Loading the order ..." ]
-                    , Skeleton.line 35
+        (RemoteView.view
+            [ RemoteView.locale locale
+            , RemoteView.onRetry RetryDrawer
+            , RemoteView.loadingLabel "Loading the order ..."
+            , RemoteView.skeleton
+                (Layout.stack [ Layout.gap 5 ]
+                    [ Skeleton.line 35
                     , Skeleton.lines 4
                     , Skeleton.block 72
                     ]
-        ]
+                )
+            ]
+            model.drawerData
+            (\loaded -> [ Layout.stack [ Layout.gap 5 ] [ orderDetails locale loaded, workflow model ] ])
+        )
 
 
 {-| The actions of the order. Pressing one replaces or disables the button that

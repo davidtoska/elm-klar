@@ -23,6 +23,25 @@ you writing the four cases each time.
 
     Table.rows model.orders
 
+**Refreshing and old data.** After the first load most of what a screen shows is
+data you already have: it is refreshed, or the refresh failed and what is on the
+screen is old. Two functions carry that, and every component draws it (the data
+stays, dimmed and busy while it is refreshed; "Old data from 14:05" with a retry
+when the refresh failed):
+
+    -- the request leaves
+    ( { model | orders = Remote.refresh model.orders }, fetchOrders )
+
+    -- the answer comes back, good or bad; `at` is when it came
+    GotOrders result at ->
+        ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
+
+    -- one notice for the whole page
+    Alert.stale [] Refresh (Remote.staleIn "orders" model.orders)
+
+Read the data with `toMaybe`, `withDefault` or `map`, which see refreshed data too.
+A `case` of your own on a `Remote` needs a branch for `Kept` (or `toMaybe`).
+
 A `Problem` says what went wrong in terms that decide what to tell the user: a
 `Kind` (whether trying again could help), an optional title, explanation and
 code. Turn your own error type into one with `problem` and a `Kind`, and

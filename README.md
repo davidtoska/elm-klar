@@ -161,7 +161,7 @@ Some of the pure modules are useful on their own:
 * `Klar.Search`: search that ignores case and diacritics and ranks results.
 * `Klar.Validate`: composable validators with messages in two languages.
 * `Klar.Rule`: a tree of conditions, evaluated against your own records, with JSON.
-* `Klar.Remote`: `NotAsked | Loading | Loaded a | Failed Problem`.
+* `Klar.Remote`: `NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`.
 
 ## The showcase
 

@@ -378,8 +378,39 @@ Table.view TableMsg [ Table.columns columns, Table.rows model.orders, Table.onRe
 Loading, the failure with a retry button and the empty state are drawn by the
 table. The texts of a problem are chosen when it is drawn, in the language of the
 component, so a language switch changes a failure that is already on the screen.
-When you refresh data that is already there, keep the old `Loaded` and add
-`Table.refreshing True`: the rows stay, dimmed.
+
+**Refreshing, and old data when a refresh fails.** Two lines carry it, and every data
+component (`Table`, `Stat`, `Chart`, `Timeline`, `Tree`, `Select`, `MultiSelect`,
+`Autocomplete`, `ListItem.remote`, the palette) draws it with no attribute: the data
+stays on the screen, dimmed and busy while it is refreshed, and marked "Old data from
+14:05" with a retry when the last refresh failed.
+
+```elm
+-- the request leaves (the old rows stay)
+( { model | orders = Remote.refresh model.orders }, fetchOrders )
+
+-- the answer comes back, good or bad; `at` is the time it came (Time.now, or your clock)
+GotOrders result at ->
+    ( { model | orders = Remote.refreshWith model.orders (Result.mapError toProblem result) at }, Cmd.none )
+
+-- one notice for the page: "The last refresh failed. Showing the previous data for: orders."
+Alert.stale [] Reload (List.concat [ Remote.staleIn "orders" model.orders, Remote.staleIn "figures" model.figures ])
+```
+
+The time is shown in the zone you give the component (`Table.zone model.zone`; UTC
+by default). Read the data with `Remote.toMaybe`, `withDefault` or `map`: they see
+refreshed data too. A `case` of your own on a `Remote` needs a branch for `Kept`.
+`Remote.refresh` on nothing is `Loading`; for a new question (another customer, another
+period) set `Loading` yourself.
+
+**The body of a card, drawer or dialog.** `RemoteView.view` is the loading skeleton (read
+out to screen readers), the failure with a retry, and old or refreshing data, so you write
+only what the data looks like:
+
+```elm
+Drawer.view DrawerMsg [ Drawer.title "Order 1042" ] model.drawer
+    (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+```
 
 **Dialogs, drawers, toasts and the palette.** Each has a `State` in your model and a
 `view` that returns an `Overlay`. Give the list of them to the page; the layer does

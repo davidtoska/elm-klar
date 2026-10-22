@@ -1061,10 +1061,9 @@ RuleBuilder.view BuilderMsg
 
 Table.view TableMsg
     [ Table.columns columns
-    , Table.rows (Remote.Loaded orders)
+    , Table.rows (Remote.refresh (Remote.Loaded orders)) -- dimmed while counting
     , Table.rowFilter (Rule.matches today orderFields model.rule)
     , Table.activeExternalFilters (Rule.conditionCount model.rule)
-    , Table.refreshing model.counting
     , Table.onResetFilters ResetAll
     ]
     model.table"""

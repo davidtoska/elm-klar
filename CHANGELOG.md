@@ -32,6 +32,22 @@ The first release.
   one state that owns every field's value, knows when it is dirty, loads and returns a
   record, and ties problems from the server to fields. Text, number, one choice, several
   choices and switches so far. `Select.mapOption` gives an option another kind of value.
+- Refreshing and old data (see `design/STALE-DATA.md`). `Remote` has a fifth state,
+  `Kept`, made only by `Remote.refresh` (the request leaves: the data stays) and
+  `Remote.refreshWith` (the answer, good or bad, with its time), so "refreshing, showing
+  the old data" and "refresh failed, showing old data from 14:05" are one line each in an
+  application. `Table`, `Stat`, `Chart`, `Timeline`, `Tree`, `Select`, `MultiSelect`,
+  `Autocomplete`, `ListItem.remote` and the command palette draw it with no attribute (the
+  data stays, dimmed and busy while refreshing; a calm "Old data from 14:05" with a retry
+  and a polite announcement when it is old; texts in English and Norwegian, the time in the
+  component's new `zone`). `Klar.RemoteView` is the body of a card, dialog or drawer: the
+  skeleton that screen readers hear, the failure with a retry, old and refreshing data.
+  `Alert.stale` is the one notice for a page, `Remote.staleIn` names what is old. `Table.refreshing`
+  is gone (use `Remote.refresh`).
+- Attributes no longer cancel each other: `Chart.loading`, `Stat.loading` and
+  `Timeline.loading` only add to what `remote` and `failed` say, whatever the order (a
+  `loading False` after `remote` used to hide the loading state and the failure). The
+  command palette no longer says "No results" while a remote section is still on its way.
 - An icon library of 500 line icons in one style (24 by 24 grid, 2 pixel stroke, round
   ends), every one an Elm value that carries its own drawing: `Klar.Icon` has the
   everyday icons and `Klar.Icon.Arrows`, `Business`, `Calendar`, `Communication`,
