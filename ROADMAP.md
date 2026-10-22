@@ -95,6 +95,46 @@ A component joins Klar only when it can say yes to all of these:
   nearly do.
 - A phase is finished before the next one starts, except where it says otherwise.
 
+## Built ahead of the plan (October 2026)
+
+A first wave of components was built in parallel with Phase A, on top of the existing
+core and without touching it. Each was reviewed by a second pair of eyes (logic against an
+independent reference, accessibility, safety, API against the rules above) and fixed. None
+has been used in a real application yet, so the last admission question is still open for
+all of them, and the A0 second round should include them.
+
+| Roadmap row | Built as |
+|---|---|
+| B: Sortable | `Klar.Sortable` (pointer and keyboard, announcements; no subscription) |
+| B: Splitter / Resizable panels | `Klar.Splitter` |
+| B: `Link`, Kbd | `Klar.Link` (a typed target that cannot leave the application by accident), `Klar.Kbd` |
+| B: SplitButton, ButtonGroup, ToggleGroup | `Klar.SplitButton`, `Klar.ButtonGroup`, `Klar.ToggleGroup` |
+| B: Bulk action bar, Result pages, Leave-guard | `Klar.BulkBar`, `Klar.StatusPage`, `Klar.LeaveGuard` |
+| C: TreeSelect, Cascader, Transfer | `Klar.TreeSelect`, `Klar.Cascader`, `Klar.Transfer`, with `Klar.Picking` for the shared node |
+| D: Markdown parser and renderer, editor | `Klar.Markdown` (hand written, no new dependency), `Klar.MarkdownEditor` |
+| D: Diff viewer (text, JSON, records) | `Klar.Diff`, and `Klar.Compare` from Phase C. The read-only code block with highlighting is not built |
+| D: Permission matrix, Approval flow, Undo / redo | `Klar.PermissionMatrix`, `Klar.ApprovalFlow`, `Klar.History` |
+| F: Masked input, Currency input | `Klar.MaskedInput`, `Klar.Money` and `Klar.MoneyInput` (exact, in minor units) |
+| F: Recurring rule | `Klar.Recurrence`, `Klar.RecurrencePicker` (calendar dates only; time zones need a tz database that the official packages do not have) |
+
+Left for later on purpose, because they sit on the overlay layer of A8 and should be built
+on it: Popconfirm, HoverCard, Tour, the notification centre, `Menubar` and
+`NavigationMenu`. Kanban, the comment thread, the audit log with diffs and the conflict
+resolver build on `Sortable`, `Markdown` and `Diff` and can start now.
+
+Findings that belong to Phase A and A8 and are listed here so they are not lost:
+
+- Three id helpers say the same thing in three shapes: `Tree.nodeIds` and `Table.rowIds`
+  take `{ toKey, fromKey }`, `SideNav.keys` and `Picking.ids` take only `toKey`. One shared
+  shape would be simpler.
+- `Select.Popup` and `Picking.View` hold the same popup code twice, and neither checks
+  `isComposing`, so a key that confirms an IME composition can choose an option.
+- `Button.group` and `Klar.ButtonGroup` do the same thing, and `Text.kbd` and `Klar.Kbd`
+  overlap.
+- `Menu` cannot open with the first item highlighted from the keyboard, and `Tag` cannot name
+  its remove button differently, which the new components work around.
+- `Remote` has no stale state (all new data components say so in their admission answer).
+
 ## Technical rules
 
 - Official `elm/*` packages from the Elm team. The package depends on `core`, `html`,
