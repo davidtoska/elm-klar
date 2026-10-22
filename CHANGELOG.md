@@ -223,3 +223,10 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   table: it needs the keys of the matching rows only when the selection is as large as
   the matching rows, or when the user asks for them, and it counts the selected rows
   that a search or a filter hides only when the search or a filter leaves rows out.
+
+### Small fixes after A0 round 2
+
+- `Format.currency` no longer prints `USD645.15` (R2F-006): an ISO code with a well-known
+  symbol is written as the symbol (the table `Klar.Money` already uses), any other text
+  that ends in a letter is separated from the number by a non-breaking space in English.
+  Norwegian already did.

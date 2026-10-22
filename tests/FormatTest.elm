@@ -100,6 +100,9 @@ currencyTests =
         [ check "English puts the symbol first" "$1,234.50" (Format.currency Locale.en "$" 2 1234.5)
         , check "Norwegian puts the symbol last" ("1" ++ nbsp ++ "234,50" ++ nbsp ++ "kr") (Format.currency Locale.nb "kr" 2 1234.5)
         , check "negative amounts" (minus ++ "$3.00") (Format.currency Locale.en "$" 2 -3)
+        , check "a known code is written as its symbol" "$645.15" (Format.currency Locale.en "USD" 2 645.15)
+        , check "an unknown code gets a non-breaking space" ("CHF" ++ nbsp ++ "3,673.80") (Format.currency Locale.en "CHF" 2 3673.8)
+        , check "a known code in Norwegian" ("1" ++ nbsp ++ "234,50" ++ nbsp ++ "kr") (Format.currency Locale.nb "NOK" 2 1234.5)
         , check "no decimals" "JPY 1,500" (Format.currency Locale.en "JPY " 0 1500)
         , check "an amount that rounds to zero has no sign" "$0.00" (Format.currency Locale.en "$" 2 -0.001)
         ]
