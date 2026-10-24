@@ -2543,7 +2543,7 @@ findDef key defs =
 
 focusOn : String -> Cmd Msg
 focusOn key =
-    FormLayout.focusField key NoOp
+    Internal.focus key NoOp
 
 
 

@@ -6,6 +6,7 @@ controls, the validators and the form layout together.
 
 import Api.Types exposing (allPriorities, priorityLabel)
 import Html exposing (Html)
+import Klar
 import Klar.Button as Button
 import Klar.Card as Card
 import Klar.Checkbox as Checkbox
@@ -251,7 +252,7 @@ fieldLabels =
 {-| Every problem in the form right now, in the order of the fields. The text
 fields are checked with validators; the other controls know their own rules.
 -}
-errorsOf : Locale -> Model -> List Validate.Error
+errorsOf : Locale -> Model -> List Validate.Problem
 errorsOf lang order =
     let
         fromText =
@@ -456,13 +457,13 @@ update msg order =
         DismissStatus ->
             -- the close button goes with the message: focus moves to the button
             -- that sent the form
-            ( { order | status = FormLayout.Idle }, FormLayout.focusField submitId NoOp )
+            ( { order | status = FormLayout.Idle }, Klar.focus submitId NoOp )
 
         SimulateFailureToggled value ->
             ( { order | simulateFailure = value }, Cmd.none )
 
         FocusField fieldId ->
-            ( order, FormLayout.focusField fieldId NoOp )
+            ( order, Klar.focus fieldId NoOp )
 
 
 

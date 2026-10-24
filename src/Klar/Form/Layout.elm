@@ -1,6 +1,6 @@
 module Klar.Form.Layout exposing
     ( view, section, grid, fullRow, actions, stickyActions
-    , errorSummary, focusSummary, focusField
+    , errorSummary, focusSummary
     , Status(..), status, focusStatus
     , unsavedChanges, unsavedFlag
     , Attribute
@@ -36,6 +36,7 @@ the values and disappear as the fields are fixed. The first part of each triple
 is the DOM id of the control, so the control gets the same `id`.
 
     import Html exposing (Html)
+    import Klar
     import Klar.Button as Button
     import Klar.Form.Layout as FormLayout
     import Klar.Layout as Layout
@@ -63,7 +64,7 @@ is the DOM id of the control, so the control gets the same `id`.
         | FocusField String
         | NoOp
 
-    problems : Model -> List Validate.Error
+    problems : Model -> List Validate.Problem
     problems model =
         Validate.collect Locale.default
             [ ( "order-customer", [ Validate.required ], model.customer )
@@ -158,7 +159,7 @@ a submit, so a form needs its `onSubmit`. Enter in a field sends it too, also
 while a request is running, so ignore it then. When there are problems, show
 them and move the focus to the summary, where a screen reader reads them; each
 problem is a button that sends `FocusField` with the id of its control, which
-`focusField` turns into the focus. When there are none, start the request
+`Klar.focus` turns into the focus. When there are none, start the request
 (`sendOrder` is your own function, this package has no HTTP) and answer the
 status with `Succeeded` or `Failed` when it comes back.
 
@@ -180,7 +181,7 @@ status with `Succeeded` or `Failed` when it comes back.
                     )
 
             FocusField fieldId ->
-                ( model, FormLayout.focusField fieldId NoOp )
+                ( model, Klar.focus fieldId NoOp )
 
             Retry ->
                 ( { model | status = FormLayout.Submitting }
@@ -225,7 +226,7 @@ are English; `FormLayout.locale Locale.nb` makes them Norwegian.
 
 # Problems after a submit
 
-@docs errorSummary, focusSummary, focusField
+@docs errorSummary, focusSummary
 
 
 # The state of the submit
@@ -388,7 +389,7 @@ labels value =
 
 
 {-| What a click on a problem in the error summary sends: the DOM id of its
-field. Handle it with `focusField` (`errorSummary`). Without this each problem
+field. Handle it with `Klar.focus` (`errorSummary`). Without this each problem
 is a plain link to `#<field id>`, which an application built with
 `Browser.application` receives as a URL request; always give it.
 -}
@@ -410,7 +411,7 @@ onRetry msg =
 {-| Shows a close button on the success and failure messages and sends this
 message when it is pressed (`status`). The button goes away with the message, so
 in the update that handles it move focus to a control that makes sense (the
-submit button, `focusField`); otherwise keyboard focus falls back to the page.
+submit button, with `Klar.focus`); otherwise keyboard focus falls back to the page.
 -}
 onDismiss : msg -> Attribute msg
 onDismiss msg =
@@ -605,20 +606,6 @@ stickyActions children =
 -- FOCUS
 
 
-{-| Moves keyboard focus to the element with this DOM id, normally a control
-(the `id` you gave it), and scrolls it into view. The message is sent when it is
-done, also when no element has that id. Use it to answer the message of
-`onFocusField`, with a message that does nothing:
-
-    FocusField fieldId ->
-        ( model, FormLayout.focusField fieldId NoOp )
-
--}
-focusField : String -> msg -> Cmd msg
-focusField fieldId done =
-    Internal.focus fieldId done
-
-
 {-| Moves focus to the error summary of the form with this id (the one given to
 `FormLayout.id`), so that a screen reader reads it. Call it in the update that finds
 problems on a submit, after the problems are in the model. The message is sent
@@ -641,7 +628,7 @@ summaryId formId =
 {-| A red message at the top of the form that says how many problems there are
 ("The form has 2 errors", then "Fix the problems below before you continue.")
 and lists them, one line each. Nothing is drawn for an empty list. A problem is
-a `field`, the DOM id of its control, and a `message`; the `Validate.Error`
+a `field`, the DOM id of its control, and a `message`; the `Validate.Problem`
 records from [Klar.Validate](Klar-Validate) fit. Each line is a button that
 sends `onFocusField` with the id of its field (a plain link to `#<field id>`
 when there is no `onFocusField`), and the box itself can take focus

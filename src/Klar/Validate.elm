@@ -1,5 +1,5 @@
 module Klar.Validate exposing
-    ( Validator, Error, run, firstError, collect, errorFor
+    ( Validator, Problem, run, firstError, collect, errorFor
     , required, minLength, maxLength, email, phone, norwegianPhone, integerBetween, sameAs, digits, url, oneOf, date, notInFuture
     , all, when, withMessage, custom, customWith
     , parseDate
@@ -33,16 +33,20 @@ in the order given:
         , ( "customer-email", [ Validate.required, Validate.email ], model.email )
         ]
 
-The `field` of an `Error` is the DOM id of the control, so
+The `field` of a `Problem` is the DOM id of the control, so
 [`FormLayout.errorSummary`](Klar-Form-Layout) can move focus to it.
 
-The messages are built in; use `withMessage` to say it your way. Lengths are
-counted the way Elm counts them (`String.length`), in UTF-16 units.
+The messages are built in; use `withMessage` to say it your way, and numbers in
+them are written as the locale writes them ("100 000" in Norwegian). The
+length, digit and number checks look at the text without the spaces around it,
+as a form saves it, and a length is counted in characters as people see them: an
+emoji or a letter with a mark counts as one, as a database counts it, not as the
+two UTF-16 units of `String.length`.
 
 
 # Running validators
 
-@docs Validator, Error, run, firstError, collect, errorFor
+@docs Validator, Problem, run, firstError, collect, errorFor
 
 
 # Checks
@@ -79,7 +83,7 @@ type Validator
 {-| A problem found in a field: the DOM id of the control (`field`) and what to
 tell the user (`message`).
 -}
-type alias Error =
+type alias Problem =
     { field : String
     , message : String
     }
@@ -121,10 +125,10 @@ firstError locale validators value =
                     firstError locale rest value
 
 
-{-| Validates several fields. Returns at most one `Error` per field (the first
+{-| Validates several fields. Returns at most one `Problem` per field (the first
 problem), in the order the fields were given.
 -}
-collect : Locale -> List ( String, List Validator, String ) -> List Error
+collect : Locale -> List ( String, List Validator, String ) -> List Problem
 collect locale fields =
     List.filterMap
         (\( field, validators, value ) ->
@@ -140,10 +144,10 @@ under the field.
     Validate.errorFor "customer-email" errors -- Maybe String
 
 -}
-errorFor : String -> List Error -> Maybe String
-errorFor field errors =
-    errors
-        |> List.filter (\error -> error.field == field)
+errorFor : String -> List Problem -> Maybe String
+errorFor field found =
+    found
+        |> List.filter (\problem -> problem.field == field)
         |> List.head
         |> Maybe.map .message
 
@@ -243,17 +247,18 @@ required =
         )
 
 
-{-| At least this many characters.
+{-| At least this many characters, counted as people see them (an emoji is
+one), without the spaces around the text.
 -}
 minLength : Int -> Validator
 minLength n =
     optional
         (\locale value ->
-            if String.length value < n then
+            if characters value < n then
                 Just
                     (Locale.pick locale
-                        { nb = "Må være minst " ++ String.fromInt n ++ " tegn"
-                        , en = "Must be at least " ++ String.fromInt n ++ " characters"
+                        { nb = "Må være minst " ++ Format.int locale n ++ " tegn"
+                        , en = "Must be at least " ++ Format.int locale n ++ " characters"
                         }
                     )
 
@@ -262,23 +267,32 @@ minLength n =
         )
 
 
-{-| At most this many characters.
+{-| At most this many characters, counted as people see them (an emoji is one,
+as a database column counts it), without the spaces around the text.
 -}
 maxLength : Int -> Validator
 maxLength n =
     optional
         (\locale value ->
-            if String.length value > n then
+            if characters value > n then
                 Just
                     (Locale.pick locale
-                        { nb = "Kan ikke være lengre enn " ++ String.fromInt n ++ " tegn"
-                        , en = "Must be at most " ++ String.fromInt n ++ " characters"
+                        { nb = "Kan ikke være lengre enn " ++ Format.int locale n ++ " tegn"
+                        , en = "Must be at most " ++ Format.int locale n ++ " characters"
                         }
                     )
 
             else
                 Nothing
         )
+
+
+{-| The number of characters of the trimmed text: Unicode characters, so an emoji
+is one (`String.length` counts UTF-16 units, and would count it as two).
+-}
+characters : String -> Int
+characters value =
+    String.foldl (\_ n -> n + 1) 0 (String.trim value)
 
 
 {-| A plausible email address: one `@`, a local part, and a domain with at least
@@ -356,8 +370,8 @@ integerBetween low high =
 integerMessage : Locale -> Int -> Int -> String
 integerMessage locale low high =
     Locale.pick locale
-        { nb = "Må være et heltall mellom " ++ String.fromInt low ++ " og " ++ String.fromInt high
-        , en = "Must be a whole number between " ++ String.fromInt low ++ " and " ++ String.fromInt high
+        { nb = "Må være et heltall mellom " ++ Format.int locale low ++ " og " ++ Format.int locale high
+        , en = "Must be a whole number between " ++ Format.int locale low ++ " and " ++ Format.int locale high
         }
 
 
@@ -381,8 +395,10 @@ sameAs other =
 
 
 {-| Exactly this many digits and nothing else, like an organisation number
-(`digits 9`). Spaces and dashes are not ignored: show the user the shape you
-want, or tidy the text before it gets here.
+(`digits 9`). Spaces around the text are ignored, as a form trims what it saves;
+spaces and dashes inside are not: show the user the shape you want, or use
+[Klar.MaskedInput](Klar-MaskedInput) (`Spec.masked` in a form), which writes the
+groups for the user.
 
     Validate.run Locale.en (Validate.digits 9) "91234567" -- Just "Enter 9 digits"
 
@@ -391,7 +407,7 @@ digits : Int -> Validator
 digits n =
     optional
         (\locale value ->
-            if String.length value == n && String.all Char.isDigit value then
+            if String.length (String.trim value) == n && String.all Char.isDigit (String.trim value) then
                 Nothing
 
             else

@@ -6,6 +6,7 @@ summary, the status of a submit and the reminder of unsaved changes.
 
 import Dict exposing (Dict)
 import Html exposing (Html)
+import Klar
 import Klar.Button as Button
 import Klar.Form.Layout as FormLayout
 import Klar.Layout as Layout
@@ -103,7 +104,7 @@ statusDemoId =
 
 {-| The problems of the small form, one per field.
 -}
-miniErrors : Locale -> Mini -> List Validate.Error
+miniErrors : Locale -> Mini -> List Validate.Problem
 miniErrors lang mini =
     Validate.collect lang
         [ ( "mini-name", [ Validate.required ], mini.name )
@@ -169,7 +170,7 @@ update msg model =
             )
 
         FocusField fieldId ->
-            ( model, FormLayout.focusField fieldId NoOp )
+            ( model, Klar.focus fieldId NoOp )
 
         StatusKindSelected kind ->
             ( { model | statusKind = Just kind, status = statusFor kind }, Cmd.none )
@@ -196,7 +197,7 @@ update msg model =
             -- the close button goes with the message: focus moves to the control
             -- that drives this example instead of falling back to the page
             ( { model | statusKind = Just "idle", status = FormLayout.Idle }
-            , FormLayout.focusField "status-kind" NoOp
+            , Klar.focus "status-kind" NoOp
             )
 
         UnsavedChanged value ->
@@ -326,7 +327,7 @@ formLayout lang model =
 
 -- update
 FocusField fieldId ->
-    ( model, FormLayout.focusField fieldId NoOp )"""
+    ( model, Klar.focus fieldId NoOp )"""
             }
             (FormLayout.view [ FormLayout.id "mini-form", FormLayout.onSubmit MiniSubmit, FormLayout.ariaLabel "Small form", FormLayout.stacked ]
                 [ if mini.submitted then
