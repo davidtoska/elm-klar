@@ -249,11 +249,16 @@ tableTests =
                 query [] "| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 |"
                     |> Query.find [ Selector.class "klar-md__table" ]
                     |> Query.has [ Selector.attribute (Attr.tabindex 0), Selector.attribute (Attr.attribute "aria-label" "Table"), Selector.attribute (Attr.attribute "role" "group") ]
-        , test "a small table is not a stop for the keyboard" <|
+        , test "a table of one short column is not a stop for the keyboard" <|
+            \_ ->
+                query [] "| a |\n|---|\n| 1 |"
+                    |> Query.find [ Selector.class "klar-md__table" ]
+                    |> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
+        , test "two short columns can overflow a narrow column, so that table is a stop for the keyboard" <|
             \_ ->
                 query [] "| a | b |\n|---|---|\n| 1 | 2 |"
                     |> Query.find [ Selector.class "klar-md__table" ]
-                    |> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
+                    |> Query.has [ Selector.attribute (Attr.tabindex 0) ]
         , test "the cells are inline Markdown" <|
             \_ ->
                 query [] "| a |\n|---|\n| **b** |"
@@ -265,7 +270,37 @@ tableTests =
 linkTests : Test
 linkTests =
     describe "links"
-        [ test "a link to another site is marked" <|
+        [ test "a link to a heading of the text goes to its id on the page" <|
+            \_ ->
+                query [] "- [Pricing](#pricing)\n\n# Pricing\n\nText."
+                    |> Query.find [ Selector.tag "a" ]
+                    |> Query.has [ Selector.attribute (Attr.href "#md-pricing") ]
+        , test "the link follows the prefix of the ids" <|
+            \_ ->
+                query [ Markdown.idPrefix "answer-3-" ] "[Pricing](#pricing)\n\n## Pricing"
+                    |> Query.find [ Selector.tag "a" ]
+                    |> Query.has [ Selector.attribute (Attr.href "#answer-3-pricing") ]
+        , test "a link written with other letters finds the heading by its id" <|
+            \_ ->
+                query [] "[Start](#Getting-Started)\n\n# Getting started"
+                    |> Query.find [ Selector.tag "a" ]
+                    |> Query.has [ Selector.attribute (Attr.href "#md-getting-started") ]
+        , test "a link to the second of two headings with the same text" <|
+            \_ ->
+                query [] "[again](#notes-1)\n\n# Notes\n\n# Notes"
+                    |> Query.find [ Selector.tag "a" ]
+                    |> Query.has [ Selector.attribute (Attr.href "#md-notes-1") ]
+        , test "a fragment that is not a heading of the text is left as it is" <|
+            \_ ->
+                query [] "[top](#top)\n\n# Pricing"
+                    |> Query.find [ Selector.tag "a" ]
+                    |> Query.has [ Selector.attribute (Attr.href "#top") ]
+        , test "a link to a heading inside a list or a quote" <|
+            \_ ->
+                query [] "[see](#deep)\n\n> # Deep"
+                    |> Query.find [ Selector.tag "a" ]
+                    |> Query.has [ Selector.attribute (Attr.href "#md-deep") ]
+        , test "a link to another site is marked" <|
             \_ ->
                 query [] "[docs](https://example.com)"
                     |> Query.find [ Selector.tag "a" ]

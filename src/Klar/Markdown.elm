@@ -48,8 +48,11 @@ boxes that screen readers announce), fenced code (```` ``` ```` and `~~~`, the l
 is kept as a label) and indented code, thematic breaks, tables with alignment,
 emphasis, strong text, `~~strikethrough~~`, code spans, links with titles,
 `<autolinks>`, plain `https://` addresses, images, backslash escapes and hard
-line breaks. Not understood, on purpose: HTML and `&entities;` (they are text),
-setext headings (`Title` over `=====`) and reference links, because both change
+line breaks. Character references become the characters they stand for: numbers
+(`&#8217;`, `&#x1F600;`) and the common names (`&amp;`, `&nbsp;`, `&mdash;`, `&aelig;`
+...), which is what text copied from a web page or a mail holds; a character is never
+markup, so `&lt;b&gt;` shows `<b>`, and a name that is not known stays as it was
+written. Not understood, on purpose: HTML (it is text), setext headings (`Title` over `=====`) and reference links, because both change
 what came before them and would make a half-written text jump around. A single
 `~` is text, so "about ~5 minutes" is not struck through.
 
@@ -70,7 +73,9 @@ closed; when a blank line follows it, it is finished, and an unclosed `**` is te
 `intro-1`) and preceded by `md-` (`md-intro`), for a table of contents (see
 `headings`). The prefix keeps text that someone else wrote from making an element
 with an id of the page, such as `main` or `app`, or one that a form field points at;
-`idPrefix` chooses another. A link to `"#" ++ id` changes the fragment of the address,
+`idPrefix` chooses another. A link in the text to one of its own headings, as a table of
+contents in the text writes it (`[Pricing](#pricing)`), goes to that heading: the
+prefix is put in front of it. A link to `"#" ++ id` changes the fragment of the address,
 which a single page application that routes by the fragment takes for a route:
 scroll to the heading with `Browser.Dom` instead. `headingOffset` moves the
 headings down for a document inside a page that has headings of its own: levels
@@ -131,6 +136,7 @@ import Klar.Markdown.Inline as Inline exposing (Inline(..))
 import Klar.Markdown.Parse as Parse exposing (Align(..), Block(..))
 import Klar.Markdown.Url as Url
 import Klar.Markdown.Utf16 as Utf16
+import Set exposing (Set)
 
 
 
@@ -268,6 +274,7 @@ type alias Config =
     , images : ImagePolicy
     , prefix : String
     , inLink : Bool
+    , anchors : Set String
     }
 
 
@@ -279,6 +286,7 @@ configure attributes =
         , images = NoImages
         , prefix = "md-"
         , inLink = False
+        , anchors = Set.empty
         }
         attributes
 
@@ -392,8 +400,17 @@ view attributes text =
 viewDocument : List Attribute -> Document -> Html msg
 viewDocument attributes (Document document) =
     let
-        config =
+        settings =
             configure attributes
+
+        -- the ids of the headings without the prefix, for links inside the text
+        config =
+            { settings
+                | anchors =
+                    collectHeadings "" document.blocks []
+                        |> List.map headingId
+                        |> Set.fromList
+            }
     in
     Html.div [ Internal.cls [ "klar-md" ] ]
         (viewBlocks config False document.blocks
@@ -610,8 +627,10 @@ viewCode config code =
 viewTable : Config -> { aligns : List Align, header : List (List Inline), rows : List (List (List Inline)) } -> Html msg
 viewTable config table =
     let
+        -- two short columns already overflow a narrow column: a tab stop too many is
+        -- cheaper than a table that the keyboard cannot scroll
         mayScroll =
-            List.length table.aligns >= 3 || List.any (\content -> String.length (Inline.plainText content) > 20) (List.concat (table.header :: table.rows))
+            List.length table.aligns >= 2 || List.any (\content -> String.length (Inline.plainText content) > 20) (List.concat (table.header :: table.rows))
 
         cell isHeader align content =
             (if isHeader then
@@ -740,7 +759,7 @@ viewLink config target children =
                     { config | inLink = True }
             in
             [ Html.a
-                ([ Attr.href target.destination
+                ([ Attr.href (linkAddress config kind target.destination)
                  , Internal.cls
                     [ "klar-md__link"
                     , if kind == Url.External then
@@ -783,6 +802,35 @@ viewLink config target children =
                        )
                 )
             ]
+
+
+{-| The address a link goes to. A link to a heading of the same text (`[Intro](#intro)`,
+as a table of contents in the text writes it) goes to the id the heading has on the
+page, with the prefix: `#md-intro`. The fragment is matched as it is and, failing
+that, as the id that a heading with these words would get (`#Getting-Started` finds
+`getting-started`). Other addresses are left as they are.
+-}
+linkAddress : Config -> Url.Kind -> String -> String
+linkAddress config kind destination =
+    if kind == Url.Fragment then
+        let
+            fragment =
+                String.dropLeft 1 destination
+
+            slugged =
+                Parse.slug fragment
+        in
+        if fragment /= "" && Set.member fragment config.anchors then
+            "#" ++ config.prefix ++ fragment
+
+        else if fragment /= "" && Set.member slugged config.anchors then
+            "#" ++ config.prefix ++ slugged
+
+        else
+            destination
+
+    else
+        destination
 
 
 viewImage : Config -> { source : String, title : String, alt : String } -> Html msg
