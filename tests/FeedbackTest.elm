@@ -519,6 +519,16 @@ avatarTests =
             \_ ->
                 Avatar.group [] [ Avatar.entry "Grace Hopper" |> Avatar.withImage "/g.jpg", Avatar.entry "Ada Lovelace" ]
                     |> howMany [ cls "klar-avatar__image" ] 1
+        , test "the keyboard reaches the +N bubble, and its tip lists the hidden names" <|
+            \_ ->
+                Avatar.group [ Avatar.maxShown 1 ] [ Avatar.entry "Ada Lovelace", Avatar.entry "Grace Hopper", Avatar.entry "Alan Turing" ]
+                    |> howMany
+                        [ cls "klar-avatar--more"
+                        , attr "data-tip" "Grace Hopper, Alan Turing"
+                        , Selector.attribute (Attr.tabindex 0)
+                        , attr "aria-label" "2 more: Grace Hopper, Alan Turing"
+                        ]
+                        1
         , test "a blank name gets the neutral look" <|
             \_ -> Avatar.view [] "" |> howMany [ cls "klar-avatar--neutral" ] 1
         ]

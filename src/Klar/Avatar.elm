@@ -79,6 +79,7 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme exposing (Size(..))
+import Klar.Tooltip as Tooltip
 
 
 {-| A setting of an avatar. Make them with the functions below and pass a list
@@ -307,7 +308,8 @@ withImage =
 
 {-| Overlapping avatars for a list of entries, with a "+N" bubble for those that
 do not fit (see `maxShown`). The tooltip and the accessible name of the bubble
-list the names that are hidden, up to 12 of them. The group as a whole has an
+list the names that are hidden, up to 12 of them; the keyboard reaches the bubble
+(one Tab stop), and its tooltip shows on focus too. The group as a whole has an
 accessible name that tells how many avatars it holds, such as "3 avatars". An
 empty list shows nothing.
 
@@ -362,22 +364,23 @@ groupOf attributes entries =
 
             else
                 Html.span
-                    ([ Internal.cls [ "klar-avatar", "klar-avatar--" ++ config.scale, "klar-avatar--more" ]
-                     , Attr.title hiddenNames
-                     ]
-                        ++ (if config.decorative then
-                                [ Attr.attribute "aria-hidden" "true" ]
+                    (Internal.cls [ "klar-avatar", "klar-avatar--" ++ config.scale, "klar-avatar--more" ]
+                        :: (if config.decorative then
+                                [ Attr.title hiddenNames, Attr.attribute "aria-hidden" "true" ]
 
                             else
-                                [ Attr.attribute "role" "img"
-                                , Attr.attribute "aria-label"
-                                    (Format.int config.locale hiddenCount
-                                        ++ " "
-                                        ++ Locale.pick config.locale { nb = "til", en = "more" }
-                                        ++ ": "
-                                        ++ hiddenNames
-                                    )
-                                ]
+                                -- The keyboard reaches the bubble, and its tip lists the
+                                -- names that are folded into it (a title shows on hover only).
+                                Tooltip.attrsWith [ Tooltip.focusable ] hiddenNames
+                                    ++ [ Attr.attribute "role" "img"
+                                       , Attr.attribute "aria-label"
+                                            (Format.int config.locale hiddenCount
+                                                ++ " "
+                                                ++ Locale.pick config.locale { nb = "til", en = "more" }
+                                                ++ ": "
+                                                ++ hiddenNames
+                                            )
+                                       ]
                            )
                     )
                     [ Html.span [ Internal.cls [ "klar-avatar__initials" ], Attr.attribute "aria-hidden" "true" ]
