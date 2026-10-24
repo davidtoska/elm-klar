@@ -39,6 +39,104 @@ suite =
         , currencyTests
         , languageTests
         , renderTests
+        , sharedRuleTests
+        ]
+
+
+{-| The rules every stateful input follows: what the user types wins over
+`setValue`, the text and the message can be read, an IME composition is left alone,
+and Norwegian `10.000` is not quietly ten.
+-}
+sharedRuleTests : Test
+sharedRuleTests =
+    describe "the rules of every input"
+        [ test "setValue while the user is typing keeps their text and its amount" <|
+            \_ ->
+                after (typing price "12") fresh
+                    |> Result.map (MoneyInput.setValue (Just (nok 99900)))
+                    |> Result.map (\state -> ( MoneyInput.text Locale.en state, MoneyInput.value state |> Maybe.map Money.toMinor ))
+                    |> Expect.equal (Ok ( "12", Just 1200 ))
+        , test "setValue after the user has left the field shows the new amount" <|
+            \_ ->
+                after (typedAndLeft price "12") fresh
+                    |> Result.map (MoneyInput.setValue (Just (nok 99900)))
+                    |> expectValue (Just 99900)
+        , test "setValue in a field that has the focus but no typing yet shows the new amount" <|
+            \_ ->
+                after [ focusIn price ] fresh
+                    |> Result.map (MoneyInput.setValue (Just (nok 99900)))
+                    |> expectValue (Just 99900)
+        , test "text is the written amount in the language" <|
+            \_ ->
+                fresh
+                    |> MoneyInput.setValue (Just (nok 123450))
+                    |> MoneyInput.text Locale.nb
+                    |> Expect.equal ("1" ++ nbsp ++ "234,50")
+        , test "text keeps text that is not an amount as it was typed" <|
+            \_ ->
+                after (typedAndLeft price "12,3,4") fresh
+                    |> Result.map (MoneyInput.text Locale.en)
+                    |> Expect.equal (Ok "12,3,4")
+        , test "problem is the message the field shows" <|
+            \_ ->
+                after (typedAndLeft limited "1") fresh
+                    |> Result.map (MoneyInput.problem limited)
+                    |> Expect.equal (Ok (Just ("Must be between 10.00 and 5,000.00" ++ nbsp ++ "NOK")))
+        , test "problem judges by the limits it is given, also for an amount the application put in" <|
+            \_ ->
+                fresh
+                    |> MoneyInput.setValue (Just (nok -500))
+                    |> MoneyInput.problem price
+                    |> Expect.equal (Just "Must not be negative")
+        , test "problem is Nothing for a good amount" <|
+            \_ ->
+                after (typedAndLeft limited "100") fresh
+                    |> Result.map (MoneyInput.problem limited)
+                    |> Expect.equal (Ok Nothing)
+        , test "clear empties the field and forgets the visit" <|
+            \_ ->
+                after (typedAndLeft price "12") fresh
+                    |> Result.map MoneyInput.clear
+                    |> Result.map (\state -> ( MoneyInput.value state, MoneyInput.isTouched state ))
+                    |> Expect.equal (Ok ( Nothing, False ))
+        , test "the Enter that ends an IME composition does not write the amount" <|
+            \_ ->
+                after (typing price "12") fresh
+                    |> Result.andThen
+                        (event price
+                            inputOf
+                            (Event.custom "keydown"
+                                (Encode.object
+                                    [ ( "key", Encode.string "Enter" )
+                                    , ( "isComposing", Encode.bool True )
+                                    , ( "ctrlKey", Encode.bool False )
+                                    , ( "metaKey", Encode.bool False )
+                                    , ( "shiftKey", Encode.bool False )
+                                    , ( "altKey", Encode.bool False )
+                                    ]
+                                )
+                            )
+                        )
+                    |> Expect.err
+        , test "Norwegian 10.000 is refused as unclear when the field is left, not read as ten" <|
+            \_ ->
+                after (typedAndLeft norwegian "10.000") fresh
+                    |> Expect.all
+                        [ expectValue Nothing
+                        , expectError norwegian (Just ("Uklart skilletegn: skriv tusener som 10" ++ nbsp ++ "000 og desimaler som 10,50"))
+                        ]
+        , test "Norwegian 10.5 is still ten and a half" <|
+            \_ ->
+                after (typedAndLeft norwegian "10.5") fresh
+                    |> expectValue (Just 1050)
+        , test "setCurrency reads in the language that setLimits gave" <|
+            \_ ->
+                fresh
+                    |> MoneyInput.setLimits norwegian
+                    |> MoneyInput.setValue (Just (nok 10050))
+                    |> MoneyInput.setCurrency Money.jpy
+                    |> MoneyInput.text Locale.nb
+                    |> Expect.equal "100,50"
         ]
 
 
@@ -661,9 +759,9 @@ stateTests =
             \_ ->
                 Ok (MoneyInput.setValue (Just (nok 123450)) fresh)
                     |> Expect.all [ expectShown price "1,234.50", expectValue (Just 123450) ]
-        , test "setValue throws away text that was being typed" <|
+        , test "setValue throws away text that is not an amount, once the field was left" <|
             \_ ->
-                after (typing price "abc") fresh
+                after (typedAndLeft price "abc") fresh
                     |> Result.map (MoneyInput.setValue (Just (nok 500)))
                     |> Expect.all [ expectShown price "5.00", expectError price Nothing, expectValid True ]
         , test "setValue Nothing empties the field and keeps the currency" <|
@@ -702,13 +800,13 @@ stateTests =
                     |> Expect.equal False
         , test "the limits seen while typing stay until the field sees others" <|
             \_ ->
-                after (typing limited "20") fresh
+                after (typedAndLeft limited "20") fresh
                     |> Result.map (MoneyInput.setValue (Just (nok 600000)))
                     |> expectValid False
-        , test "reset empties the field and forgets the visit, but keeps the limits and the currency" <|
+        , test "clear empties the field and forgets the visit, but keeps the limits and the currency" <|
             \_ ->
                 after (typedAndLeft limited "6000") (MoneyInput.init "price" Money.usd)
-                    |> Result.map MoneyInput.reset
+                    |> Result.map MoneyInput.clear
                     |> Result.map (\state -> ( MoneyInput.value state, MoneyInput.isTouched state, MoneyInput.currencyOf state ))
                     |> Expect.equal (Ok ( Nothing, False, Money.usd ))
         , test "touch counts the field as visited, without changing anything else" <|

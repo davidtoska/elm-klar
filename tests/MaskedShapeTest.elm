@@ -696,9 +696,18 @@ readingTests =
                     )
         , test "a character outside A to Z and 0 to 9 does not belong, whatever it looks like" <|
             \_ ->
-                [ "é", "ø", "Å", "٣", "１", "ß", "😀", "_", "#", "+" ]
+                [ "é", "ø", "Å", "٣", "²", "ß", "😀", "_", "#", "+" ]
                     |> List.map (\text -> (Shape.read postalNo text).rejected /= Nothing)
                     |> Expect.equal (List.repeat 10 True)
+        , test "the full-width digits and letters of an IME are the ordinary ones" <|
+            \_ ->
+                Expect.equal ( "0150", Nothing )
+                    (let
+                        reading =
+                            Shape.read postalNo "０１５０"
+                     in
+                     ( reading.value, reading.rejected )
+                    )
         , test "the fixed characters of a pattern may be typed, and are dropped" <|
             \_ ->
                 Expect.equal ( "AB1234", Nothing )

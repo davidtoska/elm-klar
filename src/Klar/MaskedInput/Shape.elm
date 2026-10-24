@@ -138,7 +138,7 @@ read shape raw =
             { kept = [], count = 0, rejected = Nothing, slots = slotsOf shape }
 
         scanned =
-            String.foldl (scan shape) start raw
+            String.foldl (scan shape) start (String.map halfWidth raw)
     in
     { value = String.fromList (List.reverse scanned.kept)
     , rejected = scanned.rejected
@@ -866,3 +866,23 @@ postalPattern country =
 
         _ ->
             Nothing
+
+
+{-| The full-width forms of the ASCII digits, letters and signs that an IME types
+(`１２３`, `ＡＢ`), and its wide space, as the ordinary ones: the same kind of
+normalisation as writing letters in capitals.
+-}
+halfWidth : Char -> Char
+halfWidth c =
+    let
+        code =
+            Char.toCode c
+    in
+    if code >= 0xFF01 && code <= 0xFF5E then
+        Char.fromCode (code - 0xFEE0)
+
+    else if code == 0x3000 then
+        ' '
+
+    else
+        c

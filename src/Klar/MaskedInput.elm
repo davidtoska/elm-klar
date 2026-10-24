@@ -1,8 +1,8 @@
 module Klar.MaskedInput exposing
     ( view, Attribute
     , State, Msg, init, update
-    , Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, pattern
-    , value, text, setValue, reset, touch, isComplete, isValid, isTouched
+    , Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, pattern, setMask
+    , value, text, problem, setValue, clear, touch, isComplete, isValid, isTouched
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, size, disabled, readOnly, name
     , locale
@@ -47,7 +47,8 @@ attribute. The second is the `Mask`, which says what is accepted. The applicatio
 reads the identifier with `value`, which is `Nothing` until the identifier is
 complete and its check digits are right, and uses `isTouched` to show errors of its
 own only after the user has been in the field once. It reacts to changes by comparing
-`value` before and after `update`.
+`value` before and after `update`. `text` is what the field shows, and `problem` the
+message it shows, for an error summary of your own.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and `optionalText`
 are the common field attributes. They come with the field wrapper
@@ -60,14 +61,17 @@ error comes and goes.
 `postalCode "SE"`, `phone`, or a pattern of your own with `pattern "@@-####"`. A mask
 that can fail to be made (an unknown country, a pattern that makes no sense) gives
 `Maybe`, so the application knows at once, not when the user is in the field. Build
-the masks once, in `init`.
+the masks once, in `init`; `setMask` changes the mask of a field that is on the
+screen, such as the postal code of an address whose country changes.
 
 **What is typed is not changed behind the user's back.** Separators (spaces, hyphens,
 points, slashes, parentheses) can be typed anywhere or left out: the field puts them
 in the right places, and they are not part of the value. Letters are written in
-capitals. Nothing else is quietly dropped: a letter in a field for digits stays where
-it was typed, and the field says so at once. Text that is too long stays too, and is
-reported. `value` is `Nothing` until all of that is fixed.
+capitals, and the full-width digits and letters of an IME (`１２３`) count as the
+ordinary ones. Nothing else is quietly dropped: a letter in a field for digits stays
+where it was typed, and the field says so at once. Text that is too long stays too, and
+is reported. `value` is `Nothing` until all of that is fixed. While the user is typing,
+`setValue` leaves the field alone: what they type wins.
 
 **Errors.** The messages are specific: "The check digit is wrong", "An IBAN from NO
 has 15 characters (12 entered)", "Too short: 6 of 9 digits". An error that more typing
@@ -99,9 +103,11 @@ field keeps the text as typed and asks for the number without `(0)`.
 suits the mask (numeric for digits, telephone pad for a phone number) and without
 automatic capitals, corrections and spell checking. Identifiers read from left to
 right in every language, so the input is always left to right. Enter writes the
-identifier in its groups and still lets a surrounding form submit. Errors are announced
-when they appear, and a counter such as `6/9` next to the field (hidden from screen
-readers) shows how far the user has come.
+identifier in its groups and still lets a surrounding form submit; the Enter that ends
+an IME composition only picks the characters. Errors are announced when they appear,
+and a message does not change while the user types on (a value that is too long says
+how long it should be, not how long it is now). A counter such as `6/9` next to the
+field (hidden from screen readers) shows how far the user has come.
 
 The built-in texts (the errors) follow `locale`.
 
@@ -118,12 +124,12 @@ The built-in texts (the errors) follow `locale`.
 
 # Masks
 
-@docs Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, pattern
+@docs Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, pattern, setMask
 
 
 # The identifier
 
-@docs value, text, setValue, reset, touch, isComplete, isValid, isTouched
+@docs value, text, problem, setValue, clear, touch, isComplete, isValid, isTouched
 
 
 # Label, hint and error
@@ -148,6 +154,7 @@ import Html.Events as Events
 import Json.Decode as Decode
 import Klar.Field as Field
 import Klar.Internal as Internal
+import Klar.Internal.Composition as Composition
 import Klar.Locale as Locale exposing (Locale)
 import Klar.MaskedInput.Shape as Shape exposing (Checksum(..), Shape(..), Slot(..))
 import Klar.Theme as Theme exposing (Size(..))
@@ -218,7 +225,8 @@ norwegianPostalCode =
 around the code, are fine. It is for a country that is not fixed, such as the one in an
 address, and `postalCode "NO"` is the Norwegian mask too, so every country of the list
 works the same way; where the country is Norway, `norwegianPostalCode` has no `Nothing`
-to handle. `Nothing` for a country that is not in the list (Norway,
+to handle. When the country of the address changes, give the field the new mask with
+`setMask`. `Nothing` for a country that is not in the list (Norway,
 Sweden, Denmark, Finland, Iceland, Germany, Austria, Switzerland, Liechtenstein, the
 Netherlands, Belgium, Luxembourg, France, Spain, Italy, Portugal, Poland, Czechia,
 Slovakia, Estonia, the United States, Japan, Australia and New Zealand); the postal
@@ -293,6 +301,10 @@ type State
         , mask : Mask
         , text : String
         , touched : Bool
+
+        -- the user has typed since they came into the field, and has not left it
+        -- or pressed Enter yet: `setValue` leaves their text alone
+        , typing : Bool
         }
 
 
@@ -305,7 +317,27 @@ identifier, use `setValue`.
 -}
 init : String -> Mask -> State
 init id mask =
-    State { id = id, mask = mask, text = "", touched = False }
+    State { id = id, mask = mask, text = "", touched = False, typing = False }
+
+
+{-| Gives the field another mask and keeps its text, written again in the groups of
+the new mask (or kept as it is, with the message about it, when it does not fit). For
+a field whose rule depends on other data: the postal code of an address when its
+country changes. Whether the user has been in the field stays as it was.
+
+    CountryChanged country ->
+        case MaskedInput.postalCode country of
+            Just mask ->
+                ( { model | postal = MaskedInput.setMask mask model.postal }, Cmd.none )
+
+            Nothing ->
+                -- no fixed pattern for this country: a plain text field instead
+                ( model, Cmd.none )
+
+-}
+setMask : Mask -> State -> State
+setMask mask (State state) =
+    State { state | mask = mask, text = Shape.afterLeaving (shapeOf mask) state.text }
 
 
 {-| The identifier, or `Nothing` when the field is empty or what is in it is not a
@@ -331,34 +363,56 @@ value (State state) =
 
 {-| The text in the field, written in its groups (`NO93 8601 1117 947`), or exactly as
 typed while it holds a character that does not belong or an edit in the middle waits
-to be written.
+to be written. Together with `value` it tells an empty field from an unfinished one.
 -}
 text : State -> String
 text (State state) =
     state.text
 
 
+{-| The message the field shows under itself about what is in it, in the language of
+the attributes, or `Nothing`: "The check digit is wrong", "Too short: 6 of 9 digits".
+It follows the same timing as the field: an unfinished value has no message until the
+field is left (or `touch` is used). Pass the attributes you give to `view`; your own
+`error` is not part of it. For an error summary of your own:
+
+    MaskedInput.problem ibanAttributes (MaskedInput.touch model.iban)
+
+-}
+problem : List (Attribute msg) -> State -> Maybe String
+problem attributes (State state) =
+    builtInMessage (configure attributes).locale (State state)
+
+
 {-| Shows an identifier, or an empty field for `Nothing`. The text may be as it comes
 from a server (`NO9386011117947`) or as a person wrote it (`no93 8601 1117 947`); the
 field writes it in its groups. Whatever it is, nothing is dropped: if it has a character
 that does not belong, the field shows it as it is, with the message about it.
+
+While the user is typing in the field (they have typed since they came into it, and
+have not left it or pressed Enter yet), it changes nothing: what they type wins, and
+the application learns the result by comparing `value` before and after `update`.
 -}
 setValue : Maybe String -> State -> State
 setValue maybe (State state) =
-    case maybe of
-        Just identifier ->
-            State { state | text = Shape.afterLeaving (shapeOf state.mask) identifier }
+    if state.typing then
+        State state
 
-        Nothing ->
-            State { state | text = "" }
+    else
+        case maybe of
+            Just identifier ->
+                State { state | text = Shape.afterLeaving (shapeOf state.mask) identifier }
+
+            Nothing ->
+                State { state | text = "" }
 
 
 {-| Empties the field and forgets that the user has been in it (`isTouched` is
 `False` again), for example for a "Clear form" button.
 -}
-reset : State -> State
-reset (State state) =
-    State { state | text = "", touched = False }
+clear : State -> State
+clear (State state) =
+    State { state | text = "", touched = False, typing = False }
 
 
 {-| Counts the field as visited, as if the user had been in it and left, so that the
@@ -395,7 +449,7 @@ isValid (State state) =
 
 
 {-| `True` once the user has left the field or pressed Enter in it, or `touch` was
-used. Use it to show errors of your own only after the first visit. `reset` makes it
+used. Use it to show errors of your own only after the first visit. `clear` makes it
 `False` again.
 -}
 isTouched : State -> Bool
@@ -429,18 +483,18 @@ update msg (State state) =
     in
     case msg of
         Typed typed caret ->
-            ( State { state | text = Shape.afterTyping shape { typed = typed, caret = caret } }, Cmd.none )
+            ( State { state | text = Shape.afterTyping shape { typed = typed, caret = caret }, typing = True }, Cmd.none )
 
         Focused ->
             ( State state, Cmd.none )
 
         Blurred ->
             -- the field was left
-            ( State { state | text = Shape.afterLeaving shape state.text, touched = True }, Cmd.none )
+            ( State { state | text = Shape.afterLeaving shape state.text, touched = True, typing = False }, Cmd.none )
 
         Entered ->
             -- Enter: write the identifier in its groups, but the cursor stays
-            ( State { state | text = Shape.afterLeaving shape state.text, touched = True }, Cmd.none )
+            ( State { state | text = Shape.afterLeaving shape state.text, touched = True, typing = False }, Cmd.none )
 
 
 
@@ -626,18 +680,8 @@ view toMsg attributes (State state) =
             Shape.read shape state.text
 
         -- Built-in errors win over the application's own until they are fixed.
-        -- An error that more typing cannot fix shows at once; an unfinished value
-        -- waits until the field is left.
         builtIn =
-            Shape.issue shape reading
-                |> Maybe.andThen
-                    (\found ->
-                        if Shape.isFinal found || state.touched then
-                            Just (issueText config.locale found)
-
-                        else
-                            Nothing
-                    )
+            builtInMessage config.locale (State state)
 
         field =
             config.field
@@ -733,11 +777,12 @@ inputDecoder toMsg =
 
 
 {-| Enter writes the identifier in its groups, and is not cancelled: a surrounding
-form still submits.
+form still submits. The Enter that ends an IME composition is left to the input
+method.
 -}
 enterDecoder : msg -> Decode.Decoder ( msg, Bool )
 enterDecoder msg =
-    Internal.keyEvent
+    Composition.unlessComposing Internal.keyEvent
         |> Decode.andThen
             (\event ->
                 if event.key == "Enter" && not (event.ctrl || event.meta || event.alt) then
@@ -745,6 +790,26 @@ enterDecoder msg =
 
                 else
                     Decode.fail "unhandled key"
+            )
+
+
+{-| The message of the field itself, or `Nothing`. An error that more typing cannot
+fix shows at once; an unfinished value waits until the field is left.
+-}
+builtInMessage : Locale -> State -> Maybe String
+builtInMessage lang (State state) =
+    let
+        shape =
+            shapeOf state.mask
+    in
+    Shape.issue shape (Shape.read shape state.text)
+        |> Maybe.andThen
+            (\found ->
+                if Shape.isFinal found || state.touched then
+                    Just (issueText lang found)
+
+                else
+                    Nothing
             )
 
 
@@ -787,20 +852,29 @@ issueText lang found =
                     ("Too short: " ++ number details.have ++ " of at least " ++ number details.want ++ " " ++ unitText details.unit)
 
         Shape.TooLong details ->
+            -- shown at once and while the user types on, so it does not count what
+            -- is typed (it would be announced again at every key); the counter does
             if details.exact then
                 pick
-                    ("For lang: " ++ number details.have ++ " av " ++ number details.want ++ " " ++ unitText details.unit)
-                    ("Too long: " ++ number details.have ++ " of " ++ number details.want ++ " " ++ unitText details.unit)
+                    ("For lang: skal ha " ++ number details.want ++ " " ++ unitText details.unit)
+                    ("Too long: it has " ++ number details.want ++ " " ++ unitText details.unit)
 
             else
                 pick
-                    ("For lang: " ++ number details.have ++ " av maksimalt " ++ number details.want ++ " " ++ unitText details.unit)
-                    ("Too long: " ++ number details.have ++ " of at most " ++ number details.want ++ " " ++ unitText details.unit)
+                    ("For lang: maksimalt " ++ number details.want ++ " " ++ unitText details.unit)
+                    ("Too long: at most " ++ number details.want ++ " " ++ unitText details.unit)
 
         Shape.WrongIbanLength details ->
-            pick
-                ("Et IBAN-nummer fra " ++ details.country ++ " har " ++ number details.want ++ " tegn (" ++ number details.have ++ " skrevet)")
-                ("An IBAN from " ++ details.country ++ " has " ++ number details.want ++ " characters (" ++ number details.have ++ " entered)")
+            if details.have > details.want then
+                -- shown at once, while the user types on: no running count
+                pick
+                    ("For langt: et IBAN-nummer fra " ++ details.country ++ " har " ++ number details.want ++ " tegn")
+                    ("Too long: an IBAN from " ++ details.country ++ " has " ++ number details.want ++ " characters")
+
+            else
+                pick
+                    ("Et IBAN-nummer fra " ++ details.country ++ " har " ++ number details.want ++ " tegn (" ++ number details.have ++ " skrevet)")
+                    ("An IBAN from " ++ details.country ++ " has " ++ number details.want ++ " characters (" ++ number details.have ++ " entered)")
 
         Shape.UnknownIbanCountry country ->
             pick
@@ -808,9 +882,16 @@ issueText lang found =
                 (country ++ " is not an IBAN country")
 
         Shape.WrongNationalLength details ->
-            pick
-                ("Et nummer med +" ++ details.callingCode ++ " har " ++ number details.want ++ " siffer etter landkoden (" ++ number details.have ++ " skrevet)")
-                ("A number with +" ++ details.callingCode ++ " has " ++ number details.want ++ " digits after the country code (" ++ number details.have ++ " entered)")
+            if details.have > details.want then
+                -- shown at once, while the user types on: no running count
+                pick
+                    ("For langt: et nummer med +" ++ details.callingCode ++ " har " ++ number details.want ++ " siffer etter landkoden")
+                    ("Too long: a number with +" ++ details.callingCode ++ " has " ++ number details.want ++ " digits after the country code")
+
+            else
+                pick
+                    ("Et nummer med +" ++ details.callingCode ++ " har " ++ number details.want ++ " siffer etter landkoden (" ++ number details.have ++ " skrevet)")
+                    ("A number with +" ++ details.callingCode ++ " has " ++ number details.want ++ " digits after the country code (" ++ number details.have ++ " entered)")
 
         Shape.NeedsCountryCode ->
             pick

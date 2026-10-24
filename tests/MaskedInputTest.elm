@@ -37,6 +37,101 @@ suite =
         , leavingTests
         , stateTests
         , renderTests
+        , sharedRuleTests
+        ]
+
+
+{-| The rules every stateful input follows: what the user types wins over
+`setValue`, the message can be read for a summary, the mask can change, and an
+IME composition is left alone.
+-}
+sharedRuleTests : Test
+sharedRuleTests =
+    describe "the rules of every input"
+        [ test "setValue while the user is typing keeps their text" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 76" ] orgnr
+                    |> Result.map (MaskedInput.setValue (Just "123456785"))
+                    |> expectText "974 76"
+        , test "setValue after the user has left the field shows the new value" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 76", leave plain ] orgnr
+                    |> Result.map (MaskedInput.setValue (Just "974760673"))
+                    |> expectValue (Just "974760673")
+        , test "setValue after Enter shows the new value" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 76", pressKey plain "Enter" ] orgnr
+                    |> Result.map (MaskedInput.setValue (Just "974760673"))
+                    |> expectValue (Just "974760673")
+        , test "problem is the message the field shows" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 760 674" ] orgnr
+                    |> Result.map (MaskedInput.problem plain)
+                    |> Expect.equal (Ok (Just "The check digit is wrong"))
+        , test "problem waits for an unfinished value like the field does" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 76" ] orgnr
+                    |> Result.map (\state -> ( MaskedInput.problem plain state, MaskedInput.problem plain (MaskedInput.touch state) ))
+                    |> Expect.equal (Ok ( Nothing, Just "Too short: 5 of 9 digits" ))
+        , test "problem is in the language of the attributes" <|
+            \_ ->
+                after [ typeIn norwegian "974 760 674" ] orgnr
+                    |> Result.map (MaskedInput.problem norwegian)
+                    |> Expect.equal (Ok (Just "Kontrollsifferet er feil"))
+        , test "the message of a value that is too long does not change while the user types on" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 760 673 1" ] orgnr
+                    |> Result.andThen (\first -> typeIn plain "974 760 673 12" first |> Result.map (\second -> ( MaskedInput.problem plain first, MaskedInput.problem plain second )))
+                    |> Expect.equal (Ok ( Just "Too long: it has 9 digits", Just "Too long: it has 9 digits" ))
+        , test "clear empties the field and forgets the visit" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 76", leave plain ] orgnr
+                    |> Result.map MaskedInput.clear
+                    |> Result.map (\state -> ( MaskedInput.text state, MaskedInput.isTouched state ))
+                    |> Expect.equal (Ok ( "", False ))
+        , test "setMask writes the text in the groups of the new mask" <|
+            \_ ->
+                case MaskedInput.postalCode "SE" of
+                    Just swedish ->
+                        MaskedInput.init "postal" MaskedInput.norwegianPostalCode
+                            |> MaskedInput.setValue (Just "12345")
+                            |> MaskedInput.setMask swedish
+                            |> (\state -> ( MaskedInput.text state, MaskedInput.value state ))
+                            |> Expect.equal ( "123 45", Just "12345" )
+
+                    Nothing ->
+                        Expect.fail "SE has postal codes"
+        , test "setMask keeps whether the user has been in the field" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "0150", leave plain ] (MaskedInput.init "postal" MaskedInput.norwegianPostalCode)
+                    |> Result.map (MaskedInput.setMask MaskedInput.norwegianOrganisationNumber >> MaskedInput.isTouched)
+                    |> Expect.equal (Ok True)
+        , test "the Enter that ends an IME composition does nothing" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "974 76" ] orgnr
+                    |> Result.andThen
+                        (event plain
+                            (Event.custom "keydown"
+                                (Encode.object
+                                    [ ( "key", Encode.string "Enter" )
+                                    , ( "isComposing", Encode.bool True )
+                                    , ( "ctrlKey", Encode.bool False )
+                                    , ( "metaKey", Encode.bool False )
+                                    , ( "shiftKey", Encode.bool False )
+                                    , ( "altKey", Encode.bool False )
+                                    ]
+                                )
+                            )
+                        )
+                    |> Expect.err
+        , test "full-width digits from an IME count as digits" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "９７４７６０６７３" ] orgnr
+                    |> expectValue (Just "974760673")
+        , test "full-width digits are written as ordinary ones in the groups" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "９７４７６０６７３", leave plain ] orgnr
+                    |> expectText "974 760 673"
         ]
 
 
@@ -470,7 +565,7 @@ errorTests =
         , test "a number that is too long is shown at once" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 760 673 1" ] orgnr
-                    |> expectError plain (Just "Too long: 10 of 9 digits")
+                    |> expectError plain (Just "Too long: it has 9 digits")
         , test "the right number has no error" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 760 673", leave plain ] orgnr
@@ -486,7 +581,7 @@ errorTests =
         , test "an IBAN that is too long says so at once" <|
             \_ ->
                 after [ focusIn [], typeIn [] "NO93 8601 1117 9471" ] ibanField
-                    |> expectError [] (Just "An IBAN from NO has 15 characters (16 entered)")
+                    |> expectError [] (Just "Too long: an IBAN from NO has 15 characters")
         , test "an IBAN with wrong check digits" <|
             \_ ->
                 after [ focusIn [], typeIn [] "NO94 8601 1117 947" ] ibanField
@@ -582,7 +677,7 @@ languageTests =
         , test "too long" <|
             \_ ->
                 after [ typeIn norwegian "974 760 673 1" ] orgnr
-                    |> expectError norwegian (Just "For lang: 10 av 9 siffer")
+                    |> expectError norwegian (Just "For lang: skal ha 9 siffer")
         , test "the check digit" <|
             \_ ->
                 after [ typeIn norwegian "974 760 674" ] orgnr
@@ -798,7 +893,7 @@ stateTests =
         , test "reset empties the field and forgets the visit" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "974 760 673", leave plain ] orgnr
-                    |> Result.map MaskedInput.reset
+                    |> Result.map MaskedInput.clear
                     |> Result.map (\state -> ( MaskedInput.text state, MaskedInput.isTouched state ))
                     |> Expect.equal (Ok ( "", False ))
         , test "touch counts the field as visited" <|
