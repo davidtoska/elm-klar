@@ -8,15 +8,15 @@ import Klar.Internal as Internal
 
 
 {-| An id made from the label and the texts of the options. The first part is the
-label as far as it can be written in an id (a letter, a digit, `-` or `_`; the rest
-becomes `-`), so the id says what the group is. A label that has no such letter at
-all (`日本語`, or no label) reads `group` instead, and a number worked out from the
-whole text (the label and every option) follows, so that labels which look alike
-once the letters are gone still give different ids, and so do two groups with the
-same label and other options. Two groups with the same label and the same options on
-one page get the same id: give each an `id`.
+first 24 characters of the label in lowercase, written as an id (`Internal.sanitizeId`:
+letters, digits and `-` as they are, a space as `__`, any other character as its
+code), so the id says what the group is. A label of dashes only, or no label, reads
+`group` instead, and a number worked out from the whole text (the label and every
+option) follows, so that labels which start alike still give different ids, and so
+do two groups with the same label and other options. Two groups with the same label
+and the same options on one page get the same id: give each an `id`.
 
-    groupId "Order status" [ "Open", "Shipped" ] -- starts with klar-toggle-order-status- and ends with a number
+    groupId "Order status" [ "Open", "Shipped" ] -- starts with klar-toggle-order__status- and ends with a number
 
 -}
 groupId : String -> List String -> String
@@ -40,8 +40,8 @@ groupId label optionTexts =
 
 
 {-| A small, stable number for a text (two different texts are not likely to get the
-same one). It reads every character, so it also tells apart the texts that
-`sanitizeId` makes alike.
+same one). It reads every character, so it also tells apart the texts whose first 24
+characters are alike.
 -}
 checksum : String -> Int
 checksum text =

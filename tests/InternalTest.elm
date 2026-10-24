@@ -4,10 +4,14 @@ module InternalTest exposing (suite)
 -}
 
 import Expect
-import Fuzz
-import Html
+import Fuzz exposing (Fuzzer)
+import Html exposing (Html)
+import Html.Events as Events
+import Json.Decode
+import Json.Encode as Encode
 import Klar.Internal as Internal
-import Test exposing (Test, describe, fuzz, test)
+import Test exposing (Test, describe, fuzz, fuzz2, test)
+import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
 import Url
@@ -20,6 +24,237 @@ suite =
         , hasLatinLettersTests
         , normalizeTests
         , headingTests
+        , keyTests
+        , unhandledTests
+        , sanitizeIdTests
+        , focusChainTests
+        ]
+
+
+type Msg
+    = Saved
+    | Closed
+
+
+
+-- KEYS
+
+
+{-| A keydown with the given key and extra fields, as a browser sends it.
+-}
+keydown : String -> List ( String, Encode.Value ) -> ( String, Encode.Value )
+keydown key extra =
+    Event.custom "keydown"
+        (Encode.object
+            ([ ( "key", Encode.string key )
+             , ( "ctrlKey", Encode.bool False )
+             , ( "metaKey", Encode.bool False )
+             , ( "shiftKey", Encode.bool False )
+             , ( "altKey", Encode.bool False )
+             ]
+                ++ extra
+            )
+        )
+
+
+press : ( String, Encode.Value ) -> Html Msg -> Result String Msg
+press event html =
+    Query.fromHtml html |> Event.simulate event |> Event.toResult
+
+
+keyTests : Test
+keyTests =
+    let
+        field =
+            Html.input [ Internal.onKeys [ ( "Enter", Saved ), ( "Escape", Closed ) ] ] []
+
+        passive =
+            Html.div [ Internal.onKeysPassive [ ( "Enter", Saved ), ( "Escape", Closed ) ] ] []
+
+        composing =
+            [ ( "isComposing", Encode.bool True ) ]
+
+        safari =
+            [ ( "isComposing", Encode.bool False ), ( "keyCode", Encode.int 229 ) ]
+    in
+    describe "keys and input method composition"
+        [ test "Enter and Escape are acted on" <|
+            \_ -> Expect.equal ( Ok Saved, Ok Closed ) ( press (keydown "Enter" []) field, press (keydown "Escape" []) field )
+        , test "the Enter that confirms a composition is not" <|
+            \_ -> Expect.err (press (keydown "Enter" composing) field)
+        , test "the Escape that cancels a composition is not" <|
+            \_ -> Expect.err (press (keydown "Escape" composing) field)
+        , test "the Enter that ends a composition in Safari (key code 229) is not" <|
+            \_ -> Expect.err (press (keydown "Enter" safari) field)
+        , test "another key code is a plain key" <|
+            \_ -> Expect.equal (Ok Saved) (press (keydown "Enter" [ ( "isComposing", Encode.bool False ), ( "keyCode", Encode.int 13 ) ]) field)
+        , test "the passive bindings have the same guard" <|
+            \_ ->
+                Expect.equal ( Ok Saved, True, True )
+                    ( press (keydown "Enter" []) passive
+                    , Result.toMaybe (press (keydown "Enter" composing) passive) == Nothing
+                    , Result.toMaybe (press (keydown "Escape" safari) passive) == Nothing
+                    )
+        , test "a handled key prevents the default (a composing one sends nothing, so its default happens)" <|
+            \_ -> Query.fromHtml field |> Event.simulate (keydown "Enter" []) |> Event.expectPreventDefault
+        , test "keyEvent reads a composing key as nothing" <|
+            \_ ->
+                Html.div [ Events.on "keydown" (Internal.keyEvent |> Json.Decode.map (\_ -> Saved)) ] []
+                    |> press (keydown "a" composing)
+                    |> Expect.err
+        ]
+
+
+unhandledTests : Test
+unhandledTests =
+    let
+        dialog =
+            Html.div
+                [ Events.preventDefaultOn "keydown"
+                    (Internal.unhandled Internal.keyEvent
+                        |> Json.Decode.andThen
+                            (\event ->
+                                if event.key == "Escape" then
+                                    Json.Decode.succeed ( Closed, True )
+
+                                else
+                                    Json.Decode.fail "another key"
+                            )
+                    )
+                ]
+                []
+    in
+    describe "unhandled"
+        [ test "a key nothing inside took reaches the container" <|
+            \_ -> Expect.equal (Ok Closed) (press (keydown "Escape" [ ( "defaultPrevented", Encode.bool False ) ]) dialog)
+        , test "a key a control inside took does not" <|
+            \_ -> Expect.err (press (keydown "Escape" [ ( "defaultPrevented", Encode.bool True ) ]) dialog)
+        , test "an event without the field counts as not handled" <|
+            \_ -> Expect.equal (Ok Closed) (press (keydown "Escape" []) dialog)
+        ]
+
+
+
+-- IDS
+
+
+{-| The inverse of `sanitizeId`, to show that nothing is lost.
+-}
+readId : String -> String
+readId id =
+    readIdHelp (String.toList id) []
+
+
+readIdHelp : List Char -> List Char -> String
+readIdHelp chars done =
+    case chars of
+        [] ->
+            String.fromList (List.reverse done)
+
+        '_' :: '_' :: rest ->
+            readIdHelp rest (' ' :: done)
+
+        '_' :: rest ->
+            let
+                digits =
+                    List.filter Char.isHexDigit (takeUntilUnderscore rest)
+
+                code =
+                    List.foldl (\digit sum -> sum * 16 + hexValue digit) 0 digits
+            in
+            readIdHelp (List.drop (List.length digits + 1) rest) (Char.fromCode code :: done)
+
+        char :: rest ->
+            readIdHelp rest (char :: done)
+
+
+takeUntilUnderscore : List Char -> List Char
+takeUntilUnderscore chars =
+    case chars of
+        '_' :: _ ->
+            []
+
+        char :: rest ->
+            char :: takeUntilUnderscore rest
+
+        [] ->
+            []
+
+
+hexValue : Char -> Int
+hexValue digit =
+    if Char.isDigit digit then
+        Char.toCode digit - 48
+
+    else
+        Char.toCode (Char.toLower digit) - 87
+
+
+{-| Texts of ASCII, Norwegian letters, other scripts, an emoji and the characters
+the encoding uses itself.
+-}
+idText : Fuzzer String
+idText =
+    Fuzz.list (Fuzz.oneOf [ Fuzz.asciiChar, Fuzz.oneOfValues [ 'ø', 'Æ', 'å', 'é', '漢', 'Ж', '📦', ' ', '_', '-', '.', '#' ] ])
+        |> Fuzz.map String.fromList
+
+
+sanitizeIdTests : Test
+sanitizeIdTests =
+    describe "sanitizeId"
+        [ test "letters, digits and dashes stay as they are" <|
+            \_ -> Expect.equal "billing-address-2" (Internal.sanitizeId "billing-address-2")
+        , test "a space is two underscores" <|
+            \_ -> Expect.equal "Customer__name" (Internal.sanitizeId "Customer name")
+        , test "an underscore and a dot are written as their codes" <|
+            \_ -> Expect.equal [ "order_5f_id", "v1_2e_2" ] (List.map Internal.sanitizeId [ "order_id", "v1.2" ])
+        , test "letters outside ASCII are written as their codes" <|
+            \_ -> Expect.equal [ "_d8_rsta", "_c6_rsta", "_6f22_" ] (List.map Internal.sanitizeId [ "Ørsta", "Ærsta", "漢" ])
+        , test "an emoji is one code point" <|
+            \_ -> Expect.equal "box_1f4e6_" (Internal.sanitizeId "box📦")
+        , test "keys that used to give one id give two" <|
+            \_ ->
+                Expect.equal [ False, False, False ]
+                    [ Internal.sanitizeId "a b" == Internal.sanitizeId "a-b"
+                    , Internal.sanitizeId "Ørsta" == Internal.sanitizeId "Ærsta"
+                    , Internal.sanitizeId "a_b" == Internal.sanitizeId "a b"
+                    ]
+        , test "half of an emoji does not crash" <|
+            \_ -> Expect.equal "Order___fffd_" (Internal.sanitizeId (String.dropRight 1 "Order 📦"))
+        , test "nothing in, nothing out" <|
+            \_ -> Expect.equal "" (Internal.sanitizeId "")
+        , fuzz idText "gives only letters, digits, dashes and underscores" <|
+            \text ->
+                Internal.sanitizeId text
+                    |> String.all (\char -> Char.isAlphaNum char && Char.toCode char < 128 || char == '-' || char == '_')
+                    |> Expect.equal True
+        , fuzz idText "can be read back" <|
+            \text -> Expect.equal text (readId (Internal.sanitizeId text))
+        , fuzz2 idText idText "two texts give two ids" <|
+            \one other ->
+                if one == other then
+                    Expect.pass
+
+                else
+                    Expect.notEqual (Internal.sanitizeId one) (Internal.sanitizeId other)
+        ]
+
+
+
+-- FOCUS
+
+
+focusChainTests : Test
+focusChainTests =
+    describe "focusChain (the ids focusFirst tries)"
+        [ test "the given ids, then the start of the page" <|
+            \_ -> Expect.equal [ "opener", "list", Internal.pageStartId ] (Internal.focusChain [ "opener", "list" ])
+        , test "the start of the page is not tried twice" <|
+            \_ -> Expect.equal [ "opener", Internal.pageStartId ] (Internal.focusChain [ "opener", Internal.pageStartId ])
+        , test "empty ids are skipped" <|
+            \_ -> Expect.equal [ "list", Internal.pageStartId ] (Internal.focusChain [ "", "list", "" ])
+        , test "with nothing given, the start of the page" <|
+            \_ -> Expect.equal [ Internal.pageStartId ] (Internal.focusChain [])
         ]
 
 

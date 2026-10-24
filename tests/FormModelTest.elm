@@ -460,7 +460,7 @@ derivedIds =
                 in
                 Form.fields twins
                     |> List.map (\h -> (Form.problem h "").field)
-                    |> Expect.equal [ "t-name", "t-name-2", "t-name-2-2" ]
+                    |> Expect.equal [ "t-name", "t-name-2", "t-name__2" ]
         , test "the rendered control carries the derived id and a label" <|
             \_ ->
                 Form.textInput (bound filled) f.name []

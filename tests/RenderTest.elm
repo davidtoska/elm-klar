@@ -636,12 +636,12 @@ textInputTests =
             \_ ->
                 TextInput.view [ TextInput.label "Customer name" ]
                     |> Expect.all
-                        [ inside input [ Selector.id "klar-input-customer-name" ]
-                        , inside [ Selector.tag "label" ] [ Selector.attribute (Attr.for "klar-input-customer-name") ]
+                        [ inside input [ Selector.id "klar-input-customer__name" ]
+                        , inside [ Selector.tag "label" ] [ Selector.attribute (Attr.for "klar-input-customer__name") ]
                         , expectWellWired
                         ]
         , test "without a label the id is made from the placeholder" <|
-            \_ -> inside input [ Selector.id "klar-input-search-orders" ] (TextInput.view [ TextInput.placeholder "Search orders", TextInput.hint "h" ])
+            \_ -> inside input [ Selector.id "klar-input-search__orders" ] (TextInput.view [ TextInput.placeholder "Search orders", TextInput.hint "h" ])
         , test "without a label or a placeholder the id is 'field'" <|
             \_ -> inside input [ Selector.id "klar-input-field" ] (TextInput.view [ TextInput.hint "h" ])
         , test "an input with nothing to say is inside the field too, so that it does not move when an error comes" <|
@@ -861,7 +861,7 @@ checkboxTests =
                         , inside [ Selector.id "terms-label" ] [ Selector.text "I accept the terms" ]
                         ]
         , test "the ids come from the label when there is no id" <|
-            \_ -> inside box [ attr "aria-describedby" "klar-check-send-me-the-newsletter-description" ] (Checkbox.view [ Checkbox.label "Send me the newsletter", Checkbox.hint "h" ])
+            \_ -> inside box [ attr "aria-describedby" "klar-check-send__me__the__newsletter-description" ] (Checkbox.view [ Checkbox.label "Send me the newsletter", Checkbox.hint "h" ])
         , test "a hint and an error are drawn without a label too, but the checkbox needs a name" <|
             \_ ->
                 Checkbox.view [ Checkbox.id "agree", Checkbox.ariaLabel "I agree", Checkbox.hint "h", Checkbox.error "e" ]
