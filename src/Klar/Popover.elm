@@ -2,8 +2,8 @@ module Klar.Popover exposing
     ( view
     , State, Msg, init, update, isOpen
     , open, openFocusing, close, toggle
-    , Attribute, label, icon, trigger, customTrigger
-    , title, ariaLabel, closeButton, width, alignEnd, noPadding, initialFocus
+    , Attribute, icon, iconOnly, trigger, customTrigger
+    , title, closeButton, width, alignEnd, noPadding, initialFocus
     , locale
     )
 
@@ -35,13 +35,13 @@ Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
 
     -- view
     Popover.view PopoverMsg
-        [ Popover.label "Filter"
-        , Popover.icon Icon.filter
+        [ Popover.icon Icon.filter
         , Popover.title "Quick filter"
         , Popover.closeButton
         , Popover.initialFocus [ "filter-customer" ]
         ]
         model.popover
+        "Filter"
         [ TextInput.view
             [ TextInput.id "filter-customer"
             , TextInput.label "Customer"
@@ -58,11 +58,17 @@ there is no room below; other browsers get plain positioning. Clicks inside the
 panel do not close it. A click outside, `Escape` or the close button do, and
 focus returns to the button. `Tab` out of the panel closes it too, and focus
 goes where the user was heading. `Escape` pressed in a select or a menu that is
-open inside the panel closes only that popup. [Klar.Modal](Klar-Modal)
-describes these rules, shared by all popups and dialogs, in one place.
+open inside the panel closes only that popup, and so does an `Escape` that a
+control in the panel handled itself (a search field that cleared its text) or that
+ends an IME composition. If the element that has focus in the panel is removed or
+disabled (an "Apply" that becomes "Applying ..."), focus moves to the panel, so that
+`Escape` and `Tab` keep working. [Klar.Modal](Klar-Modal) describes these rules,
+shared by all popups and dialogs, in one place.
 
-The panel is announced as a dialog, named by its `title` or its `ariaLabel`.
-The only built-in text is the label of the close button; it follows `locale`.
+The label (`"Filter"` above) is a required argument of `view`: it is the text of
+the button, or the name of an `iconOnly` button, and it names the panel when the
+panel has no `title`. The panel is announced as a dialog. The only built-in text
+is the label of the close button; it follows `locale`.
 If a button in the panel opens a dialog, give the dialog to
 [`Overlay.host`](Klar-Overlay#host): the page is then `inert`, so closing the panel,
 which gives focus back to its button, cannot take focus away from the dialog.
@@ -89,12 +95,12 @@ keyboard shortcut.
 
 # The button
 
-@docs Attribute, label, icon, trigger, customTrigger
+@docs Attribute, icon, iconOnly, trigger, customTrigger
 
 
 # The panel
 
-@docs title, ariaLabel, closeButton, width, alignEnd, noPadding, initialFocus
+@docs title, closeButton, width, alignEnd, noPadding, initialFocus
 
 
 # Texts
@@ -103,16 +109,15 @@ keyboard shortcut.
 
 -}
 
-import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode exposing (Decoder)
+import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
-import Task
+import Klar.Overlay.Focus as Focus
 
 
 
@@ -154,6 +159,7 @@ type Msg
     = Toggle (List String)
     | Close
     | CloseQuiet
+    | Lost
     | Noop
 
 
@@ -171,6 +177,17 @@ update msg ((State state) as current) =
 
         CloseQuiet ->
             ( State { state | open = False }, Cmd.none )
+
+        Lost ->
+            -- The element that had focus in the panel was removed or disabled, and
+            -- focus fell to the page, where `Escape` no longer reaches the panel.
+            ( current
+            , if state.open then
+                Internal.focusFirst [ popupId state.id ] Noop
+
+              else
+                Cmd.none
+            )
 
         Noop ->
             ( current, Cmd.none )
@@ -191,7 +208,7 @@ fields inside the panel). If none exists, the panel itself gets focus.
 openFocusing : List String -> State -> ( State, Cmd Msg )
 openFocusing focus (State state) =
     ( State { state | open = True }
-    , focusChain (focus ++ [ popupId state.id ])
+    , Internal.focusFirst (focus ++ [ popupId state.id ]) Noop
     )
 
 
@@ -224,20 +241,6 @@ toggleWith focus ((State state) as current) =
 
     else
         openFocusing focus current
-
-
-focusChain : List String -> Cmd Msg
-focusChain ids =
-    case ids of
-        [] ->
-            Cmd.none
-
-        first :: rest ->
-            List.foldl
-                (\id task -> Task.onError (\_ -> Dom.focus id) task)
-                (Dom.focus first)
-                rest
-                |> Task.attempt (\_ -> Noop)
 
 
 maybeList : (a -> b) -> Maybe a -> List b
@@ -277,8 +280,8 @@ type Attribute msg
 
 
 type alias Config msg =
-    { label : String
-    , icon : Maybe Icon
+    { icon : Maybe Icon
+    , iconOnly : Bool
     , triggerAttrs : List (Button.Attribute msg)
     , custom : Maybe (List (Html.Attribute msg) -> Html msg)
     , title : Maybe String
@@ -286,7 +289,6 @@ type alias Config msg =
     , alignEnd : Bool
     , width : Int
     , padding : Bool
-    , ariaLabel : Maybe String
     , initialFocus : List String
     , locale : Locale
     }
@@ -295,8 +297,8 @@ type alias Config msg =
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { label = ""
-        , icon = Nothing
+        { icon = Nothing
+        , iconOnly = False
         , triggerAttrs = []
         , custom = Nothing
         , title = Nothing
@@ -304,28 +306,28 @@ configure attributes =
         , alignEnd = False
         , width = 320
         , padding = True
-        , ariaLabel = Nothing
         , initialFocus = []
         , locale = Locale.default
         }
         attributes
 
 
-{-| Text on the button that opens the panel. Without a label (and without
-`customTrigger`) the button shows only an icon.
--}
-label : String -> Attribute msg
-label value =
-    Attribute (\config -> { config | label = value })
-
-
-{-| An icon on the button, before the label. Without a `label` the button is an
-icon-only button (three dots if you give no icon), and `ariaLabel` is the only
-name it has, so always set it.
+{-| An icon on the button, before the label.
 -}
 icon : Icon -> Attribute msg
 icon value =
     Attribute (\config -> { config | icon = Just value })
+
+
+{-| The button shows only its icon (three dots if you give no `icon`), and the
+label of `view` becomes its accessible name.
+
+    Popover.view HelpMsg [ Popover.icon Icon.help, Popover.iconOnly ] model.help "What is priority?" [ explanation ]
+
+-}
+iconOnly : Attribute msg
+iconOnly =
+    Attribute (\config -> { config | iconOnly = True })
 
 
 {-| Style the button: `Popover.trigger [ Button.ghost, Button.small ]`. The
@@ -340,7 +342,8 @@ trigger value =
 {-| Use your own element as the button. The function receives the attributes it
 must put on that element (`id`, `aria-haspopup`, `aria-expanded`, the click
 handler and the `ArrowDown` handler); without them the panel cannot open and
-focus cannot return to the element.
+focus cannot return to the element. Your element shows its own text; the label of
+`view` still names the panel when it has no `title`.
 
     Popover.customTrigger (\attrs -> Button.view [ Button.htmlAttrs attrs ] "Filter")
 
@@ -350,19 +353,12 @@ customTrigger value =
     Attribute (\config -> { config | custom = Just value })
 
 
-{-| A heading in the panel; it is also the accessible name of the panel.
+{-| A heading in the panel; it is also the accessible name of the panel, instead
+of the label.
 -}
 title : String -> Attribute msg
 title value =
     Attribute (\config -> { config | title = Just value })
-
-
-{-| An accessible name. It names the button when the button has no `label`, and
-it names the panel when the panel has no `title`.
--}
-ariaLabel : String -> Attribute msg
-ariaLabel value =
-    Attribute (\config -> { config | ariaLabel = Just value })
 
 
 {-| A close button in the header of the panel. Its label follows `locale`. The
@@ -421,12 +417,13 @@ locale value =
 -- VIEW
 
 
-{-| The button and, while open, the panel with `content`. `toMsg` wraps the
-messages of the popover. The content is laid out in a column, one item below the
-other.
+{-| The button labelled `label` and, while open, the panel with `content`. The
+label is the text of the button (its accessible name with `iconOnly`), and it
+names the panel when the panel has no `title`. `toMsg` wraps the messages of the
+popover. The content is laid out in a column, one item below the other.
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Html msg
-view toMsg attributes (State state) content =
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Html msg
+view toMsg attributes (State state) label content =
     let
         config =
             configure attributes
@@ -452,11 +449,11 @@ view toMsg attributes (State state) content =
                     build triggerAttributes
 
                 Nothing ->
-                    if config.label == "" then
+                    if config.iconOnly then
                         Button.iconOnly
                             (config.triggerAttrs ++ [ Button.htmlAttrs triggerAttributes ])
                             (Maybe.withDefault Icon.moreHorizontal config.icon)
-                            (Maybe.withDefault "" config.ariaLabel)
+                            label
 
                     else
                         Button.view
@@ -464,20 +461,20 @@ view toMsg attributes (State state) content =
                                 ++ config.triggerAttrs
                                 ++ [ Button.htmlAttrs triggerAttributes ]
                             )
-                            config.label
+                            label
     in
     Html.div [ Internal.cls [ "klar-anchor", "klar-popover" ] ]
         [ triggerView
         , if state.open then
-            viewPanel toMsg config state content
+            viewPanel toMsg config state label content
 
           else
             Html.text ""
         ]
 
 
-viewPanel : (Msg -> msg) -> Config msg -> { id : String, open : Bool } -> List (Html msg) -> Html msg
-viewPanel toMsg config state content =
+viewPanel : (Msg -> msg) -> Config msg -> { id : String, open : Bool } -> String -> List (Html msg) -> Html msg
+viewPanel toMsg config state label content =
     let
         hasHeader =
             config.title /= Nothing || config.closeButton
@@ -485,7 +482,7 @@ viewPanel toMsg config state content =
     Html.div
         [ Internal.cls [ "klar-layer" ]
         , Events.onClick (toMsg Close)
-        , escapeKey (popupId state.id) (toMsg Close)
+        , Events.preventDefaultOn "keydown" (Focus.escape (popupId state.id) (toMsg Close))
         ]
         [ Html.div
             ([ Internal.cls
@@ -504,15 +501,12 @@ viewPanel toMsg config state content =
              , Internal.onClickStop (toMsg Noop)
              , focusLeft (popupId state.id) (toMsg CloseQuiet)
              ]
-                ++ (case ( config.title, config.ariaLabel ) of
-                        ( Just _, _ ) ->
+                ++ (case config.title of
+                        Just _ ->
                             [ Attr.attribute "aria-labelledby" (titleId state.id) ]
 
-                        ( Nothing, Just name ) ->
-                            [ Attr.attribute "aria-label" name ]
-
-                        _ ->
-                            []
+                        Nothing ->
+                            [ Attr.attribute "aria-label" label ]
                    )
             )
             [ Internal.viewIf hasHeader
@@ -538,6 +532,10 @@ viewPanel toMsg config state content =
                     ]
                 ]
                 content
+
+            -- Watches for focus that falls out of the panel (the focused element was
+            -- removed or disabled). Only the innermost open panel keeps watch.
+            , Focus.guard Focus.Idle (toMsg Lost)
             ]
         ]
 
@@ -546,74 +544,12 @@ viewPanel toMsg config state content =
 -- EVENTS
 
 
-{-| Escape pressed in the panel, unless it was pressed in a popup that is open
-inside the panel (a select, a menu); that popup handles it itself.
--}
-escapeKey : String -> msg -> Html.Attribute msg
-escapeKey panelId msg =
-    Events.preventDefaultOn "keydown"
-        (Decode.field "key" Decode.string
-            |> Decode.andThen
-                (\key ->
-                    if key /= "Escape" then
-                        Decode.fail "not escape"
-
-                    else
-                        Decode.field "target" (insidePopup panelId 0)
-                            |> Decode.andThen
-                                (\nested ->
-                                    if nested then
-                                        Decode.fail "handled by a popup"
-
-                                    else
-                                        Decode.succeed ( msg, True )
-                                )
-                )
-        )
-
-
-{-| `True` if a popup layer lies between the node and the panel.
--}
-insidePopup : String -> Int -> Decoder Bool
-insidePopup panelId depth =
-    if depth > 60 then
-        Decode.succeed False
-
-    else
-        Decode.oneOf
-            [ Decode.field "id" Decode.string
-                |> Decode.andThen
-                    (\id ->
-                        if id == panelId then
-                            Decode.succeed False
-
-                        else
-                            Decode.fail "keep climbing"
-                    )
-            , Decode.field "className" Decode.string
-                |> Decode.andThen
-                    (\names ->
-                        let
-                            tokens =
-                                String.words names
-                        in
-                        if List.member "klar-layer" tokens || List.member "klar-popup" tokens then
-                            Decode.succeed True
-
-                        else
-                            Decode.fail "keep climbing"
-                    )
-            , Decode.field "parentElement" (Decode.lazy (\_ -> insidePopup panelId (depth + 1)))
-            , Decode.succeed False
-            ]
-
-
 {-| Focus moved from inside the panel to an element outside it.
 -}
 focusLeft : String -> msg -> Html.Attribute msg
 focusLeft panelId msg =
     Events.on "focusout"
-        (Decode.field "relatedTarget" (Decode.nullable (isInside panelId 0))
+        (Decode.field "relatedTarget" (Decode.nullable (Focus.isInside panelId))
             |> Decode.andThen
                 (\found ->
                     case found of
@@ -624,26 +560,3 @@ focusLeft panelId msg =
                             Decode.fail "focus stays inside"
                 )
         )
-
-
-{-| Is the node, or one of its ancestors, the panel?
--}
-isInside : String -> Int -> Decoder Bool
-isInside panelId depth =
-    if depth > 60 then
-        Decode.succeed False
-
-    else
-        Decode.oneOf
-            [ Decode.field "id" Decode.string
-                |> Decode.andThen
-                    (\id ->
-                        if id == panelId then
-                            Decode.succeed True
-
-                        else
-                            Decode.fail "keep climbing"
-                    )
-            , Decode.field "parentElement" (Decode.lazy (\_ -> isInside panelId (depth + 1)))
-            , Decode.succeed False
-            ]

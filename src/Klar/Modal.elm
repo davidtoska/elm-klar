@@ -2,8 +2,8 @@ module Klar.Modal exposing
     ( view
     , State, Msg, init, update, isOpen
     , open, openWith, close
-    , Attribute, title, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
-    , small, medium, large, size, fullHeight, Side(..), side
+    , Attribute, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
+    , small, medium, large, size, fullHeight
     , static, busy, onRequestClose
     , lastFocus, closeButtonId
     , locale
@@ -38,19 +38,20 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     -- view
     Modal.view EditDialogMsg
-        [ Modal.title "Edit order"
-        , Modal.large
+        [ Modal.large
         , Modal.footer
             [ Button.view [ Button.onClick CancelEdit ] "Cancel"
             , Button.view [ Button.primary, Button.onClick SaveOrder ] "Save"
             ]
         ]
         model.editDialog
+        "Edit order"
         [ orderForm ]
 
 The dialog has a fixed header (the title and a close button), a body that
-scrolls on its own and an optional fixed footer for the actions. Screen readers
-announce it as a modal dialog named by its title. In the example, `CancelEdit`
+scrolls on its own and an optional fixed footer for the actions. The title is a
+required argument of `view`: it is the heading and the accessible name, so screen
+readers announce a modal dialog called "Edit order". In the example, `CancelEdit`
 and a successful `SaveOrder` end by calling `Modal.close`; the close button,
 `Escape` and a click on the backdrop close the dialog without any code of yours.
 
@@ -66,8 +67,9 @@ review) takes its body from [Klar.RemoteView](Klar-RemoteView): the skeleton, th
 failure with a retry, and old or refreshing data, without a `case` of your own.
 
     Modal.view ModalMsg
-        [ Modal.title "Order 1042" ]
+        []
         model.dialog
+        "Order 1042"
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 
@@ -99,12 +101,14 @@ button and returns focus to it without being told.
 
 # Content
 
-@docs Attribute, title, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
+@docs Attribute, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
 
 
-# Size and placement
+# Size
 
-@docs small, medium, large, size, fullHeight, Side, side
+A panel along the side of the window is a [Klar.Drawer](Klar-Drawer).
+
+@docs small, medium, large, size, fullHeight
 
 
 # Dismissing
@@ -130,9 +134,10 @@ dialog. Three ways to change that:
     that exists.
   - `Tab` and `Shift+Tab` stay inside: two invisible tab stops around the
     dialog send focus to the other end. Going forward past the last element
-    lands on the close button (or on the dialog itself when there is none);
-    going backward past the first lands on the footer, or on the element named
-    with `lastFocus`.
+    lands on the close button (or on the dialog itself when there is none).
+    Going backward past the first lands on the element named with `lastFocus`,
+    or else at the end of the footer (the footer shows a focus ring), so that the
+    next `Shift+Tab` reaches the last button of the footer.
   - On `close` focus returns to the opener. If that element is gone, or there was
     none (`""`), to the most recent element of the page that had focus before the
     dialog opened and still exists. A dialog opened by a route change or by a
@@ -141,8 +146,13 @@ dialog. Three ways to change that:
     the page of an `Overlay.host`), so that the next `Tab` starts there and not
     at the top of the window.
   - If the element that has focus inside the dialog is removed or disabled (a
-    button replaced after an action), focus moves to the dialog itself. No call
-    is needed for that.
+    button replaced after an action), or focus never arrived (the element named in
+    `openWith` was disabled), focus moves to the dialog itself. No call is needed
+    for that.
+  - `Escape` is layered: a control inside the dialog that handles it (a field that
+    clears its text, a select or a menu that closes its list) keeps it, and the
+    dialog closes only on an `Escape` that nothing inside handled. The `Escape`
+    that cancels an IME composition never closes the dialog.
   - The toasts are the last stop of the loop: see [Klar.Overlay](Klar-Overlay).
 
 @docs lastFocus, closeButtonId
@@ -179,13 +189,15 @@ import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode exposing (Decoder)
+import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Modal.Config as Config exposing (Config, Role(..), Side(..))
 import Klar.Overlay as Overlay exposing (Overlay)
-import Klar.Theme as Theme exposing (Size(..))
+import Klar.Overlay.Focus as Focus
+import Klar.Theme exposing (Size(..))
 import Task
 
 
@@ -206,7 +218,6 @@ type State
         -- The last elements of the page that had focus while the dialog was
         -- closed, newest first: where focus goes when the opener is gone.
         , trail : List String
-        , arrived : Bool
         , nudge : Int
         }
 
@@ -216,7 +227,7 @@ the dialog element, and the ids of the parts inside it start with it.
 -}
 init : String -> State
 init id =
-    State { id = id, open = False, opener = "", trail = [], arrived = False, nudge = 0 }
+    State { id = id, open = False, opener = "", trail = [], nudge = 0 }
 
 
 {-| Is the dialog open? The page behind it is made inert by the overlay `view`
@@ -236,7 +247,6 @@ type Msg
     = RequestClose
     | Nudge
     | Seen String
-    | Arrived
     | Lost
     | ScrollBody Step
     | FocusFirst (List String)
@@ -277,16 +287,13 @@ update msg ((State state) as current) =
                 , Cmd.none
                 )
 
-        Arrived ->
-            -- Focus came into the dialog: from now on it keeps watch (see `Lost`).
-            ( State { state | arrived = True }, Cmd.none )
-
         Lost ->
-            -- The element that had focus went away, or was disabled: focus fell
-            -- to the page, where `Escape` and `Tab` no longer reach the dialog.
+            -- The element that had focus went away or was disabled, or focus never
+            -- came in: it is on the page, where `Escape` and `Tab` do not reach the
+            -- dialog.
             ( current
             , if state.open then
-                focusChain [ state.id ]
+                Internal.focusFirst [ state.id ] Noop
 
               else
                 Cmd.none
@@ -296,10 +303,10 @@ update msg ((State state) as current) =
             ( current, scrollBody (bodyId state.id) step )
 
         FocusFirst candidates ->
-            ( current, focusChain candidates )
+            ( current, Internal.focusFirst candidates Noop )
 
         FocusLast candidates ->
-            ( current, focusChain candidates )
+            ( current, Internal.focusFirst candidates Noop )
 
         Noop ->
             ( current, Cmd.none )
@@ -340,10 +347,9 @@ openWith options (State state) =
 
                 else
                     options.opener
-            , arrived = state.open && state.arrived
             , nudge = 0
         }
-    , focusChain (options.focus ++ [ state.id ])
+    , Internal.focusFirst (options.focus ++ [ state.id ]) Noop
     )
 
 
@@ -355,27 +361,11 @@ close : State -> ( State, Cmd Msg )
 close (State state) =
     ( State { state | open = False }
     , if state.open then
-        focusChain (List.filter ((/=) "") (state.opener :: state.trail) ++ [ Internal.pageStartId ])
+        Internal.focusFirst (List.filter ((/=) "") (state.opener :: state.trail) ++ [ Internal.pageStartId ]) Noop
 
       else
         Cmd.none
     )
-
-
-{-| Try the ids in order and focus the first element that exists.
--}
-focusChain : List String -> Cmd Msg
-focusChain ids =
-    case ids of
-        [] ->
-            Cmd.none
-
-        first :: rest ->
-            List.foldl
-                (\id task -> Task.onError (\_ -> Dom.focus id) task)
-                (Dom.focus first)
-                rest
-                |> Task.attempt (\_ -> Noop)
 
 
 {-| Scroll the body of the dialog.
@@ -433,18 +423,17 @@ titleId id =
     id ++ "-title"
 
 
-footerId : String -> String
-footerId id =
-    id ++ "-footer"
-
-
 bodyId : String -> String
 bodyId id =
     id ++ "-body"
 
 
-bodyEndId : String -> String
-bodyEndId id =
+{-| An empty element that can take focus at the very end of the dialog: after the
+footer's buttons, or after the body when there is no footer. `Shift+Tab` past the
+first element lands here, so that the next `Shift+Tab` reaches the last button.
+-}
+endId : String -> String
+endId id =
     id ++ "-end"
 
 
@@ -453,74 +442,18 @@ bodyEndId id =
 
 
 {-| A setting of a dialog. Make them with the functions below and pass a list to
-`view`; later attributes win over earlier ones.
+`view`; later attributes win over earlier ones. [Klar.Drawer](Klar-Drawer) and
+[Klar.ConfirmDialog](Klar-ConfirmDialog) use the same settings.
 -}
-type Attribute msg
-    = Attribute (Config msg -> Config msg)
-
-
-{-| The edge of the window that a dialog shown as a side panel (see `side`) is
-attached to: `Right` or `Left`.
--}
-type Side
-    = Right
-    | Left
-
-
-type alias Config msg =
-    { title : String
-    , subtitle : Maybe String
-    , size : Size
-    , fullHeight : Bool
-    , side : Maybe Side
-    , static : Bool
-    , busy : Bool
-    , flush : Bool
-    , hideClose : Bool
-    , onRequestClose : Maybe msg
-    , footer : List (Html msg)
-    , footerStart : List (Html msg)
-    , ariaDescribedBy : Maybe String
-    , lastFocus : Maybe String
-    , locale : Locale
-    }
-
-
-configure : List (Attribute msg) -> Config msg
-configure attributes =
-    List.foldl (\(Attribute change) config -> change config)
-        { title = ""
-        , subtitle = Nothing
-        , size = Medium
-        , fullHeight = False
-        , side = Nothing
-        , static = False
-        , busy = False
-        , flush = False
-        , hideClose = False
-        , onRequestClose = Nothing
-        , footer = []
-        , footerStart = []
-        , ariaDescribedBy = Nothing
-        , lastFocus = Nothing
-        , locale = Locale.default
-        }
-        attributes
-
-
-{-| The heading of the dialog. It is also the accessible name of the dialog, so
-always set one.
--}
-title : String -> Attribute msg
-title value =
-    Attribute (\config -> { config | title = value })
+type alias Attribute msg =
+    Config.Attribute msg
 
 
 {-| A smaller line below the title, for context such as the order number.
 -}
 subtitle : String -> Attribute msg
 subtitle value =
-    Attribute (\config -> { config | subtitle = Just value })
+    Config.Attribute (\config -> { config | subtitle = Just value })
 
 
 {-| 400px wide, for a short question or a field or two.
@@ -546,29 +479,20 @@ large =
 
 {-| Sets the width from a [`Size`](Klar-Theme#Size): `Small` (400px), `Medium`
 (560px, the default) or `Large` (800px). `small`, `medium` and `large` are
-shorthands. A dialog shown with `side` is 360, 480 or 720px wide instead.
+shorthands. A [Klar.Drawer](Klar-Drawer) is 360, 480 or 720px wide instead.
 -}
 size : Size -> Attribute msg
 size value =
-    Attribute (\config -> { config | size = value })
+    Config.Attribute (\config -> { config | size = value })
 
 
 {-| The dialog is as tall as the window (less a small margin) instead of only as
-tall as its content. For long forms and lists.
+tall as its content. For long forms and lists. It stays in the middle of the
+window; a panel along its side is a [Klar.Drawer](Klar-Drawer).
 -}
 fullHeight : Attribute msg
 fullHeight =
-    Attribute (\config -> { config | fullHeight = True })
-
-
-{-| Shows the dialog as a panel along one side of the window instead of a box in
-the middle: as tall as the window and 360, 480 or 720px wide. Use
-[Klar.Drawer](Klar-Drawer), which is this with the side set to `Right` by
-default, rather than calling `side` yourself.
--}
-side : Side -> Attribute msg
-side value =
-    Attribute (\config -> { config | side = Just value })
+    Config.Attribute (\config -> { config | fullHeight = True })
 
 
 {-| A click on the backdrop and `Escape` do not close the dialog; the close
@@ -577,7 +501,7 @@ feel frozen. For forms with unsaved data.
 -}
 static : Attribute msg
 static =
-    Attribute (\config -> { config | static = True })
+    Config.Attribute (\config -> { config | static = True })
 
 
 {-| While `True` nothing can close the dialog: the close button is disabled and
@@ -586,7 +510,7 @@ Pass a field of your model that is `True` while a request runs.
 -}
 busy : Bool -> Attribute msg
 busy value =
-    Attribute (\config -> { config | busy = value })
+    Config.Attribute (\config -> { config | busy = value })
 
 
 {-| Send this message instead of closing. The close button, `Escape` and the
@@ -596,7 +520,7 @@ say). A `static` dialog sends `msg` only from its close button.
 -}
 onRequestClose : msg -> Attribute msg
 onRequestClose msg =
-    Attribute (\config -> { config | onRequestClose = Just msg })
+    Config.Attribute (\config -> { config | onRequestClose = Just msg })
 
 
 {-| Content at the left end of the footer, opposite the actions: a note, a
@@ -604,7 +528,7 @@ checkbox, a "Delete order" link. Giving it also shows the footer.
 -}
 footerStart : List (Html msg) -> Attribute msg
 footerStart value =
-    Attribute (\config -> { config | footerStart = value })
+    Config.Attribute (\config -> { config | footerStart = value })
 
 
 {-| The actions, right aligned in a fixed footer at the bottom of the dialog. The
@@ -613,14 +537,14 @@ primary action goes last. The footer is only shown when `footer` or
 -}
 footer : List (Html msg) -> Attribute msg
 footer value =
-    Attribute (\config -> { config | footer = value })
+    Config.Attribute (\config -> { config | footer = value })
 
 
 {-| No padding around the body, for tables and lists that go edge to edge.
 -}
 flush : Attribute msg
 flush =
-    Attribute (\config -> { config | flush = True })
+    Config.Attribute (\config -> { config | flush = True })
 
 
 {-| Do not show the close button in the header. `Escape` and the backdrop still
@@ -629,7 +553,7 @@ as a "Cancel" button in the footer.
 -}
 hideClose : Attribute msg
 hideClose =
-    Attribute (\config -> { config | hideClose = True })
+    Config.Attribute (\config -> { config | hideClose = True })
 
 
 {-| The id of an element inside the dialog that describes it (a paragraph of
@@ -637,15 +561,17 @@ explanation, say). Screen readers read it out after the title.
 -}
 ariaDescribedBy : String -> Attribute msg
 ariaDescribedBy value =
-    Attribute (\config -> { config | ariaDescribedBy = Just value })
+    Config.Attribute (\config -> { config | ariaDescribedBy = Just value })
 
 
-{-| The id of the last button in the dialog. When the user presses `Shift+Tab`
-on the first element, focus wraps around to this button instead of the footer.
+{-| The id of the element that `Shift+Tab` on the first element of the dialog
+wraps around to, usually the primary button. Without it focus lands at the end of
+the footer (or of the body when there is no footer), and the next `Shift+Tab`
+reaches the last button.
 -}
 lastFocus : String -> Attribute msg
 lastFocus value =
-    Attribute (\config -> { config | lastFocus = Just value })
+    Config.Attribute (\config -> { config | lastFocus = Just value })
 
 
 {-| The language of the built-in text, which is the label of the close button
@@ -654,27 +580,25 @@ lastFocus value =
 -}
 locale : Locale -> Attribute msg
 locale value =
-    Attribute (\config -> { config | locale = value })
+    Config.Attribute (\config -> { config | locale = value })
 
 
 
 -- VIEW
 
 
-{-| The dialog, with `body` in its scrolling middle part. `toMsg` wraps the
-messages of the dialog (see the example at the top of this page). Renders
-nothing while the dialog is closed, so it can stay in your view all the time.
-It returns an [`Overlay`](Klar-Overlay#Overlay): put it in the list of overlays
-of [`Overlay.host`](Klar-Overlay#host) or `AppShell.overlays`.
+{-| The dialog titled `title`, with `body` in its scrolling middle part. The title
+is the heading of the dialog and its accessible name. `toMsg` wraps the messages
+of the dialog (see the example at the top of this page). Renders nothing while the
+dialog is closed, so it can stay in your view all the time. It returns an
+[`Overlay`](Klar-Overlay#Overlay): put it in the list of overlays of
+[`Overlay.host`](Klar-Overlay#host) or `AppShell.overlays`.
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Overlay msg
-view toMsg attributes ((State state) as current) body =
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Overlay msg
+view toMsg attributes ((State state) as current) title body =
     let
         config =
-            configure attributes
-
-        hasFooter =
-            not (List.isEmpty config.footer) || not (List.isEmpty config.footerStart)
+            Config.configure attributes
 
         firstTargets =
             (if config.hideClose || config.busy then
@@ -694,7 +618,7 @@ view toMsg attributes ((State state) as current) body =
 
             else
                 Just (\id -> toMsg (Seen id))
-        , render = \around -> viewDialog toMsg config current hasFooter firstTargets around body
+        , render = \around -> viewDialog toMsg config current title firstTargets around body
         }
 
 
@@ -702,17 +626,20 @@ viewDialog :
     (Msg -> msg)
     -> Config msg
     -> State
-    -> Bool
+    -> String
     -> List String
     -> { top : Bool, toastsFollow : Bool }
     -> List (Html msg)
     -> Html msg
-viewDialog toMsg config (State state) hasFooter firstTargets around body =
+viewDialog toMsg config (State state) title firstTargets around body =
     if not state.open then
         Html.text ""
 
     else
         let
+            hasFooter =
+                not (List.isEmpty config.footer) || not (List.isEmpty config.footerStart)
+
             requestClose =
                 case config.onRequestClose of
                     Just msg ->
@@ -736,17 +663,10 @@ viewDialog toMsg config (State state) hasFooter firstTargets around body =
                 Locale.pick config.locale { nb = "Lukk", en = "Close" }
 
             lastTargets =
-                List.filterMap identity
-                    [ config.lastFocus
-                    , Just
-                        (if hasFooter then
-                            footerId state.id
+                List.filterMap identity [ config.lastFocus, Just (endId state.id), Just state.id ]
 
-                         else
-                            bodyEndId state.id
-                        )
-                    , Just state.id
-                    ]
+            end =
+                Html.div [ Attr.id (endId state.id), Attr.tabindex -1, Internal.cls [ "klar-modal__end" ] ] []
 
             nudgeClass =
                 if state.nudge == 0 then
@@ -794,19 +714,24 @@ viewDialog toMsg config (State state) hasFooter firstTargets around body =
                 )
                 []
             , Html.div
-                ([ Internal.cls [ "klar-modal__dialog", nudgeClass ]
-                 , Attr.id state.id
-                 , Attr.tabindex -1
-                 , Attr.attribute "role" "dialog"
-                 , Attr.attribute "aria-modal" "true"
-                 , Attr.attribute "aria-labelledby" (titleId state.id)
-                 , Internal.attrMaybe (Attr.attribute "aria-describedby") config.ariaDescribedBy
-                 , Internal.attrIf config.busy (Attr.attribute "aria-busy" "true")
-                 , Internal.attrIf (not state.arrived) (arrived toMsg)
-                 ]
-                    ++ [ dialogKeys state.id dismiss toMsg ]
-                )
-                [ viewHeader state.id config closeLabel requestClose
+                [ Internal.cls [ "klar-modal__dialog", nudgeClass ]
+                , Attr.id state.id
+                , Attr.tabindex -1
+                , Attr.attribute "role"
+                    (case config.role of
+                        Dialog ->
+                            "dialog"
+
+                        AlertDialog ->
+                            "alertdialog"
+                    )
+                , Attr.attribute "aria-modal" "true"
+                , Attr.attribute "aria-labelledby" (titleId state.id)
+                , Internal.attrMaybe (Attr.attribute "aria-describedby") config.ariaDescribedBy
+                , Internal.attrIf config.busy (Attr.attribute "aria-busy" "true")
+                , dialogKeys state.id dismiss toMsg
+                ]
+                [ viewHeader state.id config title closeLabel requestClose
                 , Html.div
                     [ Attr.id (bodyId state.id)
                     , Internal.cls
@@ -823,11 +748,27 @@ viewDialog toMsg config (State state) hasFooter firstTargets around body =
                                 Html.text ""
 
                              else
-                                Html.div [ Attr.id (bodyEndId state.id), Attr.tabindex -1, Internal.cls [ "klar-modal__end" ] ] []
+                                end
                            ]
                     )
-                , viewFooter state.id config hasFooter
-                , Internal.viewIf (state.arrived && around.top) (guard (toMsg Lost))
+                , if hasFooter then
+                    Html.div [ Internal.cls [ "klar-modal__footer" ] ]
+                        [ if List.isEmpty config.footerStart then
+                            Html.text ""
+
+                          else
+                            Html.div [ Internal.cls [ "klar-modal__footer-start" ] ] config.footerStart
+                        , Html.div [ Internal.cls [ "klar-modal__footer-actions" ] ] config.footer
+                        , end
+                        ]
+
+                  else
+                    Html.text ""
+
+                -- Only the dialog on top keeps watch, and it does from the moment it
+                -- opens: focus that never arrives (the element named in `openWith`
+                -- was disabled) is lost focus too.
+                , Internal.viewIf around.top (Focus.guard Focus.Modal (toMsg Lost))
                 ]
             , if around.toastsFollow then
                 -- The toasts come next in the tab order and close the loop.
@@ -838,13 +779,13 @@ viewDialog toMsg config (State state) hasFooter firstTargets around body =
             ]
 
 
-viewHeader : String -> Config msg -> String -> msg -> Html msg
-viewHeader id config closeLabel requestClose =
+viewHeader : String -> Config msg -> String -> String -> msg -> Html msg
+viewHeader id config title closeLabel requestClose =
     -- A div, not a `header`: inside a dialog that element is no landmark, but two
     -- dialogs open at once would make axe count two banners.
     Html.div [ Internal.cls [ "klar-modal__header" ] ]
         [ Html.div [ Internal.cls [ "klar-modal__heading" ] ]
-            [ Html.h2 [ Internal.cls [ "klar-modal__title" ], Attr.id (titleId id) ] [ Html.text config.title ]
+            [ Html.h2 [ Internal.cls [ "klar-modal__title" ], Attr.id (titleId id) ] [ Html.text title ]
             , Internal.viewMaybe
                 (\text -> Html.p [ Internal.cls [ "klar-modal__subtitle" ] ] [ Html.text text ])
                 config.subtitle
@@ -867,60 +808,6 @@ viewHeader id config closeLabel requestClose =
         ]
 
 
-viewFooter : String -> Config msg -> Bool -> Html msg
-viewFooter id config hasFooter =
-    if hasFooter then
-        Html.div
-            [ Internal.cls [ "klar-modal__footer" ]
-            , Attr.id (footerId id)
-            , Attr.tabindex -1
-            ]
-            [ if List.isEmpty config.footerStart then
-                Html.text ""
-
-              else
-                Html.div [ Internal.cls [ "klar-modal__footer-start" ] ] config.footerStart
-            , Html.div [ Internal.cls [ "klar-modal__footer-actions" ] ] config.footer
-            ]
-
-    else
-        Html.text ""
-
-
-{-| Focus entered the dialog for the first time. From then on the dialog watches
-for focus that falls out of it (see `guard`).
--}
-arrived : (Msg -> msg) -> Html.Attribute msg
-arrived toMsg =
-    Events.on "focusin" (Decode.succeed (toMsg Arrived))
-
-
-{-| An invisible element that tells the dialog when focus is lost. The stylesheet
-runs the animation `klar-focus-lost` on it while no part of any overlay contains
-focus (the element that had it was removed or disabled, and the page fell back to
-the body). That start is the only signal pure Elm can get: browsers send no event
-when a focused element disappears.
--}
-guard : msg -> Html msg
-guard lost =
-    Html.span
-        [ Internal.cls [ "klar-modal__guard" ]
-        , Attr.attribute "aria-hidden" "true"
-        , Events.on "animationstart"
-            (Decode.field "animationName" Decode.string
-                |> Decode.andThen
-                    (\name ->
-                        if name == "klar-focus-lost" then
-                            Decode.succeed lost
-
-                        else
-                            Decode.fail "another animation"
-                    )
-            )
-        ]
-        []
-
-
 {-| An invisible tab stop. When it receives focus the user has tabbed out of
 the dialog; the message moves focus to the other end.
 -}
@@ -935,13 +822,16 @@ sentinel msg =
 
 
 
--- ESCAPE
+-- KEYS
 
 
 {-| The keydown handler of the dialog (a node keeps only one).
 
-`Escape` closes the dialog, unless it was pressed in a popup (a menu, a select
-...) that is open inside the dialog; that popup handles it itself.
+`Escape` closes the dialog, unless something inside handled it already (it
+prevented the default: a field that cleared its text, a select or a menu that
+closed its list), it was pressed in a popup that is open inside the dialog, or it
+ends an IME composition. The dialog prevents the default of the `Escape` it acts
+on, so that a global shortcut leaves it alone.
 
 While the dialog element itself has focus, which it has when the dialog opens,
 the keys that scroll a page scroll the body of the dialog: it is not focusable,
@@ -951,21 +841,14 @@ and without this a long text in a dialog could not be read with the keyboard.
 dialogKeys : String -> Maybe msg -> (Msg -> msg) -> Html.Attribute msg
 dialogKeys dialogId dismiss toMsg =
     Events.preventDefaultOn "keydown"
-        (Internal.keyEvent
+        (Focus.unhandled
+            |> Decode.andThen (\_ -> Internal.keyEvent)
             |> Decode.andThen
                 (\event ->
                     if event.key == "Escape" then
                         case dismiss of
                             Just msg ->
-                                Decode.field "target" (insidePopup dialogId 0)
-                                    |> Decode.andThen
-                                        (\nested ->
-                                            if nested then
-                                                Decode.fail "handled by a popup"
-
-                                            else
-                                                Decode.succeed ( msg, True )
-                                        )
+                                Focus.escape dialogId msg
 
                             Nothing ->
                                 Decode.fail "closing is switched off"
@@ -1015,40 +898,3 @@ scrollStep key =
 
         _ ->
             Nothing
-
-
-{-| Walk up from the event target to the dialog element. `True` if a popup
-layer (`.klar-layer` or `.klar-popup`) lies on the way.
--}
-insidePopup : String -> Int -> Decoder Bool
-insidePopup dialogId depth =
-    if depth > 60 then
-        Decode.succeed False
-
-    else
-        Decode.oneOf
-            [ Decode.field "id" Decode.string
-                |> Decode.andThen
-                    (\id ->
-                        if id == dialogId then
-                            Decode.succeed False
-
-                        else
-                            Decode.fail "keep climbing"
-                    )
-            , Decode.field "className" Decode.string
-                |> Decode.andThen
-                    (\names ->
-                        let
-                            tokens =
-                                String.words names
-                        in
-                        if List.member "klar-layer" tokens || List.member "klar-popup" tokens then
-                            Decode.succeed True
-
-                        else
-                            Decode.fail "keep climbing"
-                    )
-            , Decode.field "parentElement" (Decode.lazy (\_ -> insidePopup dialogId (depth + 1)))
-            , Decode.succeed False
-            ]

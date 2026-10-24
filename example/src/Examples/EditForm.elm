@@ -36,6 +36,7 @@ import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select as Select
 import Klar.Skeleton as Skeleton
+import Klar.Theme exposing (Tone(..))
 import Klar.Toast as Toast
 import Klar.Validate as Validate
 import Process
@@ -183,7 +184,7 @@ initialModel =
     { customer = Loading
     , state = Form.init form
     , status = FormLayout.Idle
-    , toasts = Toast.init
+    , toasts = Toast.init "toasts"
     }
 
 
@@ -242,7 +243,7 @@ update msg model =
         Saved (Ok ()) ->
             let
                 ( toasts, cmd ) =
-                    Toast.push [ Toast.success, Toast.message "Customer saved." ] model.toasts
+                    Toast.push [ Toast.tone Success, Toast.message "Customer saved." ] model.toasts
             in
             ( { model | status = FormLayout.Idle, state = Form.markClean model.state, toasts = toasts }
             , Cmd.map ToastMsg cmd

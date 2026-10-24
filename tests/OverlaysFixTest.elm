@@ -246,15 +246,14 @@ drawDialog withOnCancel state =
         , page = []
         , overlays =
             [ ConfirmDialog.view Dialog
-                (ConfirmDialog.title "Delete order?"
-                    :: (if withOnCancel then
-                            [ ConfirmDialog.onCancel Cancelled ]
+                (if withOnCancel then
+                    [ ConfirmDialog.onCancel Cancelled ]
 
-                        else
-                            []
-                       )
+                 else
+                    []
                 )
                 state
+                "Delete order?"
             ]
         }
 
@@ -440,8 +439,8 @@ wait in the queue.
 -}
 crowded : Stack
 crowded =
-    Toast.init
-        |> Toast.maxVisible 1
+    Toast.init "toasts"
+        |> Toast.setMaxVisible 1
         |> pushed "Toast 1"
         |> pushed "Toast 2"
         |> pushed "Toast 3"
@@ -463,7 +462,7 @@ toastTests =
         , describe "raising maxVisible moves queued toasts up at once"
             [ test "all of them, when there is room" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> Expect.all
                             [ shown 3
                             , Toast.queued >> Expect.equal 0
@@ -471,7 +470,7 @@ toastTests =
                             ]
             , test "just as many as there is room for" <|
                 \_ ->
-                    Toast.maxVisible 2 crowded
+                    Toast.setMaxVisible 2 crowded
                         |> Expect.all
                             [ shown 2
                             , Toast.queued >> Expect.equal 1
@@ -479,7 +478,7 @@ toastTests =
                             ]
             , test "in the order in which they were pushed" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> Expect.all
                             [ reads 0 "Toast 1"
                             , reads 1 "Toast 2"
@@ -487,7 +486,7 @@ toastTests =
                             ]
             , test "and the note about the toasts that wait goes away" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> drawStack
                         |> Expect.all
                             [ Query.hasNot [ Selector.text "more waiting" ]
@@ -500,7 +499,7 @@ toastTests =
                         |> Query.has [ Selector.text "+ 2 more waiting" ]
             , test "a toast pushed afterwards goes behind the ones that moved up" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> pushed "Toast 4"
                         |> Expect.all
                             [ shown 3
@@ -509,7 +508,7 @@ toastTests =
                             ]
             , test "a limit below 1 counts as 1" <|
                 \_ ->
-                    Toast.maxVisible 0 crowded
+                    Toast.setMaxVisible 0 crowded
                         |> Expect.all
                             [ shown 1
                             , Toast.queued >> Expect.equal 2
@@ -518,8 +517,8 @@ toastTests =
         , describe "lowering maxVisible"
             [ test "hides nothing that is on screen, and sends the next ones to the queue" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
-                        |> Toast.maxVisible 1
+                    Toast.setMaxVisible 3 crowded
+                        |> Toast.setMaxVisible 1
                         |> pushed "Toast 4"
                         |> Expect.all
                             [ shown 3
@@ -529,17 +528,17 @@ toastTests =
         , describe "the timers"
             [ test "a toast that moved up gets its timer with the next update" <|
                 \_ ->
-                    Toast.maxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
+                    Toast.setMaxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
                         |> afterFirstToast Event.mouseEnter
                         |> expectOk (Tuple.second >> expectCommand)
             , test "once, not with every update" <|
                 \_ ->
-                    Toast.maxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
+                    Toast.setMaxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
                         |> afterFirstToast Event.mouseEnter
                         |> expectOk (\( stack, _ ) -> afterFirstToast Event.mouseEnter stack |> expectOk (Tuple.second >> expectNoCommand))
             , test "a toast that moved up gets its timer with the next push as well" <|
                 \_ ->
-                    Toast.maxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
+                    Toast.setMaxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
                         |> Toast.push [ Toast.message "Toast 3" ]
                         |> Tuple.second
                         |> expectCommand
@@ -589,7 +588,7 @@ toastTests =
 -}
 stackOf : List String -> Int -> Stack
 stackOf texts limit =
-    List.foldl pushed (Toast.maxVisible limit Toast.init) texts
+    List.foldl pushed (Toast.setMaxVisible limit (Toast.init "toasts")) texts
 
 
 {-| Send the event to the first toast on screen and give the message to `update`.

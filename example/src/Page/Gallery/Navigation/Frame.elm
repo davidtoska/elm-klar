@@ -342,11 +342,11 @@ shell locale model =
          , AppShell.onSkipToContent SkipToContent
          , AppShell.overlays
             [ Modal.view ModalMsg
-                [ Modal.title "A dialog"
-                , Modal.small
+                [ Modal.small
                 , Modal.footer [ Button.view [ Button.onClick CloseModal ] "Close" ]
                 ]
                 model.modal
+                "A dialog"
                 [ Text.text "While the dialog is open, the menu, the top bar and the content are inert. Tab stays here, and screen readers skip the rest." ]
             ]
          ]
@@ -491,7 +491,7 @@ shellCode =
     , AppShell.userName "Ada Lovelace"
     , AppShell.userRole "Operations manager"
     , AppShell.userMenu (Menu.view UserMenuMsg [ Menu.kebab "User menu", Menu.alignEnd, Menu.items [ Menu.item "Sign out" SignOut ] ] model.userMenu)
-    , AppShell.overlays [ Modal.view DialogMsg [ Modal.title "Edit order" ] model.dialog [ orderForm model ] ]
+    , AppShell.overlays [ Modal.view DialogMsg [] model.dialog "Edit order" [ orderForm model ] ]
     , AppShell.onSkipToContent SkipToContent -- answer with AppShell.focusContent "app" NoOp
     ]
     [ viewPage model ]"""

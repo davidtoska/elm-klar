@@ -617,18 +617,18 @@ overlayButtons =
 overlays : Settings -> Locale -> Model -> List (Overlay Msg)
 overlays settings locale model =
     [ Drawer.view DrawerMsg
-        [ Drawer.title "Order"
-        , Drawer.locale locale
+        [ Drawer.locale locale
         , Drawer.footer [ Button.view [ Button.onClick CloseDrawer ] "Close" ]
         ]
         model.drawer
+        "Order"
         (detail settings locale model)
     , Modal.view ModalMsg
-        [ Modal.title "Order"
-        , Modal.locale locale
+        [ Modal.locale locale
         , Modal.footer [ Button.view [ Button.onClick CloseModal ] "Close" ]
         ]
         model.modal
+        "Order"
         (detail settings locale model)
     , CommandPalette.view PaletteMsg
         [ CommandPalette.locale locale

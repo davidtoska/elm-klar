@@ -1435,7 +1435,7 @@ viewEditor : Context -> Model -> Overlay Msg
 viewEditor context model =
     case model.editing of
         Nothing ->
-            Drawer.view DrawerMsg [] model.drawer []
+            Drawer.view DrawerMsg [] model.drawer "Order" []
 
         Just editor ->
             let
@@ -1446,8 +1446,7 @@ viewEditor context model =
                     editor.submit == FormLayout.Submitting
             in
             Drawer.view DrawerMsg
-                ([ Drawer.title (Editor.title editor)
-                 , Drawer.subtitle (Editor.subtitle editor)
+                ([ Drawer.subtitle (Editor.subtitle editor)
                  , Drawer.large
 
                  -- Nothing can close the drawer while the request runs.
@@ -1483,6 +1482,7 @@ viewEditor context model =
                        )
                 )
                 model.drawer
+                (Editor.title editor)
                 [ Editor.view
                     { context = context
                     , lookups = model.lookups
@@ -1512,8 +1512,7 @@ viewSubmitStatus context editor =
 viewDiscard : Context -> Model -> Overlay Msg
 viewDiscard context model =
     ConfirmDialog.view DiscardMsg
-        [ ConfirmDialog.warning
-        , ConfirmDialog.title "Discard changes?"
+        [ ConfirmDialog.tone Warning
         , ConfirmDialog.message "You have unsaved changes to this order. If you close it now, they are lost."
         , ConfirmDialog.confirmLabel "Discard changes"
         , ConfirmDialog.cancelLabel "Keep editing"
@@ -1522,6 +1521,7 @@ viewDiscard context model =
         , ConfirmDialog.locale context.locale
         ]
         model.discard
+        "Discard changes?"
 
 
 {-| The question before a delete or a cancel. The dialog shows a failed request
@@ -1530,65 +1530,66 @@ itself, with the words of the server.
 viewConfirm : Context -> Model -> Overlay Msg
 viewConfirm context model =
     let
-        question =
+        ( question, details ) =
             case model.pending of
                 Just (Deleting order) ->
-                    [ ConfirmDialog.danger
-                    , ConfirmDialog.icon Icon.trash
-                    , ConfirmDialog.title ("Delete order " ++ Types.orderIdText order.id ++ "?")
-                    , ConfirmDialog.message ("The order of " ++ order.customer ++ " is removed from all lists. This cannot be undone.")
-                    , ConfirmDialog.confirmLabel "Delete order"
-                    ]
+                    ( "Delete order " ++ Types.orderIdText order.id ++ "?"
+                    , [ ConfirmDialog.tone Danger
+                      , ConfirmDialog.icon Icon.trash
+                      , ConfirmDialog.message ("The order of " ++ order.customer ++ " is removed from all lists. This cannot be undone.")
+                      , ConfirmDialog.confirmLabel "Delete order"
+                      ]
+                    )
 
                 Just (Cancelling batch) ->
                     let
                         count =
                             List.length batch.ids
                     in
-                    [ ConfirmDialog.danger
-                    , ConfirmDialog.icon Icon.ban
-                    , ConfirmDialog.title
-                        (case batch.ids of
-                            [ id ] ->
-                                "Cancel order " ++ Types.orderIdText id ++ "?"
+                    ( case batch.ids of
+                        [ id ] ->
+                            "Cancel order " ++ Types.orderIdText id ++ "?"
 
-                            _ ->
-                                "Cancel " ++ String.fromInt count ++ " orders?"
-                        )
-                    , ConfirmDialog.message "A cancelled order cannot be reopened. It can only be deleted."
-                    , ConfirmDialog.consequences
-                        (if count > 1 then
-                            [ "Orders that have already shipped or are finished cannot be cancelled. They stay as they are." ]
+                        _ ->
+                            "Cancel " ++ String.fromInt count ++ " orders?"
+                    , [ ConfirmDialog.tone Danger
+                      , ConfirmDialog.icon Icon.ban
+                      , ConfirmDialog.message "A cancelled order cannot be reopened. It can only be deleted."
+                      , ConfirmDialog.consequences
+                            (if count > 1 then
+                                [ "Orders that have already shipped or are finished cannot be cancelled. They stay as they are." ]
 
-                         else
-                            []
-                        )
-                    , ConfirmDialog.confirmLabel
-                        (if count == 1 then
-                            "Cancel order"
+                             else
+                                []
+                            )
+                      , ConfirmDialog.confirmLabel
+                            (if count == 1 then
+                                "Cancel order"
 
-                         else
-                            "Cancel orders"
-                        )
+                             else
+                                "Cancel orders"
+                            )
 
-                    -- "Cancel" would be the button that keeps the orders.
-                    , ConfirmDialog.cancelLabel
-                        (if count == 1 then
-                            "Keep order"
+                      -- "Cancel" would be the button that keeps the orders.
+                      , ConfirmDialog.cancelLabel
+                            (if count == 1 then
+                                "Keep order"
 
-                         else
-                            "Keep orders"
-                        )
-                    ]
+                             else
+                                "Keep orders"
+                            )
+                      ]
+                    )
 
                 Nothing ->
-                    []
+                    ( "", [] )
     in
     ConfirmDialog.view ConfirmMsg
-        (question
+        (details
             ++ [ ConfirmDialog.onConfirm ConfirmAccepted
                , ConfirmDialog.onCancel ConfirmDismissed
                , ConfirmDialog.locale context.locale
                ]
         )
         model.confirm
+        question

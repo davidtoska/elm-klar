@@ -840,8 +840,7 @@ view locale model =
 viewDialog : Locale -> Model -> Overlay Msg
 viewDialog locale model =
     Modal.view DialogMsg
-        [ Modal.title "Edit rule"
-        , Modal.subtitle "Orders to review this week"
+        [ Modal.subtitle "Orders to review this week"
         , Modal.locale locale
         , Modal.footer
             [ Button.view [ Button.onClick DialogCancelled ] "Cancel"
@@ -849,6 +848,7 @@ viewDialog locale model =
             ]
         ]
         model.dialog
+        "Edit rule"
         [ RuleBuilder.view DraftMsg
             [ RuleBuilder.fields orderFields
             , RuleBuilder.locale locale

@@ -66,6 +66,7 @@ import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.SideNav as SideNav
 import Klar.Table as Table
+import Klar.Theme exposing (Tone(..))
 import Klar.Toast as Toast
 import Process
 import Task
@@ -120,7 +121,7 @@ init _ url key =
       , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
       , table = Table.init "orders"
       , orders = Loading
-      , toasts = Toast.init
+      , toasts = Toast.init "toasts"
       }
     , fetchOrders
     )
@@ -170,12 +171,16 @@ update msg model =
             in
             ( { model | toasts = toasts }, Cmd.map ToastMsg cmd )
 
-        GotOrders result ->
+        GotOrders (Ok orders) ->
             let
                 ( toasts, cmd ) =
-                    Toast.push [ Toast.success, Toast.message "Orders loaded." ] model.toasts
+                    Toast.push [ Toast.tone Success, Toast.message "Orders loaded." ] model.toasts
             in
-            ( { model | orders = Remote.fromResult result, toasts = toasts }, Cmd.map ToastMsg cmd )
+            ( { model | orders = Loaded orders, toasts = toasts }, Cmd.map ToastMsg cmd )
+
+        GotOrders (Err problem) ->
+            -- no toast: the table shows the failure, with its retry
+            ( { model | orders = Failed problem }, Cmd.none )
 
         Reload ->
             ( { model | orders = Loading }, fetchOrders )

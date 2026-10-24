@@ -280,7 +280,7 @@ init : ( Model, Cmd Msg )
 init =
     ( { shortcuts = Shortcut.init
       , lastNote = "Nothing chosen yet."
-      , toasts = Toast.init
+      , toasts = Toast.init "gallery-toasts"
       , sizeModal = Modal.init "size-modal"
       , sizeKind = SizeMedium
       , formModal = Modal.init "form-modal"
@@ -426,7 +426,7 @@ update msg model =
 
         Navigated place ->
             ( model, Cmd.none )
-                |> withToast [ Toast.info, Toast.title "Navigation", Toast.message ("Go to " ++ place ++ " (a demonstration only).") ]
+                |> withToast [ Toast.tone Info, Toast.title "Navigation", Toast.message ("Go to " ++ place ++ " (a demonstration only).") ]
 
         NoOp ->
             ( model, Cmd.none )
@@ -463,7 +463,7 @@ update msg model =
                 Modal.close model.formModal
                     |> andMap FormMsg (\state -> { model | formModal = state, form = emptyForm, submitted = False })
                     |> withToast
-                        [ Toast.success
+                        [ Toast.tone Success
                         , Toast.title "Order saved"
                         , Toast.message ("The order for " ++ String.trim model.form.customer ++ " was created.")
                         ]
@@ -502,7 +502,7 @@ update msg model =
             ( { model | discard = discard, formModal = formState, form = emptyForm, submitted = False }
             , Cmd.batch [ Cmd.map DiscardMsg discardCmd, Cmd.map FormMsg formCmd ]
             )
-                |> withToast [ Toast.warning, Toast.message "The changes were discarded." ]
+                |> withToast [ Toast.tone Warning, Toast.message "The changes were discarded." ]
 
         DiscardCancelled ->
             ConfirmDialog.close model.discard |> andMap DiscardMsg (\state -> { model | discard = state })
@@ -547,7 +547,7 @@ update msg model =
         NeutralConfirmed ->
             ConfirmDialog.close model.neutral
                 |> andMap NeutralMsg (\state -> { model | neutral = state })
-                |> withToast [ Toast.success, Toast.title "Sent for approval", Toast.message "The order was sent to the sales manager." ]
+                |> withToast [ Toast.tone Success, Toast.title "Sent for approval", Toast.message "The order was sent to the sales manager." ]
 
         NeutralCancelled ->
             ConfirmDialog.close model.neutral |> andMap NeutralMsg (\state -> { model | neutral = state })
@@ -561,7 +561,7 @@ update msg model =
         WarningConfirmed ->
             ConfirmDialog.close model.warning
                 |> andMap WarningMsg (\state -> { model | warning = state })
-                |> withToast [ Toast.info, Toast.message "Order ORD-10001 was archived." ]
+                |> withToast [ Toast.tone Info, Toast.message "Order ORD-10001 was archived." ]
 
         WarningCancelled ->
             ConfirmDialog.close model.warning |> andMap WarningMsg (\state -> { model | warning = state })
@@ -575,7 +575,7 @@ update msg model =
         DangerConfirmed ->
             ConfirmDialog.close model.danger
                 |> andMap DangerMsg (\state -> { model | danger = state })
-                |> withToast [ Toast.danger, Toast.title "Customer deleted", Toast.message "Contoso Ltd and all its contracts were removed." ]
+                |> withToast [ Toast.tone Danger, Toast.title "Customer deleted", Toast.message "Contoso Ltd and all its contracts were removed." ]
 
         DangerCancelled ->
             ConfirmDialog.close model.danger |> andMap DangerMsg (\state -> { model | danger = state })
@@ -629,7 +629,7 @@ update msg model =
                                     }
                                 )
                             |> withToast
-                                [ Toast.success
+                                [ Toast.tone Success
                                 , Toast.title "Order deleted"
                                 , Toast.message (Types.orderIdText order.id ++ " was removed.")
                                 , Toast.action "Undo" (UndoDelete order)
@@ -643,7 +643,7 @@ update msg model =
 
         UndoDelete order ->
             ( { model | deleted = List.filter (\id -> id /= order.id) model.deleted }, Cmd.none )
-                |> withToast [ Toast.info, Toast.message (Types.orderIdText order.id ++ " was restored.") ]
+                |> withToast [ Toast.tone Info, Toast.message (Types.orderIdText order.id ++ " was restored.") ]
 
         RestoreOrders ->
             ( { model | deleted = [] }, Cmd.none )
@@ -749,7 +749,7 @@ update msg model =
         NoteSaveFailed ->
             ( model, Cmd.none )
                 |> withToast
-                    [ Toast.danger
+                    [ Toast.tone Danger
                     , Toast.title "Could not save the note"
                     , Toast.message "The server did not answer."
                     , Toast.action "Try again" RetrySaveNote
@@ -757,7 +757,7 @@ update msg model =
 
         RetrySaveNote ->
             ( { model | noteAdded = True }, Cmd.none )
-                |> withToast [ Toast.success, Toast.message "The note was saved." ]
+                |> withToast [ Toast.tone Success, Toast.message "The note was saved." ]
 
         AskCancel ->
             -- No opener: the dialog gives focus back to the button that was
@@ -812,14 +812,14 @@ update msg model =
         PushUndoToast ->
             ( model, Cmd.none )
                 |> withToast
-                    [ Toast.info
+                    [ Toast.tone Info
                     , Toast.message "Three orders were moved to the archive."
                     , Toast.action "Undo" UndoArchive
                     ]
 
         UndoArchive ->
             ( model, Cmd.none )
-                |> withToast [ Toast.info, Toast.message "The orders were taken out of the archive again." ]
+                |> withToast [ Toast.tone Info, Toast.message "The orders were taken out of the archive again." ]
 
         PushManyToasts ->
             List.range 1 7
@@ -827,10 +827,10 @@ update msg model =
                     (\n acc ->
                         withToast
                             [ if modBy 3 n == 0 then
-                                Toast.warning
+                                Toast.tone Warning
 
                               else
-                                Toast.info
+                                Toast.tone Info
                             , Toast.title ("Notification " ++ String.fromInt n)
                             , Toast.message "Only four are shown at a time. The rest wait in a queue."
                             ]
@@ -841,7 +841,7 @@ update msg model =
         PushLongToast ->
             ( model, Cmd.none )
                 |> withToast
-                    [ Toast.warning
+                    [ Toast.tone Warning
                     , Toast.title "The import was stopped because the file contains more rows with invalid values than the limit of fifty"
                     , Toast.message "Row 1,204: The date 2026-02-31 does not exist. Row 1,205: The postal code is missing. Row 1,207: The phone number has too many digits. Fix the file and upload it again."
                     ]
@@ -913,7 +913,7 @@ update msg model =
 
         PaletteRan label ->
             ( { model | lastNote = "Command: " ++ label ++ "." }, Cmd.none )
-                |> withToast [ Toast.info, Toast.title "Command run", Toast.message label ]
+                |> withToast [ Toast.tone Info, Toast.title "Command run", Toast.message label ]
 
         Debounced ticket ->
             if ticket == model.ticket && paletteArgument model.palette /= "" then
@@ -975,16 +975,16 @@ toastFor : Tone -> List (Toast.Attribute Msg)
 toastFor tone =
     case tone of
         Success ->
-            [ Toast.success, Toast.title "Changes saved", Toast.message "The order was updated." ]
+            [ Toast.tone Success, Toast.title "Changes saved", Toast.message "The order was updated." ]
 
         Warning ->
-            [ Toast.warning, Toast.title "Remember to finish", Toast.message "Three orders have no delivery date." ]
+            [ Toast.tone Warning, Toast.title "Remember to finish", Toast.message "Three orders have no delivery date." ]
 
         Danger ->
-            [ Toast.danger, Toast.title "Could not send", Toast.message "The message was not delivered. This notification stays until you close it." ]
+            [ Toast.tone Danger, Toast.title "Could not send", Toast.message "The message was not delivered. This notification stays until you close it." ]
 
         _ ->
-            [ Toast.info, Toast.title "For your information", Toast.message "The report is updated every night at 02:00." ]
+            [ Toast.tone Info, Toast.title "For your information", Toast.message "The report is updated every night at 02:00." ]
 
 
 describeFilter : String -> Bool -> String
@@ -1291,7 +1291,7 @@ popoverSection locale model =
                 [ filterPopover locale model
                 , Popover.view HelpPopoverMsg
                     [ Popover.icon Icon.help
-                    , Popover.ariaLabel "What is priority?"
+                    , Popover.iconOnly
                     , Popover.trigger [ Button.ghost ]
                     , Popover.title "Priority levels"
                     , Popover.closeButton
@@ -1299,6 +1299,7 @@ popoverSection locale model =
                     , Popover.locale locale
                     ]
                     model.helpPopover
+                    "What is priority?"
                     [ Text.paragraph "Priority is calculated from the due date, the stock level and open issues. Urgent means the order should be picked within one working day."
                     , Text.caption "Last updated overnight."
                     ]
@@ -1310,14 +1311,14 @@ popoverSection locale model =
 filterPopover : Locale -> Model -> Html Msg
 filterPopover locale model =
     Popover.view FilterPopoverMsg
-        [ Popover.label "Filter"
-        , Popover.locale locale
+        [ Popover.locale locale
         , Popover.icon Icon.filter
         , Popover.title "Quick filter"
         , Popover.closeButton
         , Popover.initialFocus [ "filter-customer" ]
         ]
         model.filterPopover
+        "Filter"
         [ TextInput.view
             [ TextInput.id "filter-customer"
             , TextInput.label "Customer"
@@ -1568,13 +1569,13 @@ sizeModal locale model =
     in
     Modal.view SizeMsg
         (sizeAttrs
-            ++ [ Modal.title name
-               , Modal.subtitle subtitle
+            ++ [ Modal.subtitle subtitle
                , Modal.locale locale
                , Modal.footer [ Button.view [ Button.primary, Button.onClick CloseSize ] "Done" ]
                ]
         )
         model.sizeModal
+        name
         [ Layout.stack [ Layout.gap 3 ] body ]
 
 
@@ -1602,8 +1603,7 @@ formModal locale model =
                 ]
     in
     Modal.view FormMsg
-        [ Modal.title "New order"
-        , Modal.subtitle "Fields marked * are required"
+        [ Modal.subtitle "Fields marked * are required"
         , Modal.static
         , Modal.onRequestClose FormRequestClose
         , Modal.locale locale
@@ -1614,6 +1614,7 @@ formModal locale model =
             ]
         ]
         model.formModal
+        "New order"
         [ Layout.stack [ Layout.gap 4 ]
             [ Layout.grid [ Layout.columns 2, Layout.gap 4 ]
                 [ TextInput.view
@@ -1679,11 +1680,11 @@ formModal locale model =
 menuModal : Locale -> Model -> Overlay Msg
 menuModal locale model =
     Modal.view MenuModalMsg
-        [ Modal.title "Dialog with a menu and a panel"
-        , Modal.locale locale
+        [ Modal.locale locale
         , Modal.footer [ Button.view [ Button.primary, Button.onClick CloseMenuModal ] "Done" ]
         ]
         model.menuModal
+        "Dialog with a menu and a panel"
         [ Layout.stack [ Layout.gap 4 ]
             [ Text.paragraph "The menu, the panel and the list of the select open above the dialog and are not cut off by its scrolling content. Escape closes only the popup, never the whole dialog. A second Escape closes the dialog."
             , Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
@@ -1698,14 +1699,14 @@ menuModal locale model =
                     ]
                     model.menu
                 , Popover.view NestedPopoverMsg
-                    [ Popover.label "Panel"
-                    , Popover.locale locale
+                    [ Popover.locale locale
                     , Popover.icon Icon.sliders
                     , Popover.title "Settings"
                     , Popover.closeButton
                     , Popover.initialFocus [ "nested-popover-input" ]
                     ]
                     model.nestedPopover
+                    "Panel"
                     [ TextInput.view
                         [ TextInput.id "nested-popover-input"
                         , TextInput.label "Display name"
@@ -1747,8 +1748,7 @@ menuModal locale model =
 discardDialog : Locale -> Model -> Overlay Msg
 discardDialog locale model =
     ConfirmDialog.view DiscardMsg
-        [ ConfirmDialog.warning
-        , ConfirmDialog.title "Discard the changes?"
+        [ ConfirmDialog.tone Warning
         , ConfirmDialog.message "The form has data that is not saved. It is lost if you close it now."
         , ConfirmDialog.confirmLabel "Discard"
         , ConfirmDialog.cancelLabel "Keep editing"
@@ -1757,26 +1757,26 @@ discardDialog locale model =
         , ConfirmDialog.locale locale
         ]
         model.discard
+        "Discard the changes?"
 
 
 neutralDialog : Locale -> Model -> Overlay Msg
 neutralDialog locale model =
     ConfirmDialog.view NeutralMsg
-        [ ConfirmDialog.title "Send the order for approval?"
-        , ConfirmDialog.message "The order is sent to the sales manager. You cannot edit it while it is being reviewed."
+        [ ConfirmDialog.message "The order is sent to the sales manager. You cannot edit it while it is being reviewed."
         , ConfirmDialog.confirmLabel "Send"
         , ConfirmDialog.onConfirm NeutralConfirmed
         , ConfirmDialog.onCancel NeutralCancelled
         , ConfirmDialog.locale locale
         ]
         model.neutral
+        "Send the order for approval?"
 
 
 warningDialog : Locale -> Model -> Overlay Msg
 warningDialog locale model =
     ConfirmDialog.view WarningMsg
-        [ ConfirmDialog.warning
-        , ConfirmDialog.title "Archive the order?"
+        [ ConfirmDialog.tone Warning
         , ConfirmDialog.message "The order moves to the archive and no longer shows in open lists."
         , ConfirmDialog.body
             [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
@@ -1796,14 +1796,14 @@ warningDialog locale model =
         , ConfirmDialog.locale locale
         ]
         model.warning
+        "Archive the order?"
 
 
 dangerDialog : Locale -> Model -> Overlay Msg
 dangerDialog locale model =
     ConfirmDialog.view DangerMsg
-        [ ConfirmDialog.danger
+        [ ConfirmDialog.tone Danger
         , ConfirmDialog.icon Icon.trash
-        , ConfirmDialog.title "Delete the customer?"
         , ConfirmDialog.message "“Contoso Ltd” and everything that belongs to it is deleted for good."
         , ConfirmDialog.consequences
             [ "142 orders lose their customer"
@@ -1818,6 +1818,7 @@ dangerDialog locale model =
         , ConfirmDialog.locale locale
         ]
         model.danger
+        "Delete the customer?"
 
 
 lifecycleDialog : Locale -> Model -> Overlay Msg
@@ -1832,8 +1833,7 @@ lifecycleDialog locale model =
                     ""
     in
     ConfirmDialog.view LifecycleMsg
-        [ ConfirmDialog.danger
-        , ConfirmDialog.title "Delete the order?"
+        [ ConfirmDialog.tone Danger
         , ConfirmDialog.message (name ++ " is removed from all lists and can no longer be found in searches.")
         , ConfirmDialog.confirmLabel "Delete order"
         , ConfirmDialog.onConfirm DeleteConfirmed
@@ -1841,6 +1841,7 @@ lifecycleDialog locale model =
         , ConfirmDialog.locale locale
         ]
         model.lifecycle
+        "Delete the order?"
 
 
 {-| Asked from inside the drawer, on top of it. The confirm button stays disabled
@@ -1849,8 +1850,7 @@ until the box is ticked; a failure of the server goes away when it changes.
 cancelDialog : Locale -> Model -> Overlay Msg
 cancelDialog locale model =
     ConfirmDialog.view CancelMsg
-        [ ConfirmDialog.danger
-        , ConfirmDialog.title "Cancel the order?"
+        [ ConfirmDialog.tone Danger
         , ConfirmDialog.message "The customer is told by email."
         , ConfirmDialog.body
             [ Checkbox.view
@@ -1868,6 +1868,7 @@ cancelDialog locale model =
         , ConfirmDialog.locale locale
         ]
         model.cancel
+        "Cancel the order?"
 
 
 drawerRightView : Locale -> Model -> Overlay Msg
@@ -1875,8 +1876,7 @@ drawerRightView locale model =
     -- Always in the list, even before the first order is chosen: a closed drawer
     -- listens to the focus on the page, to give it back when it closes.
     Drawer.view RightDrawerMsg
-        [ Drawer.title (Maybe.map (.id >> Types.orderIdText) model.drawerOrder |> Maybe.withDefault "")
-        , Drawer.subtitle (Maybe.map (\order -> order.customer ++ " · " ++ order.email) model.drawerOrder |> Maybe.withDefault "")
+        [ Drawer.subtitle (Maybe.map (\order -> order.customer ++ " · " ++ order.email) model.drawerOrder |> Maybe.withDefault "")
         , Drawer.locale locale
         , Drawer.footer
             [ Button.view [ Button.onClick CloseRightDrawer ] "Close"
@@ -1884,6 +1884,7 @@ drawerRightView locale model =
             ]
         ]
         model.drawerRight
+        (Maybe.map (.id >> Types.orderIdText) model.drawerOrder |> Maybe.withDefault "Order")
         (RemoteView.view
             [ RemoteView.locale locale
             , RemoteView.onRetry RetryDrawer
@@ -1968,7 +1969,6 @@ drawerLeftView locale model =
         [ Drawer.left
         , Drawer.small
         , Drawer.static
-        , Drawer.title "Filters"
         , Drawer.subtitle "Static: closes only with the buttons"
         , Drawer.locale locale
         , Drawer.footer
@@ -1977,6 +1977,7 @@ drawerLeftView locale model =
             ]
         ]
         model.drawerLeft
+        "Filters"
         [ Layout.stack [ Layout.gap 4 ]
             [ Checkbox.view [ Checkbox.label "Open orders only", Checkbox.checked model.onlyOpen, Checkbox.onCheck OnlyOpenChanged ]
             , Checkbox.view [ Checkbox.label "Urgent orders only", Checkbox.checked model.onlyUrgent, Checkbox.onCheck OnlyUrgentChanged ]
@@ -2071,12 +2072,12 @@ modalSizesCode =
     """-- model: sizeDialog : Modal.State   (Modal.init "size-dialog")
 
 Modal.view SizeDialogMsg
-    [ Modal.title "Order ORD-10001"
-    , Modal.subtitle "Contoso Ltd"
+    [ Modal.subtitle "Contoso Ltd"
     , Modal.large -- or Modal.small, Modal.medium, Modal.fullHeight
     , Modal.footer [ Button.view [ Button.primary, Button.onClick CloseDialog ] "Done" ]
     ]
     model.sizeDialog
+    "Order ORD-10001" -- the title: the heading and the name screen readers hear
     [ content ]
 
 -- open it from a button with an id: focus returns there when the dialog closes
@@ -2101,13 +2102,13 @@ Overlay.host
 modalFormCode : String
 modalFormCode =
     """Modal.view FormMsg
-    [ Modal.title "New order"
-    , Modal.subtitle "Fields marked * are required"
+    [ Modal.subtitle "Fields marked * are required"
     , Modal.static
     , Modal.onRequestClose RequestClose
     , Modal.footer [ cancelButton, saveButton ]
     ]
     model.formDialog
+    "New order"
     [ orderForm model.form ]
 
 -- the close button asks; the answer decides. The confirmation gets the close
@@ -2139,8 +2140,9 @@ modalPopupsCode =
     """-- A Menu, a Popover or a Select in the body of a dialog opens above the dialog.
 -- Escape closes only the popup; a second Escape closes the dialog.
 Modal.view MenuDialogMsg
-    [ Modal.title "Dialog with a menu and a panel" ]
+    []
     model.menuDialog
+    "Dialog with a menu and a panel"
     [ Menu.view MenuMsg [ Menu.label "Actions", Menu.items actions ] model.menu
     , Select.view CountryMsg
         [ Select.label "Country", Select.options countryOptions ]
@@ -2151,8 +2153,7 @@ Modal.view MenuDialogMsg
 confirmTonesCode : String
 confirmTonesCode =
     """ConfirmDialog.view DialogMsg
-    [ ConfirmDialog.danger
-    , ConfirmDialog.title "Delete the customer?"
+    [ ConfirmDialog.tone Danger
     , ConfirmDialog.message "Contoso Ltd and everything that belongs to it is deleted for good."
     , ConfirmDialog.consequences [ "142 orders lose their customer" ]
     , ConfirmDialog.confirmLabel "Delete customer"
@@ -2162,9 +2163,10 @@ confirmTonesCode =
     , ConfirmDialog.onCancel Cancelled
     ]
     model.dialog
+    "Delete the customer?" -- the question: the title and the accessible name
 
--- ConfirmDialog.neutral (the default) and ConfirmDialog.warning are the other tones;
--- ConfirmDialog.body takes any HTML, ConfirmDialog.cancelLabel names the other button"""
+-- Neutral (the default) and Warning are the other tones; ConfirmDialog.body
+-- takes any HTML, ConfirmDialog.cancelLabel names the other button"""
 
 
 confirmLifecycleCode : String
@@ -2195,16 +2197,16 @@ CancelDelete ->
 drawerCode : String
 drawerCode =
     """Drawer.view DrawerMsg
-    [ Drawer.title "ORD-10001"
-    , Drawer.subtitle "Contoso Ltd"
+    [ Drawer.subtitle "Contoso Ltd"
     , Drawer.large -- 720 px; Drawer.small is 360 px
     , Drawer.footer [ Button.view [ Button.onClick CloseDrawer ] "Close" ]
     ]
     model.drawer
+    "ORD-10001"
     [ details ]
 
 -- from the left, and only closed by its own buttons
-Drawer.view FilterDrawerMsg [ Drawer.left, Drawer.small, Drawer.static, Drawer.title "Filters" ] model.filterDrawer [ filters ]
+Drawer.view FilterDrawerMsg [ Drawer.left, Drawer.small, Drawer.static ] model.filterDrawer "Filters" [ filters ]
 
 -- "Try again" makes way for the skeleton: nothing to call, the drawer takes
 -- the focus by itself
@@ -2219,7 +2221,7 @@ UrlChanged url ->
 toastCode : String
 toastCode =
     """Toast.push
-    [ Toast.success
+    [ Toast.tone Success
     , Toast.title "Order saved"
     , Toast.message "Order ORD-10001 was updated."
     , Toast.action "Undo" UndoSave
@@ -2228,25 +2230,31 @@ toastCode =
 -- gives ( toasts, cmd ): store the toasts and map the cmd into your own Msg
 
 -- once, among the overlays
-Toast.view ToastMsg [] model.toasts"""
+Toast.view ToastMsg [] model.toasts
+
+-- a key that takes the keyboard to the newest toast (its "Undo"), before it goes
+Shortcut.shortcut (Shortcut.function 6) "General" "Go to the notifications" FocusToasts
+
+FocusToasts ->
+    ( model, Cmd.map ToastMsg (Toast.focus model.toasts) )"""
 
 
 popoverCode : String
 popoverCode =
     """Popover.view PopoverMsg
-    [ Popover.label "Filter"
-    , Popover.icon Icon.filter
+    [ Popover.icon Icon.filter
     , Popover.title "Quick filter"
     , Popover.closeButton
     , Popover.initialFocus [ "filter-customer" ]
     ]
     model.popover
+    "Filter" -- the label of the button
     [ TextInput.view [ TextInput.id "filter-customer", TextInput.label "Customer" ]
     , Button.view [ Button.primary, Button.onClick ApplyFilter ] "Apply"
     ]
 
--- an icon-only trigger needs a name
-Popover.view HelpMsg [ Popover.icon Icon.help, Popover.ariaLabel "What is priority?" ] model.help [ explanation ]"""
+-- an icon-only trigger: the label is its accessible name
+Popover.view HelpMsg [ Popover.icon Icon.help, Popover.iconOnly ] model.help "What is priority?" [ explanation ]"""
 
 
 tooltipAttrsCode : String

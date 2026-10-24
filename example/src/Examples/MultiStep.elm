@@ -35,6 +35,7 @@ import Klar.Locale as Locale
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote
+import Klar.Theme exposing (Tone(..))
 import Klar.Toast as Toast
 import Klar.Validate as Validate
 import Process
@@ -190,7 +191,7 @@ init _ url key =
       , order = Form.init form
       , status = FormLayout.Idle
       , guard = LeaveGuard.initAt "leave-dialog" key url
-      , toasts = Toast.init
+      , toasts = Toast.init "toasts"
       }
     , Cmd.none
     )
@@ -269,7 +270,7 @@ update msg model =
         Submitted (Ok ()) ->
             let
                 ( toasts, cmd ) =
-                    Toast.push [ Toast.success, Toast.message "Order placed." ] model.toasts
+                    Toast.push [ Toast.tone Success, Toast.message "Order placed." ] model.toasts
             in
             -- nothing is unsaved any more: start a clean form, then leave the flow
             ( edited { model | order = Form.init form, status = FormLayout.Idle, toasts = toasts }

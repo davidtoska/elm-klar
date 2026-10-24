@@ -72,12 +72,19 @@ html:has(.klar-modal-lock) {
   animation: klar-fade-in var(--klar-dur) var(--klar-ease);
 }
 
-/* Focus that falls out of the open dialog (the focused element was removed or
+/* Focus that falls out of an overlay (the focused element was removed or
    disabled, and the page fell back to the body) is the only thing in the DOM that
    no event reports. This element runs an animation exactly while no overlay
-   contains focus; the dialog on top hears `animationstart` and takes focus back.
-   The animation does nothing visible. The same selector list names every
-   surface that can hold focus: the dialogs, the palette and the toasts. */
+   contains focus; its surface hears `animationstart` and takes focus back. The
+   animation does nothing visible, and it waits 60ms before it starts: a surface
+   that just opened moves focus into itself in the next frame, and is not taken
+   for one that lost it. The selector list names every surface that can hold
+   focus: the dialogs, the popovers, the palette and the toasts.
+
+   One guard acts at a time. The dialog on top keeps watch (only it draws a
+   guard), unless a popover is open inside it, which then keeps watch itself (the
+   innermost one, when popovers are nested). While the toast stack brings back the
+   focus of a toast that went away (`klar-toasts--recover`), only the stack acts. */
 .klar-modal__guard {
   position: absolute;
   width: 0;
@@ -85,9 +92,11 @@ html:has(.klar-modal-lock) {
   pointer-events: none;
 }
 
-:root:not(:has(.klar-modal__dialog:focus-within, .klar-palette__panel:focus-within, .klar-toasts:focus-within))
-  .klar-modal__guard {
-  animation: klar-focus-lost 1ms;
+:root:not(:has(.klar-modal__dialog:focus-within, .klar-palette__panel:focus-within, .klar-toasts:focus-within, .klar-popover__popup:focus-within, .klar-toasts--recover))
+  :is(.klar-modal__dialog:not(:has(.klar-popover__popup)), .klar-popover__popup:not(:has(.klar-popover__popup))) > .klar-modal__guard,
+:root:not(:has(.klar-modal__dialog:focus-within, .klar-palette__panel:focus-within, .klar-toasts:focus-within, .klar-popover__popup:focus-within))
+  .klar-toasts > .klar-modal__guard {
+  animation: klar-focus-lost 1ms 60ms;
 }
 
 @keyframes klar-focus-lost {
@@ -179,6 +188,12 @@ html:has(.klar-modal-lock) {
   outline: none;
 }
 
+/* At the end of the footer it takes no part in the row of buttons (no gap). */
+.klar-modal__footer > .klar-modal__end {
+  position: absolute;
+  width: 0;
+}
+
 .klar-modal__footer {
   flex: none;
   display: flex;
@@ -191,8 +206,9 @@ html:has(.klar-modal-lock) {
   outline: none;
 }
 
-/* The footer is where Shift+Tab lands after wrapping around: make it visible. */
-.klar-modal__footer:focus-visible {
+/* Shift+Tab lands at the end of the footer after wrapping around (the next
+   Shift+Tab reaches its last button): make that visible on the footer. */
+.klar-modal__footer:has(> .klar-modal__end:focus-visible) {
   outline: 2px solid var(--klar-focus-color);
   outline-offset: -2px;
 }
@@ -364,10 +380,23 @@ html:has(.klar-modal-lock) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--klar-space-2);
   width: 380px;
   max-width: calc(100vw - 2 * var(--klar-space-4));
   pointer-events: none;
+}
+
+/* Two live regions in one column: the danger toasts (announced at once) above the
+   others (announced politely). An empty region takes no room. */
+.klar-toasts__alerts,
+.klar-toasts__log {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--klar-space-2);
+}
+
+.klar-toasts__alerts:not(:empty) {
+  margin-bottom: var(--klar-space-2);
 }
 
 /* While a dialog is open the toasts leave the corner, where they would cover the
@@ -489,6 +518,26 @@ html:has(.klar-modal-lock) {
   .klar-palette__panel {
     animation: none;
   }
+
+  /* The nudge of a static dialog, with the specificity of its own rules. */
+  .klar-modal.klar-modal .klar-modal__dialog--nudge-a,
+  .klar-modal.klar-modal .klar-modal__dialog--nudge-b {
+    animation: none;
+  }
+}
+
+/* Windows high contrast: the shadows are gone, so the dialogs, drawers and toasts
+   keep their edges as borders in the system colors, and the footer that Shift+Tab
+   wrapped to keeps its ring. */
+@media (forced-colors: active) {
+  .klar-modal__dialog,
+  .klar-toast {
+    border-color: CanvasText;
+  }
+
+  .klar-modal__footer:has(> .klar-modal__end:focus-visible) {
+    outline-color: Highlight;
+  }
 }
 
 /* ---- Popover --------------------------------------------------------- */
@@ -542,7 +591,7 @@ html:has(.klar-modal-lock) {
   font: var(--klar-weight) var(--klar-text-sm) / 1.35 var(--klar-font);
   font-style: normal;
   letter-spacing: normal;
-  text-align: left;
+  text-align: start;
   text-decoration: none;
   text-indent: 0;
   text-shadow: none;
@@ -562,10 +611,14 @@ html:has(.klar-modal-lock) {
    flipped) with the scroll position of that moment. It fades in after a short
    delay, so that moving the pointer across a toolbar does not flash tips.
    Keyboard focus gets it sooner. */
-[data-tip]:hover::after,
-.klar-tip-wrap:hover > .klar-tip-bubble {
-  display: block;
-  animation: klar-tip-in var(--klar-dur-fast) var(--klar-ease) 450ms backwards;
+/* Only where a pointer can hover: on a touch screen a tap would leave the tip
+   standing until the next tap somewhere else. */
+@media (hover: hover) {
+  [data-tip]:hover::after,
+  .klar-tip-wrap:hover > .klar-tip-bubble {
+    display: block;
+    animation: klar-tip-in var(--klar-dur-fast) var(--klar-ease) 450ms backwards;
+  }
 }
 
 [data-tip]:focus-visible::after,
@@ -612,6 +665,15 @@ html:has(.klar-modal-lock) {
   background: color-mix(in srgb, var(--klar-white) 14%, transparent);
   color: var(--klar-white);
   font-size: 10.5px;
+}
+
+/* Windows high contrast removes the dark background and the shadow: a border keeps
+   the tip apart from the page under it. */
+@media (forced-colors: active) {
+  [data-tip]::after,
+  .klar-tip-bubble {
+    border: 1px solid CanvasText;
+  }
 }
 
 /* The tip sits centered above the element and 6px away. Anchor-centering
