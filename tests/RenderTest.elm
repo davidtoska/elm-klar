@@ -770,12 +770,47 @@ fieldTests =
             \_ -> Expect.equal ( "qty-label", "qty-hint" ) ( Field.labelId config, Field.hintId config )
         , test "everything is wired" <|
             \_ -> expectWellWired (Field.view config control)
-        , test "without a label, a hint and an error the control is returned as it is" <|
+        , test "the wrapper is drawn also without a label, a hint and an error" <|
             \_ ->
                 Field.view bareConfig (Html.input (Field.controlAttributes bareConfig) [])
-                    |> Expect.all [ rootLacks [ Selector.class "klar-field" ], rootHas [ Selector.id "x" ] ]
-        , test "viewStable always wraps" <|
-            \_ -> rootHas [ Selector.class "klar-field" ] (Field.viewStable bareConfig (Html.input [ Attr.id "x" ] []))
+                    |> Expect.all [ rootHas [ Selector.class "klar-field" ], inside [ Selector.tag "input" ] [ Selector.id "x" ] ]
+        , test "the control keeps its place when the first error comes (view and viewGroup)" <|
+            \_ ->
+                let
+                    place wrap fieldConfig =
+                        wrap fieldConfig (Html.input [ Attr.id "x" ] [])
+                            |> Query.fromHtml
+                            |> Query.children []
+                            |> Query.index 1
+                            |> Query.has [ Selector.id "x" ]
+                in
+                Expect.all
+                    [ \_ -> place Field.view bareConfig
+                    , \_ -> place Field.view (bareConfig |> Field.setError (Just "Too many"))
+                    , \_ -> place Field.viewGroup bareConfig
+                    , \_ -> place Field.viewGroup (bareConfig |> Field.setError (Just "Too many"))
+                    , \_ -> place Field.viewGroup (bareConfig |> Field.setLabel "Quantity" |> Field.setHint "Whole units")
+                    ]
+                    ()
+        , test "a blank error or hint counts as none: no empty alert, nothing invalid" <|
+            \_ ->
+                let
+                    blank =
+                        bareConfig |> Field.setError (Just "") |> Field.setHint "  "
+                in
+                Field.view blank (Html.input (Field.controlAttributes blank) [])
+                    |> Expect.all
+                        [ none [ Selector.attribute (Attr.attribute "role" "alert") ]
+                        , none [ Selector.class "klar-field__hint" ]
+                        , rootLacks [ Selector.class "klar-field--invalid" ]
+                        , \html ->
+                            Query.fromHtml html
+                                |> Query.find [ Selector.tag "input" ]
+                                |> Expect.all
+                                    [ Query.hasNot [ attr "aria-invalid" "true" ]
+                                    , Query.hasNot [ Selector.attribute (Attr.attribute "aria-describedby" "x-hint x-error") ]
+                                    ]
+                        ]
         , test "a field without an error is not marked invalid" <|
             \_ ->
                 Field.view (bareConfig |> Field.setLabel "X") (Html.input (Field.controlAttributes bareConfig) [])
@@ -795,6 +830,10 @@ fieldTests =
                     |> Expect.all [ none [ Selector.tag "label" ], inside [ Selector.id "qty-label" ] [ Selector.text "Quantity" ] ]
         , test "viewGroup without a label is the same as view" <|
             \_ -> Expect.equal (printed (Field.view bareConfig (Html.text "c"))) (printed (Field.viewGroup bareConfig (Html.text "c")))
+        , test "viewGroup draws the hint and the error of the group" <|
+            \_ ->
+                Field.viewGroup config (Html.div [ Attr.id (Field.labelId config) ] [ Html.text "Quantity" ])
+                    |> Expect.all [ inside [ Selector.id "qty-hint" ] [ Selector.text "Whole units" ], inside [ Selector.id "qty-error" ] [ Selector.text "Too many" ] ]
         ]
 
 

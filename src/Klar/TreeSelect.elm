@@ -1671,7 +1671,7 @@ view toMsg attributes (State data) =
             else
                 data
     in
-    Field.viewStable field
+    Field.view field
         (Html.div
             [ Internal.cls
                 [ "klar-anchor"

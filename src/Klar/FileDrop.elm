@@ -757,7 +757,7 @@ view toMsg attributes (State state) =
     in
     -- stable: the application may show an error after a drop, and the zone must
     -- not move into the wrapper then (the focus is on the file input inside it)
-    Field.viewStable { field | hint = Nothing }
+    Field.view { field | hint = Nothing }
         (Html.div
             [ Internal.cls
                 [ "klar-filedrop"

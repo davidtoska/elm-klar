@@ -518,7 +518,7 @@ withCounter field config control =
             Field.viewWithAside field (viewCounter config.locale (String.length config.value) limit) control
 
         Nothing ->
-            Field.viewStable field control
+            Field.view field control
 
 
 viewCounter : Locale -> Int -> Int -> Html msg

@@ -1,5 +1,5 @@
 module Klar.Field exposing
-    ( view, viewStable, viewWithAside, viewGroup
+    ( view, viewWithAside, viewGroup
     , Config, empty, setId, setLabel, setLabelHidden, setHint, setError, setRequired, setOptionalText
     , controlAttributes, describedByAttributes, labelId, hintId
     )
@@ -44,7 +44,7 @@ application. [Klar.Validate](Klar-Validate) turns values into a list of
 problems, each the `id` of a control and a message, and `Validate.errorFor` picks
 the message of one control, as above:
 
-    validate : Model -> List Validate.Error
+    validate : Model -> List Validate.Problem
     validate model =
         Validate.collect Locale.default
             [ ( "order-customer", [ Validate.required ], model.customer )
@@ -71,13 +71,15 @@ The label, the hint and the error message get the ids `<id>-label`,
 `aria-required`, so a group of checkboxes (`role="group"`) is joined to its hint
 and error message with `aria-describedby` alone (`describedByAttributes`).
 
-**Which view.** A control with no label, no hint and no error is not wrapped at
-all, so it moves into the wrapper when its first error appears. The browser
-rebuilds an element that moves, and the keyboard focus is lost. That matters for
-a control that makes messages of its own while the user types: it uses
-`viewStable`, which always wraps. A control that draws its own label, like a
-group with a legend, uses `viewGroup`, and a control with something small at the
-end of the line under it, like a character counter, uses `viewWithAside`.
+**Which view.** Every view always draws the wrapper, also around a control with
+no label, no hint and no error, and the control keeps its place in it when a
+hint or an error comes and goes. (A control that moved into a wrapper when its
+first error appeared would be rebuilt by the browser, and the keyboard focus in
+it would drop to the page.) `view` draws the label of the field; a control that
+draws its own label, like a group with a legend, uses `viewGroup`; and a control
+with something small at the end of the line under it, like a character counter,
+uses `viewWithAside`. A blank hint or error (`""`) counts as none, so there is
+never an empty message, nor a field marked invalid without one.
 
 **A control of your own.** Describe the field, put `controlAttributes` on the
 element that takes the keyboard focus, and wrap it:
@@ -117,7 +119,7 @@ still points at the hint.
 
 # Wrapping a control
 
-@docs view, viewStable, viewWithAside, viewGroup
+@docs view, viewWithAside, viewGroup
 
 
 # Describing the field
@@ -196,7 +198,8 @@ setLabelHidden config =
 
 
 {-| A line of help under the control. It is joined to the control with
-`aria-describedby`, so a screen reader reads it together with the control.
+`aria-describedby`, so a screen reader reads it together with the control. A
+blank text counts as no hint.
 -}
 setHint : String -> Config -> Config
 setHint hint config =
@@ -205,7 +208,8 @@ setHint hint config =
 
 {-| `Just message` shows the message in red under the control, marks the
 control invalid (`aria-invalid`) and has screen readers read the message when it
-appears (`role="alert"`). `Nothing` clears the error.
+appears (`role="alert"`). `Nothing` clears the error, and so does a blank
+message (`Just ""`): a field is never marked invalid without a message to say why.
 -}
 setError : Maybe String -> Config -> Config
 setError error config =
@@ -252,6 +256,23 @@ errorId config =
     config.id ++ "-error"
 
 
+{-| A text that is there: blank text counts as none, so that no empty hint or
+error is drawn and no field is invalid without a message.
+-}
+present : Maybe String -> Maybe String
+present text =
+    case text of
+        Just value ->
+            if String.trim value == "" then
+                Nothing
+
+            else
+                text
+
+        Nothing ->
+            Nothing
+
+
 {-| The attributes the control itself needs: its `id`, `aria-describedby` (the
 hint and the error message, when there are some), `aria-invalid` (while there is
 an error) and `aria-required` (on a required field). Put them on the element
@@ -275,7 +296,7 @@ controlAttributes config =
 
       else
         Attr.attribute "aria-describedby" (String.join " " described)
-    , Internal.attrIf (config.error /= Nothing) (Attr.attribute "aria-invalid" "true")
+    , Internal.attrIf (present config.error /= Nothing) (Attr.attribute "aria-invalid" "true")
     , Internal.attrIf config.required (Attr.attribute "aria-required" "true")
     ]
 
@@ -299,47 +320,25 @@ describedByAttributes config =
 describedByIds : Config -> List String
 describedByIds config =
     List.filterMap identity
-        [ Maybe.map (\_ -> hintId config) config.hint
-        , Maybe.map (\_ -> errorId config) config.error
+        [ Maybe.map (\_ -> hintId config) (present config.hint)
+        , Maybe.map (\_ -> errorId config) (present config.error)
         ]
 
 
 {-| Wraps a control in its field: the label (with the `*` of a required field
-or the optional text), the control, then the hint and the error message. When
-the field has no label, no hint and no error, the control is returned as it is,
-without a wrapper. Use `viewStable` for a control that must not move into the
-wrapper later.
+or the optional text), the control, then the hint and the error message. The
+wrapper is always drawn, also when the field has no label, no hint and no error,
+so the control stays where it is when an error comes and goes and keeps the
+keyboard focus.
 -}
 view : Config -> Html msg -> Html msg
 view config control =
-    let
-        hasLabel =
-            config.label /= Nothing
-    in
-    if not hasLabel && config.hint == Nothing && config.error == Nothing then
-        control
-
-    else
-        viewWrapped config Nothing control
-
-
-{-| Like `view`, but the control is always inside the field wrapper, also when
-there is no label, hint or error to show. Use it for a control that makes
-messages of its own while the user types (a number that is not a number, a
-duplicate tag, a date that is not a date): with `view` the control would move
-into the wrapper at the moment the first message appears, the browser would
-rebuild it, and keyboard focus would be lost in the middle of typing.
--}
-viewStable : Config -> Html msg -> Html msg
-viewStable config control =
     viewWrapped config Nothing control
 
 
 {-| Like `view`, with something small at the end of the row under the control,
 level with the hint and the error message: a character counter, for example.
-That extra element is the second argument, the control the third. The field is
-always wrapped, so the control stays where it is when the hint or the error comes
-and goes.
+That extra element is the second argument, the control the third.
 
     Field.viewWithAside field (Html.text "12/200") control
 
@@ -351,27 +350,24 @@ viewWithAside config aside control =
 
 {-| For a control that draws its own label, like a group of radio buttons with
 a legend: the label is not drawn here (give the element that shows it the id
-`labelId`), but a field that has a label is always wrapped. With
-`view { config | label = Nothing }` the control would move in and out of the
-wrapper when an error comes and goes, the browser would rebuild it, and keyboard
-focus inside it would be lost (choosing a radio button with the arrow keys
-clears the error and drops the focus). A field without a label behaves as with
-`view`.
+`labelId`), and the hint and the error message are, under the control. Like
+`view`, it always draws the wrapper, so the control is not rebuilt when an error
+comes and goes (choosing a radio button with the arrow keys clears the error,
+and the focus stays on the button).
 -}
 viewGroup : Config -> Html msg -> Html msg
 viewGroup config control =
-    if config.label /= Nothing then
-        viewWrapped { config | label = Nothing } Nothing control
-
-    else
-        view config control
+    viewWrapped { config | label = Nothing } Nothing control
 
 
 viewWrapped : Config -> Maybe (Html msg) -> Html msg -> Html msg
 viewWrapped config aside control =
     let
+        errorText =
+            present config.error
+
         hint =
-            case config.hint of
+            case present config.hint of
                 Just text ->
                     Html.p [ Internal.cls [ "klar-field__hint" ], Attr.id (hintId config) ] [ Html.text text ]
 
@@ -379,7 +375,7 @@ viewWrapped config aside control =
                     Html.text ""
 
         error =
-            case config.error of
+            case errorText of
                 Just text ->
                     Html.p
                         [ Internal.cls [ "klar-field__error" ]
@@ -394,7 +390,7 @@ viewWrapped config aside control =
     Html.div
         [ Internal.cls
             [ "klar-field"
-            , if config.error /= Nothing then
+            , if errorText /= Nothing then
                 "klar-field--invalid"
 
               else

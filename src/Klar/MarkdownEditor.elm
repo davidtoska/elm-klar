@@ -847,7 +847,7 @@ view toMsg attributes (State state) =
             Field.viewWithAside field (viewCounter words length limit) box
 
         Nothing ->
-            Field.viewStable field box
+            Field.view field box
 
 
 viewCounter : Texts -> Int -> Int -> Html msg

@@ -686,7 +686,7 @@ view toMsg attributes (State state) =
                 state.tags
     in
     -- stable: the field makes messages of its own while the user types
-    Field.viewStable field
+    Field.view field
         (Html.div [ Internal.cls [ "klar-taginput-wrap" ] ]
             [ -- The input comes after a list of chips that grows and shrinks.
               -- The chips sit in a wrapper of their own (`display: contents`,
