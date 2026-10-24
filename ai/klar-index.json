@@ -1856,13 +1856,15 @@
         "make",
         "list",
         "string",
-        "int"
+        "int",
+        "map"
       ],
       "mainFunctions": [
         "make",
         "list",
         "string",
         "int",
+        "map",
         "toKey",
         "fromKey"
       ],

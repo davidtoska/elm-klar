@@ -46,6 +46,7 @@ suite =
         , selectAllTests
         , groupTests
         , isDrawnTests
+        , autocompleteTests
         ]
 
 
@@ -581,4 +582,128 @@ isDrawnTests =
                     (List.map (\i -> VirtualList.isDrawn geometry i (scrolled 3200)) [ 0, 100, 109 ])
         , test "a row past the end is never drawn" <|
             \_ -> Expect.equal False (VirtualList.isDrawn { geometry | count = 3 } 3 (scrolled 0))
+        ]
+
+
+
+-- AUTOCOMPLETE
+
+
+autoAfter : Event Msg -> Autocomplete.State String -> Result String (Autocomplete.State String)
+autoAfter event state =
+    Event.toResult event
+        |> Result.andThen
+            (\msg ->
+                case msg of
+                    AutoMsg inner ->
+                        Ok (Tuple.first (Autocomplete.update inner state))
+
+                    _ ->
+                        Err "a message of another component"
+            )
+
+
+autoInput : List Selector
+autoInput =
+    [ Selector.id "city" ]
+
+
+{-| The autocomplete after typing `text`, then the event on the input.
+-}
+typedThen : String -> List (Autocomplete.Attribute String Msg) -> ( String, Encode.Value ) -> Result String (Autocomplete.State String)
+typedThen text attributes event =
+    typedInto text attributes
+        |> Result.andThen
+            (\state ->
+                Autocomplete.view AutoMsg attributes state
+                    |> Query.fromHtml
+                    |> Query.find autoInput
+                    |> Event.simulate event
+                    |> (\e -> autoAfter e state)
+            )
+
+
+autocompleteTests : Test
+autocompleteTests =
+    let
+        local =
+            [ Autocomplete.options cities ]
+
+        pickedAfter event =
+            typedThen "berlin" local event |> Result.map Autocomplete.picked
+    in
+    describe "Autocomplete: typed values, and picked the same however the field is left"
+        [ test "Enter on a text that is a suggestion's label picks it" <|
+            \_ -> Expect.equal (Ok (Just "ber")) (pickedAfter (keydown (plain "Enter")))
+        , test "Tab picks it too" <|
+            \_ -> Expect.equal (Ok (Just "ber")) (pickedAfter (keydown (plain "Tab")))
+        , test "Escape picks it too" <|
+            \_ -> Expect.equal (Ok (Just "ber")) (pickedAfter (keydown (plain "Escape")))
+        , test "and so does a click elsewhere (blur)" <|
+            \_ -> Expect.equal (Ok (Just "ber")) (pickedAfter Event.blur)
+        , test "a free text picks nothing" <|
+            \_ ->
+                typedThen "Berlinn" local Event.blur
+                    |> Result.map Autocomplete.picked
+                    |> Expect.equal (Ok Nothing)
+        , test "setOption puts a saved suggestion back: its label and its value" <|
+            \_ ->
+                let
+                    state =
+                        Autocomplete.init "city" |> Autocomplete.setOption (Select.option "bern" "Bern")
+                in
+                Expect.equal ( "Bern", Just "bern" ) ( Autocomplete.text state, Autocomplete.picked state )
+        , test "a picked suggestion keeps its value when another has the same label" <|
+            \_ ->
+                let
+                    twins =
+                        [ Autocomplete.options [ Select.option "il" "Springfield", Select.option "mo" "Springfield" ] ]
+
+                    state =
+                        Autocomplete.init "city" |> Autocomplete.setOption (Select.option "mo" "Springfield")
+                in
+                Autocomplete.view AutoMsg twins state
+                    |> Query.fromHtml
+                    |> Query.find autoInput
+                    |> Event.simulate Event.blur
+                    |> (\e -> autoAfter e state)
+                    |> Result.map Autocomplete.picked
+                    |> Expect.equal (Ok (Just "mo"))
+        , test "clear empties the text and the pick" <|
+            \_ ->
+                Autocomplete.init "city"
+                    |> Autocomplete.setOption (Select.option "bern" "Bern")
+                    |> Autocomplete.clear
+                    |> (\state -> ( Autocomplete.text state, Autocomplete.picked state ))
+                    |> Expect.equal ( "", Nothing )
+        , test "a read-only field reacts to no key, and sends no onEnter" <|
+            \_ ->
+                Autocomplete.view AutoMsg
+                    [ Autocomplete.options cities, Autocomplete.readOnly True, Autocomplete.onEnter Retry ]
+                    (Autocomplete.init "city" |> Autocomplete.setText "Berlin")
+                    |> Expect.all
+                        [ \view -> view |> pressOn autoInput (plain "Enter") |> expectIgnored
+                        , \view -> view |> pressOn [ Selector.class "klar-autocomplete" ] (plain "Enter") |> expectIgnored
+                        ]
+        , test "while \"No suggestions\" shows, aria-controls names the popup that says so" <|
+            \_ ->
+                case typedInto "zz" [ Autocomplete.remote (Loaded []) ] of
+                    Ok state ->
+                        Autocomplete.view AutoMsg [ Autocomplete.remote (Loaded []) ] state
+                            |> Query.fromHtml
+                            |> Expect.all
+                                [ Query.find autoInput >> Query.has [ Selector.attribute (Attr.attribute "aria-controls" "city-popup") ]
+                                , Query.has [ Selector.id "city-popup" ]
+                                ]
+
+                    Err why ->
+                        Expect.fail why
+        , test "open and close, like Select" <|
+            \_ ->
+                let
+                    opened =
+                        Autocomplete.init "city" |> Autocomplete.open |> Tuple.first
+                in
+                Expect.equal ( True, False )
+                    ( Autocomplete.isOpen opened, Autocomplete.isOpen (Tuple.first (Autocomplete.close opened)) )
         ]

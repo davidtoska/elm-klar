@@ -1,17 +1,19 @@
-module Klar.Ids exposing (Ids, make, list, string, int, toKey, fromKey)
+module Klar.Ids exposing (Ids, make, list, string, int, map, toKey, fromKey)
 
 {-| How the application's own id type is written as text and read back, once.
 
 Use when: a component keeps your own ids or keys (rows, nodes, items, pages, choices) and needs them as text inside.
 Do not use when: the value is not an id of yours (a label, a search text); plain text and whole-number ids take `Ids.string` and `Ids.int`.
-Quick path: `make`, `list`, `string`, `int`
+Quick path: `make`, `list`, `string`, `int`, `map`
 
 Components keep their values as text keys internally (a table's selection, the open
 nodes of a tree, the choices of a rule). An application writes the two functions once
 per id type, as a constant next to the type, and gives the same `Ids` to every
-component that holds that type: `Table.rowId`, `Tree.leaf`, `Picking.leaf`,
-`Sortable.view`, `SideNav.item`, `Spec.choice` and `Spec.choices` of a form,
-`Rule.choiceFieldOf` and `Form.Check.lostIds`.
+component that holds that type: `Table.rowId`, `Tree.leaf`, `Picking.leaf` (and so
+`TreeSelect` and `Cascader`), `Transfer.options`, `Sortable.view`, `SideNav.item`,
+`ServerList.target`, `Spec.choice` and `Spec.choices` of a form, `Rule.choiceFieldOf`
+and `Form.Check.lostIds`. `Select`, `MultiSelect` and `Autocomplete` compare their
+values with `==` and take no `Ids`.
 
     import Klar.Ids as Ids exposing (Ids)
 
@@ -25,13 +27,25 @@ component that holds that type: `Table.rowId`, `Tree.leaf`, `Picking.leaf`,
             , fromKey = Just << CountryId
             }
 
+An id that wraps a number or a text needs no parser of its own: `map` puts the
+wrapper around `Ids.int` or `Ids.string`.
+
+    type CustomerId
+        = CustomerId Int
+
+    customerIds : Ids CustomerId
+    customerIds =
+        Ids.int |> Ids.map CustomerId (\(CustomerId n) -> n)
+
 `fromKey` must give back what `toKey` wrote, and give `Nothing` for text that
 is not an id of yours. [`Klar.Form.Check.lostIds`](Klar-Form-Check#lostIds)
 tests that in one line.
 
-@docs Ids, make, list, string, int, toKey, fromKey
+@docs Ids, make, list, string, int, map, toKey, fromKey
 
 -}
+
+import Dict
 
 
 {-| The two functions that write an id as text and read it back. Make one with
@@ -71,14 +85,22 @@ so there is no parser to write.
     pageIds =
         Ids.list pageToString [ Orders, Settings ]
 
-A value left out of the list is written as usual but never read back.
+A value left out of the list is written as usual but never read back. Two values
+that are written as the same text read back as the first of them, so give each its
+own text. The list is read once, when the `Ids` is made: keep it as a constant, and
+reading a key back stays fast for a long list too.
 
 -}
 list : (id -> String) -> List id -> Ids id
 list write all =
+    let
+        -- the first value wins when two are written alike
+        table =
+            Dict.fromList (List.reverse (List.map (\one -> ( write one, one )) all))
+    in
     Ids
         { toKey = write
-        , fromKey = \key -> List.head (List.filter (\one -> write one == key) all)
+        , fromKey = \key -> Dict.get key table
         }
 
 
@@ -92,14 +114,45 @@ string =
     Ids { toKey = identity, fromKey = Just }
 
 
-{-| Ids that are whole numbers (a database id).
+{-| Ids that are whole numbers (a database id). A key is read back only in the
+form `toKey` writes it: `"7"` is 7, but `"007"`, `"+7"` and `"7.0"` are no id (so a
+key from an address or a saved view has one spelling).
 
     Table.rowId Ids.int .id
 
 -}
 int : Ids Int
 int =
-    Ids { toKey = String.fromInt, fromKey = String.toInt }
+    Ids
+        { toKey = String.fromInt
+        , fromKey =
+            \key ->
+                String.toInt key
+                    |> Maybe.andThen
+                        (\n ->
+                            if String.fromInt n == key then
+                                Just n
+
+                            else
+                                Nothing
+                        )
+        }
+
+
+{-| The ids of a type that wraps another, from the `Ids` of the inner type: the
+function that wraps a value and the one that unwraps it.
+
+    customerIds : Ids CustomerId
+    customerIds =
+        Ids.int |> Ids.map CustomerId (\(CustomerId n) -> n)
+
+-}
+map : (a -> id) -> (id -> a) -> Ids a -> Ids id
+map wrap unwrap (Ids codec) =
+    Ids
+        { toKey = unwrap >> codec.toKey
+        , fromKey = codec.fromKey >> Maybe.map wrap
+        }
 
 
 {-| The text an id is written as.
