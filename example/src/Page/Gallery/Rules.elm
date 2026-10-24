@@ -879,7 +879,7 @@ viewBench options bench =
         [ Layout.stack [ Layout.gap 3, Layout.alignStart ]
             [ Layout.row [ Layout.gap 2, Layout.alignCenter ]
                 [ SavedViews.view (ViewsMsg >> options.toMsg)
-                    [ SavedViews.current bench.rule
+                    [ SavedViews.currentRule bench.rule
                     , SavedViews.size Theme.Small
                     , SavedViews.locale options.locale
                     ]
@@ -1059,7 +1059,7 @@ ViewsMsg m ->
     else
         ( { model | views = views }, Cmd.map ViewsMsg cmd )
 
-SavedViews.view ViewsMsg [ SavedViews.current model.rule ] model.views
+SavedViews.view ViewsMsg [ SavedViews.currentRule model.rule ] model.views
 
 RuleBuilder.view BuilderMsg
     [ RuleBuilder.fields orderFields
@@ -1284,7 +1284,7 @@ savedViews locale model =
             }
             (Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
                 [ SavedViews.view NoViewsMsg
-                    [ SavedViews.current (FilterBar.rule model.quick)
+                    [ SavedViews.currentRule (FilterBar.rule model.quick)
                     , SavedViews.locale locale
                     ]
                     model.noViews
@@ -1300,7 +1300,7 @@ savedViews locale model =
 savedViewsCode : String
 savedViewsCode =
     """SavedViews.view ViewsMsg
-    [ SavedViews.current (FilterBar.rule model.filters) ]
+    [ SavedViews.currentRule (FilterBar.rule model.filters) ]
     model.views
 
 SavedViews.views model.views   -- List SavedView, to store them

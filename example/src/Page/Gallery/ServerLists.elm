@@ -176,7 +176,7 @@ type Msg
     | SaveView
     | SpeedChosen String
     | FailingToggled Bool
-    | GotAnswer Int ServerList.Request (Result Remote.Problem (ServerList.Page Order)) Time.Posix
+    | GotAnswer Int ServerList.Request (Result Remote.Problem (ServerList.Page Order))
     | ExportAll
     | GotZone Time.Zone
     | SupplierRetry
@@ -238,8 +238,8 @@ update msg model =
         FailingToggled on ->
             ( { model | failing = on }, Cmd.none )
 
-        GotAnswer number request result at ->
-            follow (ServerList.update (ServerList.gotPage request result at) model.orders)
+        GotAnswer number request result ->
+            follow (ServerList.update (ServerList.gotPage request result) model.orders)
                 { model | log = ("answer " ++ String.fromInt number ++ " arrived") :: model.log |> List.take 8 }
 
         ExportAll ->
@@ -342,8 +342,7 @@ answer model number request =
                 Ok (search model.today request)
     in
     Process.sleep (toFloat delay)
-        |> Task.andThen (\_ -> Time.now)
-        |> Task.perform (GotAnswer number request result)
+        |> Task.perform (\_ -> GotAnswer number request result)
 
 
 loadSupplier : Model -> Cmd Msg
