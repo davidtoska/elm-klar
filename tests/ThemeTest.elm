@@ -2,6 +2,7 @@ module ThemeTest exposing (suite)
 
 import Expect
 import Klar
+import Klar.Internal.Css.Tokens as Tokens
 import Klar.Internal.Palette as Palette exposing (Color, Spec)
 import Klar.Settings as Settings
 import Klar.Theme as Theme exposing (Mode(..))
@@ -155,7 +156,7 @@ pairsTest spec dark =
                    )
 
         colors =
-            Palette.scale spec dark
+            pageColors spec dark
 
         find name =
             colors
@@ -163,6 +164,8 @@ pairsTest spec dark =
                 |> List.head
                 |> Maybe.map Tuple.second
 
+        -- A color that the page does not have is a failure, never a pass: a pair that
+        -- cannot be measured is a pair nobody checked.
         check ( ink, ground ) =
             case ( find ink, find ground ) of
                 ( Just a, Just b ) ->
@@ -177,7 +180,7 @@ pairsTest spec dark =
                         [ ink ++ " on " ++ ground ++ " is " ++ String.fromFloat (toFloat (round (ratio * 100)) / 100) ]
 
                 _ ->
-                    []
+                    [ ink ++ " on " ++ ground ++ ": a color the page does not have" ]
 
         surfaces =
             [ "white", "gray-50", "gray-100" ]
@@ -190,10 +193,129 @@ pairsTest spec dark =
                 [ List.concatMap (\ground -> [ ( "gray-900", ground ), ( "gray-700", ground ), ( "gray-600", ground ) ]) surfaces
                 , List.map (\ground -> ( "blue-600", ground )) [ "white", "gray-50", "blue-50" ]
                 , [ ( "white", "blue-600" ), ( "blue-700", "white" ) ]
-                , List.concatMap (\s -> [ ( s ++ "-600", s ++ "-50" ), ( s ++ "-600", "white" ), ( "white", s ++ "-600" ) ]) status
+                , List.concatMap
+                    (\s ->
+                        [ ( s ++ "-600", s ++ "-50" )
+                        , ( s ++ "-600", "white" )
+                        , ( s ++ "-600", "gray-50" )
+                        , ( "white", s ++ "-600" )
+                        , ( s ++ "-700", s ++ "-50" )
+                        ]
+                    )
+                    status
                 ]
     in
     test label <|
         \_ ->
             List.concatMap check pairs
                 |> Expect.equal []
+
+
+{-| The colors that are on the page for a theme in a mode: the hex colors of the
+stylesheet's tokens, with the colors the theme sets on top. A light theme that is not
+high contrast keeps the stylesheet's status colors, and the default theme in light
+mode sets nothing at all, so its page is the tokens as they are.
+-}
+pageColors : Spec -> Bool -> List ( String, Color )
+pageColors spec dark =
+    let
+        set =
+            if spec.plain && not dark then
+                []
+
+            else
+                Palette.scale spec dark
+
+        names =
+            List.map Tuple.first set
+    in
+    set ++ List.filter (\( n, _ ) -> not (List.member n names)) tokenColors
+
+
+{-| Every `--klar-<name>: #rrggbb;` of the token block of the stylesheet.
+-}
+tokenColors : List ( String, Color )
+tokenColors =
+    Tokens.css
+        |> String.lines
+        |> List.filterMap
+            (\line ->
+                case String.split ":" (String.trim line) of
+                    [ property, value ] ->
+                        if String.startsWith "--klar-" property then
+                            fromHex (String.trim (String.replace ";" "" value))
+                                |> Maybe.map (\color -> ( String.dropLeft 7 property, color ))
+
+                        else
+                            Nothing
+
+                    _ ->
+                        Nothing
+            )
+
+
+fromHex : String -> Maybe Color
+fromHex text =
+    case String.toList text of
+        [ '#', r1, r2, g1, g2, b1, b2 ] ->
+            Maybe.map3 hsl (byte r1 r2) (byte g1 g2) (byte b1 b2)
+
+        _ ->
+            Nothing
+
+
+byte : Char -> Char -> Maybe Float
+byte high low =
+    Maybe.map2 (\h l -> toFloat (h * 16 + l) / 255) (nibble high) (nibble low)
+
+
+nibble : Char -> Maybe Int
+nibble char =
+    String.indexes (String.fromChar (Char.toLower char)) "0123456789abcdef"
+        |> List.head
+
+
+{-| Red, green and blue from 0 to 1 as hue, saturation and lightness (the
+`Palette.Color` the contrast is measured on).
+-}
+hsl : Float -> Float -> Float -> Color
+hsl r g b =
+    let
+        high =
+            max r (max g b)
+
+        low =
+            min r (min g b)
+
+        l =
+            (high + low) / 2
+
+        d =
+            high - low
+
+        s =
+            if d == 0 then
+                0
+
+            else
+                d / (1 - abs (2 * l - 1))
+
+        h =
+            if d == 0 then
+                0
+
+            else if high == r then
+                60 * fmod ((g - b) / d) 6
+
+            else if high == g then
+                60 * ((b - r) / d + 2)
+
+            else
+                60 * ((r - g) / d + 4)
+    in
+    { h = h, s = s * 100, l = l * 100 }
+
+
+fmod : Float -> Float -> Float
+fmod x m =
+    x - m * toFloat (floor (x / m))

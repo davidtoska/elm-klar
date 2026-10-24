@@ -187,7 +187,7 @@ amberScale =
     [ ( "--klar-amber-50", "#fff7e6", False )
     , ( "--klar-amber-100", "#ffecc2", False )
     , ( "--klar-amber-500", "#d98a0b", False )
-    , ( "--klar-amber-600", "#b87208", True )
+    , ( "--klar-amber-600", "#9a5f06", True )
     , ( "--klar-amber-700", "#8f5806", True )
     ]
 
