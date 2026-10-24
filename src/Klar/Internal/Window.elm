@@ -2,6 +2,7 @@ module Klar.Internal.Window exposing
     ( Geometry
     , Window
     , clampScroll
+    , isDrawn
     , rowsPerScreen
     , scrollToRow
     , window
@@ -80,6 +81,16 @@ window { overscan, chunk } geometry scroll =
 ceilingTo : Int -> Int -> Int
 ceilingTo size n =
     (n + size - 1) // size * size
+
+
+{-| Is row `row` (counting from 0) among the rows of the window, so in the page? An
+`aria-activedescendant` may only name a row that is drawn: ask this, with the window
+the rows were drawn from, instead of working the range out again with another
+overscan.
+-}
+isDrawn : Window -> Int -> Bool
+isDrawn drawn row =
+    row >= drawn.first && row < drawn.end
 
 
 {-| Keeps a scroll offset between the top and the furthest the rows can scroll.

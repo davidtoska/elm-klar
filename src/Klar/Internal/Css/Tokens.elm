@@ -52,7 +52,9 @@ css =
   --klar-amber-50: #fff7e6;
   --klar-amber-100: #ffecc2;
   --klar-amber-500: #d98a0b;
-  --klar-amber-600: #b87208;
+  /* The warning color is text too (a warning note, a solid badge with white text): 5.1:1
+     on white and 4.8:1 on amber-50, where the brighter #b87208 was 3.9:1 and failed AA. */
+  --klar-amber-600: #9c6106;
   --klar-amber-700: #8f5806;
 
   --klar-red-50: #fdf0ee;

@@ -120,6 +120,16 @@ table {
   outline-offset: 1px;
 }
 
+/* Forced colors (Windows high contrast) drop every box-shadow, and most components draw
+   their focus ring as one, next to `outline: none`. Every element that shows focus gets
+   the outline back there, in the system color of a highlight, whatever its own rules
+   say (`!important`); its offset stays the component's own. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+  }
+}
+
 /* ---- Scrollbars (thin, gray) ---------------------------------------- */
 
 * {
@@ -158,6 +168,7 @@ table {
   padding: 0;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }

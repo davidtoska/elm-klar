@@ -128,4 +128,21 @@ suite =
             , test "is at least 1" <|
                 \_ -> Expect.equal 1 (Window.rowsPerScreen { rowHeight = 36, viewport = 10, count = 100 })
             ]
+        , describe "isDrawn"
+            [ test "the rows from first up to, not including, end" <|
+                \_ ->
+                    let
+                        drawn =
+                            Window.window { overscan = 3, chunk = 1 } (geometry 1000) (100 * 36)
+                    in
+                    Expect.equal [ False, True, True, False ]
+                        (List.map (Window.isDrawn drawn) [ drawn.first - 1, drawn.first, drawn.end - 1, drawn.end ])
+            , fuzz2 (Fuzz.intRange 0 2000) (Fuzz.intRange 0 100000) "says yes for exactly the rows the window draws" <|
+                \row scroll ->
+                    let
+                        drawn =
+                            Window.window { overscan = 6, chunk = 8 } (geometry 1000) (toFloat scroll)
+                    in
+                    Expect.equal (List.member row (List.range drawn.first (drawn.end - 1))) (Window.isDrawn drawn row)
+            ]
         ]
