@@ -24,6 +24,7 @@ suite =
         [ intTests
         , decimalTests
         , percentTests
+        , shortTests
         , currencyTests
         , bytesTests
         , durationTests
@@ -93,6 +94,32 @@ percentTests =
         , check "negative" (minus ++ "12.5%") (Format.percent Locale.en 1 -0.125)
         , check "over 100 percent" "1,250%" (Format.percent Locale.en 0 12.5)
         , check "a tiny share" "0.0%" (Format.percent Locale.en 1 0.00004)
+        ]
+
+
+shortTests : Test
+shortTests =
+    describe "decimalUpTo, abbreviated and signed"
+        [ check "decimalUpTo leaves out the zeros at the end" "2.5" (Format.decimalUpTo Locale.en 2 2.5)
+        , check "decimalUpTo leaves out the separator with them" "3" (Format.decimalUpTo Locale.en 2 3)
+        , check "decimalUpTo rounds from the decimal text" "1.01" (Format.decimalUpTo Locale.en 2 1.005)
+        , check "decimalUpTo in Norwegian" ("1" ++ nbsp ++ "234,5") (Format.decimalUpTo Locale.nb 2 1234.5)
+        , check "decimalUpTo keeps the zeros of the whole number" "1,200" (Format.decimalUpTo Locale.en 2 1200)
+        , check "millions" "2.5M" (Format.abbreviated Locale.en 2500000)
+        , check "millions in Norwegian" ("2,5" ++ nbsp ++ "mill.") (Format.abbreviated Locale.nb 2500000)
+        , check "billions" "3B" (Format.abbreviated Locale.en 3.0e9)
+        , check "milliards in Norwegian" ("3" ++ nbsp ++ "mrd.") (Format.abbreviated Locale.nb 3.0e9)
+        , check "trillions" "1.2T" (Format.abbreviated Locale.en 1.2e12)
+        , check "999 960 000 is the next unit" "1B" (Format.abbreviated Locale.en 999960000)
+        , check "999 940 000 is not" "999.9M" (Format.abbreviated Locale.en 999940000)
+        , check "below a million in full" "12,345" (Format.abbreviated Locale.en 12345)
+        , check "with one decimal at most" "1,234.6" (Format.abbreviated Locale.en 1234.56)
+        , check "negative" (minus ++ "2.5M") (Format.abbreviated Locale.en -2500000)
+        , check "a rise gets a plus" "+4.2%" (Format.signed (Format.percent Locale.en 1) 0.042)
+        , check "a fall keeps its minus" (minus ++ "4.2%") (Format.signed (Format.percent Locale.en 1) -0.042)
+        , check "a change written as zero has no sign" "0.0%" (Format.signed (Format.percent Locale.en 1) 0.0004)
+        , check "zero has no sign" "0" (Format.signed (Format.decimalUpTo Locale.en 1) 0)
+        , check "signed with another format" "+12" (Format.signed (Format.decimalUpTo Locale.nb 1) 12)
         ]
 
 

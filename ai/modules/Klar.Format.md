@@ -10,7 +10,10 @@ Import: `import Klar.Format as Format` | Group: Data and utilities
 -- Numbers
 int : Locale.Locale -> Int -> String
 decimal : Locale.Locale -> Int -> Float -> String
+decimalUpTo : Locale.Locale -> Int -> Float -> String
 percent : Locale.Locale -> Int -> Float -> String
+abbreviated : Locale.Locale -> Float -> String
+signed : (Float -> String) -> Float -> String
 currency : Locale.Locale -> String -> Int -> Float -> String
 plural : Locale.Locale -> Int -> { one : String, other : String } -> String
 
@@ -44,6 +47,10 @@ Do not use when: the text is a machine format (use `iso8601` for a date in data,
     Format.decimal Locale.en 2 1234.5 -- "1,234.50"
 
     Format.percent Locale.en 1 0.127 -- "12.7%"
+
+    Format.abbreviated Locale.en 2500000 -- "2.5M"
+
+    Format.signed (Format.percent Locale.en 1) 0.042 -- "+4.2%"
 
     Format.currency Locale.en "$" 2 1234.5 -- "$1,234.50"
 
@@ -104,6 +111,23 @@ zero.
 
 `NaN` is written `NaN` and the infinities `∞` and `−∞`.
 
+### `decimalUpTo`
+
+```elm
+decimalUpTo : Locale.Locale -> Int -> Float -> String
+```
+
+A number with at most this many decimals: the zeros at the end are left out, and the
+decimal separator with them. For figures whose precision varies, such as an average.
+
+    Format.decimalUpTo Locale.en 2 2.5 -- "2.5"
+
+    Format.decimalUpTo Locale.en 2 3 -- "3"
+
+    Format.decimalUpTo Locale.en 2 1.005 -- "1.01"
+
+    Format.decimalUpTo Locale.nb 2 1234.5 -- "1 234,5"
+
 ### `percent`
 
 ```elm
@@ -119,6 +143,44 @@ Norwegian one a non-breaking space.
     Format.percent Locale.en 1 0.127 -- "12.7%"
 
     Format.percent Locale.nb 1 0.127 -- "12,7 %"
+
+### `abbreviated`
+
+```elm
+abbreviated : Locale.Locale -> Float -> String
+```
+
+A large number made short for a narrow place (a chart axis, a stat): millions,
+billions (milliards in Norwegian) and trillions with one decimal at most, in the words of
+the language. A number below a million is written in full, with at most one decimal. A
+number that rounds up to the next unit is written in it (`999 960 000` is "1B", not
+"1,000M").
+
+    Format.abbreviated Locale.en 2500000 -- "2.5M"
+
+    Format.abbreviated Locale.nb 2500000 -- "2,5 mill." (with a non-breaking space)
+
+    Format.abbreviated Locale.en 999960000 -- "1B"
+
+    Format.abbreviated Locale.en 12345 -- "12,345"
+
+### `signed`
+
+```elm
+signed : (Float -> String) -> Float -> String
+```
+
+The text of a change, with a plus sign when it is above zero: a delta next to a
+figure. Give it the format of the number (`percent`, `decimal`, `abbreviated` ...). A change
+that is written as zero gets no sign, and a fall keeps the minus sign of the format.
+
+    Format.signed (Format.percent Locale.en 1) 0.042 -- "+4.2%"
+
+    Format.signed (Format.percent Locale.en 1) -0.042 -- "−4.2%"
+
+    Format.signed (Format.percent Locale.en 1) 0.0004 -- "0.0%"
+
+    Format.signed (Format.decimalUpTo Locale.nb 1) 12 -- "+12"
 
 ### `currency`
 

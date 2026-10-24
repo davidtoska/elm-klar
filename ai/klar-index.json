@@ -4779,12 +4779,12 @@
       "mainFunctions": [
         "int",
         "decimal",
+        "decimalUpTo",
         "percent",
+        "abbreviated",
+        "signed",
         "currency",
-        "plural",
-        "bytes",
-        "duration",
-        "date"
+        "plural"
       ],
       "related": [
         "Klar.Settings",
