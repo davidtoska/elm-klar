@@ -45,14 +45,14 @@ init =
     , files =
         Dict.fromList
             [ ( "files-attachments"
-              , FileDrop.setFiles
+              , FileDrop.setValues
                     [ { name = "purchase-order-10412.pdf", size = 245760, mime = "application/pdf" }
                     , { name = "damaged-goods-2026-10-02.jpg", size = 1843200, mime = "image/jpeg" }
                     ]
                     (FileDrop.init "files-attachments")
               )
             , ( "files-photo"
-              , FileDrop.setFiles
+              , FileDrop.setValues
                     [ { name = "product-photo-warehouse-hamburg-aisle-14-shelf-3-final-version-cropped-2026-10-20.png"
                       , size = 524288
                       , mime = "image/png"
@@ -330,7 +330,7 @@ fileDrops lang model =
             filesOf "files-attachments" model
     in
     Doc.section "File drop"
-        "Drop files on the field, or use \"Choose files\" (Tab to the button, Enter or Space opens the file dialog). The files are checked against the allowed types, the largest size, the number of files and duplicates. The contents of the files are not read or sent by the library: it hands the application the name, size and type (FileDrop.files) and the browser's own File values (FileDrop.rawFiles) for a request the application makes."
+        "Drop files on the field, paste them (a screenshot with Ctrl+V while the focus is in the zone), or use \"Choose files\" (Tab to the button, Enter or Space opens the file dialog). The files are checked against the allowed types, the largest size, the number of files and duplicates. The contents of the files are not read or sent by the library: it hands the application the name, size and type (FileDrop.values) and the browser's own File values (FileDrop.rawFiles, or FileDrop.chosen for one request per file) for a request the application makes. What a choice did is announced once (\"2 files added, 1 refused\"), and a removed file hands the focus to the next one."
         [ Doc.example
             { title = "Several files"
             , description = Just "PDF or images, at most 5 MB, up to three files. Try an .exe file or a large file to see the refusals. Refused files stay in the list with a message until you remove them."
@@ -342,7 +342,7 @@ fileDrops lang model =
     ]
     model.attachments
 
-FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
+FileDrop.values model.attachments -- List FileInfo, only the accepted ones"""
             }
             (stack
                 [ FileDrop.view (FilesMsg "files-attachments")
@@ -355,7 +355,7 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
                     attachments
                 , readout
                     ("Accepted files: "
-                        ++ String.fromInt (List.length (FileDrop.files attachments))
+                        ++ String.fromInt (List.length (FileDrop.values attachments))
                         ++ ", refused: "
                         ++ String.fromInt (List.length (FileDrop.rejected attachments))
                     )
@@ -363,7 +363,7 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
             )
         , Doc.example
             { title = "One file, compact and disabled"
-            , description = Just "Without multiple a new choice replaces the old one."
+            , description = Just "Without multiple a new choice replaces the old one, unless it is refused: then the good file stays. A file dropped on the disabled field is cancelled, not opened by the browser."
             , code = Just """FileDrop.view PhotoMsg [ FileDrop.label "Photo", FileDrop.accept [ "image/*" ], FileDrop.compact ] state"""
             }
             (grid 300
@@ -385,7 +385,7 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
                     [ FileDrop.label "Documentation"
                     , FileDrop.required
                     , FileDrop.errorMaybe
-                        (if List.isEmpty (FileDrop.files (filesOf "files-error" model)) then
+                        (if List.isEmpty (FileDrop.values (filesOf "files-error" model)) then
                             Just "Attach at least one document"
 
                          else

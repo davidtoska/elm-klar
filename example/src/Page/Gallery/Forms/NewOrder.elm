@@ -119,7 +119,7 @@ snapshot order =
     , notifySms = order.notifySms
     , labels = TagInput.tags order.labels
     , note = order.note
-    , attachments = FileDrop.files order.attachments
+    , attachments = FileDrop.values order.attachments
     , accepted = order.accepted
     }
 
@@ -139,7 +139,7 @@ fromSnapshot saved =
     , notifySms = saved.notifySms
     , labels = TagInput.setTags saved.labels (TagInput.init labelsId)
     , note = saved.note
-    , attachments = FileDrop.setFiles saved.attachments (FileDrop.init attachmentsId)
+    , attachments = FileDrop.setValues saved.attachments (FileDrop.init attachmentsId)
     , accepted = saved.accepted
     , touched = []
     , submitted = False

@@ -1260,7 +1260,7 @@ rawOf slot =
             RTags (TagInput.tags state)
 
         SFiles state ->
-            RFiles (FileDrop.files state) (FileDrop.hasProblems state)
+            RFiles (FileDrop.values state) (FileDrop.hasProblems state)
 
         SRule state ->
             RRule (RuleBuilder.rule state)
@@ -1294,7 +1294,7 @@ putRaw raw slot =
             STags (TagInput.setTags value state)
 
         ( RFiles value _, SFiles state ) ->
-            SFiles (FileDrop.setFiles value state)
+            SFiles (FileDrop.setValues value state)
 
         ( RRule value, SRule state ) ->
             SRule (RuleBuilder.setRule value state)

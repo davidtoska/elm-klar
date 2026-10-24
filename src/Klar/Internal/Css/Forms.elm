@@ -930,8 +930,8 @@ css =
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--klar-control-lg);
+  height: var(--klar-control-lg);
   border-radius: 50%;
   background: var(--klar-gray-100);
   color: var(--klar-gray-500);
@@ -948,7 +948,7 @@ css =
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 6px 10px;
+  gap: var(--klar-space-1) var(--klar-space-2);
 }
 
 .klar-filedrop__title { font-weight: var(--klar-weight-medium); color: var(--klar-text); }
@@ -958,10 +958,10 @@ css =
   flex-direction: row;
   justify-content: flex-start;
   padding: var(--klar-space-2) var(--klar-space-3);
-  text-align: left;
+  text-align: start;
 }
 
-.klar-filedrop--compact .klar-filedrop__icon { width: 28px; height: 28px; }
+.klar-filedrop--compact .klar-filedrop__icon { width: var(--klar-space-8); height: var(--klar-space-8); }
 
 .klar-filedrop__list {
   display: flex;
@@ -975,11 +975,12 @@ css =
   display: flex;
   align-items: center;
   gap: var(--klar-space-3);
-  padding: 4px var(--klar-space-2) 4px var(--klar-space-3);
-  min-height: 40px;
+  padding-block: var(--klar-space-1);
+  padding-inline: var(--klar-space-3) var(--klar-space-2);
+  min-height: var(--klar-control-lg);
 }
 
-.klar-filedrop__file + .klar-filedrop__file { border-top: 1px solid var(--klar-border-subtle); }
+.klar-filedrop__file + .klar-filedrop__file { border-block-start: 1px solid var(--klar-border-subtle); }
 
 .klar-filedrop__file-icon { display: flex; color: var(--klar-text-muted); }
 .klar-filedrop__file--invalid .klar-filedrop__file-icon { color: var(--klar-danger); }
@@ -1005,6 +1006,28 @@ css =
   flex-basis: 100%;
   font-size: var(--klar-text-sm);
   color: var(--klar-danger);
+}
+
+/* Forced colors: the tinted zone of a drag, the red edge of a refusal and the
+   colored icons are gone, so the states get system colors and a heavier edge. */
+@media (forced-colors: active) {
+  .klar-filedrop--over .klar-filedrop__zone {
+    border-color: Highlight;
+    border-style: solid;
+    outline: 1px solid Highlight;
+  }
+
+  .klar-filedrop--invalid .klar-filedrop__zone { border-style: solid; border-width: 2px; }
+
+  .klar-filedrop--disabled .klar-filedrop__zone { border-color: GrayText; color: GrayText; }
+
+  .klar-filedrop__file--invalid { border-inline-start: 3px solid CanvasText; }
+
+  .klar-filedrop__file-icon,
+  .klar-filedrop__file--invalid .klar-filedrop__file-icon,
+  .klar-filedrop__file-problem { color: CanvasText; }
+
+  .klar-filedrop__input:focus-visible ~ .klar-filedrop__text .klar-filedrop__browse { outline: 2px solid Highlight; }
 }
 
 /* ---- Inline edit ----------------------------------------------------- */
