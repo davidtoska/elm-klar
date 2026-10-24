@@ -67,8 +67,9 @@ screen reader reads it as the description of the field.
 the field (`locale`). `.` and `,` both work as the decimal separator, `1 234,50` and
 `1,234.50` are both 1234.50, and the text may come with the currency (`NOK 1 234`,
 `1 234,50 kr`), a minus sign or parentheses for a negative amount (`(100)`), and the
-Norwegian `1 234,-`. In English `1,234` is 1234 and in Norwegian it is 1.234. What is
-typed is kept as typed while the field has the focus.
+Norwegian `1 234,-`. In English `1,234` is 1234 and in Norwegian it is 1.234. In
+Norwegian `10.000` is refused as unclear, not read as ten: many people write ten
+thousand that way. What is typed is kept as typed while the field has the focus.
 
 **What the field shows.** When the user leaves the field (or presses Enter) the
 amount is written with the grouping and the separators of the language and exactly the

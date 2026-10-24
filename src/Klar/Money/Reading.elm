@@ -18,7 +18,11 @@ It reads like `NumberInput.parseIn`:
   - the same separator several times (`1.234.567`) is a thousands separator;
   - spaces, no-break spaces and apostrophes are ignored;
   - a lone comma before exactly three digits is a thousands separator in a language
-    that groups with a comma (English), as in `1,234`.
+    that groups with a comma (English), as in `1,234`;
+  - a lone separator that is not the decimal separator of the language, before
+    digits grouped like thousands (`10.000` in Norwegian), is refused as unclear: many
+    people write ten thousand that way, others write ten, and the two readings are a
+    thousand times apart.
 
 On top of that, an amount has things around it that a number has not: the currency
 (its code, its symbol, the other ways it is written), a minus sign, plus sign or
@@ -39,18 +43,22 @@ type alias Reading =
 
 
 {-| Why the text is not an amount: it is empty, it is something else, or it has
-separators that cannot be read with certainty.
+separators that cannot be read with certainty. `UnclearGrouping` is the lone
+separator of `10.000` in a language whose decimal separator is a comma.
 -}
 type Failure
     = Blank
     | NotAnAmount
     | UnclearSeparators
+    | UnclearGrouping
 
 
 {-| Reads the text.
 
   - `grouping` is the thousands separator of the language when it is a `,` or a `.`
     (a comma in English), otherwise `Nothing`.
+  - `decimal` is the decimal separator of the language when it is a `,` or a `.` (a
+    point in English, a comma in Norwegian), otherwise `Nothing`.
   - `decimals` is the number of decimals of the currency. With three or more, the
     thousands separator of the language before exactly three digits (`1,234` in
     English) can be a thousands separator or a decimal one, and both are an amount,
@@ -59,7 +67,7 @@ type Failure
     symbols.
 
 -}
-read : { grouping : Maybe Char, decimals : Int, marks : List String } -> String -> Result Failure Reading
+read : { grouping : Maybe Char, decimal : Maybe Char, decimals : Int, marks : List String } -> String -> Result Failure Reading
 read config raw =
     if String.trim raw == "" then
         Err Blank
@@ -216,7 +224,7 @@ isSeparator c =
 {-| The digits before and after the decimal separator, from a body that holds only
 digits and separators.
 -}
-splitDigits : { a | grouping : Maybe Char, decimals : Int } -> Bool -> String -> Result Failure ( String, String )
+splitDigits : { a | grouping : Maybe Char, decimal : Maybe Char, decimals : Int } -> Bool -> String -> Result Failure ( String, String )
 splitDigits config noFraction body =
     case List.reverse (List.filter isSeparator (String.toList body)) of
         [] ->
@@ -264,8 +272,14 @@ With three decimals or more `1,234` can be read both ways in such a language, an
 both are an amount. It is refused rather than guessed: the guess could be wrong by a
 factor of a thousand.
 
+The same goes for a separator that is neither the decimal separator of the language
+nor its thousands separator, before digits grouped like thousands: `10.000` in
+Norwegian, where the decimal separator is a comma and thousands are grouped with a
+space, is ten thousand to many people and ten to others. `10.5` and `0.500` are not
+grouped like thousands, so they are decimals.
+
 -}
-onlySeparator : { a | grouping : Maybe Char, decimals : Int } -> Bool -> Char -> String -> Result Failure ( String, String )
+onlySeparator : { a | grouping : Maybe Char, decimal : Maybe Char, decimals : Int } -> Bool -> Char -> String -> Result Failure ( String, String )
 onlySeparator config noFraction separator body =
     let
         ( whole, fraction ) =
@@ -290,6 +304,10 @@ onlySeparator config noFraction separator body =
 
         else
             Ok ( digitsOf body, "" )
+
+    else if config.decimal /= Just separator && groupLike then
+        -- `10.000` in Norwegian: a thousand times apart, so neither is guessed
+        Err UnclearGrouping
 
     else
         Ok ( whole, fraction )

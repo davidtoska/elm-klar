@@ -429,6 +429,25 @@ parsingTests =
             , reads Locale.nb Money.nok "0,05" 5
             , reads Locale.nb Money.nok "007" 700
             ]
+        , describe "a lone point in Norwegian, where the decimal separator is a comma"
+            [ refuses Locale.nb Money.nok "10.000" "The separator is unclear: write thousands as 10,000 and decimals as 10.50"
+            , refuses Locale.nb Money.nok "1.000" "The separator is unclear: write thousands as 10,000 and decimals as 10.50"
+            , refuses Locale.nb Money.nok "1.234" "The separator is unclear: write thousands as 10,000 and decimals as 10.50"
+            , refuses Locale.nb Money.nok "kr 250.000" "The separator is unclear: write thousands as 10,000 and decimals as 10.50"
+            , reads Locale.nb Money.nok "1.5" 150
+            , reads Locale.nb Money.nok "12.50" 1250
+            , reads Locale.nb Money.nok "0.500" 50
+            , reads Locale.nb Money.nok "1234.500" 123450
+            , reads Locale.nb Money.nok "1.000.000" 100000000
+            , reads Locale.nb Money.nok "1.500,-" 150000
+            , reads Locale.en Money.nok "1.500" 150
+            , test "the Norwegian message writes the Norwegian separators" <|
+                \_ ->
+                    Money.parse Locale.nb Money.nok "10.000"
+                        |> Result.mapError (Money.problemText Locale.nb)
+                        |> Result.map Money.toMinor
+                        |> Expect.equal (Err "Uklart skilletegn: skriv tusener som 10\u{00A0}000 og desimaler som 10,50")
+            ]
         , describe "English"
             [ reads Locale.en Money.nok "1,234.50" 123450
             , reads Locale.en Money.nok "1,234" 123400
