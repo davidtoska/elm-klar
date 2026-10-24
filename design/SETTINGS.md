@@ -1,5 +1,9 @@
 # One density, one time zone (`Klar.Settings`)
 
+*Status: built. A decision record; the current API is in `ai/modules/Klar.Settings.md`. The
+settings later also got the theme (`Settings.withTheme`, `Settings.withMode`, drawn by
+`Klar.stylesheetFor`).*
+
 A0 round 3 found that density and time zone were settings of each component (R3S-004, S-022,
 R3S-012): `Table.setDensity`, `Tree.compact`, `Timeline.compact`, `Stat.size Small` each had their
 own switch, `Card`, `Chart` and `Alert` none, and `zone` defaulted to UTC on every component, so

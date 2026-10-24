@@ -7,7 +7,7 @@ is compiled with `--optimize` by `npm run check:recipes`, so none of them is sta
 
 | I need | Recipe | Shows |
 |---|---|---|
-| A list that lives on the server, with search, sort, paging, filters and saved views | [inbox](inbox/README.md) | `Table` server mode, `FilterBar`, `SavedViews`, the ticket pattern (no debounce needed), reset to page 1 |
+| A list that lives on the server, with search, sort, paging, filters and saved views | [inbox](inbox/README.md) | `ServerList`: one state for the server-mode `Table`, the `FilterBar` and `SavedViews`; it compares, resets the page and drops old answers; `ServerList.target` for bulk actions |
 | An edit form with validation and a save that can fail | [edit-form](edit-form/README.md) | `Klar.Form` with `Klar.Form.Spec` and `Klar.Form.Layout`, server problems per field, dirty state, retry with focus, toast |
 | A confirmation before delete, with a toast and the focus right | [confirm-delete](confirm-delete/README.md) | `ConfirmDialog` (busy, failed, retry), `Toast` with Undo, the overlay list, bulk delete |
 | A dashboard where every panel loads and fails on its own | [dashboard](dashboard/README.md) | `Remote` in `Stat`, `Chart`, `Tree`, `Timeline`, a period picker, stale answers dropped |

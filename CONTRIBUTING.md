@@ -16,7 +16,8 @@ src/Klar.elm             the entry point: stylesheet, conventions, module index
 src/Klar/*.elm           one module per component (Klar.Button, Klar.Select, Klar.Table ...)
 src/Klar/<Name>/         modules that belong to one component and are not exposed
 src/Klar/Icon/           the icon library: one generated module per theme (see ICONS.md)
-src/Klar/Internal/       the generated stylesheet module (do not edit)
+src/Klar/Internal/       shared internals: the generated stylesheet (Css.elm, do not edit), the
+                         theme palettes, freshness markers, LeaveGuard and window helpers
 css/src/*.css            the stylesheet sources (tokens, base, the icon frame, one file per group)
 css/klar.css             the generated bundle (do not edit, see "Stylesheet")
 scripts/                 development tools (Node, no dependencies)
@@ -64,10 +65,12 @@ its dependencies that `elm.json` allows (check both before a release, see
 ## The rules
 
 1. **Official packages only**: `elm/core`, `elm/html`, `elm/browser`, `elm/json`,
-   `elm/time`, and `elm/url` for `Klar.AppShell` alone (the `Url` of a route change; never
-   its `percentEncode`, which throws on half of an emoji: use `Klar.Internal.percentEncode`),
-   and `elm/file` for `Klar.FileDrop` alone (it hands the application the `File` values; the
-   library never sends or reads them), no `elm/svg`, no `elm/http`. No ports, no
+   `elm/time`, `elm/url` for `Klar.AppShell` and `Klar.LeaveGuard` (the `Url` of a route
+   change; never its `percentEncode`, which throws on half of an emoji: use
+   `Klar.Internal.percentEncode`), and `elm/file` for `Klar.FileDrop` and the file fields of
+   `Klar.Form` (they hand the application the `File` values; the library never sends or reads
+   them). `elm/svg`, `elm/bytes`, `elm/parser`, `elm/regex` and `elm/random` may be added when a
+   component needs one, with the reason in the changelog; `elm/http` never. No ports, no
    kernel code, no `Debug`. If you think you need JavaScript, you do not: see
    "Tricks" below. (Elm tuples have at most three elements: use records.)
 2. **The library never imports from an application.** The `example/` application
@@ -203,7 +206,7 @@ type of an internal module, because the user names the type through the alias.
 ### Remote data
 
 Components that show data from a backend take it as a `Remote`:
-`Table.rows (Remote (List row))`, `Select.remote (Remote (List Option))`. They render
+`Table.rows (Remote (List row))`, `Select.remote (Remote (List (Option id)))`. They render
 the loading skeleton, the failure state with a retry callback (`onRetry : msg`) and
 the empty state themselves.
 
@@ -219,7 +222,8 @@ into `Loaded` and says how fresh it is) and then draws what it always drew, plus
   retry button when the problem is retryable and the component has an `onRetry`). A
   component that has no room for a button inside (a clickable tile, a combobox list)
   leaves the retry out or makes the tile a plain block, as `Stat` and `Autocomplete` do.
-- A `zone : Time.Zone -> Attribute` to show the time in (default UTC), as `Timeline` has.
+- A `settings : Settings -> Attribute` for the zone the time is shown in (UTC, marked "UTC",
+  without it), as `Timeline` has.
 
 Never add an attribute or a flag for "stale" or "refreshing": it comes from the `Remote`.
 A body for a card, dialog or drawer is `RemoteView.view`, not a `case` in the page.
@@ -296,7 +300,7 @@ Dropdowns, menus, date pickers and popovers share one mechanism (`css/src/base.c
 - **Focus**: `Internal.focus id NoOp` (Elm waits one frame, so it works right after
   the element is created in the same update).
 - **Download without JavaScript**: `<a href="data:text/csv;charset=utf-8,<percent-encoded>" download="file.csv">`
-  (`Url.percentEncode`).
+  (`Internal.percentEncode`, never `Url.percentEncode`).
 - **Mounted and timers**: `Process.sleep ms |> Task.perform (always Tick)`; compare a
   counter in the message to the model to ignore stale timers.
 - **Reading browser measurements** without ports: `Browser.Dom.getElement`,

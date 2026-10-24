@@ -24,14 +24,14 @@ Table.view TableMsg
     model.table
 ```
 
-* **A complete toolkit.** About ninety components: a data table (client and server
+* **A complete toolkit.** More than a hundred components: a data table (client and server
   mode), searchable selects and tree pickers, date, time and recurrence pickers, exact
   money and checksum-checked identifiers, a rule builder and filter bar, dialogs and
   drawers, toasts, a command palette, charts, trees, timelines, drag-to-reorder lists,
   resizable panes, diffs, a safe Markdown renderer and the frame of an application.
 * **Plain Elm, plain CSS.** The package depends only on official `elm/*` packages:
   `core`, `html`, `browser`, `json`, `time`, `url` and `file` (`file` only for
-  `Klar.FileDrop`). No ports, no JavaScript, no `elm/svg`, no `elm/http`, no external
+  `Klar.FileDrop` and the file fields of `Klar.Form`). No ports, no JavaScript, no `elm/svg`, no `elm/http`, no external
   fonts, no CDN.
 * **Zero setup.** The stylesheet is part of the package: put `Klar.stylesheet` in your
   view and you are done.
@@ -136,15 +136,15 @@ every module has an example.
 
 | | Modules |
 | --- | --- |
-| **Foundations** | `Theme`, `Settings`, `Locale`, `Layout`, `Card`, `Text`, `Icon` |
+| **Foundations** | `Theme`, `Color`, `Settings`, `Locale`, `Layout`, `Card`, `Text`, `Icon` |
 | **Icon library** | 500 icons in one style: `Icon` and `Icon.Library`, plus `Icon.Arrows`, `Icon.Business`, `Icon.Data`, `Icon.Documents`, `Icon.Logistics` and more (see [ICONS.md](ICONS.md)) |
 | **Actions** | `Button`, `Menu`, `ButtonGroup`, `ToggleGroup`, `SplitButton`, `Link`, `Kbd` |
 | **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
-| **Forms** | `Form` (the form model), `Form.Spec` (declaring a form), `Form.Layout` (the frame), `Form.Check` (tests), `Ids`, `Field`, `Validate` |
+| **Forms** | `Form` (the form model), `Form.Spec` (declaring a form), `Form.Layout` (the frame), `Form.Check` (tests), `Field`, `Validate` |
 | **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
-| **Choosing** | `Select`, `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
+| **Choosing** | `Select`, `Select.Option`, `Ids` (your id type as text, once), `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
-| **Tables and lists** | `Table`, `ServerList`, `Pagination`, `ListItem`, `Tree` |
+| **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree` |
 | **Overlays** | `Overlay`, `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
@@ -153,7 +153,7 @@ every module has an example.
 | **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare` |
 | **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
 | **Data display** | `Stat`, `Chart` (line, bar, donut, gauge, meter, sparkline), `Timeline`, `Avatar`, `JsonViewer` |
-| **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews` |
+| **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews`, `ServerList` (a server-side list with all three) |
 | **Data and utilities** | `Remote`, `RemoteView`, `Search`, `Format`, `Shortcut` |
 
 All of them are under `Klar.`, for example `Klar.Table`. The API reference is on
@@ -202,8 +202,8 @@ Klar.stylesheetFor
 Klar, Ocean, Teal, Indigo, Violet, Plum, Slate, Graphite, Sand and Contrast (high
 contrast). None is green, amber or red, so an accent is never mistaken for success,
 a warning or an error. The colors are computed in Elm and a test checks WCAG AA
-contrast for the pairs of the library in every generated palette (the default light look is the stylesheet itself). There are no colors
-of your own on purpose: a color picked by hand cannot be promised to keep the contrast.
+contrast for the pairs of the library in every generated palette (the default light look
+is the stylesheet itself). There are no colors of your own on purpose: a color picked by hand cannot be promised to keep the contrast.
 
 ## Styling
 
@@ -215,18 +215,9 @@ forbids inline styles, link the same file instead:
 the tagged release), and leave out `Klar.stylesheet`.
 
 The look is made of design tokens, CSS custom properties that components use instead
-of fixed colors, sizes and radii. If a theme is not enough, redefine them after the library's CSS to restyle
-everything at once:
-
-```css
-:root {
-  --klar-primary: #0b7285;
-  --klar-primary-hover: #095c6b;
-  --klar-font: "Inter", system-ui, sans-serif;
-}
-```
-
-The tokens are listed in the documentation of `Klar.Theme`.
+of fixed colors, sizes and radii, listed in the documentation of `Klar.Theme`. An
+application picks a theme and writes no CSS; a token redefined by hand is outside the
+contrast that the themes are checked for.
 
 ## Browsers
 

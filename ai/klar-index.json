@@ -1068,7 +1068,7 @@
       "group": "Forms",
       "purpose": "Pure, composable validators for text values.",
       "whenToUse": "you check text values by hand and want messages in the user's language.",
-      "whenNot": "you declare a form with `Klar.Form.Spec`, which takes the same validators as its rules.",
+      "whenNot": "you declare a form with `Klar.Form.Spec`: give the validators to `Spec.rules` and do not call `run` or `collect` yourself.",
       "state": [],
       "msg": [],
       "ids": [],
@@ -2842,10 +2842,10 @@
         "Klar.CommandPalette",
         "Klar.ConfirmDialog",
         "Klar.Drawer",
+        "Klar.LeaveGuard",
         "Klar.Modal",
         "Klar.Shortcut",
-        "Klar.ShortcutHelp",
-        "Klar.Toast"
+        "Klar.ShortcutHelp"
       ],
       "keywords": [
         "overlay",
@@ -3867,7 +3867,7 @@
         "Msg"
       ],
       "ids": [],
-      "stateful": false,
+      "stateful": true,
       "quickPath": [
         "initAt",
         "setDirty",
@@ -4665,7 +4665,7 @@
       "name": "Klar.Remote",
       "import": "import Klar.Remote as Remote",
       "group": "Data and utilities",
-      "purpose": "The state of data that comes from a backend: not asked for yet, loading, failed, or here.",
+      "purpose": "The state of data that comes from a backend: not asked for yet, loading, failed, here, or kept (old data while it is refreshed, or after a refresh failed).",
       "whenToUse": "a screen shows data that comes from a backend and can be loading, failed or old.",
       "whenNot": "the data is always there, as a plain value in the model.",
       "state": [],
@@ -4788,7 +4788,9 @@
         "duration",
         "date"
       ],
-      "related": [],
+      "related": [
+        "Klar.Settings"
+      ],
       "keywords": [
         "format",
         "data and utilities",

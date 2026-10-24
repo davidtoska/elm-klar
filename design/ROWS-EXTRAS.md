@@ -1,5 +1,8 @@
 # Rows that hold an application-owned editor
 
+*Status: built (design 1: `Spec.conditions`, `Form.ruleBuilder`, `Form.problemInRow`). A decision
+record; the current API is in `ai/modules/Klar.Form.md` and `Klar.Form.Spec.md`.*
+
 The question (R3O-013, R3O-003, R3O-018 of `apps/round3/onboarding/FRICTION.md`): a price
 rule is a rule builder (the conditions) and a number (the discount), and a supplier has a
 list of them. `Spec.rows` could not hold the rule builder, so the onboarding app wrote the

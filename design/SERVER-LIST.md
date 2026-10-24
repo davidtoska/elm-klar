@@ -1,5 +1,7 @@
 # Server list
 
+*Status: built. A decision record; the current API is in `ai/modules/Klar.ServerList.md`.*
+
 `Klar.ServerList`: the glue of a server-mode list in one module. Findings: R3F-008, F-015 and F-016
 (`apps/FRICTION.md`, `apps/round3/fulfilment/FRICTION.md`), A8 in the roadmap.
 
@@ -60,7 +62,7 @@ accessors that applications needed (`rule`, `query`, `rows`, `total`, `target`, 
 - **Selection.** `target ids state` gives the picked ids or, after "Select all N matching", the query,
   the rule and the exceptions (`Matching`), so a bulk action or an export of everything that matches is a
   request the application fulfils (R3F-007, R3F-014). `Table.exportCsv` still offers the selected rows
-  while every one is on the page; the library cannot write a file without `elm/file`.
+  while every one is on the page; a selection across pages is exported by the backend.
 
 ## What it does not own
 

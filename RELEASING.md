@@ -70,5 +70,6 @@ A published version can never be removed or changed, so run `npm run check` firs
 `elm.json` says `0.19.0 <= v < 0.20.0`, which is what package.elm-lang.org expects
 of every package. The package is built and tested with Elm 0.19.3 and uses no
 language feature that is newer than 0.19.0. The only things that depend on the
-compiler version are the `elm-version` in `example/elm.json` and the version of
+compiler version are the `elm-version` of the applications in this repository
+(`example/`, `recipes/*/`, `template/`, `design/form-model-errors/`) and the version of
 `elm-test`.

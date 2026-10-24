@@ -7,7 +7,7 @@ module Klar.Remote exposing
     )
 
 {-| The state of data that comes from a backend: not asked for yet, loading,
-failed, or here.
+failed, here, or kept (old data while it is refreshed, or after a refresh failed).
 
 Use when: a screen shows data that comes from a backend and can be loading, failed or old.
 Do not use when: the data is always there, as a plain value in the model.
@@ -18,11 +18,12 @@ Do not use when: the data is always there, as a plain value in the model.
         { orders : Remote (List Order) }
 
     -- NotAsked -> Loading -> Loaded orders | Failed problem
+    -- and on a refresh: Kept (old orders, refreshing or failed)
 
 Components that show remote data (`Klar.Table`, `Klar.Select`, `Klar.ListItem` ...)
 take a `Remote` and render the loading skeleton, the failure with a retry button
 and the empty state themselves, so a screen is correct in every state without
-you writing the four cases each time.
+you writing the five cases each time.
 
     Table.rows model.orders
 

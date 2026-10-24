@@ -1,5 +1,9 @@
 # Old and refreshing data
 
+*Status: built. A decision record; the current API is in `ai/modules/Klar.Remote.md` and
+`Klar.RemoteView.md`. Since then the time zone comes from `X.settings` (see SETTINGS.md), not a
+`zone` attribute, and `RemoteView.focus` and `AppShell.goToContent` handle the focus after a retry.*
+
 The gap (R2S-002, S-013, F-012, R2F-010, R2F-011): "refresh failed, showing the old data
 from 14:05" and "refreshing, showing the old data" are the most common states of a data
 screen after the first load, and `Remote` had no place for them. The Stock builder wrote a

@@ -62,17 +62,11 @@ and drawn as custom properties on `:root`, so there is one theme for the whole p
 
 The stylesheet (see [`Klar.stylesheet`](Klar#stylesheet)) defines its design
 tokens on `:root`. A component never uses a literal color, spacing or radius, only
-`var(--klar-...)`, so redefining a token restyles every component at once. If you must, put
-your own CSS after the library's and redefine tokens where you need them, on
-`:root` for the whole page or on a container for part of it:
+`var(--klar-...)`. The list is a reference: an application chooses its look with a theme
+(`Settings.withTheme`, `Klar.stylesheetFor`) and writes no CSS. A token redefined by hand is
+outside what Klar checks, so its contrast is not promised.
 
-    :root {
-      --klar-primary: #0b7285;
-      --klar-primary-hover: #095c6b;
-      --klar-font: "Inter", system-ui, sans-serif;
-    }
-
-The tokens you will use most:
+The tokens:
 
   - Color: `--klar-primary`, `--klar-primary-hover`, `--klar-primary-subtle`,
     `--klar-success`, `--klar-warning`, `--klar-danger`, `--klar-info` (each with
@@ -97,7 +91,7 @@ The tokens you will use most:
 The palette behind them (`--klar-gray-25` to `--klar-gray-900`, `--klar-blue-50`
 to `--klar-blue-900`, which is the accent scale of whatever theme is chosen, and the green, amber and red scales) is also a set of
 tokens. The default look is calm and light: gray, white and blue. The page
-`color-scheme` is `light`. Every token is defined in the `:root` block at the top
+`color-scheme` is `light`, or `dark` in a dark mode. Every token is defined in the `:root` block at the top
 of `css/klar.css` in the source of the package.
 
 
@@ -108,8 +102,8 @@ of `css/klar.css` in the source of the package.
 
 # Building your own components
 
-If you make components of your own that should look like Klar's, the suffixes
-below are the modifier names its stylesheet uses: `"klar-badge--" ++ toneSuffix
+Not for an application built with Klar, which uses no class names: a page outside
+Klar's components that must match them can use the modifier names of its stylesheet: `"klar-badge--" ++ toneSuffix
 Success` is `"klar-badge--success"`.
 
 @docs toneSuffix, sizeSuffix, densitySuffix

@@ -11,7 +11,8 @@ Do not use when: you need a menu or a tooltip next to an element (as `Klar.Menu`
 
 Every component of that kind ([Klar.Modal](Klar-Modal), [Klar.Drawer](Klar-Drawer),
 [Klar.ConfirmDialog](Klar-ConfirmDialog), [Klar.CommandPalette](Klar-CommandPalette),
-[Klar.ShortcutHelp](Klar-ShortcutHelp), [Klar.Toast](Klar-Toast)) has a `view` that
+[Klar.ShortcutHelp](Klar-ShortcutHelp), [Klar.Toast](Klar-Toast),
+[Klar.LeaveGuard](Klar-LeaveGuard)) has a `view` that
 returns an `Overlay`, not plain `Html`. You give the page the list of them and it
 does the rest:
 

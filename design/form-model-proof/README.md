@@ -1,5 +1,9 @@
 # Proof: the supplier onboarding flow on the finished form model
 
+*Frozen at the branch `t-form`. It does not build against today's `src/`: the round 2
+application it is copied into imports `Klar.Form.Model`, which no longer exists. Kept as the
+evidence for FORM-MODEL.md section 10.*
+
 `Flow.elm` is `apps/round2/onboarding/src/Flow.elm` rewritten on `Klar.Form`,
 `Klar.Form.Spec` and `Klar.Ids` (branch `t-form`). It is not compiled by `npm run check`:
 it is the evidence for section 10 of [../FORM-MODEL.md](../FORM-MODEL.md).

@@ -291,8 +291,7 @@ fields on the right (above each other when the window is narrow, or always with
 
 The second argument may be an empty string. The title names the section for
 screen readers (`role="group"` with an `aria-label`) and is an `h2`, the level under
-the `h1` of a page. A `Card` inside a section is an `h2` too, so give it
-`Card.headingLevel 3`. A section has no DOM id, so
+the `h1` of a page. A section has no DOM id, so
 two sections may share a title, also in different forms on one page.
 
 A `Card` inside a section takes the level below: give it `Card.headingLevel 3`,

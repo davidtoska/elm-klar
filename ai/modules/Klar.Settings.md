@@ -72,7 +72,7 @@ everything inside a view, and a zone written into the data at update time would 
 wrong when it arrives late or changes. So each of them takes the same one value, at
 view time:
 
-    Table.view [ Table.settings model.settings, ... ] ...
+    Table.view TableMsg [ Table.settings model.settings, ... ] model.table
 
     Stat.view [ Stat.settings model.settings, ... ]
 
@@ -193,7 +193,7 @@ a page that is not inside `AppShell` (the shell does the same when it is given
 `AppShell.settings`).
 
     Settings.scope model.settings
-        [ Card.view [] [ Table.view [] ... ] ]
+        [ Card.view [] [ Table.view TableMsg [ ... ] model.table ] ]
 
 The box takes no space of its own and has no look.
 

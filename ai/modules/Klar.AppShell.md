@@ -170,6 +170,7 @@ content after the page was chosen in the drawer) are done for you. The view is o
 content of the current page:
 
     import Browser
+    import Klar
     import Klar.AppShell as AppShell
     import Klar.Icon as Icon
     import Klar.Menu as Menu
@@ -179,7 +180,8 @@ content of the current page:
     view model =
         { title = "Acme Operations"
         , body =
-            [ AppShell.view
+            [ Klar.stylesheet
+            , AppShell.view
                 [ AppShell.state ShellMsg model.shell
                 , AppShell.brand
                     (AppShell.brandLink
@@ -244,12 +246,14 @@ its own.
 below (`id`, `sidebarCollapsed`, `onToggleSidebar`, `drawerOpen`, `onToggleDrawer`,
 `onCloseDrawer`, `onSkipToContent`) and the commands `focusMenuButton`, `focusContent`
 and `resetScroll`. They are there for a shell that keeps its flags in a model of its
-own, and for showing one in a gallery; the shell never moves keyboard focus by
-itself, so the branches of such an `update` end with one of these commands.
+own, and for showing one in a gallery. Without `AppShell.state` the shell never moves keyboard
+focus by itself, so the branches of such an `update` end with one of these commands (with a
+`State`, use `goToContent`, not `focusContent`). The paragraphs below that name these commands
+are about a shell wired this way; with `AppShell.state` all of it is done for you.
 
 **Layout.** The shell fills the viewport and the page itself never scrolls: the
 top bar stays in place, the sidebar scrolls if it is long, and the content area
-scrolls on its own. That is why a route change needs `resetScroll`. Give the shell
+scrolls on its own. That is why a hand-wired shell needs `resetScroll` on a route change. Give the shell
 a `height` (and a `width`) to draw it as a framed box inside another page
 instead, for a demo.
 
@@ -269,14 +273,14 @@ keyboard shortcut itself belongs to the application (see
 collapsed to icons (`sidebarCollapsed`, flipped by the toggle in the top bar,
 which sends `onToggleSidebar`). Below 900px it turns into an off-canvas drawer
 that the other toggle opens (`drawerOpen`, `onToggleDrawer`). A click on the
-backdrop or Escape sends `onCloseDrawer`; close the drawer when the route changes
-too. The switch between the two layouts is pure CSS, a container query on the
+backdrop or Escape closes it (a hand-wired shell gets `onCloseDrawer`, and closes the drawer
+on a route change too). The switch between the two layouts is pure CSS, a container query on the
 shell itself, so the application never needs to know the window width. A shell
 that is narrower than 900px because of its `width` uses the drawer whatever the
 size of the window.
 
-The drawer is not modal (the top bar stays usable) and does not move focus by
-itself, because the shell is stateless. When it opens, send keyboard focus to the
+The drawer is not modal (the top bar stays usable). With `AppShell.state` its focus is done
+for you. A hand-wired shell does not move focus by itself: when the drawer opens, send keyboard focus to the
 current link (`SideNav.focusLink`): the links come after the whole top bar in the
 tab order. When it closes, give focus back to the menu button
 (`focusMenuButton`): the links of a closed drawer cannot hold it. After
@@ -291,7 +295,8 @@ there is no flag to keep in step. This takes the place of
 
 **Skip link.** The first Tab stop is a skip link, "Skip to main content", which
 is visible only while it has focus. With hash routing a plain `#anchor` link would
-change the route, so pass `onSkipToContent` and answer it with `focusContent`.
+change the route, so the link is a button: with `AppShell.state` it works by itself, and a
+hand-wired shell passes `onSkipToContent` and answers it with `focusContent`.
 The content area is the `main` landmark of the page.
 
 **Stray file drops.** A file dropped anywhere that is not a
@@ -779,7 +784,8 @@ the URL fragment (it would count as a navigation).
 focusContent : String -> msg -> Cmd msg
 ```
 
-Moves keyboard focus to the content area: the answer to `onSkipToContent`, and
+Moves keyboard focus to the content area, for a shell wired by hand (without
+`AppShell.state`; with a `State`, use `goToContent`): the answer to `onSkipToContent`, and
 a good thing to do after the user navigated from the sidebar drawer. The first
 argument is the id of the shell (see `id`); the message is sent when the command
 is done, whether the content area was found or not, so use one that changes

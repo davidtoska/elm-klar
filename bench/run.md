@@ -1,8 +1,8 @@
 # How a benchmark run is done
 
 One run builds the twelve tasks of [tasks.md](tasks.md) with a **fresh AI session that has only
-the documentation**, then scores the result. Nothing here has been run yet; the first run
-fills in `results/<release>.md` and is compared with [results/baseline.md](results/baseline.md).
+the documentation**, then scores the result. Each run fills in `results/<release>.md` (the first is
+[results/run-1.md](results/run-1.md)) and is compared with [results/baseline.md](results/baseline.md).
 
 ## 1. Prepare the workspace
 
