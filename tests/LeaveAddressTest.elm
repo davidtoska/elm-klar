@@ -2,7 +2,7 @@ module LeaveAddressTest exposing (suite)
 
 {-| The part of Klar.LeaveGuard that answers the browser's Back and Forward buttons
 (`Klar.Internal.Leave`), tested against a small model of the browser's history. The
-real browser is checked by `scripts/test-leave-guard.mjs`; this model has the same
+real browser was measured in headless Chrome when the guard was built; this model has the same
 rules (measured, see the top of `Klar.Internal.Leave`): the buttons report once with
 the new address, `Push` and `Replace` report once, at once, with their address.
 -}

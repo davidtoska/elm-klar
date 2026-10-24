@@ -15,7 +15,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'example');
 const port = Number(process.argv[2] || 8000);
 
-const build = spawnSync('elm', ['make', 'src/Main.elm', '--output=main.js'], { cwd: dir, stdio: 'inherit', shell: true });
+const build = spawnSync(process.execPath, [path.join(root, 'scripts', 'build-example.mjs')], { stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
 
 const types = {

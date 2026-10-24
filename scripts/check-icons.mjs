@@ -58,10 +58,10 @@ for (const f of fs.readdirSync(iconDir)) {
   if (m !== 'Library' && !library.includes(`Klar.Icon.${m}.all`)) problems.push(`Klar.Icon.Library does not list Klar.Icon.${m}`);
 }
 
-const css = fs.readFileSync(path.join(root, 'css', 'src', 'icons.css'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'src', 'Klar', 'Internal', 'Css', 'Icons.elm'), 'utf8');
 const sizes = new Set(['xs', 'sm', 'md', 'lg', 'xl', 'xxl', 'xxxl']);
 for (const m of css.matchAll(/^\.klar-icon--([a-z0-9-]+)\s*\{/gm)) {
-  if (!sizes.has(m[1])) problems.push(`icons.css has a rule for "${m[1]}": icon drawings belong in Elm (Icon.fromSvg)`);
+  if (!sizes.has(m[1])) problems.push(`Klar.Internal.Css.Icons has a rule for "${m[1]}": icon drawings belong in Elm (Icon.fromSvg)`);
 }
 
 if (names.size === 0) problems.push('found no icons (did the layout of src/Klar/Icon.elm change?)');

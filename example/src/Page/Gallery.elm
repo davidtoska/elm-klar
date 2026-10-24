@@ -20,6 +20,7 @@ import Page.Gallery.Basics as Basics
 import Page.Gallery.Catalog as Catalog exposing (Section(..))
 import Page.Gallery.DataDisplay as DataDisplay
 import Page.Gallery.DateTime as DateTime
+import Page.Gallery.Examples as Examples
 import Page.Gallery.Flow as Flow
 import Page.Gallery.FormModel as FormModel
 import Page.Gallery.Forms as Forms
@@ -200,6 +201,9 @@ ensure section model =
         ServerLists ->
             create model.serverLists ServerLists.init (\page -> { model | serverLists = page }) ServerListsMsg model
 
+        Examples ->
+            ( model, Cmd.none )
+
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
 create existing ( page, cmd ) store toMsg model =
@@ -378,6 +382,9 @@ view settings locale maybeSection model =
                 ServerLists ->
                     show ServerListsMsg (ServerLists.view locale) model.serverLists
 
+                Examples ->
+                    Examples.view
+
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
 show toMsg viewPage maybePage =
@@ -468,6 +475,9 @@ subscriptions maybeSection model =
 
                 ServerLists ->
                     sub ServerListsMsg ServerLists.subscriptions model.serverLists
+
+                Examples ->
+                    Sub.none
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

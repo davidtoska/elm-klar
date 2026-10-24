@@ -849,7 +849,7 @@ guardSection locale model =
             )
         , Doc.example
             { title = "The Back and Forward buttons"
-            , description = Just "This page keeps its route in its own model, so the buttons of your browser do not reach it. The wiring below is for an application with addresses. To try it for real: node scripts/test-leave-guard.mjs builds scripts/leave-guard-browser (the example at the top of Klar.LeaveGuard), presses Back and Forward in headless Chrome and checks the answers; or build that application, make the form dirty and press Back. Back asks with the address bar already at the page you wanted, Stay puts the address right, Leave goes there."
+            , description = Just "This page keeps its route in its own model, so the buttons of your browser do not reach it. The wiring below is for an application with addresses. To try it for real, open the multi-step flow on the Examples page, which is an application with addresses: make the form dirty and press Back. Back asks with the address bar already at the page you wanted, Stay puts the address right, Leave goes there."
             , code = Just guardBrowserCode
             }
             (Layout.stack [ Layout.gap 2 ]

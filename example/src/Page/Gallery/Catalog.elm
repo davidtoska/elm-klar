@@ -18,7 +18,8 @@ import Klar.Icon as Icon exposing (Icon)
 
 
 type Section
-    = Foundations
+    = Examples
+    | Foundations
     | Basics
     | Selects
     | Tables
@@ -44,7 +45,7 @@ type Section
 
 all : List Section
 all =
-    [ Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists ]
+    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists ]
 
 
 slug : Section -> String
@@ -115,6 +116,9 @@ slug section =
 
         ServerLists ->
             "server-lists"
+
+        Examples ->
+            "examples"
 
 
 fromSlug : String -> Maybe Section
@@ -191,6 +195,9 @@ title section =
         ServerLists ->
             "Server lists"
 
+        Examples ->
+            "Examples"
+
 
 icon : Section -> Icon
 icon section =
@@ -261,6 +268,9 @@ icon section =
         ServerLists ->
             Icon.database
 
+        Examples ->
+            Icon.layout
+
 
 description : Section -> String
 description section =
@@ -330,6 +340,9 @@ description section =
 
         ServerLists ->
             "A table, a filter bar and saved views over rows on a server, with no glue: tickets, page reset, saved views. Make the server slow, jumbled or failing."
+
+        Examples ->
+            "Six complete applications for the common screens, each one Elm file: an inbox, an edit form, delete with confirmation, a dashboard, a multi-step flow, a command palette."
 
 
 {-| The components shown on each page.
@@ -402,6 +415,9 @@ components section =
 
         ServerLists ->
             [ "ServerList" ]
+
+        Examples ->
+            [ "Inbox", "Edit form", "Confirm delete", "Dashboard", "Multi-step flow", "Command palette" ]
 
 
 componentCount : Int

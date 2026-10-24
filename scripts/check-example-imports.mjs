@@ -2,7 +2,9 @@
 // The showcase application in example/ must use the library the way a user of the
 // package does: through the exposed modules only. This script fails when
 // example/src (or tests/, apart from the tests of internals) imports a Klar module
-// that is not in "exposed-modules" of elm.json.
+// that is not in "exposed-modules" of elm.json. The complete programs in
+// example/src/Examples/ are what an application copies, so they may not use a class
+// or a style of their own either.
 //
 //   node scripts/check-example-imports.mjs
 
@@ -29,7 +31,11 @@ function walk(dir) {
 
 const problems = [];
 for (const file of walk(path.join(root, 'example', 'src'))) {
-  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  const text = fs.readFileSync(file, 'utf8');
+  if (file.includes(path.join('src', 'Examples') + path.sep) && /Html\.Attributes\.(class|style)\b|import Html\.Attributes exposing \([^)]*\b(class|style)\b/.test(text)) {
+    problems.push(`${path.relative(root, file)}: uses class or style`);
+  }
+  const lines = text.split('\n');
   lines.forEach((line, index) => {
     const m = /^import\s+(Klar(?:\.[A-Z]\w*)*)\b/.exec(line);
     if (m && !exposed.has(m[1])) {

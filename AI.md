@@ -8,9 +8,9 @@ JavaScript, no class names, no `style`.
 Read in this order, and stop when you can write the screen: this file; `ai/klar-index.json` (search
 `keywords`, `purpose`, `whenToUse`, `whenNot`, `quickPath`, `related` before you open anything);
 `ai/modules/<Module>.md` (every signature, then the documentation; the long ones start with a Quick
-path); `recipes/<name>/src/Main.elm` (six compiled screens) and `template/` (the starting
-application); `USING.md` (project set-up, a backend). Do not read `docs.json`, `src/`, `example/`, `apps/`,
-`design/` or `bench/`: they are the library's own source, showcase and history, not guidance.
+path); `example/src/Examples/<Name>.elm` (six complete programs: `Inbox`, `EditForm`, `ConfirmDelete`,
+`Dashboard`, `MultiStep`, `CommandPalette`). Do not read `src/` or the rest of `example/`: they are the library's
+own source and its showcase, not guidance.
 
 ## Start here
 
@@ -48,7 +48,8 @@ popup, scroll, date or keyboard code: if you feel you need it, a module does it 
 
 ## The standard application
 
-This compiles as it stands (`npm run check:ai-names` compiles it). The full version with a confirmation dialog is `template/src/Main.elm`.
+This compiles as it stands (`npm run check:ai-names` compiles it). How to set up `elm.json` and `index.html` around it is in
+"Getting Klar into a project" below.
 
 ```elm
 module Main exposing (main)
@@ -260,20 +261,20 @@ pageFromUrl url =
 6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. Find the module in the table below. To put focus on an element of your page by its id (after a retry, on a stateless control), use `Klar.focus id NoOp`.
 7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** A `Time.Posix` is needed once, for today. A time of day you write yourself is `Settings.time model.settings posix` (it knows the zone, and says "UTC" until it does).
 8. **Forms use `Klar.Form`** (declared with `Klar.Form.Spec`, framed with `Klar.Form.Layout`). Server problems go in with `Form.rejected`, steps with `Form.advance`; do not keep a second copy of field values or of the problems.
-9. **A list on a server is `ServerList`** (`recipes/inbox`): one `State` and one `Msg` for the table, the filter bar and the saved views; `ServerList.update` returns the `request` to send and drops old answers, so you write no comparison, page reset or ticket. Only a server-mode `Table` on its own (no filter bar, no saved views) takes the four steps in the `Klar.Table` doc: compare `Table.query` before and after `update`, `Table.setPage 1` when an outside filter changed, ask with a new ticket, drop an answer whose ticket is not the latest. **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. The server searches of `Select.serverSearch`, `MultiSelect.serverSearch`, `Autocomplete.query` and a lazy `Tree.query` wait 300 ms too: fetch when the query changes and drop an answer whose query is no longer the current one. Debounce only what Klar does not: the query of a `CommandPalette.remote` section (a counter, see its doc) and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
+9. **A list on a server is `ServerList`** (`Examples/Inbox.elm`): one `State` and one `Msg` for the table, the filter bar and the saved views; `ServerList.update` returns the `request` to send and drops old answers, so you write no comparison, page reset or ticket. Only a server-mode `Table` on its own (no filter bar, no saved views) takes the four steps in the `Klar.Table` doc: compare `Table.query` before and after `update`, `Table.setPage 1` when an outside filter changed, ask with a new ticket, drop an answer whose ticket is not the latest. **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. The server searches of `Select.serverSearch`, `MultiSelect.serverSearch`, `Autocomplete.query` and a lazy `Tree.query` wait 300 ms too: fetch when the query changes and drop an answer whose query is no longer the current one. Debounce only what Klar does not: the query of a `CommandPalette.remote` section (a counter, see its doc) and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
 10. **When Klar lacks something, say so.** Write the best honest version, put a comment `-- KLAR GAP: what is missing` above it, and carry on. Do not copy a component, wrap it in your own CSS or import an internal module.
 
 ## Small things that come up
 
 - **A day count from a data set to a date and back**: `Date.fromEpochDay (baseDay + n)` and `Date.toEpochDay date - baseDay` (day 0 is 1 January 1970); `Date.addDays` and `Date.diffDays` do the rest.
 - **A price rule ("if the category is X and the quantity above Y, take Z off")**: `Rule` and `RuleBuilder` hold only the condition. Inside a `Klar.Form` the list of rules is `Spec.rows` with `Spec.conditions` for the condition (see `ai/modules/Klar.Form.md`). On a page without a form the outcome is yours: one `RuleBuilder.State` per outcome in a list, `{ when : RuleBuilder.State, discountPercent : Float }`, and `Rule.matches today fields (RuleBuilder.rule r.when) row` to ask a row. The example is in `ai/modules/Klar.RuleBuilder.md`.
-- **A failed save with "Try again"**: `FormLayout.onRetry` gets its own message, and that branch runs the save and `FormLayout.focusStatus`; "Try again" is replaced by "Saving ..." and focus would fall to the page. Server problems per field are `Form.rejected`, which also focuses the summary (`recipes/edit-form`).
+- **A failed save with "Try again"**: `FormLayout.onRetry` gets its own message, and that branch runs the save and `FormLayout.focusStatus`; "Try again" is replaced by "Saving ..." and focus would fall to the page. Server problems per field are `Form.rejected`, which also focuses the summary (`Examples/EditForm.elm`).
 - **"Try again" of any region** (`RemoteView`, `Stat`, `Chart`, `Timeline`, `ApprovalFlow` with its own `Klar.focus`; `Table` does it itself): give the region an id (`RemoteView.id`, `Stat.id`, `Chart.id`, `Timeline.id`) and, in the update branch of **its own** retry message, `Klar.focus id NoOp`. A `Tree` branch: `Tree.focusNode` with the node id. Do it in a message of its own, so a "Reload" button elsewhere keeps its focus.
 - **A wizard draws the step fields inside `Form.stepBody v [ ... ]`**, or Elm reuses the focused input of one step for the next and "Required" shows on a field nobody touched.
 - **Words that call a palette item** ("go to order 1001"): `CommandPalette.withCommand "go to order"` on the item and `CommandPalette.argument items palette` for the text to send to the backend.
 - **Keep saved views** with `SavedViews.encode` / `SavedViews.decoder` (and `Table.encodeQuery` / `Table.queryDecoder`); the library stores nothing, you choose where the JSON goes.
 - **A footer range worded your way** ("1 to 25 of 200"): `Table.rangeText` (same in `ServerList.viewTable`), `Pagination.rangeText`.
-- **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave when the user answers "Leave" (`recipes/multi-step`).
+- **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave when the user answers "Leave" (`Examples/MultiStep.elm`).
 - **A sidebar that is not a `SideNav`**: `AppShell.sidebar` takes any `Html` (a `Tree`, a list of saved views).
 
 ## Common traps
@@ -330,6 +331,54 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 **Date and time**
 - The date type: `Date`. A date field: `DatePicker`. A period: `DateRangePicker`. Time: `TimePicker`. Both: `DateTimePicker`. A month with marks: `Calendar`. "Every second Tuesday": `Recurrence` with `RecurrencePicker`.
 
+## Getting Klar into a project
+
+**Published:** `elm install davidtoska/elm-klar`. **Before it is published, or to keep an exact copy:** a git
+submodule pinned to a tag or a commit, with its `src` in your `source-directories`. Elm reads the dependencies of
+the application, not of a folder, so list Klar's too:
+
+```json
+{
+    "type": "application",
+    "source-directories": ["src", "vendor/klar/src"],
+    "dependencies": {
+        "direct": { "elm/browser": "1.0.2", "elm/core": "1.0.5", "elm/file": "1.0.5", "elm/html": "1.0.1",
+                    "elm/json": "1.1.4", "elm/time": "1.0.0", "elm/url": "1.0.0" },
+        "indirect": { "elm/bytes": "1.0.8", "elm/virtual-dom": "1.0.5" }
+    }
+}
+```
+
+`index.html` for a `Browser.application` (every application with an `AppShell`) mounts with `Elm.Main.init()`, no
+`node`; a `Browser.element` takes `{ node: document.getElementById("app") }`. `Klar.stylesheet` removes the margin of
+the `body`, so the page needs no CSS. The routes are the part of the address after `#`, so any static server works.
+
+**A backend.** Klar never sends a request. With `elm/http` in the application, turn the error into a problem once:
+
+```elm
+toProblem : Http.Error -> Remote.Problem
+toProblem error =
+    case error of
+        Http.Timeout -> Remote.problem Remote.timeout
+        Http.NetworkError -> Remote.problem Remote.network
+        Http.BadStatus 404 -> Remote.problem Remote.notFound
+        Http.BadStatus 403 -> Remote.problem Remote.forbidden
+        _ -> Remote.problem Remote.unknown
+```
+
+and `result |> Result.mapError toProblem |> Remote.fromResult` (or `Remote.refreshWith old result now`) is the
+`Remote` you give the component.
+
+**For the `CLAUDE.md` of the application** (with the path where Klar lives):
+
+> This application uses Klar (`vendor/klar`), a UI toolkit for Elm. Use only the modules Klar exposes (`Klar.*`,
+> listed in `vendor/klar/elm.json`), never `Klar.Internal.*`, and never copy or edit a Klar file. Before you write a
+> screen, read `vendor/klar/AI.md` and search `vendor/klar/ai/klar-index.json`; then read
+> `vendor/klar/ai/modules/<Module>.md` for the modules you use and the nearest program in
+> `vendor/klar/example/src/Examples/`. Never write your own popup, dialog, focus, scroll, date, keyboard or
+> virtual-list code, no CSS, no `class`, no `style`, no JavaScript. Keep ids as your own types and backend data as
+> `Remote`. If Klar lacks something, write the best honest version with `-- KLAR GAP: <what is missing>` above it.
+
 ## Links
 
-[llms.txt](llms.txt) | [ai/klar-index.json](ai/klar-index.json) | [ai/modules/README.md](ai/modules/README.md) | [USING.md](USING.md) | [recipes/README.md](recipes/README.md) | [template/README.md](template/README.md)
+[ai/klar-index.json](ai/klar-index.json) | [ai/modules/README.md](ai/modules/README.md) | [example/src/Examples/](example/src/Examples)

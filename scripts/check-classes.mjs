@@ -7,7 +7,7 @@
 //
 // Elm: string literals that start with "klar-" (a literal that ends in "-" or "_" is
 // a prefix completed at run time, e.g. "klar-button--" ++ look).
-// CSS: class selectors in css/src/*.css.
+// CSS: class selectors in the stylesheet modules, src/Klar/Internal/Css/*.elm.
 //
 // Some classes are only hooks: the markup has them but nothing is styled with them.
 // They are listed in scripts/class-hooks.txt and are not reported.
@@ -29,7 +29,7 @@ function walk(dir, ext) {
 }
 
 const cssClasses = new Set();
-for (const file of walk(path.join(root, 'css', 'src'), '.css')) {
+for (const file of walk(path.join(root, 'src', 'Klar', 'Internal', 'Css'), '.elm')) {
   const text = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   for (const m of text.matchAll(/\.(klar-[a-zA-Z0-9_-]+)/g)) cssClasses.add(m[1]);
 }
@@ -37,7 +37,7 @@ for (const file of walk(path.join(root, 'css', 'src'), '.css')) {
 const used = new Map(); // class or prefix -> first location
 const prefixes = new Map();
 for (const file of walk(path.join(root, 'src'), '.elm')) {
-  if (file.endsWith(path.join('Internal', 'Css.elm'))) continue;
+  if (file.endsWith(path.join('Internal', 'Css.elm')) || file.includes(path.join('Internal', 'Css') + path.sep)) continue;
   const lines = fs.readFileSync(file, 'utf8').split('\n');
   lines.forEach((line, index) => {
     if (/^\s*--/.test(line)) return;

@@ -46,7 +46,7 @@ listed in `Klar.Icon.Library`. All icons are one family: a 24 by 24 grid, a 2 pi
 stroke, round ends and corners, no fill.
 
 The built-in icons are based on [Feather](https://feathericons.com) and
-[Lucide](https://lucide.dev); see `THIRD-PARTY-NOTICES.md` in the repository.
+[Lucide](https://lucide.dev); their license texts are in the `LICENSE` file of the package.
 
 
 # Showing icons

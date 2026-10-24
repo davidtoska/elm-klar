@@ -35,9 +35,7 @@ That is all the setup there is (with a theme of your choice it is `stylesheetFor
 nothing to link and nothing to bundle. It brings a small reset (box sizing, the page
 font and background, links, tables, focus rings) and every rule of every component,
 so Klar assumes that it owns the page. If your content security policy forbids inline
-styles, copy `css/klar.css` from the package repository into your static files, link
-it from your page, and leave `stylesheet` out. (A `nonce` of your own can go on the
-element made from `css`.)
+styles, give the element a `nonce` with `css` (below).
 
 Build a whole application from the parts: [Klar.AppShell](Klar-AppShell) is the
 frame (top bar, side navigation, scrolling content), [Klar.PageHeader](Klar-PageHeader)

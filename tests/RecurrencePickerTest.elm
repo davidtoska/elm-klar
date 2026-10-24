@@ -16,6 +16,7 @@ import Klar.Date as Date exposing (Date)
 import Klar.Locale as Locale
 import Klar.Recurrence as Recurrence exposing (Rule)
 import Klar.RecurrencePicker as RecurrencePicker exposing (Msg, State)
+import Support.Css as Css
 import Support.RecurrenceFuzz exposing (paramsFuzzer, startFuzzer)
 import Support.RecurrenceReference as Reference exposing (date)
 import Test exposing (Test, describe, fuzz2, fuzz3, test)
@@ -751,7 +752,7 @@ markupTests =
                 , ".klar-recurrence .klar-segmented__item{flex: 0 0 auto}"
                 , ".klar-recurrence .klar-segmented__label{overflow: visible;text-overflow: clip}"
                 ]
-                    |> List.map (\rule -> String.contains rule Klar.css)
+                    |> List.map (\rule -> String.contains rule Css.rules)
                     |> Expect.equal [ True, True, True ]
         , test "the id of the field is on an input, so an error summary can move focus there" <|
             \_ ->

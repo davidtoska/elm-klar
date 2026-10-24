@@ -1,0 +1,921 @@
+module Klar.Internal.Css.DateTime exposing (css)
+
+{-| The rules of `datetime`, part of the stylesheet of the package. Edit the CSS here;
+`Klar.Internal.Css` puts the parts together in order.
+-}
+
+
+css : String
+css =
+    """
+/* ==========================================================================
+   Date and time: calendar, date picker, date range picker, time picker.
+   Tokens only. Popups follow the pattern in Base.elm (.klar-anchor / .klar-layer /
+   .klar-popup).
+   ========================================================================== */
+
+/* ---- Calendar -------------------------------------------------------- */
+
+.klar-calendar {
+  --klar-cal-w: 34px;
+  --klar-cal-h: 32px;
+  --klar-cal-week-w: 28px;
+  display: inline-block;
+  max-width: 100%;
+  color: var(--klar-text);
+  font-size: var(--klar-text-md);
+  line-height: 1.2;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.klar-calendar--sm {
+  --klar-cal-w: 28px;
+  --klar-cal-h: 26px;
+  --klar-cal-week-w: 24px;
+  font-size: var(--klar-text-sm);
+}
+
+.klar-calendar--lg {
+  --klar-cal-w: 58px;
+  --klar-cal-h: 54px;
+  --klar-cal-week-w: 32px;
+}
+
+.klar-calendar__months {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--klar-space-4) var(--klar-space-6);
+}
+
+.klar-calendar__month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--klar-space-2);
+}
+
+/* Header: previous, title, next */
+
+.klar-calendar__header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+}
+
+.klar-calendar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--klar-space-2);
+  border: 0;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-text);
+  font-weight: var(--klar-weight-bold);
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.klar-calendar__title:hover {
+  background: var(--klar-gray-100);
+}
+
+.klar-calendar__title:focus-visible,
+.klar-calendar__nav:focus-visible,
+.klar-calendar__pick:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+/* A day's focus ring sits outside the box (3px, inside the 4px gap between
+   two days), so it stays clear of the fill and of the thin ring that marks
+   today. */
+
+.klar-calendar__day:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 1px;
+}
+
+.klar-calendar__title--static {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.klar-calendar__nav,
+.klar-calendar__nav-space {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.klar-calendar__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-text-secondary);
+}
+
+.klar-calendar__nav:hover {
+  background: var(--klar-gray-100);
+  color: var(--klar-text);
+}
+
+.klar-calendar__nav--disabled,
+.klar-calendar__nav--disabled:hover {
+  background: transparent;
+  color: var(--klar-text-disabled);
+  cursor: not-allowed;
+}
+
+/* Grid */
+
+.klar-calendar__grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.klar-calendar__grid th,
+.klar-calendar__grid td {
+  padding: 0;
+  text-align: center;
+  font-weight: var(--klar-weight);
+}
+
+.klar-calendar__weekday {
+  width: var(--klar-cal-w);
+  height: 24px;
+  font-size: var(--klar-text-xs);
+  font-weight: var(--klar-weight-medium);
+  color: var(--klar-text-muted);
+}
+
+.klar-calendar__week-head,
+.klar-calendar__week {
+  width: var(--klar-cal-week-w);
+  font-size: var(--klar-text-xs);
+  color: var(--klar-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.klar-calendar__week {
+  border-right: 1px solid var(--klar-border-subtle);
+}
+
+.klar-calendar__cell {
+  width: var(--klar-cal-w);
+  height: var(--klar-cal-h);
+}
+
+/* The band behind a chosen period. Rounded where a period or a week row ends. */
+
+.klar-calendar__cell--band {
+  background: var(--klar-blue-100);
+}
+
+.klar-calendar__cell--preview {
+  background: color-mix(in srgb, var(--klar-blue-50) 45%, var(--klar-blue-100));
+}
+
+.klar-calendar__cell--band:first-of-type,
+.klar-calendar__cell--band-start {
+  border-top-left-radius: var(--klar-radius);
+  border-bottom-left-radius: var(--klar-radius);
+}
+
+.klar-calendar__cell--band:last-of-type,
+.klar-calendar__cell--band-end {
+  border-top-right-radius: var(--klar-radius);
+  border-bottom-right-radius: var(--klar-radius);
+}
+
+/* A day */
+
+.klar-calendar__day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--klar-cal-w) - 4px);
+  height: calc(var(--klar-cal-h) - 4px);
+  margin: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.klar-calendar__num {
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.klar-calendar__day:hover {
+  background: var(--klar-gray-100);
+}
+
+.klar-calendar__cell--band .klar-calendar__day:hover {
+  background: var(--klar-blue-200);
+}
+
+.klar-calendar__day--weekend {
+  color: var(--klar-text-secondary);
+}
+
+.klar-calendar__day--outside {
+  color: var(--klar-text-muted);
+}
+
+.klar-calendar__day--today {
+  color: var(--klar-primary);
+  font-weight: var(--klar-weight-bold);
+  box-shadow: inset 0 0 0 1px var(--klar-blue-300);
+}
+
+.klar-calendar__day--selected,
+.klar-calendar__day--selected:hover,
+.klar-calendar__cell--band .klar-calendar__day--selected:hover {
+  background: var(--klar-primary);
+  color: var(--klar-on-primary);
+  font-weight: var(--klar-weight-medium);
+}
+
+.klar-calendar__day--selected.klar-calendar__day--today {
+  box-shadow: inset 0 0 0 1px var(--klar-primary), inset 0 0 0 2px var(--klar-surface);
+}
+
+.klar-calendar__day--selected:hover {
+  background: var(--klar-primary-hover);
+}
+
+.klar-calendar__day--preview-end,
+.klar-calendar__cell--band .klar-calendar__day--preview-end {
+  background: var(--klar-surface);
+  color: var(--klar-primary);
+  box-shadow: inset 0 0 0 1px var(--klar-primary);
+}
+
+.klar-calendar__day--disabled,
+.klar-calendar__day--disabled:hover,
+.klar-calendar__cell--band .klar-calendar__day--disabled:hover {
+  background: transparent;
+  color: var(--klar-gray-300);
+  cursor: not-allowed;
+}
+
+/* Marks: dots (tone) and a count */
+
+.klar-calendar__day:has(.klar-calendar__dots) .klar-calendar__num {
+  margin-top: -5px;
+}
+
+.klar-calendar__dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3px;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+
+.klar-calendar__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--klar-gray-500);
+}
+
+.klar-calendar__dot--primary,
+.klar-calendar__dot--info {
+  background: var(--klar-blue-500);
+}
+
+.klar-calendar__dot--success {
+  background: var(--klar-green-500);
+}
+
+.klar-calendar__dot--warning {
+  background: var(--klar-amber-500);
+}
+
+.klar-calendar__dot--danger {
+  background: var(--klar-red-500);
+}
+
+.klar-calendar--lg .klar-calendar__dots {
+  bottom: 6px;
+  gap: 3px;
+}
+
+.klar-calendar--lg .klar-calendar__dot {
+  width: 6px;
+  height: 6px;
+}
+
+/* On the chosen day the dots are white: colored ones would vanish into the blue. */
+
+.klar-calendar__day--selected .klar-calendar__dot {
+  background: var(--klar-white);
+}
+
+.klar-calendar__count {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--klar-radius-full);
+  background: var(--klar-blue-100);
+  color: var(--klar-blue-800);
+  font-size: 10px;
+  font-weight: var(--klar-weight-bold);
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.klar-calendar__day--selected .klar-calendar__count {
+  background: var(--klar-white);
+  color: var(--klar-primary);
+}
+
+.klar-calendar--lg .klar-calendar__count {
+  top: 4px;
+  right: 4px;
+}
+
+.klar-calendar--lg .klar-calendar__num {
+  font-size: var(--klar-text-lg);
+}
+
+/* Seven 58px days do not fit on a phone: the large calendar was cut off
+   (weekend and the next-month button out of reach) and the page scrolled
+   sideways. Narrow screens get narrower days, with the count in the corner
+   above the number and the dots below it. */
+@media (max-width: 520px) {
+  .klar-calendar--lg {
+    --klar-cal-w: 38px;
+    --klar-cal-h: 48px;
+    --klar-cal-week-w: 26px;
+  }
+
+  .klar-calendar--lg .klar-calendar__day:has(.klar-calendar__dots) .klar-calendar__num {
+    margin-top: 0;
+  }
+
+  .klar-calendar--lg .klar-calendar__count {
+    top: 0;
+    right: 0;
+    min-width: 13px;
+    height: 13px;
+    padding: 0 2px;
+    line-height: 13px;
+  }
+
+  .klar-calendar--lg .klar-calendar__dots {
+    bottom: 3px;
+    gap: 2px;
+  }
+
+  .klar-calendar--lg .klar-calendar__dot {
+    width: 5px;
+    height: 5px;
+  }
+}
+
+/* Month and year choosers */
+
+.klar-calendar__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--klar-space-2);
+  width: calc(var(--klar-cal-w) * 7);
+}
+
+.klar-calendar--weeks .klar-calendar__panel {
+  width: calc(var(--klar-cal-w) * 7 + var(--klar-cal-week-w));
+}
+
+.klar-calendar--multi .klar-calendar__panel {
+  width: calc(var(--klar-cal-w) * 14 + var(--klar-space-6));
+}
+
+.klar-calendar--multi.klar-calendar--weeks .klar-calendar__panel {
+  width: calc(var(--klar-cal-w) * 14 + var(--klar-cal-week-w) * 2 + var(--klar-space-6));
+}
+
+.klar-calendar__picks {
+  display: grid;
+  gap: 4px;
+  height: calc(24px + 6 * var(--klar-cal-h));
+}
+
+.klar-calendar__picks--months {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.klar-calendar__picks--years {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.klar-calendar--multi .klar-calendar__picks--months {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.klar-calendar--multi .klar-calendar__picks--years {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.klar-calendar__pick {
+  padding: 0;
+  border: 0;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.klar-calendar__pick:hover {
+  background: var(--klar-gray-100);
+}
+
+.klar-calendar__pick--today {
+  color: var(--klar-primary);
+  font-weight: var(--klar-weight-bold);
+  box-shadow: inset 0 0 0 1px var(--klar-primary);
+}
+
+.klar-calendar__pick--current,
+.klar-calendar__pick--current:hover {
+  background: var(--klar-primary);
+  color: var(--klar-on-primary);
+  font-weight: var(--klar-weight-medium);
+}
+
+.klar-calendar__pick--disabled,
+.klar-calendar__pick--disabled:hover {
+  background: transparent;
+  color: var(--klar-gray-300);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ---- Date picker ----------------------------------------------------- */
+
+.klar-datepicker {
+  width: 100%;
+}
+
+.klar-datepicker__button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-text-secondary);
+}
+
+.klar-datepicker__button:hover {
+  background: var(--klar-gray-100);
+  color: var(--klar-text);
+}
+
+.klar-datepicker__button:disabled {
+  color: var(--klar-text-disabled);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.klar-datepicker__button:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -1px;
+}
+
+/* The popup is as wide as its calendar, not as wide as the field. */
+
+.klar-datepicker__popup {
+  width: max-content;
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+  padding: var(--klar-space-3);
+  outline: none;
+}
+
+.klar-datepicker__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--klar-space-2);
+  padding-top: var(--klar-space-2);
+  border-top: 1px solid var(--klar-border-subtle);
+}
+
+/* ---- Date range picker ----------------------------------------------- */
+
+.klar-daterange {
+  width: 100%;
+}
+
+.klar-daterange__box {
+  gap: 4px;
+}
+
+.klar-daterange__control {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.klar-daterange__separator {
+  flex: none;
+  color: var(--klar-text-muted);
+}
+
+.klar-daterange__popup {
+  width: max-content;
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+  padding: 0;
+  outline: none;
+}
+
+.klar-daterange__layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.klar-daterange__presets {
+  display: flex;
+  flex: 0 0 152px;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--klar-space-2);
+  border-right: 1px solid var(--klar-border);
+  background: var(--klar-surface-subtle);
+  border-radius: var(--klar-radius-lg) 0 0 var(--klar-radius-lg);
+}
+
+.klar-daterange__presets .klar-button {
+  justify-content: flex-start;
+  width: 100%;
+  font-weight: var(--klar-weight);
+  color: var(--klar-text);
+}
+
+.klar-daterange__presets .klar-button[aria-pressed="true"] {
+  --_bg: var(--klar-primary-subtle);
+  color: var(--klar-blue-700);
+  font-weight: var(--klar-weight-medium);
+}
+
+.klar-daterange__presets .klar-button--disabled {
+  color: var(--klar-text-disabled);
+}
+
+.klar-daterange__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--klar-space-2);
+  padding: var(--klar-space-3);
+}
+
+.klar-daterange__status {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding-top: var(--klar-space-2);
+  border-top: 1px solid var(--klar-border-subtle);
+  color: var(--klar-text-secondary);
+  font-size: var(--klar-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Time picker ----------------------------------------------------- */
+
+.klar-timepicker {
+  width: 100%;
+}
+
+/* The list is only as wide as a time needs. Rows have a fixed height
+   (--klar-option-h) and the scrolling list has no padding, so the keyboard
+   scrolling in TimePicker.elm can compute row positions. */
+
+.klar-timepicker__popup {
+  width: 132px;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.klar-timepicker__list {
+  max-height: 256px;
+  overflow-y: auto;
+}
+
+.klar-timepicker__option {
+  display: flex;
+  align-items: center;
+  height: var(--klar-option-h);
+  padding: 0 var(--klar-space-3);
+  color: var(--klar-text);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.klar-timepicker__option--highlighted {
+  background: var(--klar-gray-100);
+}
+
+.klar-timepicker__option--selected {
+  background: var(--klar-primary-subtle);
+  color: var(--klar-blue-700);
+  font-weight: var(--klar-weight-medium);
+}
+
+.klar-timepicker__option--selected.klar-timepicker__option--highlighted {
+  background: var(--klar-primary-subtle-hover);
+}
+
+.klar-timepicker__empty {
+  padding: var(--klar-space-3);
+  color: var(--klar-text-muted);
+}
+
+/* ---- Date and time picker -------------------------------------------- */
+
+/* The label above the pair (a group label, not a `label for`). */
+.klar-datetimepicker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.klar-datetimepicker {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--klar-space-2);
+}
+
+.klar-datetimepicker__date {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.klar-datetimepicker__time {
+  flex: 0 0 120px;
+  min-width: 0;
+}
+
+.klar-field--invalid > .klar-datetimepicker-field > .klar-datetimepicker .klar-input,
+.klar-field--invalid > .klar-datetimepicker .klar-input {
+  border-color: var(--klar-danger);
+}
+
+/* ---- Popup placement ---------------------------------------------------
+   The base popup (base.css) flips above or to the other side of its anchor
+   when it does not fit. A wide popup (the range picker, two months and a
+   list) may fit in neither alignment when the field sits in the middle of a
+   narrow window, and then it would stay put and be cut off. These extra
+   fallbacks centre it on the field, and as a last resort pin it to the
+   window edge, below or above. */
+
+@position-try --klar-dt-below-center {
+  top: anchor(bottom);
+  bottom: auto;
+  left: 8px;
+  right: 8px;
+  margin: 4px 0 0;
+  justify-self: anchor-center;
+}
+
+@position-try --klar-dt-above-center {
+  top: auto;
+  bottom: anchor(top);
+  left: 8px;
+  right: 8px;
+  margin: 0 0 4px;
+  justify-self: anchor-center;
+}
+
+@position-try --klar-dt-below-start {
+  top: anchor(bottom);
+  bottom: auto;
+  left: 8px;
+  right: auto;
+  margin: 4px 0 0;
+}
+
+@position-try --klar-dt-above-start {
+  top: auto;
+  bottom: anchor(top);
+  left: 8px;
+  right: auto;
+  margin: 0 0 4px;
+}
+
+@position-try --klar-dt-below-end {
+  top: anchor(bottom);
+  bottom: auto;
+  left: auto;
+  right: 8px;
+  margin: 4px 0 0;
+}
+
+@position-try --klar-dt-above-end {
+  top: auto;
+  bottom: anchor(top);
+  left: auto;
+  right: 8px;
+  margin: 0 0 4px;
+}
+
+@supports (position-anchor: --klar-a) {
+  .klar-datepicker__popup,
+  .klar-daterange__popup {
+    position-try-fallbacks:
+      flip-block,
+      flip-inline,
+      flip-block flip-inline,
+      --klar-dt-below-center,
+      --klar-dt-above-center,
+      --klar-dt-below-start,
+      --klar-dt-above-start,
+      --klar-dt-below-end,
+      --klar-dt-above-end;
+  }
+}
+
+/* ---- Narrow windows ----------------------------------------------------
+   When a calendar popup would not fit next to its field (the range picker
+   needs about 700px, the date picker about 300px) it becomes a sheet at the
+   bottom of the window: always fully reachable, scrolling inside itself when
+   it is taller than the window. */
+
+@media (max-width: 700px) {
+  .klar-daterange__popup {
+    position: fixed;
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100vh - 16px);
+    margin: 0;
+    overflow: auto;
+    position-try-fallbacks: none;
+  }
+
+  .klar-daterange__layout {
+    flex-direction: column;
+  }
+
+  .klar-daterange__presets {
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: 0;
+    border-bottom: 1px solid var(--klar-border);
+    border-radius: var(--klar-radius-lg) var(--klar-radius-lg) 0 0;
+  }
+
+  .klar-daterange__presets .klar-button {
+    width: auto;
+  }
+
+  .klar-daterange__main {
+    align-items: center;
+  }
+
+  .klar-daterange__popup .klar-calendar,
+  .klar-daterange__popup .klar-calendar__months {
+    width: 100%;
+  }
+
+  .klar-daterange__popup .klar-calendar__months {
+    justify-content: center;
+  }
+
+  .klar-daterange__status {
+    align-self: stretch;
+  }
+}
+
+@media (max-width: 480px) {
+  .klar-datepicker__popup {
+    position: fixed;
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100vh - 16px);
+    margin: 0;
+    overflow: auto;
+    position-try-fallbacks: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .klar-datepicker__footer {
+    align-self: stretch;
+  }
+}
+
+/* The optional "I dag" button of a calendar used on its own. */
+
+.klar-calendar__footer {
+  display: flex;
+  margin-top: var(--klar-space-2);
+  padding-top: var(--klar-space-2);
+  border-top: 1px solid var(--klar-border-subtle);
+}
+
+.klar-calendar__today {
+  height: 24px;
+  padding: 0 var(--klar-space-2);
+  border: 0;
+  border-radius: var(--klar-radius);
+  background: transparent;
+  color: var(--klar-text-link);
+  font: inherit;
+  font-weight: var(--klar-weight-medium);
+  cursor: pointer;
+}
+
+.klar-calendar__today:hover {
+  background: var(--klar-primary-subtle);
+}
+
+.klar-calendar__today:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+.klar-calendar__today[aria-disabled="true"] {
+  color: var(--klar-text-disabled);
+  cursor: not-allowed;
+}
+
+.klar-calendar__today[aria-disabled="true"]:hover {
+  background: transparent;
+}
+
+/* ---- Forced colors (high contrast) ------------------------------------
+   Backgrounds disappear in forced-colors mode; give the states an edge. */
+
+@media (forced-colors: active) {
+  .klar-calendar__day--selected,
+  .klar-calendar__pick--current {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .klar-calendar__day--today,
+  .klar-calendar__pick--today {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .klar-calendar__cell--band {
+    border-top: 1px solid Highlight;
+    border-bottom: 1px solid Highlight;
+  }
+
+  .klar-calendar__day--disabled,
+  .klar-calendar__pick--disabled {
+    color: GrayText;
+  }
+
+  .klar-timepicker__option--selected,
+  .klar-timepicker__option--highlighted {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+}
+"""

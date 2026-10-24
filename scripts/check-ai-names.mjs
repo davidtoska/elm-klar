@@ -3,18 +3,17 @@
 //
 //   node scripts/check-ai-names.mjs
 //
-// 1. NAMES. Reads AI.md, llms.txt, USING.md, README.md, recipes/*/README.md, template/README.md,
-//    recipes/README.md and the documentation comments in src/ (the source of ai/modules/*.md, which is generated and
+// 1. NAMES. Reads AI.md, README.md and the documentation comments in src/ (the source of ai/modules/*.md, which is generated and
 //    checked fresh by check:ai-docs). Every `Module.name` token written in backticks or in a code
 //    block, where Module is a Klar module (`Klar.Table`, or an alias taken from the imports of the
 //    same document, or the last part of the module name: `Table`, `Modal`), must name a module in
 //    elm.json's exposed modules and a name that module exposes (value, type, constructor). The
 //    names in `import Klar.X exposing (...)` lines are checked the same way.
 // 2. PROGRAMS. A fenced elm block that starts with `module` in those documents is a complete
-//    program: it is compiled in a scratch project (the dependencies of template/elm.json).
+//    program: it is compiled in a scratch project (the dependencies of example/elm.json).
 //    Blocks that are fragments are skipped.
 // 3. DUPLICATES. Two complete programs in one document must not declare the same top-level name
-//    in different modules of one file set; two fragment blocks of AI.md or USING.md must not
+//    in different modules of one file set; two fragment blocks of AI.md must not
 //    declare the same top-level function (an AI that copies both into one module gets a clash).
 //
 // Part of `npm run check` (check:ai-names). Nothing in the repository changes.
@@ -89,10 +88,7 @@ function readSources() {
     const p = path.join(root, file);
     if (fs.existsSync(p)) sources.push({ file, text: fs.readFileSync(p, 'utf8'), kind });
   };
-  for (const f of ['AI.md', 'llms.txt', 'USING.md', 'README.md', 'template/README.md', 'recipes/README.md']) add(f, 'markdown');
-  for (const d of fs.readdirSync(path.join(root, 'recipes'), { withFileTypes: true })) {
-    if (d.isDirectory()) add(`recipes/${d.name}/README.md`, 'markdown');
-  }
+  for (const f of ['AI.md', 'README.md']) add(f, 'markdown');
   for (const m of docs) {
     const file = 'src/' + m.name.replace(/\./g, '/') + '.elm';
     sources.push({ file: `${file} (module doc)`, text: m.comment, kind: 'comment' });
@@ -242,7 +238,7 @@ for (const s of markdownSources) {
   for (const b of fencedBlocks(s)) {
     if (b.lang !== 'elm') continue;
     if (/^module\s+\w/m.test(b.code)) programs.push({ source: s, block: b });
-    else if (s.file === 'AI.md' || s.file === 'USING.md') {
+    else if (s.file === 'AI.md') {
       const names = [...b.code.matchAll(/^([a-z][\w']*)\s*:/gm)].map((m) => m[1]);
       for (const name of names) {
         if (!fragmentsByFile.has(s.file)) fragmentsByFile.set(s.file, []);
@@ -269,7 +265,7 @@ for (const [file, list] of fragmentsByFile) {
 let compiled = 0;
 if (programs.length > 0) {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'klar-ai-names-'));
-  const elmJson = JSON.parse(fs.readFileSync(path.join(root, 'template', 'elm.json'), 'utf8'));
+  const elmJson = JSON.parse(fs.readFileSync(path.join(root, 'example', 'elm.json'), 'utf8'));
   elmJson['source-directories'] = ['.', path.join(root, 'src')];
   fs.writeFileSync(path.join(workspace, 'elm.json'), JSON.stringify(elmJson, null, 4));
   programs.forEach((p, i) => {

@@ -40,6 +40,7 @@ jobs:
         run: |
           mkdir _site
           cp example/index.html example/showcase.css example/main.js _site/
+          cp -r example/examples _site/examples
 
       - uses: actions/upload-pages-artifact@v3
         with:
