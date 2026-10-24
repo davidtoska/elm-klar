@@ -83,16 +83,20 @@ a tree of many thousands of nodes stays fast.
 
 Nodes can come from the backend: the top level as a `Remote` (`remote`), and the
 children of a node with `Picking.lazy`. When the user opens a lazy node that is
-`NotAsked`, `loadRequests` names it (call it after every update), so that you can
-mark it `Loading` and fetch it; a failed branch shows the problem and a "Try again" button
-(`onRetryChildren`) and does not block the rest of the tree. Nothing else is
-loaded behind your back.
+`NotAsked`, `loadRequests` names it once (call it after every update), so that you
+can mark it `Loading` and fetch it; a failed branch shows the problem and a "Try
+again" button (`onRetryChildren`) and does not block the rest of the tree. Data
+that is `Kept` stays on screen: a node whose children are refreshed is busy, and
+children that are old after a failed refresh sit under a row that says "Old data
+from 14:05" with "Try again" (the top level says it above the tree; give `settings`
+for the time zone). Nothing else is loaded behind your back.
 
 Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
 character open the popup (the character starts the search). The keyboard focus
 stays in the search box while the popup is open, and the arrow keys move a
-highlight (`aria-activedescendant`): ArrowDown and ArrowUp, Home and End, PageUp
-and PageDown. ArrowRight opens a closed node and then moves into it, ArrowLeft
+highlight (`aria-activedescendant`): ArrowDown and ArrowUp, PageUp and PageDown,
+and Home and End (in a text Home and End move the caret, and Ctrl or Cmd with them
+move the highlight). ArrowRight opens a closed node and then moves into it, ArrowLeft
 closes an open node and then moves to its parent; in a text they move the caret
 instead, until it is at the end (right) or the start (left). Enter chooses the
 highlighted node (in a multiple field it checks or unchecks it and the popup stays

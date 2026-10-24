@@ -350,8 +350,29 @@ columnTests =
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ itemId 2 1, attr "aria-level" "3", attr "aria-selected" "true" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ itemId 0 0, attr "aria-selected" "true", attr "aria-expanded" "true" ] h)
+
+                    -- only the chosen node is selected; the branches above it are open
+                    , \_ -> Expect.equal True (Drive.has [ itemId 0 0, attr "aria-selected" "false", attr "aria-expanded" "true" ] h)
+                    , \_ -> Expect.equal 1 (Drive.count [ attr "aria-selected" "true" ] h)
                     , \_ -> Expect.equal (Just "place-c2-1") (activeId state)
+                    ]
+                    ()
+        , test "each column after the first is the group of the open branch before it, so the hierarchy is heard" <|
+            \_ ->
+                let
+                    state =
+                        Cascader.setValue ids [ "europe", "norway", "bergen" ] field
+                            |> (\s -> feed (Drive.fire [ Selector.id "place" ] (Drive.key "Enter") (html [] s)) s)
+
+                    h =
+                        html [] state
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ itemId 0 0, attr "aria-owns" "place-group-1" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ itemId 1 0, attr "aria-owns" "place-group-2" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "place-group-1", attr "role" "group", Selector.containing [ itemId 1 0 ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "place-group-2", attr "role" "group", Selector.containing [ itemId 2 1 ] ] h)
+                    , \_ -> Expect.equal 2 (Drive.count [ Selector.attribute (Attr.attribute "role" "group") ] h)
                     ]
                     ()
         , test "a top level that is loading, failed or empty draws that" <|

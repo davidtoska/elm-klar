@@ -22,6 +22,7 @@ import Klar.TreeSelect as TreeSelect
 import Process
 import Showcase.Doc as Doc
 import Task
+import Time
 
 
 
@@ -268,6 +269,8 @@ type Msg
     | RetryZones LocationId
     | RetryDown
     | DownRetried
+    | RefreshZones
+    | ZonesRefreshFailed
 
 
 init : ( Model, Cmd Msg )
@@ -367,7 +370,38 @@ update msg model =
             ( { model | regions = Loaded regions }, Cmd.none )
 
         ZonesArrived siteId result ->
-            ( { model | fetched = Dict.insert siteId (Remote.fromResult result) model.fetched }, Cmd.none )
+            let
+                -- a failed refresh keeps the zones that are there, as old data
+                answer before =
+                    case result of
+                        Ok zones ->
+                            Loaded zones
+
+                        Err problem ->
+                            Remote.refreshWith before (Err problem) (Time.millisToPosix 0)
+            in
+            ( { model | fetched = Dict.update siteId (Maybe.withDefault NotAsked >> answer >> Just) model.fetched }, Cmd.none )
+
+        RefreshZones ->
+            ( { model | fetched = Dict.map (\_ zones -> refreshIfThere zones) model.fetched }
+            , Process.sleep 900 |> Task.perform (\_ -> ZonesRefreshFailed)
+            )
+
+        ZonesRefreshFailed ->
+            ( { model
+                | fetched =
+                    Dict.map
+                        (\_ zones ->
+                            if Remote.isRefreshing zones then
+                                Remote.refreshWith zones (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)
+
+                            else
+                                zones
+                        )
+                        model.fetched
+              }
+            , Cmd.none
+            )
 
         RetryZones (LocationId siteId) ->
             fetch siteId model Cmd.none
@@ -379,26 +413,34 @@ update msg model =
             ( { model | down = False }, Cmd.none )
 
 
-{-| The sites whose zones the user just asked for: mark them as loading and fetch
-them.
+{-| The sites whose zones the user just opened: mark them as loading and fetch
+them. A field names each site once, so there is no check of our own.
 -}
 requestZones : List LocationId -> Model -> Cmd Msg -> ( Model, Cmd Msg )
 requestZones requested model cmd =
     List.foldl
         (\(LocationId siteId) ( current, cmds ) ->
-            if Dict.member siteId current.fetched then
-                ( current, cmds )
-
-            else
-                let
-                    ( next, fetching ) =
-                        fetch siteId current Cmd.none
-                in
-                ( next, fetching :: cmds )
+            let
+                ( next, fetching ) =
+                    fetch siteId current Cmd.none
+            in
+            ( next, fetching :: cmds )
         )
         ( model, [ cmd ] )
         requested
         |> (\( next, cmds ) -> ( next, Cmd.batch cmds ))
+
+
+{-| Zones that are there are refreshed and stay on screen meanwhile.
+-}
+refreshIfThere : Remote (List Zone) -> Remote (List Zone)
+refreshIfThere zones =
+    case Remote.toMaybe zones of
+        Just _ ->
+            Remote.refresh zones
+
+        Nothing ->
+            zones
 
 
 {-| Asks the pretend backend for the zones of a site. Hamburg fails the first two
@@ -421,7 +463,7 @@ fetch siteId model cmd =
                 Ok (zonesOf siteId)
     in
     ( { model
-        | fetched = Dict.insert siteId Loading model.fetched
+        | fetched = Dict.update siteId (Maybe.withDefault NotAsked >> Remote.refresh >> Just) model.fetched
         , attempts = Dict.insert siteId (attempt + 1) model.attempts
       }
     , Cmd.batch
@@ -446,10 +488,10 @@ view locale model =
         , description = "Pick from a tree, drill down through columns, or move items between two lists. The ids are the application's own type, and everything that comes from the backend shows that it is loading, failed or empty."
         }
         [ Doc.section "TreeSelect"
-            "A field that opens a tree. Type to filter: the matches keep their ancestors, which open, and clearing the text brings back what was open. The sites of Bergen and Rotterdam are fetched when they are opened, Hamburg fails the first two times (use “Try again”), and Frankfurt is closed (disabled)."
+            "A field that opens a tree. Type to filter: the matches keep their ancestors, which open, and clearing the text brings back what was open. The sites of Bergen and Rotterdam are fetched when they are opened, Hamburg fails the first two times (use “Try again”), and Frankfurt is closed (disabled). “Refresh the zones” refreshes the zones that are loaded and fails: they stay, marked busy, then under a row that says “Old data” with “Try again”."
             [ Doc.example
                 { title = "One location"
-                , description = Just "Arrow keys move, Right and Left open and close, Enter chooses. The popup opens on the value, with the nodes above it open. A disabled node cannot be chosen, but the nodes inside it can."
+                , description = Just "Arrow keys move, Right and Left open and close, Enter chooses. Home and End go to the first and last row while the search box is empty, and move the caret in a text (Ctrl or Cmd with them always move the rows). The popup opens on the value, with the nodes above it open. A disabled node cannot be chosen, but the nodes inside it can."
                 , code =
                     Just """TreeSelect.view SiteMsg
     [ TreeSelect.label "Location"
@@ -478,6 +520,7 @@ TreeSelect.value model.site -- Maybe LocationId"""
                         , TreeSelect.locale locale
                         ]
                         model.site
+                    , Button.view [ Button.small, Button.secondary, Button.onClick RefreshZones ] "Refresh the zones (the refresh fails)"
                     , Text.caption
                         ("Value: "
                             ++ (case TreeSelect.value model.site of
@@ -629,7 +672,7 @@ Cascader.value model.place -- Just [ nordics, oslo, receiving, bin ]"""
             "Two lists and the buttons between them, for assigning many things to one thing."
             [ Doc.example
                 { title = "Products in a promotion"
-                , description = Just "Two thousand products. Mark with a click or Space, move with the buttons, a double click, Enter or Ctrl+Right and Ctrl+Left. The filter boxes and the check boxes in the headers work on what is shown. Every 250th product is disabled; product 9999 is chosen but no longer in the list, so it is shown as an unknown value that can be taken out. The chosen products keep the order of the list."
+                , description = Just "Two thousand products. Mark with a click or Space, move with the buttons, a double click, Enter or Ctrl+Right and Ctrl+Left (Cmd on a Mac). The filter boxes and the check boxes in the headers work on what is shown. Every 250th product is disabled; product 9999 is chosen but no longer in the list, so it is shown as an unknown value that can be taken out. The chosen products keep the order of the list."
                 , code =
                     Just """Transfer.view ProductsMsg
     [ Transfer.label "Products in the promotion"

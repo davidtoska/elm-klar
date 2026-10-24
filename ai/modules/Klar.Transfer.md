@@ -47,6 +47,7 @@ disabled : Bool -> Attribute id msg
 readOnly : Bool -> Attribute id msg
 visibleRows : Int -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
 ## Documentation
@@ -126,16 +127,19 @@ and the buttons sit between them (the field fills the width of its container, so
 put it in one that has a width). Right-to-left languages are not supported: the
 keys for moving between the lists assume left-to-right text.
 
-Keyboard: Tab goes from the filter box to the list, to the buttons and on. In a
-filter box Enter or ArrowDown moves on to the list (and never submits a form). In a
-list ArrowDown and ArrowUp, Home and End, and PageUp and PageDown move the
-highlight, and Shift with the arrows marks a range from where the last mark was
-made (going back shrinks it). Space marks or unmarks the
-highlighted item and Ctrl+A marks all that are shown. Enter moves the marked items
-to the other list (the highlighted item when none is marked), Ctrl+ArrowRight in
-"Available" and Ctrl+ArrowLeft in "Chosen" do the same, and with Shift they move
-all that are shown. Typing letters jumps to the next item that starts with them
-(an item that is disabled is skipped, as it is by the arrow keys).
+Keyboard: in each list Tab goes from the header check box to the filter box, to the
+list, and on to the buttons and the other list. In a filter box Enter or ArrowDown
+moves on to the list (and never submits a form). In a list ArrowDown and ArrowUp,
+Home and End, and PageUp and PageDown move the highlight, and Shift with the arrows
+marks a range from where the last mark was made (going back shrinks it). Space
+marks or unmarks the highlighted item and Ctrl+A (Cmd+A on a Mac) marks all that are
+shown. Enter moves the marked items to the other list (the highlighted item when
+none is marked), Ctrl+ArrowRight in "Available" and Ctrl+ArrowLeft in "Chosen" (Cmd
+on a Mac) do the same, and with Shift they move all that are shown. Typing letters
+jumps to the next item that starts with them (an item that is disabled is skipped,
+as it is by the arrow keys). In a `readOnly` field the keys that move the highlight
+still work. `Klar.focus` with the id of `init` focuses the filter box of
+"Available".
 
 Accessibility: the field is a `group` with the label; each list is a `listbox` with
 `aria-multiselectable`, with the highlighted row named by `aria-activedescendant`,
@@ -175,9 +179,11 @@ init : String -> State id
 ```
 
 A transfer with nothing chosen. The `String` is the DOM id of the field and
-must be unique on the page: the label points to it, and the ids of the lists, the
-filter boxes and the rows are derived from it (`products-available`,
-`products-chosen`, `products-available-filter` ...).
+must be unique on the page. It is the id of the filter box of "Available", the
+first control that is there in every state, so `Klar.focus "promotion-products"`
+and the links of an error summary land in the field. The ids of the lists, the
+other filter box and the rows are derived from it (`products-available`,
+`products-chosen`, `products-chosen-filter` ...).
 
     Transfer.init "promotion-products"
 
@@ -295,8 +301,11 @@ remote : Ids.Ids id -> Remote.Remote (List (Select.Option.Option id)) -> Attribu
 The items from the backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)).
 "Available" shows loading rows while the data is `Loading` or `NotAsked`, a compact
 error with a retry button on `Failed` (see `onRetry`), and the items on `Loaded`.
-"Chosen" keeps showing what is chosen, with "Loading ..." for the labels it does
-not know yet.
+Items that are `Kept` stay on screen and can be moved: "Available" is dimmed and
+busy while they are refreshed, and says "Old data from 14:05" with a retry
+(`onRetry`) above its list when the last refresh failed (the time is written in
+the zone of `settings`). "Chosen" keeps showing what is chosen, with
+"Loading ..." for the labels it does not know yet.
 
     Transfer.remote productIds model.products
 
@@ -452,8 +461,10 @@ default is `False`.
 readOnly : Bool -> Attribute id msg
 ```
 
-While `True` the field shows its lists but does not let the user change them,
-and the lists can still be scrolled and read. Unlike `disabled` it is not dimmed.
+While `True` the field shows its lists but does not let the user change them:
+the lists can still be scrolled and read, also with the keyboard (the arrow keys,
+Home, End, the Page keys and the letters move the highlight; nothing is marked or
+moved), and they say `aria-readonly`. Unlike `disabled` it is not dimmed.
 The two are independent; with both set the field is disabled. The default is
 `False`.
 
@@ -477,3 +488,15 @@ the button names, the announcement after a move and the labels for screen reader
 The default is `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
 
     Transfer.locale Locale.nb
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute id msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05" (see `remote`). Without it the time is written in UTC and
+ends in "UTC".
+
+    Transfer.settings model.settings

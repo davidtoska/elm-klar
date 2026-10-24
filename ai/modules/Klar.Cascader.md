@@ -57,6 +57,7 @@ readOnly : Bool -> Attribute id msg
 size : Theme.Size -> Attribute id msg
 visibleRows : Int -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
 ## Documentation
@@ -125,15 +126,19 @@ so a level with thousands of nodes stays fast.
 
 Nodes can come from the backend, the top level as a `Remote` (`remote`) and the
 children of a node with `Picking.lazy`. When the user opens a lazy node whose
-children are `NotAsked`, `loadRequests` names it (call it after every update); mark it `Loading`,
-fetch it, and put the answer in the node the next time you build the tree. A branch
-that failed shows the problem with a "Try again" button (`onRetryChildren`).
+children are `NotAsked`, `loadRequests` names it once (call it after every update);
+mark it `Loading`, fetch it, and put the answer in the node the next time you build
+the tree. A branch that failed shows the problem with a "Try again" button
+(`onRetryChildren`). Data that is `Kept` stays on screen: a branch whose children
+are refreshed is busy, and a column of old children starts with a row that says "Old
+data from 14:05" with "Try again" (the top level says it above the columns; give
+`settings` for the time zone).
 
 Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
 character open the popup. The keyboard focus stays in the search box, and the
 highlight is shown with `aria-activedescendant`. ArrowDown and ArrowUp move in the
-column, Home and End go to its first and last node, PageUp and PageDown move a
-page. ArrowRight opens the highlighted branch and then moves into its column,
+column, Home and End go to its first and last node (in a text they move the caret,
+and Ctrl or Cmd with them move in the column), PageUp and PageDown move a page. ArrowRight opens the highlighted branch and then moves into its column,
 ArrowLeft closes the open branch and then moves back to its parent (in a text they
 move the caret instead, until it is at the end or the start). Enter chooses the
 highlighted node when it can be chosen, and otherwise opens the branch like
@@ -145,8 +150,11 @@ Accessibility: no standard pattern describes columns, so a cascader is a tree th
 is drawn in columns. The field is a button with `role="combobox"` and
 `aria-haspopup="tree"`; the popup is a `tree` whose `treeitem` rows have
 `aria-level` (the column), `aria-setsize` and `aria-posinset` (among the nodes of
-their column), `aria-expanded` (the opened branch) and `aria-selected` (the path
-that is chosen). The list of search results is a `listbox`. The field also lists
+their column), `aria-expanded` (the opened branch) and `aria-selected` (the node
+that is chosen, the end of the path). The nodes of each column after the first are
+a `group` that the opened branch before it owns (`aria-owns`), so a screen reader
+hears Oslo inside Norway inside Europe and not one column after the other. While
+the user searches, the search box offers the `listbox` of results. The field also lists
 the whole path for a screen reader when the visible path is shortened. The
 built-in text follows `locale` and is English by default (see
 [Klar.Locale](Klar.Locale.md)).
@@ -313,12 +321,13 @@ if the popup was open. Map the command like the one from `update`.
 loadRequests : State id -> List id
 ```
 
-The lazy nodes whose children somebody is waiting for: the open branches of the
-open popup whose children are `NotAsked`. Usually zero or one. Call it after every
-`update` of the field. Set the children of the nodes it names to `Loading` in your
-data and fetch them; the next time you build the nodes they hold the answer.
-Asking again is harmless, because a node you have marked `Loading` is not named
-any more.
+The lazy nodes that the last `update` opened while their children are
+`NotAsked`: the user opened them, or the popup opened on a value inside them.
+Usually zero or one. Call it after every `update` of the field, set the children of
+the nodes it names to `Loading` in your data and fetch them; the next time you
+build the nodes they hold the answer. Each node is named once (scrolling a column
+or another message does not name it again), so the wiring below never fetches
+twice and needs no guard of its own.
 
     PlaceMsg inner ->
         let
@@ -332,10 +341,10 @@ any more.
         , Cmd.batch (Cmd.map PlaceMsg cmd :: List.map fetchAreas requested)
         )
 
-The answer is worked out from the nodes of the last message the field got, so if
-you set a node back to `NotAsked` yourself (to load it again), you also fetch it
-yourself: the field asks again only after its next message. After a failure the
-user retries with the button that `onRetryChildren` adds.
+A node that you leave `NotAsked` is named again the next time the popup opens. If
+you set an open node back to `NotAsked` yourself (to load it again), fetch it
+yourself too. After a failure the user retries with the button that
+`onRetryChildren` adds.
 
 ## Attributes
 
@@ -577,3 +586,15 @@ counts, the loading and error states and the labels for screen readers. The
 default is `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
 
     Cascader.locale Locale.nb
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute id msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05", for the top level (`remote`) and for lazy nodes. Without
+it the time is written in UTC and ends in "UTC".
+
+    Cascader.settings model.settings

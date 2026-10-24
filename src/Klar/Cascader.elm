@@ -71,15 +71,19 @@ so a level with thousands of nodes stays fast.
 
 Nodes can come from the backend, the top level as a `Remote` (`remote`) and the
 children of a node with `Picking.lazy`. When the user opens a lazy node whose
-children are `NotAsked`, `loadRequests` names it (call it after every update); mark it `Loading`,
-fetch it, and put the answer in the node the next time you build the tree. A branch
-that failed shows the problem with a "Try again" button (`onRetryChildren`).
+children are `NotAsked`, `loadRequests` names it once (call it after every update);
+mark it `Loading`, fetch it, and put the answer in the node the next time you build
+the tree. A branch that failed shows the problem with a "Try again" button
+(`onRetryChildren`). Data that is `Kept` stays on screen: a branch whose children
+are refreshed is busy, and a column of old children starts with a row that says "Old
+data from 14:05" with "Try again" (the top level says it above the columns; give
+`settings` for the time zone).
 
 Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
 character open the popup. The keyboard focus stays in the search box, and the
 highlight is shown with `aria-activedescendant`. ArrowDown and ArrowUp move in the
-column, Home and End go to its first and last node, PageUp and PageDown move a
-page. ArrowRight opens the highlighted branch and then moves into its column,
+column, Home and End go to its first and last node (in a text they move the caret,
+and Ctrl or Cmd with them move in the column), PageUp and PageDown move a page. ArrowRight opens the highlighted branch and then moves into its column,
 ArrowLeft closes the open branch and then moves back to its parent (in a text they
 move the caret instead, until it is at the end or the start). Enter chooses the
 highlighted node when it can be chosen, and otherwise opens the branch like
@@ -91,8 +95,11 @@ Accessibility: no standard pattern describes columns, so a cascader is a tree th
 is drawn in columns. The field is a button with `role="combobox"` and
 `aria-haspopup="tree"`; the popup is a `tree` whose `treeitem` rows have
 `aria-level` (the column), `aria-setsize` and `aria-posinset` (among the nodes of
-their column), `aria-expanded` (the opened branch) and `aria-selected` (the path
-that is chosen). The list of search results is a `listbox`. The field also lists
+their column), `aria-expanded` (the opened branch) and `aria-selected` (the node
+that is chosen, the end of the path). The nodes of each column after the first are
+a `group` that the opened branch before it owns (`aria-owns`), so a screen reader
+hears Oslo inside Norway inside Europe and not one column after the other. While
+the user searches, the search box offers the `listbox` of results. The field also lists
 the whole path for a screen reader when the visible path is shortened. The
 built-in text follows `locale` and is English by default (see
 [Klar.Locale](Klar-Locale)).
@@ -274,6 +281,14 @@ resultsId domId =
 columnId : String -> Int -> String
 columnId domId depth =
     domId ++ "-col-" ++ String.fromInt depth
+
+
+{-| The group of the nodes of a column after the first (owned by the open branch
+before it).
+-}
+groupId : String -> Int -> String
+groupId domId depth =
+    domId ++ "-group-" ++ String.fromInt depth
 
 
 itemDomId : String -> Int -> Int -> String
@@ -2404,6 +2419,9 @@ viewColumns toMsg config t env data cache cursor _ =
         valueKeys =
             Set.fromList (List.map .key data.path)
 
+        chosenKey =
+            List.reverse data.path |> List.head |> Maybe.map .key
+
         rc =
             { toMsg = toMsg
             , config = config
@@ -2413,6 +2431,7 @@ viewColumns toMsg config t env data cache cursor _ =
             , cache = cache
             , cursor = cursorHere
             , valueKeys = valueKeys
+            , chosenKey = chosenKey
             }
 
         columnView col =
@@ -2427,7 +2446,16 @@ viewColumns toMsg config t env data cache cursor _ =
                     , VirtualList.height (config.visibleRows * View.rowHeight)
                     , VirtualList.htmlAttrs
                         [ Internal.cls [ "klar-select__list" ]
-                        , Attr.attribute "role" "presentation"
+
+                        -- the nodes of a column after the first are the group of
+                        -- the open branch before it, which owns them (aria-owns), so
+                        -- that a screen reader hears the hierarchy and not the columns
+                        , if col.depth == 0 then
+                            Attr.attribute "role" "presentation"
+
+                          else
+                            Attr.attribute "role" "group"
+                        , Internal.attrIf (col.depth > 0) (Attr.id (groupId data.id col.depth))
                         , Internal.onMouseDownPrevent (toMsg NoOp)
                         ]
                     ]
@@ -2459,6 +2487,7 @@ type alias RowConfig id msg =
     , cache : Cache id
     , cursor : Maybe ( Int, Int )
     , valueKeys : Set String
+    , chosenKey : Maybe String
     }
 
 
@@ -2664,12 +2693,14 @@ viewItem rc col index entry posInSet setSize =
                 )
             )
          , Attr.attribute "aria-selected"
-            (if onValue then
+            (if rc.chosenKey == Just entry.key then
                 "true"
 
              else
                 "false"
             )
+         , Internal.attrIf (isOpened && List.length rc.cache.columns > col.depth + 1)
+            (Attr.attribute "aria-owns" (groupId rc.data.id (col.depth + 1)))
          , Internal.attrIf entry.disabled (Attr.attribute "aria-disabled" "true")
 
          -- children on screen that are being refreshed

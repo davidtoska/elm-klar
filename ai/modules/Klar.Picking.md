@@ -137,7 +137,9 @@ looks like something that can be opened, until its children arrive empty.
 The component tells you which node was opened first (`TreeSelect.loadRequests`,
 `Cascader.loadRequests`); you set its children to `Loading`, fetch them, and put
 the answer in the node the next time you build the tree. Children that are `Kept`
-(refreshed, or old after a failed refresh) are shown as if they were `Loaded`.
+stay on screen and can be chosen: while they are refreshed the branch is marked
+busy, and when the last refresh failed a row under the branch says "Old data from
+14:05" with a "Try again" button (`onRetryChildren`).
 
 ### `withDescription`
 
@@ -243,4 +245,4 @@ children : Node id -> Remote.Remote (List (Node id))
 ```
 
 The children of the node as a `Remote`: `Loaded []` for a leaf, the list for
-a branch, and whatever state the backend request is in for a lazy node.
+a branch, and for a lazy node the `Remote` as you gave it (`Kept` included).
