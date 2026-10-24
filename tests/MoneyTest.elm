@@ -7,6 +7,8 @@ minor unit, and the refusal to leave the range where whole numbers are exact.
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
+import Json.Decode as Decode
+import Json.Encode as Encode
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Money as Money exposing (Currency, Money)
 import Klar.Money.Arithmetic as Arithmetic
@@ -31,6 +33,93 @@ suite =
         , comparingTests
         , rangeTests
         , problemTextTests
+        , gluesTests
+        ]
+
+
+{-| What every application would otherwise write itself: JSON in and out, a Float
+for a chart, a conversion between currencies and the totals of a mixed list.
+-}
+gluesTests : Test
+gluesTests =
+    let
+        decode decoder json =
+            Decode.decodeString decoder json
+                |> Result.map Money.toMinor
+                |> Result.mapError (\_ -> "refused")
+    in
+    describe "the glue"
+        [ describe "JSON"
+            [ test "minor units are read" <|
+                \_ -> Expect.equal (Ok 12550) (decode (Money.minorDecoder Money.nok) "12550")
+            , test "a number with decimals is not minor units" <|
+                \_ -> Expect.equal (Err "refused") (decode (Money.minorDecoder Money.nok) "125.5")
+            , test "minor units out of range are refused" <|
+                \_ -> Expect.equal (Err "refused") (decode (Money.minorDecoder Money.nok) "90071992547409920")
+            , test "a decimal string is read" <|
+                \_ -> Expect.equal (Ok 12550) (decode (Money.decimalDecoder Money.nok) "\"125.50\"")
+            , test "a JSON number is read without a Float on the way" <|
+                \_ -> Expect.equal (Ok 12550) (decode (Money.decimalDecoder Money.nok) "125.5")
+            , test "a negative amount" <|
+                \_ -> Expect.equal (Ok -300) (decode (Money.decimalDecoder Money.nok) "\"-3\"")
+            , test "too many decimals are refused, not rounded" <|
+                \_ -> Expect.equal (Err "refused") (decode (Money.decimalDecoder Money.nok) "\"125.505\"")
+            , test "a currency without decimals" <|
+                \_ -> Expect.equal (Ok 1500) (decode (Money.decimalDecoder Money.jpy) "1500")
+            , test "encodeMinor and minorDecoder go round" <|
+                \_ ->
+                    Expect.equal (Ok -12550)
+                        (decode (Money.minorDecoder Money.nok) (Encode.encode 0 (Money.encodeMinor (amount Money.nok -12550))))
+            , test "encodeDecimal writes a string with the decimals of the currency" <|
+                \_ -> Expect.equal "\"-125.50\"" (Encode.encode 0 (Money.encodeDecimal (amount Money.nok -12550)))
+            , test "encodeDecimal and decimalDecoder go round" <|
+                \_ ->
+                    Expect.equal (Ok 7)
+                        (decode (Money.decimalDecoder kwd) (Encode.encode 0 (Money.encodeDecimal (amount kwd 7))))
+            ]
+        , describe "toFloat"
+            [ test "is the main unit" <|
+                \_ -> Expect.within (Expect.Absolute 1.0e-9) 125.5 (Money.toFloat (amount Money.nok 12550))
+            , test "follows the decimals of the currency" <|
+                \_ ->
+                    Expect.equal [ 1500, 1.234 ]
+                        [ Money.toFloat (amount Money.jpy 1500), Money.toFloat (amount kwd 1234) ]
+            ]
+        , describe "convert"
+            [ test "1 EUR is 11.7425 NOK" <|
+                \_ -> Expect.equal (Ok 117425) (minorOf (Money.convert { numerator = 117425, denominator = 10000 } Money.nok (amount Money.eur 10000)))
+            , test "into a currency without decimals, rounded half away from zero" <|
+                \_ ->
+                    -- 10.00 NOK at 13.98215 JPY per NOK is 139.8215 JPY: 140
+                    Expect.equal (Ok 140) (minorOf (Money.convert { numerator = 1398215, denominator = 100000 } Money.jpy (amount Money.nok 1000)))
+            , test "from a currency without decimals" <|
+                \_ ->
+                    -- 1000 JPY at 0.0715 NOK per JPY is 71.50 NOK
+                    Expect.equal (Ok 7150) (minorOf (Money.convert { numerator = 715, denominator = 10000 } Money.nok (amount Money.jpy 1000)))
+            , test "into a currency with three decimals" <|
+                \_ ->
+                    -- 100.00 NOK at 0.0289 KWD per NOK is 2.890 KWD
+                    Expect.equal (Ok 2890) (minorOf (Money.convert { numerator = 289, denominator = 10000 } kwd (amount Money.nok 10000)))
+            , test "a negative amount stays negative" <|
+                \_ -> Expect.equal (Ok -117425) (minorOf (Money.convert { numerator = 117425, denominator = 10000 } Money.nok (amount Money.eur -10000)))
+            , test "a denominator of 0 is refused" <|
+                \_ -> Expect.equal (Err "The denominator must be above 0") (minorOf (Money.convert { numerator = 1, denominator = 0 } Money.nok (amount Money.eur 100)))
+            ]
+        , describe "totals"
+            [ test "one total per currency, sorted by code" <|
+                \_ ->
+                    Money.totals [ amount Money.nok 100, amount Money.eur 50, amount Money.nok 250, amount Money.usd 1 ]
+                        |> Result.map (List.map (\m -> ( Money.currencyCode (Money.currencyOf m), Money.toMinor m )))
+                        |> Expect.equal (Ok [ ( "EUR", 50 ), ( "NOK", 350 ), ( "USD", 1 ) ])
+            , test "an empty list has no totals" <|
+                \_ -> Expect.equal (Ok []) (Money.totals [])
+            , test "a total out of range is an error" <|
+                \_ ->
+                    Money.totals [ amount Money.nok 9007199254740991, amount Money.nok 1 ]
+                        |> Result.mapError (Money.problemText Locale.en)
+                        |> Result.map (List.map Money.toMinor)
+                        |> Expect.equal (Err "The amount is too large")
+            ]
         ]
 
 
