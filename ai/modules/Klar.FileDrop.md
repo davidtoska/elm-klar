@@ -21,15 +21,23 @@ update : Msg -> State -> ( State, Cmd Msg )
 
 -- The chosen files
 type alias FileInfo = { name : String, size : Int, mime : String }
-type Problem = WrongType | TooLarge | TooMany | Duplicate
-files : State -> List FileInfo
+values : State -> List FileInfo
 rawFiles : State -> List File.File
+chosen : State -> List { info : FileInfo, file : File.File }
 rejected : State -> List ( FileInfo, Problem )
 hasProblems : State -> Bool
 isTouched : State -> Bool
 
+-- Why a file was refused
+type Problem  -- opaque: no constructors are exposed
+problemText : Locale.Locale -> Problem -> String
+isWrongType : Problem -> Bool
+isTooLarge : Problem -> Bool
+isTooMany : Problem -> Bool
+isDuplicate : Problem -> Bool
+
 -- Changing the files from the application
-setFiles : List FileInfo -> State -> State
+setValues : List FileInfo -> State -> State
 clear : State -> State
 
 -- Rules
@@ -61,7 +69,7 @@ Choose files by dropping them on a zone or with a "Choose files" button.
 
 Use when: a form where the choice of files matters and the application only needs their names, sizes and types.
 Do not use when: you want the library to upload or read the file (it hands over the `File`; the request is yours).
-Quick path: `init`, `update`, `view`, `files`, `rawFiles`
+Quick path: `init`, `update`, `view`, `values`, `rawFiles`
 
     import Klar.FileDrop as FileDrop
 
@@ -90,7 +98,7 @@ Quick path: `init`, `update`, `view`, `files`, `rawFiles`
         model.attachments
 
     -- read them
-    FileDrop.files model.attachments -- List FileInfo, only the accepted ones
+    FileDrop.values model.attachments -- List FileInfo, only the accepted ones
 
 The `String` given to `init` is the DOM id of the (hidden) file input, so there
 is no `id` attribute.
@@ -99,25 +107,29 @@ is no `id` attribute.
 does not send the file. It gives you the browser's own `File` values (from
 [elm/file](https://package.elm-lang.org/packages/elm/file/latest/)) with
 `rawFiles`, and you read them (`File.toString`, `File.toBytes`) or send them in
-your request (`Http.filePart`, `Http.fileBody`). `files` is the plain
+your request (`Http.filePart`, `Http.fileBody`). `values` is the plain
 `name`, `size` and `mime` of the same files, for showing them, checking them and
 keeping the list in a form.
 
-    -- the accepted files, ready for the request
+    -- the accepted files, ready for one request
     FileDrop.rawFiles model.attachments -- List File
 
-A file you put in with `setFiles` (an attachment the server already has) is in
-`files` but has no `File`, so `rawFiles` can be shorter: it is the files the
-user chose in this session, which are the ones to upload.
+    -- or one request per file, each with what to show about it
+    FileDrop.chosen model.attachments -- List { info : FileInfo, file : File }
+
+A file you put in with `setValues` (an attachment the server already has) is in
+`values` but has no `File`, so `rawFiles` and `chosen` can be shorter: they are
+the files the user chose in this session, which are the ones to upload.
 
 Every file is checked against `accept` (extensions like `.pdf`, types like
 `application/pdf` and groups like `image/*`), `maxSize` (bytes), `maxFiles` and
 duplicates (same name and size). Files that fail stay in the list with their
-message and a remove button, and are left out of `files`; `rejected` and
+message and a remove button, and are left out of `values`; `rejected` and
 `hasProblems` tell the application about them. The result stays with the file:
-when the user removes another file, only a file that was refused as `TooMany` or
-`Duplicate` is checked again, since there may be room now. Without `multiple`
-(and with `maxFiles 1`) a new choice replaces the old one.
+when the user removes another file, only a file that was refused for being one
+too many or a duplicate is checked again, since there may be room now. Without
+`multiple` (and with `maxFiles 1`) a new choice replaces the old one when it is
+accepted: a refused file does not throw the good one away, it is shown next to it.
 
 The rules are written out as a hint (or your own `hint`) between the label and
 the drop zone, so people read what is allowed before they choose: with the
@@ -125,14 +137,18 @@ example above "Allowed types: PDF, images · Max 5.0 MB per file · Up to 3 file
 
 **Keyboard and accessibility.** The button ("Choose files", or "Choose file"
 without `multiple`) is reachable with Tab and opens the file dialog with Enter
-or Space; each file has a remove button, and the focus returns to the file input
-when one is removed. The list of files is labelled "Selected files", and the
-message of a refused file is announced when it appears. The zone lights up only
-for files being dragged over it, not for dragged text.
+or Space; files can also be pasted (a screenshot with Ctrl+V) while the focus is
+in the zone. Each file has a remove button; when one is removed, the focus goes to
+the remove button of the next file (or the one before), and to the file input
+when the list is empty. The list of files is labelled "Selected files". What a
+choice did is announced once, politely ("2 files added, 1 refused"), not once per
+file. The zone lights up only for files being dragged over it, not for dragged
+text.
 
 **Files dropped elsewhere.** A file dropped outside a drop zone is opened by the
 browser, which replaces the whole application. [Klar.AppShell](Klar.AppShell.md)
-cancels such drops with `onStrayDrop`.
+cancels such drops with `onStrayDrop`. A file dropped on a `disabled` zone is
+cancelled by the zone itself, and nothing is added.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and
 `optionalText` are the common field attributes. They come with the field
@@ -193,9 +209,9 @@ on each, and whether files are being dragged over the zone. Make one with
 type Msg  -- opaque: no constructors are exposed
 ```
 
-The messages a file field sends: choosing or dropping files, removing one and
-dragging over the zone. `view` wraps them with the function you give it; hand
-them to `update` when they come back.
+The messages a file field sends: choosing, dropping or pasting files,
+removing one and dragging over the zone. `view` wraps them with the function you
+give it; hand them to `update` when they come back.
 
 ### `init`
 
@@ -213,8 +229,9 @@ at it.
 update : Msg -> State -> ( State, Cmd Msg )
 ```
 
-Moves the field on after one of its messages. The `Cmd` moves the focus to
-the file input after a file was removed, so pass it on with `Cmd.map`.
+Moves the field on after one of its messages. The `Cmd` moves the focus
+after a file was removed (to the next remove button, or to the file input), so
+pass it on with `Cmd.map`.
 
 ## The chosen files
 
@@ -229,28 +246,10 @@ and its `mime` type (`"application/pdf"`), which is empty when the browser does
 not know. This is all the application gets; the contents of the file are not
 read.
 
-### `Problem`
+### `values`
 
 ```elm
-type Problem = WrongType | TooLarge | TooMany | Duplicate
-```
-
-Why a file was not accepted:
-
-  - `WrongType`: it does not match `accept`
-  - `TooLarge`: it is bigger than `maxSize`
-  - `TooMany`: there are already `maxFiles` accepted files
-  - `Duplicate`: a file with the same name and size is already in the list
-
-A file with several problems gets the first of them in the order `Duplicate`,
-`WrongType`, `TooLarge`, `TooMany`. The result stays with the file. Only
-`TooMany` and `Duplicate` depend on the other files, so only they are checked
-again when the user removes a file.
-
-### `files`
-
-```elm
-files : State -> List FileInfo
+values : State -> List FileInfo
 ```
 
 The accepted files, in the order they were added. Files that failed a rule
@@ -264,12 +263,27 @@ rawFiles : State -> List File.File
 
 The browser's `File` values of the accepted files, in the order they were
 added, for reading them or sending them in a request. A file put in with
-`setFiles` has none, so this list is the files the user chose here and can be
-shorter than `files`. Nothing is read or sent by this library.
+`setValues` has none, so this list is the files the user chose here and can be
+shorter than `values`. Nothing is read or sent by this library.
 
     FileDrop.rawFiles model.attachments
         |> List.map (Http.filePart "attachment")
         |> Http.multipartBody
+
+### `chosen`
+
+```elm
+chosen : State -> List { info : FileInfo, file : File.File }
+```
+
+The accepted files the user chose in this session, each with its `File`, in
+the order they were added: for an upload of one request per file that shows
+which file it is about. The files put in with `setValues` are not in it, as they
+have no `File`.
+
+    FileDrop.chosen model.attachments
+        |> List.map (\{ info, file } -> uploadAttachment info.name file)
+        |> Cmd.batch
 
 ### `rejected`
 
@@ -299,12 +313,77 @@ isTouched : State -> Bool
 `True` once the user has chosen or dropped files, or removed one. Use it to
 show errors only after the first visit.
 
-## Changing the files from the application
+## Why a file was refused
 
-### `setFiles`
+### `Problem`
 
 ```elm
-setFiles : List FileInfo -> State -> State
+type Problem  -- opaque: no constructors are exposed
+```
+
+Why a file was not accepted: its type does not match `accept`
+(`isWrongType`), it is bigger than `maxSize` (`isTooLarge`), there are already
+`maxFiles` accepted files (`isTooMany`), or a file with the same name and size is
+already in the list (`isDuplicate`). `problemText` says it in words, with the
+limit that refused it.
+
+A file with several problems gets the first of them in the order duplicate, type,
+size, number. The result stays with the file. Only the number and the duplicate
+depend on the other files, so only they are checked again when the user removes a
+file. It is opaque so that a new reason to refuse a file is not a breaking change.
+
+### `problemText`
+
+```elm
+problemText : Locale.Locale -> Problem -> String
+```
+
+The problem in words, in the language, as the field shows it under the file:
+"File type not allowed", "File is too large (max 5.0 MB)", "Too many files (max
+3)", "File already added". For an error summary or a log of your own.
+
+    FileDrop.rejected model.attachments
+        |> List.map (\( file, problem ) -> file.name ++ ": " ++ FileDrop.problemText Locale.en problem)
+
+### `isWrongType`
+
+```elm
+isWrongType : Problem -> Bool
+```
+
+`True` for a file whose type does not match `accept`.
+
+### `isTooLarge`
+
+```elm
+isTooLarge : Problem -> Bool
+```
+
+`True` for a file that is bigger than `maxSize`.
+
+### `isTooMany`
+
+```elm
+isTooMany : Problem -> Bool
+```
+
+`True` for a file that came when there were already `maxFiles` accepted
+files. It is accepted again when the user removes another file.
+
+### `isDuplicate`
+
+```elm
+isDuplicate : Problem -> Bool
+```
+
+`True` for a file with the same name and size as one already in the list.
+
+## Changing the files from the application
+
+### `setValues`
+
+```elm
+setValues : List FileInfo -> State -> State
 ```
 
 Shows these files without checking them against the rules, for example

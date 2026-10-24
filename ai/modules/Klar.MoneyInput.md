@@ -21,11 +21,13 @@ update : Msg -> State -> ( State, Cmd Msg )
 
 -- The amount
 value : State -> Maybe Money.Money
+text : Locale.Locale -> State -> String
+problem : List (Attribute msg) -> State -> Maybe String
 setValue : Maybe Money.Money -> State -> State
 currencyOf : State -> Money.Currency
 setCurrency : Money.Currency -> State -> State
 setLimits : List (Attribute msg) -> State -> State
-reset : State -> State
+clear : State -> State
 touch : State -> State
 isValid : State -> Bool
 isTouched : State -> Bool
@@ -102,7 +104,8 @@ attribute. The second is the currency, which is a required argument and not an
 attribute: an amount without a currency means nothing. The application reads the
 amount with `value`, reacts to changes by comparing `value` before and after
 `update`, and uses `isTouched` to show its own errors only after the user has been
-in the field once.
+in the field once. `text` is what the field shows, and `problem` the message it
+shows, for an error summary of your own.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and `optionalText`
 are the common field attributes. They come with the field wrapper
@@ -118,8 +121,9 @@ screen reader reads it as the description of the field.
 the field (`locale`). `.` and `,` both work as the decimal separator, `1 234,50` and
 `1,234.50` are both 1234.50, and the text may come with the currency (`NOK 1 234`,
 `1 234,50 kr`), a minus sign or parentheses for a negative amount (`(100)`), and the
-Norwegian `1 234,-`. In English `1,234` is 1234 and in Norwegian it is 1.234. What is
-typed is kept as typed while the field has the focus.
+Norwegian `1 234,-`. In English `1,234` is 1234 and in Norwegian it is 1.234. In
+Norwegian `10.000` is refused as unclear, not read as ten: many people write ten
+thousand that way. What is typed is kept as typed while the field has the focus.
 
 **What the field shows.** When the user leaves the field (or presses Enter) the
 amount is written with the grouping and the separators of the language and exactly the
@@ -143,13 +147,20 @@ program; the field shows that, and is invalid, instead of ignoring the limit.
 `isValid` knows the limits from the attributes of the view, which the field learns
 when the user focuses, types in or leaves it. An amount that you put in with
 `setValue` before that, such as one loaded from a server, needs `setLimits` once, with
-the same attributes you give to `view`.
+the same attributes you give to `view`. `problem` takes the attributes itself, so it
+always judges by the limits you give it.
+
+**What the user types wins.** While the user is typing in the field, `setValue`
+leaves the field alone, so an amount that is loaded again (a poll, a push from the
+server) does not overwrite a half-typed one; the application learns the result by
+comparing `value` before and after `update`.
 
 **A percentage, a weight, a count.** The field is for money. A number with a unit
 (`kg`, `pcs`, `%`) is a [NumberInput](Klar.NumberInput.md) with `suffixText`.
 
 **Keyboard and accessibility.** Enter formats the amount and still lets a
-surrounding form submit. The input is a text field with a numeric keyboard hint
+surrounding form submit; the Enter that ends an IME composition only picks the
+characters. The input is a text field with a numeric keyboard hint
 (`inputmode="decimal"`, or `numeric` for a currency without decimals; a field that
 `allowNegative` leaves the hint out, because the numeric keypad of a phone has no
 minus key). Errors are announced when they appear.
@@ -238,17 +249,49 @@ an amount in the currency of the field (it has too many decimals, for instance).
 amount outside `min` and `max`, or a negative one that is not allowed, is returned as
 it was typed; `isValid` tells whether it is acceptable.
 
+### `text`
+
+```elm
+text : Locale.Locale -> State -> String
+```
+
+The text in the field, as the field shows it in this language: what the user is
+typing, text that is not an amount (kept as typed), or the amount written with the
+grouping and the decimals of the language (`1 234,50` in Norwegian). `""` for an
+empty field. Together with `value` it tells an empty field from one with text that
+is not an amount.
+
+    MoneyInput.text Locale.nb model.price -- "1 234,50"
+
+### `problem`
+
+```elm
+problem : List (Attribute msg) -> State -> Maybe String
+```
+
+The message the field shows under itself about what is in it, in the language of
+the attributes, or `Nothing`: "NOK has 2 decimals", "Must be between 10.00 and
+5,000.00 NOK". It is judged by the limits in the attributes you pass, which are the
+ones you give to `view`, and it follows the same timing as the field: the start of an
+amount (`-`, `1,`) has no message while the user is typing it. Your own `error` is not
+part of it. For an error summary of your own:
+
+    MoneyInput.problem priceAttributes model.price
+
 ### `setValue`
 
 ```elm
 setValue : Maybe Money.Money -> State -> State
 ```
 
-Shows an amount, or an empty field for `Nothing`, and throws away any text that
-was being typed. The field takes the currency of the amount (a field for NOK that is
-given an amount in EUR shows EUR, which is hard to miss); `Nothing` keeps the
-currency. The amount is not moved into `min` and `max`: `isValid` tells whether it
-is inside the limits the field knows (see `setLimits`).
+Shows an amount, or an empty field for `Nothing`. The field takes the currency of
+the amount (a field for NOK that is given an amount in EUR shows EUR, which is hard to
+miss); `Nothing` keeps the currency. The amount is not moved into `min` and `max`:
+`isValid` tells whether it is inside the limits the field knows (see `setLimits`).
+
+While the user is typing in the field (it has the focus and text they typed), it
+changes nothing: what they type wins over an amount loaded again from the server, and
+the application learns the result by comparing `value` before and after `update`.
 
 ### `currencyOf`
 
@@ -268,7 +311,8 @@ Changes the currency of the field, for example when the user chooses another one
 from a list next to it. The number stays and is read again in the new currency: 100.50
 in a field for NOK becomes 100.50 in a field for USD. In a currency with fewer
 decimals (JPY) it would have to be rounded, and it is not: the text stays as it is and
-the field says "JPY has no decimals".
+the field says "JPY has no decimals". The text is read in the language the field last
+saw in its attributes (from a message of the view, or from `setLimits`).
 
 ### `setLimits`
 
@@ -277,9 +321,9 @@ setLimits : List (Attribute msg) -> State -> State
 ```
 
 Tells the state the limits in the given attributes (`min`, `max` and
-`allowNegative`), so that `isValid` knows them before the user has touched the field.
-Pass the list you give to `view`; the other attributes in it are ignored. The amount is
-never changed.
+`allowNegative`) and their language, so that `isValid` and `setCurrency` know them
+before the user has touched the field. Pass the list you give to `view`; the other
+attributes in it are ignored. The amount is never changed.
 
 A field learns its limits by itself when the user focuses, types in or leaves it. This
 is for an amount that you put in with `setValue` before that, such as one loaded from
@@ -307,10 +351,10 @@ reported invalid for a limit it does not know either, so give a loaded amount it
         |> MoneyInput.isValid
     --> True
 
-### `reset`
+### `clear`
 
 ```elm
-reset : State -> State
+clear : State -> State
 ```
 
 Empties the field and forgets that the user has been in it (`isTouched` is
@@ -353,7 +397,7 @@ isTouched : State -> Bool
 ```
 
 `True` once the user has left the field or pressed Enter in it, or `touch` was
-used. Use it to show errors of your own only after the first visit. `reset` makes it
+used. Use it to show errors of your own only after the first visit. `clear` makes it
 `False` again.
 
 ## Label, hint and error
@@ -453,7 +497,8 @@ The largest allowed amount, in the same way as `min`: a larger amount that is ty
 is kept, shown with the built-in error and reported by `isValid`. Default: no upper
 limit.
 
-    MoneyInput.max (Money.fromMinor Money.nok 500000 |> Maybe.withDefault (Money.zero Money.nok))
+    -- the credit limit of the customer, a Money that came with the record
+    MoneyInput.max customer.creditLimit
 
 ### `allowNegative`
 

@@ -26,13 +26,14 @@ isSaving : State -> Bool
 isFailed : State -> Bool
 pending : State -> Maybe String
 
--- Saving
+-- Saving and changing it from the application
 saved : State -> State
 failed : Remote.Problem -> State -> State
 setValue : String -> State -> State
+edit : State -> ( State, Cmd Msg )
 
--- Label and texts
-label : String -> Attribute msg
+-- Name and texts
+ariaLabel : String -> Attribute msg
 placeholder : String -> Attribute msg
 emptyText : String -> Attribute msg
 
@@ -98,7 +99,7 @@ Quick path: `init`, `update`, `view`, `pending`, `saved`, `failed`
 
     -- view
     InlineEdit.view CustomerNameMsg
-        [ InlineEdit.label "Customer name"
+        [ InlineEdit.ariaLabel "Customer name"
         , InlineEdit.validate (Validate.run Locale.en Validate.required)
         ]
         model.customerName
@@ -107,24 +108,37 @@ The first `String` given to `init` is the DOM id of the input that is shown whil
 editing, so there is no `id` attribute; the second is the text to show.
 
 **Keyboard.** Enter saves, Escape cancels, leaving the field saves, and the text
-is a button: Tab reaches it and Space or Enter starts editing.
+is a button: Tab reaches it and Space or Enter starts editing. The Enter or
+Escape that ends an IME composition (Japanese, Chinese, Korean input) only picks
+the characters. Escape is handled here and its default is prevented, so a
+surrounding dialog that respects `defaultPrevented` stays open. Switching to
+another window (Alt+Tab) does not count as leaving the field: the editor stays
+open with the text, and nothing is saved.
 
 **Saving.** When the user confirms a changed text, `isSaving` turns `True`: that
 is the application's cue to send the new text (`pending`) to the backend. The
-text keeps showing the new value with a spinner. When the backend answers, call
-`saved` (the value is now `pending`) or `failed` with a
-[Klar.Remote](Klar.Remote.md) `Problem`: the text is then shown with the problem,
-a "Try again" button (which makes `isSaving` `True` again; left out when
-`Remote.isRetryable` says the problem would fail the same way, such as a conflict
-or a validation problem) and a "Cancel" button
-(which goes back to the old value). Confirming the text unchanged saves nothing.
+text keeps showing the new value with a spinner, and screen readers hear "Saving
+..." and then "Saved". When the backend answers, call `saved` (the value is now
+`pending`) or `failed` with a [Klar.Remote](Klar.Remote.md) `Problem`: the text is
+then shown with the problem, a "Try again" button (which makes `isSaving` `True`
+again; left out when `Remote.isRetryable` says the problem would fail the same
+way, such as a conflict or a validation problem) and a "Cancel" button (which
+goes back to the old value). A click on the text opens the editor again with the
+refused text and the problem under it, so the user can correct it. Confirming
+the text unchanged saves nothing. An answer that comes when no save is on its
+way (a late one, after a `setValue` or a "Cancel") changes nothing.
 
 **Validation.** `validate` is checked when the user confirms; a message keeps
 the input open and is shown under it.
 
+**The application's own changes.** `setValue` replaces the saved text. While the
+user is editing, or a save is on its way, it never touches what they typed or
+the save: the editor stays open with their text, and "Cancel" goes back to the
+new value. This is the rule of every Klar input: what the user types wins.
+
 **No field wrapper.** Unlike most inputs, this one is not built on the field
 wrapper ([Klar.Field](Klar.Field.md)), so it has no visible label, hint, required
-marker or `error` attribute. `label` is only the accessible name, and the
+marker or `error` attribute. `ariaLabel` is the name screen readers hear, and the
 message of `validate` is shown under the input.
 
 The built-in texts (the buttons, "Click to add", "Saving ...") follow `locale`.
@@ -151,7 +165,7 @@ argument wraps the field's own messages in one of yours, and the state comes
 last.
 
     InlineEdit.view CustomerNameMsg
-        [ InlineEdit.label "Customer name"
+        [ InlineEdit.ariaLabel "Customer name"
         , InlineEdit.emptyText "No name yet"
         ]
         model.customerName
@@ -237,8 +251,9 @@ save when this turns `True`: compare it before and after `update`.
 isFailed : State -> Bool
 ```
 
-`True` after `failed` until the user chooses "Try again" or "Cancel". The
-text is shown with the problem and the two buttons.
+`True` after `failed` until the user chooses "Try again" or "Cancel", or
+clicks the text to correct it. The text is shown with the problem and the
+buttons.
 
 ### `pending`
 
@@ -247,9 +262,9 @@ pending : State -> Maybe String
 ```
 
 The text waiting to be saved: the confirmed text while `isSaving`, and after
-a failure until the user cancels. Otherwise `Nothing`.
+a failure until the user cancels or opens the editor again. Otherwise `Nothing`.
 
-## Saving
+## Saving and changing it from the application
 
 ### `saved`
 
@@ -258,7 +273,8 @@ saved : State -> State
 ```
 
 The save went well: the pending text is now the value, and the field is back
-in reading mode. Call it when the backend answers.
+in reading mode. Call it when the backend answers. It does nothing when no save
+is on its way, so a late answer cannot close an editor the user opened since.
 
 ### `failed`
 
@@ -271,8 +287,10 @@ the problem, followed by its `detail` when you gave one with `Remote.withDetail`
 (the server's message for this field), a "Try again" button (which makes
 `isSaving` `True` again, but only when `Remote.isRetryable` allows it: not for a
 conflict or a validation problem, which would fail the same way) and a "Cancel"
-button that goes back to the old value. The `Problem` is from
+button that goes back to the old value. A click on the text opens the editor
+with the refused text and the message under it. The `Problem` is from
 [Klar.Remote](Klar.Remote.md); make one from your own error with `Remote.problem`.
+It does nothing when no save is on its way, like `saved`.
 
     InlineEdit.failed (Remote.problem Remote.network) model.customerName
 
@@ -289,21 +307,46 @@ A refusal that names the field:
 setValue : String -> State -> State
 ```
 
-Shows this text as the saved text and goes back to reading mode, dropping
-any edit, save in progress or failure. Use it when the text comes from
-somewhere else, for example after the data was loaded again.
+Replaces the saved text, for example after the record was loaded again. In
+reading mode the new text is shown at once. While the user is editing, the text
+they typed stays in the editor and only the saved text changes: "Cancel" and
+Escape go back to the new one. (When they have not changed anything yet, the
+editor shows the new text too, so an Enter does not save the old one over it.)
+While a save is on its way or has failed, the save goes on: `saved` still makes
+`pending` the value, and "Cancel" goes back to the new text.
 
-## Label and texts
-
-### `label`
+### `edit`
 
 ```elm
-label : String -> Attribute msg
+edit : State -> ( State, Cmd Msg )
 ```
 
-What the text is about, such as `"Customer name"`. It is not shown: it is the
-accessible name of the input, and part of the name of the text button ("Edit
-customer name: Ada Lovelace"). Give every inline edit one.
+Opens the editor from the application, as a click on the text does: for a
+keyboard shortcut such as F2 on the row, or an "Edit" item in a menu. The `Cmd`
+moves the focus into the input, so pass it on with `Cmd.map`. It does nothing
+while the editor is open or a save is on its way. Do not call it for a field
+that is `disabled`: its editor would open inert.
+
+    EditNameClicked ->
+        let
+            ( customerName, cmd ) =
+                InlineEdit.edit model.customerName
+        in
+        ( { model | customerName = customerName }, Cmd.map CustomerNameMsg cmd )
+
+## Name and texts
+
+### `ariaLabel`
+
+```elm
+ariaLabel : String -> Attribute msg
+```
+
+What the text is about, such as `"Customer name"`, for screen readers only:
+it is the accessible name of the input, and part of the name of the text button
+("Edit Customer name: Ada Lovelace", in the case it was given). Give every inline
+edit one; the visible label, when there is one, is yours (a `DescriptionList`
+term, a heading).
 
 ### `placeholder`
 
@@ -359,8 +402,9 @@ There is no counter. Default: no limit.
 disabled : Bool -> Attribute msg
 ```
 
-While `True` the text is plain text: no pencil, no button, no editing.
-Default `False`.
+While `True` the text cannot be edited: no pencil, and a click does nothing.
+It stays the same button, marked `aria-disabled` and out of the Tab order, so a
+field that becomes disabled while it has the focus keeps it. Default `False`.
 
 If the field becomes disabled while the input is open, the input stays on the
 screen with the text typed so far, but it is inert. It is read-only, it is no
@@ -378,6 +422,6 @@ locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: "Click to add", the accessible name "Edit
-...", the "Save" and "Cancel" buttons, "Saving ...", "Could not save." and "Try
-again". Default `Locale.default`, which is English. Texts you pass in yourself
-are shown as they are.
+...", the "Save" and "Cancel" buttons, "Saving ...", "Saved", "Could not save."
+and "Try again". Default `Locale.default`, which is English. Texts you pass in
+yourself are shown as they are.

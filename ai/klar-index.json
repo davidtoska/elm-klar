@@ -1381,18 +1381,18 @@
         "init",
         "update",
         "view",
-        "files",
+        "values",
         "rawFiles"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
-        "files",
+        "values",
         "rawFiles",
+        "chosen",
         "rejected",
-        "hasProblems",
-        "isTouched"
+        "hasProblems"
       ],
       "related": [
         "Klar.AppShell",
@@ -1762,10 +1762,10 @@
         "init",
         "update",
         "value",
+        "text",
+        "problem",
         "setValue",
-        "currencyOf",
-        "setCurrency",
-        "setLimits"
+        "currencyOf"
       ],
       "related": [
         "Klar.Field",

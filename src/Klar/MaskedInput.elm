@@ -392,6 +392,7 @@ that does not belong, the field shows it as it is, with the message about it.
 While the user is typing in the field (they have typed since they came into it, and
 have not left it or pressed Enter yet), it changes nothing: what they type wins, and
 the application learns the result by comparing `value` before and after `update`.
+
 -}
 setValue : Maybe String -> State -> State
 setValue maybe (State state) =

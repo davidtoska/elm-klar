@@ -535,7 +535,10 @@ Reads an amount the way a person writes it, in a currency. It reads like
 [`NumberInput.parseIn`](Klar.NumberInput.md#parsein): `,` and `.` are both a decimal
 separator, spaces and no-break spaces are ignored, and `1.234,56` and `1,234.56` are
 both 1234.56. The language decides what a lone comma before three digits means:
-`1,234` is 1234 in English and 1.234 in Norwegian.
+`1,234` is 1234 in English and 1.234 in Norwegian. A lone point before digits
+grouped like thousands in Norwegian (`10.000`), where the decimal separator is a
+comma, is refused as unclear: many people write ten thousand that way, and reading it
+as ten would be a thousand times wrong. `10.5` and `0.500` are still decimals.
 
 On top of that it takes away the code and the symbol of the currency (`NOK 1 234`,
 `1 234,50 kr`, `$100` in a field for USD), a leading `-`, `−` or `+`, parentheses for
@@ -545,7 +548,8 @@ It never rounds and never guesses. The result is an `Err` for text that is not a
 amount, for more decimals than the currency has (`100,505` NOK: use `parseRounded`
 to round it; `100,500` is fine, it is the same amount), for separators that cannot
 be read (`1.2.3`), for a comma before three digits in English in a currency with
-three decimals (`1,234` KWD could be a thousand or one and a bit), for an amount of
+three decimals (`1,234` KWD could be a thousand or one and a bit), for `10.000` in
+Norwegian (ten thousand or ten), for an amount of
 another currency (`$100` in a NOK field) and for an amount out of range. Thousands are
 grouped by three: the Indian grouping `1,23,456` is not read, and is refused as unclear
 (write `123456` or `123,456`).
@@ -559,6 +563,8 @@ grouped by three: the Indian grouping `1,23,456` is not read, and is refused as 
     Money.parse Locale.nb Money.nok "(100)" -- Ok -100.00 NOK
 
     Money.parse Locale.en Money.nok "12.505" -- Err (NOK has 2 decimals)
+
+    Money.parse Locale.nb Money.nok "10.000" -- Err (unclear: 10 000 or 10,00?)
 
 ### `parseRounded`
 
