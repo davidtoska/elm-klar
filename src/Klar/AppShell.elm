@@ -1,13 +1,16 @@
 module Klar.AppShell exposing
-    ( State, init, setPage, Msg, update, state, sideNav, onUrlRequest, onUrlChange, toggleSidebar, goToContent
+    ( State, init, setPage, Msg, update, state, sideNav, onUrlRequest, onUrlChange, follow, toggleSidebar, goToContent
+    , isSidebarCollapsed, setSidebarCollapsed, isDrawerOpen, closeDrawer
     , view, Attribute
     , brand, brandLink, onSearch, searchPlaceholder, searchShortcut, actions, userName, userRole, userAvatar, userMenu, banner
-    , sidebar, sidebarCollapsed, onToggleSidebar, drawerOpen, onToggleDrawer, onCloseDrawer, focusMenuButton
-    , contentMaxWidth, contentPadding, resetScroll
+    , sidebar
+    , contentMaxWidth, contentPadding
     , overlays
-    , onSkipToContent, focusContent, shortcuts
+    , shortcuts
     , id, height, width, onStrayDrop
     , locale, settings
+    , sidebarCollapsed, onToggleSidebar, drawerOpen, onToggleDrawer, onCloseDrawer, onSkipToContent
+    , focusMenuButton, focusContent, resetScroll
     )
 
 {-| The frame of a whole application: a top bar, a sidebar and a content area
@@ -64,7 +67,7 @@ the side menu and the skip link in one `AppShell.State`, and all its messages ar
                 pageFromUrl url
         in
         ( { page = page
-          , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
+          , shell = AppShell.init { id = "app-shell", key = key, url = url } |> AppShell.setPage navigation page
           , userMenu = Menu.init "user-menu"
           }
         , Cmd.none
@@ -97,13 +100,24 @@ the address:
             ...
 
 That is the one wiring of the frame, and the only one to write (not a `SideNav.init`, a
-`LinkClicked` and a `pushUrl` of your own). It is all of it: a link is followed (`pushUrl`, or `load` for
-an address elsewhere), a new address closes the drawer and scrolls the content to
-the top, the sidebar toggle, the drawer, the skip link and the focus that goes with
-each (the current link when the drawer opens, the menu button when it closes, the
-content after the page was chosen in the drawer) are done for you. The view is one
-`AppShell.view`. The first list holds the parts of the frame, the second the
-content of the current page:
+`LinkClicked` and a `pushUrl` of your own). It is all of it:
+
+  - A link is followed: `pushUrl` for another address of the application, `load` for an
+    address elsewhere. A link to the address the user is on (the current page in the side
+    menu) enters the page again with `replaceUrl`, so Back never needs one press per click.
+    A link to an element of the page (`#field-id`, not a route like `#/orders`) moves focus
+    to that element and adds nothing to the history.
+  - A new page (another path, or another route before the `?` of a `#/route?query`) closes
+    the drawer, scrolls the content to the top and moves focus to the content, because the
+    element that had it went with the old page. When the user chose the page with Enter on
+    a link of the side menu, focus stays on that link. An address that only changes the
+    query (filters, the sort, a tab kept in the address with `replaceUrl`) keeps the
+    scroll position, the drawer and the focus; it is still reported to you.
+  - The sidebar toggle, the drawer, the skip link and the focus that goes with each (the
+    current link when the drawer opens, the menu button when it closes) are done for you.
+
+The view is one `AppShell.view`. The first list holds the parts of the frame, the second
+the content of the current page:
 
     import Browser
     import Klar
@@ -167,32 +181,53 @@ content of the current page:
 `viewPage` stand for your own routing and page views. `elm/url` must be a direct
 dependency of the application, as for every `Browser.application`.
 
-A command that replaces the page (the palette opened an order, a shortcut went to
-another page) loses the element that had focus; send it to the content with
-`AppShell.goToContent`. A shortcut that hides the sidebar is `AppShell.toggleSidebar`.
-When a click on a link must be held back (a `LeaveGuard` asks about unsaved changes),
-give `Browser.application` your own `onUrlRequest` message and call `Nav.pushUrl`
-yourself when the click may go on; everything else stays as above.
+A command of yours that goes to another page (the palette opened an order, a shortcut)
+needs nothing more: the new address is a new page, so focus goes to the content as for a
+link. A command that replaces the page without a new address loses the element that had
+focus; send it to the content with `AppShell.goToContent`. A shortcut that hides the
+sidebar is `AppShell.toggleSidebar`.
+
+**Links that must ask first.** When a click on a link must be held back (a
+[Klar.LeaveGuard](Klar-LeaveGuard) asks about unsaved changes), give `Browser.application`
+a message of your own as `onUrlRequest` and hand the request to `AppShell.follow` when it
+may go on. `onUrlChange` stays the shell's, and the address that `update` reports goes to
+`LeaveGuard.onUrlChange` (the whole wiring of the guard is in its docs):
+
+    LinkClicked (Browser.Internal url) ->
+        case LeaveGuard.request (pageFromUrl url) model.guard of
+            Proceed _ ->
+                followLink (Browser.Internal url) model
+
+            Hold guard cmd ->
+                ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+    LinkClicked request ->
+        followLink request model
+
+    followLink : Browser.UrlRequest -> Model -> ( Model, Cmd Msg )
+    followLink request model =
+        let
+            ( shell, cmd ) =
+                AppShell.follow request model.shell
+        in
+        ( { model | shell = shell }, Cmd.map ShellMsg cmd )
 
 **The sidebar is any `Html`.** `AppShell.sideNav` draws a `SideNav`, but `sidebar` takes any
-`Html msg`: a `Tree` of regions, a list of saved views, a filter form. An application with one
-page can leave out `AppShell.init` and use `Browser.document` with `AppShell.id` and a sidebar of
-its own.
+`Html msg`: a `Tree` of regions, a list of saved views, a filter form.
 
-**Wiring it yourself.** `AppShell.state` and `sideNav` are made of the attributes
-below (`id`, `sidebarCollapsed`, `onToggleSidebar`, `drawerOpen`, `onToggleDrawer`,
-`onCloseDrawer`, `onSkipToContent`) and the commands `focusMenuButton`, `focusContent`
-and `resetScroll`. They are there for a shell that keeps its flags in a model of its
-own, and for showing one in a gallery. Without `AppShell.state` the shell never moves keyboard
-focus by itself, so the branches of such an `update` end with one of these commands (with a
-`State`, use `goToContent`, not `focusContent`). The paragraphs below that name these commands
-are about a shell wired this way; with `AppShell.state` all of it is done for you.
+**Without a `State`.** A program without addresses (`Browser.document`, `Browser.element`, a
+demo in a gallery) has no `Nav.Key` for `init`. It can still draw the frame: the attributes
+of the last section (`sidebarCollapsed`, `onToggleSidebar`, `drawerOpen`, `onToggleDrawer`,
+`onCloseDrawer`, `onSkipToContent`) and the commands `focusMenuButton`, `focusContent` and
+`resetScroll` are what `AppShell.state` is made of. Such a shell keeps its flags in the model
+and never moves focus by itself. With `AppShell.state` in the list they are not needed, and
+`state` wins over them wherever it stands.
 
 **Layout.** The shell fills the viewport and the page itself never scrolls: the
 top bar stays in place, the sidebar scrolls if it is long, and the content area
-scrolls on its own. That is why a hand-wired shell needs `resetScroll` on a route change. Give the shell
-a `height` (and a `width`) to draw it as a framed box inside another page
-instead, for a demo.
+scrolls on its own. Give the shell a `height` (and a `width`) to draw it as a framed box
+inside another page instead, for a demo; a framed shell is a named region, not the `main`
+landmark of the page.
 
 **Top bar.** From left to right: the sidebar toggle, the `brand`, the search
 field (`onSearch`), your `actions`, and the signed-in user (`userName`,
@@ -207,21 +242,19 @@ keyboard shortcut itself belongs to the application (see
 [Klar.Shortcut](Klar-Shortcut) and `shortcuts`).
 
 **Sidebar.** On wide shells (900px or more) it sits to the left, at full width or
-collapsed to icons (`sidebarCollapsed`, flipped by the toggle in the top bar,
-which sends `onToggleSidebar`). Below 900px it turns into an off-canvas drawer
-that the other toggle opens (`drawerOpen`, `onToggleDrawer`). A click on the
-backdrop or Escape closes it (a hand-wired shell gets `onCloseDrawer`, and closes the drawer
-on a route change too). The switch between the two layouts is pure CSS, a container query on the
+collapsed to icons by the toggle in the top bar (`isSidebarCollapsed` reads it and
+`setSidebarCollapsed` restores a saved preference). Below 900px it turns into an
+off-canvas drawer that the menu button opens. A click on the backdrop, Escape (unless a
+control inside, such as an open popup, used it already) or a link closes it, and so does
+`closeDrawer`. The switch between the two layouts is pure CSS, a container query on the
 shell itself, so the application never needs to know the window width. A shell
 that is narrower than 900px because of its `width` uses the drawer whatever the
 size of the window.
 
-The drawer is not modal (the top bar stays usable). With `AppShell.state` its focus is done
-for you. A hand-wired shell does not move focus by itself: when the drawer opens, send keyboard focus to the
-current link (`SideNav.focusLink`): the links come after the whole top bar in the
-tab order. When it closes, give focus back to the menu button
-(`focusMenuButton`): the links of a closed drawer cannot hold it. After
-navigating from the drawer, `focusContent`.
+The drawer is not modal (the top bar stays usable). When it opens, focus goes to the
+current link (the links come after the whole top bar in the tab order); when it closes,
+back to the menu button, because the links of a closed drawer cannot hold it; after a
+page was chosen in it, to the content.
 
 **Modals.** Give the dialogs, drawers, the palette and the toasts to `overlays`,
 which draws them outside the page. While any of them is open the banner, top bar,
@@ -231,10 +264,8 @@ there is no flag to keep in step. This takes the place of
 [`Overlay.host`](Klar-Overlay#host) for an application that uses the shell.
 
 **Skip link.** The first Tab stop is a skip link, "Skip to main content", which
-is visible only while it has focus. With hash routing a plain `#anchor` link would
-change the route, so the link is a button: with `AppShell.state` it works by itself, and a
-hand-wired shell passes `onSkipToContent` and answers it with `focusContent`.
-The content area is the `main` landmark of the page.
+is visible only while it has focus. It is a button that moves focus to the content area,
+the `main` landmark of the page.
 
 **Stray file drops.** A file dropped anywhere that is not a
 [Klar.FileDrop](Klar-FileDrop) zone is opened by the browser, which replaces the
@@ -249,7 +280,12 @@ change without JavaScript.
 
 # Wiring: one state, one message
 
-@docs State, init, setPage, Msg, update, state, sideNav, onUrlRequest, onUrlChange, toggleSidebar, goToContent
+@docs State, init, setPage, Msg, update, state, sideNav, onUrlRequest, onUrlChange, follow, toggleSidebar, goToContent
+
+
+# What the state keeps
+
+@docs isSidebarCollapsed, setSidebarCollapsed, isDrawerOpen, closeDrawer
 
 
 # View
@@ -264,12 +300,12 @@ change without JavaScript.
 
 # Sidebar
 
-@docs sidebar, sidebarCollapsed, onToggleSidebar, drawerOpen, onToggleDrawer, onCloseDrawer, focusMenuButton
+@docs sidebar
 
 
 # Content
 
-@docs contentMaxWidth, contentPadding, resetScroll
+@docs contentMaxWidth, contentPadding
 
 
 # Overlays and modals
@@ -277,9 +313,9 @@ change without JavaScript.
 @docs overlays
 
 
-# Skip link and shortcuts
+# Shortcuts
 
-@docs onSkipToContent, focusContent, shortcuts
+@docs shortcuts
 
 
 # Frame
@@ -291,6 +327,16 @@ change without JavaScript.
 
 @docs locale, settings
 
+
+# Without a State
+
+Only for a shell that has no `AppShell.state` (a program without addresses, a demo in a
+gallery): the parts that `state` sets, given one by one from a model of your own, and the
+focus and scroll commands that `update` sends for you otherwise.
+
+@docs sidebarCollapsed, onToggleSidebar, drawerOpen, onToggleDrawer, onCloseDrawer, onSkipToContent
+@docs focusMenuButton, focusContent, resetScroll
+
 -}
 
 import Browser
@@ -299,7 +345,8 @@ import Browser.Navigation as Nav
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Decoder)
+import Klar.AppShell.Address as Address
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
@@ -318,15 +365,34 @@ import Url exposing (Url)
 
 
 {-| A part or a setting of the shell. Make them with the functions below and pass
-a list to `view`; later attributes win over earlier ones, and the order of the
-parts does not matter. The `msg` is your message type.
+a list to `view`; later attributes win over earlier ones, except `state`, which wins
+wherever it stands, and the order of the parts does not matter. The `msg` is your
+message type.
 -}
 type Attribute msg
     = Attribute (Config msg -> Config msg)
 
 
-type alias Config msg =
+{-| What `state` sets. It is kept apart and put on top of the other attributes after
+they are folded, so that an `id` or a `drawerOpen` later in the list cannot pull the
+frame away from the `State`.
+-}
+type alias StateParts msg =
     { id : String
+    , collapsed : Bool
+    , drawerOpen : Bool
+    , onToggleSidebar : msg
+    , onToggleDrawer : msg
+    , onCloseDrawer : msg
+    , onSkip : msg
+    , onSidebarLinkKey : msg
+    }
+
+
+type alias Config msg =
+    { fromState : Maybe (StateParts msg)
+    , onSidebarLinkKey : Maybe msg
+    , id : String
     , brand : Maybe (Html msg)
     , sidebar : Maybe (Html msg)
     , collapsed : Bool
@@ -358,41 +424,65 @@ type alias Config msg =
 
 configure : List (Attribute msg) -> Config msg
 configure attributes =
-    List.foldl (\(Attribute change) config -> change config)
-        { id = "klar-app-shell"
-        , brand = Nothing
-        , sidebar = Nothing
-        , collapsed = False
-        , drawerOpen = False
-        , onToggleSidebar = Nothing
-        , onToggleDrawer = Nothing
-        , onCloseDrawer = Nothing
-        , onSearch = Nothing
-        , searchPlaceholder = Nothing
-        , searchShortcut = [ "Ctrl", "K" ]
-        , actions = []
-        , userName = Nothing
-        , userRole = Nothing
-        , userAvatar = Nothing
-        , userMenu = Nothing
-        , banner = Nothing
-        , contentMaxWidth = Nothing
-        , contentPadding = 6
-        , overlays = []
-        , height = Nothing
-        , width = Nothing
-        , onSkip = Nothing
-        , onStrayDrop = Nothing
-        , shortcuts = Nothing
-        , locale = Locale.default
-        , density = Normal
-        }
-        attributes
+    let
+        folded =
+            List.foldl (\(Attribute change) config -> change config) defaults attributes
+    in
+    case folded.fromState of
+        Just parts ->
+            { folded
+                | id = parts.id
+                , collapsed = parts.collapsed
+                , drawerOpen = parts.drawerOpen
+                , onToggleSidebar = Just parts.onToggleSidebar
+                , onToggleDrawer = Just parts.onToggleDrawer
+                , onCloseDrawer = Just parts.onCloseDrawer
+                , onSkip = Just parts.onSkip
+                , onSidebarLinkKey = Just parts.onSidebarLinkKey
+            }
+
+        Nothing ->
+            folded
 
 
-{-| A DOM id for the shell, unique on the page. Default `klar-app-shell`. Pass the
-same id to `focusContent`, `focusMenuButton` and `resetScroll`; the content area,
-the sidebar, the search button and the menu button get ids made of it plus a
+defaults : Config msg
+defaults =
+    { fromState = Nothing
+    , onSidebarLinkKey = Nothing
+    , id = "klar-app-shell"
+    , brand = Nothing
+    , sidebar = Nothing
+    , collapsed = False
+    , drawerOpen = False
+    , onToggleSidebar = Nothing
+    , onToggleDrawer = Nothing
+    , onCloseDrawer = Nothing
+    , onSearch = Nothing
+    , searchPlaceholder = Nothing
+    , searchShortcut = [ "Ctrl", "K" ]
+    , actions = []
+    , userName = Nothing
+    , userRole = Nothing
+    , userAvatar = Nothing
+    , userMenu = Nothing
+    , banner = Nothing
+    , contentMaxWidth = Nothing
+    , contentPadding = 6
+    , overlays = []
+    , height = Nothing
+    , width = Nothing
+    , onSkip = Nothing
+    , onStrayDrop = Nothing
+    , shortcuts = Nothing
+    , locale = Locale.default
+    , density = Normal
+    }
+
+
+{-| A DOM id for the shell, unique on the page, for a shell without a `State` (with
+one, the id is the one given to `init`, and `state` sets it). Default `klar-app-shell`.
+Pass the same id to `focusContent`, `focusMenuButton` and `resetScroll`; the content
+area, the sidebar, the search button and the menu button get ids made of it plus a
 suffix: `-content`, `-sidebar`, `-search` and `-menu`.
 -}
 id : String -> Attribute msg
@@ -422,53 +512,58 @@ sidebar value =
     Attribute (\config -> { config | sidebar = Just value })
 
 
-{-| Collapses the sidebar to a narrow strip of icons when the shell is 900px wide
-or more (default `False`). Pass the same flag to `SideNav.collapsed`, so that the
-menu itself draws icons only. The shell does not remember the flag, so keep it in
-your model and flip it when `onToggleSidebar` arrives; on narrow shells the
-sidebar is a drawer, which always shows the full menu.
+{-| Only for a shell without `AppShell.state` (`isSidebarCollapsed` and
+`setSidebarCollapsed` are the way with one). Collapses the sidebar to a narrow strip of
+icons when the shell is 900px wide or more (default `False`). Pass the same flag to
+`SideNav.collapsed`, so that the menu itself draws icons only, and flip it in your model
+when `onToggleSidebar` arrives; on narrow shells the sidebar is a drawer, which always
+shows the full menu.
 -}
 sidebarCollapsed : Bool -> Attribute msg
 sidebarCollapsed value =
     Attribute (\config -> { config | collapsed = value })
 
 
-{-| Sent by the sidebar toggle in the top bar on wide shells (900px or more). Its
-accessible name is "Hide the sidebar" or "Show the sidebar", and `aria-expanded`
-follows `sidebarCollapsed`. Without `onToggleSidebar` there is no toggle there and
-the sidebar keeps its size; the menu button on narrow shells sends it too when
-you give no `onToggleDrawer`.
+{-| Only for a shell without `AppShell.state`, which sends its own message. Sent by the
+sidebar toggle in the top bar on wide shells (900px or more). Its accessible name is
+"Hide the sidebar" or "Show the sidebar", and `aria-expanded` follows
+`sidebarCollapsed`. Without `onToggleSidebar` there is no toggle there and the sidebar
+keeps its size; the menu button on narrow shells sends it too when you give no
+`onToggleDrawer`.
 -}
 onToggleSidebar : msg -> Attribute msg
 onToggleSidebar msg =
     Attribute (\config -> { config | onToggleSidebar = Just msg })
 
 
-{-| Whether the sidebar drawer is open (default `False`). It only matters on
-narrow shells, below 900px; on wide ones the sidebar is always in place. The shell
-does not remember the flag: keep it in your model, set it when `onToggleDrawer`
-arrives, and clear it on `onCloseDrawer` and when the route changes.
+{-| Only for a shell without `AppShell.state` (`isDrawerOpen` and `closeDrawer` are the
+way with one). Whether the sidebar drawer is open (default `False`). It only matters on
+narrow shells, below 900px; on wide ones the sidebar is always in place. Set it in your
+model when `onToggleDrawer` arrives, and clear it on `onCloseDrawer` and when the route
+changes.
 -}
 drawerOpen : Bool -> Attribute msg
 drawerOpen value =
     Attribute (\config -> { config | drawerOpen = value })
 
 
-{-| Sent by the menu button ("Menu") in the top bar on narrow shells (below
-900px), the only way to open the drawer; its `aria-expanded` follows `drawerOpen`.
-If you give only `onToggleSidebar`, that message is used there too. The button
-also sends it when the drawer is open, so one message can both open and close the
-drawer.
+{-| Only for a shell without `AppShell.state`, which sends its own message. Sent by the
+menu button ("Menu") in the top bar on narrow shells (below 900px), the only way to open
+the drawer; its `aria-expanded` follows `drawerOpen`. If you give only `onToggleSidebar`,
+that message is used there too. The button also sends it when the drawer is open, so one
+message can both open and close the drawer.
 -}
 onToggleDrawer : msg -> Attribute msg
 onToggleDrawer msg =
     Attribute (\config -> { config | onToggleDrawer = Just msg })
 
 
-{-| Sent when the open drawer should close: a click on the backdrop, or Escape
-pressed while the drawer is open and focus is in the top bar, the sidebar or the
-content. Without it the backdrop and Escape do nothing, and the menu button is
-the only way to close the drawer.
+{-| Only for a shell without `AppShell.state`, which sends its own message. Sent when
+the open drawer should close: a click on the backdrop, or Escape pressed while the
+drawer is open and focus is in the top bar, the sidebar or the content (an Escape that a
+control inside used already, such as an open popup closing, does not count). Without it
+the backdrop and Escape do nothing, and the menu button is the only way to close the
+drawer.
 -}
 onCloseDrawer : msg -> Attribute msg
 onCloseDrawer msg =
@@ -619,10 +714,11 @@ width px =
     Attribute (\config -> { config | width = Just px })
 
 
-{-| Makes the skip link ("Skip to main content") a button that sends this message
-when it is used. Answer it with `focusContent`. Without it the skip link is an
-ordinary `#anchor` link to the content area, which is fine unless you route on
-the URL fragment (it would count as a navigation).
+{-| Only for a shell without `AppShell.state`, whose skip link works by itself. Makes
+the skip link ("Skip to main content") a button that sends this message when it is
+used; answer it with `focusContent`. Without it the skip link is an ordinary `#anchor`
+link to the content area, which is fine unless you route on the URL fragment (it would
+count as a navigation).
 -}
 onSkipToContent : msg -> Attribute msg
 onSkipToContent msg =
@@ -706,8 +802,9 @@ menuButtonId shellId =
     shellId ++ "-menu"
 
 
-{-| Moves keyboard focus to the menu button in the top bar (the one that opens
-the sidebar drawer on narrow shells). Use it when the drawer closes, so that a
+{-| Only for a shell without `AppShell.state`, whose `update` does it (or
+`closeDrawer`). Moves keyboard focus to the menu button in the top bar (the one that
+opens the sidebar drawer on narrow shells). Use it when the drawer closes, so that a
 keyboard user does not lose their place: the links of a closed drawer cannot
 take focus any more. The first argument is the id of the shell (see `id`); the
 message is sent when the command is done, whether the button was found or not,
@@ -721,9 +818,9 @@ focusMenuButton shellId done =
     Internal.focus (menuButtonId shellId) done
 
 
-{-| Moves keyboard focus to the content area, for a shell wired by hand (without
-`AppShell.state`; with a `State`, use `goToContent`): the answer to `onSkipToContent`, and
-a good thing to do after the user navigated from the sidebar drawer. The first
+{-| Only for a shell without `AppShell.state` (with a `State`, use `goToContent`).
+Moves keyboard focus to the content area: the answer to `onSkipToContent`, and what to
+do after a route change, because the element that had focus went with the old page. The first
 argument is the id of the shell (see `id`); the message is sent when the command
 is done, whether the content area was found or not, so use one that changes
 nothing.
@@ -736,7 +833,8 @@ focusContent shellId done =
     Internal.focus (contentId shellId) done
 
 
-{-| Scrolls the content area back to the top. The page itself never scrolls, so
+{-| Only for a shell without `AppShell.state`, whose `update` does it when the page
+changes. Scrolls the content area back to the top. The page itself never scrolls, so
 the browser does not do this for you when the route changes. The first argument
 is the id of the shell (see `id`); the message is sent when the command is done,
 whether the content area was found or not, so use one that changes nothing.
@@ -761,34 +859,45 @@ the page it shows as current. `page` is the key type of the side menu (see
 Keep one in your model, make it with `init`, and give it to `state` and `sideNav`.
 -}
 type State page
-    = State
-        { id : String
-        , key : Nav.Key
-        , sideNav : SideNav.State page
-        , current : Maybe page
-        , collapsed : Bool
-        , drawerOpen : Bool
-        }
+    = State (Inner page)
+
+
+type alias Inner page =
+    { id : String
+    , key : Nav.Key
+    , url : Url
+    , sideNav : SideNav.State page
+    , current : Maybe page
+    , collapsed : Bool
+    , drawerOpen : Bool
+
+    -- Enter was pressed on a link of the side menu: when the page changes, focus
+    -- stays on that link instead of going to the content.
+    , fromSidebar : Bool
+    }
 
 
 {-| A shell with the sidebar open, the drawer closed and no page current. The `id` is
 the DOM id of the shell, unique on the page; the ids inside it (`-content`, `-sidebar`,
-`-search`, `-menu`) and the side menu (`-nav`) start with it. The `key` is the one
-`Browser.application` gave to your `init`: the shell pushes the address of a link with
-it, so you do not write the `LinkClicked` branch.
+`-search`, `-menu`) and the side menu (`-nav`) start with it. The `key` and the `url`
+are the ones `Browser.application` gave to your `init`: the shell pushes the address of
+a link with the key, so you do not write the `LinkClicked` branch, and compares every
+new address with the last one, to tell a new page from a new query.
 
-    AppShell.init { id = "app-shell", key = key }
+    AppShell.init { id = "app-shell", key = key, url = url }
 
 -}
-init : { id : String, key : Nav.Key } -> State page
+init : { id : String, key : Nav.Key, url : Url } -> State page
 init options =
     State
         { id = options.id
         , key = options.key
+        , url = options.url
         , sideNav = SideNav.init (options.id ++ "-nav")
         , current = Nothing
         , collapsed = False
         , drawerOpen = False
+        , fromSidebar = False
         }
 
 
@@ -815,7 +924,9 @@ address of the page. Wrap it in one constructor of your own, `ShellMsg`.
 type Msg
     = UrlRequested Browser.UrlRequest
     | UrlChanged Url
+    | NoSuchTarget String
     | SideNavMsg SideNav.Msg
+    | SidebarLinkKey
     | ToggleSidebar
     | ToggleDrawer
     | CloseDrawer
@@ -827,12 +938,15 @@ type Msg
 {-| Handles every message of the shell and returns the commands it needs: the
 sidebar and the drawer open and close, a drawer that opens sends focus to the current
 link, one that closes gives it back to the menu button, the skip link goes to the
-content, a link is followed, and a new address closes the drawer, scrolls the content
-to the top and, when the page was chosen in the drawer, moves focus to the content.
+content, and a link is followed (see the module docs for the rules). A new page closes
+the drawer, scrolls the content to the top and moves focus to the content, unless the
+user chose it with Enter in the side menu; a new query on the same page changes none of
+that.
 
 The third part is the one place where the application learns that the route changed:
 it is the address, once, after the browser has changed it (a link, the Back button, a
-`pushUrl` of yours). Answer it with your routing and `setPage`.
+`pushUrl` or `replaceUrl` of yours), also when only the query changed. Answer it with
+your routing and `setPage`.
 
     ShellMsg m ->
         let
@@ -853,25 +967,43 @@ it is the address, once, after the browser has changed it (a link, the Back butt
 update : Msg -> State page -> ( State page, Cmd Msg, Maybe Url )
 update msg (State inner) =
     case msg of
-        UrlRequested (Browser.Internal url) ->
-            ( State inner, Nav.pushUrl inner.key (Url.toString url), Nothing )
+        UrlRequested request ->
+            let
+                ( next, cmd ) =
+                    follow request (State inner)
+            in
+            ( next, cmd, Nothing )
 
-        UrlRequested (Browser.External href) ->
-            ( State inner, Nav.load href, Nothing )
+        NoSuchTarget href ->
+            -- No element has the id of the fragment: it is a route after all.
+            ( State inner, Nav.pushUrl inner.key href, Nothing )
 
         UrlChanged url ->
-            ( State { inner | drawerOpen = False }
-            , Cmd.batch
-                [ resetScroll inner.id NoOp
+            let
+                newPage =
+                    not (Address.samePage inner.url url)
+            in
+            ( State
+                { inner
+                    | url = url
+                    , drawerOpen = inner.drawerOpen && not newPage
+                    , fromSidebar = False
+                }
+            , if newPage then
+                Cmd.batch
+                    [ resetScroll inner.id NoOp
+                    , if inner.fromSidebar && not inner.drawerOpen then
+                        -- The link of the side menu is still there, with focus on it.
+                        Cmd.none
 
-                -- Chosen in the drawer: it closes and its link loses focus, so the
-                -- new page gets it.
-                , if inner.drawerOpen then
-                    focusContent inner.id NoOp
+                      else
+                        -- The element that had focus went with the old page (or with
+                        -- the drawer that closes).
+                        focusContent inner.id NoOp
+                    ]
 
-                  else
-                    Cmd.none
-                ]
+              else
+                Cmd.none
             , Just url
             )
 
@@ -880,7 +1012,10 @@ update msg (State inner) =
                 ( menu, cmd ) =
                     SideNav.update m inner.sideNav
             in
-            ( State { inner | sideNav = menu }, Cmd.map SideNavMsg cmd, Nothing )
+            ( State { inner | sideNav = menu, fromSidebar = False }, Cmd.map SideNavMsg cmd, Nothing )
+
+        SidebarLinkKey ->
+            ( State { inner | fromSidebar = True }, Cmd.none, Nothing )
 
         ToggleSidebar ->
             ( State { inner | collapsed = not inner.collapsed }, Cmd.none, Nothing )
@@ -898,8 +1033,11 @@ update msg (State inner) =
                 )
 
         CloseDrawer ->
-            -- The links of a closed drawer cannot hold focus: give it to the button.
-            ( State { inner | drawerOpen = False }, focusMenuButton inner.id NoOp, Nothing )
+            let
+                ( next, cmd ) =
+                    closeDrawer (State inner)
+            in
+            ( next, cmd, Nothing )
 
         SkipToContent ->
             ( State inner, focusContent inner.id NoOp, Nothing )
@@ -919,9 +1057,9 @@ update msg (State inner) =
 
 
 {-| The shell's own parts of the frame, in one attribute: its id, the toggles of the
-sidebar and the drawer, whether they are open, and the skip link with its answer.
-Give it first in the list of `view`. Without it the shell has no state: use the
-single attributes of the next sections to wire one yourself.
+sidebar and the drawer, whether they are open, and the skip link with its answer. It
+wins over the attributes of the section "Without a State" wherever it stands in the
+list.
 
     AppShell.view [ AppShell.state ShellMsg model.shell, AppShell.brand brand ] [ page ]
 
@@ -931,15 +1069,122 @@ state toMsg (State inner) =
     Attribute
         (\config ->
             { config
-                | id = inner.id
-                , collapsed = inner.collapsed
-                , drawerOpen = inner.drawerOpen
-                , onToggleSidebar = Just (toMsg ToggleSidebar)
-                , onToggleDrawer = Just (toMsg ToggleDrawer)
-                , onCloseDrawer = Just (toMsg CloseDrawer)
-                , onSkip = Just (toMsg SkipToContent)
+                | fromState =
+                    Just
+                        { id = inner.id
+                        , collapsed = inner.collapsed
+                        , drawerOpen = inner.drawerOpen
+                        , onToggleSidebar = toMsg ToggleSidebar
+                        , onToggleDrawer = toMsg ToggleDrawer
+                        , onCloseDrawer = toMsg CloseDrawer
+                        , onSkip = toMsg SkipToContent
+                        , onSidebarLinkKey = toMsg SidebarLinkKey
+                        }
             }
         )
+
+
+{-| Follows a click on a link the way the shell does it: another address of the
+application with `pushUrl`, the address the user is on with `replaceUrl` (the page is
+entered again, without another entry in the history), a link to an element of the page
+(`#field-id`) by moving focus to that element, and an address elsewhere with `load`. A
+link chosen in the open drawer closes it.
+
+`AppShell.onUrlRequest` does this for every click. Call it yourself only from an
+`onUrlRequest` of your own that asks first, such as a
+[`LeaveGuard`](Klar-LeaveGuard) (see "Links that must ask first" above).
+
+    ( shell, cmd ) =
+        AppShell.follow request model.shell
+
+-}
+follow : Browser.UrlRequest -> State page -> ( State page, Cmd Msg )
+follow request (State inner) =
+    case request of
+        Browser.Internal url ->
+            let
+                -- A link in the open drawer: the drawer closes, and the new page (or
+                -- the same one, entered again) gets the focus its link had.
+                leaving =
+                    { inner | drawerOpen = False, fromSidebar = inner.fromSidebar && not inner.drawerOpen }
+
+                fromDrawer =
+                    if inner.drawerOpen then
+                        focusContent inner.id NoOp
+
+                    else
+                        Cmd.none
+            in
+            case Address.follow inner.url url of
+                Address.Push href ->
+                    ( State leaving, Nav.pushUrl inner.key href )
+
+                Address.Replace href ->
+                    ( State leaving, Cmd.batch [ Nav.replaceUrl inner.key href, fromDrawer ] )
+
+                Address.Anchor target ->
+                    ( State { inner | fromSidebar = False }
+                    , Dom.focus target
+                        |> Task.attempt
+                            (\result ->
+                                case result of
+                                    Ok () ->
+                                        NoOp
+
+                                    Err _ ->
+                                        NoSuchTarget (Url.toString url)
+                            )
+                    )
+
+        Browser.External href ->
+            ( State inner, Nav.load href )
+
+
+{-| Whether the sidebar is collapsed to icons on a wide shell (the toggle in the top bar
+flips it). Save it with the user's settings to restore it with `setSidebarCollapsed`.
+-}
+isSidebarCollapsed : State page -> Bool
+isSidebarCollapsed (State inner) =
+    inner.collapsed
+
+
+{-| Collapses the sidebar to icons (`True`) or shows it at full width (`False`), for
+instance to restore the preference the user had last time, right after `init`.
+
+    AppShell.init { id = "app-shell", key = key, url = url }
+        |> AppShell.setSidebarCollapsed flags.sidebarCollapsed
+
+-}
+setSidebarCollapsed : Bool -> State page -> State page
+setSidebarCollapsed value (State inner) =
+    State { inner | collapsed = value }
+
+
+{-| Whether the sidebar drawer of a narrow shell is open.
+-}
+isDrawerOpen : State page -> Bool
+isDrawerOpen (State inner) =
+    inner.drawerOpen
+
+
+{-| Closes the sidebar drawer from your own code (a command of the palette, a shortcut)
+and gives keyboard focus back to the menu button, because the links of a closed drawer
+cannot hold it. Does nothing when the drawer is closed.
+
+    let
+        ( shell, cmd ) =
+            AppShell.closeDrawer model.shell
+    in
+    ( { model | shell = shell }, Cmd.map ShellMsg cmd )
+
+-}
+closeDrawer : State page -> ( State page, Cmd Msg )
+closeDrawer (State inner) =
+    if inner.drawerOpen then
+        ( State { inner | drawerOpen = False }, focusMenuButton inner.id NoOp )
+
+    else
+        ( State inner, Cmd.none )
 
 
 {-| The side menu, to put in the `sidebar` (alone, or with other things under it). It
@@ -967,13 +1212,12 @@ sideNav toMsg attributes (State inner) =
 
 
 {-| What to give `Browser.application` as `onUrlRequest`, with your constructor of the
-shell's message: a click on a link is followed (a link inside the application with
-`pushUrl`, an address elsewhere with `load`). Use your own message instead when a click
-must be held back, for example by a [`LeaveGuard`](Klar-LeaveGuard), and call
-`Nav.pushUrl` yourself when it may go on. Keep `onUrlChange` the shell's even then: its
-`update` reports the `Url`, and that `Url` is what you give to `LeaveGuard.onUrlChange`
-(the guard answers the clicks and the Back and Forward buttons, the shell reports the
-address; the whole wiring is in the docs of [`LeaveGuard`](Klar-LeaveGuard)).
+shell's message: a click on a link is followed as `follow` describes. Use your own message
+instead only when a click must be held back, for example by a
+[`LeaveGuard`](Klar-LeaveGuard), and hand the request to `follow` when it may go on. Keep
+`onUrlChange` the shell's even then: its `update` reports the `Url`, and that `Url` is what
+you give to `LeaveGuard.onUrlChange` (the guard answers the clicks and the Back and Forward
+buttons, the shell reports the address).
 
     Browser.application
         { onUrlRequest = AppShell.onUrlRequest ShellMsg
@@ -996,16 +1240,25 @@ onUrlChange toMsg url =
 
 
 {-| Collapses the sidebar to icons on a wide shell (900px or more) and opens or closes
-the drawer on a narrow one: what a shortcut such as `[` should do. The shell does not
-know its width, so it asks the browser, and the answer comes back as a message of the
-shell.
+the drawer on a narrow one: what a shortcut such as `[` should do. The layout follows the
+width of the shell itself, not of the window (a framed shell, a shell beside a splitter
+pane), so it measures the shell, and the answer comes back as a message of the shell.
 
     ( model, Cmd.map ShellMsg (AppShell.toggleSidebar model.shell) )
 
 -}
 toggleSidebar : State page -> Cmd Msg
-toggleSidebar _ =
-    Dom.getViewport |> Task.perform (\viewport -> WidthKnown viewport.viewport.width)
+toggleSidebar (State inner) =
+    Dom.getElement inner.id
+        |> Task.attempt
+            (\result ->
+                case result of
+                    Ok element ->
+                        WidthKnown element.element.width
+
+                    Err _ ->
+                        NoOp
+            )
 
 
 {-| Moves keyboard focus to the content area: the answer to the skip link, and what
@@ -1035,6 +1288,7 @@ type alias Texts =
     , expand : String
     , menu : String
     , sidebar : String
+    , content : String
     }
 
 
@@ -1049,6 +1303,7 @@ texts locale_ =
             , expand = "Vis sidemenyen"
             , menu = "Meny"
             , sidebar = "Sidepanel"
+            , content = "Innhold"
             }
         , en =
             { skip = "Skip to main content"
@@ -1058,6 +1313,7 @@ texts locale_ =
             , expand = "Show the sidebar"
             , menu = "Menu"
             , sidebar = "Sidebar"
+            , content = "Content"
             }
         }
 
@@ -1167,7 +1423,7 @@ view attributes content =
                     -- leaves Escape inside dialogs alone.
                     ++ (case ( config.drawerOpen, config.onCloseDrawer ) of
                             ( True, Just close ) ->
-                                [ Internal.onKeysPassive [ ( "Escape", close ) ] ]
+                                [ Events.preventDefaultOn "keydown" (unusedEscape close) ]
 
                             _ ->
                                 []
@@ -1185,6 +1441,50 @@ view attributes content =
             , Html.div [ Internal.cls [ "klar-app-shell__overlays" ] ] layer.overlays
             ]
         )
+
+
+{-| An Escape that nothing inside used: a control that handles Escape itself (a popup
+that closes, a field that clears) prevents its default, and the drawer leaves that key
+alone, so one press does one thing. The Escape that ends an IME composition is not
+one either. The drawer prevents the default of the Escape it takes, for the shortcuts
+of the application on the root.
+-}
+unusedEscape : msg -> Decoder ( msg, Bool )
+unusedEscape msg =
+    Decode.map4
+        (\key prevented composing keyCode ->
+            key == "Escape" && not prevented && not composing && keyCode /= 229
+        )
+        (Decode.field "key" Decode.string)
+        (Decode.oneOf [ Decode.field "defaultPrevented" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "keyCode" Decode.int, Decode.succeed 0 ])
+        |> Decode.andThen
+            (\unused ->
+                if unused then
+                    Decode.succeed ( msg, True )
+
+                else
+                    Decode.fail "not an unused Escape"
+            )
+
+
+{-| Enter on a link of the sidebar, before its click follows the link: the page that
+comes is chosen in the side menu, whose link keeps focus.
+-}
+enterOnLink : msg -> Decoder msg
+enterOnLink msg =
+    Decode.map2 Tuple.pair
+        (Decode.field "key" Decode.string)
+        (Decode.at [ "target", "tagName" ] Decode.string)
+        |> Decode.andThen
+            (\( key, tag ) ->
+                if key == "Enter" && String.toUpper tag == "A" then
+                    Decode.succeed msg
+
+                else
+                    Decode.fail "not Enter on a link"
+            )
 
 
 {-| The two events that make the page a place where a file can be dropped, and
@@ -1404,6 +1704,7 @@ viewSidebar config =
                 [ Internal.cls [ "klar-app-shell__sidebar" ]
                 , Attr.id (sidebarId config.id)
                 , Attr.attribute "aria-label" (texts config.locale).sidebar
+                , Internal.attrMaybe (\msg -> Events.on "keydown" (enterOnLink msg)) config.onSidebarLinkKey
                 ]
                 [ content ]
 
@@ -1431,10 +1732,23 @@ viewBackdrop config =
 
 viewContent : Config msg -> List (Html msg) -> Html msg
 viewContent config content =
-    Html.main_
+    let
+        -- A framed shell is a demo inside another page, which has its own `main`
+        -- and its own start of the page.
+        framed =
+            isJust config.height
+    in
+    (if framed then
+        Html.div
+
+     else
+        Html.main_
+    )
         [ Internal.cls [ "klar-app-shell__content" ]
         , Attr.id (contentId config.id)
         , Attr.tabindex -1
+        , Internal.attrIf framed (Attr.attribute "role" "region")
+        , Internal.attrIf framed (Attr.attribute "aria-label" (texts config.locale).content)
         , Internal.styleVars
             [ ( "--klar-content-pad-wide"
               , if config.contentPadding <= 0 then
@@ -1447,7 +1761,7 @@ viewContent config content =
         ]
         [ Html.div
             ([ Internal.cls [ "klar-app-shell__page" ]
-             , Attr.id Internal.pageStartId
+             , Internal.attrIf (not framed) (Attr.id Internal.pageStartId)
              , Attr.tabindex -1
              ]
                 ++ (case config.contentMaxWidth of

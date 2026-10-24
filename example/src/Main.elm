@@ -61,7 +61,7 @@ main =
         , view = view
         , update = update
         , subscriptions = subscriptions
-        , onUrlRequest = UrlRequested
+        , onUrlRequest = AppShell.onUrlRequest ShellMsg
         , onUrlChange = AppShell.onUrlChange ShellMsg
         }
 
@@ -127,7 +127,7 @@ init _ url key =
             , browserZone = Nothing
             , today = Sample.today
             , backend = backend3
-            , shell = AppShell.init { id = shellId, key = key } |> AppShell.setPage menu (routeKey route)
+            , shell = AppShell.init { id = shellId, key = key, url = url } |> AppShell.setPage menu (routeKey route)
             , userMenu = Menu.init "user-menu"
             , shortcuts = Shortcut.init
             , toasts = Toast.init |> Toast.maxVisible 3
@@ -172,7 +172,6 @@ pageContext model =
 
 type Msg
     = NoOp
-    | UrlRequested Browser.UrlRequest
     | GotZone Time.Zone
     | GoTo Route
       -- shell
@@ -249,18 +248,6 @@ update msg model =
     case msg of
         NoOp ->
             ( model, Cmd.none )
-
-        UrlRequested (Browser.Internal url) ->
-            -- Only `#/path` fragments are routes. Anything else (`#field-id`
-            -- anchors inside a component) must not change the page.
-            if isRouteFragment url then
-                ( model, goTo model.key model.route (Route.fromUrl url) (Url.toString url) )
-
-            else
-                ( model, Cmd.none )
-
-        UrlRequested (Browser.External href) ->
-            ( model, Nav.load href )
 
         ShellMsg inner ->
             let
@@ -594,16 +581,6 @@ goTo key current wanted url =
 
     else
         Nav.pushUrl key url
-
-
-isRouteFragment : Url -> Bool
-isRouteFragment url =
-    case url.fragment of
-        Nothing ->
-            True
-
-        Just fragment ->
-            fragment == "" || String.startsWith "/" fragment
 
 
 {-| The orders page, asked before it is left: with unsaved changes in the editor

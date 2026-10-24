@@ -34,11 +34,11 @@ own source and its showcase, not guidance.
 
 **The frame.** There is one way to wire the application frame: `AppShell` keeps the sidebar, the drawer, the current link and
 the key. The model holds `page : Page` and `shell : AppShell.State Page`; the messages hold one `ShellMsg AppShell.Msg`; `main` passes
-`AppShell.onUrlRequest ShellMsg` and `AppShell.onUrlChange ShellMsg`; `init` makes the shell with `AppShell.init { id, key }` and
+`AppShell.onUrlRequest ShellMsg` and `AppShell.onUrlChange ShellMsg`; `init` makes the shell with `AppShell.init { id, key, url }` and
 `AppShell.setPage navigation page`; `update` calls `AppShell.update` and gets `( shell, cmd, address )`. The **address** is the only place
-that learns of a new route (a link, Back, a `pushUrl`): set `page` from it and call `AppShell.setPage` again. Following links,
-`pushUrl`, scroll to the top, the drawer and its focus are done for you. You write no `LinkClicked`, `UrlChanged` or `SideNav.init`. Only
-when a click must be held back (`LeaveGuard`) give `Browser.application` a `onUrlRequest` message of your own and call `Nav.pushUrl` when
+that learns of a new route (a link, Back, a `pushUrl`, also a new query): set `page` from it and call `AppShell.setPage` again. Following links
+(`replaceUrl` for the current page, focus for a `#field-id` link), scroll to the top and focus on the content of a new page, the drawer and its focus are done for you. You write no `LinkClicked`, `UrlChanged` or `SideNav.init`. Only
+when a click must be held back (`LeaveGuard`) give `Browser.application` an `onUrlRequest` message of your own and hand the request to `AppShell.follow` when
 it may go on; `onUrlChange` stays the shell's, and the `address` that `AppShell.update` returns goes to `LeaveGuard.onUrlChange pageFromUrl url
 model.guard` (Back and Forward; the wiring is in the `LeaveGuard` doc, tried in Chrome); everything else stays. `elm.json` needs `elm/url` as a **direct** dependency, and `Elm.Main.init()` takes no `node`.
 
@@ -117,7 +117,7 @@ init _ url key =
             pageFromUrl url
     in
     ( { page = page
-      , shell = AppShell.init { id = "app-shell", key = key } |> AppShell.setPage navigation page
+      , shell = AppShell.init { id = "app-shell", key = key, url = url } |> AppShell.setPage navigation page
       , table = Table.init "orders"
       , orders = Loading
       , toasts = Toast.init
