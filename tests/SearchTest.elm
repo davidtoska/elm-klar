@@ -58,6 +58,16 @@ scoring =
             \_ -> Expect.equal Nothing (Search.score "aron" "Navigation and structure")
         , test "two letters are never fuzzy" <|
             \_ -> Expect.equal Nothing (Search.score "bn" "Bergen")
+        , test "a close match further on is found when an earlier word has the first letter" <|
+            \_ -> Expect.equal (Just 6) (Search.score "brgn" "Bob's Bergen")
+        , test "the walk tries the next start when the first window is too wide" <|
+            \_ -> Expect.equal (Just 6) (Search.score "lvlc" "Lars Ada Lovelace")
+        , test "letters within 2n + 2 characters match" <|
+            \_ -> Expect.equal (Just 6) (Search.score "abc" "axxxxxbc")
+        , test "letters one character wider than 2n + 2 do not" <|
+            \_ -> Expect.equal Nothing (Search.score "abc" "axxxxxxbc")
+        , test "a swapped letter is not forgiven" <|
+            \_ -> Expect.equal Nothing (Search.score "lvoelace" "Ada Lovelace")
         , test "matches" <|
             \_ -> Expect.equal [ True, False ] [ Search.matches "ber" "Bergen", Search.matches "ber" "Oslo" ]
         ]
@@ -163,8 +173,21 @@ referenceScore queryText text =
     List.foldl (\word total -> Maybe.map2 (+) total (scoreWord word)) (Just 0) words
 
 
+{-| The letters in order within `2n + 2` characters, from any place where the first
+letter occurs (the corpus is short, so the limit of starts never applies).
+-}
 loose : List String -> String -> Bool
 loose letters haystack =
+    case letters of
+        first :: _ ->
+            List.any (\start -> looseFrom letters (String.dropLeft start haystack) start) (String.indexes first haystack)
+
+        [] ->
+            False
+
+
+looseFrom : List String -> String -> Int -> Bool
+looseFrom letters haystack origin =
     let
         step letter ( rest, offset, first ) =
             case ( rest, first ) of
@@ -183,7 +206,7 @@ loose letters haystack =
                             ( Nothing, offset, first )
 
         ( outcome, end, start ) =
-            List.foldl step ( Just haystack, 0, Nothing ) letters
+            List.foldl step ( Just haystack, origin, Nothing ) letters
     in
     case ( outcome, start ) of
         ( Just _, Just from ) ->
@@ -286,4 +309,50 @@ highlighting =
                     |> Query.count (Expect.equal 0)
         , test "overlapping words are merged into one mark" <|
             \_ -> markCount "ber erg" "Bergen"
+        , test "the mark has the class of a highlight, not of a colour dot" <|
+            \_ ->
+                Html.span [] (Search.highlight "ber" "Bergen")
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.tag "mark" ]
+                    |> Expect.all
+                        [ Query.has [ Selector.class "klar-highlight" ]
+                        , Query.hasNot [ Selector.class "klar-mark" ]
+                        ]
+        , test "marks the word start that the score used, not an earlier part of a word" <|
+            \_ ->
+                Html.span [] (Search.highlight "ber" "Åsberg Bergen")
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.findAll [ Selector.tag "mark" ] >> Query.count (Expect.equal 1)
+                        , Query.find [ Selector.tag "mark" ] >> Query.has [ Selector.text "Ber" ]
+                        , Query.has [ Selector.text "Åsberg " ]
+                        ]
+        , test "marks each letter of a match of letters in order" <|
+            \_ ->
+                Html.span [] (Search.highlight "lvlc" "Ada Lovelace")
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.tag "mark" ]
+                    |> Expect.all
+                        [ Query.count (Expect.equal 4)
+                        , Query.first >> Query.has [ Selector.text "L" ]
+                        , Query.index 3 >> Query.has [ Selector.text "c" ]
+                        ]
+        , test "marks the letters of the close match, not the first letter of an earlier word" <|
+            \_ ->
+                Html.span [] (Search.highlight "brgn" "Bob's Bergen")
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.tag "mark" ]
+                    |> Expect.all
+                        [ Query.count (Expect.equal 3)
+                        , Query.first >> Query.has [ Selector.text "B" ]
+                        , Query.index 1 >> Query.has [ Selector.text "rg" ]
+                        ]
+        , test "a word that does not match marks nothing and keeps the text" <|
+            \_ ->
+                Html.span [] (Search.highlight "xyz" "Bergen")
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.findAll [ Selector.tag "mark" ] >> Query.count (Expect.equal 0)
+                        , Query.has [ Selector.text "Bergen" ]
+                        ]
         ]

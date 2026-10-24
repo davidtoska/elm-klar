@@ -187,12 +187,17 @@ table {
   user-select: none;
 }
 
-/* A highlighted match inside search results (Klar.Search.highlight). */
-.klar-mark {
+/* A highlighted match inside search results (Klar.Search.highlight). Its own class:
+   `klar-mark` is the colour dot of options and tags (Core). */
+.klar-highlight {
   background: var(--klar-highlight);
   color: inherit;
   border-radius: 2px;
   padding: 0 1px;
+}
+
+@media (forced-colors: active) {
+  .klar-highlight { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 }
 
 /* ---- Motion --------------------------------------------------------- */
