@@ -2757,9 +2757,11 @@ fileDrop ((View view) as bound) field attributes =
             mismatch bound field "files"
 
 
-{-| A rule builder for a `conditions` field. The label is the declaration's; the
-fields (what a rule can talk about, with the options the user chooses among) and
-the other settings are the application's attributes.
+{-| A rule builder for a `conditions` field. The label, hint and required mark
+are the declaration's, and a problem with the rule as a whole ("Add a
+condition") is shown under it; the problems of single conditions are shown on
+the conditions. The fields (what a rule can talk about, with the options the
+user chooses among) and the other settings are the application's attributes.
 -}
 ruleBuilder : View msg -> Field Rule.Rule -> List (Rule.Field ()) -> List (RuleBuilder.Attribute () msg) -> Html msg
 ruleBuilder ((View view) as bound) field fieldList attributes =
@@ -2767,9 +2769,17 @@ ruleBuilder ((View view) as bound) field fieldList attributes =
         Just ( def, SRule state ) ->
             RuleBuilder.view (\inner -> view.toMsg (RuleMsg def.key inner))
                 (attributes
+                    ++ declaredAttributes def RuleBuilder.hint RuleBuilder.required
                     ++ [ RuleBuilder.fields fieldList
                        , RuleBuilder.locale view.locale
                        , RuleBuilder.label def.label
+                       , RuleBuilder.errorMaybe
+                            (if List.isEmpty (RuleBuilder.issues view.locale fieldList state) then
+                                problemOf bound def
+
+                             else
+                                Nothing
+                            )
                        ]
                 )
                 state

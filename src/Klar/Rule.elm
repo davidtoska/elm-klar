@@ -1,15 +1,15 @@
 module Klar.Rule exposing
     ( Field, bareField, textField, numberField, dateField, boolField, choiceField, choiceFieldOf, inGroup, withOperators, fieldById
     , fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
-    , FieldKind(..), Choice
+    , FieldKind, textKind, numberKind, dateKind, booleanKind, choiceKind, Choice
     , Operator(..), Operands(..), operatorsFor, operandsOf, operatorLabel
     , Rule(..), Group, Combinator(..), Condition, emptyGroup
     , is, isAnyOf, when, allOf, anyOf
     , matches, isComplete, parseNumber
-    , validate, Issue, describe, quote
+    , validate, Problem, describe, quote
     , addCondition, addGroup, remove, duplicate, move, setCombinator, toggleNegated, setField, setOperator, setValue, addValue, removeValue
     , idOf, nextId, depth, conditionCount, isEmpty
-    , encode, decoder
+    , settled, encode, decoder
     )
 
 {-| Rules as plain data: a tree of conditions and groups that you can edit,
@@ -72,6 +72,9 @@ filter rows with a rule that your backend has stored.
     Rule.describe Locale.en fields paidAndLarge
     -- "Status is Paid and Total > 100"
 
+    -- 4. Send it to a server: only what matches uses, operands in one form
+    Encode.encode 0 (Rule.encode (Rule.settled fields paidAndLarge))
+
     Encode.encode 0 (Rule.encode paidAndLarge)
     -- {"type":"group","combinator":"all","not":false,"children":[ ... ]}
 
@@ -101,7 +104,7 @@ value.
 
 @docs fieldId, fieldLabel, fieldKind, fieldGroup, fieldOperators
 
-@docs FieldKind, Choice
+@docs FieldKind, textKind, numberKind, dateKind, booleanKind, choiceKind, Choice
 
 
 # Operators and operands
@@ -109,12 +112,14 @@ value.
 An `Operator` says how a condition compares the field with its operands. Which
 operators make sense depends on the `FieldKind`, see `operatorsFor`: a text
 field offers `Contains`, a number field `GreaterThan`, a date field `InLastDays`
-and so on.
+and so on. Equality is `Is` and `IsNot` for every kind, numbers included.
 
 Operands are kept as text, exactly what the user typed or picked, and are read
 when the rule runs: numbers with a decimal comma or point (`parseNumber`), dates
-as ISO `YYYY-MM-DD`, choices as the `value` of a `Choice`. That is why a rule
-that is not finished yet can still be stored and shown.
+as ISO `YYYY-MM-DD`, choices as the `value` of a `Choice`, a whole number of days
+for the relative date operators and the key of a period ("thisMonth") for
+`InPeriod`. That is why a rule that is not finished yet can still be stored and
+shown.
 
 @docs Operator, Operands, operatorsFor, operandsOf, operatorLabel
 
@@ -146,12 +151,16 @@ and a group without any complete condition lets every row through. The result
 therefore makes sense after every step the user takes. `validate` is where the
 user hears about what is missing.
 
+`matches` prepares the rule once (it looks up the fields and reads the operands)
+when it is given the rule, so `List.filter (Rule.matches today fields rule) rows`
+does that work once and not once for every row.
+
 @docs matches, isComplete, parseNumber
 
 
 # Checking and describing
 
-@docs validate, Issue, describe, quote
+@docs validate, Problem, describe, quote
 
 
 # Editing
@@ -169,9 +178,21 @@ functions from rule to rule, so a rule in your model is edited with ordinary
 @docs idOf, nextId, depth, conditionCount, isEmpty
 
 
-# JSON
+# JSON and servers
 
-@docs encode, decoder
+A server that filters the rows itself should get the `settled` rule: it keeps only
+what `matches` uses and writes the operands in one form, so the server needs none
+of the forgiveness of `matches`. What the server must do with it:
+
+  - Text compares without regard to case, diacritics and surrounding spaces.
+  - Numbers are plain JSON-style decimals ("1234.5"), dates ISO `YYYY-MM-DD`,
+    day counts whole numbers, periods one of the keys listed under `InPeriod`.
+  - `Between` and `NotBetween` include both ends, low first.
+  - A row without a value satisfies only `IsEmpty` and the negative operators
+    (`IsNot`, `NotContains`, `NotBetween`, `IsNoneOf`).
+  - A group with no children matches every row.
+
+@docs settled, encode, decoder
 
 -}
 
@@ -181,27 +202,66 @@ import Klar.Date as Date exposing (Date)
 import Klar.Format as Format
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Rule.Vocabulary as Vocabulary exposing (FieldKind(..))
 import Klar.Search as Search
 import Klar.Select.Option exposing (Option)
+import Set exposing (Set)
 
 
 
 -- FIELDS
 
 
-{-| The kind of value a field holds.
+{-| The kind of value a field holds: text, a number, a date, yes or no, or one
+of a set of choices.
 
 It decides which operators are on offer (see `operatorsFor`) and which editor
-a rule builder shows for the operands. A `ChoiceKind` carries the choices the
-user can pick from.
+a rule builder shows for the operands. The field functions (`textField` ...)
+set it; for a `bareField` make it with `textKind`, `numberKind`, `dateKind`,
+`booleanKind` or `choiceKind`. The type is opaque, so that new kinds (date and
+time, several values, lookups) can come without a breaking change.
 
 -}
-type FieldKind
-    = TextKind
-    | NumberKind
-    | DateKind
-    | BooleanKind
-    | ChoiceKind (List Choice)
+type alias FieldKind =
+    Vocabulary.FieldKind
+
+
+{-| The kind of a text field.
+-}
+textKind : FieldKind
+textKind =
+    TextKind
+
+
+{-| The kind of a number field.
+-}
+numberKind : FieldKind
+numberKind =
+    NumberKind
+
+
+{-| The kind of a date field.
+-}
+dateKind : FieldKind
+dateKind =
+    DateKind
+
+
+{-| The kind of a yes or no field.
+-}
+booleanKind : FieldKind
+booleanKind =
+    BooleanKind
+
+
+{-| The kind of a field with a fixed set of values, which the user picks from.
+
+    Rule.bareField "status" "Status" (Rule.choiceKind statuses)
+
+-}
+choiceKind : List Choice -> FieldKind
+choiceKind choices =
+    ChoiceKind choices
 
 
 {-| One of the values of a choice field. The `value` is what a rule stores and
@@ -238,7 +298,7 @@ type Value
 
 {-| Something rules can talk about, and how to read it from a row of type
 `row`. Make fields with `textField`, `numberField`, `dateField`, `boolField` or
-`choiceField` (or `field`, when there are no rows to read), adjust them with
+`choiceField` (or `bareField`, when there are no rows to read), adjust them with
 `inGroup` and `withOperators`, and read them with `fieldId`, `fieldLabel`,
 `fieldKind`, `fieldGroup` and `fieldOperators`. The type is opaque, so that a
 field can get more settings in a later version.
@@ -264,7 +324,7 @@ from a row. It is what you need when the rows are not in the browser (a server
 filters them) and the fields only decide what a rule builder or filter bar
 offers. `matches` finds no value in a row for such a field.
 
-    Rule.bareField "status" "Status" (Rule.ChoiceKind statuses)
+    Rule.bareField "status" "Status" (Rule.choiceKind statuses)
 
 -}
 bareField : String -> String -> FieldKind -> Field row
@@ -287,7 +347,7 @@ textField id label get =
 
 
 {-| A field with number values. `Nothing` means that the row has no number; such
-a row only satisfies `IsEmpty` and `NotEquals`.
+a row only satisfies `IsEmpty`, `IsNot` and `NotBetween`.
 
     Rule.numberField "total" "Total" (.total >> Just)
 
@@ -301,12 +361,15 @@ numberField id label get =
 
 
 {-| A field with calendar dates ([Klar.Date](Klar-Date)). `Nothing` means that
-the row has no date; such a row only satisfies `IsEmpty` and `IsNot`.
+the row has no date; such a row only satisfies `IsEmpty`, `IsNot` and
+`NotBetween`.
 
     Rule.dateField "created" "Created" (.created >> Just)
 
-Operands are ISO dates (`2026-10-20`), or a number of days for `InLastDays` and
-`InNextDays`.
+Operands are ISO dates (`2026-10-20`), a whole number of days for `InLastDays`,
+`InNextDays`, `MoreThanDaysAgo` and `MoreThanDaysAhead`, or the key of a period
+for `InPeriod`. Rules with relative dates stay right as time passes, so a saved
+view says "in the last 30 days" rather than a fixed date.
 
 -}
 dateField : String -> String -> (row -> Maybe Date) -> Field row
@@ -483,11 +546,20 @@ which kind of field is listed by `operatorsFor`; `operatorLabel` gives the
 words the user reads and `operandsOf` how many operands an operator takes.
 
   - Text: `Is`, `IsNot`, `Contains`, `NotContains`, `StartsWith`, `EndsWith`
-  - Numbers: `Equals`, `NotEquals`, `LessThan`, `LessOrEqual`, `GreaterThan`,
-    `GreaterOrEqual`, `Between` (both ends included)
+  - Numbers: `Is`, `IsNot`, `LessThan`, `LessOrEqual`, `GreaterThan`,
+    `GreaterOrEqual`, `Between` and `NotBetween` (both ends included)
   - Dates: `Is`, `IsNot`, `Before`, `After`, `OnOrBefore`, `OnOrAfter`,
-    `Between` (both ends included), `InLastDays` and `InNextDays` (today
-    counts, the operand is a number of days)
+    `Between` and `NotBetween` (both ends included), and the relative ones,
+    which stay right as time passes:
+      - `InLastDays` and `InNextDays`: today and the N days before or after it
+        (the operand is a whole number of days);
+      - `MoreThanDaysAgo` and `MoreThanDaysAhead`: earlier than N days before
+        today, later than N days after it;
+      - `InPeriod`: within a calendar period around today. The operand is the
+        key of the period: "today", "yesterday", "tomorrow", "thisWeek",
+        "lastWeek", "nextWeek", "thisMonth", "lastMonth", "nextMonth",
+        "thisQuarter", "lastQuarter", "nextQuarter", "thisYear", "lastYear" or
+        "nextYear". Weeks start on Monday.
   - Choices: `Is`, `IsNot`, `IsAnyOf`, `IsNoneOf`
   - Yes or no: `IsTrue`, `IsFalse`
   - Every kind except yes or no: `IsEmpty`, `IsNotEmpty`
@@ -500,19 +572,21 @@ type Operator
     | NotContains
     | StartsWith
     | EndsWith
-    | Equals
-    | NotEquals
     | LessThan
     | LessOrEqual
     | GreaterThan
     | GreaterOrEqual
     | Between
+    | NotBetween
     | Before
     | After
     | OnOrBefore
     | OnOrAfter
     | InLastDays
     | InNextDays
+    | MoreThanDaysAgo
+    | MoreThanDaysAhead
+    | InPeriod
     | IsAnyOf
     | IsNoneOf
     | IsEmpty
@@ -526,7 +600,7 @@ type Operator
 
   - `NoOperand`: `IsEmpty`, `IsNotEmpty`, `IsTrue` and `IsFalse`.
   - `OneOperand`: most operators, such as `Contains` or `GreaterThan`.
-  - `TwoOperands`: `Between`, with the two ends.
+  - `TwoOperands`: `Between` and `NotBetween`, with the two ends.
   - `ManyOperands`: `IsAnyOf` and `IsNoneOf`, with any number of choices.
 
 -}
@@ -540,7 +614,7 @@ type Operands
 {-| The operators that fit a kind of field, in the order a picker should list
 them. A new condition on a field starts with the first one.
 
-    Rule.operatorsFor Rule.BooleanKind -- [ IsTrue, IsFalse ]
+    Rule.operatorsFor Rule.booleanKind -- [ IsTrue, IsFalse ]
 
 -}
 operatorsFor : FieldKind -> List Operator
@@ -550,10 +624,10 @@ operatorsFor kind =
             [ Contains, NotContains, Is, IsNot, StartsWith, EndsWith, IsEmpty, IsNotEmpty ]
 
         NumberKind ->
-            [ Equals, NotEquals, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual, Between, IsEmpty, IsNotEmpty ]
+            [ Is, IsNot, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual, Between, NotBetween, IsEmpty, IsNotEmpty ]
 
         DateKind ->
-            [ Is, IsNot, Before, After, OnOrBefore, OnOrAfter, Between, InLastDays, InNextDays, IsEmpty, IsNotEmpty ]
+            [ Is, IsNot, Before, After, OnOrBefore, OnOrAfter, Between, NotBetween, InPeriod, InLastDays, InNextDays, MoreThanDaysAgo, MoreThanDaysAhead, IsEmpty, IsNotEmpty ]
 
         BooleanKind ->
             [ IsTrue, IsFalse ]
@@ -585,6 +659,9 @@ operandsOf operator =
         Between ->
             TwoOperands
 
+        NotBetween ->
+            TwoOperands
+
         IsAnyOf ->
             ManyOperands
 
@@ -595,31 +672,40 @@ operandsOf operator =
             OneOperand
 
 
-{-| The words (or the symbol) for an operator in the language of the locale,
-for showing it to the user.
+{-| The words (or the symbol) for an operator on a kind of field, in the
+language of the locale, for showing it to the user.
 
-    Rule.operatorLabel Locale.en Rule.TextKind Rule.NotContains -- "does not contain"
+    Rule.operatorLabel Locale.en Rule.textKind Rule.NotContains -- "does not contain"
 
-    Rule.operatorLabel Locale.en Rule.NumberKind Rule.GreaterOrEqual -- "≥"
+    Rule.operatorLabel Locale.en Rule.numberKind Rule.GreaterOrEqual -- "≥"
 
-The `FieldKind` argument is reserved: pass the kind of the field the operator is
-used on, so that a later version can word an operator differently for a kind of
-field. Today the label does not depend on it. The comparison operators for
-numbers are the same symbols in every language.
+    Rule.operatorLabel Locale.en Rule.numberKind Rule.Is -- "="
+
+Give the kind of the field the operator is used on: equality reads "is" on
+text, dates and choices and `=` on numbers. The comparison symbols for numbers
+are the same in every language.
 
 -}
 operatorLabel : Locale -> FieldKind -> Operator -> String
-operatorLabel locale _ operator =
+operatorLabel locale kind operator =
     let
         pick nb en =
             Locale.pick locale { nb = nb, en = en }
     in
     case operator of
         Is ->
-            pick "er" "is"
+            if kind == NumberKind then
+                "="
+
+            else
+                pick "er" "is"
 
         IsNot ->
-            pick "er ikke" "is not"
+            if kind == NumberKind then
+                "≠"
+
+            else
+                pick "er ikke" "is not"
 
         Contains ->
             pick "inneholder" "contains"
@@ -632,12 +718,6 @@ operatorLabel locale _ operator =
 
         EndsWith ->
             pick "slutter med" "ends with"
-
-        Equals ->
-            "="
-
-        NotEquals ->
-            "≠"
 
         LessThan ->
             "<"
@@ -653,6 +733,9 @@ operatorLabel locale _ operator =
 
         Between ->
             pick "mellom" "between"
+
+        NotBetween ->
+            pick "ikke mellom" "not between"
 
         Before ->
             pick "før" "before"
@@ -672,6 +755,15 @@ operatorLabel locale _ operator =
         InNextDays ->
             pick "neste (dager)" "in the next (days)"
 
+        MoreThanDaysAgo ->
+            pick "for mer enn (dager) siden" "more than (days) ago"
+
+        MoreThanDaysAhead ->
+            pick "om mer enn (dager)" "in more than (days)"
+
+        InPeriod ->
+            pick "er innenfor" "is within"
+
         IsAnyOf ->
             pick "er en av" "is any of"
 
@@ -689,6 +781,11 @@ operatorLabel locale _ operator =
 
         IsFalse ->
             pick "er nei" "is no"
+
+
+allOperators : List Operator
+allOperators =
+    [ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, Between, NotBetween, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, MoreThanDaysAgo, MoreThanDaysAhead, InPeriod, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
 
 
 operatorKey : Operator -> String
@@ -712,12 +809,6 @@ operatorKey operator =
         EndsWith ->
             "endsWith"
 
-        Equals ->
-            "eq"
-
-        NotEquals ->
-            "neq"
-
         LessThan ->
             "lt"
 
@@ -732,6 +823,9 @@ operatorKey operator =
 
         Between ->
             "between"
+
+        NotBetween ->
+            "notBetween"
 
         Before ->
             "before"
@@ -750,6 +844,15 @@ operatorKey operator =
 
         InNextDays ->
             "inNextDays"
+
+        MoreThanDaysAgo ->
+            "moreThanDaysAgo"
+
+        MoreThanDaysAhead ->
+            "moreThanDaysAhead"
+
+        InPeriod ->
+            "inPeriod"
 
         IsAnyOf ->
             "anyOf"
@@ -770,11 +873,22 @@ operatorKey operator =
             "false"
 
 
+{-| The operator of a key that `encode` writes. "eq" and "neq", the keys of the
+number equality of earlier versions, are read as `Is` and `IsNot`.
+-}
 operatorFromKey : String -> Maybe Operator
 operatorFromKey key =
-    [ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, Equals, NotEquals, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, Between, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
-        |> List.filter (\operator -> operatorKey operator == key)
-        |> List.head
+    case key of
+        "eq" ->
+            Just Is
+
+        "neq" ->
+            Just IsNot
+
+        _ ->
+            allOperators
+                |> List.filter (\operator -> operatorKey operator == key)
+                |> List.head
 
 
 
@@ -1589,8 +1703,9 @@ decimalNumber whole fraction =
 {-| Does the condition have everything it needs to filter? The arguments are the
 field the condition is on and the condition. Its operator has to fit the field
 (see `operatorsFor`), and every operand it needs has to be usable: a number that
-`parseNumber` can read, an ISO date, a number of days that is not negative, or
-text that is not blank (one choice is enough for `IsAnyOf` and `IsNoneOf`).
+`parseNumber` can read, an ISO date, a whole number of days that is not
+negative, the key of a period, or text that is not blank (one choice is enough
+for `IsAnyOf` and `IsNoneOf`).
 
 `matches` ignores conditions that are not complete, as it ignores conditions on
 unknown fields. Otherwise an operator that does not fit the field (from old or
@@ -1601,27 +1716,8 @@ row.
 isComplete : Field row -> Condition -> Bool
 isComplete field condition =
     let
-        dayCount text =
-            parseNumber text |> Maybe.map (\n -> n >= 0) |> Maybe.withDefault False
-
-        usable text =
-            case fieldKind field of
-                NumberKind ->
-                    parseNumber text /= Nothing
-
-                DateKind ->
-                    case condition.operator of
-                        InLastDays ->
-                            dayCount text
-
-                        InNextDays ->
-                            dayCount text
-
-                        _ ->
-                            Date.fromIso text /= Nothing
-
-                _ ->
-                    String.trim text /= ""
+        usable =
+            usableOperand (fieldKind field) condition.operator
     in
     fitsField field condition
         && (case operandsOf condition.operator of
@@ -1639,6 +1735,49 @@ isComplete field condition =
            )
 
 
+usableOperand : FieldKind -> Operator -> String -> Bool
+usableOperand kind operator text =
+    case kind of
+        NumberKind ->
+            parseNumber text /= Nothing
+
+        DateKind ->
+            if isDayCount operator then
+                dayCount text /= Nothing
+
+            else if operator == InPeriod then
+                Vocabulary.isPeriod text
+
+            else
+                Date.fromIso text /= Nothing
+
+        _ ->
+            String.trim text /= ""
+
+
+{-| The operators whose operand is a number of days.
+-}
+isDayCount : Operator -> Bool
+isDayCount operator =
+    operator == InLastDays || operator == InNextDays || operator == MoreThanDaysAgo || operator == MoreThanDaysAhead
+
+
+{-| A whole number of days that is not negative ("30", "1 000"). A fraction of a
+day is not a day count: the rule would have to round it behind the user's back.
+-}
+dayCount : String -> Maybe Int
+dayCount text =
+    parseNumber text
+        |> Maybe.andThen
+            (\n ->
+                if n >= 0 && n < 10000000 && toFloat (round n) == n then
+                    Just (round n)
+
+                else
+                    Nothing
+            )
+
+
 {-| Is the condition's operator one of the field's operators?
 -}
 fitsField : Field row -> Condition -> Bool
@@ -1647,10 +1786,15 @@ fitsField field condition =
 
 
 {-| Does this row satisfy the rule? The arguments are today's date, the fields,
-the rule and the row. `today` is what `InLastDays` and `InNextDays` count from;
-get it with `Date.fromPosix` ([Klar.Date](Klar-Date)).
+the rule and the row. `today` is what the relative date operators (`InLastDays`,
+`InPeriod` ...) count from; get it with `Date.fromPosix` ([Klar.Date](Klar-Date)).
 
     List.filter (Rule.matches today fields rule) orders
+
+Given the first three arguments, `matches` prepares the rule once: it looks up
+each field, leaves out what does not take part and reads the operands (numbers,
+dates, day counts, text without case and diacritics). The function it returns
+only reads the rows, so filtering 100 000 rows does that work once.
 
 Conditions that are not complete (see `isComplete`) and conditions on fields
 that are not in the list do not take part. A group is decided by the nodes that
@@ -1661,89 +1805,151 @@ through, so an empty rule matches all rows.
 Operands are compared in the way that fits the kind of the field:
 
   - Text ignores case, diacritics and surrounding spaces.
-  - Numbers and dates compare by value, and `Between` includes both ends (it
-    does not matter which end is the lower one).
+  - Numbers and dates compare by value, and `Between` and `NotBetween` include
+    both ends (it does not matter which end is the lower one).
   - `InLastDays` with the operand 30 includes today and the 30 days before it;
-    `InNextDays` goes forward from today in the same way.
-  - A row without a number or a date satisfies only `IsEmpty` and `NotEquals`
-    (numbers) or `IsEmpty` and `IsNot` (dates).
+    `InNextDays` goes forward from today in the same way. `MoreThanDaysAgo` with
+    30 takes the days before those, `MoreThanDaysAhead` the days after the next 30.
+  - A row without a value satisfies only `IsEmpty` and the negative operators:
+    `IsNot`, `NotContains`, `NotBetween` and `IsNoneOf`.
 
 -}
 matches : Date -> List (Field row) -> Rule -> row -> Bool
-matches today fields rule row =
-    case rule of
-        ConditionRule condition ->
-            case fieldById fields condition.field of
-                Nothing ->
-                    True
+matches today fields rule =
+    case compile today fields rule of
+        Just check ->
+            check
 
-                Just field ->
-                    if isComplete field condition then
-                        test today condition.operator condition.values (readField field row)
-
-                    else
-                        True
-
-        GroupRule group ->
-            let
-                active =
-                    List.filter (isActive fields) group.children
-
-                outcome =
-                    if List.isEmpty active then
-                        True
-
-                    else
-                        case group.combinator of
-                            All ->
-                                List.all (\child -> matches today fields child row) active
-
-                            Any ->
-                                List.any (\child -> matches today fields child row) active
-            in
-            if group.negated && not (List.isEmpty active) then
-                not outcome
-
-            else
-                outcome
+        Nothing ->
+            always True
 
 
-{-| A node takes part in the result if it has at least one complete condition.
+{-| The rule as one test of a row: the fields are looked up and the operands are
+read here, once. `Nothing` when nothing in the rule takes part.
 -}
-isActive : List (Field row) -> Rule -> Bool
-isActive fields rule =
+compile : Date -> List (Field row) -> Rule -> Maybe (row -> Bool)
+compile today fields rule =
     case rule of
         ConditionRule condition ->
             fieldById fields condition.field
-                |> Maybe.map (\field -> isComplete field condition)
-                |> Maybe.withDefault False
+                |> Maybe.andThen
+                    (\((Field data) as field) ->
+                        if isComplete field condition then
+                            let
+                                prepared =
+                                    prepare today (fieldKind field) condition
+                            in
+                            Just (\row -> test prepared (data.get row))
+
+                        else
+                            Nothing
+                    )
 
         GroupRule group ->
-            List.any (isActive fields) group.children
+            case List.filterMap (compile today fields) group.children of
+                [] ->
+                    Nothing
+
+                checks ->
+                    let
+                        outcome =
+                            case ( checks, group.combinator ) of
+                                ( [ only ], _ ) ->
+                                    only
+
+                                ( _, All ) ->
+                                    \row -> List.all (\check -> check row) checks
+
+                                ( _, Any ) ->
+                                    \row -> List.any (\check -> check row) checks
+                    in
+                    if group.negated then
+                        Just (\row -> not (outcome row))
+
+                    else
+                        Just outcome
 
 
-test : Date -> Operator -> List String -> Value -> Bool
-test today operator values value =
+{-| The operands of a complete condition, read once.
+-}
+type alias Prepared =
+    { operator : Operator
+    , text : String
+    , choice : String
+    , choices : Set String
+    , number : Maybe Float
+    , bounds : Maybe { low : Float, high : Float }
+    , day : Maybe Int
+    , days : Maybe { first : Int, last : Int }
+    , count : Maybe Int
+    , today : Int
+    }
+
+
+prepare : Date -> FieldKind -> Condition -> Prepared
+prepare today kind condition =
     let
         first =
-            List.head values |> Maybe.withDefault ""
+            List.head condition.values |> Maybe.withDefault ""
 
         second =
-            values |> List.drop 1 |> List.head |> Maybe.withDefault ""
+            condition.values |> List.drop 1 |> List.head |> Maybe.withDefault ""
+
+        todayDays =
+            Date.toEpochDay today
+
+        epochDay text =
+            Date.fromIso text |> Maybe.map Date.toEpochDay
+
+        count =
+            dayCount first
     in
+    { operator = condition.operator
+    , text =
+        if kind == TextKind then
+            Search.normalize (String.trim first)
+
+        else
+            first
+    , choice = first
+    , choices = Set.fromList condition.values
+    , number = parseNumber first
+    , bounds =
+        Maybe.map2 (\a b -> { low = min a b, high = max a b }) (parseNumber first) (parseNumber second)
+    , day = epochDay first
+    , days =
+        case condition.operator of
+            InLastDays ->
+                Maybe.map (\n -> { first = todayDays - n, last = todayDays }) count
+
+            InNextDays ->
+                Maybe.map (\n -> { first = todayDays, last = todayDays + n }) count
+
+            InPeriod ->
+                Vocabulary.periodRange today first
+
+            _ ->
+                Maybe.map2 (\a b -> { first = min a b, last = max a b }) (epochDay first) (epochDay second)
+    , count = count
+    , today = todayDays
+    }
+
+
+test : Prepared -> Value -> Bool
+test p value =
     case value of
         VMissing ->
-            case operator of
+            case p.operator of
                 IsEmpty ->
                     True
 
                 IsNot ->
                     True
 
-                NotEquals ->
+                NotContains ->
                     True
 
-                NotContains ->
+                NotBetween ->
                     True
 
                 IsNoneOf ->
@@ -1756,28 +1962,25 @@ test today operator values value =
             let
                 normalized =
                     Search.normalize (String.trim text)
-
-                wanted =
-                    Search.normalize (String.trim first)
             in
-            case operator of
+            case p.operator of
                 Is ->
-                    normalized == wanted
+                    normalized == p.text
 
                 IsNot ->
-                    normalized /= wanted
+                    normalized /= p.text
 
                 Contains ->
-                    String.contains wanted normalized
+                    String.contains p.text normalized
 
                 NotContains ->
-                    not (String.contains wanted normalized)
+                    not (String.contains p.text normalized)
 
                 StartsWith ->
-                    String.startsWith wanted normalized
+                    String.startsWith p.text normalized
 
                 EndsWith ->
-                    String.endsWith wanted normalized
+                    String.endsWith p.text normalized
 
                 IsEmpty ->
                     normalized == ""
@@ -1789,7 +1992,11 @@ test today operator values value =
                     False
 
         VNumber number ->
-            case operator of
+            let
+                inside =
+                    p.bounds |> Maybe.map (\b -> number >= b.low && number <= b.high)
+            in
+            case p.operator of
                 IsNotEmpty ->
                     True
 
@@ -1797,24 +2004,22 @@ test today operator values value =
                     False
 
                 Between ->
-                    case ( parseNumber first, parseNumber second ) of
-                        ( Just low, Just high ) ->
-                            number >= min low high && number <= max low high
+                    inside |> Maybe.withDefault True
 
-                        _ ->
-                            True
+                NotBetween ->
+                    inside |> Maybe.map not |> Maybe.withDefault True
 
                 _ ->
-                    case parseNumber first of
+                    case p.number of
                         Nothing ->
                             True
 
                         Just operand ->
-                            case operator of
-                                Equals ->
+                            case p.operator of
+                                Is ->
                                     number == operand
 
-                                NotEquals ->
+                                IsNot ->
                                     number /= operand
 
                                 LessThan ->
@@ -1837,81 +2042,63 @@ test today operator values value =
                 days =
                     Date.toEpochDay date
 
-                todayDays =
-                    Date.toEpochDay today
+                within =
+                    p.days |> Maybe.map (\span -> days >= span.first && days <= span.last)
+
+                compared check =
+                    p.day |> Maybe.map check |> Maybe.withDefault True
             in
-            case operator of
+            case p.operator of
                 IsNotEmpty ->
                     True
 
                 IsEmpty ->
                     False
 
-                InLastDays ->
-                    case parseNumber first of
-                        Just n ->
-                            days <= todayDays && days >= todayDays - round n
+                Between ->
+                    within |> Maybe.withDefault True
 
-                        Nothing ->
-                            True
+                NotBetween ->
+                    within |> Maybe.map not |> Maybe.withDefault True
+
+                InLastDays ->
+                    within |> Maybe.withDefault True
 
                 InNextDays ->
-                    case parseNumber first of
-                        Just n ->
-                            days >= todayDays && days <= todayDays + round n
+                    within |> Maybe.withDefault True
 
-                        Nothing ->
-                            True
+                InPeriod ->
+                    within |> Maybe.withDefault True
 
-                Between ->
-                    case ( Date.fromIso first, Date.fromIso second ) of
-                        ( Just low, Just high ) ->
-                            let
-                                a =
-                                    Date.toEpochDay low
+                MoreThanDaysAgo ->
+                    p.count |> Maybe.map (\n -> days < p.today - n) |> Maybe.withDefault True
 
-                                b =
-                                    Date.toEpochDay high
-                            in
-                            days >= min a b && days <= max a b
+                MoreThanDaysAhead ->
+                    p.count |> Maybe.map (\n -> days > p.today + n) |> Maybe.withDefault True
 
-                        _ ->
-                            True
+                Is ->
+                    compared (\other -> days == other)
+
+                IsNot ->
+                    compared (\other -> days /= other)
+
+                Before ->
+                    compared (\other -> days < other)
+
+                After ->
+                    compared (\other -> days > other)
+
+                OnOrBefore ->
+                    compared (\other -> days <= other)
+
+                OnOrAfter ->
+                    compared (\other -> days >= other)
 
                 _ ->
-                    case Date.fromIso first of
-                        Nothing ->
-                            True
-
-                        Just operand ->
-                            let
-                                other =
-                                    Date.toEpochDay operand
-                            in
-                            case operator of
-                                Is ->
-                                    days == other
-
-                                IsNot ->
-                                    days /= other
-
-                                Before ->
-                                    days < other
-
-                                After ->
-                                    days > other
-
-                                OnOrBefore ->
-                                    days <= other
-
-                                OnOrAfter ->
-                                    days >= other
-
-                                _ ->
-                                    False
+                    False
 
         VBool flag ->
-            case operator of
+            case p.operator of
                 IsTrue ->
                     flag
 
@@ -1922,18 +2109,18 @@ test today operator values value =
                     False
 
         VChoice choice ->
-            case operator of
+            case p.operator of
                 Is ->
-                    choice == first
+                    choice == p.choice
 
                 IsNot ->
-                    choice /= first
+                    choice /= p.choice
 
                 IsAnyOf ->
-                    List.member choice values
+                    Set.member choice p.choices
 
                 IsNoneOf ->
-                    not (List.member choice values)
+                    not (Set.member choice p.choices)
 
                 IsEmpty ->
                     False
@@ -1953,43 +2140,50 @@ test today operator values value =
 of the group or condition, and a `message` in the language of the locale given
 to `validate`.
 -}
-type alias Issue =
+type alias Problem =
     { nodeId : Int
     , message : String
     }
 
 
 {-| What is wrong with the rule, for showing next to the nodes that have a
-problem. An empty list means that the rule is fine.
+problem, in the order of the tree. An empty list means that the rule is fine.
 
   - A condition on a field that is not in the list ("Choose a field").
   - An operator that does not fit the field.
   - An operand that is missing or cannot be read: not a number, not a date, not
-    a number of days.
-  - A `Between` whose ends are the wrong way round.
+    a whole number of days, not a period.
+  - A choice that is no longer among the choices of the field (a saved rule
+    can outlive a choice).
+  - A `Between` or `NotBetween` whose ends are the wrong way round.
   - A group with nothing in it. The root group may be empty.
 
-A node has at most one issue. The messages follow the locale.
+A node has at most one problem. The messages follow the locale.
 
     Rule.validate Locale.en fields rule
     -- [ { nodeId = 2, message = "Enter a valid number" } ]
 
 -}
-validate : Locale -> List (Field row) -> Rule -> List Issue
+validate : Locale -> List (Field row) -> Rule -> List Problem
 validate locale fields rule =
+    validateNode locale fields True rule
+
+
+validateNode : Locale -> List (Field row) -> Bool -> Rule -> List Problem
+validateNode locale fields isRoot rule =
     let
         pick nb en =
             Locale.pick locale { nb = nb, en = en }
     in
     case rule of
         GroupRule group ->
-            (if List.isEmpty group.children && group.id /= 0 then
+            (if List.isEmpty group.children && not isRoot then
                 [ { nodeId = group.id, message = pick "Gruppen er tom" "The group is empty" } ]
 
              else
                 []
             )
-                ++ List.concatMap (validate locale fields) group.children
+                ++ List.concatMap (validateNode locale fields False) group.children
 
         ConditionRule condition ->
             case fieldById fields condition.field of
@@ -1997,58 +2191,103 @@ validate locale fields rule =
                     [ { nodeId = condition.id, message = pick "Velg et felt" "Choose a field" } ]
 
                 Just field ->
-                    if not (fitsField field condition) then
-                        [ { nodeId = condition.id, message = pick "Betingelsen passer ikke til feltet" "The operator does not fit the field" } ]
+                    case conditionProblem locale field condition of
+                        Just message ->
+                            [ { nodeId = condition.id, message = message } ]
 
-                    else if isComplete field condition then
-                        case ( condition.operator, fieldKind field ) of
-                            ( Between, NumberKind ) ->
-                                case List.map parseNumber (List.take 2 condition.values) of
-                                    [ Just low, Just high ] ->
-                                        if low > high then
-                                            [ { nodeId = condition.id, message = pick "Fra-verdien kan ikke være større enn til-verdien" "The first value must not be larger than the second" } ]
+                        Nothing ->
+                            []
 
-                                        else
-                                            []
 
-                                    _ ->
-                                        []
+conditionProblem : Locale -> Field row -> Condition -> Maybe String
+conditionProblem locale field condition =
+    let
+        pick nb en =
+            Locale.pick locale { nb = nb, en = en }
 
-                            ( Between, DateKind ) ->
-                                case List.map Date.fromIso (List.take 2 condition.values) of
-                                    [ Just low, Just high ] ->
-                                        if Date.compare low high == GT then
-                                            [ { nodeId = condition.id, message = pick "Fra-datoen kan ikke være etter til-datoen" "The start date must not be after the end date" } ]
+        isRange =
+            condition.operator == Between || condition.operator == NotBetween
+    in
+    if not (fitsField field condition) then
+        Just (pick "Betingelsen passer ikke til feltet" "The operator does not fit the field")
 
-                                        else
-                                            []
+    else if isComplete field condition then
+        case fieldKind field of
+            NumberKind ->
+                case List.map parseNumber (List.take 2 condition.values) of
+                    [ Just low, Just high ] ->
+                        if isRange && low > high then
+                            Just (pick "Fra-verdien kan ikke være større enn til-verdien" "The first value must not be larger than the second")
 
-                                    _ ->
-                                        []
+                        else
+                            Nothing
 
-                            _ ->
-                                []
+                    _ ->
+                        Nothing
+
+            DateKind ->
+                case List.map Date.fromIso (List.take 2 condition.values) of
+                    [ Just low, Just high ] ->
+                        if isRange && Date.compare low high == GT then
+                            Just (pick "Fra-datoen kan ikke være etter til-datoen" "The start date must not be after the end date")
+
+                        else
+                            Nothing
+
+                    _ ->
+                        Nothing
+
+            ChoiceKind choices ->
+                if List.all (\value -> List.any (\choice -> choice.value == value) choices) (usedOperands condition) then
+                    Nothing
+
+                else
+                    Just (pick "Verdien finnes ikke lenger, velg en annen" "The value is no longer available, choose another")
+
+            _ ->
+                Nothing
+
+    else
+        Just
+            (case fieldKind field of
+                NumberKind ->
+                    pick "Skriv inn et gyldig tall" "Enter a valid number"
+
+                DateKind ->
+                    if isDayCount condition.operator then
+                        pick "Skriv inn et helt antall dager" "Enter a whole number of days"
+
+                    else if condition.operator == InPeriod then
+                        pick "Velg en periode" "Choose a period"
 
                     else
-                        [ { nodeId = condition.id
-                          , message =
-                                case ( fieldKind field, condition.operator ) of
-                                    ( NumberKind, _ ) ->
-                                        pick "Skriv inn et gyldig tall" "Enter a valid number"
+                        pick "Velg en gyldig dato" "Choose a valid date"
 
-                                    ( DateKind, InLastDays ) ->
-                                        pick "Skriv inn et antall dager" "Enter a number of days"
+                ChoiceKind _ ->
+                    pick "Velg en verdi" "Choose a value"
 
-                                    ( DateKind, InNextDays ) ->
-                                        pick "Skriv inn et antall dager" "Enter a number of days"
+                _ ->
+                    pick "Mangler verdi" "A value is missing"
+            )
 
-                                    ( DateKind, _ ) ->
-                                        pick "Velg en gyldig dato" "Choose a valid date"
 
-                                    _ ->
-                                        pick "Mangler verdi" "A value is missing"
-                          }
-                        ]
+{-| The operands the operator of a condition reads: none, the first, the first
+two, or every one that is not blank.
+-}
+usedOperands : Condition -> List String
+usedOperands condition =
+    case operandsOf condition.operator of
+        NoOperand ->
+            []
+
+        OneOperand ->
+            List.take 1 condition.values
+
+        TwoOperands ->
+            List.take 2 condition.values
+
+        ManyOperands ->
+            List.filter (\value -> String.trim value /= "") condition.values
 
 
 
@@ -2128,29 +2367,42 @@ describeNode locale fields isRoot rule =
 describeCondition : Locale -> Field row -> Condition -> String
 describeCondition locale field condition =
     let
-        days =
+        first =
             condition.values |> List.head |> Maybe.withDefault ""
 
         pick nb en =
             Locale.pick locale { nb = nb, en = en }
 
         -- "1 day", "30 days"
-        unit =
-            if parseNumber days == Just 1 then
-                pick " dag" " day"
+        days =
+            case dayCount first of
+                Just 1 ->
+                    pick "1 dag" "1 day"
 
-            else
-                pick " dager" " days"
+                Just n ->
+                    Format.int locale n ++ pick " dager" " days"
+
+                Nothing ->
+                    first
+
+        label =
+            fieldLabel field
     in
     case condition.operator of
         InLastDays ->
-            fieldLabel field ++ " " ++ pick "siste " "in the last " ++ days ++ unit
+            label ++ pick " siste " " in the last " ++ days
 
         InNextDays ->
-            fieldLabel field ++ " " ++ pick "neste " "in the next " ++ days ++ unit
+            label ++ pick " neste " " in the next " ++ days
+
+        MoreThanDaysAgo ->
+            label ++ pick " for mer enn " " more than " ++ days ++ pick " siden" " ago"
+
+        MoreThanDaysAhead ->
+            label ++ pick " om mer enn " " in more than " ++ days
 
         _ ->
-            fieldLabel field ++ " " ++ operatorLabel locale (fieldKind field) condition.operator ++ operandText locale field condition
+            label ++ " " ++ operatorLabel locale (fieldKind field) condition.operator ++ operandText locale field condition
 
 
 {-| Puts a text in the quotation marks of the locale: “Ada” for `Locale.en`, «Ada»
@@ -2159,6 +2411,35 @@ for `Locale.nb`. `describe` uses it for the operands of text fields.
 quote : Locale -> String -> String
 quote locale text =
     Locale.pick locale { nb = "«" ++ text ++ "»", en = "“" ++ text ++ "”" }
+
+
+{-| A number operand as it was read, in the format of the locale: "1 234,5" is
+"1,234.5" in English. The user sees how the rule understood what was typed.
+-}
+numberWords : Locale -> String -> String
+numberWords locale text =
+    case parseNumber text of
+        Just number ->
+            let
+                plain =
+                    String.fromFloat number
+
+                decimals =
+                    case String.split "." plain of
+                        [ _, fraction ] ->
+                            String.length fraction
+
+                        _ ->
+                            0
+            in
+            if String.contains "e" plain then
+                String.trim text
+
+            else
+                Format.decimal locale (min 20 decimals) number
+
+        Nothing ->
+            text
 
 
 operandText : Locale -> Field row -> Condition -> String
@@ -2174,9 +2455,16 @@ operandText locale field condition =
                         |> Maybe.withDefault value
 
                 DateKind ->
-                    Date.fromIso value
-                        |> Maybe.map (Format.date locale)
-                        |> Maybe.withDefault value
+                    if condition.operator == InPeriod then
+                        Vocabulary.periodLabel locale value
+
+                    else
+                        Date.fromIso value
+                            |> Maybe.map (Format.date locale)
+                            |> Maybe.withDefault value
+
+                NumberKind ->
+                    numberWords locale value
 
                 _ ->
                     value
@@ -2212,8 +2500,136 @@ operandText locale field condition =
 -- JSON
 
 
+{-| The rule as a server should get it: only what `matches` uses, with every
+operand in one form. Conditions that are not complete or are on unknown fields
+are left out, and so are groups with nothing left; numbers are written plainly
+("1 234,5" becomes "1234.5"), the ends of `Between` and `NotBetween` low first,
+text trimmed, choices sorted and without repeats, and only the operands the
+operator reads are kept. The root is a group, numbered 0, 1, 2 ... from the top
+down. `matches` gives the same rows for the settled rule as for the rule itself.
+
+    Rule.settled fields rule |> Rule.encode
+
+Send it with the rule that the user sees kept as it is: `settled` is for the
+server, not for the editor (rule 7 of the library: what the user typed stays).
+
+-}
+settled : List (Field row) -> Rule -> Rule
+settled fields rule =
+    let
+        children =
+            case rule of
+                GroupRule group ->
+                    if group.negated then
+                        settleNode fields rule |> Maybe.map List.singleton |> Maybe.withDefault []
+
+                    else
+                        List.filterMap (settleNode fields) group.children
+
+                ConditionRule _ ->
+                    settleNode fields rule |> Maybe.map List.singleton |> Maybe.withDefault []
+
+        combinator =
+            case rule of
+                GroupRule group ->
+                    if group.negated then
+                        All
+
+                    else
+                        group.combinator
+
+                ConditionRule _ ->
+                    All
+    in
+    numbered (GroupRule { id = 0, combinator = combinator, negated = False, children = children })
+
+
+settleNode : List (Field row) -> Rule -> Maybe Rule
+settleNode fields rule =
+    case rule of
+        ConditionRule condition ->
+            fieldById fields condition.field
+                |> Maybe.andThen
+                    (\field ->
+                        if isComplete field condition then
+                            Just (ConditionRule { condition | values = settledValues (fieldKind field) condition })
+
+                        else
+                            Nothing
+                    )
+
+        GroupRule group ->
+            case List.filterMap (settleNode fields) group.children of
+                [] ->
+                    Nothing
+
+                children ->
+                    Just (GroupRule { group | children = children })
+
+
+settledValues : FieldKind -> Condition -> List String
+settledValues kind condition =
+    let
+        one text =
+            case kind of
+                NumberKind ->
+                    parseNumber text |> Maybe.map String.fromFloat |> Maybe.withDefault text
+
+                DateKind ->
+                    if isDayCount condition.operator then
+                        dayCount text |> Maybe.map String.fromInt |> Maybe.withDefault text
+
+                    else
+                        Date.fromIso text |> Maybe.map Date.toIso |> Maybe.withDefault text
+
+                _ ->
+                    String.trim text
+
+        lowFirst values =
+            case ( kind, values ) of
+                ( NumberKind, [ a, b ] ) ->
+                    case ( parseNumber a, parseNumber b ) of
+                        ( Just x, Just y ) ->
+                            if x > y then
+                                [ b, a ]
+
+                            else
+                                values
+
+                        _ ->
+                            values
+
+                ( DateKind, [ a, b ] ) ->
+                    if a > b then
+                        [ b, a ]
+
+                    else
+                        values
+
+                _ ->
+                    values
+    in
+    case operandsOf condition.operator of
+        NoOperand ->
+            []
+
+        OneOperand ->
+            List.take 1 condition.values |> List.map one
+
+        TwoOperands ->
+            List.take 2 condition.values |> List.map one |> lowFirst
+
+        ManyOperands ->
+            condition.values
+                |> List.filter (\value -> String.trim value /= "")
+                |> List.map one
+                |> Set.fromList
+                |> Set.toList
+
+
 {-| The rule as JSON, for storing it or sending it to a backend. The ids of the
-nodes are not written; `decoder` gives the nodes new ones.
+nodes are not written; `decoder` gives the nodes new ones. For a server that
+filters, encode the `settled` rule.
 
     Encode.encode 0 (Rule.encode rule)
     -- {"type":"group","combinator":"all","not":false,"children":[
@@ -2225,9 +2641,11 @@ boolean) and `children`. A condition has a `type` ("condition"), a `field`, an
 `operator` and `values` (a list of texts).
 
 The operator is written as a short key. For most operators it is the name of the
-constructor with a lowercase first letter: "isNot", "startsWith", "onOrBefore",
-"inLastDays". The others are "eq", "neq", "lt", "lte", "gt" and "gte" (the number
-comparisons), "anyOf" and "noneOf", "empty" and "notEmpty", "true" and "false".
+constructor with a lowercase first letter: "is", "isNot", "startsWith",
+"notBetween", "onOrBefore", "inLastDays", "moreThanDaysAgo", "inPeriod". The
+others are "lt", "lte", "gt" and "gte" (the number comparisons), "anyOf" and
+"noneOf", "empty" and "notEmpty", "true" and "false". Equality is "is" and
+"isNot" for numbers too.
 
 -}
 encode : Rule -> Encode.Value
@@ -2264,8 +2682,10 @@ fresh id: 0 for the root, then counting up from the top down.
 
     Decode.decodeString Rule.decoder text
 
-`not` may be left out of a group (meaning false), and a `combinator` other than
-"any" is read as "all". An unknown `type` or operator makes the decoder fail.
+`not` may be left out of a group (meaning false), `values` may be left out of a
+condition (meaning none), and a `combinator` other than "any" is read as "all".
+The keys "eq" and "neq" of earlier versions are read as `Is` and `IsNot`. An
+unknown `type` or operator makes the decoder fail.
 
 Groups nested more than 32 deep are refused (nobody writes that, and it keeps a
 hostile text from running the decoder out of stack). Check a limit of your own
@@ -2322,8 +2742,25 @@ ruleDecoder levels =
                                                 Decode.fail ("Unknown operator: " ++ key)
                                     )
                             )
-                            (Decode.field "values" (Decode.list Decode.string))
+                            valuesDecoder
 
                     other ->
                         Decode.fail ("Unknown rule type: " ++ other)
+            )
+
+
+{-| The operands of a condition. They may be left out (an operator without
+operands, JSON written by hand), but when they are there they must be texts.
+-}
+valuesDecoder : Decoder (List String)
+valuesDecoder =
+    Decode.maybe (Decode.field "values" Decode.value)
+        |> Decode.andThen
+            (\present ->
+                case present of
+                    Just _ ->
+                        Decode.field "values" (Decode.oneOf [ Decode.null [], Decode.list Decode.string ])
+
+                    Nothing ->
+                        Decode.succeed []
             )

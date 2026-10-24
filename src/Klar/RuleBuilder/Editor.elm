@@ -7,7 +7,6 @@ module Klar.RuleBuilder.Editor exposing
     , anyOpen
     , chipParts
     , emptyControls
-    , extraIssues
     , fieldDomId
     , focusDomId
     , hasValueEditor
@@ -27,12 +26,13 @@ condition) and `Klar.FilterBar` (a small form in a popover): the field picker,
 the operator picker and the value editors, which depend on the kind of field
 and the operator.
 
-    field                -> searchable select, grouped by `Field.group`
-    operator             -> select with `Rule.operatorsFor kind`
+    field                -> searchable select, grouped by `Rule.inGroup`
+    operator             -> select with `Rule.fieldOperators field`
     text                 -> text input
     number               -> text input with decimal handling, two for "between"
     date                 -> date picker (ISO `YYYY-MM-DD` operand), two for "between"
-    date, last/next N    -> number input ("days")
+    date, relative days  -> number input ("days")
+    date, in a period    -> select of the periods
     choice               -> searchable select
     choice, any/none of  -> multi select
     boolean, empty ops   -> nothing
@@ -61,7 +61,8 @@ import Klar.Format as Format
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.MultiSelect as MultiSelect
-import Klar.Rule as Rule exposing (Condition, Field, FieldKind(..), Operands(..), Operator(..), Rule(..))
+import Klar.Rule as Rule exposing (Condition, Field, FieldKind, Operands(..), Operator(..), Rule(..))
+import Klar.Rule.Vocabulary as Vocabulary exposing (FieldKind(..))
 import Klar.RuleBuilder.Support as Support exposing (Info, findCondition, replaceCondition, stub)
 import Klar.Select as Select
 import Klar.TextInput as TextInput
@@ -73,13 +74,14 @@ import Set exposing (Set)
 
 
 {-| The states of the pickers inside the editor: selects keyed by
-`( node id, role )` (role `"field"`, `"op"`, `"v0"`, `"v1"`), multi selects
-by node id, date pickers by `( node id, operand index )`.
+`( node id, role )` (role `"field"`, `"v0"`, `"v1"`), operator selects, multi
+selects by node id, date pickers by `( node id, operand index )`.
 -}
 type Controls
     = Controls
         { prefix : String
         , selects : Dict ( Int, String ) (Select.State String)
+        , operators : Dict Int (Select.State Operator)
         , multis : Dict Int (MultiSelect.State String)
         , dates : Dict ( Int, Int ) DatePicker.State
         }
@@ -90,7 +92,7 @@ the page (use the DOM id of the component).
 -}
 emptyControls : String -> Controls
 emptyControls prefix =
-    Controls { prefix = prefix, selects = Dict.empty, multis = Dict.empty, dates = Dict.empty }
+    Controls { prefix = prefix, selects = Dict.empty, operators = Dict.empty, multis = Dict.empty, dates = Dict.empty }
 
 
 resetControls : Controls -> Controls
@@ -105,6 +107,7 @@ prune live (Controls c) =
     Controls
         { c
             | selects = Dict.filter (\( node, _ ) _ -> Set.member node live) c.selects
+            , operators = Dict.filter (\node _ -> Set.member node live) c.operators
             , multis = Dict.filter (\node _ -> Set.member node live) c.multis
             , dates = Dict.filter (\( node, _ ) _ -> Set.member node live) c.dates
         }
@@ -115,6 +118,7 @@ prune live (Controls c) =
 anyOpen : Controls -> Bool
 anyOpen (Controls c) =
     List.any Select.isOpen (Dict.values c.selects)
+        || List.any Select.isOpen (Dict.values c.operators)
         || List.any MultiSelect.isOpen (Dict.values c.multis)
         || List.any DatePicker.isOpen (Dict.values c.dates)
 
@@ -125,7 +129,7 @@ dropValues : Int -> Controls -> Controls
 dropValues node (Controls c) =
     Controls
         { c
-            | selects = Dict.filter (\( owner, role ) _ -> owner /= node || role == "field" || role == "op") c.selects
+            | selects = Dict.filter (\( owner, role ) _ -> owner /= node || role == "field") c.selects
             , multis = Dict.remove node c.multis
             , dates = Dict.filter (\( owner, _ ) _ -> owner /= node) c.dates
         }
@@ -134,6 +138,21 @@ dropValues node (Controls c) =
 selectState : Controls -> Int -> String -> String -> Select.State String
 selectState (Controls c) node role domId =
     Dict.get ( node, role ) c.selects |> Maybe.withDefault (Select.init domId)
+
+
+{-| The operator picker of a node, showing the operator of the rule.
+-}
+operatorState : Controls -> Int -> Operator -> Select.State Operator
+operatorState (Controls c) node operator =
+    let
+        state =
+            Dict.get node c.operators |> Maybe.withDefault (Select.init (operatorDomId c.prefix node))
+    in
+    if Select.value state == Just operator then
+        state
+
+    else
+        Select.setValue operator state
 
 
 syncSelect : String -> Select.State String -> Select.State String
@@ -225,7 +244,7 @@ focusDomId prefix fields condition =
 
 type Msg
     = FieldMsg Int (List ( String, Info )) (Select.Msg String)
-    | OperatorMsg Int FieldKind (Select.Msg String)
+    | OperatorMsg Int FieldKind (Select.Msg Operator)
     | ChoiceMsg Int Int (Select.Msg String)
     | ManyMsg Int (MultiSelect.Msg String)
     | ValueTyped Int Int String
@@ -304,19 +323,23 @@ update msg rule ((Controls c) as controls) =
                     condition node |> Maybe.map .operator
 
                 before =
-                    selectState controls node "op" (operatorDomId c.prefix node)
-                        |> syncSelect (current |> Maybe.map operatorKey |> Maybe.withDefault "")
+                    case current of
+                        Just operator ->
+                            operatorState controls node operator
+
+                        Nothing ->
+                            Dict.get node c.operators |> Maybe.withDefault (Select.init (operatorDomId c.prefix node))
 
                 ( after, cmd ) =
                     Select.update inner before
 
                 stored =
-                    Controls { c | selects = Dict.insert ( node, "op" ) after c.selects }
+                    Controls { c | operators = Dict.insert node after c.operators }
 
                 unchanged =
                     { rule = rule, controls = stored, cmd = Cmd.map (OperatorMsg node kind) cmd, touched = Nothing }
             in
-            case ( Select.value after |> Maybe.andThen operatorFromKey, current ) of
+            case ( Select.value after, current ) of
                 ( Just picked, Just old ) ->
                     if picked /= old then
                         let
@@ -619,33 +642,35 @@ viewOperator settings condition =
                     operators =
                         Rule.fieldOperators field
 
+                    kind =
+                        Rule.fieldKind field
+
                     stray =
                         if List.member condition.operator operators then
                             []
 
                         else
-                            [ Select.option (operatorKey condition.operator) (Rule.operatorLabel settings.locale (Rule.fieldKind field) condition.operator)
+                            [ Select.option condition.operator (Rule.operatorLabel settings.locale kind condition.operator)
                                 |> Select.disabledOption
                             ]
 
                     state =
-                        selectState settings.controls condition.id "op" domId
-                            |> syncSelect (operatorKey condition.operator)
+                        operatorState settings.controls condition.id condition.operator
                 in
-                Select.view (\inner -> settings.toMsg (OperatorMsg condition.id (Rule.fieldKind field) inner))
+                Select.view (\inner -> settings.toMsg (OperatorMsg condition.id kind inner))
                     [ Select.label t.operator
                     , Select.labelHidden
                     , Select.options
                         (stray
                             ++ List.map
                                 (\operator ->
-                                    Select.option (operatorKey operator) (Rule.operatorLabel settings.locale (Rule.fieldKind field) operator)
-                                        |> Select.withKeywords (operatorWords settings.locale operator)
+                                    Select.option operator (Rule.operatorLabel settings.locale kind operator)
+                                        |> Select.withKeywords (operatorWords settings.locale kind operator)
                                 )
                                 operators
                         )
                     , Select.searchPlaceholder t.searchOperator
-                    , Select.visibleRows 11
+                    , Select.visibleRows 12
                     , Select.locale settings.locale
                     , Select.errorMaybe (issueFor BlameOperator settings condition)
                     ]
@@ -728,6 +753,9 @@ viewInput settings condition index label input =
 
         DateIn ->
             viewDate settings condition index label value
+
+        PeriodIn ->
+            viewChoice settings condition index label value (periodChoices settings.locale)
 
         ChoiceIn choices ->
             viewChoice settings condition index label value choices
@@ -873,7 +901,20 @@ type Input
     | NumberIn
     | DaysIn
     | DateIn
+    | PeriodIn
     | ChoiceIn (List Rule.Choice)
+
+
+periodChoices : Locale -> List Rule.Choice
+periodChoices locale =
+    List.map (\key -> { value = key, label = Vocabulary.periodLabel locale key }) Vocabulary.periodKeys
+
+
+{-| The operators whose operand is a number of days.
+-}
+isDays : Operator -> Bool
+isDays operator =
+    operator == InLastDays || operator == InNextDays || operator == MoreThanDaysAgo || operator == MoreThanDaysAhead
 
 
 shapeOf : FieldKind -> Operator -> Shape
@@ -907,8 +948,11 @@ inputFor kind operator =
             NumberIn
 
         DateKind ->
-            if operator == InLastDays || operator == InNextDays then
+            if isDays operator then
                 DaysIn
+
+            else if operator == InPeriod then
+                PeriodIn
 
             else
                 DateIn
@@ -950,6 +994,9 @@ inputKey shape =
                 DateIn ->
                     "date"
 
+                PeriodIn ->
+                    "period"
+
                 ChoiceIn _ ->
                     "choice"
     in
@@ -971,112 +1018,29 @@ inputKey shape =
 -- OPERATORS
 
 
-allOperators : List Operator
-allOperators =
-    [ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, Equals, NotEquals, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, Between, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
-
-
-{-| The option value of an operator in the operator picker.
--}
-operatorKey : Operator -> String
-operatorKey operator =
-    case operator of
-        Is ->
-            "is"
-
-        IsNot ->
-            "isNot"
-
-        Contains ->
-            "contains"
-
-        NotContains ->
-            "notContains"
-
-        StartsWith ->
-            "startsWith"
-
-        EndsWith ->
-            "endsWith"
-
-        Equals ->
-            "eq"
-
-        NotEquals ->
-            "neq"
-
-        LessThan ->
-            "lt"
-
-        LessOrEqual ->
-            "lte"
-
-        GreaterThan ->
-            "gt"
-
-        GreaterOrEqual ->
-            "gte"
-
-        Between ->
-            "between"
-
-        Before ->
-            "before"
-
-        After ->
-            "after"
-
-        OnOrBefore ->
-            "onOrBefore"
-
-        OnOrAfter ->
-            "onOrAfter"
-
-        InLastDays ->
-            "inLastDays"
-
-        InNextDays ->
-            "inNextDays"
-
-        IsAnyOf ->
-            "anyOf"
-
-        IsNoneOf ->
-            "noneOf"
-
-        IsEmpty ->
-            "empty"
-
-        IsNotEmpty ->
-            "notEmpty"
-
-        IsTrue ->
-            "true"
-
-        IsFalse ->
-            "false"
-
-
-operatorFromKey : String -> Maybe Operator
-operatorFromKey key =
-    allOperators |> List.filter (\operator -> operatorKey operator == key) |> List.head
-
-
 {-| Words that find the symbolic operators in the picker's search box
-("greater" finds ">").
+("greater" finds ">", "equals" finds "=").
 -}
-operatorWords : Locale -> Operator -> List String
-operatorWords locale operator =
+operatorWords : Locale -> FieldKind -> Operator -> List String
+operatorWords locale kind operator =
     let
         pick nb en =
             Locale.pick locale { nb = nb, en = en }
     in
     case operator of
-        Equals ->
-            pick [ "lik", "er lik" ] [ "equals" ]
+        Is ->
+            if kind == NumberKind then
+                pick [ "lik", "er lik" ] [ "equals", "is" ]
 
-        NotEquals ->
-            pick [ "ulik", "ikke lik" ] [ "not equal" ]
+            else
+                []
+
+        IsNot ->
+            if kind == NumberKind then
+                pick [ "ulik", "ikke lik" ] [ "not equal", "is not" ]
+
+            else
+                []
 
         LessThan ->
             pick [ "mindre enn" ] [ "less than" ]
@@ -1125,8 +1089,8 @@ chipParts locale fields condition =
                 values =
                     List.filter (\value -> String.trim value /= "") condition.values
 
-                isDays =
-                    condition.operator == InLastDays || condition.operator == InNextDays
+                relative =
+                    isDays condition.operator
 
                 labelOf value =
                     case Rule.fieldKind field of
@@ -1138,11 +1102,17 @@ chipParts locale fields condition =
                                 |> Maybe.withDefault value
 
                         DateKind ->
-                            if isDays then
+                            if relative then
                                 value
+
+                            else if condition.operator == InPeriod then
+                                Vocabulary.periodLabel locale value
 
                             else
                                 Date.fromIso value |> Maybe.map (Format.date locale) |> Maybe.withDefault value
+
+                        NumberKind ->
+                            numberAsRead locale value
 
                         TextKind ->
                             Rule.quote locale value
@@ -1154,9 +1124,9 @@ chipParts locale fields condition =
                     List.head condition.values |> Maybe.withDefault ""
 
                 ( operatorText, short, long ) =
-                    if isDays then
+                    if relative then
                         let
-                            words =
+                            count =
                                 if String.trim first == "" then
                                     "…"
 
@@ -1165,12 +1135,26 @@ chipParts locale fields condition =
 
                                 else
                                     first ++ " " ++ t.days
-                        in
-                        ( if condition.operator == InLastDays then
-                            t.last
 
-                          else
-                            t.next
+                            words =
+                                if condition.operator == MoreThanDaysAgo then
+                                    t.ago count
+
+                                else
+                                    count
+                        in
+                        ( case condition.operator of
+                            InLastDays ->
+                                t.last
+
+                            InNextDays ->
+                                t.next
+
+                            MoreThanDaysAgo ->
+                                t.moreThan
+
+                            _ ->
+                                t.inMoreThan
                         , words
                         , words
                         )
@@ -1261,32 +1245,34 @@ valueAt node index rule =
         |> Maybe.withDefault ""
 
 
-{-| Problems `Rule.validate` does not look for, or describes too loosely: an
-operator that does not belong to the field (from hand-written or old JSON),
-and "in the last / next N days" without a number (it asks for a number of
-days, not a date). They come first, so they win over `Rule.validate`'s message
-for the same node.
+{-| A number operand as it was read, in the format of the locale ("1 234,5" is
+"1,234.5" in English), so that a chip shows how the rule understood it. Text that
+is not a number stays as it is.
 -}
-extraIssues : Locale -> List (Field row) -> Rule -> List Rule.Issue
-extraIssues locale fields rule =
-    case rule of
-        GroupRule group ->
-            List.concatMap (extraIssues locale fields) group.children
+numberAsRead : Locale -> String -> String
+numberAsRead locale text =
+    case Rule.parseNumber text of
+        Just number ->
+            let
+                plain =
+                    String.fromFloat number
 
-        ConditionRule condition ->
-            case Rule.fieldById fields condition.field of
-                Just field ->
-                    if not (List.member condition.operator (Rule.fieldOperators field)) then
-                        [ { nodeId = condition.id, message = (texts locale).invalidOperator } ]
+                decimals =
+                    case String.split "." plain of
+                        [ _, fraction ] ->
+                            String.length fraction
 
-                    else if shapeOf (Rule.fieldKind field) condition.operator == Single DaysIn && not (Rule.isComplete field condition) then
-                        [ { nodeId = condition.id, message = (texts locale).invalidDays } ]
+                        _ ->
+                            0
+            in
+            if String.contains "e" plain then
+                String.trim text
 
-                    else
-                        []
+            else
+                Format.decimal locale (min 20 decimals) number
 
-                Nothing ->
-                    []
+        Nothing ->
+            text
 
 
 
@@ -1310,12 +1296,13 @@ type alias Texts =
     , chooseValues : String
     , unknownField : String
     , noField : String
-    , invalidOperator : String
-    , invalidDays : String
     , textPlaceholder : String
     , numberPlaceholder : String
     , last : String
     , next : String
+    , moreThan : String
+    , inMoreThan : String
+    , ago : String -> String
     , more : Int -> String
     }
 
@@ -1340,12 +1327,13 @@ texts locale =
             , chooseValues = "Velg verdier ..."
             , unknownField = "Ukjent felt"
             , noField = "Uten felt"
-            , invalidOperator = "Betingelsen passer ikke til feltet"
-            , invalidDays = "Skriv inn et antall dager"
             , textPlaceholder = "Tekst"
             , numberPlaceholder = "Tall"
             , last = "siste"
             , next = "neste"
+            , moreThan = "for mer enn"
+            , inMoreThan = "om mer enn"
+            , ago = \count -> count ++ " siden"
             , more = \n -> "+" ++ String.fromInt n
             }
         , en =
@@ -1365,12 +1353,13 @@ texts locale =
             , chooseValues = "Choose values ..."
             , unknownField = "Unknown field"
             , noField = "No field"
-            , invalidOperator = "The operator does not fit the field"
-            , invalidDays = "Enter a number of days"
             , textPlaceholder = "Text"
             , numberPlaceholder = "Number"
             , last = "in the last"
             , next = "in the next"
+            , moreThan = "more than"
+            , inMoreThan = "in more than"
+            , ago = \count -> count ++ " ago"
             , more = \n -> "+" ++ String.fromInt n
             }
         }
