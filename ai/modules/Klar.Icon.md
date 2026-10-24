@@ -317,6 +317,9 @@ An icon that carries meaning on its own: it gets an accessible name.
 
     Icon.labelled "Overdue" Icon.warning
 
+A blank label is no name: the icon is then drawn as a decorative one (`view`), not as
+an image without a name.
+
 ## Your own icons
 
 ### `fromSvg`
@@ -334,9 +337,11 @@ text color):
         Icon.fromSvg "invoice"
             "<path d='M6 2h9l5 5v15H6z'/><path d='M9 13h8M9 17h8'/>"
 
-Use single quotes inside the markup. The icons of this library are made the same
-way, with a 2 pixel stroke and round ends and corners (`stroke-width`,
-`stroke-linecap` and `stroke-linejoin` are set for you), so yours will fit in.
+Use single quotes inside the markup (double quotes are turned into single ones). The
+markup may span several lines: line breaks and tabs are spaces in SVG, and they are
+written as spaces. The icons of this library are made the same way, with a 2 pixel
+stroke and round ends and corners (`stroke-width`, `stroke-linecap` and
+`stroke-linejoin` are set for you), so yours will fit in.
 
 ### `custom`
 
@@ -362,7 +367,8 @@ when you can: it needs no stylesheet.
 name : Icon -> String
 ```
 
-The name of an icon. The class of an icon is `klar-icon--<name>`.
+The name of an icon, as it was given. The class of an icon is `klar-icon--<name>`,
+with every character other than a letter, a digit, `-` and `_` written as `-`.
 
     Icon.name Icon.chevronDown --> "chevron-down"
 

@@ -29,12 +29,32 @@ with `headingLevel`, so that the title fits the outline of the page (see
 the body, for tables and lists that go edge to edge; `accent`, `sunken` and
 `raised` change the look.
 
+A card with an `id` and a title is a named region: its title is what a screen reader
+says for it, so a person can jump from card to card on a dashboard.
+
 A card that shows one piece of remote data takes its body from
 [Klar.RemoteView](Klar-RemoteView): the loading skeleton, the failure with a
-retry, and old or refreshing data, without a `case` of your own.
+retry, and old or refreshing data, without a `case` of your own. Give the body an
+`id` and move focus to it when the retry starts, because the "Try again" button that
+had the focus is replaced by the skeleton:
 
+    -- view
     Card.view [ Card.title "Order 1042" ]
-        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+        (RemoteView.view
+            [ RemoteView.id "order-body"
+            , RemoteView.onRetry ReloadOrder
+            , RemoteView.settings model.settings
+            , RemoteView.locale (Settings.locale model.settings)
+            ]
+            model.order
+            viewOrder
+        )
+
+    -- update
+    ReloadOrder ->
+        ( { model | order = Remote.refresh model.order }
+        , Cmd.batch [ fetchOrder, Klar.focus "order-body" NoOp ]
+        )
 
 
 # View
@@ -125,7 +145,8 @@ headingLevel level =
     Attribute (\config -> { config | headingLevel = clamp 1 6 level })
 
 
-{-| A smaller line under the title, such as a period or a count.
+{-| A smaller line under the title, such as a period or a count. An empty text is no
+subtitle.
 -}
 subtitle : String -> Attribute msg
 subtitle value =
@@ -183,7 +204,8 @@ accent value =
     Attribute (\config -> { config | accent = Just value })
 
 
-{-| The DOM id of the card.
+{-| The DOM id of the card. With a title, it also makes the card a named region: the
+title gets the id `<id>-title` and the card points at it with `aria-labelledby`.
 -}
 id : String -> Attribute msg
 id value =
@@ -206,8 +228,20 @@ view attributes children =
         titleText =
             Maybe.andThen Internal.nonEmpty config.title
 
+        subtitleText =
+            Maybe.andThen Internal.nonEmpty config.subtitle
+
         hasHeader =
-            titleText /= Nothing || config.subtitle /= Nothing || not (List.isEmpty config.actions)
+            titleText /= Nothing || subtitleText /= Nothing || not (List.isEmpty config.actions)
+
+        -- A section is a region landmark only when it has a name: the title, by its id.
+        titleId =
+            case ( config.id, titleText ) of
+                ( Just cardId, Just _ ) ->
+                    Just (cardId ++ "-title")
+
+                _ ->
+                    Nothing
     in
     Html.section
         [ Internal.cls
@@ -235,12 +269,19 @@ view attributes children =
                     ""
             ]
         , Internal.attrMaybe Attr.id config.id
+        , Internal.attrMaybe (Attr.attribute "aria-labelledby") titleId
         ]
         [ Internal.viewIf hasHeader
             (Html.header [ Internal.cls [ "klar-card__header" ] ]
                 [ Html.div [ Internal.cls [ "klar-card__heading" ] ]
-                    [ Internal.viewMaybe (\t -> Internal.heading config.headingLevel [ Internal.cls [ "klar-card__title" ] ] [ Html.text t ]) titleText
-                    , Internal.viewMaybe (\t -> Html.p [ Internal.cls [ "klar-card__subtitle" ] ] [ Html.text t ]) config.subtitle
+                    [ Internal.viewMaybe
+                        (\t ->
+                            Internal.heading config.headingLevel
+                                [ Internal.cls [ "klar-card__title" ], Internal.attrMaybe Attr.id titleId ]
+                                [ Html.text t ]
+                        )
+                        titleText
+                    , Internal.viewMaybe (\t -> Html.p [ Internal.cls [ "klar-card__subtitle" ] ] [ Html.text t ]) subtitleText
                     ]
                 , Internal.viewIf (not (List.isEmpty config.actions))
                     (Html.div [ Internal.cls [ "klar-card__actions" ] ] config.actions)

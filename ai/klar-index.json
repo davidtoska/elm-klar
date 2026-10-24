@@ -231,7 +231,8 @@
         "container",
         "spacer",
         "divider",
-        "dividerLabelled"
+        "dividerLabelled",
+        "dividerVertical"
       ],
       "related": [],
       "keywords": [
@@ -286,7 +287,7 @@
       "group": "Foundations",
       "purpose": "Typography: titles, paragraphs, small print and code.",
       "whenToUse": "the page needs titles, paragraphs, small print or code that look the same everywhere.",
-      "whenNot": "the text is a link (use `Klar.Link`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).",
+      "whenNot": "the text is a link (use `Klar.Link`, which is inline by default and goes into `paragraphWith`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -296,14 +297,16 @@
         "title",
         "heading",
         "subheading",
+        "headingLevel",
         "overline",
         "figure",
         "paragraph",
-        "paragraphWith",
-        "lead"
+        "paragraphWith"
       ],
       "related": [
-        "Klar.Kbd"
+        "Klar.PageHeader",
+        "Klar.Kbd",
+        "Klar.Link"
       ],
       "keywords": [
         "text",

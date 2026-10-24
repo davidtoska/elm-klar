@@ -1,7 +1,7 @@
 module Klar.Text exposing
-    ( title, heading, subheading, overline, figure
+    ( title, heading, subheading, headingLevel, overline, figure
     , paragraph, paragraphWith, lead, text
-    , secondary, muted, caption, strong, link
+    , secondary, muted, caption, strong, truncated
     , mono, code, codeBlock
     )
 
@@ -10,9 +10,10 @@ these instead of raw `h1`, `p` and `code` elements, so that text looks the same
 everywhere.
 
 Use when: the page needs titles, paragraphs, small print or code that look the same everywhere.
-Do not use when: the text is a link (use `Klar.Link`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).
+Do not use when: the text is a link (use `Klar.Link`, which is inline by default and goes into `paragraphWith`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).
 
     import Klar.Kbd as Kbd
+    import Klar.Link as Link
     import Klar.Shortcut as Shortcut
     import Klar.Text as Text
 
@@ -24,13 +25,15 @@ Do not use when: the text is a link (use `Klar.Link`), an action (use `Klar.Butt
         [ Text.text "Press "
         , Kbd.view [ Kbd.inline ] (Shortcut.mod (Shortcut.char 'k'))
         , Text.text " to search, or "
-        , Text.link { href = "#/help", label = "read the help" }
+        , Link.view [] (Link.internal "/help") "read the help"
         , Text.text "."
         ]
 
 The headings are real heading elements, so the outline of the page is right for
-screen readers: `title` is the `h1` (use it once per page), `heading` an `h2` and
-`subheading` an `h3`. Use `figure` for a large number that is not a heading.
+screen readers: `title` is the `h1` (use it once per page, and not at all on a page
+with a [Klar.PageHeader](Klar-PageHeader), whose title is the `h1`), `heading` an `h2`
+and `subheading` an `h3`; `headingLevel` is a heading of any level, for an outline that
+goes deeper. Use `figure` for a large number that is not a heading.
 
 **Block or inline.** Some functions make a block, which starts on a new line, and the
 others make inline text, which runs on in the line it is in. Two inline ones next
@@ -39,8 +42,8 @@ to each other (in a `Layout.stack`, say) end up on one line: put them in
 
 | | Functions |
 | --- | --- |
-| Block | `title`, `heading`, `subheading`, `overline`, `lead`, `paragraph`, `paragraphWith`, `codeBlock` |
-| Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `link`, `mono`, `code` |
+| Block | `title`, `heading`, `subheading`, `headingLevel`, `overline`, `lead`, `paragraph`, `paragraphWith`, `codeBlock` |
+| Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `truncated`, `mono`, `code` |
 
 Every function takes its text as a `String` (`paragraphWith` takes a list of HTML) and no attributes. When you need an id or an
 event handler, wrap the result in an element of your own.
@@ -48,7 +51,7 @@ event handler, wrap the result in an element of your own.
 
 # Headings
 
-@docs title, heading, subheading, overline, figure
+@docs title, heading, subheading, headingLevel, overline, figure
 
 
 # Paragraphs
@@ -58,7 +61,7 @@ event handler, wrap the result in an element of your own.
 
 # Inline text
 
-@docs secondary, muted, caption, strong, link
+@docs secondary, muted, caption, strong, truncated
 
 
 # Code
@@ -82,7 +85,9 @@ text =
     Html.text
 
 
-{-| The title of the page, an `h1`. Use it once per page.
+{-| The title of the page, an `h1`. Use it once per page, on a page without a
+[Klar.PageHeader](Klar-PageHeader): with a page header, its title is the `h1` and the
+headings of the page start at `heading`.
 -}
 title : String -> Html msg
 title content =
@@ -90,7 +95,8 @@ title content =
 
 
 {-| A large number or short figure ("1,482") that is not a heading: it looks
-like `title`, but it is a plain `span`, so it does not add an `h1` to the page.
+like `title`, but it is a plain `span`, so it does not add an `h1` to the page. Its
+digits are tabular, so a figure that changes does not make the line jump.
 -}
 figure : String -> Html msg
 figure content =
@@ -109,6 +115,35 @@ heading content =
 subheading : String -> Html msg
 subheading content =
     Html.h3 [ Internal.cls [ "klar-text", "klar-text--subheading" ] ] [ Html.text content ]
+
+
+{-| A heading of the given level, from 1 to 6, for an outline that goes deeper than
+`subheading`: the headings inside a card whose title is an `h3` (`Card.headingLevel 3`)
+are `headingLevel 4`. A number outside the range counts as the nearest level. Level 1
+looks like `title`, 2 like `heading` and 3 to 6 like `subheading`.
+
+    Card.view [ Card.title "Order 1042", Card.headingLevel 3 ]
+        [ Text.headingLevel 4 "Lines", linesTable ]
+
+-}
+headingLevel : Int -> String -> Html msg
+headingLevel level content =
+    let
+        clamped =
+            clamp 1 6 level
+
+        look =
+            case clamped of
+                1 ->
+                    "klar-text--title"
+
+                2 ->
+                    "klar-text--heading"
+
+                _ ->
+                    "klar-text--subheading"
+    in
+    Internal.heading clamped [ Internal.cls [ "klar-text", look ] ] [ Html.text content ]
 
 
 {-| A small label above a group or a title, shown in capital letters. Write the
@@ -135,8 +170,8 @@ paragraph content =
     Html.p [ Internal.cls [ "klar-text", "klar-text--paragraph" ] ] [ Html.text content ]
 
 
-{-| A paragraph made of inline content such as `text`, `strong`, `link` and
-`code`.
+{-| A paragraph made of inline content such as `text`, `strong`, `code` and links
+([Klar.Link](Klar-Link)).
 
     Text.paragraphWith
         [ Text.text "Orders are shipped within "
@@ -180,6 +215,20 @@ strong content =
     Html.strong [ Internal.cls [ "klar-text--strong" ] ] [ Html.text content ]
 
 
+{-| Text on one line that ends in an ellipsis when it is wider than the room it has,
+with the whole text as the tooltip of the pointer: a customer name in a narrow panel,
+a long id in a list. It is never wider than its parent.
+
+    Layout.stack [ Layout.width 200 ] [ Text.truncated customer.name ]
+
+The text is all there for a screen reader; only the eye sees it cut.
+
+-}
+truncated : String -> Html msg
+truncated content =
+    Html.span [ Internal.cls [ "klar-text--truncated" ], Attr.title content ] [ Html.text content ]
+
+
 {-| Monospace inline text, for ids, hashes and URLs.
 
     Text.mono "ORD-2041"
@@ -200,20 +249,9 @@ code content =
 
 {-| A block of preformatted code on a dark background. Line breaks and spaces
 are kept, and lines that are too wide scroll sideways. The block can take the
-keyboard focus, so that it can be scrolled without a mouse.
+keyboard focus, so that it can be scrolled without a mouse; a screen reader reads
+its text when it gets the focus.
 -}
 codeBlock : String -> Html msg
 codeBlock content =
     Html.pre [ Internal.cls [ "klar-code-block" ], Attr.tabindex 0 ] [ Html.code [] [ Html.text content ] ]
-
-
-{-| An ordinary link (an `a` element). Use hash URLs such as `#/orders` to
-navigate inside a single page application. In a `Browser.application` the click
-is reported as `UrlRequested`, like every other link.
-
-    Text.link { href = "#/orders", label = "All orders" }
-
--}
-link : { href : String, label : String } -> Html msg
-link options =
-    Html.a [ Internal.cls [ "klar-link" ], Attr.href options.href ] [ Html.text options.label ]

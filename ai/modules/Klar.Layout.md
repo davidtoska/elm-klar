@@ -25,6 +25,7 @@ width : Int -> Attribute msg
 fillRest : Attribute msg
 maxWidth : Int -> Attribute msg
 maxHeight : Int -> Attribute msg
+scroll : Attribute msg
 
 -- Alignment
 alignStart : Attribute msg
@@ -41,10 +42,15 @@ wrap : Attribute msg
 columns : Int -> Attribute msg
 minColumn : Int -> Attribute msg
 
+-- Names
+id : String -> Attribute msg
+ariaLabel : String -> Attribute msg
+
 -- Separators
 spacer : Html msg
 divider : Html msg
 dividerLabelled : String -> Html msg
+dividerVertical : Html msg
 ```
 
 ## Documentation
@@ -220,7 +226,17 @@ beyond that when its content cannot be squeezed.
             ]
         ]
 
-Stacks only. Without it a stack is as tall as its content.
+It works where the parent is a flex column with a height: the content area of an
+`AppShell` (with the stack as its direct child), another `fillRest` stack, or a
+`container` that is given `fillRest` itself, which then hands the height on in the
+same way:
+
+    Layout.container [ Layout.fillRest ]
+        [ Layout.stack [ Layout.fillRest ] [ header, table ] ]
+
+Inside anything else (a plain `div`, a `Card`) the stack is as tall as its content.
+For stacks and containers; without it a stack is as tall as its content. Add `scroll`
+to make the rest of the height a scroll area of its own.
 
 ### `maxWidth`
 
@@ -242,8 +258,25 @@ fit: a scroll area for lists and panels. It works on every layout. By default
 the layout grows with its content.
 
 A scroll area can take the keyboard focus (`tabindex="0"`), so that keyboard
-users can scroll it with the arrow keys. Layouts without `maxHeight` are not
-focusable.
+users can scroll it with the arrow keys; give it an `ariaLabel`, so that a screen
+reader says what it is when it gets there. Layouts without `maxHeight` or `scroll`
+are not focusable.
+
+### `scroll`
+
+```elm
+scroll : Attribute msg
+```
+
+Scrolls the content that does not fit in the height the layout gets from its
+parent: with `fillRest` or `grow`, a panel beside a table that is as tall as the
+window and scrolls on its own. Like `maxHeight` (which scrolls by itself), the area
+takes the keyboard focus; give it an `ariaLabel`.
+
+    Layout.row [ Layout.alignStretch, Layout.fillRest ]
+        [ Layout.stack [ Layout.width 280, Layout.scroll, Layout.ariaLabel "Customers" ] customerList
+        , Layout.stack [ Layout.grow ] [ table ]
+        ]
 
 ## Alignment
 
@@ -355,6 +388,31 @@ there is a single column of full width. A grid with neither `columns` nor
 `minColumn` behaves like `minColumn 240`. The smallest width is 16 pixels:
 smaller numbers (and 0 and negative numbers) count as 16.
 
+## Names
+
+### `id`
+
+```elm
+id : String -> Attribute msg
+```
+
+The DOM id of the layout element: the target of `Klar.focus`, of a skip link or
+of an `aria-labelledby` of your own.
+
+### `ariaLabel`
+
+```elm
+ariaLabel : String -> Attribute msg
+```
+
+A name that only a screen reader hears. It makes the layout a named region
+(`role="region"`), which a screen reader lists with the landmarks of the page: use it
+for a scroll area (`maxHeight`, `scroll`), whose focus would otherwise land on an
+element with no name, and for a panel a person should be able to jump to. An empty
+text is no name.
+
+    Layout.stack [ Layout.maxHeight 320, Layout.ariaLabel "Recent orders" ] rows
+
 ## Separators
 
 ### `spacer`
@@ -386,3 +444,15 @@ A thin horizontal line with a label in the middle, such as "or" between two
 groups of options.
 
     Layout.dividerLabelled "or"
+
+### `dividerVertical`
+
+```elm
+dividerVertical : Html msg
+```
+
+A thin vertical line between groups in a `row`, such as the groups of buttons
+of a toolbar or a filter row. It is as tall as the row, and a screen reader hears it
+as a separator.
+
+    Layout.row [ Layout.gap 2 ] [ boldButton, italicButton, Layout.dividerVertical, undoButton ]

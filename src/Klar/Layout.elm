@@ -1,9 +1,10 @@
 module Klar.Layout exposing
     ( stack, row, grid, container
-    , Attribute, gap, padding, fill, grow, width, fillRest, maxWidth, maxHeight
+    , Attribute, gap, padding, fill, grow, width, fillRest, maxWidth, maxHeight, scroll
     , alignStart, alignCenter, alignEnd, alignStretch, alignBaseline, justifyCenter, justifyEnd, justifyBetween, wrap
     , columns, minColumn
-    , spacer, divider, dividerLabelled
+    , id, ariaLabel
+    , spacer, divider, dividerLabelled, dividerVertical
     )
 
 {-| Layout primitives: vertical stacks, horizontal rows and grids, with spacing
@@ -44,7 +45,7 @@ numbers are rounded down to the step below (7 becomes 6, 9 becomes 8, 11 becomes
 
 # Spacing and size
 
-@docs Attribute, gap, padding, fill, grow, width, fillRest, maxWidth, maxHeight
+@docs Attribute, gap, padding, fill, grow, width, fillRest, maxWidth, maxHeight, scroll
 
 
 # Alignment
@@ -57,9 +58,14 @@ numbers are rounded down to the step below (7 becomes 6, 9 becomes 8, 11 becomes
 @docs columns, minColumn
 
 
+# Names
+
+@docs id, ariaLabel
+
+
 # Separators
 
-@docs spacer, divider, dividerLabelled
+@docs spacer, divider, dividerLabelled, dividerVertical
 
 -}
 
@@ -89,6 +95,9 @@ type alias Config =
     , minColumn : Maybe Int
     , maxWidth : Maybe Int
     , maxHeight : Maybe Int
+    , scroll : Bool
+    , id : Maybe String
+    , ariaLabel : Maybe String
     }
 
 
@@ -107,6 +116,9 @@ defaults =
     , minColumn = Nothing
     , maxWidth = Nothing
     , maxHeight = Nothing
+    , scroll = False
+    , id = Nothing
+    , ariaLabel = Nothing
     }
 
 
@@ -261,7 +273,17 @@ beyond that when its content cannot be squeezed.
             ]
         ]
 
-Stacks only. Without it a stack is as tall as its content.
+It works where the parent is a flex column with a height: the content area of an
+`AppShell` (with the stack as its direct child), another `fillRest` stack, or a
+`container` that is given `fillRest` itself, which then hands the height on in the
+same way:
+
+    Layout.container [ Layout.fillRest ]
+        [ Layout.stack [ Layout.fillRest ] [ header, table ] ]
+
+Inside anything else (a plain `div`, a `Card`) the stack is as tall as its content.
+For stacks and containers; without it a stack is as tall as its content. Add `scroll`
+to make the rest of the height a scroll area of its own.
 
 -}
 fillRest : Attribute msg
@@ -303,13 +325,52 @@ fit: a scroll area for lists and panels. It works on every layout. By default
 the layout grows with its content.
 
 A scroll area can take the keyboard focus (`tabindex="0"`), so that keyboard
-users can scroll it with the arrow keys. Layouts without `maxHeight` are not
-focusable.
+users can scroll it with the arrow keys; give it an `ariaLabel`, so that a screen
+reader says what it is when it gets there. Layouts without `maxHeight` or `scroll`
+are not focusable.
 
 -}
 maxHeight : Int -> Attribute msg
 maxHeight px =
     Attribute (\config -> { config | maxHeight = Just px })
+
+
+{-| Scrolls the content that does not fit in the height the layout gets from its
+parent: with `fillRest` or `grow`, a panel beside a table that is as tall as the
+window and scrolls on its own. Like `maxHeight` (which scrolls by itself), the area
+takes the keyboard focus; give it an `ariaLabel`.
+
+    Layout.row [ Layout.alignStretch, Layout.fillRest ]
+        [ Layout.stack [ Layout.width 280, Layout.scroll, Layout.ariaLabel "Customers" ] customerList
+        , Layout.stack [ Layout.grow ] [ table ]
+        ]
+
+-}
+scroll : Attribute msg
+scroll =
+    Attribute (\config -> { config | scroll = True })
+
+
+{-| The DOM id of the layout element: the target of `Klar.focus`, of a skip link or
+of an `aria-labelledby` of your own.
+-}
+id : String -> Attribute msg
+id value =
+    Attribute (\config -> { config | id = Just value })
+
+
+{-| A name that only a screen reader hears. It makes the layout a named region
+(`role="region"`), which a screen reader lists with the landmarks of the page: use it
+for a scroll area (`maxHeight`, `scroll`), whose focus would otherwise land on an
+element with no name, and for a panel a person should be able to jump to. An empty
+text is no name.
+
+    Layout.stack [ Layout.maxHeight 320, Layout.ariaLabel "Recent orders" ] rows
+
+-}
+ariaLabel : String -> Attribute msg
+ariaLabel value =
+    Attribute (\config -> { config | ariaLabel = Internal.nonEmpty value })
 
 
 
@@ -429,6 +490,23 @@ dividerLabelled label =
         [ Html.span [ Internal.cls [ "klar-divider__label" ] ] [ Html.text label ] ]
 
 
+{-| A thin vertical line between groups in a `row`, such as the groups of buttons
+of a toolbar or a filter row. It is as tall as the row, and a screen reader hears it
+as a separator.
+
+    Layout.row [ Layout.gap 2 ] [ boldButton, italicButton, Layout.dividerVertical, undoButton ]
+
+-}
+dividerVertical : Html msg
+dividerVertical =
+    Html.span
+        [ Internal.cls [ "klar-divider-v" ]
+        , Attr.attribute "role" "separator"
+        , Attr.attribute "aria-orientation" "vertical"
+        ]
+        []
+
+
 
 -- INTERNAL
 
@@ -436,6 +514,9 @@ dividerLabelled label =
 commonAttributes : String -> List ( String, String ) -> Config -> List (Html.Attribute msg)
 commonAttributes block extra config =
     let
+        scrolls =
+            config.scroll || config.maxHeight /= Nothing
+
         declarations =
             extra
                 ++ List.filterMap identity
@@ -446,7 +527,17 @@ commonAttributes block extra config =
                       else
                         Nothing
                     , config.maxWidth |> Maybe.map (\w -> ( "--klar-max-w", String.fromInt w ++ "px" ))
-                    , config.maxHeight |> Maybe.map (\h -> ( "--klar-max-h", String.fromInt h ++ "px" ))
+                    , case config.maxHeight of
+                        Just h ->
+                            Just ( "--klar-max-h", String.fromInt h ++ "px" )
+
+                        -- set, so that a scroll area never inherits the limit of one around it
+                        Nothing ->
+                            if config.scroll then
+                                Just ( "--klar-max-h", "none" )
+
+                            else
+                                Nothing
                     , config.width |> Maybe.map (\w -> ( "--klar-fixed-w", String.fromInt w ++ "px" ))
                     ]
     in
@@ -492,7 +583,7 @@ commonAttributes block extra config =
 
           else
             ""
-        , if config.maxHeight /= Nothing then
+        , if scrolls then
             "klar-scroll"
 
           else
@@ -502,7 +593,10 @@ commonAttributes block extra config =
 
     -- A scroll area must be reachable with the keyboard, or its content cannot
     -- be read without a mouse.
-    , Internal.attrIf (config.maxHeight /= Nothing) (Attr.tabindex 0)
+    , Internal.attrIf scrolls (Attr.tabindex 0)
+    , Internal.attrMaybe Attr.id config.id
+    , Internal.attrIf (config.ariaLabel /= Nothing) (Attr.attribute "role" "region")
+    , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
     ]
 
 

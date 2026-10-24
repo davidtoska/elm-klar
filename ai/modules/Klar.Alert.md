@@ -84,7 +84,7 @@ text.
 
     Alert.viewWith [ Alert.tone Info ]
         [ Html.text "See the "
-        , Text.link { href = "#/shipping", label = "shipping rules" }
+        , Link.view [] (Link.internal "/shipping") "shipping rules"
         , Html.text " for details."
         ]
 

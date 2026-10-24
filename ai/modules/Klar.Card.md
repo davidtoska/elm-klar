@@ -56,12 +56,32 @@ with `headingLevel`, so that the title fits the outline of the page (see
 the body, for tables and lists that go edge to edge; `accent`, `sunken` and
 `raised` change the look.
 
+A card with an `id` and a title is a named region: its title is what a screen reader
+says for it, so a person can jump from card to card on a dashboard.
+
 A card that shows one piece of remote data takes its body from
 [Klar.RemoteView](Klar.RemoteView.md): the loading skeleton, the failure with a
-retry, and old or refreshing data, without a `case` of your own.
+retry, and old or refreshing data, without a `case` of your own. Give the body an
+`id` and move focus to it when the retry starts, because the "Try again" button that
+had the focus is replaced by the skeleton:
 
+    -- view
     Card.view [ Card.title "Order 1042" ]
-        (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
+        (RemoteView.view
+            [ RemoteView.id "order-body"
+            , RemoteView.onRetry ReloadOrder
+            , RemoteView.settings model.settings
+            , RemoteView.locale (Settings.locale model.settings)
+            ]
+            model.order
+            viewOrder
+        )
+
+    -- update
+    ReloadOrder ->
+        ( { model | order = Remote.refresh model.order }
+        , Cmd.batch [ fetchOrder, Klar.focus "order-body" NoOp ]
+        )
 
 ## View
 
@@ -117,7 +137,8 @@ level changes the element, not the look of the title.
 subtitle : String -> Attribute msg
 ```
 
-A smaller line under the title, such as a period or a count.
+A smaller line under the title, such as a period or a count. An empty text is no
+subtitle.
 
 ### `actions`
 
@@ -185,4 +206,5 @@ of their own.
 id : String -> Attribute msg
 ```
 
-The DOM id of the card.
+The DOM id of the card. With a title, it also makes the card a named region: the
+title gets the id `<id>-title` and the card points at it with `aria-labelledby`.
