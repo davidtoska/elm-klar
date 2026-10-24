@@ -23,6 +23,7 @@ module Klar.Internal exposing
     , onClickStop
     , onKeys
     , onKeysPassive
+    , onLayerKeys
     , onMouseDownPrevent
     , pageStartId
     , percentEncode
@@ -506,10 +507,9 @@ listens further out reads it through `unhandled` and leaves it alone.
                 )
         )
 
-`onKeysPassive` does not prevent the default, so a key it handles still reaches the
-containers: a popup that closes on Escape that way is passed over by a check of its
-own (`klar-layer`), not by this one. An event without the field (a test) counts as
-not handled.
+The layer of a popup takes its Escape with `onLayerKeys`, which prevents it. A key
+bound with `onKeysPassive` keeps its default, so it still reaches the containers as
+not handled. An event without the field (a test) counts as not handled.
 
 -}
 unhandled : Decoder a -> Decoder a
@@ -564,13 +564,31 @@ keysDecoder prevent bindings =
     keyEvent
         |> Decode.andThen
             (\event ->
-                case lookup (keyName event) bindings of
+                case binding event bindings of
                     Just msg ->
                         Decode.succeed ( msg, prevent )
 
                     Nothing ->
                         Decode.fail "unhandled key"
             )
+
+
+{-| The message bound to a key press: by its name (`"Ctrl+Enter"`), or, with Ctrl or
+Meta held (not both), by its name with `Mod+` for that modifier, so `"Mod+A"` is
+Ctrl+A on Windows and Linux and Cmd+A on a Mac.
+-}
+binding : KeyEvent -> List ( String, msg ) -> Maybe msg
+binding event bindings =
+    case lookup (keyName event) bindings of
+        Just msg ->
+            Just msg
+
+        Nothing ->
+            if event.ctrl /= event.meta then
+                lookup ("Mod+" ++ keyName { event | ctrl = False, meta = False }) bindings
+
+            else
+                Nothing
 
 
 lookup : String -> List ( String, a ) -> Maybe a
@@ -589,9 +607,10 @@ lookup key bindings =
 
 {-| Keyboard bindings on `keydown`. The browser default is prevented for the
 keys that match, which also tells the containers further out that the key is
-taken (`unhandled`). Key names follow `KeyboardEvent.key`, with modifiers:
-`"ArrowDown"`, `"Enter"`, `"Escape"`, `" "`, `"Shift+Tab"`, `"Ctrl+Enter"`. A key
-of an input method composition matches nothing (`keyEvent`).
+taken (`unhandled`). Key names follow `KeyboardEvent.key`, with modifiers in the
+order Ctrl, Meta, Alt, Shift: `"ArrowDown"`, `"Enter"`, `"Escape"`, `" "`,
+`"Shift+Tab"`, `"Ctrl+Enter"`. `Mod+` is Ctrl or Meta (Cmd on a Mac): `"Mod+A"`. A
+key of an input method composition matches nothing (`keyEvent`).
 -}
 onKeys : List ( String, msg ) -> Attribute msg
 onKeys bindings =
@@ -604,6 +623,39 @@ an input method composition matches nothing here either.
 onKeysPassive : List ( String, msg ) -> Attribute msg
 onKeysPassive bindings =
     Events.preventDefaultOn "keydown" (keysDecoder False bindings)
+
+
+{-| The keys of the click-away layer of a popup (`klar-layer`), in one place.
+Escape sends the first message and takes the key (its default is prevented), so a
+dialog or a drawer around the popup, which reads keys through `unhandled`, leaves
+that Escape alone and stays open. The other bindings (Tab and Shift+Tab, and for a
+menu Enter and Space) keep their default, so Tab still moves the focus on and Enter
+still presses the focused item. A key that an element inside the popup has handled
+already (a search box that clears its text on Escape) is left to it: the next
+Escape closes the popup.
+
+    Internal.onLayerKeys (toMsg Close)
+        [ ( "Tab", toMsg CloseQuiet ), ( "Shift+Tab", toMsg CloseQuiet ) ]
+
+-}
+onLayerKeys : msg -> List ( String, msg ) -> Attribute msg
+onLayerKeys escape bindings =
+    Events.preventDefaultOn "keydown"
+        (unhandled keyEvent
+            |> Decode.andThen
+                (\event ->
+                    if keyName event == "Escape" then
+                        Decode.succeed ( escape, True )
+
+                    else
+                        case binding event bindings of
+                            Just msg ->
+                                Decode.succeed ( msg, False )
+
+                            Nothing ->
+                                Decode.fail "not a key of the layer"
+                )
+        )
 
 
 

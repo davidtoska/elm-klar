@@ -25,6 +25,8 @@ suite =
         , normalizeTests
         , headingTests
         , keyTests
+        , layerTests
+        , modTests
         , unhandledTests
         , sanitizeIdTests
         , focusChainTests
@@ -102,6 +104,66 @@ keyTests =
                 Html.div [ Events.on "keydown" (Internal.keyEvent |> Json.Decode.map (\_ -> Saved)) ] []
                     |> press (keydown "a" composing)
                     |> Expect.err
+        ]
+
+
+layerTests : Test
+layerTests =
+    let
+        layer =
+            Html.div [ Internal.onLayerKeys Closed [ ( "Tab", Saved ), ( "Shift+Tab", Saved ) ] ] []
+
+        handled =
+            [ ( "defaultPrevented", Encode.bool True ) ]
+    in
+    describe "onLayerKeys"
+        [ test "Escape closes the popup and takes the key" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.equal (Ok Closed) (press (keydown "Escape" []) layer)
+                    , \_ -> Query.fromHtml layer |> Event.simulate (keydown "Escape" []) |> Event.expectPreventDefault
+                    ]
+                    ()
+        , test "Tab keeps its default, so the focus moves on" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Expect.equal (Ok Saved) (press (keydown "Tab" []) layer)
+                    , \_ -> Query.fromHtml layer |> Event.simulate (keydown "Tab" []) |> Event.expectNotPreventDefault
+                    , \_ -> Expect.equal (Ok Saved) (press (keydown "Tab" [ ( "shiftKey", Encode.bool True ) ]) layer)
+                    ]
+                    ()
+        , test "an Escape that an element inside handled is left to it" <|
+            \_ -> Expect.err (press (keydown "Escape" handled) layer)
+        , test "the Escape that cancels a composition is not acted on" <|
+            \_ -> Expect.err (press (keydown "Escape" [ ( "isComposing", Encode.bool True ) ]) layer)
+        , test "other keys are not the layer's" <|
+            \_ -> Expect.err (press (keydown "ArrowDown" []) layer)
+        ]
+
+
+modTests : Test
+modTests =
+    let
+        field =
+            Html.div [ Internal.onKeys [ ( "Mod+a", Saved ), ( "Ctrl+Enter", Closed ) ] ] []
+    in
+    describe "Mod+ is Ctrl or Meta"
+        [ test "Ctrl+A on Windows and Linux" <|
+            \_ -> Expect.equal (Ok Saved) (press (keydown "a" [ ( "ctrlKey", Encode.bool True ) ]) field)
+        , test "Cmd+A on a Mac" <|
+            \_ -> Expect.equal (Ok Saved) (press (keydown "a" [ ( "metaKey", Encode.bool True ) ]) field)
+        , test "not both at once, and not neither" <|
+            \_ ->
+                Expect.equal ( True, True )
+                    ( Result.toMaybe (press (keydown "a" [ ( "ctrlKey", Encode.bool True ), ( "metaKey", Encode.bool True ) ]) field) == Nothing
+                    , Result.toMaybe (press (keydown "a" []) field) == Nothing
+                    )
+        , test "a binding that names Ctrl still means Ctrl only" <|
+            \_ ->
+                Expect.equal ( Ok Closed, True )
+                    ( press (keydown "Enter" [ ( "ctrlKey", Encode.bool True ) ]) field
+                    , Result.toMaybe (press (keydown "Enter" [ ( "metaKey", Encode.bool True ) ]) field) == Nothing
+                    )
         ]
 
 
