@@ -20,8 +20,10 @@ max : Float -> Attribute msg
 step : Float -> Attribute msg
 value : Float -> Attribute msg
 onInput : (Float -> msg) -> Attribute msg
+onCommit : (Float -> msg) -> Attribute msg
 range : Float -> Float -> Attribute msg
 onRangeInput : (Float -> Float -> msg) -> Attribute msg
+onRangeCommit : (Float -> Float -> msg) -> Attribute msg
 minGap : Float -> Attribute msg
 
 -- Showing the value
@@ -79,21 +81,35 @@ Do not use when: the number is typed (`Klar.NumberInput`).
 The value is owned by the application, as a `Float` in the model. `onInput`
 (`onRangeInput` for two thumbs) is sent with every change while the thumb is
 dragged, and `value` (`range`) gives the new value back. The filled part of the
-track follows the thumb on its own, without any scripting.
+track follows the thumb on its own, without any scripting. `onCommit`
+(`onRangeCommit`) is sent once when the user lets go of the thumb, and for every
+key press: use it for what should not happen at every pixel of a drag, such as
+fetching a list filtered by the value.
+
+    -- update: show the value while dragging, fetch when the user lets go
+    PriceMoved price ->
+        ( { model | maxPrice = price }, Cmd.none )
+
+    PriceChosen price ->
+        ( { model | maxPrice = price }, fetchProducts price )
 
 The current value is written at the right end of the line above the track,
 level with the label. It is not beside the track, so the tracks of sliders
 stacked in a form are all as long as their field, however wide the text of
 their value is (`15 %`, `20 – 65 pcs`), and a track does not change length while
-the thumb is dragged. The text has as many decimals as `step` has, in the number
-format of the `locale`, followed by the `unit`; `valueFormat` replaces all of
-that. A screen reader reads the written value as well (`aria-valuetext`), for a
-range slider one thumb at a time.
+the thumb is dragged. The text has as many decimals as `step` (or `min`) has, in
+the number format of the `locale`, followed by the `unit`; `valueFormat` replaces
+all of that. A screen reader reads the written value as well (`aria-valuetext`),
+for a range slider one thumb at a time. A value that is not on the grid of
+`step` (counted from `min`) is drawn and written where the browser puts the
+thumb, at the nearest point of the grid; the model keeps the value it has.
 
 Keyboard (the browser's own): arrow keys change the value by one `step`,
 Page Up and Page Down by about ten percent of the range, Home and End jump to
-the ends. The range slider has two focusable thumbs, named "From" and "To"; they
-cannot pass each other (keep them `minGap` apart if you like).
+the ends. The range slider has two focusable thumbs, named after the label with
+"from" and "to" ("Order quantity, from"); they cannot pass each other (keep them
+`minGap` apart if you like), and each is joined to the hint and the error
+message.
 
 Clicking the track of a range slider does nothing (only the thumbs take the
 mouse), so that the two inputs never fight for the click.
@@ -112,8 +128,9 @@ type Attribute msg  -- opaque: no constructors are exposed
 
 A setting of a slider. Make them with the functions below and pass a list to
 `view` or `viewRange`; later attributes win over earlier ones. Each of the two
-views ignores the settings that belong to the other (`value` and `onInput` for
-`view`; `range`, `onRangeInput` and `minGap` for `viewRange`).
+views ignores the settings that belong to the other (`value`, `onInput` and
+`onCommit` for `view`; `range`, `onRangeInput`, `onRangeCommit` and `minGap` for
+`viewRange`).
 
 ### `view`
 
@@ -121,8 +138,8 @@ views ignores the settings that belong to the other (`value` and `onInput` for
 view : List (Attribute msg) -> Html msg
 ```
 
-A slider with one thumb, for a number from `min` to `max`. It uses `value`
-and `onInput`, and ignores the settings of a range slider.
+A slider with one thumb, for a number from `min` to `max`. It uses `value`,
+`onInput` and `onCommit`, and ignores the settings of a range slider.
 
     Slider.view
         [ Slider.label "Discount"
@@ -139,9 +156,11 @@ viewRange : List (Attribute msg) -> Html msg
 ```
 
 A slider with two thumbs, for a lower and an upper value from `min` to
-`max`. It uses `range`, `onRangeInput` and `minGap`, and ignores `value` and
-`onInput`. The two thumbs are inputs of their own, named "From" and "To" for
-screen readers, inside a group that carries the label, hint and error.
+`max`. It uses `range`, `onRangeInput`, `onRangeCommit` and `minGap`, and ignores
+`value`, `onInput` and `onCommit`. The two thumbs are inputs of their own, named
+after the label with "from" and "to" for screen readers ("Order quantity, from"),
+inside a group named by the label; each thumb is joined to the hint and the error
+message.
 
     Slider.viewRange
         [ Slider.label "Order quantity"
@@ -177,8 +196,8 @@ step : Float -> Attribute msg
 
 How far one arrow key press moves the thumb. It is also the grid the value
 snaps to, counted from `min`, and it sets the number of decimals that are
-written (a step of 0.25 gives two, at most four). The default is 1; a step of 0
-or less counts as 1.
+written (a step of 0.25 gives two, at most four; a `min` with more decimals gives
+its own). The default is 1; a step of 0 or less counts as 1.
 
 ### `value`
 
@@ -187,7 +206,8 @@ value : Float -> Attribute msg
 ```
 
 The value of a single slider (`view`). The default is 0. A value outside
-`min` and `max` is shown at the nearer end.
+`min` and `max` is shown at the nearer end, and a value off the grid of `step` at
+the nearest point of the grid, as the browser draws the thumb.
 
 ### `onInput`
 
@@ -201,6 +221,20 @@ every change while the thumb is dragged, not only at the end. Store the value an
 give it back with `value`.
 
     Slider.onInput DiscountChanged
+
+### `onCommit`
+
+```elm
+onCommit : (Float -> msg) -> Attribute msg
+```
+
+The message sent when the user has chosen a value with a single slider
+(`view`): once when the thumb is let go after a drag or a click on the track, and
+after every key press. It gets the new value. Use it for work that should not
+happen at every step of a drag, such as a request to the server; `onInput` still
+keeps the shown value up to date.
+
+    Slider.onCommit PriceChosen
 
 ### `range`
 
@@ -222,6 +256,18 @@ gets the new lower value and the new upper value, already limited to `min` and
 `max` and kept `minGap` apart; store both and give them back with `range`.
 
     Slider.onRangeInput QuantityRangeChanged
+
+### `onRangeCommit`
+
+```elm
+onRangeCommit : (Float -> Float -> msg) -> Attribute msg
+```
+
+Like `onCommit`, for a range slider (`viewRange`): sent once when either thumb
+is let go, and after every key press. It gets the lower and the upper value,
+limited and kept apart like those of `onRangeInput`.
+
+    Slider.onRangeCommit QuantityRangeChosen
 
 ### `minGap`
 
@@ -404,6 +450,6 @@ Dims the slider and makes it unchangeable and unfocusable. The default is
 locale : Locale.Locale -> Attribute msg
 ```
 
-The language of the built-in text: the "From" and "To" that name the thumbs
+The language of the built-in text: the "from" and "to" that name the thumbs
 of a range slider for screen readers, and the decimal and thousands separators
 of the written value. The default is `Locale.default`, which is English.
