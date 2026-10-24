@@ -544,7 +544,7 @@ stepperSection locale model =
             List.length steps
     in
     Doc.section "Stepper"
-        "The steps of a wizard, horizontal or vertical, with thin lines between them. A step is complete, current, upcoming, failed or disabled. The current step has aria-current=\"step\". With onSelect every step that is not disabled becomes a button; disable the steps that must not be visited yet. progress gives the short text \"Step 2 of 5\"."
+        "The steps of a wizard, horizontal or vertical, with thin lines between them. A step is complete, current, upcoming, failed or disabled. The current step has aria-current=\"step\". With onSelect the steps up to the current one become buttons, so the user can go back but not skip ahead; nonLinear makes every step that is not disabled a button. progress gives the short text \"Step 2 of 5\"."
         [ Doc.example
             { title = "Wizard"
             , description = Just "Click a step, or use the buttons. Completed steps are blue."
