@@ -5,10 +5,12 @@ message for the field), and nothing extra for the ready-made detail of a kind.
 -}
 
 import Expect
+import Json.Encode as Encode
 import Klar.InlineEdit as InlineEdit
 import Klar.Locale as Locale
 import Klar.Remote as Remote
 import Test exposing (Test, describe, test)
+import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
 
@@ -17,9 +19,37 @@ type Msg
     = Edit InlineEdit.Msg
 
 
+{-| A save of a changed text that failed: the user clicked the text, typed and
+pressed Enter, and the backend answered with the problem.
+-}
 failedWith : Remote.Problem -> InlineEdit.State
 failedWith problem =
-    InlineEdit.init "website" "https://acme.example" |> InlineEdit.failed problem
+    let
+        step selectors event state =
+            InlineEdit.view Edit [] state
+                |> Query.fromHtml
+                |> Query.find selectors
+                |> Event.simulate event
+                |> Event.toResult
+                |> Result.map (\(Edit inner) -> Tuple.first (InlineEdit.update inner state))
+                |> Result.withDefault state
+
+        enter =
+            Event.custom "keydown"
+                (Encode.object
+                    [ ( "key", Encode.string "Enter" )
+                    , ( "ctrlKey", Encode.bool False )
+                    , ( "metaKey", Encode.bool False )
+                    , ( "shiftKey", Encode.bool False )
+                    , ( "altKey", Encode.bool False )
+                    ]
+                )
+    in
+    InlineEdit.init "website" "https://acme.example"
+        |> step [ Selector.class "klar-inline-edit__display" ] Event.click
+        |> step [ Selector.tag "input" ] (Event.input "https://acme.blocked")
+        |> step [ Selector.tag "input" ] enter
+        |> InlineEdit.failed problem
 
 
 failureText : List (InlineEdit.Attribute Msg) -> InlineEdit.State -> Query.Single Msg

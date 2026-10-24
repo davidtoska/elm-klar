@@ -114,19 +114,6 @@ inlineOf key model =
     Dict.get key model.inlines |> Maybe.withDefault (InlineEdit.init key "")
 
 
-{-| A failed save with its problem written in the language of the page: the
-problem was made when the save failed, and is made again here so that it follows
-the language switch like everything else.
--}
-localizeInline : Locale -> InlineEdit.State -> InlineEdit.State
-localizeInline lang state =
-    if InlineEdit.isFailed state then
-        InlineEdit.failed (Remote.problem Remote.network) state
-
-    else
-        state
-
-
 
 -- UPDATE
 
@@ -420,12 +407,12 @@ FileDrop.files model.attachments -- List FileInfo, only the accepted ones"""
 inlineEdits : Locale -> Model -> Html Msg
 inlineEdits lang model =
     Doc.section "Inline edit"
-        "Text that can be clicked to edit (Tab to the text, Enter or Space starts editing). Enter saves, Escape cancels, and leaving the field saves. The save can take time or fail; then a spinner, a message and \"Try again\" are shown."
+        "Text that can be clicked to edit (Tab to the text, Enter or Space starts editing). Enter saves, Escape cancels (inside a dialog too, without closing it), and leaving the field saves; switching to another window does not. The save can take time or fail; then a spinner, a message and \"Try again\" are shown, and a click on the text opens the refused text again to correct it."
         [ Doc.example
             { title = "Contact with validation and saving"
             , description = Just "The name is required and at most 30 characters. Turn on \"Simulate a failure when saving\" to see the failed state with \"Try again\"."
             , code = Just """InlineEdit.view ContactMsg
-    [ InlineEdit.label "Contact"
+    [ InlineEdit.ariaLabel "Contact"
     , InlineEdit.validate (Validate.run Locale.en (Validate.all [ Validate.required, Validate.maxLength 30 ]))
     ]
     model.contact
@@ -437,17 +424,17 @@ inlineEdits lang model =
                 [ Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                     [ Text.strong "Contact:"
                     , InlineEdit.view (InlineMsg contactKey)
-                        [ InlineEdit.label "Contact"
+                        [ InlineEdit.ariaLabel "Contact"
                         , InlineEdit.validate (Validate.run lang (Validate.all [ Validate.required, Validate.maxLength 30 ]))
                         , InlineEdit.maxLength 40
                         , InlineEdit.locale lang
                         ]
-                        (localizeInline lang (inlineOf contactKey model))
+                        (inlineOf contactKey model)
                     ]
                 , Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                     [ Text.strong "Reference:"
                     , InlineEdit.view (InlineMsg "inline-reference")
-                        [ InlineEdit.label "Reference"
+                        [ InlineEdit.ariaLabel "Reference"
                         , InlineEdit.emptyText "Add reference"
                         , InlineEdit.placeholder "For example PO-2041"
                         , InlineEdit.locale lang
@@ -457,7 +444,7 @@ inlineEdits lang model =
                 , Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                     [ Text.strong "Locked:"
                     , InlineEdit.view (always NoOp)
-                        [ InlineEdit.label "Warehouse"
+                        [ InlineEdit.ariaLabel "Warehouse"
                         , InlineEdit.disabled True
                         , InlineEdit.locale lang
                         ]
@@ -479,7 +466,7 @@ inlineEdits lang model =
             }
             (narrow 340
                 [ InlineEdit.view (InlineMsg "inline-long")
-                    [ InlineEdit.label "Note"
+                    [ InlineEdit.ariaLabel "Note"
                     , InlineEdit.locale lang
                     ]
                     (inlineOf "inline-long" model)

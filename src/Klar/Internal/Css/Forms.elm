@@ -1013,7 +1013,7 @@ css =
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
+  gap: var(--klar-space-1) var(--klar-space-3);
   min-width: 0;
 }
 
@@ -1025,19 +1025,19 @@ css =
 .klar-inline-edit__display {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--klar-space-1);
   position: relative;
-  left: -5px;
+  inset-inline-start: calc(-1 * var(--klar-space-1) - 1px);
   max-width: 100%;
   min-height: var(--klar-control-sm);
   margin: 0;
-  padding: 0 4px;
+  padding: 0 var(--klar-space-1);
   border: 1px solid transparent;
   border-radius: var(--klar-radius);
   background: transparent;
   color: var(--klar-text);
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: text;
   transition: background-color var(--klar-dur-fast) var(--klar-ease), border-color var(--klar-dur-fast) var(--klar-ease);
 }
@@ -1047,11 +1047,13 @@ css =
   border-color: var(--klar-border);
 }
 
-/* While saving or after a failed save the text keeps its place (and the
-   keyboard focus), but cannot be edited. */
-.klar-inline-edit__display--busy { cursor: default; }
+/* While saving the text keeps its place (and the keyboard focus), but cannot be
+   edited; a disabled field is the same button, looking like plain text. */
+.klar-inline-edit__display--busy,
+.klar-inline-edit__display--disabled { cursor: default; }
 
-.klar-inline-edit__display--busy:hover {
+.klar-inline-edit__display--busy:hover,
+.klar-inline-edit__display--disabled:hover {
   background: transparent;
   border-color: transparent;
 }
@@ -1071,24 +1073,18 @@ css =
   .klar-inline-edit__pencil { opacity: 1; }
 }
 
-.klar-inline-edit__static {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--klar-control-sm);
-}
-
 .klar-inline-edit__text { min-width: 0; overflow-wrap: anywhere; }
 .klar-inline-edit__text--empty { color: var(--klar-text-muted); }
 
-.klar-inline-edit__box { width: 100%; padding-right: 2px; }
+.klar-inline-edit__box { width: 100%; padding-inline-end: 2px; }
 
 .klar-inline-edit__action {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: calc(var(--klar-control-sm) - 4px);
+  height: calc(var(--klar-control-sm) - 4px);
   padding: 0;
   border: 0;
   border-radius: var(--klar-radius);
@@ -1104,12 +1100,12 @@ css =
 .klar-inline-edit__action:disabled,
 .klar-inline-edit__action:disabled:hover { background: transparent; color: var(--klar-text-disabled); cursor: not-allowed; }
 
-.klar-inline-edit__error { margin-top: 4px; }
+.klar-inline-edit__error { margin-block-start: var(--klar-space-1); }
 
 .klar-inline-edit__saving {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--klar-space-1);
   font-size: var(--klar-text-sm);
   color: var(--klar-text-muted);
 }
@@ -1118,8 +1114,8 @@ css =
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px var(--klar-space-2);
-  padding: 4px var(--klar-space-2);
+  gap: var(--klar-space-1) var(--klar-space-2);
+  padding: var(--klar-space-1) var(--klar-space-2);
   background: var(--klar-danger-subtle);
   border: 1px solid var(--klar-danger-border);
   border-radius: var(--klar-radius);
@@ -1128,6 +1124,31 @@ css =
 }
 
 .klar-inline-edit__failure-icon { display: flex; color: var(--klar-danger); }
+
+/* Forced colors: the hover background, the muted texts and the colored buttons
+   are gone, so the states get system colors and an edge. */
+@media (forced-colors: active) {
+  .klar-inline-edit__display:hover { border-color: Highlight; }
+
+  .klar-inline-edit__display--busy:hover,
+  .klar-inline-edit__display--disabled:hover { border-color: transparent; }
+
+  .klar-inline-edit__display--disabled .klar-inline-edit__text,
+  .klar-inline-edit__text--empty { color: GrayText; }
+
+  .klar-inline-edit__pencil,
+  .klar-inline-edit__action,
+  .klar-inline-edit__action--save { color: ButtonText; }
+
+  .klar-inline-edit__action:hover { outline: 1px solid Highlight; }
+
+  .klar-inline-edit__action:disabled,
+  .klar-inline-edit__action:disabled:hover { color: GrayText; outline: none; }
+
+  .klar-inline-edit__failure { border-color: CanvasText; }
+
+  .klar-inline-edit__failure-icon { color: CanvasText; }
+}
 
 /* ---- Form layout ----------------------------------------------------- */
 

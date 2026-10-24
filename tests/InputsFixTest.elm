@@ -1505,8 +1505,17 @@ inlineEditTests =
                         , \_ -> viewOfEdit [] failedSave |> Query.has [ Selector.text "Try again" ]
                         ]
                         ()
-            , test "text that is not being edited is plain text without a button" <|
-                \_ -> viewOfEdit off customer |> Query.hasNot [ Selector.tag "button" ]
+            , test "disabled text is the same button, inactive and out of the Tab order, so it keeps its focus" <|
+                \_ ->
+                    viewOfEdit off customer
+                        |> Query.find [ Selector.class "klar-inline-edit__display" ]
+                        |> Query.has
+                            [ Selector.class "klar-inline-edit__display--disabled"
+                            , Selector.attribute (Attr.attribute "aria-disabled" "true")
+                            , Selector.attribute (Attr.tabindex -1)
+                            ]
+            , test "a click on disabled text does nothing" <|
+                \_ -> try off [ Selector.class "klar-inline-edit__display" ] Event.click customer |> nothingHappens
             , test "after a failed save the retry button is inactive" <|
                 \_ ->
                     try off [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] Event.click failedSave

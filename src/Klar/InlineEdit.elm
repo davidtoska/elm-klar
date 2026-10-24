@@ -2,8 +2,8 @@ module Klar.InlineEdit exposing
     ( view, Attribute
     , State, Msg, init, update
     , value, isEditing, isSaving, isFailed, pending
-    , saved, failed, setValue
-    , label, placeholder, emptyText
+    , saved, failed, setValue, edit
+    , ariaLabel, placeholder, emptyText
     , validate, maxLength
     , disabled
     , locale
@@ -58,7 +58,7 @@ Quick path: `init`, `update`, `view`, `pending`, `saved`, `failed`
 
     -- view
     InlineEdit.view CustomerNameMsg
-        [ InlineEdit.label "Customer name"
+        [ InlineEdit.ariaLabel "Customer name"
         , InlineEdit.validate (Validate.run Locale.en Validate.required)
         ]
         model.customerName
@@ -67,24 +67,37 @@ The first `String` given to `init` is the DOM id of the input that is shown whil
 editing, so there is no `id` attribute; the second is the text to show.
 
 **Keyboard.** Enter saves, Escape cancels, leaving the field saves, and the text
-is a button: Tab reaches it and Space or Enter starts editing.
+is a button: Tab reaches it and Space or Enter starts editing. The Enter or
+Escape that ends an IME composition (Japanese, Chinese, Korean input) only picks
+the characters. Escape is handled here and its default is prevented, so a
+surrounding dialog that respects `defaultPrevented` stays open. Switching to
+another window (Alt+Tab) does not count as leaving the field: the editor stays
+open with the text, and nothing is saved.
 
 **Saving.** When the user confirms a changed text, `isSaving` turns `True`: that
 is the application's cue to send the new text (`pending`) to the backend. The
-text keeps showing the new value with a spinner. When the backend answers, call
-`saved` (the value is now `pending`) or `failed` with a
-[Klar.Remote](Klar-Remote) `Problem`: the text is then shown with the problem,
-a "Try again" button (which makes `isSaving` `True` again; left out when
-`Remote.isRetryable` says the problem would fail the same way, such as a conflict
-or a validation problem) and a "Cancel" button
-(which goes back to the old value). Confirming the text unchanged saves nothing.
+text keeps showing the new value with a spinner, and screen readers hear "Saving
+..." and then "Saved". When the backend answers, call `saved` (the value is now
+`pending`) or `failed` with a [Klar.Remote](Klar-Remote) `Problem`: the text is
+then shown with the problem, a "Try again" button (which makes `isSaving` `True`
+again; left out when `Remote.isRetryable` says the problem would fail the same
+way, such as a conflict or a validation problem) and a "Cancel" button (which
+goes back to the old value). A click on the text opens the editor again with the
+refused text and the problem under it, so the user can correct it. Confirming
+the text unchanged saves nothing. An answer that comes when no save is on its
+way (a late one, after a `setValue` or a "Cancel") changes nothing.
 
 **Validation.** `validate` is checked when the user confirms; a message keeps
 the input open and is shown under it.
 
+**The application's own changes.** `setValue` replaces the saved text. While the
+user is editing, or a save is on its way, it never touches what they typed or
+the save: the editor stays open with their text, and "Cancel" goes back to the
+new value. This is the rule of every Klar input: what the user types wins.
+
 **No field wrapper.** Unlike most inputs, this one is not built on the field
 wrapper ([Klar.Field](Klar-Field)), so it has no visible label, hint, required
-marker or `error` attribute. `label` is only the accessible name, and the
+marker or `error` attribute. `ariaLabel` is the name screen readers hear, and the
 message of `validate` is shown under the input.
 
 The built-in texts (the buttons, "Click to add", "Saving ...") follow `locale`.
@@ -105,14 +118,14 @@ The built-in texts (the buttons, "Click to add", "Saving ...") follow `locale`.
 @docs value, isEditing, isSaving, isFailed, pending
 
 
-# Saving
+# Saving and changing it from the application
 
-@docs saved, failed, setValue
+@docs saved, failed, setValue, edit
 
 
-# Label and texts
+# Name and texts
 
-@docs label, placeholder, emptyText
+@docs ariaLabel, placeholder, emptyText
 
 
 # Rules
@@ -138,6 +151,7 @@ import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Composition as Composition
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem)
 
@@ -162,6 +176,9 @@ type alias Fields =
     , error : Maybe String
     , pending : Maybe String
     , problem : Maybe Problem
+
+    -- the last save went well: "Saved" for screen readers, until editing starts again
+    , justSaved : Bool
     }
 
 
@@ -189,6 +206,7 @@ init id initial =
         , error = Nothing
         , pending = Nothing
         , problem = Nothing
+        , justSaved = False
         }
 
 
@@ -201,21 +219,51 @@ value (State state) =
     state.value
 
 
-{-| Shows this text as the saved text and goes back to reading mode, dropping
-any edit, save in progress or failure. Use it when the text comes from
-somewhere else, for example after the data was loaded again.
+{-| Replaces the saved text, for example after the record was loaded again. In
+reading mode the new text is shown at once. While the user is editing, the text
+they typed stays in the editor and only the saved text changes: "Cancel" and
+Escape go back to the new one. (When they have not changed anything yet, the
+editor shows the new text too, so an Enter does not save the old one over it.)
+While a save is on its way or has failed, the save goes on: `saved` still makes
+`pending` the value, and "Cancel" goes back to the new text.
 -}
 setValue : String -> State -> State
 setValue text (State state) =
-    State
-        { state
-            | value = text
-            , draft = text
-            , mode = Reading
-            , error = Nothing
-            , pending = Nothing
-            , problem = Nothing
-        }
+    case state.mode of
+        Reading ->
+            State { state | value = text, draft = text, error = Nothing }
+
+        Editing ->
+            if state.draft == state.value then
+                State { state | value = text, draft = text }
+
+            else
+                State { state | value = text }
+
+        Saving ->
+            State { state | value = text }
+
+        Failed ->
+            State { state | value = text }
+
+
+{-| Opens the editor from the application, as a click on the text does: for a
+keyboard shortcut such as F2 on the row, or an "Edit" item in a menu. The `Cmd`
+moves the focus into the input, so pass it on with `Cmd.map`. It does nothing
+while the editor is open or a save is on its way. Do not call it for a field
+that is `disabled`: its editor would open inert.
+
+    EditNameClicked ->
+        let
+            ( customerName, cmd ) =
+                InlineEdit.edit model.customerName
+        in
+        ( { model | customerName = customerName }, Cmd.map CustomerNameMsg cmd )
+
+-}
+edit : State -> ( State, Cmd Msg )
+edit state =
+    update StartEdit state
 
 
 {-| `True` while the input is open for editing.
@@ -234,8 +282,9 @@ isSaving (State state) =
     state.mode == Saving
 
 
-{-| `True` after `failed` until the user chooses "Try again" or "Cancel". The
-text is shown with the problem and the two buttons.
+{-| `True` after `failed` until the user chooses "Try again" or "Cancel", or
+clicks the text to correct it. The text is shown with the problem and the
+buttons.
 -}
 isFailed : State -> Bool
 isFailed (State state) =
@@ -243,7 +292,7 @@ isFailed (State state) =
 
 
 {-| The text waiting to be saved: the confirmed text while `isSaving`, and after
-a failure until the user cancels. Otherwise `Nothing`.
+a failure until the user cancels or opens the editor again. Otherwise `Nothing`.
 -}
 pending : State -> Maybe String
 pending (State state) =
@@ -251,16 +300,29 @@ pending (State state) =
 
 
 {-| The save went well: the pending text is now the value, and the field is back
-in reading mode. Call it when the backend answers.
+in reading mode. Call it when the backend answers. It does nothing when no save
+is on its way, so a late answer cannot close an editor the user opened since.
 -}
 saved : State -> State
 saved (State state) =
-    case state.pending of
-        Just text ->
-            setValue text (State state)
+    if state.mode == Saving then
+        let
+            text =
+                Maybe.withDefault state.value state.pending
+        in
+        State
+            { state
+                | value = text
+                , draft = text
+                , mode = Reading
+                , error = Nothing
+                , pending = Nothing
+                , problem = Nothing
+                , justSaved = True
+            }
 
-        Nothing ->
-            State { state | mode = Reading }
+    else
+        State state
 
 
 {-| The save failed. The text is shown with "Could not save." and the `title` of
@@ -268,8 +330,10 @@ the problem, followed by its `detail` when you gave one with `Remote.withDetail`
 (the server's message for this field), a "Try again" button (which makes
 `isSaving` `True` again, but only when `Remote.isRetryable` allows it: not for a
 conflict or a validation problem, which would fail the same way) and a "Cancel"
-button that goes back to the old value. The `Problem` is from
+button that goes back to the old value. A click on the text opens the editor
+with the refused text and the message under it. The `Problem` is from
 [Klar.Remote](Klar-Remote); make one from your own error with `Remote.problem`.
+It does nothing when no save is on its way, like `saved`.
 
     InlineEdit.failed (Remote.problem Remote.network) model.customerName
 
@@ -283,15 +347,24 @@ A refusal that names the field:
 -}
 failed : Problem -> State -> State
 failed problem (State state) =
-    State { state | mode = Failed, problem = Just problem }
+    if state.mode == Saving then
+        State { state | mode = Failed, problem = Just problem }
+
+    else
+        State state
 
 
 
 -- UPDATE
 
 
-type alias Rules =
-    { validate : String -> Maybe String
+{-| What the user confirmed: the text as it is in the input, and the message of
+`validate` for it, worked out in the view where the rule is known. No function
+travels in a message.
+-}
+type alias Confirmation =
+    { text : String
+    , problem : Maybe String
     }
 
 
@@ -302,7 +375,7 @@ function you give it; hand them to `update` when they come back.
 type Msg
     = StartEdit
     | Typed String
-    | Confirm Rules
+    | Confirm Confirmation
     | Cancel
     | Retry
     | Discard
@@ -318,30 +391,48 @@ update : Msg -> State -> ( State, Cmd Msg )
 update msg (State state) =
     case msg of
         StartEdit ->
-            if state.mode == Reading then
-                ( State { state | mode = Editing, draft = state.value, error = Nothing }
-                , Internal.focus state.id Noop
-                )
+            case state.mode of
+                Reading ->
+                    ( State { state | mode = Editing, draft = state.value, error = Nothing, justSaved = False }
+                    , Internal.focus state.id Noop
+                    )
+
+                Failed ->
+                    -- correct the refused text: it comes back with the problem under it
+                    ( State
+                        { state
+                            | mode = Editing
+                            , draft = Maybe.withDefault state.value state.pending
+                            , pending = Nothing
+                            , error = Nothing
+                            , justSaved = False
+                        }
+                    , Internal.focus state.id Noop
+                    )
+
+                _ ->
+                    ( State state, Cmd.none )
+
+        Typed text ->
+            if state.mode == Editing then
+                ( State { state | draft = text, error = Nothing, problem = Nothing }, Cmd.none )
 
             else
                 ( State state, Cmd.none )
 
-        Typed text ->
-            ( State { state | draft = text, error = Nothing }, Cmd.none )
-
-        Confirm rules ->
+        Confirm confirmed ->
             if state.mode == Editing then
                 let
                     candidate =
-                        String.trim state.draft
+                        String.trim confirmed.text
                 in
-                case rules.validate candidate of
+                case confirmed.problem of
                     Just problem ->
-                        ( State { state | error = Just problem }, Cmd.none )
+                        ( State { state | draft = confirmed.text, error = Just problem }, Cmd.none )
 
                     Nothing ->
                         if candidate == state.value then
-                            ( State { state | mode = Reading, draft = state.value, error = Nothing }
+                            ( State { state | mode = Reading, draft = state.value, error = Nothing, problem = Nothing }
                             , Internal.focus (displayId state.id) Noop
                             )
 
@@ -352,6 +443,7 @@ update msg (State state) =
                                     , draft = candidate
                                     , pending = Just candidate
                                     , error = Nothing
+                                    , problem = Nothing
                                 }
                             , Internal.focus (displayId state.id) Noop
                             )
@@ -361,7 +453,7 @@ update msg (State state) =
 
         Cancel ->
             if state.mode == Editing then
-                ( State { state | mode = Reading, draft = state.value, error = Nothing }
+                ( State { state | mode = Reading, draft = state.value, error = Nothing, pending = Nothing, problem = Nothing }
                 , Internal.focus (displayId state.id) Noop
                 )
 
@@ -369,14 +461,21 @@ update msg (State state) =
                 ( State state, Cmd.none )
 
         Retry ->
-            if state.mode == Failed then
-                -- the retry button goes away: keep focus on the text
-                ( State { state | mode = Saving, problem = Nothing }
-                , Internal.focus (displayId state.id) Noop
-                )
+            case ( state.mode, state.pending ) of
+                ( Failed, Just _ ) ->
+                    -- the retry button goes away: keep focus on the text
+                    ( State { state | mode = Saving, problem = Nothing }
+                    , Internal.focus (displayId state.id) Noop
+                    )
 
-            else
-                ( State state, Cmd.none )
+                ( Failed, Nothing ) ->
+                    -- nothing to send again
+                    ( State { state | mode = Reading, draft = state.value, problem = Nothing }
+                    , Internal.focus (displayId state.id) Noop
+                    )
+
+                _ ->
+                    ( State state, Cmd.none )
 
         Discard ->
             if state.mode == Failed then
@@ -408,7 +507,7 @@ type Attribute msg
 
 
 type alias Config =
-    { label : Maybe String
+    { ariaLabel : Maybe String
     , placeholder : String
     , emptyText : Maybe String
     , maxLength : Maybe Int
@@ -421,7 +520,7 @@ type alias Config =
 configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { label = Nothing
+        { ariaLabel = Nothing
         , placeholder = ""
         , emptyText = Nothing
         , maxLength = Nothing
@@ -432,13 +531,15 @@ configure attributes =
         attributes
 
 
-{-| What the text is about, such as `"Customer name"`. It is not shown: it is the
-accessible name of the input, and part of the name of the text button ("Edit
-customer name: Ada Lovelace"). Give every inline edit one.
+{-| What the text is about, such as `"Customer name"`, for screen readers only:
+it is the accessible name of the input, and part of the name of the text button
+("Edit Customer name: Ada Lovelace", in the case it was given). Give every inline
+edit one; the visible label, when there is one, is yours (a `DescriptionList`
+term, a heading).
 -}
-label : String -> Attribute msg
-label text =
-    Attribute (\config -> { config | label = Just text })
+ariaLabel : String -> Attribute msg
+ariaLabel text =
+    Attribute (\config -> { config | ariaLabel = Just text })
 
 
 {-| Text shown inside the input while editing, when the input is empty. Default:
@@ -483,8 +584,9 @@ validate check =
     Attribute (\config -> { config | validate = check })
 
 
-{-| While `True` the text is plain text: no pencil, no button, no editing.
-Default `False`.
+{-| While `True` the text cannot be edited: no pencil, and a click does nothing.
+It stays the same button, marked `aria-disabled` and out of the Tab order, so a
+field that becomes disabled while it has the focus keeps it. Default `False`.
 
 If the field becomes disabled while the input is open, the input stays on the
 screen with the text typed so far, but it is inert. It is read-only, it is no
@@ -500,9 +602,9 @@ disabled flag =
 
 
 {-| The language of the built-in text: "Click to add", the accessible name "Edit
-...", the "Save" and "Cancel" buttons, "Saving ...", "Could not save." and "Try
-again". Default `Locale.default`, which is English. Texts you pass in yourself
-are shown as they are.
+...", the "Save" and "Cancel" buttons, "Saving ...", "Saved", "Could not save."
+and "Try again". Default `Locale.default`, which is English. Texts you pass in
+yourself are shown as they are.
 -}
 locale : Locale -> Attribute msg
 locale lang =
@@ -518,7 +620,7 @@ argument wraps the field's own messages in one of yours, and the state comes
 last.
 
     InlineEdit.view CustomerNameMsg
-        [ InlineEdit.label "Customer name"
+        [ InlineEdit.ariaLabel "Customer name"
         , InlineEdit.emptyText "No name yet"
         ]
         model.customerName
@@ -529,9 +631,6 @@ view toMsg attributes (State state) =
     let
         config =
             configure attributes
-
-        rules =
-            { validate = config.validate }
     in
     Html.div
         [ Internal.cls
@@ -550,45 +649,82 @@ view toMsg attributes (State state) =
                     "klar-inline-edit--failed"
             ]
         ]
-        (case state.mode of
-            Reading ->
-                [ viewDisplay toMsg config state state.value ]
+        -- The live region is the first child in every mode, so it is never made
+        -- again and what it says is announced.
+        (viewAnnouncement config state
+            :: (case state.mode of
+                    Reading ->
+                        [ viewDisplay toMsg config state state.value ]
 
-            Editing ->
-                viewEditor toMsg config rules state
+                    Editing ->
+                        viewEditor toMsg config state
 
-            Saving ->
-                [ viewDisplay toMsg config state (Maybe.withDefault state.value state.pending)
-                , Html.span
-                    [ Internal.cls [ "klar-inline-edit__saving" ]
-                    , Attr.attribute "role" "status"
-                    ]
-                    [ Html.span [ Internal.cls [ "klar-spinner", "klar-spinner--sm" ], Attr.attribute "aria-hidden" "true" ] []
-                    , Html.text (Locale.pick config.locale { nb = "Lagrer ...", en = "Saving ..." })
-                    ]
-                ]
+                    Saving ->
+                        [ viewDisplay toMsg config state (Maybe.withDefault state.value state.pending)
+                        , Html.span
+                            [ Internal.cls [ "klar-inline-edit__saving" ]
+                            , Attr.attribute "aria-hidden" "true"
+                            ]
+                            [ Html.span [ Internal.cls [ "klar-spinner", "klar-spinner--sm" ] ] []
+                            , Html.text (savingText config.locale)
+                            ]
+                        ]
 
-            Failed ->
-                viewFailure toMsg config state
+                    Failed ->
+                        viewFailure toMsg config state
+               )
         )
 
 
-{-| The text as a button that starts editing. While saving and after a
-failed save it stays (inactive) in the same place, so keyboard focus is not
-lost when the input closes: Enter in the input moves focus here, and it stays
-here through `saved` and `failed`.
+{-| "Saving ..." while a save is on its way and "Saved" after it, for screen
+readers. A failure is announced by its own alert.
+-}
+viewAnnouncement : Config -> Fields -> Html msg
+viewAnnouncement config state =
+    Html.span
+        [ Internal.cls [ "klar-sr-only" ]
+        , Attr.attribute "role" "status"
+        ]
+        [ Html.text
+            (case state.mode of
+                Saving ->
+                    savingText config.locale
+
+                Reading ->
+                    if state.justSaved then
+                        Locale.pick config.locale { nb = "Lagret", en = "Saved" }
+
+                    else
+                        ""
+
+                _ ->
+                    ""
+            )
+        ]
+
+
+savingText : Locale -> String
+savingText lang =
+    Locale.pick lang { nb = "Lagrer ...", en = "Saving ..." }
+
+
+{-| The text as a button that starts editing. While saving it stays (inactive)
+in the same place, so keyboard focus is not lost when the input closes: Enter in
+the input moves focus here, and it stays here through `saved` and `failed`.
+After a failed save a click opens the editor again. While disabled it is the
+same button, inactive and out of the Tab order, so it keeps the focus it has.
 -}
 viewDisplay : (Msg -> msg) -> Config -> Fields -> String -> Html msg
 viewDisplay toMsg config state text =
     let
         active =
-            state.mode == Reading
+            not config.disabled && (state.mode == Reading || state.mode == Failed)
 
         accessibleName =
             Locale.pick config.locale { nb = "Rediger", en = "Edit" }
-                ++ (case config.label of
+                ++ (case config.ariaLabel of
                         Just name ->
-                            " " ++ String.toLower name
+                            " " ++ name
 
                         Nothing ->
                             ""
@@ -601,39 +737,34 @@ viewDisplay toMsg config state text =
                         text
                    )
     in
-    if config.disabled then
-        viewStatic config text
+    Html.button
+        [ Internal.cls
+            [ "klar-inline-edit__display"
+            , if config.disabled then
+                "klar-inline-edit__display--disabled"
 
-    else
-        Html.button
-            [ Internal.cls
-                [ "klar-inline-edit__display"
-                , if active then
-                    ""
-
-                  else
-                    "klar-inline-edit__display--busy"
-                ]
-            , Attr.type_ "button"
-            , Attr.id (displayId state.id)
-            , Attr.attribute "aria-label" accessibleName
-            , if active then
-                Events.onClick (toMsg StartEdit)
+              else if active then
+                ""
 
               else
-                Attr.attribute "aria-disabled" "true"
+                "klar-inline-edit__display--busy"
             ]
-            [ staticText config text
-            , Internal.viewIf active
-                (Html.span [ Internal.cls [ "klar-inline-edit__pencil" ], Attr.attribute "aria-hidden" "true" ]
-                    [ Icon.view Icon.edit ]
-                )
-            ]
+        , Attr.type_ "button"
+        , Attr.id (displayId state.id)
+        , Attr.attribute "aria-label" accessibleName
+        , if active then
+            Events.onClick (toMsg StartEdit)
 
-
-viewStatic : Config -> String -> Html msg
-viewStatic config text =
-    Html.span [ Internal.cls [ "klar-inline-edit__static" ] ] [ staticText config text ]
+          else
+            Attr.attribute "aria-disabled" "true"
+        , Internal.attrIf config.disabled (Attr.tabindex -1)
+        ]
+        [ staticText config text
+        , Internal.viewIf active
+            (Html.span [ Internal.cls [ "klar-inline-edit__pencil" ], Attr.attribute "aria-hidden" "true" ]
+                [ Icon.view Icon.edit ]
+            )
+        ]
 
 
 staticText : Config -> String -> Html msg
@@ -652,8 +783,15 @@ emptyLabel config =
         |> Maybe.withDefault (Locale.pick config.locale { nb = "Klikk for å legge til", en = "Click to add" })
 
 
-viewEditor : (Msg -> msg) -> Config -> Rules -> Fields -> List (Html msg)
-viewEditor toMsg config rules state =
+{-| What the user confirms, with the message of `validate` for it.
+-}
+confirmation : Config -> String -> Confirmation
+confirmation config text =
+    { text = text, problem = config.validate (String.trim text) }
+
+
+viewEditor : (Msg -> msg) -> Config -> Fields -> List (Html msg)
+viewEditor toMsg config state =
     let
         errorId =
             state.id ++ "-error"
@@ -663,6 +801,16 @@ viewEditor toMsg config rules state =
 
         cancelLabel =
             Locale.pick config.locale { nb = "Avbryt", en = "Cancel" }
+
+        -- the message of `validate`, or else the problem of the save that failed
+        -- (the editor was opened again to correct the refused text)
+        message =
+            case state.error of
+                Just text ->
+                    Just text
+
+                Nothing ->
+                    Maybe.map (\problem -> couldNotSave config.locale ++ failureText config.locale problem) state.problem
 
         -- An editor that is already open when the field becomes disabled is
         -- inert: the input is read-only, not disabled (a disabled input that has
@@ -677,7 +825,7 @@ viewEditor toMsg config rules state =
             [ "klar-input"
             , "klar-input--sm"
             , "klar-inline-edit__box"
-            , if state.error /= Nothing then
+            , if message /= Nothing then
                 "klar-input--invalid"
 
               else
@@ -696,15 +844,15 @@ viewEditor toMsg config rules state =
             , Attr.value state.draft
             , Attr.placeholder config.placeholder
             , Internal.attrMaybe Attr.maxlength config.maxLength
-            , Internal.attrMaybe (Attr.attribute "aria-label") config.label
-            , Internal.attrIf (state.error /= Nothing) (Attr.attribute "aria-invalid" "true")
-            , Internal.attrIf (state.error /= Nothing) (Attr.attribute "aria-describedby" errorId)
+            , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+            , Internal.attrIf (message /= Nothing) (Attr.attribute "aria-invalid" "true")
+            , Internal.attrIf (message /= Nothing) (Attr.attribute "aria-describedby" errorId)
             , Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true")
             , Attr.readonly config.disabled
             , Attr.attribute "autocomplete" "off"
             , Internal.attrIf active (Events.onInput (\text -> toMsg (Typed text)))
-            , Internal.attrIf active (Events.onBlur (toMsg (Confirm rules)))
-            , Internal.attrIf active (Events.preventDefaultOn "keydown" (keyDecoder toMsg rules))
+            , Internal.attrIf active (Events.on "blur" (blurDecoder toMsg config state))
+            , Internal.attrIf active (Events.preventDefaultOn "keydown" (keyDecoder toMsg config state))
             ]
             []
         , Html.button
@@ -715,7 +863,7 @@ viewEditor toMsg config rules state =
             , Attr.title saveLabel
             , Attr.disabled config.disabled
             , Internal.onMouseDownPrevent (toMsg Noop)
-            , Internal.attrIf active (Events.onClick (toMsg (Confirm rules)))
+            , Internal.attrIf active (Events.onClick (toMsg (Confirm (confirmation config state.draft))))
             ]
             [ Icon.view Icon.check ]
         , Html.button
@@ -730,14 +878,14 @@ viewEditor toMsg config rules state =
             ]
             [ Icon.view Icon.close ]
         ]
-    , case state.error of
-        Just message ->
+    , case message of
+        Just text ->
             Html.p
                 [ Internal.cls [ "klar-field__error", "klar-inline-edit__error" ]
                 , Attr.id errorId
                 , Attr.attribute "role" "alert"
                 ]
-                [ Html.text message ]
+                [ Html.text text ]
 
         Nothing ->
             Html.text ""
@@ -759,7 +907,7 @@ viewFailure toMsg config state =
         [ Html.span [ Internal.cls [ "klar-inline-edit__failure-icon" ] ] [ Icon.view Icon.errorCircle ]
         , Html.span [ Internal.cls [ "klar-inline-edit__failure-text" ] ]
             [ Html.text
-                (Locale.pick config.locale { nb = "Kunne ikke lagre. ", en = "Could not save. " }
+                (couldNotSave config.locale
                     ++ (state.problem |> Maybe.map (failureText config.locale) |> Maybe.withDefault "")
                 )
             ]
@@ -773,6 +921,11 @@ viewFailure toMsg config state =
             (Locale.pick config.locale { nb = "Avbryt", en = "Cancel" })
         ]
     ]
+
+
+couldNotSave : Locale -> String
+couldNotSave lang =
+    Locale.pick lang { nb = "Kunne ikke lagre. ", en = "Could not save. " }
 
 
 {-| The title of the problem, and its detail after a colon when the application
@@ -800,22 +953,61 @@ failureText lang problem =
             Remote.title lang problem
 
 
-keyDecoder : (Msg -> msg) -> Rules -> Decode.Decoder ( msg, Bool )
-keyDecoder toMsg rules =
-    Internal.keyEvent
+{-| Enter confirms and Escape cancels; both are handled here, so their default is
+prevented (no form is submitted, and a dialog around the field that respects
+`defaultPrevented` stays open). The text comes from the input itself, so an Enter
+pressed before the next frame confirms what is in it. The key that ends an IME
+composition is left to the input method.
+-}
+keyDecoder : (Msg -> msg) -> Config -> Fields -> Decode.Decoder ( msg, Bool )
+keyDecoder toMsg config state =
+    Composition.unlessComposing
+        (Decode.map2 Tuple.pair Internal.keyEvent (textDecoder state)
+            |> Decode.andThen
+                (\( event, text ) ->
+                    if event.ctrl || event.meta || event.alt then
+                        Decode.fail "modifier"
+
+                    else
+                        case event.key of
+                            "Enter" ->
+                                Decode.succeed ( toMsg (Confirm (confirmation config text)), True )
+
+                            "Escape" ->
+                                Decode.succeed ( toMsg Cancel, True )
+
+                            _ ->
+                                Decode.fail "unhandled key"
+                )
+        )
+
+
+{-| Leaving the field confirms it. When the whole window loses the focus (the
+user switches to another one), the input is still the focused element of its
+page, and nothing happens: the user comes back to the open editor.
+-}
+blurDecoder : (Msg -> msg) -> Config -> Fields -> Decode.Decoder msg
+blurDecoder toMsg config state =
+    Decode.map2 Tuple.pair
+        (textDecoder state)
+        (Decode.oneOf
+            [ Decode.at [ "target", "ownerDocument", "activeElement", "id" ] Decode.string
+            , Decode.succeed ""
+            ]
+        )
         |> Decode.andThen
-            (\event ->
-                if event.ctrl || event.meta || event.alt then
-                    Decode.fail "modifier"
+            (\( text, focused ) ->
+                if focused == state.id then
+                    Decode.fail "the window was left"
 
                 else
-                    case event.key of
-                        "Enter" ->
-                            Decode.succeed ( toMsg (Confirm rules), True )
-
-                        "Escape" ->
-                            Decode.succeed ( toMsg Cancel, True )
-
-                        _ ->
-                            Decode.fail "unhandled key"
+                    Decode.succeed (toMsg (Confirm (confirmation config text)))
             )
+
+
+{-| The text in the input, read from the input itself; the text of the last
+render when the event has none.
+-}
+textDecoder : Fields -> Decode.Decoder String
+textDecoder state =
+    Decode.oneOf [ Decode.at [ "target", "value" ] Decode.string, Decode.succeed state.draft ]
