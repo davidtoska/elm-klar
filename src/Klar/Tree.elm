@@ -76,10 +76,12 @@ in the whole tree.
 Keyboard: `Tab` enters and leaves the nodes. `Up` and `Down` move, `Right`
 opens a closed node and then moves to its first child, `Left` closes an open node
 and then moves to the parent, `Home` and `End` jump to the first and last visible
-node, `Enter` calls `onActivate` (without it, `Enter` does what `Space` does),
-`Space` selects (toggles in a `multiSelect` tree, checks in a tree with
-`checkboxes`) and `*` opens all closed nodes on the current level. In a
-`multiSelect` tree `Shift`+`Up` and `Shift`+`Down` extend the selection. Typing
+node, `PageUp` and `PageDown` move ten nodes, `Enter` calls `onActivate` (without
+it, `Enter` does what `Space` does), `Space` selects (toggles in a `multiSelect`
+tree, checks in a tree with `checkboxes`) and `*` opens all closed nodes on the
+current level. In a `multiSelect` tree `Shift` with `Up`, `Down`, `PageUp`,
+`PageDown`, `Home` or `End` extends the selection, and `Ctrl`+`A` (`Cmd`+`A`)
+selects every visible node. Typing
 letters jumps to the next visible node whose label starts with them. In the filter
 box, `Down` moves into the tree and `Escape` clears the filter. With the mouse, a
 click selects, the arrow in front of a node opens and closes it, and a double
@@ -795,6 +797,7 @@ type Msg
     | TypeAhead String (List ( String, String ))
     | ClearTypeahead Int
     | RequestChildren String
+    | SelectAll (List String)
     | Noop
 
 
@@ -854,6 +857,9 @@ update msg (State before) =
 
         RequestChildren id ->
             ( State { s | requests = [ id ] }, Cmd.none )
+
+        SelectAll ids ->
+            ( State { s | selected = Set.fromList ids }, Cmd.none )
 
         Refocus domId ->
             ( State s, Internal.focus domId Noop )
@@ -925,13 +931,7 @@ update msg (State before) =
         StepRange delta visible selectable ->
             case stepTarget s delta visible of
                 Just id ->
-                    focusRow id
-                        (if List.member id selectable then
-                            applyClick id Range selectable s
-
-                         else
-                            s
-                        )
+                    focusRow id (extendRange id visible selectable s)
 
                 Nothing ->
                     ( State s, Cmd.none )
@@ -1097,6 +1097,35 @@ applyClick id mode visible s =
                     { s | selected = Set.singleton id, anchor = Just id, focused = Just id }
 
 
+{-| Select the rows that can be selected between the start of the range and this
+row, both included, by their places among the visible rows. The row itself can be
+one that cannot be selected (`Shift`+`End` on a disabled last node).
+-}
+extendRange : String -> List String -> List String -> StateData -> StateData
+extendRange id visible selectable s =
+    case ( Maybe.andThen (\from -> indexOf from visible) s.anchor, indexOf id visible ) of
+        ( Just a, Just b ) ->
+            let
+                allowed =
+                    Set.fromList selectable
+            in
+            { s
+                | selected =
+                    visible
+                        |> List.drop (min a b)
+                        |> List.take (abs (a - b) + 1)
+                        |> List.filter (\key -> Set.member key allowed)
+                        |> Set.fromList
+            }
+
+        _ ->
+            if List.member id selectable then
+                { s | selected = Set.singleton id, anchor = Just id }
+
+            else
+                s
+
+
 {-| The row `delta` steps from the one that has the focus (the first or the last
 row when nothing has it yet), never beyond the ends.
 -}
@@ -1192,9 +1221,10 @@ ariaLabel text =
 
 {-| Several nodes can be selected: `Ctrl` or `Cmd`+click toggles a node,
 `Shift`+click selects a range of the visible nodes (nodes that are `disabled` are
-skipped), `Shift`+`Up` and `Shift`+`Down` extend the range, and `Space` toggles.
-Read the result with `selected`. It does not change how clicks work in a tree with
-`checkboxes`.
+skipped), `Shift` with an arrow, `PageUp`, `PageDown`, `Home` or `End` extends the
+range, `Ctrl`+`A` (`Cmd`+`A`) selects every visible node, and `Space` toggles.
+Read the result with `selectedIds`. It does not change how clicks work in a tree
+with `checkboxes`.
 -}
 multiSelect : Attribute id msg
 multiSelect =
@@ -2834,17 +2864,37 @@ keyBindings env nodeId =
                     plainSelect
                 )
             )
-        , if env.config.multiSelect && not env.config.checkboxes then
-            Just ( "Shift+ArrowDown", env.toMsg (StepRange 1 env.visibleIds env.selectableIds) )
-
-          else
-            Nothing
-        , if env.config.multiSelect && not env.config.checkboxes then
-            Just ( "Shift+ArrowUp", env.toMsg (StepRange -1 env.visibleIds env.selectableIds) )
-
-          else
-            Nothing
+        , Just ( "PageDown", env.toMsg (Step pageSize env.visibleIds) )
+        , Just ( "PageUp", env.toMsg (Step (negate pageSize) env.visibleIds) )
         ]
+        ++ (if env.config.multiSelect && not env.config.checkboxes then
+                let
+                    range delta =
+                        env.toMsg (StepRange delta env.visibleIds env.selectableIds)
+
+                    everything =
+                        List.length rows
+                in
+                [ ( "Shift+ArrowDown", range 1 )
+                , ( "Shift+ArrowUp", range -1 )
+                , ( "Shift+PageDown", range pageSize )
+                , ( "Shift+PageUp", range (negate pageSize) )
+                , ( "Shift+End", range everything )
+                , ( "Shift+Home", range (negate everything) )
+                , ( "Ctrl+a", env.toMsg (SelectAll env.selectableIds) )
+                , ( "Meta+a", env.toMsg (SelectAll env.selectableIds) )
+                ]
+
+            else
+                []
+           )
+
+
+{-| How many rows `PageUp` and `PageDown` move.
+-}
+pageSize : Int
+pageSize =
+    10
 
 
 findNode : String -> List (Node id) -> Maybe (Node id)

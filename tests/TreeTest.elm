@@ -45,6 +45,7 @@ suite =
         , searchTests
         , clickTests
         , vocabularyTests
+        , pageKeyTests
         ]
 
 
@@ -646,4 +647,95 @@ vocabularyTests =
                 Tree.setSelectedIds Ids.string [ "bread", "apple" ] start
                     |> Tree.selectedIds Ids.string
                     |> Expect.equal [ "apple", "bread" ]
+        ]
+
+
+
+-- PAGE KEYS AND SELECT ALL
+
+
+{-| A key with modifiers, while the node with this id has the focus, and update.
+-}
+pressWith : { ctrl : Bool, shift : Bool } -> List (Tree.Attribute String Msg) -> Tree.State String -> List (Tree.Node String) -> String -> String -> Result String (Tree.State String)
+pressWith modifiers attributes state nodes nodeId key =
+    render attributes state nodes
+        |> Query.find [ role "tree" ]
+        |> Event.simulate
+            (Event.custom "keydown"
+                (Encode.object
+                    [ ( "key", Encode.string key )
+                    , ( "ctrlKey", Encode.bool modifiers.ctrl )
+                    , ( "metaKey", Encode.bool False )
+                    , ( "altKey", Encode.bool False )
+                    , ( "shiftKey", Encode.bool modifiers.shift )
+                    , ( "isComposing", Encode.bool False )
+                    , ( "keyCode", Encode.int 0 )
+                    , ( "target", Encode.object [ ( "id", Encode.string (itemId nodeId) ) ] )
+                    ]
+                )
+            )
+        |> Event.toResult
+        |> apply state
+
+
+pageKeyTests : Test
+pageKeyTests =
+    let
+        names =
+            List.map (\n -> "node" ++ String.fromInt n) (List.range 1 15)
+
+        many =
+            List.map (\id -> Tree.leaf Ids.string id id) names
+                ++ [ Tree.leaf Ids.string "off" "off" |> Tree.disabled ]
+
+        firstClicked attributes =
+            clickRow attributes start many "node1"
+    in
+    describe "page keys and select all"
+        [ test "PageDown moves ten nodes" <|
+            \_ ->
+                firstClicked []
+                    |> Result.andThen (\state -> press [] state many "node1" "PageDown")
+                    |> Result.map (Tree.focused Ids.string)
+                    |> Expect.equal (Ok (Just "node11"))
+        , test "PageUp moves ten nodes back, and stops at the first" <|
+            \_ ->
+                firstClicked []
+                    |> Result.andThen (\state -> press [] state many "node1" "PageDown")
+                    |> Result.andThen (\state -> press [] state many "node11" "PageUp")
+                    |> Result.andThen (\state -> press [] state many "node1" "PageUp")
+                    |> Result.map (Tree.focused Ids.string)
+                    |> Expect.equal (Ok (Just "node1"))
+        , test "Shift+End in a multiSelect tree selects up to the last node that can be selected" <|
+            \_ ->
+                clickRow [ Tree.multiSelect ] start many "node14"
+                    |> Result.andThen (\state -> pressWith { ctrl = False, shift = True } [ Tree.multiSelect ] state many "node14" "End")
+                    |> Result.map (Tree.selectedIds Ids.string)
+                    |> Expect.equal (Ok [ "node14", "node15" ])
+        , test "Ctrl+A in a multiSelect tree selects every visible node that can be selected" <|
+            \_ ->
+                firstClicked [ Tree.multiSelect ]
+                    |> Result.andThen (\state -> pressWith { ctrl = True, shift = False } [ Tree.multiSelect ] state many "node1" "a")
+                    |> Result.map (Tree.selectedIds Ids.string >> List.length)
+                    |> Expect.equal (Ok 15)
+        , test "Ctrl+A is not a key of a single-select tree" <|
+            \_ ->
+                render [] start many
+                    |> Query.find [ role "tree" ]
+                    |> Event.simulate
+                        (Event.custom "keydown"
+                            (Encode.object
+                                [ ( "key", Encode.string "a" )
+                                , ( "ctrlKey", Encode.bool True )
+                                , ( "metaKey", Encode.bool False )
+                                , ( "altKey", Encode.bool False )
+                                , ( "shiftKey", Encode.bool False )
+                                , ( "isComposing", Encode.bool False )
+                                , ( "keyCode", Encode.int 0 )
+                                , ( "target", Encode.object [ ( "id", Encode.string (itemId "node1") ) ] )
+                                ]
+                            )
+                        )
+                    |> Event.toResult
+                    |> Expect.err
         ]

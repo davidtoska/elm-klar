@@ -154,10 +154,12 @@ in the whole tree.
 Keyboard: `Tab` enters and leaves the nodes. `Up` and `Down` move, `Right`
 opens a closed node and then moves to its first child, `Left` closes an open node
 and then moves to the parent, `Home` and `End` jump to the first and last visible
-node, `Enter` calls `onActivate` (without it, `Enter` does what `Space` does),
-`Space` selects (toggles in a `multiSelect` tree, checks in a tree with
-`checkboxes`) and `*` opens all closed nodes on the current level. In a
-`multiSelect` tree `Shift`+`Up` and `Shift`+`Down` extend the selection. Typing
+node, `PageUp` and `PageDown` move ten nodes, `Enter` calls `onActivate` (without
+it, `Enter` does what `Space` does), `Space` selects (toggles in a `multiSelect`
+tree, checks in a tree with `checkboxes`) and `*` opens all closed nodes on the
+current level. In a `multiSelect` tree `Shift` with `Up`, `Down`, `PageUp`,
+`PageDown`, `Home` or `End` extends the selection, and `Ctrl`+`A` (`Cmd`+`A`)
+selects every visible node. Typing
 letters jumps to the next visible node whose label starts with them. In the filter
 box, `Down` moves into the tree and `Escape` clears the filter. With the mouse, a
 click selects, the arrow in front of a node opens and closes it, and a double
@@ -757,9 +759,10 @@ multiSelect : Attribute id msg
 
 Several nodes can be selected: `Ctrl` or `Cmd`+click toggles a node,
 `Shift`+click selects a range of the visible nodes (nodes that are `disabled` are
-skipped), `Shift`+`Up` and `Shift`+`Down` extend the range, and `Space` toggles.
-Read the result with `selected`. It does not change how clicks work in a tree with
-`checkboxes`.
+skipped), `Shift` with an arrow, `PageUp`, `PageDown`, `Home` or `End` extends the
+range, `Ctrl`+`A` (`Cmd`+`A`) selects every visible node, and `Space` toggles.
+Read the result with `selectedIds`. It does not change how clicks work in a tree
+with `checkboxes`.
 
 ### `allowEmptySelection`
 
