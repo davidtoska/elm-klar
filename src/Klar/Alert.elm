@@ -2,7 +2,7 @@ module Klar.Alert exposing
     ( view, viewWith, stale
     , Attribute, tone, title, icon, actions, onDismiss
     , banner, compact
-    , polite, locale
+    , polite, id, locale
     )
 
 {-| Inline messages that tell the user something important in the context where
@@ -25,7 +25,8 @@ Do not use when: the message should disappear by itself (as `Klar.Toast`).
 
 The tone sets the color and the icon; `Info` is the default. An alert stays
 where you put it until you stop showing it. `onDismiss` adds a close button, but
-it only sends your message: hide the alert in your `update` function. For a
+it only sends your message: hide the alert in your `update` function, and move
+the focus (the close button had it, and it is gone; see `onDismiss`). For a
 message that goes away by itself use [Klar.Toast](Klar-Toast).
 
 Errors and warnings use `role="alert"` so screen readers announce them at once,
@@ -51,7 +52,7 @@ message that appears while the user is typing (an "unsaved changes" notice), add
 
 # Accessibility and text
 
-@docs polite, locale
+@docs polite, id, locale
 
 -}
 
@@ -81,6 +82,7 @@ type alias Config msg =
     , banner : Bool
     , compact : Bool
     , polite : Bool
+    , id : Maybe String
     , locale : Locale
     }
 
@@ -96,13 +98,15 @@ configure attributes =
         , banner = False
         , compact = False
         , polite = False
+        , id = Nothing
         , locale = Locale.default
         }
         attributes
 
 
-{-| The language of the built-in text, which is the accessible name of the close
-button ("Close" in English). The default is `Locale.default`, which is English.
+{-| The language of the built-in text: the accessible name of the close button
+("Close", or "Close: " and the title in English) and the texts of `stale`. The
+default is `Locale.default`, which is English.
 -}
 locale : Locale -> Attribute msg
 locale value =
@@ -136,6 +140,16 @@ icon value =
 
 {-| Shows a close button that sends this message. The alert does not hide
 itself: stop showing it when the message arrives in your `update` function.
+The button had the keyboard focus, and it goes away with the alert, so move the
+focus to the next sensible place in the same branch (`Klar.focus`), or it falls
+to the page:
+
+    AlertDismissed ->
+        ( { model | showAlert = False }, Klar.focus "order-form" NoOp )
+
+The button is a 24px target named "Close", or "Close: " and the `title` when
+the alert has one, so that several alerts on a page can be told apart.
+
 -}
 onDismiss : msg -> Attribute msg
 onDismiss msg =
@@ -173,6 +187,18 @@ up by themselves while the user works, never for the result of an action.
 polite : Attribute msg
 polite =
     Attribute (\config -> { config | polite = True })
+
+
+{-| The DOM id of the alert. The alert can then take the focus (`Klar.focus`),
+for example the summary of the errors after a failed submit, and a field can
+point at it with `aria-describedby`. There is no id by default.
+
+    Alert.view [ Alert.tone Danger, Alert.id "save-error" ] "The order could not be saved."
+
+-}
+id : String -> Attribute msg
+id value =
+    Attribute (\config -> { config | id = Just value })
 
 
 {-| An alert with a plain text message.
@@ -226,6 +252,8 @@ viewWith attributes children =
              else
                 "status"
             )
+        , Internal.attrMaybe Attr.id config.id
+        , Internal.attrMaybe (\_ -> Attr.tabindex -1) config.id
         ]
         [ Html.span [ Internal.cls [ "klar-alert__icon" ] ]
             [ Icon.sized Icon.Medium (Maybe.withDefault (defaultIcon config.tone) config.icon) ]
@@ -237,10 +265,23 @@ viewWith attributes children =
             ]
         , case config.onDismiss of
             Just msg ->
+                let
+                    close =
+                        Locale.pick config.locale { nb = "Lukk", en = "Close" }
+
+                    closeLabel =
+                        case Maybe.andThen Internal.nonEmpty config.title of
+                            Just text ->
+                                close ++ ": " ++ text
+
+                            Nothing ->
+                                close
+                in
                 Html.button
                     [ Internal.cls [ "klar-alert__close" ]
                     , Attr.type_ "button"
-                    , Attr.attribute "aria-label" (Locale.pick config.locale { nb = "Lukk", en = "Close" })
+                    , Attr.attribute "aria-label" closeLabel
+                    , Attr.title closeLabel
                     , Events.onClick msg
                     ]
                     [ Icon.view Icon.close ]
@@ -263,9 +304,12 @@ shows nothing.
             ]
         )
 
-The notice is a warning that screen readers announce politely. The attributes
-that make sense here are `locale`, `banner`, `compact` and `onDismiss`; the tone,
-the title, the icon and the actions are set by the notice.
+The notice is a warning that screen readers announce politely, and the names
+are joined as a list in the locale ("orders and figures"). The attributes that
+make sense here are `locale`, `banner`, `compact`, `id` and `onDismiss`; the
+tone, the title, the icon and the actions are set by the notice. When the
+refresh works, the notice goes away with its "Try again" button, which may have
+the keyboard focus: move it to the data that came back (`Klar.focus`).
 
 -}
 stale : List (Attribute msg) -> msg -> List String -> Html msg
@@ -290,9 +334,24 @@ stale attributes retry names =
                    ]
             )
             (pick "Siste oppdatering feilet. Viser forrige data for: " "The last refresh failed. Showing the previous data for: "
-                ++ String.join ", " names
+                ++ joinNames (pick "og" "and") names
                 ++ "."
             )
+
+
+{-| "a", "a and b", "a, b and c".
+-}
+joinNames : String -> List String -> String
+joinNames and names =
+    case List.reverse names of
+        [] ->
+            ""
+
+        [ only ] ->
+            only
+
+        last :: rest ->
+            String.join ", " (List.reverse rest) ++ " " ++ and ++ " " ++ last
 
 
 defaultIcon : Tone -> Icon

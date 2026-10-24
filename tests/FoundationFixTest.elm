@@ -486,8 +486,8 @@ emptyTitleTests =
             \_ ->
                 EmptyState.view [ EmptyState.title "No orders yet" ]
                     |> howMany (title ++ [ Selector.exactText "No orders yet" ]) 1
-        , test "EmptyState with no title has none" <|
-            \_ -> EmptyState.view [] |> howMany title 0
+        , test "EmptyState with no title says that there is nothing to show" <|
+            \_ -> EmptyState.view [] |> howMany (title ++ [ Selector.exactText "Nothing to show" ]) 1
         , test "EmptyState with an empty title has none" <|
             \_ -> EmptyState.view [ EmptyState.title "" ] |> howMany title 0
         , test "EmptyState with a title of spaces has none" <|
@@ -495,12 +495,13 @@ emptyTitleTests =
         , test "the icon, the description and the action are still there without a title" <|
             \_ ->
                 EmptyState.view
-                    [ EmptyState.description "Try again later."
-                    , EmptyState.action (Html.button [] [ Html.text "Reload" ])
+                    [ EmptyState.title ""
+                    , EmptyState.description "Try again later."
+                    , EmptyState.actions [ Html.button [] [ Html.text "Reload" ] ]
                     ]
                     |> Expect.all
                         [ howMany [ Selector.class "klar-state__description" ] 1
-                        , howMany [ Selector.class "klar-state__action" ] 1
+                        , howMany [ Selector.class "klar-state__actions" ] 1
                         , howMany [ Selector.class "klar-state__icon" ] 1
                         ]
         , test "a later title replaces an empty one" <|

@@ -2264,7 +2264,7 @@ statesSection locale states =
                     , Table.emptyState
                         [ EmptyState.title "No orders yet"
                         , EmptyState.description "Orders you create show up here."
-                        , EmptyState.action (Button.view [ Button.primary, Button.icon Icon.plus, Button.onClick CreateOrder ] "Create order")
+                        , EmptyState.actions [ Button.view [ Button.primary, Button.icon Icon.plus, Button.onClick CreateOrder ] "Create order" ]
                         ]
                     ]
                     states.empty
@@ -2350,7 +2350,7 @@ emptyCode =
     , Table.emptyState
         [ EmptyState.title "No orders yet"
         , EmptyState.description "Orders you create show up here."
-        , EmptyState.action (Button.view [ Button.primary, Button.onClick CreateOrder ] "Create order")
+        , EmptyState.actions [ Button.view [ Button.primary, Button.onClick CreateOrder ] "Create order" ]
         ]
     ]
     model.table"""

@@ -190,7 +190,7 @@ body attributes data toBody =
                     Nothing ->
                         Html.div [ Internal.cls [ "klar-remote-body" ] ]
                             [ Skeleton.line 45
-                            , Skeleton.paragraph 3
+                            , Skeleton.lines 3
                             ]
                 ]
             ]

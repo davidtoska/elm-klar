@@ -293,10 +293,20 @@ css =
   to { transform: rotate(360deg); }
 }
 
+/* Reduced motion, the same for every loading indicator of Klar (see the spinner):
+   a running bar takes 3.2s a round, what turns takes 1.6s, stripes stand still. */
 @media (prefers-reduced-motion: reduce) {
   .klar-progress--striped .klar-progress__bar { animation: none; }
   .klar-progress--indeterminate .klar-progress__bar { animation-duration: 3.2s; }
   .klar-progress--indeterminate .klar-progress__segment { --_wave: 3.2s; }
+  .klar-progress--indeterminate.klar-progress-ring .klar-progress-ring__arc { animation-duration: 1.6s; }
+}
+
+/* High contrast paints the track as the page: an outline keeps the length of the
+   bar readable (the bar, the steps and the arc keep their colors, below). */
+@media (forced-colors: active) {
+  .klar-progress__track { outline: 1px solid CanvasText; }
+  .klar-progress__segment:not(.klar-progress__segment--filled) { outline: 1px solid CanvasText; outline-offset: -1px; }
 }
 
 /* Ring: a conic-gradient arc masked into a ring, text in the middle. */

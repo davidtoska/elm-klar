@@ -228,34 +228,21 @@ update msg model =
 
         TagRemoved id ->
             let
-                remaining =
-                    List.filter (\warehouse -> Types.warehouseIdText warehouse.id /= id) model.tags
-
-                position =
-                    model.tags
-                        |> List.indexedMap Tuple.pair
-                        |> List.filter (\( _, warehouse ) -> Types.warehouseIdText warehouse.id == id)
-                        |> List.head
-                        |> Maybe.map Tuple.first
-                        |> Maybe.withDefault 0
+                removed =
+                    List.filter (\warehouse -> Types.warehouseIdText warehouse.id == id) model.tags
 
                 -- The tag that was removed took the keyboard focus with it: the
-                -- next tag gets it (or the last one, or the button that brings
+                -- next tag gets it (or the one before, or the button that brings
                 -- the tags back).
                 target =
-                    case List.drop position remaining of
-                        next :: _ ->
-                            tagRemoveId next
+                    case removed of
+                        warehouse :: _ ->
+                            Tag.nextFocus { removed = warehouse, tags = model.tags, toId = tagRemoveId, otherwise = tagsResetId }
 
                         [] ->
-                            case List.reverse remaining of
-                                last :: _ ->
-                                    tagRemoveId last
-
-                                [] ->
-                                    tagsResetId
+                            tagsResetId
             in
-            ( { model | tags = remaining }, focus target )
+            ( { model | tags = List.filter (\warehouse -> Types.warehouseIdText warehouse.id /= id) model.tags }, focus target )
 
         TagsReset ->
             ( { model | tags = initialTags }
@@ -651,7 +638,7 @@ viewBadges locale model =
         "Small labels for state. Use the tone for meaning, not decoration. A badge (Badge) shows a state; a tag (Tag) is something the user has chosen and can take away. Keyboard: Tab to the × on a tag, Enter or Space removes it."
         [ Doc.example
             { title = "Badges"
-            , description = Just "A badge shows a state the user reads but does not change. The color is not announced by screen readers, so put the meaning in the text. Counts above 99 show as 99+."
+            , description = Just "A badge shows a state the user reads but does not change. The color is not announced by screen readers, so put the meaning in the text. Counts above 99 show as 99+ (the tooltip and screen readers get the exact number), and a count of zero shows nothing. A solid warning is dark amber, so its white text keeps AA contrast."
             , code = Just badgeCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -666,12 +653,15 @@ viewBadges locale model =
                 , Layout.row [ Layout.gap 2, Layout.wrap ]
                     [ Badge.view [ Badge.tone Info, Badge.dot ] "With dot"
                     , Badge.view [ Badge.tone Success, Badge.icon Icon.check ] "With icon"
-                    , Badge.count 7
-                    , Badge.count 128
+                    , Badge.count [] 7
+                    , Badge.count [] 128
+                    , Badge.count [ Badge.tone Danger, Badge.size Small ] 3
+                    , Badge.count [ Badge.tone Neutral, Badge.max 999 ] 1280
                     ]
                 , Layout.row [ Layout.gap 2, Layout.wrap ]
                     [ Badge.view [ Badge.tone Primary, Badge.solid ] "Solid"
                     , Badge.view [ Badge.tone Success, Badge.solid ] "Solid"
+                    , Badge.view [ Badge.tone Warning, Badge.solid ] "Solid"
                     , Badge.view [ Badge.tone Danger, Badge.solid ] "Solid"
                     , Badge.view [ Badge.tone Primary, Badge.outline ] "Outline"
                     , Badge.view [ Badge.tone Warning, Badge.outline ] "Outline"
@@ -689,7 +679,7 @@ viewBadges locale model =
             )
         , Doc.example
             { title = "Tags"
-            , description = Just "For example selected filters. The × removes the tag; the text and tooltip of the × come from Tag.locale. When a tag is removed with the keyboard, the focus moves to the next tag (Tag.removeId gives the × an id that the application can send the focus to)."
+            , description = Just "For example selected filters. The × removes the tag; the text and tooltip of the × come from Tag.locale. When a tag is removed with the keyboard, the focus moves to the next tag: Tag.removeId gives the × an id, and Tag.nextFocus picks the id to focus (the next tag, the one before, or a fallback). Tag.removeLabel names the × when the label is a value, as on the filter chip."
             , code = Just tagCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -708,12 +698,13 @@ viewBadges locale model =
                     , Tag.view [ Tag.outline ] "Outline"
                     , Tag.view [ Tag.size Small ] "Small"
                     , Tag.view [ Tag.size Large ] "Large"
+                    , Tag.view [ Tag.locale locale, Tag.onRemove NoOp, Tag.removeLabel "Remove filter Amount > 100" ] "Amount > 100"
                     ]
                 ]
             )
         , Doc.example
             { title = "Long labels"
-            , description = Just "A label that does not fit its container is cut with an ellipsis. Labels longer than 18 characters (24 for Badge.status) carry the whole text as a tooltip."
+            , description = Just "A label that does not fit its container is cut with an ellipsis. Labels longer than 12 characters carry the whole text as a tooltip."
             , code = Just longLabelCode
             }
             (Layout.container [ Layout.maxWidth 200, Layout.alignStart ]
@@ -824,15 +815,19 @@ viewLoading =
                     [ Skeleton.circle 40
                     , Layout.stack [ Layout.gap 2, Layout.grow ] [ Skeleton.line 60, Skeleton.line 90 ]
                     ]
-                , Layout.stack [ Layout.gap 2 ] [ Skeleton.block 64, Skeleton.paragraph 2 ]
+                , Layout.stack [ Layout.gap 2 ] [ Skeleton.block 64, Skeleton.lines 2 ]
                 ]
             )
         , Doc.example
             { title = "Loading a panel"
-            , description = Nothing
-            , code = Just "Spinner.panel \"Loading orders ...\"\n"
+            , description = Just "The panel has the height of an empty or error state, so the region keeps its place, and it fades in after 400ms, so a fast answer does not flash. A labelled spinner stays in the view with Spinner.loading: its live region stays on the page and only its text comes and goes, which screen readers announce reliably."
+            , code = Just "Spinner.panel [] \"Loading orders ...\"\n\n-- always in the view; announced each time model.saving turns True\nSpinner.view [ Spinner.label \"Saving order\", Spinner.loading model.saving ]\n"
             }
-            (Spinner.panel "Loading orders ...")
+            (Layout.stack [ Layout.gap 3 ]
+                [ Spinner.panel [] "Loading orders ..."
+                , Spinner.panel [ Spinner.compact ] "Loading the stock levels ..."
+                ]
+            )
         ]
 
 
@@ -867,7 +862,7 @@ viewStates locale model =
                     , EmptyState.icon Icon.inbox
                     , EmptyState.title "No orders yet"
                     , EmptyState.description "Orders you create appear here."
-                    , EmptyState.action (Button.view [ Button.primary, Button.href "#/orders" ] "Open orders")
+                    , EmptyState.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders" ]
                     ]
                 ]
             )
@@ -913,7 +908,7 @@ viewRemote locale model =
                                     [ EmptyState.icon Icon.inbox
                                     , EmptyState.title "No orders to show"
                                     , EmptyState.description "There are no orders yet."
-                                    , EmptyState.action (Button.view [ Button.onClick (Requested Works) ] "Load orders")
+                                    , EmptyState.actions [ Button.view [ Button.onClick (Requested Works) ] "Load orders" ]
                                     ]
                                 ]
 
@@ -959,7 +954,7 @@ viewProductSearch locale model =
                     [ EmptyState.icon Icon.search
                     , EmptyState.title "No matching products"
                     , EmptyState.description ("No product matches “" ++ model.productSearch ++ "”. Try another search, or clear it.")
-                    , EmptyState.action (Button.view [ Button.onClick ProductSearchCleared ] "Clear search")
+                    , EmptyState.actions [ Button.view [ Button.onClick ProductSearchCleared ] "Clear search" ]
                     ]
 
               else
@@ -1354,7 +1349,9 @@ Badge.view [ Badge.tone Primary, Badge.solid ] "Solid"
 Badge.view [ Badge.tone Warning, Badge.outline ] "Outline"
 Badge.view [ Badge.size Large ] "Large"
 Badge.status Danger "Out of stock"
-Badge.count 128 -- shows 99+
+Badge.count [] 128 -- shows 99+, screen readers hear 128
+Badge.count [ Badge.tone Danger, Badge.size Small ] 3
+Badge.count [ Badge.max 999 ] 1280 -- shows 999+
 """
 
 
@@ -1364,10 +1361,20 @@ tagCode =
 Tag.view [ Tag.tone Success, Tag.icon Icon.check ] "Approved"
 Tag.view [ Tag.outline ] "Outline"
 
+Tag.view [ Tag.onRemove (FilterRemoved "amount"), Tag.removeLabel "Remove filter Amount > 100" ] "Amount > 100"
+
 -- update: the removed tag took the focus with it, so give it to the next tag
-WarehouseRemoved id ->
-    ( { model | warehouses = List.filter (\\w -> w.id /= id) model.warehouses }
-    , Task.attempt (\\_ -> NoOp) (Browser.Dom.focus "tag-ham")
+WarehouseRemoved warehouse ->
+    ( { model | warehouses = List.filter (\\w -> w /= warehouse) model.warehouses }
+    , Klar.focus
+        (Tag.nextFocus
+            { removed = warehouse
+            , tags = model.warehouses
+            , toId = removeIdOf
+            , otherwise = "show-tags-again"
+            }
+        )
+        NoOp
     )
 """
 
@@ -1426,7 +1433,7 @@ case model.orders of
         Text.muted "Nothing requested yet"
 
     Remote.Loading ->
-        Spinner.panel "Loading orders ..."
+        Spinner.panel [] "Loading orders ..."
 
     Remote.Failed problem ->
         ErrorState.view [ ErrorState.onRetry Retry ] problem
@@ -1458,7 +1465,7 @@ emptyCode =
     [ EmptyState.icon Icon.search
     , EmptyState.title "No matching products"
     , EmptyState.description "Try another search, or clear it."
-    , EmptyState.action (Button.view [ Button.onClick ClearSearch ] "Clear search")
+    , EmptyState.actions [ Button.view [ Button.onClick ClearSearch ] "Clear search" ]
     ]
 """
 
@@ -1469,7 +1476,7 @@ compactEmptyCode =
     [ EmptyState.compact
     , EmptyState.title "No orders yet"
     , EmptyState.description "Orders you create appear here."
-    , EmptyState.action (Button.view [ Button.primary, Button.href "#/orders" ] "Open orders")
+    , EmptyState.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders" ]
     ]
 """
 

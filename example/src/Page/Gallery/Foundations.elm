@@ -425,7 +425,7 @@ Layout.row [ Layout.gap 4 ]
                             [ EmptyState.icon Icon.search
                             , EmptyState.title "No icons found"
                             , EmptyState.description "Try another word, for example \"file\" or \"chevron\"."
-                            , EmptyState.action (Button.view [ Button.onClick (IconQueryChanged "") ] "Clear search")
+                            , EmptyState.actions [ Button.view [ Button.onClick (IconQueryChanged "") ] "Clear search" ]
                             ]
                         ]
 

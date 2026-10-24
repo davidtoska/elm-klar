@@ -1,36 +1,40 @@
 module Klar.ErrorState exposing
     ( view
-    , Attribute, onRetry, compact, locale
+    , Attribute, onRetry, actions, compact, headingLevel, polite, locale
     )
 
 {-| What to show when a request failed: a clear title, the reason, and a
 button to try again when trying again can help.
 
 Use when: a request failed and the user should see why, with a button to try again.
-Do not use when: a list is simply empty (use `Klar.EmptyState`).
+Do not use when: a list is simply empty (use `Klar.EmptyState`), or the failed request is the body of a card, a dialog or a page (use `Klar.RemoteView`, which draws this for you).
 
+    import Klar.Button as Button
     import Klar.ErrorState as ErrorState
-    import Klar.Locale as Locale
-    import Klar.Remote as Remote exposing (Remote(..))
-    import Klar.Spinner as Spinner
+    import Klar.RemoteView as RemoteView
 
-    viewOrders : Remote (List Order) -> Html Msg
-    viewOrders orders =
-        case orders of
-            Loaded list ->
-                viewOrderList list
+    -- one piece of remote data: RemoteView shows this error state when the
+    -- request failed, and keeps old (Kept) data on the screen while it reloads
+    RemoteView.view [ RemoteView.onRetry ReloadOrders ] model.orders viewOrderList
 
-            Failed problem ->
-                ErrorState.view [ ErrorState.onRetry ReloadOrders ] problem
-
-            _ ->
-                Spinner.panel "Loading orders ..."
+    -- a failure of your own, outside a body of remote data
+    ErrorState.view
+        [ ErrorState.onRetry RetryExport
+        , ErrorState.actions [ Button.view [ Button.onClick CancelExport ] "Cancel export" ]
+        ]
+        problem
 
     -- inside a table or small panel
     ErrorState.view [ ErrorState.compact, ErrorState.onRetry ReloadOrders ] problem
 
-Pair it with [Klar.Remote](Klar-Remote): when the data is `Failed problem`,
-show this. A `Problem` is plain data. Make one for each failed request with
+Never write your own `case` on a `Remote` that sends every other state to a
+spinner (`_ -> Spinner.panel ...`): `Kept` data, old data that is being
+refreshed, would vanish behind it. [Klar.RemoteView](Klar-RemoteView) and the
+components that take a `Remote` ([Klar.Table](Klar-Table),
+[Klar.Tree](Klar-Tree), [Klar.ListItem](Klar-ListItem) ...) draw every state and
+use this module themselves.
+
+A `Problem` is plain data. Make one for each failed request with
 `Remote.problem`, which has ready-made texts for the kind of failure, and adjust
 it with `Remote.withTitle`, `Remote.withDetail` or `Remote.withCode`:
 
@@ -38,15 +42,16 @@ it with `Remote.withTitle`, `Remote.withDetail` or `Remote.withCode`:
         |> Remote.withCode "503"
 
 The icon follows the kind of the problem (`Icon.wifiOff` for `Remote.network`,
-`Icon.clock` for `Remote.timeout`, `Icon.lock` for `Remote.forbidden` ...). The state is
-announced to screen readers at once (`role="alert"`). The retry button is shown
-only when you gave an `onRetry` message and the problem is worth retrying
-(`Remote.isRetryable`: network trouble, timeouts, server errors and unknown
-errors). The other kinds, such as a missing resource or a permission problem,
-would fail the same way again, so there is no button for them. The components
-that show remote data ([Klar.Table](Klar-Table), [Klar.Tree](Klar-Tree),
-[Klar.ListItem](Klar-ListItem) ...) use this module themselves.
+`Icon.clock` for `Remote.timeout`, `Icon.lock` for `Remote.forbidden` ...). The
+code, if there is one, is selected whole with one click, for a support request.
+The retry button is shown only when you gave an `onRetry` message and the
+problem is worth retrying (`Remote.isRetryable`: network trouble, timeouts,
+server errors and unknown errors). The other kinds, such as a missing resource
+or a permission problem, would fail the same way again, so there is no button
+for them: give those a way forward with `actions` ("Sign in", "Back to orders").
 
+The state is announced to screen readers at once (`role="alert"`); `polite`
+waits for a pause, for the many small regions of a dashboard that fail together.
 The retry button is replaced when the request starts again, and keyboard focus
 falls to the page with it. For the body of a card, a dialog or a page use
 [Klar.RemoteView](Klar-RemoteView), which has a body that keeps focus (`id`,
@@ -61,7 +66,7 @@ falls to the page with it. For the body of a card, a dialog or a page use
 
 # Attributes
 
-@docs Attribute, onRetry, compact, locale
+@docs Attribute, onRetry, actions, compact, headingLevel, polite, locale
 
 -}
 
@@ -83,7 +88,10 @@ type Attribute msg
 
 type alias Config msg =
     { onRetry : Maybe msg
+    , actions : List (Html msg)
     , compact : Bool
+    , headingLevel : Maybe Int
+    , polite : Bool
     , locale : Locale
     }
 
@@ -91,7 +99,13 @@ type alias Config msg =
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { onRetry = Nothing, compact = False, locale = Locale.default }
+        { onRetry = Nothing
+        , actions = []
+        , compact = False
+        , headingLevel = Nothing
+        , polite = False
+        , locale = Locale.default
+        }
         attributes
 
 
@@ -104,12 +118,46 @@ onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
 
+{-| Buttons or links for another way forward, shown after the retry button (or
+alone, when there is none): "Sign in" for `Remote.unauthorized`, "Request access"
+for `Remote.forbidden`, "Back to orders" for `Remote.notFound`. There are none
+by default.
+
+    ErrorState.view
+        [ ErrorState.actions [ Button.view [ Button.href "#/orders" ] "Back to orders" ] ]
+        problem
+
+-}
+actions : List (Html msg) -> Attribute msg
+actions value =
+    Attribute (\config -> { config | actions = value })
+
+
 {-| Less vertical space and a smaller icon, for use inside tables and small
-panels.
+panels. It follows a compact density of the application (`Klar.Settings`) without it.
 -}
 compact : Attribute msg
 compact =
     Attribute (\config -> { config | compact = True })
+
+
+{-| Makes the title a heading of this level (1 to 6), for an error state that is
+the main content of a page or a section. The default is no heading: a plain line,
+right inside a table cell or a small panel.
+-}
+headingLevel : Int -> Attribute msg
+headingLevel level =
+    Attribute (\config -> { config | headingLevel = Just level })
+
+
+{-| Announce it politely (`role="status"`) instead of at once (`role="alert"`), so
+a screen reader finishes what it is reading first. Use it for the small regions
+of a dashboard, which tend to fail together: one assertive message for the page
+is enough.
+-}
+polite : Attribute msg
+polite =
+    Attribute (\config -> { config | polite = True })
 
 
 {-| The language of the built-in text, which is the label of the retry button
@@ -123,8 +171,8 @@ locale value =
 
 
 {-| An error state for a `Problem`: an icon for its kind, its title, its detail
-and its code (when it has them), and the retry button. A problem with an empty
-title renders no headline element.
+and its code (when it has them), the retry button and your `actions`. A problem
+with an empty title renders no headline element.
 
     ErrorState.view [ ErrorState.onRetry ReloadOrders ] problem
 
@@ -137,6 +185,17 @@ view attributes problem =
 
         retryLabel =
             Locale.pick config.locale { nb = "Prøv igjen", en = "Try again" }
+
+        retry =
+            case ( config.onRetry, Remote.isRetryable problem ) of
+                ( Just msg, True ) ->
+                    [ Button.view [ Button.icon Icon.refresh, Button.onClick msg ] retryLabel ]
+
+                _ ->
+                    []
+
+        buttons =
+            retry ++ config.actions
     in
     Html.div
         [ Internal.cls
@@ -148,22 +207,33 @@ view attributes problem =
               else
                 ""
             ]
-        , Attr.attribute "role" "alert"
+        , Attr.attribute "role"
+            (if config.polite then
+                "status"
+
+             else
+                "alert"
+            )
         ]
         [ Html.span [ Internal.cls [ "klar-state__icon" ] ] [ Icon.sized Icon.ExtraLarge (iconFor (Remote.kind problem)) ]
-        , Internal.viewMaybe (\text -> Html.div [ Internal.cls [ "klar-state__title" ] ] [ Html.text text ]) (Internal.nonEmpty (Remote.title config.locale problem))
+        , Internal.viewMaybe (viewTitle config.headingLevel) (Internal.nonEmpty (Remote.title config.locale problem))
         , Internal.viewMaybe (\text -> Html.p [ Internal.cls [ "klar-state__description" ] ] [ Html.text text ]) (Remote.detail config.locale problem)
         , Internal.viewMaybe
             (\code -> Html.div [ Internal.cls [ "klar-state__code" ] ] [ Html.text code ])
             (Remote.code problem)
-        , case ( config.onRetry, Remote.isRetryable problem ) of
-            ( Just msg, True ) ->
-                Html.div [ Internal.cls [ "klar-state__action" ] ]
-                    [ Button.view [ Button.icon Icon.refresh, Button.onClick msg ] retryLabel ]
-
-            _ ->
-                Html.text ""
+        , Internal.viewIf (not (List.isEmpty buttons))
+            (Html.div [ Internal.cls [ "klar-state__actions" ] ] buttons)
         ]
+
+
+viewTitle : Maybe Int -> String -> Html msg
+viewTitle level text =
+    case level of
+        Just n ->
+            Internal.heading n [ Internal.cls [ "klar-state__title" ] ] [ Html.text text ]
+
+        Nothing ->
+            Html.div [ Internal.cls [ "klar-state__title" ] ] [ Html.text text ]
 
 
 iconFor : Kind -> Icon
