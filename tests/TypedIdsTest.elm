@@ -58,8 +58,8 @@ suite =
                     )
         , test "Tree: open nodes come back in the app's type" <|
             \_ ->
-                (Tree.init "regions" |> Tree.setExpanded regions [ RegionId 2, RegionId 10 ])
-                    |> Tree.expanded regions
+                (Tree.init "regions" |> Tree.setExpandedIds regions [ RegionId 2, RegionId 10 ])
+                    |> Tree.expandedIds regions
                     |> Expect.equal [ RegionId 10, RegionId 2 ]
         , test "Tree: isExpanded takes the app's type" <|
             \_ ->
@@ -68,13 +68,13 @@ suite =
                         Tree.init "regions" |> Tree.expand regions (RegionId 3)
                 in
                 Expect.equal ( True, False ) ( Tree.isExpanded regions (RegionId 3) state, Tree.isExpanded regions (RegionId 4) state )
-        , test "Tree: select, selectedId and checked" <|
+        , test "Tree: select, selectedId and checkedIds" <|
             \_ ->
                 let
                     state =
-                        Tree.init "regions" |> Tree.select regions (RegionId 7) |> Tree.setChecked regions [ RegionId 1 ]
+                        Tree.init "regions" |> Tree.select regions (RegionId 7) |> Tree.setCheckedIds regions [ RegionId 1 ]
                 in
-                Expect.equal ( Just (RegionId 7), [ RegionId 1 ] ) ( Tree.selectedId regions state, Tree.checked regions state )
+                Expect.equal ( Just (RegionId 7), [ RegionId 1 ] ) ( Tree.selectedId regions state, Tree.checkedIds regions state )
         , test "Tree: a state of the app's type compares with ==" <|
             \_ ->
                 Expect.equal (Tree.init "r" |> Tree.expand regions (RegionId 1)) (Tree.init "r" |> Tree.expand regions (RegionId 1))

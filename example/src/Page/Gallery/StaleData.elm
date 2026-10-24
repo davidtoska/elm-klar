@@ -180,7 +180,7 @@ init =
       , mode = Just Fresh
       , failing = False
       , table = Table.init "stale-orders"
-      , tree = Tree.init "stale-regions" |> Tree.setExpanded Ids.string [ "North", "South" ]
+      , tree = Tree.init "stale-regions" |> Tree.setExpandedIds Ids.string [ "North", "South" ]
       , select = Select.init "stale-select"
       , multi = MultiSelect.init "stale-multi"
       , auto = Autocomplete.init "stale-auto"
@@ -524,7 +524,7 @@ treeExample settings locale model =
             [ Tree.ariaLabel "Regions"
             , Tree.locale locale
             , Tree.settings settings
-            , Tree.onReload Refresh
+            , Tree.onRetry Refresh
             ]
             model.tree
             (Remote.map

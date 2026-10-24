@@ -1735,6 +1735,20 @@ css =
   min-width: 0;
 }
 
+/* The element with the id of the tree takes the focus only for a moment (after
+   "Try again", or from Klar.focus) and hands it to a node when there is one. */
+.klar-tree-wrap:focus { outline: none; }
+.klar-tree-wrap:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 2px;
+  border-radius: var(--klar-radius);
+}
+
+/* The slot of the "Old data" marker: always there, and no box of its own. */
+.klar-tree__notice { display: contents; }
+
+.klar-tree__state { display: flex; flex-direction: column; }
+
 .klar-tree--compact,
 :where([data-klar-density="compact"]) .klar-tree:where(:not(.klar-tree--compact, .klar-tree--comfortable)) { --_h: 24px; }
 
@@ -1852,14 +1866,14 @@ css =
   white-space: nowrap;
 }
 
-.klar-tree__hint,
+.klar-tree__description,
 .klar-tree__count {
   flex: none;
   font-size: var(--klar-text-sm);
   color: var(--klar-text-muted);
 }
 
-.klar-tree__hint {
+.klar-tree__description {
   max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1896,6 +1910,49 @@ css =
 
 .klar-tree__skeleton-row { padding-left: calc(var(--klar-level, 0) * 16px + 22px); }
 
+/* Under an open lazy node whose children nobody has asked for: the start of this
+   animation (it does nothing visible) is the message that asks for them. Its
+   length is not a motion token, so reduced motion does not switch it off. */
+.klar-tree__autoload {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  animation: klar-tree-autoload 1ms;
+}
+
+@keyframes klar-tree-autoload {
+  from { opacity: 0.99; }
+  to { opacity: 1; }
+}
+
+/* Windows high contrast: the states that only a background or a color shows. */
+@media (forced-colors: active) {
+  .klar-tree__row--selected {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .klar-tree__row--selected .klar-tree__icon,
+  .klar-tree__row--selected .klar-tree__description,
+  .klar-tree__row--selected .klar-tree__count,
+  .klar-tree__row--selected .klar-tree__toggle {
+    color: HighlightText;
+  }
+
+  .klar-tree__item:focus-visible > .klar-tree__row,
+  .klar-tree-wrap:focus-visible {
+    outline: 2px solid CanvasText;
+  }
+
+  .klar-tree__row--disabled,
+  .klar-tree__row--disabled .klar-tree__description,
+  .klar-tree__row--disabled .klar-tree__count {
+    color: GrayText;
+  }
+}
+
 
 /* ==========================================================================
    Forced colors (Windows high contrast): keep the marks that carry data.
@@ -1919,7 +1976,6 @@ css =
     forced-color-adjust: none;
   }
 
-  .klar-tree__row--selected,
   .klar-list-item--selected {
     outline: 2px solid Highlight;
     outline-offset: -2px;

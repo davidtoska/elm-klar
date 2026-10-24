@@ -240,7 +240,7 @@ components =
             \_ ->
                 html
                     (Tree.viewRemote TreeMsg
-                        [ Tree.onReload Retry ]
+                        [ Tree.onRetry Retry ]
                         (Tree.init "tree")
                         (Remote.refreshWith (Remote.refreshWith Loading (Ok [ Tree.leaf Ids.string "a" "Alpha" ]) fourteenOhFive) (Err failure) (at 1000))
                     )
