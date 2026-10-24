@@ -3,7 +3,6 @@ module Klar.Shortcut exposing
     , Keys, char, function, escape, enter, tab, space, backspace, delete, home, end, pageUp, pageDown, up, down, left, right
     , mod, alt, shift, sequence
     , State, init, Msg, update, listen, subscription
-    , keycaps
     )
 
 {-| Global keyboard shortcuts for the whole application, including sequences of
@@ -81,13 +80,30 @@ that shortcuts keep working after a dialog has closed.
 select or any editable element, a shortcut fires only if it is marked
 `inInputs`, also when it uses Ctrl, Alt or Cmd. Keys pressed inside a modal
 dialog ([Klar.Modal](Klar-Modal), [Klar.Drawer](Klar-Drawer) or the
-[command palette](Klar-CommandPalette)), but not in a field, only reach
-shortcuts with Ctrl, Alt or Cmd (not Ctrl+A or Cmd+A, which select everything)
-and those marked `inInputs`: a sequence like `g o` must not take the user away
-behind an open dialog. Everywhere else every shortcut fires. Holding a key down
-does not repeat a shortcut. A symbol typed with AltGr (on a German keyboard `[`
-is AltGr and 8) counts as the plain symbol, not as Ctrl+Alt, and in a field it is
-text that never fires a shortcut.
+[command palette](Klar-CommandPalette)) or inside an open popup (a menu, a
+context menu, the list of a select), but not in a field, only reach shortcuts
+with Ctrl, Alt or Cmd (not Ctrl+A or Cmd+A, which select everything) and those
+marked `inInputs`: a sequence like `g o` must not take the user away behind an
+open dialog. `Escape` in a popup is the popup's own and never fires a shortcut.
+Everywhere else every shortcut fires.
+
+**Keys that are already taken** never fire a shortcut: a key that a component
+handled (an arrow in a menu, `Escape` that closes a dialog, `Enter` in the
+command palette) prevents its default action, and a shortcut ignores a key press
+whose default action was prevented. The `Enter` or `Escape` that ends the
+composition of an input method (Japanese, Chinese, Korean) is never a shortcut
+either. Holding a key down does not repeat a shortcut.
+
+**Keyboards**: a symbol typed with AltGr (on a German keyboard `[` is AltGr and
+
+1.  counts as the plain symbol, not as Ctrl+Alt, and in a field it is text that
+    never fires a shortcut. With Ctrl, Alt or Cmd held, a letter or digit is also
+    found by the key's place on the keyboard, so `mod (char 'k')` fires on a Russian
+    or Greek layout, and `alt (char 'a')` with Option and A on a Mac (where the key
+    types "å"). On a Mac `mod` is Cmd; Ctrl counts as `mod` too, except in a text
+    field, where Ctrl+A, Ctrl+E and Ctrl+K keep their editing meaning. To show the
+    keys, give the same `Keys` to [Klar.Kbd](Klar-Kbd), which writes them for a PC
+    or a Mac.
 
 
 # Defining shortcuts
@@ -105,17 +121,13 @@ text that never fires a shortcut.
 
 @docs State, init, Msg, update, listen, subscription
 
-
-# Showing keys
-
-@docs keycaps
-
 -}
 
 import Browser.Events
 import Html exposing (Attribute)
 import Html.Events as Events
 import Json.Decode as Decode exposing (Decoder)
+import Klar.Internal.Keys as Notation
 
 
 {-| One keyboard shortcut: keys, a group and a label for the help sheet, and the
@@ -148,12 +160,12 @@ so write them for people.
 
     Shortcut.shortcut (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ]) "Navigation" "Go to orders" GoToOrders
 
-`mod` is Ctrl, or Cmd on a Mac, depending on the keyboard. The help sheet and
-`keycaps` always write it as "Ctrl".
+`mod` is Ctrl, or Cmd on a Mac. The help sheet, the command palette and
+[Klar.Kbd](Klar-Kbd) write it for the `platform` they are given.
 
 -}
 shortcut : Keys -> String -> String -> msg -> Shortcut msg
-shortcut (Keys keys) group label msg =
+shortcut (Notation.Keys keys) group label msg =
     Shortcut { keys = keys, group = group, label = label, msg = msg, inInputs = False }
 
 
@@ -178,7 +190,7 @@ inInputs (Shortcut entry) =
 -}
 keysOf : Shortcut msg -> Keys
 keysOf (Shortcut entry) =
-    Keys entry.keys
+    Notation.Keys entry.keys
 
 
 {-| The heading a shortcut is listed under in the help sheet.
@@ -207,10 +219,12 @@ firesInInputs (Shortcut entry) =
 
 
 {-| The keys of a shortcut: one key, a key with modifiers, or a sequence of them.
-Build them with `char`, the named keys, `mod`, `alt`, `shift` and `sequence`.
+Build them with `char`, the named keys, `mod`, `alt`, `shift` and `sequence`, and
+show them with [Klar.Kbd](Klar-Kbd). The type is opaque: two `Keys` can be
+compared with `==`.
 -}
-type Keys
-    = Keys String
+type alias Keys =
+    Notation.Keys
 
 
 {-| A letter, a digit or a symbol: `char 'k'`, `char '?'`, `char '/'`. Letters are
@@ -220,10 +234,10 @@ char : Char -> Keys
 char c =
     case c of
         ' ' ->
-            Keys "space"
+            Notation.Keys "space"
 
         _ ->
-            Keys (String.fromChar (Char.toLower c))
+            Notation.Keys (String.fromChar (Char.toLower c))
 
 
 {-| A function key, `function 1` to `function 12`. A number outside that range is
@@ -231,105 +245,105 @@ taken as the nearest one.
 -}
 function : Int -> Keys
 function n =
-    Keys ("f" ++ String.fromInt (clamp 1 12 n))
+    Notation.Keys ("f" ++ String.fromInt (clamp 1 12 n))
 
 
 {-| The Escape key.
 -}
 escape : Keys
 escape =
-    Keys "esc"
+    Notation.Keys "esc"
 
 
 {-| The Enter key.
 -}
 enter : Keys
 enter =
-    Keys "enter"
+    Notation.Keys "enter"
 
 
 {-| The Tab key.
 -}
 tab : Keys
 tab =
-    Keys "tab"
+    Notation.Keys "tab"
 
 
 {-| The space bar.
 -}
 space : Keys
 space =
-    Keys "space"
+    Notation.Keys "space"
 
 
 {-| The Backspace key.
 -}
 backspace : Keys
 backspace =
-    Keys "backspace"
+    Notation.Keys "backspace"
 
 
 {-| The Delete key.
 -}
 delete : Keys
 delete =
-    Keys "delete"
+    Notation.Keys "delete"
 
 
 {-| The Home key.
 -}
 home : Keys
 home =
-    Keys "home"
+    Notation.Keys "home"
 
 
 {-| The End key.
 -}
 end : Keys
 end =
-    Keys "end"
+    Notation.Keys "end"
 
 
 {-| The Page Up key.
 -}
 pageUp : Keys
 pageUp =
-    Keys "pageup"
+    Notation.Keys "pageup"
 
 
 {-| The Page Down key.
 -}
 pageDown : Keys
 pageDown =
-    Keys "pagedown"
+    Notation.Keys "pagedown"
 
 
 {-| The up arrow.
 -}
 up : Keys
 up =
-    Keys "up"
+    Notation.Keys "up"
 
 
 {-| The down arrow.
 -}
 down : Keys
 down =
-    Keys "down"
+    Notation.Keys "down"
 
 
 {-| The left arrow.
 -}
 left : Keys
 left =
-    Keys "left"
+    Notation.Keys "left"
 
 
 {-| The right arrow.
 -}
 right : Keys
 right =
-    Keys "right"
+    Notation.Keys "right"
 
 
 {-| Ctrl, or Cmd on a Mac, held with the keys: `mod (char 'k')`. On a sequence it
@@ -361,12 +375,12 @@ list is a key that is never pressed.
 -}
 sequence : List Keys -> Keys
 sequence list =
-    Keys (String.join " " (List.map (\(Keys keys) -> keys) list))
+    Notation.Keys (String.join " " (List.map (\(Notation.Keys keys) -> keys) list))
 
 
 withModifier : String -> Keys -> Keys
-withModifier modifier (Keys keys) =
-    Keys (keys |> String.words |> List.map (\step -> normalizeStep (modifier ++ "+" ++ step)) |> String.join " ")
+withModifier modifier (Notation.Keys keys) =
+    Notation.Keys (keys |> String.words |> List.map (\step -> Notation.normalizeStep (modifier ++ "+" ++ step)) |> String.join " ")
 
 
 
@@ -392,7 +406,7 @@ init =
 messages and pass it to `update`.
 -}
 type Msg
-    = Fired String
+    = Fired Int String
     | Pending (List String) Float
     | Cleared
 
@@ -405,22 +419,32 @@ sequenceTimeout =
 {-| Applies a message from `listen` or `subscription`. The result is the new
 state and, when a shortcut fired, the message of that shortcut: handle it like
 any other message of your application (see the wiring at the top of this page).
-Give it the same list of shortcuts as `listen`.
+Give it the same list of shortcuts as `listen`. When two shortcuts have the same
+keys, the one that fires is the first of the list that may fire where the key
+was pressed (in a field, the first one marked `inInputs`).
 -}
 update : List (Shortcut msg) -> Msg -> State -> ( State, Maybe msg )
 update wrapped msg (State state) =
-    let
-        shortcuts =
-            List.map unwrap wrapped
-    in
     case msg of
-        Fired keys ->
-            ( State { state | pending = [] }
-            , shortcuts
-                |> List.filter (\candidate -> candidate.keys == keys)
-                |> List.head
-                |> Maybe.map .msg
-            )
+        Fired index keys ->
+            let
+                shortcuts =
+                    List.map unwrap wrapped
+
+                -- the shortcut that `decide` chose, unless the list changed since
+                chosen =
+                    case List.drop index shortcuts of
+                        found :: _ ->
+                            if found.keys == keys then
+                                Just found
+
+                            else
+                                firstWithKeys keys shortcuts
+
+                        [] ->
+                            firstWithKeys keys shortcuts
+            in
+            ( State { state | pending = [] }, Maybe.map .msg chosen )
 
         Pending keys time ->
             ( State { pending = keys, at = time }, Nothing )
@@ -429,12 +453,20 @@ update wrapped msg (State state) =
             ( State { state | pending = [] }, Nothing )
 
 
+firstWithKeys : String -> List (Entry msg) -> Maybe (Entry msg)
+firstWithKeys keys shortcuts =
+    shortcuts
+        |> List.filter (\candidate -> candidate.keys == keys)
+        |> List.head
+
+
 
 -- EVENTS
 
 
 type alias KeyInfo =
     { key : String
+    , code : String
     , ctrl : Bool
     , meta : Bool
     , alt : Bool
@@ -444,37 +476,67 @@ type alias KeyInfo =
     , targetTag : String
     , editable : Bool
     , inModal : Bool
+    , inPopup : Bool
+    , handled : Bool
+    , composing : Bool
+    , mac : Bool
     }
 
 
 keyInfo : Decoder KeyInfo
 keyInfo =
-    Decode.map8
-        (\key ctrl meta altKey shiftKey repeat time ( tag, editable, modal ) ->
-            { key = key
-            , ctrl = ctrl
-            , meta = meta
-            , alt = altKey
-            , shift = shiftKey
-            , repeat = repeat
-            , time = time
-            , targetTag = tag
-            , editable = editable
-            , inModal = modal
-            }
-        )
-        (Decode.field "key" Decode.string)
-        (Decode.field "ctrlKey" Decode.bool)
-        (Decode.field "metaKey" Decode.bool)
-        (Decode.field "altKey" Decode.bool)
-        (Decode.field "shiftKey" Decode.bool)
-        (Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ])
-        (Decode.oneOf [ Decode.field "timeStamp" Decode.float, Decode.succeed 0 ])
-        (Decode.map3 (\tag editable modal -> ( tag, editable, modal ))
-            (Decode.oneOf [ Decode.at [ "target", "tagName" ] Decode.string, Decode.succeed "" ])
-            (Decode.oneOf [ Decode.at [ "target", "isContentEditable" ] Decode.bool, Decode.succeed False ])
-            (Decode.oneOf [ Decode.field "target" (insideModal 0), Decode.succeed False ])
-        )
+    Decode.succeed KeyInfo
+        |> andMap (Decode.field "key" Decode.string)
+        |> andMap (optional "code" Decode.string "")
+        |> andMap (Decode.field "ctrlKey" Decode.bool)
+        |> andMap (Decode.field "metaKey" Decode.bool)
+        |> andMap (Decode.field "altKey" Decode.bool)
+        |> andMap (Decode.field "shiftKey" Decode.bool)
+        |> andMap (optional "repeat" Decode.bool False)
+        |> andMap (optional "timeStamp" Decode.float 0)
+        |> andMap (Decode.oneOf [ Decode.at [ "target", "tagName" ] Decode.string, Decode.succeed "" ])
+        |> andMap (Decode.oneOf [ Decode.at [ "target", "isContentEditable" ] Decode.bool, Decode.succeed False ])
+        |> andMap (Decode.oneOf [ Decode.field "target" (insideModal 0), Decode.succeed False ])
+        |> andMap (Decode.oneOf [ Decode.field "target" (insidePopup 0), Decode.succeed False ])
+        -- a component inside (a menu, a dialog, the palette) has handled the key
+        |> andMap (optional "defaultPrevented" Decode.bool False)
+        |> andMap composing
+        |> andMap onMac
+
+
+andMap : Decoder a -> Decoder (a -> b) -> Decoder b
+andMap =
+    Decode.map2 (|>)
+
+
+optional : String -> Decoder a -> a -> Decoder a
+optional name decoder fallback =
+    Decode.oneOf [ Decode.field name decoder, Decode.succeed fallback ]
+
+
+{-| The press belongs to the composition of an input method (Japanese, Chinese,
+Korean): the Enter that confirms the text or the Escape that cancels it.
+Browsers say so with `isComposing`, and older ones with the `keyCode` 229.
+-}
+composing : Decoder Bool
+composing =
+    Decode.map2 (||)
+        (optional "isComposing" Decode.bool False)
+        (optional "keyCode" Decode.int 0 |> Decode.map ((==) 229))
+
+
+{-| Is the keyboard a Mac's? Read from the window the event belongs to; an event
+without one (a test) is a PC.
+-}
+onMac : Decoder Bool
+onMac =
+    Decode.map2 (++)
+        (Decode.oneOf [ Decode.at [ "view", "navigator", "userAgentData", "platform" ] Decode.string, Decode.succeed "" ])
+        (Decode.oneOf [ Decode.at [ "view", "navigator", "platform" ] Decode.string, Decode.succeed "" ])
+        |> Decode.map
+            (\platform ->
+                List.any (\word -> String.contains word (String.toLower platform)) [ "mac", "iphone", "ipad", "ipod" ]
+            )
 
 
 {-| Is the node inside a modal dialog (`aria-modal="true"`: a `Modal`, a
@@ -501,11 +563,41 @@ insideModal depth =
             ]
 
 
+{-| Is the node inside an open popup (a menu, a context menu, the list of a
+select or a date picker: `.klar-layer` or `.klar-popup`)? Walks up through
+`parentElement`.
+-}
+insidePopup : Int -> Decoder Bool
+insidePopup depth =
+    if depth > 40 then
+        Decode.succeed False
+
+    else
+        Decode.oneOf
+            [ Decode.field "className" Decode.string
+                |> Decode.andThen
+                    (\names ->
+                        let
+                            tokens =
+                                String.words names
+                        in
+                        if List.member "klar-layer" tokens || List.member "klar-popup" tokens then
+                            Decode.succeed True
+
+                        else
+                            Decode.fail "keep climbing"
+                    )
+            , Decode.field "parentElement" (Decode.lazy (\_ -> insidePopup (depth + 1)))
+            , Decode.succeed False
+            ]
+
+
 {-| An attribute for the focusable root element of the application (give it
 `tabindex -1`). It hears the key presses of everything inside the element and
 prevents the browser's own action for the ones that trigger a shortcut, so
 Ctrl+K does not reach the browser. A key that only starts a sequence is not
-prevented.
+prevented, and a key that an element inside has already handled (its default
+action is prevented) is left alone.
 
     Html.div
         [ Shortcut.listen ShortcutMsg shortcuts model.shortcuts
@@ -554,47 +646,66 @@ subscription toMsg shortcuts state =
         )
 
 
+{-| A name for a key press, and whether it was made with Ctrl, Alt or Cmd (and
+not just typed with AltGr).
+-}
+type alias Press =
+    { step : String
+    , modified : Bool
+    }
+
+
 {-| What a key press means: the message to send, and whether the browser's
 default action should be prevented.
 -}
 decide : List (Shortcut msg) -> State -> KeyInfo -> Maybe ( Msg, Bool )
 decide wrapped (State state) info =
-    let
-        shortcuts =
-            List.map unwrap wrapped
-    in
-    if info.repeat || isModifierOnly info.key then
+    if info.repeat || info.handled || info.composing || isModifierOnly info.key then
         Nothing
 
     else
         let
-            pressed =
-                canonical info
-
-            hasModifier =
-                (info.ctrl || info.meta || info.alt) && not (typedWithAltGr info)
+            entries =
+                List.indexedMap Tuple.pair (List.map unwrap wrapped)
 
             typing =
                 info.editable || isFormField info.targetTag
 
+            text =
+                typedAsText info
+
+            -- The press as its key names it, and then, with Ctrl, Alt or Cmd
+            -- held, by the place of the key: Ctrl and the K key is `mod+k` on a
+            -- Russian layout too, Option and A is `alt+a` on a Mac.
+            presses =
+                { step = canonical typing info, modified = (info.ctrl || info.meta || info.alt) && not text }
+                    :: (case physical typing info of
+                            Just step ->
+                                [ { step = step, modified = True } ]
+
+                            Nothing ->
+                                []
+                       )
+
             -- While the user types in a field only the shortcuts marked
             -- `inInputs` fire (with or without Ctrl, Alt or Cmd), and never for
             -- a character typed with AltGr: that is text. Plain keys are also
-            -- for the page and not for a dialog, where `g m` would take the
-            -- user away from it: inside a dialog only combinations with Ctrl,
-            -- Alt or Cmd get through, and Ctrl+A stays "select all".
-            allowed candidate =
-                if typing then
-                    candidate.inInputs && not (typedWithAltGr info)
+            -- for the page and not for a dialog or a popup, where `g m` would
+            -- take the user away from it: there only combinations with Ctrl,
+            -- Alt or Cmd get through, and Ctrl+A stays "select all". Escape in
+            -- a popup closes the popup.
+            allowed press candidate =
+                if info.inPopup && press.step == "esc" then
+                    False
 
-                else if info.inModal then
-                    candidate.inInputs || (hasModifier && pressed /= "mod+a")
+                else if typing then
+                    candidate.inInputs && not text
+
+                else if info.inModal || info.inPopup then
+                    candidate.inInputs || (press.modified && press.step /= "mod+a")
 
                 else
                     True
-
-            usable =
-                List.filter allowed shortcuts
 
             -- the steps already pressed, unless the sequence has timed out
             earlier =
@@ -604,55 +715,81 @@ decide wrapped (State state) info =
                 else
                     []
 
-            sofar =
-                earlier ++ [ pressed ]
+            outcome press =
+                let
+                    usable =
+                        List.filter (\( _, candidate ) -> allowed press candidate) entries
 
-            sequenceMatch =
-                if List.isEmpty earlier then
+                    sofar =
+                        earlier ++ [ press.step ]
+
+                    matching wanted =
+                        usable
+                            |> List.filter (\( _, candidate ) -> Notation.steps candidate.keys == wanted)
+                            |> List.head
+
+                    -- does a longer sequence begin with these steps?
+                    continues stepsPressed =
+                        usable
+                            |> List.any
+                                (\( _, candidate ) ->
+                                    let
+                                        wanted =
+                                            Notation.steps candidate.keys
+                                    in
+                                    List.length wanted > List.length stepsPressed && List.take (List.length stepsPressed) wanted == stepsPressed
+                                )
+
+                    sequenceMatch =
+                        if List.isEmpty earlier then
+                            Nothing
+
+                        else
+                            matching sofar
+                in
+                case ( sequenceMatch, matching [ press.step ] ) of
+                    ( Just ( index, found ), _ ) ->
+                        Just ( Fired index found.keys, True )
+
+                    ( Nothing, Just ( index, found ) ) ->
+                        Just ( Fired index found.keys, True )
+
+                    ( Nothing, Nothing ) ->
+                        if continues sofar then
+                            Just ( Pending sofar info.time, False )
+
+                        else if continues [ press.step ] then
+                            -- a wrong key in the middle of a sequence: start over with this one
+                            Just ( Pending [ press.step ] info.time, False )
+
+                        else
+                            Nothing
+        in
+        case firstJust outcome presses of
+            Just found ->
+                Just found
+
+            Nothing ->
+                if List.isEmpty state.pending then
                     Nothing
 
                 else
-                    usable
-                        |> List.filter (\candidate -> steps candidate.keys == sofar)
-                        |> List.head
-
-            singleMatch =
-                usable
-                    |> List.filter (\candidate -> steps candidate.keys == [ pressed ])
-                    |> List.head
-
-            -- does a longer sequence begin with these steps?
-            continues stepsPressed =
-                usable
-                    |> List.any
-                        (\candidate ->
-                            let
-                                wanted =
-                                    steps candidate.keys
-                            in
-                            List.length wanted > List.length stepsPressed && List.take (List.length stepsPressed) wanted == stepsPressed
-                        )
-        in
-        case ( sequenceMatch, singleMatch ) of
-            ( Just found, _ ) ->
-                Just ( Fired found.keys, True )
-
-            ( Nothing, Just found ) ->
-                Just ( Fired found.keys, True )
-
-            ( Nothing, Nothing ) ->
-                if continues sofar then
-                    Just ( Pending sofar info.time, False )
-
-                else if continues [ pressed ] then
-                    -- a wrong key in the middle of a sequence: start over with this one
-                    Just ( Pending [ pressed ] info.time, False )
-
-                else if not (List.isEmpty state.pending) then
                     Just ( Cleared, False )
 
-                else
-                    Nothing
+
+firstJust : (a -> Maybe b) -> List a -> Maybe b
+firstJust f list =
+    case list of
+        [] ->
+            Nothing
+
+        first :: rest ->
+            case f first of
+                Just found ->
+                    Just found
+
+                Nothing ->
+                    firstJust f rest
 
 
 isFormField : String -> Bool
@@ -662,27 +799,37 @@ isFormField tag =
 
 isModifierOnly : String -> Bool
 isModifierOnly key =
-    key == "Control" || key == "Shift" || key == "Alt" || key == "Meta" || key == "AltGraph" || key == "CapsLock"
+    key == "Control" || key == "Shift" || key == "Alt" || key == "Meta" || key == "AltGraph" || key == "CapsLock" || key == "OS" || key == "Fn"
 
 
-{-| A symbol typed through the AltGr layer, like `[` on a German keyboard
-(AltGr and 8). Windows reports AltGr as Ctrl and Alt together, and the Mac's
-Option key as Alt; the character that comes out is all the user meant.
+{-| Text typed through the AltGr layer, like `[` on a German keyboard (AltGr and
+8), or through Option on a Mac ("å" for Option and A, a dead key for Option and
+N). Windows reports AltGr as Ctrl and Alt together, and the Mac's Option key as
+Alt; the character that comes out is all the user meant.
 -}
-typedWithAltGr : KeyInfo -> Bool
-typedWithAltGr info =
+typedAsText : KeyInfo -> Bool
+typedAsText info =
     info.alt
-        && String.length info.key
-        == 1
-        && not (Char.isAlphaNum (String.toList info.key |> List.head |> Maybe.withDefault 'a'))
-        && info.key
-        /= " "
+        && (info.key
+                == "Dead"
+                || (String.length info.key == 1 && not (isAsciiLetterOrDigit info.key) && info.key /= " ")
+           )
+
+
+isAsciiLetterOrDigit : String -> Bool
+isAsciiLetterOrDigit key =
+    case String.toList key of
+        [ c ] ->
+            Char.isAlphaNum c
+
+        _ ->
+            False
 
 
 {-| The canonical name of a key press: `mod+k`, `shift+n`, `esc`, `?`.
 -}
-canonical : KeyInfo -> String
-canonical info =
+canonical : Bool -> KeyInfo -> String
+canonical typing info =
     let
         key =
             keyName info.key
@@ -694,10 +841,78 @@ canonical info =
             info.shift && (isLetter || String.length key > 1)
 
         altGr =
-            typedWithAltGr info
+            typedAsText info
     in
     String.concat
-        [ if (info.ctrl && not altGr) || info.meta then
+        [ modifiersOf typing altGr info
+        , if shiftMatters then
+            "shift+"
+
+          else
+            ""
+        , key
+        ]
+
+
+{-| The press named by the place of its key (`KeyK`, `Digit1`), for a letter or a
+digit pressed with Ctrl, Alt or Cmd whose key is not that letter or digit: a key
+of another alphabet, a symbol of an AZERTY digit row, or what Option makes of it
+on a Mac.
+-}
+physical : Bool -> KeyInfo -> Maybe String
+physical typing info =
+    if (info.ctrl || info.meta || info.alt) && not (isAsciiLetterOrDigit info.key) then
+        placeOf info.code
+            |> Maybe.map
+                (\key ->
+                    modifiersOf typing False info
+                        ++ (if info.shift then
+                                "shift+"
+
+                            else
+                                ""
+                           )
+                        ++ key
+                )
+
+    else
+        Nothing
+
+
+{-| `"KeyK"` is `k`, `"Digit1"` is `1`.
+-}
+placeOf : String -> Maybe String
+placeOf code =
+    if String.length code == 4 && String.startsWith "Key" code then
+        Just (String.toLower (String.dropLeft 3 code))
+
+    else if String.length code == 6 && String.startsWith "Digit" code then
+        Just (String.dropLeft 5 code)
+
+    else
+        Nothing
+
+
+{-| `mod+` and `alt+` for the modifiers held. On a Mac `mod` is Cmd, and Ctrl
+also counts as `mod` except in a field, where Ctrl+A, Ctrl+E and Ctrl+K edit
+the text: there it is a modifier of its own that no shortcut uses.
+-}
+modifiersOf : Bool -> Bool -> KeyInfo -> String
+modifiersOf typing altGr info =
+    let
+        ctrl =
+            info.ctrl && not altGr
+
+        ctrlApart =
+            ctrl && info.mac && typing
+    in
+    String.concat
+        [ if ctrlApart then
+            "ctrl+"
+
+          else
+            ""
+        , if (ctrl && not ctrlApart) || info.meta then
             "mod+"
 
           else
@@ -707,12 +922,6 @@ canonical info =
 
           else
             ""
-        , if shiftMatters then
-            "shift+"
-
-          else
-            ""
-        , key
         ]
 
 
@@ -739,161 +948,3 @@ keyName key =
 
         _ ->
             String.toLower key
-
-
-{-| `"g m"` -> `[ "g", "m" ]`; `"mod+k"` -> `[ "mod+k" ]`.
--}
-steps : String -> List String
-steps keys =
-    keys
-        |> String.words
-        |> List.map normalizeStep
-
-
-normalizeStep : String -> String
-normalizeStep original =
-    let
-        step =
-            String.toLower original
-
-        parts =
-            String.split "+" step
-                |> List.filter (\part -> part /= "")
-                |> List.map modifierName
-
-        isModifier part =
-            part == "mod" || part == "alt" || part == "shift"
-
-        key =
-            -- the plus key itself: "+", "mod++", "shift++"
-            if step == "+" || String.endsWith "++" step then
-                "+"
-
-            else
-                parts |> List.filter (not << isModifier) |> List.reverse |> List.head |> Maybe.withDefault ""
-
-        has modifier =
-            List.member modifier parts
-    in
-    String.concat
-        [ if has "mod" then
-            "mod+"
-
-          else
-            ""
-        , if has "alt" then
-            "alt+"
-
-          else
-            ""
-        , if has "shift" then
-            "shift+"
-
-          else
-            ""
-        , key
-        ]
-
-
-{-| Other names for the modifiers: `ctrl` and `cmd` are `mod`, `option` is `alt`. A
-modifier that is not known would otherwise be taken for the key and swallowed.
--}
-modifierName : String -> String
-modifierName part =
-    case part of
-        "ctrl" ->
-            "mod"
-
-        "control" ->
-            "mod"
-
-        "cmd" ->
-            "mod"
-
-        "command" ->
-            "mod"
-
-        "meta" ->
-            "mod"
-
-        "option" ->
-            "alt"
-
-        _ ->
-            part
-
-
-{-| Key caps as text, one list per step of the sequence, for a place that needs the
-names of the keys. To draw them, give the `Keys` to `Kbd.view` of [Klar.Kbd](Klar-Kbd).
-
-    Shortcut.keycaps (Shortcut.mod (Shortcut.char 'k')) == [ [ "Ctrl", "K" ] ]
-
-    Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]) == [ [ "G" ], [ "M" ] ]
-
-    Shortcut.keycaps (Shortcut.char '?') == [ [ "?" ] ]
-
-    Shortcut.keycaps (Shortcut.mod (Shortcut.char '+')) == [ [ "Ctrl", "+" ] ]
-
-`mod` means Ctrl, or Cmd on a Mac, depending on the keyboard, but it is always
-written as "Ctrl" here. The arrow keys are shown as arrows.
-
--}
-keycaps : Keys -> List (List String)
-keycaps (Keys keys) =
-    steps keys
-        |> List.map (\step -> List.map capName (stepParts step))
-
-
-{-| The modifiers and the key of a step, as `steps` normalizes it: `"mod+k"` is
-`[ "mod", "k" ]`, `"mod++"` is `[ "mod", "+" ]` and `"+"` is `[ "+" ]`.
--}
-stepParts : String -> List String
-stepParts step =
-    if step == "+" then
-        [ "+" ]
-
-    else if String.endsWith "++" step then
-        (String.dropRight 2 step |> String.split "+" |> List.filter (\part -> part /= "")) ++ [ "+" ]
-
-    else
-        String.split "+" step |> List.filter (\part -> part /= "")
-
-
-capName : String -> String
-capName part =
-    case part of
-        "mod" ->
-            "Ctrl"
-
-        "alt" ->
-            "Alt"
-
-        "shift" ->
-            "Shift"
-
-        "esc" ->
-            "Esc"
-
-        "enter" ->
-            "Enter"
-
-        "space" ->
-            "Space"
-
-        "tab" ->
-            "Tab"
-
-        "up" ->
-            "↑"
-
-        "down" ->
-            "↓"
-
-        "left" ->
-            "←"
-
-        "right" ->
-            "→"
-
-        other ->
-            String.toUpper other

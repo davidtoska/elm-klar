@@ -4,6 +4,7 @@ import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Html
 import Json.Encode as Encode
+import Klar.Internal.Keys as KeyWords
 import Klar.Shortcut as Shortcut exposing (Shortcut)
 import Support.Keys as Keys
 import Test exposing (Test, describe, fuzz, fuzz2, test)
@@ -294,29 +295,29 @@ check name expected actual =
 keycapTests : Test
 keycapTests =
     describe "keycaps"
-        [ check "mod+k" [ [ "Ctrl", "K" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char 'k')))
-        , check "a sequence is one list for each step" [ [ "G" ], [ "M" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
-        , check "a symbol" [ [ "?" ] ] (Shortcut.keycaps (Shortcut.char '?'))
-        , check "the plus key with Ctrl" [ [ "Ctrl", "+" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char '+')))
-        , check "the plus key alone" [ [ "+" ] ] (Shortcut.keycaps (Shortcut.char '+'))
-        , check "the plus key with several modifiers" [ [ "Ctrl", "Shift", "+" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.shift (Shortcut.char '+'))))
-        , check "the minus key with Ctrl" [ [ "Ctrl", "-" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char '-')))
-        , check "shift" [ [ "Shift", "N" ] ] (Shortcut.keycaps (Shortcut.shift (Shortcut.char 'n')))
-        , check "alt" [ [ "Alt", "K" ] ] (Shortcut.keycaps (Shortcut.alt (Shortcut.char 'k')))
-        , check "all three modifiers come in a fixed order, whatever order they were written in" [ [ "Ctrl", "Alt", "Shift", "P" ] ] (Shortcut.keycaps (Shortcut.shift (Shortcut.alt (Shortcut.mod (Shortcut.char 'p')))))
-        , check "escape" [ [ "Esc" ] ] (Shortcut.keycaps Shortcut.escape)
-        , check "enter" [ [ "Enter" ] ] (Shortcut.keycaps Shortcut.enter)
-        , check "space" [ [ "Space" ] ] (Shortcut.keycaps Shortcut.space)
-        , check "tab" [ [ "Tab" ] ] (Shortcut.keycaps Shortcut.tab)
-        , check "the arrow keys are arrows" [ [ "↑" ], [ "↓" ], [ "←" ], [ "→" ] ] (List.concatMap (Keys.parse >> Shortcut.keycaps) [ "up", "down", "left", "right" ])
-        , check "an arrow with a modifier" [ [ "Alt", "↓" ] ] (Shortcut.keycaps (Shortcut.alt Shortcut.down))
-        , check "a named key" [ [ "F2" ] ] (Shortcut.keycaps (Shortcut.function 2))
-        , check "shift with a named key" [ [ "Shift", "Enter" ] ] (Shortcut.keycaps (Shortcut.shift Shortcut.enter))
-        , check "a digit" [ [ "1" ] ] (Shortcut.keycaps (Shortcut.char '1'))
-        , check "extra spaces between the steps and around them do not matter" [ [ "G" ], [ "M" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
-        , check "a sequence of steps with modifiers" [ [ "Ctrl", "K" ], [ "Ctrl", "S" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.mod (Shortcut.char 'k'), Shortcut.mod (Shortcut.char 's') ]))
-        , check "three steps are three lists" [ [ "G" ], [ "O" ], [ "X" ] ] (Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o', Shortcut.char 'x' ]))
-        , check "a letter that has an accent" [ [ "Ø" ] ] (Shortcut.keycaps (Shortcut.char 'ø'))
+        [ check "mod+k" [ [ "Ctrl", "K" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char 'k')))
+        , check "a sequence is one list for each step" [ [ "G" ], [ "M" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
+        , check "a symbol" [ [ "?" ] ] (KeyWords.words (Shortcut.char '?'))
+        , check "the plus key with Ctrl" [ [ "Ctrl", "+" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char '+')))
+        , check "the plus key alone" [ [ "+" ] ] (KeyWords.words (Shortcut.char '+'))
+        , check "the plus key with several modifiers" [ [ "Ctrl", "Shift", "+" ] ] (KeyWords.words (Shortcut.mod (Shortcut.shift (Shortcut.char '+'))))
+        , check "the minus key with Ctrl" [ [ "Ctrl", "-" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char '-')))
+        , check "shift" [ [ "Shift", "N" ] ] (KeyWords.words (Shortcut.shift (Shortcut.char 'n')))
+        , check "alt" [ [ "Alt", "K" ] ] (KeyWords.words (Shortcut.alt (Shortcut.char 'k')))
+        , check "all three modifiers come in a fixed order, whatever order they were written in" [ [ "Ctrl", "Alt", "Shift", "P" ] ] (KeyWords.words (Shortcut.shift (Shortcut.alt (Shortcut.mod (Shortcut.char 'p')))))
+        , check "escape" [ [ "Esc" ] ] (KeyWords.words Shortcut.escape)
+        , check "enter" [ [ "Enter" ] ] (KeyWords.words Shortcut.enter)
+        , check "space" [ [ "Space" ] ] (KeyWords.words Shortcut.space)
+        , check "tab" [ [ "Tab" ] ] (KeyWords.words Shortcut.tab)
+        , check "the arrow keys are arrows" [ [ "↑" ], [ "↓" ], [ "←" ], [ "→" ] ] (List.concatMap (Keys.parse >> KeyWords.words) [ "up", "down", "left", "right" ])
+        , check "an arrow with a modifier" [ [ "Alt", "↓" ] ] (KeyWords.words (Shortcut.alt Shortcut.down))
+        , check "a named key" [ [ "F2" ] ] (KeyWords.words (Shortcut.function 2))
+        , check "shift with a named key" [ [ "Shift", "Enter" ] ] (KeyWords.words (Shortcut.shift Shortcut.enter))
+        , check "a digit" [ [ "1" ] ] (KeyWords.words (Shortcut.char '1'))
+        , check "extra spaces between the steps and around them do not matter" [ [ "G" ], [ "M" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]))
+        , check "a sequence of steps with modifiers" [ [ "Ctrl", "K" ], [ "Ctrl", "S" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.mod (Shortcut.char 'k'), Shortcut.mod (Shortcut.char 's') ]))
+        , check "three steps are three lists" [ [ "G" ], [ "O" ], [ "X" ] ] (KeyWords.words (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o', Shortcut.char 'x' ]))
+        , check "a letter that has an accent" [ [ "Ø" ] ] (KeyWords.words (Shortcut.char 'ø'))
         ]
 
 
@@ -368,7 +369,7 @@ keyNotationTests =
         , check "and a shortcut written with ctrl is not a plain s" Nothing (firesAlone "ctrl+s" (press "s"))
         , check "the names are not case sensitive" (Just Save) (firesAlone "Mod+S" (press "s" |> ctrl))
         , check "option is another name for alt" (Just Save) (firesAlone "option+s" (press "s" |> alt))
-        , check "the key caps of ctrl+k" [ [ "Ctrl", "K" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char 'k')))
+        , check "the key caps of ctrl+k" [ [ "Ctrl", "K" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char 'k')))
         , check "shift counts for named keys: shift+enter" (Just Save) (firesAlone "shift+enter" (press "Enter" |> shift))
         , check "and enter alone is not shift+enter" Nothing (firesAlone "shift+enter" (press "Enter"))
         , check "space" (Just Save) (firesAlone "space" (press " "))
@@ -691,11 +692,11 @@ propertyTests =
                     |> Expect.equal Nothing
         , fuzz (Fuzz.oneOfValues letters) "keycaps shows each letter in capitals" <|
             \letter ->
-                Shortcut.keycaps (Keys.parse letter)
+                KeyWords.words (Keys.parse letter)
                     |> Expect.equal [ [ String.toUpper letter ] ]
         , fuzz2 (Fuzz.oneOfValues letters) (Fuzz.oneOfValues letters) "keycaps of a sequence has a list for each step" <|
             \first second ->
-                Shortcut.keycaps (Keys.parse (first ++ " " ++ second))
+                KeyWords.words (Keys.parse (first ++ " " ++ second))
                     |> Expect.equal [ [ String.toUpper first ], [ String.toUpper second ] ]
         , fuzz2 modifiersFuzzer (Fuzz.oneOfValues letters) "keycaps lists the modifiers in the order Ctrl, Alt, Shift, whatever the order they were written in" <|
             \modifiers letter ->
@@ -722,8 +723,8 @@ propertyTests =
                 in
                 Expect.equal
                     [ [ expected ], [ expected ] ]
-                    [ Shortcut.keycaps (Keys.parse (notation modifiers letter [ "shift", "mod", "alt" ]))
-                    , Shortcut.keycaps (Keys.parse (notation modifiers letter [ "alt", "shift", "mod" ]))
+                    [ KeyWords.words (Keys.parse (notation modifiers letter [ "shift", "mod", "alt" ]))
+                    , KeyWords.words (Keys.parse (notation modifiers letter [ "alt", "shift", "mod" ]))
                     ]
         ]
 
@@ -750,11 +751,11 @@ builderTests =
             \_ ->
                 Expect.equal
                     [ [ "Ctrl", "G" ], [ "Ctrl", "O" ] ]
-                    (Shortcut.keycaps (Shortcut.mod (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ])))
+                    (KeyWords.words (Shortcut.mod (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ])))
         , test "a function key outside 1 to 12 is the nearest one" <|
             \_ -> Expect.equal [ Shortcut.function 1, Shortcut.function 12 ] [ Shortcut.function 0, Shortcut.function 99 ]
         , test "the plus key with a modifier" <|
-            \_ -> Expect.equal [ [ "Ctrl", "+" ] ] (Shortcut.keycaps (Shortcut.mod (Shortcut.char '+')))
+            \_ -> Expect.equal [ [ "Ctrl", "+" ] ] (KeyWords.words (Shortcut.mod (Shortcut.char '+')))
         , test "the accessors read back what the shortcut was made with" <|
             \_ ->
                 let

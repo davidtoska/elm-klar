@@ -71,6 +71,7 @@ written, never translated, and `platform` does not change it.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Internal as Internal
+import Klar.Internal.Keys as Notation
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Shortcut as Shortcut exposing (Keys)
 
@@ -327,13 +328,13 @@ type alias Cap =
     }
 
 
-{-| The caps of every step. The words come from `Shortcut.keycaps` (so the keys
+{-| The caps of every step. The words come from the internal key notation (so the keys
 are decoded in one place only); this module chooses the symbols and the spoken
 names. A word it does not know is shown and read as it is.
 -}
 stepsOf : Config -> Keys -> List (List Cap)
 stepsOf config keys =
-    Shortcut.keycaps keys
+    Notation.words keys
         |> List.map (capsOfStep config)
         -- an empty sequence has one step without keys
         |> List.filter (\caps -> not (List.isEmpty caps))

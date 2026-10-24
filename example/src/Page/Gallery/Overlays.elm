@@ -2031,7 +2031,7 @@ paletteSections model =
         ]
     , CommandPalette.remote "Orders" (Remote.map (List.map orderItem) model.hits)
         |> CommandPalette.onRetry RetryHits
-        |> CommandPalette.emptyText "No orders found"
+        |> CommandPalette.withEmptyText "No orders found"
     ]
 
 

@@ -2,7 +2,7 @@ module Klar.ShortcutHelp exposing
     ( view
     , State, init, Msg, update
     , open, close, isOpen
-    , Attribute, title, locale
+    , Attribute, title, platform, locale
     )
 
 {-| The cheat sheet of keyboard shortcuts: a dialog that lists every shortcut of
@@ -47,15 +47,19 @@ The sheet is a [Klar.Modal](Klar-Modal): it moves focus to the filter box, keeps
 where it came from. It returns an [`Overlay`](Klar-Overlay#Overlay): put it in
 the list of overlays of the page, which makes the page behind it inert.
 
-The shortcuts are listed under their `group`, in the order in which the groups
-first appear, each with its label and its keys as key caps (a sequence such as
-`g o` reads "G then O"). The filter box matches the label, the group and the
-keys. A shortcut that also works while the user types in a field (`inInputs`) is
-marked "works in fields"; a note at the bottom says that the others do not. The
-`mod` in the keys of a shortcut is Ctrl, or Cmd on a Mac, depending on the
-keyboard, but the sheet always writes it as "Ctrl". The built-in text follows
-`locale`, which is English by default; the groups and labels come from your
-shortcuts.
+The shortcuts are listed under their `group` (a heading, so a screen reader can
+jump between the groups), in the order in which the groups first appear, each
+with its label and its keys drawn by [Klar.Kbd](Klar-Kbd): key caps for the eye
+(a sequence such as `g o` reads "G then O") and one spoken phrase for a screen
+reader ("Control plus K", "question mark"). The keys are written for the
+`platform`: `Kbd.pc` (Ctrl, the default) or `Kbd.mac` (⌘). The filter box
+matches the label, the group and the keys, also by their other names ("cmd",
+"control", "escape", "pgup"), and a polite status says how many shortcuts match.
+A shortcut that also works while the user types in a field (`inInputs`) is marked
+"works in fields"; a note at the bottom says that the others do not, and that
+only the shortcuts with Ctrl, Alt or Cmd work while a dialog is open. The
+built-in text follows `locale`, which is English by default; the groups and
+labels come from your shortcuts.
 
 
 # View
@@ -75,15 +79,18 @@ shortcuts.
 
 # Attributes
 
-@docs Attribute, title, locale
+@docs Attribute, title, platform, locale
 
 -}
 
 import Html exposing (Html)
+import Html.Attributes as Attr
 import Klar.Button as Button
 import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Keys as Notation
+import Klar.Kbd as Kbd
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Modal as Modal
 import Klar.Overlay exposing (Overlay)
@@ -204,6 +211,7 @@ type Attribute msg
 
 type alias Config =
     { title : Maybe String
+    , platform : Kbd.Platform
     , locale : Locale
     }
 
@@ -211,7 +219,7 @@ type alias Config =
 configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { title = Nothing, locale = Locale.default }
+        { title = Nothing, platform = Kbd.pc, locale = Locale.default }
         attributes
 
 
@@ -223,8 +231,20 @@ title value =
     Attribute (\config -> { config | title = Just value })
 
 
-{-| The language of the built-in texts: the heading, the filter box, the notes and
-the Close button. The default is `Locale.default`, which is `Locale.en`. The groups and
+{-| The keyboard to write the keys for, as in [Klar.Kbd](Klar-Kbd): `Kbd.pc` (the
+default: Ctrl, Alt, Shift) or `Kbd.mac` (⌘, ⌥, ⇧ in the order a Mac writes them).
+Read it once from the user agent with `Kbd.platformFromUserAgent`.
+
+    ShortcutHelp.platform (Kbd.platformFromUserAgent flags.userAgent)
+
+-}
+platform : Kbd.Platform -> Attribute msg
+platform value =
+    Attribute (\config -> { config | platform = value })
+
+
+{-| The language of the built-in texts: the heading, the filter box, the notes,
+the spoken names of the keys and the Close button. The default is `Locale.default`, which is `Locale.en`. The groups and
 labels of the shortcuts come from the application.
 -}
 locale : Locale -> Attribute msg
@@ -238,8 +258,8 @@ locale value =
 
 {-| The sheet for these shortcuts: give it the same list as `Shortcut.listen`.
 Renders nothing while closed. The first argument turns the sheet's messages into
-yours. A `mod` in the keys of a shortcut (Ctrl, or Cmd on a Mac) is always
-written as "Ctrl" on the sheet.
+yours. A `mod` in the keys of a shortcut is written as Ctrl, or as ⌘ with
+`platform Kbd.mac`.
 
     ShortcutHelp.view HelpMsg [ ShortcutHelp.title "Keys" ] shortcuts model.help
 
@@ -266,9 +286,18 @@ view toMsg attributes shortcuts (State state) =
             , none = Locale.pick config.locale { nb = "Ingen hurtigtaster samsvarer", en = "No shortcuts match" }
             , noneHint = Locale.pick config.locale { nb = "Prøv et annet søkeord.", en = "Try another word." }
             , close = Locale.pick config.locale { nb = "Lukk", en = "Close" }
-            , then_ = Locale.pick config.locale { nb = "deretter", en = "then" }
             , inFields = Locale.pick config.locale { nb = "virker også i felt", en = "works in fields" }
-            , note = Locale.pick config.locale { nb = "Hurtigtaster virker ikke mens du skriver i et felt, med mindre noe annet er oppgitt.", en = "Shortcuts do not work while you type in a field, unless stated otherwise." }
+            , note =
+                Locale.pick config.locale
+                    { nb = "Hurtigtaster virker ikke mens du skriver i et felt, med mindre noe annet er oppgitt. Mens en dialog er åpen, virker bare de med Ctrl, Alt eller Cmd."
+                    , en = "Shortcuts do not work while you type in a field, unless stated otherwise. While a dialog is open, only the ones with Ctrl, Alt or Cmd work."
+                    }
+            , count =
+                if words == "" then
+                    ""
+
+                else
+                    countText config.locale (List.length matching)
             }
     in
     Modal.view (\inner -> toMsg (ModalMsg inner))
@@ -312,22 +341,38 @@ view toMsg attributes shortcuts (State state) =
 
               else
                 Html.div [ Internal.cls [ "klar-shortcuts__groups" ] ]
-                    (List.map (viewGroup language) groups)
+                    (List.indexedMap (viewGroup config state.id language) groups)
+
+            -- Always in the page, so that a change of its text is announced.
+            , Html.div
+                [ Internal.cls [ "klar-sr-only" ]
+                , Attr.attribute "role" "status"
+                , Attr.attribute "aria-live" "polite"
+                , Attr.attribute "aria-atomic" "true"
+                ]
+                [ Html.text language.count ]
             ]
         ]
 
 
-viewGroup : { a | then_ : String, inFields : String } -> ( String, List (Shortcut b) ) -> Html msg
-viewGroup language ( name, members ) =
+{-| A group: its name is a heading (the title of the dialog is the `h2`) that
+names the list under it.
+-}
+viewGroup : Config -> String -> { a | inFields : String } -> Int -> ( String, List (Shortcut b) ) -> Html msg
+viewGroup config sheetId language index ( name, members ) =
+    let
+        headingId =
+            sheetId ++ "-group-" ++ String.fromInt index
+    in
     Html.section [ Internal.cls [ "klar-shortcuts__group" ] ]
-        [ Text.overline name
-        , Html.ul [ Internal.cls [ "klar-shortcuts__list" ] ]
-            (List.map (viewShortcut language) members)
+        [ Html.h3 [ Internal.cls [ "klar-text", "klar-text--overline", "klar-shortcuts__heading" ], Attr.id headingId ] [ Html.text name ]
+        , Html.ul [ Internal.cls [ "klar-shortcuts__list" ], Attr.attribute "aria-labelledby" headingId ]
+            (List.map (viewShortcut config language) members)
         ]
 
 
-viewShortcut : { a | then_ : String, inFields : String } -> Shortcut b -> Html msg
-viewShortcut language entry =
+viewShortcut : Config -> { a | inFields : String } -> Shortcut b -> Html msg
+viewShortcut config language entry =
     Html.li [ Internal.cls [ "klar-shortcuts__row" ] ]
         [ Html.span [ Internal.cls [ "klar-shortcuts__label" ] ]
             [ Html.text (Shortcut.labelOf entry)
@@ -335,11 +380,26 @@ viewShortcut language entry =
                 (Html.span [ Internal.cls [ "klar-shortcuts__note" ] ] [ Html.text language.inFields ])
             ]
         , Html.span [ Internal.cls [ "klar-shortcuts__keys" ] ]
-            (Shortcut.keycaps (Shortcut.keysOf entry)
-                |> List.map Internal.kbdCombo
-                |> List.intersperse (Html.span [ Internal.cls [ "klar-shortcuts__then" ] ] [ Html.text language.then_ ])
-            )
+            [ Kbd.view [ Kbd.platform config.platform, Kbd.locale config.locale ] (Shortcut.keysOf entry) ]
         ]
+
+
+countText : Locale -> Int -> String
+countText language count =
+    Locale.pick language
+        { nb =
+            if count == 1 then
+                "1 hurtigtast"
+
+            else
+                String.fromInt count ++ " hurtigtaster"
+        , en =
+            if count == 1 then
+                "1 shortcut"
+
+            else
+                String.fromInt count ++ " shortcuts"
+        }
 
 
 {-| Group by `group`, in the order the groups first appear.
@@ -370,8 +430,61 @@ matches words entry =
     else
         Search.matches words
             (String.join " "
-                [ Shortcut.labelOf entry
-                , Shortcut.groupOf entry
-                , Shortcut.keycaps (Shortcut.keysOf entry) |> List.map (String.join " ") |> String.join " "
-                ]
+                (Shortcut.labelOf entry
+                    :: Shortcut.groupOf entry
+                    :: List.concatMap (List.concatMap keyNames) (Notation.words (Shortcut.keysOf entry))
+                )
             )
+
+
+{-| A key cap and the other names a user may look for it by.
+-}
+keyNames : String -> List String
+keyNames word =
+    word
+        :: (case word of
+                "Ctrl" ->
+                    [ "control", "cmd", "command", "⌘" ]
+
+                "Alt" ->
+                    [ "option", "⌥" ]
+
+                "Shift" ->
+                    [ "⇧" ]
+
+                "Esc" ->
+                    [ "escape" ]
+
+                "Enter" ->
+                    [ "return" ]
+
+                "Delete" ->
+                    [ "del" ]
+
+                "PageUp" ->
+                    [ "pgup", "page up" ]
+
+                "PageDown" ->
+                    [ "pgdn", "page down" ]
+
+                "↑" ->
+                    [ "up arrow" ]
+
+                "↓" ->
+                    [ "down arrow" ]
+
+                "←" ->
+                    [ "left arrow" ]
+
+                "→" ->
+                    [ "right arrow" ]
+
+                "?" ->
+                    [ "question mark" ]
+
+                "/" ->
+                    [ "slash" ]
+
+                _ ->
+                    []
+           )

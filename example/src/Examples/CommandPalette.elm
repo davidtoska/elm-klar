@@ -248,7 +248,7 @@ viewPalette model =
                 ]
             , CommandPalette.remote "Go to order ..." (Remote.map (List.map hitItem) model.hits)
                 |> CommandPalette.onRetry RetryHits
-                |> CommandPalette.emptyText "No order matches"
+                |> CommandPalette.withEmptyText "No order matches"
             ]
         , CommandPalette.placeholder "Type a command, or an order number or customer"
         ]

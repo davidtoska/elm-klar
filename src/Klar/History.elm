@@ -121,6 +121,7 @@ import Html.Keyed as Keyed
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.Keys as Notation
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Shortcut as Shortcut exposing (Shortcut)
 
@@ -626,7 +627,7 @@ controls attributes messages ((History state) as history) =
 -}
 keyCaps : Shortcut.Keys -> String
 keyCaps keys =
-    Shortcut.keycaps keys
+    Notation.words keys
         |> List.map (String.join "+")
         |> String.join " "
 
@@ -635,7 +636,7 @@ keyCaps keys =
 -}
 ariaKeys : Shortcut.Keys -> String
 ariaKeys keys =
-    Shortcut.keycaps keys
+    Notation.words keys
         |> List.map (\step -> String.join "+" (List.map ariaKey step))
         |> String.join " "
 

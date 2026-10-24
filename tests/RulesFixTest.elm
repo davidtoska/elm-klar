@@ -7,7 +7,7 @@ module RulesFixTest exposing (suite)
     included, and still says `Nothing` to anything that is not a number.
   - `Rule.operatorLabel` keeps its signature and does not depend on the kind
     of field.
-  - A shortcut for the plus key (`"+"`, `"mod++"`) fires, and `Shortcut.keycaps`
+  - A shortcut for the plus key (`"+"`, `"mod++"`) fires, and `KeyWords.words`
     shows the plus.
   - Shortcuts do not fire while the user types in a field, a text area, a
     select or an editable element, with or without Ctrl, Alt or Cmd, unless
@@ -25,6 +25,7 @@ import Json.Encode as Encode
 import Klar.Date as Date
 import Klar.FilterBar as FilterBar
 import Klar.Format as Format
+import Klar.Internal.Keys as KeyWords
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay
 import Klar.Rule as Rule exposing (FieldKind(..), Operator(..), Rule(..))
@@ -949,9 +950,9 @@ keycapsTests : Test
 keycapsTests =
     let
         caps name keys expected =
-            test name <| \_ -> Expect.equal expected (Shortcut.keycaps (Keys.parse keys))
+            test name <| \_ -> Expect.equal expected (KeyWords.words (Keys.parse keys))
     in
-    describe "Shortcut.keycaps"
+    describe "KeyWords.words"
         [ caps "the plus key" "+" [ [ "+" ] ]
         , caps "Ctrl and the plus key" "mod++" [ [ "Ctrl", "+" ] ]
         , caps "Alt and the plus key" "alt++" [ [ "Alt", "+" ] ]
