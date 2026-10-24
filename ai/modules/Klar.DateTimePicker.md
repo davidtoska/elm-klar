@@ -40,6 +40,12 @@ fromPosix : Time.Zone -> Time.Posix -> DateTime
 toIso : DateTime -> String
 fromIso : String -> Maybe DateTime
 
+-- The popups
+isOpen : State -> Bool
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
+close : State -> ( State, Cmd Msg )
+visibleMonth : State -> { year : Int, month : Int }
+
 -- Date limits and today
 type Attribute msg  -- opaque: no constructors are exposed
 today : Date.Date -> Attribute msg
@@ -69,6 +75,8 @@ locale : Locale.Locale -> Attribute msg
 disabled : Bool -> Attribute msg
 readOnly : Bool -> Attribute msg
 clearable : Attribute msg
+alignEnd : Attribute msg
+name : String -> Attribute msg
 ```
 
 ## Documentation
@@ -424,6 +432,48 @@ not exist.
 
     DateTimePicker.fromIso "2026-10-20T14:30Z" -- Nothing
 
+## The popups
+
+### `isOpen`
+
+```elm
+isOpen : State -> Bool
+```
+
+`True` while the calendar of the date part or the list of the time part is
+open. A control that is `disabled` or `readOnly` never draws them.
+
+### `open`
+
+```elm
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
+```
+
+Opens the calendar of the date part and moves the focus into it, after
+reading any pending text, as [DatePicker.open](Klar.DatePicker.md#open) does. Pass
+the same attributes as to `view`. A control that is `disabled` or `readOnly`
+stays closed.
+
+### `close`
+
+```elm
+close : State -> ( State, Cmd Msg )
+```
+
+Closes the calendar or the list, whichever is open, and gives the focus back
+to its input. Does nothing when both are closed.
+
+### `visibleMonth`
+
+```elm
+visibleMonth : State -> { year : Int, month : Int }
+```
+
+The first month the calendar of the date part shows, as `{ year, month }`
+(January is 1). For an application that loads marks one month at a time: compare
+it before and after `update` and fetch when it changes; see
+[DatePicker.visibleMonth](Klar.DatePicker.md#visiblemonth).
+
 ## Date limits and today
 
 ### `Attribute`
@@ -660,3 +710,22 @@ clearable : Attribute msg
 Shows a small × button in each field while it has text; a button empties its
 own field and puts the focus back in it. The buttons are not in the tab order,
 and their accessible name is "Clear field". Default: no buttons.
+
+### `alignEnd`
+
+```elm
+alignEnd : Attribute msg
+```
+
+Aligns the right edges of the calendar and of the list of times with the right
+edges of their inputs, instead of the left edges. Use it for a control near the
+right side of the page, so that the popups do not run out of the window.
+
+### `name`
+
+```elm
+name : String -> Attribute msg
+```
+
+The `name` of the two inputs for a plain HTML `form`: `<name>-date` and
+`<name>-time`. The values sent are the texts in the inputs. Default: none.

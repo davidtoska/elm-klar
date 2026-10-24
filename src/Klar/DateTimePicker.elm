@@ -4,10 +4,11 @@ module Klar.DateTimePicker exposing
     , value, isValid, text, setValue, clear, setText, setLimits
     , date, time, setDate, setTime
     , DateTime, toPosix, fromPosix, toIso, fromIso
+    , isOpen, open, close, visibleMonth
     , Attribute, today, min, max, disabledWhen, markers, weekNumbers
     , minTime, maxTime, step
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , size, locale, disabled, readOnly, clearable
+    , size, locale, disabled, readOnly, clearable, alignEnd, name
     )
 
 {-| A date and a time in one control: a [Klar.DatePicker](Klar-DatePicker) and a
@@ -111,6 +112,11 @@ from `locale`; the default is English.
 @docs DateTime, toPosix, fromPosix, toIso, fromIso
 
 
+# The popups
+
+@docs isOpen, open, close, visibleMonth
+
+
 # Date limits and today
 
 @docs Attribute, today, min, max, disabledWhen, markers, weekNumbers
@@ -128,7 +134,7 @@ from `locale`; the default is English.
 
 # Look and behavior
 
-@docs size, locale, disabled, readOnly, clearable
+@docs size, locale, disabled, readOnly, clearable, alignEnd, name
 
 -}
 
@@ -473,6 +479,55 @@ setLimits attributes (State s) =
         }
 
 
+{-| `True` while the calendar of the date part or the list of the time part is
+open. A control that is `disabled` or `readOnly` never draws them.
+-}
+isOpen : State -> Bool
+isOpen (State s) =
+    DatePicker.isOpen s.date || TimePicker.isOpen s.time
+
+
+{-| Opens the calendar of the date part and moves the focus into it, after
+reading any pending text, as [DatePicker.open](Klar-DatePicker#open) does. Pass
+the same attributes as to `view`. A control that is `disabled` or `readOnly`
+stays closed.
+-}
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
+open attributes (State s) =
+    let
+        ( datePart, cmd ) =
+            DatePicker.open (dateAttributesOf (configure attributes)) s.date
+    in
+    ( State { s | date = datePart }, Cmd.map DateMsg cmd )
+
+
+{-| Closes the calendar or the list, whichever is open, and gives the focus back
+to its input. Does nothing when both are closed.
+-}
+close : State -> ( State, Cmd Msg )
+close (State s) =
+    let
+        ( datePart, dateCmd ) =
+            DatePicker.close s.date
+
+        ( timePart, timeCmd ) =
+            TimePicker.close s.time
+    in
+    ( State { s | date = datePart, time = timePart }
+    , Cmd.batch [ Cmd.map DateMsg dateCmd, Cmd.map TimeMsg timeCmd ]
+    )
+
+
+{-| The first month the calendar of the date part shows, as `{ year, month }`
+(January is 1). For an application that loads marks one month at a time: compare
+it before and after `update` and fetch when it changes; see
+[DatePicker.visibleMonth](Klar-DatePicker#visibleMonth).
+-}
+visibleMonth : State -> { year : Int, month : Int }
+visibleMonth (State s) =
+    DatePicker.visibleMonth s.date
+
+
 
 -- UPDATE
 
@@ -540,6 +595,8 @@ type alias Config =
     , disabledWhen : Date -> Bool
     , markers : List Calendar.Marker
     , weekNumbers : Bool
+    , alignEnd : Bool
+    , name : Maybe String
     , step : Int
     , minTime : Maybe Time
     , maxTime : Maybe Time
@@ -561,6 +618,8 @@ configure attributes =
         , disabledWhen = \_ -> False
         , markers = []
         , weekNumbers = False
+        , alignEnd = False
+        , name = Nothing
         , step = 15
         , minTime = Nothing
         , maxTime = Nothing
@@ -746,6 +805,23 @@ weekNumbers =
     Attribute (\config -> { config | weekNumbers = True })
 
 
+{-| Aligns the right edges of the calendar and of the list of times with the right
+edges of their inputs, instead of the left edges. Use it for a control near the
+right side of the page, so that the popups do not run out of the window.
+-}
+alignEnd : Attribute msg
+alignEnd =
+    Attribute (\config -> { config | alignEnd = True })
+
+
+{-| The `name` of the two inputs for a plain HTML `form`: `<name>-date` and
+`<name>-time`. The values sent are the texts in the inputs. Default: none.
+-}
+name : String -> Attribute msg
+name given =
+    Attribute (\config -> { config | name = Just given })
+
+
 {-| Minutes between the times in the list, from 1 to 60 (other numbers are cut to
 that range). A divisor of 60 (5, 10, 15, 20, 30 or 60) lines the list up with
 the hour, and typed times between the steps are accepted whatever the step is.
@@ -880,8 +956,8 @@ apart; the part alone, capitalized, without a label.
 partLabel : Config -> String -> String
 partLabel config part =
     case config.field.label of
-        Just name ->
-            name ++ ", " ++ part
+        Just labelText ->
+            labelText ++ ", " ++ part
 
         Nothing ->
             String.toUpper (String.left 1 part) ++ String.dropLeft 1 part
@@ -911,6 +987,12 @@ dateAttributesOf config =
 
           else
             Nothing
+        , if config.alignEnd then
+            Just DatePicker.alignEnd
+
+          else
+            Nothing
+        , Maybe.map (\given -> DatePicker.name (given ++ "-date")) config.name
         , if config.weekNumbers then
             Just DatePicker.weekNumbers
 
@@ -938,6 +1020,12 @@ timeAttributesOf config =
         , Just (TimePicker.readOnly config.readOnly)
         , Just (TimePicker.step config.step)
         , Maybe.map TimePicker.min config.minTime
+        , if config.alignEnd then
+            Just TimePicker.alignEnd
+
+          else
+            Nothing
+        , Maybe.map (\given -> TimePicker.name (given ++ "-time")) config.name
         , Maybe.map TimePicker.max config.maxTime
         , if config.clearable then
             Just TimePicker.clearable

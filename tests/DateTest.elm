@@ -31,6 +31,7 @@ suite =
         , parsing
         , calendar
         , range
+        , periods
         , posix
         ]
 
@@ -244,6 +245,64 @@ range =
             \_ ->
                 Expect.equal "0001-01-01"
                     (Date.monthGrid 1 1 1 |> List.head |> Maybe.andThen List.head |> Maybe.map Date.toIso |> Maybe.withDefault "")
+        ]
+
+
+periods : Test
+periods =
+    describe "weeks, quarters and years"
+        [ test "startOfWeek and endOfWeek for weeks that start on Monday" <|
+            \_ ->
+                Expect.equal [ "2026-11-02", "2026-11-08", "2026-11-02", "2026-11-08" ]
+                    [ Date.toIso (Date.startOfWeek 1 (date 2026 11 4))
+                    , Date.toIso (Date.endOfWeek 1 (date 2026 11 4))
+                    , Date.toIso (Date.startOfWeek 1 (date 2026 11 2))
+                    , Date.toIso (Date.endOfWeek 1 (date 2026 11 8))
+                    ]
+        , test "weeks that start on Sunday" <|
+            \_ ->
+                Expect.equal [ "2026-11-01", "2026-11-07" ]
+                    [ Date.toIso (Date.startOfWeek 7 (date 2026 11 4)), Date.toIso (Date.endOfWeek 7 (date 2026 11 4)) ]
+        , fuzz2 (Fuzz.intRange -700000 2900000) (Fuzz.intRange 1 7) "a week holds the date, starts on its first day and has seven days" <|
+            \n firstDay ->
+                let
+                    d =
+                        Date.fromEpochDay n
+
+                    start =
+                        Date.startOfWeek firstDay d
+                in
+                Expect.equal ( firstDay, True, 6 )
+                    ( Date.weekday start, Date.diffDays start d >= 0 && Date.diffDays start d <= 6, Date.diffDays start (Date.endOfWeek firstDay d) )
+        , test "ISO weeks around new year" <|
+            \_ ->
+                Expect.equal [ ( 1, 2026 ), ( 53, 2026 ), ( 53, 2026 ), ( 1, 2025 ), ( 1, 2026 ), ( 43, 2026 ) ]
+                    (List.map (\d -> ( Date.isoWeek d, Date.isoWeekYear d ))
+                        [ date 2026 1 1, date 2026 12 31, date 2027 1 3, date 2024 12 30, date 2025 12 29, date 2026 10 20 ]
+                    )
+        , test "quarters" <|
+            \_ ->
+                Expect.equal [ 1, 1, 2, 3, 4 ]
+                    (List.map Date.quarter [ date 2026 1 1, date 2026 3 31, date 2026 4 1, date 2026 9 30, date 2026 12 31 ])
+        , test "startOfQuarter and endOfQuarter" <|
+            \_ ->
+                Expect.equal [ "2026-10-01", "2026-12-31", "2024-01-01", "2024-03-31", "2026-04-01", "2026-06-30" ]
+                    [ Date.toIso (Date.startOfQuarter (date 2026 11 4))
+                    , Date.toIso (Date.endOfQuarter (date 2026 11 4))
+                    , Date.toIso (Date.startOfQuarter (date 2024 2 29))
+                    , Date.toIso (Date.endOfQuarter (date 2024 2 29))
+                    , Date.toIso (Date.startOfQuarter (date 2026 5 31))
+                    , Date.toIso (Date.endOfQuarter (date 2026 5 31))
+                    ]
+        , test "startOfYear, endOfYear and addYears" <|
+            \_ ->
+                Expect.equal [ "2026-01-01", "2026-12-31", "2025-02-28", "2028-02-29", "2016-10-20" ]
+                    [ Date.toIso (Date.startOfYear (date 2026 11 4))
+                    , Date.toIso (Date.endOfYear (date 2026 11 4))
+                    , Date.toIso (Date.addYears 1 (date 2024 2 29))
+                    , Date.toIso (Date.addYears 4 (date 2024 2 29))
+                    , Date.toIso (Date.addYears -10 (date 2026 10 20))
+                    ]
         ]
 
 

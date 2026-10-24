@@ -210,7 +210,7 @@ notDimmed label attributes =
 
 standardChoices : List String
 standardChoices =
-    [ "Today", "Last 7 days", "Last 30 days", "This month", "Last month", "This year" ]
+    [ "Today", "Last 7 days", "Last 30 days", "This week", "This month", "Last month", "This quarter", "Last quarter", "This year" ]
 
 
 wednesday : Date
@@ -259,7 +259,19 @@ withoutDisabledDays =
             \_ -> Expect.equal (Ok "2026-10-01 .. 2026-10-31") (pick "Last month" attributes)
         , test "This year" <|
             \_ -> Expect.equal (Ok "2026-01-01 .. 2026-12-31") (pick "This year" attributes)
-        , test "none of the six is dimmed" <|
+        , test "This week: Monday to Sunday" <|
+            \_ -> Expect.equal (Ok "2026-11-02 .. 2026-11-08") (pick "This week" attributes)
+        , test "This quarter" <|
+            \_ -> Expect.equal (Ok "2026-10-01 .. 2026-12-31") (pick "This quarter" attributes)
+        , test "Last quarter" <|
+            \_ -> Expect.equal (Ok "2026-07-01 .. 2026-09-30") (pick "Last quarter" attributes)
+        , test "Last quarter in the first quarter is the last quarter of the year before" <|
+            \_ -> Expect.equal (Ok "2025-10-01 .. 2025-12-31") (pick "Last quarter" [ DateRangePicker.today (date 2026 2 10) ])
+        , test "the Norwegian names" <|
+            \_ ->
+                Expect.equal (Ok "2026-11-02 .. 2026-11-08")
+                    (pick "Denne uken" [ DateRangePicker.today wednesday, DateRangePicker.locale Locale.nb ])
+        , test "none of the nine is dimmed" <|
             \_ -> allOf (List.map (\label -> notDimmed label attributes) standardChoices)
         ]
 
@@ -350,7 +362,7 @@ dimmedChoices =
                 dimmedWith "Today"
                     "The date is not available"
                     [ DateRangePicker.today sunday, DateRangePicker.disabledWhen isWeekend ]
-        , test "every day disabled: all six are dimmed" <|
+        , test "every day disabled: all nine are dimmed" <|
             \_ ->
                 let
                     attributes =
@@ -397,9 +409,6 @@ customChoices =
     let
         sprint =
             DateRangePicker.preset "Sprint" (date 2026 11 1) (date 2026 11 9)
-
-        reversed =
-            { label = "Reversed", from = date 2026 11 9, to = date 2026 11 2 }
     in
     describe "custom quick choices"
         [ test "they are offered without today and follow the same rules" <|
@@ -413,10 +422,10 @@ customChoices =
         , test "preset puts the two days in order" <|
             \_ ->
                 Expect.equal sprint (DateRangePicker.preset "Sprint" (date 2026 11 9) (date 2026 11 1))
-        , test "a record with the days the wrong way round is read in order" <|
+        , test "a preset made with the days the wrong way round is read in order" <|
             \_ ->
                 Expect.equal (Ok "2026-11-02 .. 2026-11-09")
-                    (pick "Reversed" [ DateRangePicker.presets [ reversed ] ])
+                    (pick "Reversed" [ DateRangePicker.presets [ DateRangePicker.preset "Reversed" (date 2026 11 9) (date 2026 11 2) ] ])
         , test "noPresets draws no list" <|
             \_ ->
                 let

@@ -1055,6 +1055,7 @@ viewPopup toMsg config rules words s =
     Popup.dialog
         { prefix = s.id ++ "-popup"
         , label = words.dialog
+        , describedBy = Nothing
         , classes = [ "klar-datepicker__popup" ]
         , alignEnd = config.alignEnd
         , onClose = toMsg Closed

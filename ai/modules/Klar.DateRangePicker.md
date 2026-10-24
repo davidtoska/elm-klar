@@ -4,7 +4,7 @@ A period field: a from date and a to date in one control, with one calendar that
 
 Import: `import Klar.DateRangePicker as DateRangePicker` | Group: Date and time
 
-Types: `Msg`, `State`, `Attribute`, `Preset`
+Types: `Msg`, `State`, `Preset`, `Attribute`
 
 ## Signatures
 
@@ -36,7 +36,7 @@ close : State -> ( State, Cmd Msg )
 visibleMonth : State -> { year : Int, month : Int }
 
 -- Quick choices
-type alias Preset = { label : String, from : Date.Date, to : Date.Date }
+type Preset  -- opaque: no constructors are exposed
 preset : String -> Date.Date -> Date.Date -> Preset
 presets : List Preset -> Attribute msg
 noPresets : Attribute msg
@@ -120,9 +120,10 @@ day to the one under the mouse (or the keyboard focus) are highlighted, the
 first field shows the first day, and the second field is empty. `Escape` closes
 the popup and throws away a half-made choice.
 
-The quick choices ("Today", "Last 7 days", "Last 30 days", "This month", "Last
-month" and "This year" in English) are computed from the `today` the application
-supplies. Each one gives the part of its period that the user could choose by
+The quick choices ("Today", "Last 7 days", "Last 30 days", "This week", "This
+month", "Last month", "This quarter", "Last quarter" and "This year" in English;
+weeks start on the first day of the week of `locale`) are computed from the
+`today` the application supplies. Each one gives the part of its period that the user could choose by
 hand: it is cut to `min` and `max`, and then inward past the days that
 `disabledWhen` excludes, so it starts and ends on a day that is allowed (days in
 between may be disabled, as in the calendar). A quick choice is disabled when
@@ -389,12 +390,12 @@ once the calendar has been opened; see
 ### `Preset`
 
 ```elm
-type alias Preset = { label : String, from : Date.Date, to : Date.Date }
+type Preset  -- opaque: no constructors are exposed
 ```
 
-A quick choice in the list beside the calendar: a `label` for its button and
-the period it selects, `from` and `to`. Make one with `preset`, which also puts
-the two days in order, and give a list of them to `presets`.
+A quick choice in the list beside the calendar: the label of its button and
+the period it selects. Make one with `preset`, which also puts the two days in
+order, and give a list of them to `presets`.
 
 ### `preset`
 

@@ -2473,8 +2473,8 @@
         "clear"
       ],
       "related": [
-        "Klar.TimePicker",
         "Klar.DatePicker",
+        "Klar.TimePicker",
         "Klar.Date",
         "Klar.Calendar",
         "Klar.Field",

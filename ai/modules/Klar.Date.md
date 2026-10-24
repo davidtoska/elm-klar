@@ -35,6 +35,18 @@ addMonths : Int -> Date -> Date
 startOfMonth : Date -> Date
 endOfMonth : Date -> Date
 
+-- Weeks, quarters and years
+addYears : Int -> Date -> Date
+startOfWeek : Int -> Date -> Date
+endOfWeek : Int -> Date -> Date
+isoWeek : Date -> Int
+isoWeekYear : Date -> Int
+quarter : Date -> Int
+startOfQuarter : Date -> Date
+endOfQuarter : Date -> Date
+startOfYear : Date -> Date
+endOfYear : Date -> Date
+
 -- Calendars
 monthGrid : Int -> Int -> Int -> List (List Date)
 
@@ -301,6 +313,113 @@ endOfMonth : Date -> Date
 The last day of the date's month.
 
     Date.fromIso "2024-02-10" |> Maybe.map (Date.endOfMonth >> Date.toIso) -- Just "2024-02-29"
+
+## Weeks, quarters and years
+
+For reports and quick choices such as "This week" or "Last quarter".
+
+    Date.fromIso "2026-11-04" |> Maybe.map (Date.startOfQuarter >> Date.toIso) -- Just "2026-10-01"
+
+    Date.fromIso "2027-01-01" |> Maybe.map Date.isoWeek -- Just 53, a week of 2026
+
+### `addYears`
+
+```elm
+addYears : Int -> Date -> Date
+```
+
+Adds years, keeping the month and the day; 29 February becomes 28 February
+in a year that is not a leap year. It stops at year 1 and at 9999.
+
+    Date.fromIso "2024-02-29" |> Maybe.map (Date.addYears 1 >> Date.toIso) -- Just "2025-02-28"
+
+### `startOfWeek`
+
+```elm
+startOfWeek : Int -> Date -> Date
+```
+
+The first day of the week that holds the date, for weeks that start on
+`firstDay` (1 = Monday ... 7 = Sunday; `Locale.firstDayOfWeek` gives the one of
+a locale).
+
+    Date.fromIso "2026-11-04" |> Maybe.map (Date.startOfWeek 1 >> Date.toIso) -- Just "2026-11-02", a Monday
+
+### `endOfWeek`
+
+```elm
+endOfWeek : Int -> Date -> Date
+```
+
+The last day of the week that holds the date, for weeks that start on
+`firstDay` (1 = Monday ... 7 = Sunday): six days after `startOfWeek`.
+
+### `isoWeek`
+
+```elm
+isoWeek : Date -> Int
+```
+
+The week number of ISO 8601, 1 to 53: weeks start on Monday, and week 1 is
+the week that holds the first Thursday of the year. The first days of January
+can belong to the last week of the year before, and the last days of December to
+week 1 of the next; `isoWeekYear` gives the year a week belongs to.
+
+    Date.fromIso "2026-12-31" |> Maybe.map Date.isoWeek -- Just 53
+
+### `isoWeekYear`
+
+```elm
+isoWeekYear : Date -> Int
+```
+
+The year that the ISO 8601 week of the date belongs to, for labels such as
+"2026-W53": the year of its Thursday.
+
+    Date.fromIso "2027-01-01" |> Maybe.map Date.isoWeekYear -- Just 2026
+
+### `quarter`
+
+```elm
+quarter : Date -> Int
+```
+
+The quarter of the year that holds the date: 1 (January to March) to 4
+(October to December).
+
+### `startOfQuarter`
+
+```elm
+startOfQuarter : Date -> Date
+```
+
+The first day of the date's quarter: 1 January, 1 April, 1 July or
+1 October.
+
+### `endOfQuarter`
+
+```elm
+endOfQuarter : Date -> Date
+```
+
+The last day of the date's quarter: 31 March, 30 June, 30 September or
+31 December.
+
+### `startOfYear`
+
+```elm
+startOfYear : Date -> Date
+```
+
+1 January of the date's year.
+
+### `endOfYear`
+
+```elm
+endOfYear : Date -> Date
+```
+
+31 December of the date's year.
 
 ## Calendars
 

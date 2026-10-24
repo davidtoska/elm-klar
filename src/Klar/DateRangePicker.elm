@@ -56,9 +56,10 @@ day to the one under the mouse (or the keyboard focus) are highlighted, the
 first field shows the first day, and the second field is empty. `Escape` closes
 the popup and throws away a half-made choice.
 
-The quick choices ("Today", "Last 7 days", "Last 30 days", "This month", "Last
-month" and "This year" in English) are computed from the `today` the application
-supplies. Each one gives the part of its period that the user could choose by
+The quick choices ("Today", "Last 7 days", "Last 30 days", "This week", "This
+month", "Last month", "This quarter", "Last quarter" and "This year" in English;
+weeks start on the first day of the week of `locale`) are computed from the
+`today` the application supplies. Each one gives the part of its period that the user could choose by
 hand: it is cut to `min` and `max`, and then inward past the days that
 `disabledWhen` excludes, so it starts and ends on a day that is allowed (days in
 between may be disabled, as in the calendar). A quick choice is disabled when
@@ -802,15 +803,16 @@ type PresetChoice
     | CustomPresets (List Preset)
 
 
-{-| A quick choice in the list beside the calendar: a `label` for its button and
-the period it selects, `from` and `to`. Make one with `preset`, which also puts
-the two days in order, and give a list of them to `presets`.
+{-| A quick choice in the list beside the calendar: the label of its button and
+the period it selects. Make one with `preset`, which also puts the two days in
+order, and give a list of them to `presets`.
 -}
-type alias Preset =
-    { label : String
-    , from : Date
-    , to : Date
-    }
+type Preset
+    = Preset
+        { label : String
+        , from : Date
+        , to : Date
+        }
 
 
 type alias Config =
@@ -1094,7 +1096,7 @@ nothing is left or what is left is longer than `maxRangeDays`.
 -}
 preset : String -> Date -> Date -> Preset
 preset name start finish =
-    { label = name, from = Util.earlier start finish, to = Util.later start finish }
+    Preset { label = name, from = Util.earlier start finish, to = Util.later start finish }
 
 
 {-| No list of quick choices: only the calendar is shown.
@@ -1163,18 +1165,24 @@ defaultPresets lang day =
         pick nb en =
             Locale.pick lang { nb = nb, en = en }
 
-        monthStart =
-            Date.startOfMonth day
+        firstDay =
+            Locale.firstDayOfWeek lang
 
-        previousStart =
-            Date.addMonths -1 monthStart
+        previousMonth =
+            Date.addMonths -1 (Date.startOfMonth day)
+
+        previousQuarter =
+            Date.addMonths -3 (Date.startOfQuarter day)
     in
-    [ { label = pick "I dag" "Today", from = day, to = day }
-    , { label = pick "Siste 7 dager" "Last 7 days", from = Date.addDays -6 day, to = day }
-    , { label = pick "Siste 30 dager" "Last 30 days", from = Date.addDays -29 day, to = day }
-    , { label = pick "Denne måneden" "This month", from = monthStart, to = Date.endOfMonth day }
-    , { label = pick "Forrige måned" "Last month", from = previousStart, to = Date.endOfMonth previousStart }
-    , { label = pick "Dette året" "This year", from = Date.startOfMonth (Date.addMonths (1 - Date.month day) day), to = Date.endOfMonth (Date.addMonths (12 - Date.month day) day) }
+    [ preset (pick "I dag" "Today") day day
+    , preset (pick "Siste 7 dager" "Last 7 days") (Date.addDays -6 day) day
+    , preset (pick "Siste 30 dager" "Last 30 days") (Date.addDays -29 day) day
+    , preset (pick "Denne uken" "This week") (Date.startOfWeek firstDay day) (Date.endOfWeek firstDay day)
+    , preset (pick "Denne måneden" "This month") (Date.startOfMonth day) (Date.endOfMonth day)
+    , preset (pick "Forrige måned" "Last month") previousMonth (Date.endOfMonth previousMonth)
+    , preset (pick "Dette kvartalet" "This quarter") (Date.startOfQuarter day) (Date.endOfQuarter day)
+    , preset (pick "Forrige kvartal" "Last quarter") previousQuarter (Date.endOfQuarter previousQuarter)
+    , preset (pick "Dette året" "This year") (Date.startOfYear day) (Date.endOfYear day)
     ]
 
 
@@ -1189,7 +1197,7 @@ choose, or what is left is longer than `maxRangeDays`.
 
 -}
 resolvePreset : Config -> Preset -> Result Problem ( Date, Date )
-resolvePreset config option =
+resolvePreset config (Preset option) =
     let
         early =
             Util.earlier option.from option.to
@@ -1552,7 +1560,7 @@ viewPopup toMsg config words s =
         options =
             presetList config
 
-        viewPreset index option =
+        viewPreset index ((Preset fields) as option) =
             let
                 resolved =
                     resolvePreset config option
@@ -1578,7 +1586,7 @@ viewPopup toMsg config words s =
                                 [ Button.title (Parse.message config.locale problem) ]
                        )
                 )
-                option.label
+                fields.label
 
         status =
             case ( Calendar.anchor s.calendar, current ) of
@@ -1598,6 +1606,7 @@ viewPopup toMsg config words s =
     Popup.dialog
         { prefix = s.id ++ "-popup"
         , label = words.dialog
+        , describedBy = Just (s.id ++ "-popup-status")
         , classes = [ "klar-daterange__popup" ]
         , alignEnd = config.alignEnd
         , onClose = toMsg Closed
@@ -1620,6 +1629,7 @@ viewPopup toMsg config words s =
                 [ Calendar.view (\inner -> toMsg (CalendarMsg inner)) (calendarAttributes config) s.calendar
                 , Html.div
                     [ Internal.cls [ "klar-daterange__status" ]
+                    , Attr.id (s.id ++ "-popup-status")
                     , Attr.attribute "aria-live" "polite"
                     ]
                     [ Html.text status ]

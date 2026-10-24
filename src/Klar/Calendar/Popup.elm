@@ -32,11 +32,13 @@ import Klar.Internal as Internal
 
 {-| The layer and the popup. `prefix` is the DOM id of the popup; every
 focusable element inside must have an id that starts with it, so the popup can
-tell when focus leaves.
+tell when focus leaves. `describedBy` is the id of a line inside that a screen
+reader reads when the popup opens (a live region is only read when it changes).
 -}
 dialog :
     { prefix : String
     , label : String
+    , describedBy : Maybe String
     , classes : List String
     , alignEnd : Bool
     , onClose : msg
@@ -68,6 +70,7 @@ dialog options content =
             , Attr.tabindex -1
             , Attr.attribute "role" "dialog"
             , Attr.attribute "aria-label" options.label
+            , Internal.attrMaybe (Attr.attribute "aria-describedby") options.describedBy
             , Internal.onClickStop options.noop
             , stopPress options.noop
             ]
