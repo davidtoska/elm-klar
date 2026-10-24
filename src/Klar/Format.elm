@@ -595,8 +595,8 @@ dateShort locale value =
 dateLong : Locale -> Date -> String
 dateLong locale value =
     Locale.pick locale
-        { nb = String.fromInt (Date.day value) ++ ". " ++ Locale.monthName locale (Date.month value) ++ " " ++ String.fromInt (Date.year value)
-        , en = String.fromInt (Date.day value) ++ " " ++ Locale.monthName locale (Date.month value) ++ " " ++ String.fromInt (Date.year value)
+        { nb = String.fromInt (Date.day value) ++ ". " ++ Locale.monthLong locale (Date.month value) ++ " " ++ String.fromInt (Date.year value)
+        , en = String.fromInt (Date.day value) ++ " " ++ Locale.monthLong locale (Date.month value) ++ " " ++ String.fromInt (Date.year value)
         }
 
 

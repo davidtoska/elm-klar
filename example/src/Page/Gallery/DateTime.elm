@@ -394,7 +394,7 @@ ordersDue locale n =
 
 monthTitle : Locale -> Month -> String
 monthTitle locale ( year, month ) =
-    Locale.monthName locale month ++ " " ++ String.fromInt year
+    Locale.monthLong locale month ++ " " ++ String.fromInt year
 
 
 

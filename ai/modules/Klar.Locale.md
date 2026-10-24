@@ -28,7 +28,7 @@ decimalSeparator : Locale -> String
 
 -- Calendar
 firstDayOfWeek : Locale -> Int
-monthName : Locale -> Int -> String
+monthLong : Locale -> Int -> String
 monthShort : Locale -> Int -> String
 weekdayLong : Locale -> Int -> String
 weekdayShort : Locale -> Int -> String
@@ -79,7 +79,8 @@ from a language code with `fromCode`.
 en : Locale
 ```
 
-English. This is the default.
+English, international: the week starts on Monday and a date is written the
+ISO way (`2026-10-20`), so it reads the same in every country. This is the default.
 
 ### `nb`
 
@@ -144,15 +145,19 @@ The language code for the `lang` attribute: `"en"` or `"nb"`.
 fromCode : String -> Maybe Locale
 ```
 
-Reads a language code, ignoring case. `"no"` is taken as Bokmål, like most
-browsers do. Use it on `navigator.language` that your application gets in its
-flags, or on a stored setting.
+Reads a language code as a browser gives it (`navigator.language`, which your
+application gets in its flags) or as you stored it. Only the language counts, not
+the region or the case: `"en-US"`, `"en_GB"` and `"EN"` are English, `"nb-NO"` and
+`"no"` are Bokmål. Nynorsk (`"nn"`, `"nn-NO"`) is read as Bokmål too, which its
+readers understand better than English.
 
-    Locale.fromCode "nb" -- Just Locale.nb
+    Locale.fromCode "nb-NO" -- Just Locale.nb
 
-    Locale.fromCode "EN" -- Just Locale.en
+    Locale.fromCode "en-US" -- Just Locale.en
 
-    Locale.fromCode "sv" -- Nothing
+    Locale.fromCode "sv-SE" -- Nothing
+
+Fall back to `Locale.default` on `Nothing`.
 
 ## Numbers
 
@@ -184,18 +189,18 @@ firstDayOfWeek : Locale -> Int
 The first day of the week in calendars, from 1 (Monday) to 7 (Sunday).
 Both languages start the week on Monday, like ISO 8601.
 
-### `monthName`
+### `monthLong`
 
 ```elm
-monthName : Locale -> Int -> String
+monthLong : Locale -> Int -> String
 ```
 
 The name of a month, from 1 (January) to 12 (December); an empty text for
 any other number.
 
-    Locale.monthName Locale.en 3 -- "March"
+    Locale.monthLong Locale.en 3 -- "March"
 
-    Locale.monthName Locale.nb 3 -- "mars"
+    Locale.monthLong Locale.nb 3 -- "mars"
 
 ### `monthShort`
 
@@ -203,7 +208,7 @@ any other number.
 monthShort : Locale -> Int -> String
 ```
 
-The short name of a month: `Mar` or `mar`.
+The short name of a month, from 1 (January) to 12 (December): `Mar` or `mar`.
 
 ### `weekdayLong`
 

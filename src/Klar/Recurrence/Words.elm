@@ -84,7 +84,7 @@ patternText locale every pattern =
                     ordinalDay locale ordinal weekday
 
                 monthText =
-                    Locale.monthName locale month
+                    Locale.monthLong locale month
             in
             Locale.pick locale
                 { nb =
@@ -232,7 +232,7 @@ yearlyDate locale every month day missing =
             month == 2 && day == 29
 
         monthText =
-            Locale.monthName locale month
+            Locale.monthLong locale month
     in
     Locale.pick locale
         { nb =
@@ -525,8 +525,8 @@ problemText locale problem =
 
         NoSuchDate month day ->
             Locale.pick locale
-                { nb = "Datoen finnes ikke: " ++ String.fromInt day ++ ". " ++ Locale.monthName locale month ++ "."
-                , en = "That date does not exist: " ++ String.fromInt day ++ " " ++ Locale.monthName locale month ++ "."
+                { nb = "Datoen finnes ikke: " ++ String.fromInt day ++ ". " ++ Locale.monthLong locale month ++ "."
+                , en = "That date does not exist: " ++ String.fromInt day ++ " " ++ Locale.monthLong locale month ++ "."
                 }
 
         NoWeekdays ->
