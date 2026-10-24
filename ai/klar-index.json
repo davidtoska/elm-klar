@@ -2777,7 +2777,7 @@
       "group": "Tables and lists",
       "purpose": "A tree view for hierarchies: regions and warehouses, folders, product categories, code lists.",
       "whenToUse": "a hierarchy is shown on the page itself, with open and closed branches.",
-      "whenNot": "the user picks a node in a form field (as `Klar.TreeSelect`).",
+      "whenNot": "the user picks a node in a form field (use `Klar.TreeSelect`), or the data is flat with columns (use `Klar.Table`).",
       "state": [
         "State"
       ],
@@ -2790,7 +2790,7 @@
         "init",
         "update",
         "view",
-        "selected"
+        "selectedId"
       ],
       "mainFunctions": [
         "view",
@@ -2804,6 +2804,7 @@
       ],
       "related": [
         "Klar.Accordion",
+        "Klar.EmptyState",
         "Klar.Ids",
         "Klar.Locale",
         "Klar.Table",

@@ -27,7 +27,8 @@ unloaded : Ids.Ids id -> id -> String -> Node id
 withIcon : Icon.Icon -> Node id -> Node id
 withCount : Int -> Node id -> Node id
 withBadge : Theme.Tone -> String -> Node id -> Node id
-withHint : String -> Node id -> Node id
+withDescription : String -> Node id -> Node id
+withKeywords : List String -> Node id -> Node id
 disabled : Node id -> Node id
 
 -- State and messages
@@ -37,35 +38,35 @@ init : String -> State id
 update : Msg -> State id -> ( State id, Cmd Msg )
 
 -- Open and closed
-expanded : Ids.Ids id -> State id -> List id
+expandedIds : Ids.Ids id -> State id -> List id
 isExpanded : Ids.Ids id -> id -> State id -> Bool
-setExpanded : Ids.Ids id -> List id -> State id -> State id
+setExpandedIds : Ids.Ids id -> List id -> State id -> State id
 expand : Ids.Ids id -> id -> State id -> State id
 collapse : Ids.Ids id -> id -> State id -> State id
+toggle : Ids.Ids id -> id -> State id -> State id
 expandAll : List (Node id) -> State id -> State id
 collapseAll : State id -> State id
 newlyExpanded : Ids.Ids id -> State id -> State id -> List id
 
 -- Selection and checkboxes
-selected : Ids.Ids id -> State id -> List id
+selectedIds : Ids.Ids id -> State id -> List id
 selectedId : Ids.Ids id -> State id -> Maybe id
 select : Ids.Ids id -> id -> State id -> State id
-setSelected : Ids.Ids id -> List id -> State id -> State id
-checked : Ids.Ids id -> State id -> List id
-setChecked : Ids.Ids id -> List id -> State id -> State id
+setSelectedIds : Ids.Ids id -> List id -> State id -> State id
+checkedIds : Ids.Ids id -> State id -> List id
+setCheckedIds : Ids.Ids id -> List id -> State id -> State id
 clearChecked : State id -> State id
 
 -- Focus and filter
 focused : Ids.Ids id -> State id -> Maybe id
-focusNode : Ids.Ids id -> State id -> id -> Cmd Msg
+focusNode : Ids.Ids id -> id -> State id -> Cmd Msg
 query : State id -> String
 setQuery : String -> State id -> State id
 
 -- Lazy loading
-loadRequests : Ids.Ids id -> Msg -> List id
-onLoadChildren : (id -> msg) -> Attribute id msg
-onRetry : (id -> msg) -> Attribute id msg
-onReload : msg -> Attribute id msg
+loadRequests : Ids.Ids id -> State id -> List id
+onRetry : msg -> Attribute id msg
+onRetryChildren : (id -> msg) -> Attribute id msg
 
 -- Attributes
 type Attribute id msg  -- opaque: no constructors are exposed
@@ -79,7 +80,7 @@ onActivate : (id -> msg) -> Attribute id msg
 compact : Attribute id msg
 maxHeight : Int -> Attribute id msg
 maxChildren : Int -> Attribute id msg
-emptyText : String -> Attribute id msg
+emptyState : List (EmptyState.Attribute msg) -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
 settings : Settings.Settings -> Attribute id msg
 ```
@@ -90,88 +91,108 @@ A tree view for hierarchies: regions and warehouses, folders, product
 categories, code lists.
 
 Use when: a hierarchy is shown on the page itself, with open and closed branches.
-Do not use when: the user picks a node in a form field (as `Klar.TreeSelect`).
-Quick path: `init`, `update`, `view`, `selected`
+Do not use when: the user picks a node in a form field (use `Klar.TreeSelect`), or the data is flat with columns (use `Klar.Table`).
+Quick path: `init`, `update`, `view`, `selectedId`
 
-It follows the WAI-ARIA tree pattern (`tree`,
-`treeitem`, `group`, `aria-expanded`, `aria-selected`, `aria-level`), keeps one
-tab stop for the whole tree and is fully usable from the keyboard.
+It follows the WAI-ARIA tree pattern (`tree`, `treeitem`, `group`, `aria-expanded`,
+`aria-selected`, `aria-level`) and is fully usable from the keyboard. The nodes are one
+tab stop; the filter box and the buttons inside the tree ("Try again", "Show 300 more")
+are tab stops of their own.
 
+    import Html exposing (Html)
+    import Klar.Ids as Ids
     import Klar.Theme exposing (Tone(..))
     import Klar.Tree as Tree
 
-    -- model
-    { tree : Tree.State String }    -- Tree.init "warehouse-tree"
+    type alias Model =
+        { tree : Tree.State String, warehouse : Maybe String }
 
-    -- update
-    TreeMsg m ->
-        let
-            ( tree, cmd ) =
-                Tree.update m model.tree
-        in
-        ( { model | tree = tree }, Cmd.map TreeMsg cmd )
+    init : Model
+    init =
+        { tree = Tree.init "warehouse-tree", warehouse = Nothing }
 
-    -- view
-    Tree.view TreeMsg
-        [ Tree.ariaLabel "Warehouses", Tree.filterBox ]
-        model.tree
-        [ Tree.branch Ids.string "north" "Northern region"
-            [ Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withCount 24
-            , Tree.leaf Ids.string "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
+    type Msg
+        = TreeMsg Tree.Msg
+
+    update : Msg -> Model -> ( Model, Cmd Msg )
+    update msg model =
+        case msg of
+            TreeMsg m ->
+                let
+                    ( tree, cmd ) =
+                        Tree.update m model.tree
+                in
+                -- The tree sends no messages of its own: read the state after update.
+                ( { model | tree = tree, warehouse = Tree.selectedId Ids.string tree }
+                , Cmd.map TreeMsg cmd
+                )
+
+    view : Model -> Html Msg
+    view model =
+        Tree.view TreeMsg
+            [ Tree.ariaLabel "Warehouses", Tree.filterBox ]
+            model.tree
+            [ Tree.branch Ids.string
+                "north"
+                "Northern region"
+                [ Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withCount 24
+                , Tree.leaf Ids.string "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
+                ]
             ]
-        ]
 
-Use a tree for data that is nested; for a flat list with columns use
-[Klar.Table](Klar.Table.md), and for a few collapsible sections
-[Klar.Accordion](Klar.Accordion.md).
+For a flat list with columns use [Klar.Table](Klar.Table.md), and for a few
+collapsible sections [Klar.Accordion](Klar.Accordion.md).
 
 Nodes are plain data (`leaf`, `branch`, `lazy`) that you build from your own
 data on every render; the state only remembers what the user did: which nodes
 are open, which are selected or checked, which has the focus, the filter text.
-Read it with `selected`, `expanded`, `checked` and compare before and after an
-update to react (`Tree.selected Ids.string new /= Tree.selected Ids.string old`). There are no
+Read it with `selectedId`, `selectedIds`, `expandedIds` and `checkedIds` after
+`update`, and compare with the state before to react to a change. There are no
 out-messages. The state refers to nodes by id, so every node id must be unique
 in the whole tree.
 
-Keyboard: `Tab` enters and leaves the tree. `Up` and `Down` move, `Right`
-opens a closed node and then moves into it, `Left` closes an open node and then
-moves to the parent, `Home` and `End` jump to the first and last visible node,
-`Enter` calls `onActivate` (without it, `Enter` does what `Space` does), `Space`
-selects (toggles in a `multiSelect` tree, checks in a tree with `checkboxes`)
-and `*` opens all closed nodes on the current level. In a `multiSelect` tree
-`Shift`+`Up` and `Shift`+`Down` extend the selection. Typing letters jumps to the
-next visible node whose label starts with them. In the filter box, `Down` moves
-into the tree and `Escape` clears the filter. With the mouse, a click selects, the
-arrow in front of a node opens and closes it, and a double click activates (or,
-without `onActivate`, opens or closes the node).
+Keyboard: `Tab` enters and leaves the nodes. `Up` and `Down` move, `Right`
+opens a closed node and then moves to its first child, `Left` closes an open node
+and then moves to the parent, `Home` and `End` jump to the first and last visible
+node, `Enter` calls `onActivate` (without it, `Enter` does what `Space` does),
+`Space` selects (toggles in a `multiSelect` tree, checks in a tree with
+`checkboxes`) and `*` opens all closed nodes on the current level. In a
+`multiSelect` tree `Shift`+`Up` and `Shift`+`Down` extend the selection. Typing
+letters jumps to the next visible node whose label starts with them. In the filter
+box, `Down` moves into the tree and `Escape` clears the filter. With the mouse, a
+click selects, the arrow in front of a node opens and closes it, and a double
+click activates (or, without `onActivate`, opens or closes the node).
 
 Selection: single by default (a tree that filters something else adds
-`allowEmptySelection`, so that a click on the selected node clears it); `multiSelect`
-allows `Ctrl`+click to add and
-`Shift`+click for a range. With `checkboxes` every node has a tri-state
-checkbox, and a click on a row toggles it: checking a parent checks everything
-below it, and a parent with some children checked shows a dash. `checked`
-returns the checked leaves. A node that is `disabled` can be neither selected
-nor checked.
+`allowEmptySelection`, so that a click on the selected node clears it);
+`multiSelect` allows `Ctrl`+click to add and `Shift`+click for a range. With
+`checkboxes` every node has a tri-state checkbox, and a click on a row toggles it:
+checking a parent checks every leaf below it, and a parent with some of them
+checked shows a dash. `checkedIds` returns the checked leaves. A node that is
+`disabled` can be neither selected nor checked.
 
 Filter: with `filterBox` the tree has a search field (or call `setQuery`). The
-tree then shows the nodes whose label contains every word typed (case and
-accents are ignored), with every ancestor of a match opened and the matching
-text highlighted. Only nodes that are in your data are searched, so the children
-of a lazy node that has not been loaded are not: for a lazy tree, watch `query`
-(compare it before and after `update`), ask the backend for the matching nodes
-with their ancestors and put them in your data, or load every branch first.
-Nodes that the user opens or closes while a filter is active are forgotten when
-the text changes.
+tree then shows the nodes whose label, description (`withDescription`) or
+keywords (`withKeywords`) contain every word typed (case and accents are
+ignored), with every ancestor of a match opened and the matching text
+highlighted. Checking a parent while a filter is active still checks every leaf
+below it, also the ones the filter hides, and its checkbox shows all of them.
+Only nodes that are in your data are searched, so the children of a lazy node
+that has not been loaded are not: for a lazy tree, watch `query` (compare it
+before and after `update`), ask the backend for the matching nodes with their
+ancestors and put them in your data, or load every branch first. Nodes that the
+user opens or closes while a filter is active are forgotten when the text changes.
 
-Lazy loading: a `lazy` node carries a `Remote` of its children. When the user
-opens one that is `NotAsked`, `loadRequests` on the message tells you which node
-asked; set its children to `Loading`, fetch them, and put `Loaded` or `Failed`
-in the node on the next render. The tree shows a spinner row while loading and a
-short failure with a retry button (`onRetry`). The children of a lazy node may be
-lazy nodes too. The tree keeps no copy of your nodes, so each level has its own
-`Remote` in your model: store what was loaded by node id and build the nodes from
-it in every `view`.
+Lazy loading: a `lazy` node carries a `Remote` of its children. A lazy node that is
+open while its children are `NotAsked` asks for them once: when the user opens it,
+or when it first shows up open (after `expand`, `setExpandedIds` or `expandAll`).
+`loadRequests` after `update` names the nodes that asked; set their children to
+`Loading`, fetch them, and put `Loaded` or `Failed` in the node on the next render.
+The tree shows a spinner row while loading and a short failure with a retry button
+(`onRetryChildren`); focus goes back to the node when the button is pressed. The
+children of a lazy node may be lazy nodes too. The tree keeps no copy of your
+nodes, so each level has its own `Remote` in your model: store what was loaded by
+node id and build the nodes from it in every `view`.
 
     TreeMsg m ->
         let
@@ -179,7 +200,7 @@ it in every `view`.
                 Tree.update m model.tree
 
             requests =
-                Tree.loadRequests Ids.string m
+                Tree.loadRequests Ids.string tree
         in
         ( { model | tree = tree, regions = markLoading requests model.regions }
         , Cmd.batch (Cmd.map TreeMsg cmd :: List.map fetchChildren requests)
@@ -194,7 +215,7 @@ with more than `maxChildren` children (default 300) shows the first ones and a
 "Show 300 more" row.
 
 The built-in text (the filter box, "Loading ...", "No matches" and so on) is
-English unless you set `locale`. Labels, hints, counts and badges come from you.
+English unless you set `locale`. Labels, descriptions, counts and badges come from you.
 
 ## Views
 
@@ -209,8 +230,8 @@ attributes, the state and the top-level nodes.
 
     Tree.view TreeMsg [ Tree.ariaLabel "Warehouses" ] model.tree nodes
 
-With no nodes the tree shows an empty state ("No nodes", or the `emptyText`), and
-while a filter matches nothing it says "No matches".
+With no nodes the tree shows an empty state ("No nodes", or your `emptyState`),
+and while a filter matches nothing it says "No matches".
 
 ### `viewRemote`
 
@@ -223,11 +244,16 @@ viewRemote :
     -> Html msg
 ```
 
-The same tree for a top level that comes from the backend. `Loaded` shows
-the tree, `Failed` shows the problem with a "Try again" button (`onReload`), and
-`NotAsked` and `Loading` show a skeleton.
+The same tree for a top level that comes from the backend. `NotAsked` and
+`Loading` show a skeleton, `Failed` shows the problem with a "Try again" button
+(`onRetry`), and `Loaded` shows the tree. Nodes that are `Kept` stay on the
+screen: dimmed and busy while they are refreshed, and with "Old data from 14:05"
+and a retry above them when the last refresh failed (`settings` gives the time
+zone). The element with the id of `init`, the filter box and the tree are the same
+elements in every state, so the focus in the filter box or on a node survives a
+refresh.
 
-    Tree.viewRemote TreeMsg [ Tree.onReload Reload ] model.tree model.regions
+    Tree.viewRemote TreeMsg [ Tree.onRetry ReloadRegions ] model.tree model.regions
 
 For the children of a single node use `lazy` instead.
 
@@ -240,8 +266,9 @@ type Node id  -- opaque: no constructors are exposed
 ```
 
 One node of the tree. Build it with `leaf`, `branch`, `lazy` or `unloaded`,
-and add an icon, a count, a badge or a hint with the `with...` functions. Nodes
-are plain data: build them from your own data on every render.
+and add an icon, a count, a badge, a description or search keywords with the
+`with...` functions. Nodes are plain data: build them from your own data on every
+render.
 
 ### `leaf`
 
@@ -288,8 +315,10 @@ with a problem.
 
 See `loadRequests` for how to find out when to fetch. A lazy node always has an
 arrow. When it is open the tree shows a spinner row while the children load, the
-problem with a retry button when they failed (`onRetry`), and "No items" when
-the list is empty.
+problem with a retry button when they failed (`onRetryChildren`), and "No items"
+when the list is empty. Children that are `Kept` stay on the screen: dimmed while
+they are refreshed, and with "Old data from 14:05" and a retry above them when the
+last refresh failed.
 
 ### `unloaded`
 
@@ -332,15 +361,28 @@ A small colored label after the label, for a status. The `Tone` (from
 
     Tree.leaf Ids.string "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
 
-### `withHint`
+### `withDescription`
 
 ```elm
-withHint : String -> Node id -> Node id
+withDescription : String -> Node id -> Node id
 ```
 
-Muted text after the label: a code or a short note. It takes at most 40% of
-the row and is cut with an ellipsis. On a row it comes before the count and the
-badge.
+A short secondary text, shown dimmed after the label and searched too: a code,
+a city, a short note. It takes at most 40% of the row and is cut with an ellipsis.
+On a row it comes before the count and the badge.
+
+    Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withDescription "OSL-3B"
+
+### `withKeywords`
+
+```elm
+withKeywords : List String -> Node id -> Node id
+```
+
+Extra words that also find the node in the filter box: synonyms, codes, old
+names. They are searched but never shown. Calling it again adds to the words.
+
+    Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withKeywords [ "Oslo", "cold store" ]
 
 ### `disabled`
 
@@ -348,8 +390,10 @@ badge.
 disabled : Node id -> Node id
 ```
 
-A node that is shown but cannot be selected, checked or activated. It can
-still be opened and closed, and its children are not affected.
+A node that is shown but cannot be selected, checked or activated: a click,
+`Space` and `Enter` leave it as it is. It can still be opened and closed, and its
+children are not affected, so in a tree with `checkboxes` the leaves below a
+disabled branch can still be checked one by one.
 
 ## State and messages
 
@@ -371,8 +415,7 @@ type Msg  -- opaque: no constructors are exposed
 ```
 
 A message of the tree. Wrap it in a constructor of your own message type
-(`TreeMsg`), hand it to `update`, and give it to `loadRequests` to find out which
-lazy nodes the user just opened.
+(`TreeMsg`) and hand it to `update`.
 
 ### `init`
 
@@ -380,9 +423,12 @@ lazy nodes the user just opened.
 init : String -> State id
 ```
 
-A tree state with nothing open, selected or checked. The `String` is a DOM
-id prefix and must be unique on the page: the rows get ids that start with it,
-and the filter box gets this id followed by `-filter`.
+A tree state with nothing open, selected or checked. The `String` is the DOM
+id of the tree and must be unique on the page. The element around the filter box
+and the nodes gets this id, in every state of `viewRemote` too, so
+`Klar.focus "warehouse-tree" NoOp` puts the keyboard focus on the node that has the
+tab stop (or on the element itself while nothing is loaded). The nodes get ids that
+start with it, and the filter box gets this id followed by `-filter`.
 
     Tree.init "warehouse-tree"
 
@@ -395,7 +441,8 @@ update : Msg -> State id -> ( State id, Cmd Msg )
 Handles opening and closing, selecting, checking, the filter box, keyboard
 focus and type-ahead. The command moves the keyboard focus and clears the
 type-ahead letters after a short pause, so map it with `Cmd.map` like any other
-child. To react to what the user did, compare the state before and after.
+child. To react to what the user did, compare the state before and after, and
+read `loadRequests` from the new state.
 
 The `id` of `State id` and `Node id` is the type of your node ids (`Tree.State
 RegionId`). Say once how it is written as a key, as a [Klar.Ids](Klar.Ids.md), and pass it
@@ -413,10 +460,10 @@ of the lists you get. The lists are ordered by key, as text.
 
 ## Open and closed
 
-### `expanded`
+### `expandedIds`
 
 ```elm
-expanded : Ids.Ids id -> State id -> List id
+expandedIds : Ids.Ids id -> State id -> List id
 ```
 
 The ids of the open nodes, in alphabetical order. While a filter is active the
@@ -429,16 +476,17 @@ or closes meanwhile are temporary: they are not recorded here (see `setQuery`).
 isExpanded : Ids.Ids id -> id -> State id -> Bool
 ```
 
-Is the node with this id open, in the sense of `expanded`?
+Is the node with this id open, in the sense of `expandedIds`?
 
-### `setExpanded`
+### `setExpandedIds`
 
 ```elm
-setExpanded : Ids.Ids id -> List id -> State id -> State id
+setExpandedIds : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Opens exactly the nodes with these ids and closes all others: for example to
-restore a saved view. A node is only on screen when its parents are open too.
+restore a saved view. A node is only on screen when its parents are open too. A
+lazy node it opens asks for its children when it shows up (see `loadRequests`).
 
 ### `expand`
 
@@ -447,8 +495,8 @@ expand : Ids.Ids id -> id -> State id -> State id
 ```
 
 Opens the node with this id. Its parents are not opened, so it stays out of
-sight while one of them is closed. Opening a lazy node this way does not ask for
-its children (see `loadRequests`).
+sight while one of them is closed. A lazy node opened this way asks for its
+children when it shows up (see `loadRequests`).
 
 ### `collapse`
 
@@ -457,6 +505,15 @@ collapse : Ids.Ids id -> id -> State id -> State id
 ```
 
 Closes the node with this id.
+
+### `toggle`
+
+```elm
+toggle : Ids.Ids id -> id -> State id -> State id
+```
+
+Opens the node with this id when it is closed, and closes it when it is open
+(in the sense of `isExpanded`).
 
 ### `expandAll`
 
@@ -469,10 +526,8 @@ open stay open. Give it the same nodes that you give to `view`.
 
     Tree.expandAll nodes model.tree
 
-Lazy nodes are opened too, but that does not make the tree ask for their
-children: no `loadRequests` come out of it. Use `newlyExpanded` to find out which
-nodes were opened and load them yourself, or set `onLoadChildren` so that the
-user can start the loading with a "Load" link.
+The lazy nodes it opens ask for their children when they show up, one message
+each: `loadRequests` after `update` names them, as when the user opens them.
 
 ### `collapseAll`
 
@@ -507,10 +562,10 @@ returns a `Cmd`).
 
 ## Selection and checkboxes
 
-### `selected`
+### `selectedIds`
 
 ```elm
-selected : Ids.Ids id -> State id -> List id
+selectedIds : Ids.Ids id -> State id -> List id
 ```
 
 The ids of the selected nodes, in alphabetical order. A single-select tree has
@@ -536,29 +591,29 @@ Selects exactly the node with this id, and makes it the start of a
 `Shift`+click range. The parents are not opened, so the node can stay out of
 sight: `expand` them as well.
 
-### `setSelected`
+### `setSelectedIds`
 
 ```elm
-setSelected : Ids.Ids id -> List id -> State id -> State id
+setSelectedIds : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Selects exactly the nodes with these ids: for example to restore a saved
-selection in a `multiSelect` tree.
+selection in a `multiSelect` tree. An empty list selects nothing.
 
-### `checked`
+### `checkedIds`
 
 ```elm
-checked : Ids.Ids id -> State id -> List id
+checkedIds : Ids.Ids id -> State id -> List id
 ```
 
 The ids of the checked leaves, in alphabetical order (see `checkboxes`). A
 parent is never in the list: its checkbox shows whether the leaves below it are
 checked. A `disabled` leaf is never checked by a click.
 
-### `setChecked`
+### `setCheckedIds`
 
 ```elm
-setChecked : Ids.Ids id -> List id -> State id -> State id
+setCheckedIds : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Checks exactly the leaves with these ids and unchecks all others. Give it
@@ -586,22 +641,21 @@ before the user has focused any node.
 ### `focusNode`
 
 ```elm
-focusNode : Ids.Ids id -> State id -> id -> Cmd Msg
+focusNode : Ids.Ids id -> id -> State id -> Cmd Msg
 ```
 
-A command that moves the keyboard focus to the node with this id. Use it
-when a button inside the tree (`onRetry`, `onLoadChildren`) was pressed: that
-button is replaced by the loading row, and the focus would otherwise fall back to
-the page.
+A command that moves the keyboard focus to the node with this id: for example
+when a button of yours next to the tree goes away and the user should go on in the
+tree. The buttons inside the tree ("Try again", "Show 300 more") move the focus
+themselves.
 
-    LoadBranch id ->
-        ( startLoading id model
-        , Cmd.map TreeMsg (Tree.focusNode Ids.string model.tree id)
+    ClearCategory ->
+        ( { model | category = Nothing }
+        , Cmd.map TreeMsg (Tree.focusNode Ids.string "hardware" model.tree)
         )
 
-Here `LoadBranch` is the message you gave to `onRetry` or `onLoadChildren`, and
-`startLoading` marks the children of that node as `Loading` in your data. The
-node has to be on screen (all its parents open) when the command runs.
+The node has to be on screen (all its parents open) when the command runs. To put
+the focus on whichever node has the tab stop, use `Klar.focus` with the id of `init`.
 
 ### `query`
 
@@ -630,52 +684,50 @@ whole tree again.
 ### `loadRequests`
 
 ```elm
-loadRequests : Ids.Ids id -> Msg -> List id
+loadRequests : Ids.Ids id -> State id -> List id
 ```
 
-The ids of the lazy nodes that this message asks children for: the ones the
-user just opened while their children were `NotAsked`. Usually it is zero or one
-id; `*` on the keyboard can open several nodes at once.
+The lazy nodes whose children the last `update` asked for: the ones the user
+just opened while their children were `NotAsked`, and an open node that showed up
+with `NotAsked` children (after `expand`, `setExpandedIds` or `expandAll`, or after
+you set a node back to `NotAsked` to load it again). Usually zero or one id; `*`
+on the keyboard can open several nodes at once.
 
-Call it with the message you are about to hand to `update`. Set the children of
-those nodes to `Loading`, fetch them, and later put `Loaded` or `Failed` in the
-node. Once a node is no longer `NotAsked` it is not requested again: after a
-failure the user retries with the button that `onRetry` adds. The lazy loading
-example in the introduction above shows the whole flow.
-
-### `onLoadChildren`
-
-```elm
-onLoadChildren : (id -> msg) -> Attribute id msg
-```
-
-The message to send, given the node id, when the user presses the "Load"
-link that the tree shows under an open lazy node that is still `NotAsked`
-(nobody has started loading it). A node ends up like that when it was opened
-without a request, with `expand`, `setExpanded` or `expandAll`, or when your
-`update` did not act on its `loadRequests`. The link lets the user start the
-loading by hand. Without this attribute such a node shows a spinner and nothing
-loads.
+Call it after every `update`, with the new state. Set the children of those nodes
+to `Loading`, fetch them, and later put `Loaded` or `Failed` in the node. A node
+asks once each time it opens, so a node that stays `NotAsked` is not asked for
+again until it is closed and opened; after a failure the user retries with the
+button that `onRetryChildren` adds. The lazy loading example in the introduction
+above shows the whole flow.
 
 ### `onRetry`
 
 ```elm
-onRetry : (id -> msg) -> Attribute id msg
+onRetry : msg -> Attribute id msg
+```
+
+The message sent by the "Try again" button of `viewRemote`: when the top level
+failed to load, and in the "Old data from 14:05" marker when a refresh of it
+failed. The button is only shown when the problem is worth retrying (see
+`Klar.Remote.isRetryable`). The tree moves the keyboard focus to its filter box,
+or to the element with the id of `init`, before the button goes away.
+
+    Tree.viewRemote TreeMsg [ Tree.onRetry ReloadRegions ] model.tree model.regions
+
+### `onRetryChildren`
+
+```elm
+onRetryChildren : (id -> msg) -> Attribute id msg
 ```
 
 The message to send, given the node id, when the user presses "Try again" on
-a lazy node whose children failed to load. The button is only shown when the
-problem is worth retrying (see `Klar.Remote.isRetryable`). Set the children to
-`Loading` again and fetch them; `focusNode` keeps the keyboard focus on the node.
+a lazy node whose children failed to load (or in its "Old data" marker when a
+refresh of them failed). The button is only shown when the problem is worth
+retrying (see `Klar.Remote.isRetryable`). Set the children to `Loading` again (or
+`Remote.refresh` them) and fetch them; the tree puts the keyboard focus back on the
+node itself.
 
-### `onReload`
-
-```elm
-onReload : msg -> Attribute id msg
-```
-
-The message sent by the "Try again" button of `viewRemote` when the top level
-failed to load. The button is only shown when the problem is worth retrying.
+    Tree.onRetryChildren ReloadBranch
 
 ## Attributes
 
@@ -734,8 +786,10 @@ A tri-state checkbox on every node. Checking a parent checks all the leaves
 below it; a parent with some of them checked shows a dash. A click anywhere on a
 row toggles its checkbox, and so do `Space` and (without `onActivate`) `Enter`.
 Rows are not highlighted as selected in this mode. Lazy nodes can be checked once
-their children have loaded, and `disabled` nodes are skipped. Read the result with
-`checked`.
+their children have loaded, and `disabled` nodes are skipped: their own checkbox
+cannot be changed, and checking a parent leaves them as they are. While a filter
+is active a parent still stands for every leaf below it, also the hidden ones.
+Read the result with `checkedIds`.
 
 ### `filterBox`
 
@@ -744,10 +798,12 @@ filterBox : Attribute id msg
 ```
 
 A search field above the tree that filters it as the user types. The nodes
-whose label contains every typed word are kept, together with their ancestors
-(which are opened), and the matching text is highlighted. A hidden status line
-tells screen readers how many nodes match. The text is part of the state: see
-`query` and `setQuery`.
+whose label, description or keywords contain every typed word are kept, together
+with their ancestors (which are opened), and the matching text of the label and
+the description is highlighted. A hidden status line tells screen readers how many
+nodes match. The text is part of the state: see `query` and `setQuery`. In
+`viewRemote` the box stays while the nodes load or fail, so a search that asks the
+backend keeps the focus in the box.
 
 ### `filterPlaceholder`
 
@@ -796,14 +852,19 @@ How many children of one node are rendered before a "Show N more" row. The
 default is 300; the value is kept between 10 and 10000. Each press on the row
 shows up to that many more and moves the keyboard focus to the first new row.
 
-### `emptyText`
+### `emptyState`
 
 ```elm
-emptyText : String -> Attribute id msg
+emptyState : List (EmptyState.Attribute msg) -> Attribute id msg
 ```
 
-The text of the empty state when there are no nodes at all. The default is
-"No nodes". While a filter matches nothing the tree says "No matches" instead.
+Changes the empty state shown when there are no nodes at all (titled "No
+nodes" by default, with a folder icon). The attributes are those of
+[Klar.EmptyState](Klar.EmptyState.md), applied after the built-in ones, so yours win.
+While a filter matches nothing the tree says "No matches" instead, which this does
+not change.
+
+    Tree.emptyState [ EmptyState.title "No warehouses yet", EmptyState.action addButton ]
 
 ### `locale`
 
@@ -811,8 +872,8 @@ The text of the empty state when there are no nodes at all. The default is
 locale : Locale.Locale -> Attribute id msg
 ```
 
-The language of the built-in text (the filter box, "Loading ...", "Load",
-"Try again", "No items", "No matches", "Show N more") and of the numbers. The
+The language of the built-in text (the filter box, "Loading ...", "Try again",
+"No items", "No matches", "Show N more", "Old data") and of the numbers. The
 default is `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
 
 ### `settings`
