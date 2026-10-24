@@ -476,6 +476,56 @@ css =
   cursor: not-allowed;
 }
 
+/* The line under the days for marks from a backend (Calendar.remote): loading,
+   failed with a retry, old data. It keeps its height, so the calendar does not
+   jump when the marks come and go. */
+
+.klar-calendar__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-2);
+  min-height: var(--klar-control-sm);
+  margin-top: var(--klar-space-2);
+  color: var(--klar-text-secondary);
+  font-size: var(--klar-text-sm);
+}
+
+.klar-calendar__status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--klar-space-2);
+}
+
+/* Marks that are being refreshed stay, dimmed; the days stay as they are. */
+
+.klar-calendar--refreshing .klar-calendar__dots,
+.klar-calendar--refreshing .klar-calendar__count {
+  opacity: 0.45;
+  transition: opacity var(--klar-dur) var(--klar-ease);
+}
+
+/* Dots and counts are painted with a background, which forced colors removes. */
+
+@media (forced-colors: active) {
+  .klar-calendar__dot {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .klar-calendar__day--selected .klar-calendar__dot {
+    background: HighlightText;
+  }
+
+  .klar-calendar__count {
+    border: 1px solid CanvasText;
+  }
+
+  .klar-calendar__day:focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
+
 /* ---- Date picker ----------------------------------------------------- */
 
 .klar-datepicker {

@@ -116,18 +116,19 @@ isoWeek date =
     Date.diffDays januaryFirst thursday // 7 + 1
 
 
-{-| The Monday of the week a date is in.
+{-| The first day of the week a date is in, for weeks that start on
+`firstDay` (1 is Monday, 7 is Sunday, as `Locale.firstDayOfWeek` gives it).
 -}
-startOfWeek : Date -> Date
-startOfWeek date =
-    Date.addDays (1 - Date.weekday date) date
+startOfWeek : Int -> Date -> Date
+startOfWeek firstDay date =
+    Date.addDays -(modBy 7 (Date.weekday date - firstDay)) date
 
 
-{-| The Sunday of the week a date is in.
+{-| The last day of the week a date is in, six days after `startOfWeek`.
 -}
-endOfWeek : Date -> Date
-endOfWeek date =
-    Date.addDays (7 - Date.weekday date) date
+endOfWeek : Int -> Date -> Date
+endOfWeek firstDay date =
+    Date.addDays 6 (startOfWeek firstDay date)
 
 
 {-| A single number for a month, so months can be added and compared.

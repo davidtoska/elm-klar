@@ -142,6 +142,7 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Button as Button
 import Klar.Calendar as Calendar
+import Klar.Calendar.Core as CalendarCore
 import Klar.Calendar.Parse as Parse exposing (Problem(..), Rules)
 import Klar.Calendar.Popup as Popup
 import Klar.Calendar.Util as Util
@@ -200,7 +201,7 @@ init id =
         , toProblem = Nothing
         , rangeProblem = Nothing
         , open = False
-        , calendar = Calendar.initRange (id ++ "-popup-cal")
+        , calendar = Calendar.initRange (id ++ "-popup-cal") |> Calendar.setMonths 2
         }
 
 
@@ -471,10 +472,10 @@ update msg (State s) =
         CalendarMsg inner ->
             let
                 ( calendar, cmd, event ) =
-                    Calendar.updateWithEvent inner s.calendar
+                    CalendarCore.updateWithEvent inner s.calendar
             in
             case event of
-                Just (Calendar.RangePicked start finish) ->
+                Just (CalendarCore.RangePicked start finish) ->
                     apply start finish { s | calendar = calendar }
 
                 _ ->
@@ -996,7 +997,7 @@ checkOf config =
     }
 
 
-calendarAttributes : Config -> List Calendar.Attribute
+calendarAttributes : Config -> List (Calendar.Attribute msg)
 calendarAttributes config =
     List.filterMap identity
         [ Maybe.map Calendar.today config.today
@@ -1006,7 +1007,7 @@ calendarAttributes config =
         , Just (Calendar.disabledWhen config.disabledWhen)
         , Just (Calendar.locale config.locale)
         , Just (Calendar.markers config.markers)
-        , Just (Calendar.months 2)
+        , Just CalendarCore.silent
         , if config.weekNumbers then
             Just Calendar.weekNumbers
 

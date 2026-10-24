@@ -1102,7 +1102,7 @@ isoWeekTests =
         , fuzz dateFuzzer "all the days of a week have the same number" <|
             \d ->
                 Expect.equal True
-                    (List.all (\offset -> Util.isoWeek (Date.addDays offset (Util.startOfWeek d)) == Util.isoWeek d) (List.range 0 6))
+                    (List.all (\offset -> Util.isoWeek (Date.addDays offset (Util.startOfWeek 1 d)) == Util.isoWeek d) (List.range 0 6))
         , fuzz dateFuzzer "the next week has the next number, or 1 at the end of the year" <|
             \d ->
                 let
@@ -1119,21 +1119,23 @@ isoWeekTests =
 weekTests : Test
 weekTests =
     describe "Util: startOfWeek and endOfWeek"
-        [ check "the start of the week of a Tuesday is the Monday before" (date 2026 10 19) (Util.startOfWeek (date 2026 10 20))
-        , check "the end of the week of a Tuesday is the Sunday after" (date 2026 10 25) (Util.endOfWeek (date 2026 10 20))
-        , check "a Monday is the start of its week" (date 2026 10 19) (Util.startOfWeek (date 2026 10 19))
-        , check "and the end of it is six days later" (date 2026 10 25) (Util.endOfWeek (date 2026 10 19))
-        , check "a Sunday is the end of its week" (date 2026 10 25) (Util.endOfWeek (date 2026 10 25))
-        , check "and the start of it is six days earlier" (date 2026 10 19) (Util.startOfWeek (date 2026 10 25))
-        , check "across a new year" ( date 2025 12 29, date 2026 1 4 ) ( Util.startOfWeek (date 2026 1 1), Util.endOfWeek (date 2026 1 1) )
-        , check "across a leap day" ( date 2024 2 26, date 2024 3 3 ) ( Util.startOfWeek (date 2024 2 29), Util.endOfWeek (date 2024 2 29) )
+        [ check "the start of the week of a Tuesday is the Monday before" (date 2026 10 19) (Util.startOfWeek 1 (date 2026 10 20))
+        , check "the end of the week of a Tuesday is the Sunday after" (date 2026 10 25) (Util.endOfWeek 1 (date 2026 10 20))
+        , check "a Monday is the start of its week" (date 2026 10 19) (Util.startOfWeek 1 (date 2026 10 19))
+        , check "and the end of it is six days later" (date 2026 10 25) (Util.endOfWeek 1 (date 2026 10 19))
+        , check "a Sunday is the end of its week" (date 2026 10 25) (Util.endOfWeek 1 (date 2026 10 25))
+        , check "and the start of it is six days earlier" (date 2026 10 19) (Util.startOfWeek 1 (date 2026 10 25))
+        , check "across a new year" ( date 2025 12 29, date 2026 1 4 ) ( Util.startOfWeek 1 (date 2026 1 1), Util.endOfWeek 1 (date 2026 1 1) )
+        , check "across a leap day" ( date 2024 2 26, date 2024 3 3 ) ( Util.startOfWeek 1 (date 2024 2 29), Util.endOfWeek 1 (date 2024 2 29) )
+        , check "weeks that start on Sunday: the Sunday before a Tuesday" ( date 2026 10 18, date 2026 10 24 ) ( Util.startOfWeek 7 (date 2026 10 20), Util.endOfWeek 7 (date 2026 10 20) )
+        , check "a Sunday starts its own Sunday-first week" (date 2026 10 25) (Util.startOfWeek 7 (date 2026 10 25))
         , fuzz dateFuzzer "the start is a Monday, the end a Sunday, and the date is in between" <|
             \d ->
                 Expect.all
-                    [ \x -> Expect.equal 1 (Date.weekday (Util.startOfWeek x))
-                    , \x -> Expect.equal 7 (Date.weekday (Util.endOfWeek x))
-                    , \x -> Expect.equal 6 (Date.diffDays (Util.startOfWeek x) (Util.endOfWeek x))
-                    , \x -> Expect.equal True (Util.atOrBefore (Util.startOfWeek x) x && Util.atOrAfter (Util.endOfWeek x) x)
+                    [ \x -> Expect.equal 1 (Date.weekday (Util.startOfWeek 1 x))
+                    , \x -> Expect.equal 7 (Date.weekday (Util.endOfWeek 1 x))
+                    , \x -> Expect.equal 6 (Date.diffDays (Util.startOfWeek 1 x) (Util.endOfWeek 1 x))
+                    , \x -> Expect.equal True (Util.atOrBefore (Util.startOfWeek 1 x) x && Util.atOrAfter (Util.endOfWeek 1 x) x)
                     ]
                     d
         ]
