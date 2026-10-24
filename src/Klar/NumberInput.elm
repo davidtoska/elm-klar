@@ -110,7 +110,10 @@ put in with `setValue` before any of that, such as one loaded from a server,
 needs `setLimits` once, with the same attributes you give to `view`.
 
 **Keyboard.** Arrow up and down change the number by `step`, and with Shift (or
-with page up and page down) by ten steps. Stepping never leaves `min` and `max`.
+with page up and page down) by ten steps. Stepping keeps to the grid of the steps
+from `min` (or 0), as the browser's own number field does: with a step of 5, 3
+goes up to 5. Stepping never leaves `min` and `max`. A pasted number that
+carries the unit of the field (`12 kg`, `USD 12`) is read without it.
 Leaving the field, or pressing Enter, rounds the number to `decimals` (half
 away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
 `1.01`) and formats it; Enter still lets a surrounding form submit. Escape
@@ -308,7 +311,8 @@ isValid ((State state) as current) =
     isReadable current && withinRange state.range state.value
 
 
-{-| The text in the field is empty or a number (whatever its size).
+{-| The text in the field is empty or a number (whatever its size). The number
+was read from the text as it was typed (`readTyped`).
 -}
 isReadable : State -> Bool
 isReadable (State state) =
@@ -317,7 +321,7 @@ isReadable (State state) =
             True
 
         Just raw ->
-            String.trim raw == "" || parse raw /= Nothing
+            String.trim raw == "" || state.value /= Nothing
 
 
 withinRange : ( Maybe Float, Maybe Float ) -> Maybe Float -> Bool
@@ -362,6 +366,9 @@ type alias Rules =
     -- the language the text is read in: a comma groups thousands in English
     -- and is the decimal comma in Norwegian
     , locale : Locale
+
+    -- the prefix and suffix texts, which a pasted number may carry ("12 kg")
+    , units : List String
     }
 
 
@@ -391,7 +398,7 @@ update msg (State state) =
             ( State
                 { state
                     | draft = Just raw
-                    , value = parseIn rules.locale raw
+                    , value = readTyped rules raw
                     , range = rangeOf rules
                     , before =
                         if state.draft == Nothing then
@@ -419,7 +426,7 @@ update msg (State state) =
                 base =
                     case state.draft of
                         Just raw ->
-                            parseIn rules.locale raw |> Maybe.withDefault (Maybe.withDefault 0 state.value)
+                            readTyped rules raw |> Maybe.withDefault (Maybe.withDefault 0 state.value)
 
                         Nothing ->
                             Maybe.withDefault 0 state.value
@@ -429,7 +436,7 @@ update msg (State state) =
                         (Basics.max (decimalPlaces base) (Maybe.withDefault 0 rules.decimals))
 
                 next =
-                    roundTo places (base + safeStep rules.step * multiplier)
+                    roundTo places (onGrid rules base multiplier)
                         |> roundToDecimals rules
                         |> keepInRange rules
             in
@@ -465,7 +472,7 @@ commit rules state =
                 { seen | draft = Nothing, value = Nothing }
 
             else
-                case parseIn rules.locale raw of
+                case readTyped rules raw of
                     Just number ->
                         { seen | draft = Nothing, value = Just (roundToDecimals rules number) }
 
@@ -486,6 +493,84 @@ roundToDecimals rules number =
 
         Nothing ->
             number
+
+
+{-| What the user typed, read in the language of the field. A unit of the field
+at the start or the end (`12 kg`, `USD 12`, as a spreadsheet copies it) is
+left out of the reading; the text itself is kept as it was typed.
+-}
+readTyped : Rules -> String -> Maybe Float
+readTyped rules raw =
+    case parseIn rules.locale raw of
+        Just number ->
+            Just number
+
+        Nothing ->
+            parseIn rules.locale (withoutUnits rules.units raw)
+
+
+withoutUnits : List String -> String -> String
+withoutUnits units raw =
+    List.foldl
+        (\unit text ->
+            let
+                trimmed =
+                    String.trim text
+
+                lower =
+                    String.toLower trimmed
+
+                mark =
+                    String.toLower (String.trim unit)
+            in
+            if mark == "" then
+                text
+
+            else if String.startsWith mark lower then
+                String.dropLeft (String.length mark) trimmed
+
+            else if String.endsWith mark lower then
+                String.dropRight (String.length mark) trimmed
+
+            else
+                text
+        )
+        raw
+        units
+
+
+{-| One step (or ten) up or down from `base`, on the grid of the steps: from
+`min` (or 0) in steps of `step`, as the browser's own number field steps. A
+number between two points of the grid goes to the next one in the direction of
+the key (3 with a step of 5 goes up to 5 and down to 0), and that counts as the
+first step.
+-}
+onGrid : Rules -> Float -> Float -> Float
+onGrid rules base multiplier =
+    let
+        stepSize =
+            safeStep rules.step
+
+        anchor =
+            Maybe.withDefault 0 rules.min
+
+        offset =
+            (base - anchor) / stepSize
+
+        nearest =
+            toFloat (round offset)
+
+        points =
+            if abs (offset - nearest) < 1.0e-9 then
+                nearest + multiplier
+
+            else if multiplier > 0 then
+                toFloat (ceiling offset) + (multiplier - 1)
+
+            else
+                toFloat (floor offset) + (multiplier + 1)
+    in
+    anchor + points * stepSize
 
 
 {-| Used by the steppers and arrow keys only: stepping stops at the limits.
@@ -786,7 +871,8 @@ readOnly value_ =
 
 
 {-| The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar-Theme). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar-Theme). Default `Medium`.
 -}
 size : Size -> Attribute msg
 size value_ =
@@ -834,7 +920,13 @@ view toMsg attributes ((State state) as current) =
             configure attributes
 
         rules =
-            { min = config.min, max = config.max, step = config.step, decimals = config.decimals, locale = config.locale }
+            { min = config.min
+            , max = config.max
+            , step = config.step
+            , decimals = config.decimals
+            , locale = config.locale
+            , units = List.filter (\unit -> unit /= "") [ adornmentText config.prefix, adornmentText config.suffix ]
+            }
 
         -- While typing, "-" or "," is just the start of a number: the message
         -- waits until the field is left, unless the text has letters in it.
@@ -961,7 +1053,7 @@ view toMsg attributes ((State state) as current) =
                        , Attr.attribute "role" "spinbutton"
                        , Internal.attrMaybe (\low -> Attr.attribute "aria-valuemin" (String.fromFloat low)) config.min
                        , Internal.attrMaybe (\high -> Attr.attribute "aria-valuemax" (String.fromFloat high)) config.max
-                       , Internal.attrMaybe (\number -> Attr.attribute "aria-valuenow" (String.fromFloat number)) state.value
+                       , Internal.attrMaybe (\number -> Attr.attribute "aria-valuenow" (String.fromFloat (keepInRange rules number))) state.value
                        , spokenValue
                        , Attr.value shown
                        , Attr.placeholder config.placeholder

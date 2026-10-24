@@ -741,4 +741,31 @@ numberInputTests =
                     (NumberInput.view Number [ NumberInput.locale Locale.nb ] (NumberInput.setValue (Just 1234.5) (NumberInput.init "n")))
         , test "noSteppers takes the buttons away" <|
             \_ -> none [ Selector.class "klar-number__steps" ] (NumberInput.view Number [ NumberInput.noSteppers ] (NumberInput.init "n"))
+        , test "a pasted number with the unit of the field is read without it" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> typedAndLeft [ NumberInput.suffixText "kg" ] "12 kg" |> Result.map NumberInput.value |> Expect.equal (Ok (Just 12))
+                    , \_ -> typedAndLeft [ NumberInput.prefixText "USD" ] "usd 1,250.50" |> Result.map NumberInput.value |> Expect.equal (Ok (Just 1250.5))
+                    , \_ -> typedAndLeft [ NumberInput.suffixText "%", NumberInput.locale Locale.nb ] "55 %" |> Result.map NumberInput.value |> Expect.equal (Ok (Just 55))
+                    , \_ -> typedAndLeft [ NumberInput.suffixText "kg" ] "12 lb" |> Result.map NumberInput.value |> Expect.equal (Ok Nothing)
+                    ]
+                    ()
+        , test "stepping keeps to the grid of the steps" <|
+            \_ ->
+                let
+                    stepped keyName =
+                        numberStep [ NumberInput.step 5 ] (key [] keyName) (NumberInput.setValue (Just 3) (NumberInput.init "n"))
+                            |> Result.map NumberInput.value
+                in
+                Expect.equal [ Ok (Just 5), Ok (Just 0) ] [ stepped "ArrowUp", stepped "ArrowDown" ]
+        , test "the grid starts at min" <|
+            \_ ->
+                numberStep [ NumberInput.min 1, NumberInput.step 5 ] (key [] "ArrowUp") (NumberInput.setValue (Just 1) (NumberInput.init "n"))
+                    |> Result.map NumberInput.value
+                    |> Expect.equal (Ok (Just 6))
+        , test "aria-valuenow stays inside the limits; the text says the number" <|
+            \_ ->
+                has input
+                    [ attr "aria-valuenow" "50", attr "aria-valuetext" "55" ]
+                    (NumberInput.view Number [ NumberInput.max 50 ] (NumberInput.setValue (Just 55) (NumberInput.init "n")))
         ]

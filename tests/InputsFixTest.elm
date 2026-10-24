@@ -677,11 +677,11 @@ numberFormatTests =
                         , expectShown inputOf (Query.has [ Selector.attribute (Attr.value "1,235") ]) english
                         ]
                         (after [ typeIn english "1,234", stepUp english ] fresh)
-            , test "Norwegian: a grouped number is stepped as the number it is" <|
+            , test "Norwegian: a grouped number is stepped as the number it is, to the next whole step" <|
                 \_ ->
                     Expect.all
-                        [ expectNumber (Just 1235.5)
-                        , expectShown inputOf (Query.has [ Selector.attribute (Attr.value ("1" ++ nbsp ++ "235,5")) ]) (norwegian ++ [ NumberInput.decimals 1 ])
+                        [ expectNumber (Just 1235)
+                        , expectShown inputOf (Query.has [ Selector.attribute (Attr.value ("1" ++ nbsp ++ "235,0")) ]) (norwegian ++ [ NumberInput.decimals 1 ])
                         ]
                         (after
                             [ typeIn (norwegian ++ [ NumberInput.decimals 1 ]) "1 234,5"

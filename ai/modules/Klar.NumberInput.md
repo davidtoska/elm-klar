@@ -166,7 +166,10 @@ put in with `setValue` before any of that, such as one loaded from a server,
 needs `setLimits` once, with the same attributes you give to `view`.
 
 **Keyboard.** Arrow up and down change the number by `step`, and with Shift (or
-with page up and page down) by ten steps. Stepping never leaves `min` and `max`.
+with page up and page down) by ten steps. Stepping keeps to the grid of the steps
+from `min` (or 0), as the browser's own number field does: with a step of 5, 3
+goes up to 5. Stepping never leaves `min` and `max`. A pasted number that
+carries the unit of the field (`12 kg`, `USD 12`) is read without it.
 Leaving the field, or pressing Enter, rounds the number to `decimals` (half
 away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
 `1.01`) and formats it; Enter still lets a surrounding form submit. Escape
@@ -606,7 +609,8 @@ size : Theme.Size -> Attribute msg
 ```
 
 The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar.Theme.md). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar.Theme.md). Default `Medium`.
 
 ## State and browser hints
 
