@@ -157,7 +157,7 @@ check name expected actual =
 
 allOperators : List Operator
 allOperators =
-    [ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, Equals, NotEquals, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, Between, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
+    [ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, Between, NotBetween, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, MoreThanDaysAgo, MoreThanDaysAhead, InPeriod, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
 
 
 {-| Every node of a rule, root first, so the ids can be read off.
@@ -308,11 +308,11 @@ sampleRule =
 fieldTests : Test
 fieldTests =
     describe "fields"
-        [ check "textField has the text kind" Rule.TextKind (Rule.fieldKind (Rule.textField "a" "A" identity))
-        , check "numberField has the number kind" Rule.NumberKind (Rule.fieldKind (Rule.numberField "a" "A" (always Nothing)))
-        , check "dateField has the date kind" Rule.DateKind (Rule.fieldKind (Rule.dateField "a" "A" (always Nothing)))
-        , check "boolField has the boolean kind" Rule.BooleanKind (Rule.fieldKind (Rule.boolField "a" "A" (always True)))
-        , check "choiceField carries its choices" (Rule.ChoiceKind statuses) (Rule.fieldKind (Rule.choiceField "a" "A" statuses identity))
+        [ check "textField has the text kind" Rule.textKind (Rule.fieldKind (Rule.textField "a" "A" identity))
+        , check "numberField has the number kind" Rule.numberKind (Rule.fieldKind (Rule.numberField "a" "A" (always Nothing)))
+        , check "dateField has the date kind" Rule.dateKind (Rule.fieldKind (Rule.dateField "a" "A" (always Nothing)))
+        , check "boolField has the boolean kind" Rule.booleanKind (Rule.fieldKind (Rule.boolField "a" "A" (always True)))
+        , check "choiceField carries its choices" (Rule.choiceKind statuses) (Rule.fieldKind (Rule.choiceField "a" "A" statuses identity))
         , check "a field starts without a group" Nothing (Rule.fieldGroup (Rule.textField "a" "A" identity))
         , check "inGroup sets the heading" (Just "Delivery") (Rule.fieldGroup (Rule.textField "a" "A" identity |> Rule.inGroup "Delivery"))
         , check "inGroup keeps the id and the label"
@@ -349,19 +349,19 @@ operatorLimitTests =
     in
     describe "withOperators"
         [ check "a field offers every operator of its kind by default"
-            (Rule.operatorsFor Rule.TextKind)
+            (Rule.operatorsFor Rule.textKind)
             (Rule.fieldOperators (Rule.textField "a" "A" identity))
         , check "withOperators limits the operators, in the order given, without repeats and without the ones that do not fit the kind"
             [ IsAnyOf, Is ]
             (Rule.fieldOperators owner)
         , check "when none of the operators fit the kind, the field keeps all of them"
-            (Rule.operatorsFor (Rule.ChoiceKind statuses))
+            (Rule.operatorsFor (Rule.choiceKind statuses))
             (Rule.fieldOperators (Rule.choiceField "s" "S" statuses .status |> Rule.withOperators [ Contains, GreaterThan ]))
         , check "withOperators with an empty list keeps all of them"
-            (Rule.operatorsFor Rule.TextKind)
+            (Rule.operatorsFor Rule.textKind)
             (Rule.fieldOperators (Rule.textField "a" "A" identity |> Rule.withOperators []))
         , check "withOperators does not change the kind, the label or the group"
-            ( Rule.ChoiceKind statuses, "Owner", Just "People" )
+            ( Rule.choiceKind statuses, "Owner", Just "People" )
             (let
                 f =
                     Rule.choiceField "owner" "Owner" statuses .status |> Rule.inGroup "People" |> Rule.withOperators [ Is ]
@@ -403,12 +403,12 @@ operatorLimitTests =
             []
             (Rule.validate Locale.en limited (group 0 All [ cond 1 "owner" Is [ "open" ] ]) |> List.map .message)
         , check "a bare field has an id, a label and a kind and reads nothing from a row"
-            { id = "k", label = "K", kind = Rule.NumberKind, matched = False }
+            { id = "k", label = "K", kind = Rule.numberKind, matched = False }
             (let
                 f =
-                    Rule.bareField "k" "K" Rule.NumberKind
+                    Rule.bareField "k" "K" Rule.numberKind
              in
-             { id = Rule.fieldId f, label = Rule.fieldLabel f, kind = Rule.fieldKind f, matched = Rule.matches today [ f ] (cond 1 "k" Equals [ "1" ]) () }
+             { id = Rule.fieldId f, label = Rule.fieldLabel f, kind = Rule.fieldKind f, matched = Rule.matches today [ f ] (cond 1 "k" Is [ "1" ]) () }
             )
         ]
 
@@ -420,54 +420,57 @@ operatorLimitTests =
 operatorTests : Test
 operatorTests =
     describe "operators"
-        [ check "text operators" [ Contains, NotContains, Is, IsNot, StartsWith, EndsWith, IsEmpty, IsNotEmpty ] (Rule.operatorsFor Rule.TextKind)
-        , check "number operators" [ Equals, NotEquals, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual, Between, IsEmpty, IsNotEmpty ] (Rule.operatorsFor Rule.NumberKind)
-        , check "date operators" [ Is, IsNot, Before, After, OnOrBefore, OnOrAfter, Between, InLastDays, InNextDays, IsEmpty, IsNotEmpty ] (Rule.operatorsFor Rule.DateKind)
-        , check "yes or no operators" [ IsTrue, IsFalse ] (Rule.operatorsFor Rule.BooleanKind)
-        , check "choice operators" [ Is, IsNot, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty ] (Rule.operatorsFor (Rule.ChoiceKind statuses))
-        , check "the choices do not change the operators" (Rule.operatorsFor (Rule.ChoiceKind [])) (Rule.operatorsFor (Rule.ChoiceKind statuses))
+        [ check "text operators" [ Contains, NotContains, Is, IsNot, StartsWith, EndsWith, IsEmpty, IsNotEmpty ] (Rule.operatorsFor Rule.textKind)
+        , check "number operators" [ Is, IsNot, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual, Between, NotBetween, IsEmpty, IsNotEmpty ] (Rule.operatorsFor Rule.numberKind)
+        , check "date operators" [ Is, IsNot, Before, After, OnOrBefore, OnOrAfter, Between, NotBetween, InPeriod, InLastDays, InNextDays, MoreThanDaysAgo, MoreThanDaysAhead, IsEmpty, IsNotEmpty ] (Rule.operatorsFor Rule.dateKind)
+        , check "yes or no operators" [ IsTrue, IsFalse ] (Rule.operatorsFor Rule.booleanKind)
+        , check "choice operators" [ Is, IsNot, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty ] (Rule.operatorsFor (Rule.choiceKind statuses))
+        , check "the choices do not change the operators" (Rule.operatorsFor (Rule.choiceKind [])) (Rule.operatorsFor (Rule.choiceKind statuses))
         , test "every operator belongs to at least one kind of field" <|
             \_ ->
                 let
                     offered =
-                        List.concatMap Rule.operatorsFor [ Rule.TextKind, Rule.NumberKind, Rule.DateKind, Rule.BooleanKind, Rule.ChoiceKind [] ]
+                        List.concatMap Rule.operatorsFor [ Rule.textKind, Rule.numberKind, Rule.dateKind, Rule.booleanKind, Rule.choiceKind [] ]
                 in
                 allOperators
                     |> List.filter (\operator -> not (List.member operator offered))
                     |> Expect.equal []
         , test "the labels of the operators of one kind are all different" <|
             \_ ->
-                [ Rule.TextKind, Rule.NumberKind, Rule.DateKind, Rule.BooleanKind, Rule.ChoiceKind [] ]
+                [ Rule.textKind, Rule.numberKind, Rule.dateKind, Rule.booleanKind, Rule.choiceKind [] ]
                     |> List.filter (\kind -> not (allUniqueStrings (List.map (Rule.operatorLabel Locale.en kind) (Rule.operatorsFor kind))))
                     |> Expect.equal []
         , check "operands: none" [ NoOperand, NoOperand, NoOperand, NoOperand ] (List.map Rule.operandsOf [ IsEmpty, IsNotEmpty, IsTrue, IsFalse ])
-        , check "operands: two" TwoOperands (Rule.operandsOf Between)
+        , check "operands: two" [ TwoOperands, TwoOperands ] (List.map Rule.operandsOf [ Between, NotBetween ])
         , check "operands: many" [ ManyOperands, ManyOperands ] (List.map Rule.operandsOf [ IsAnyOf, IsNoneOf ])
         , check "operands: one for the others"
             []
             (allOperators
-                |> List.filter (\operator -> not (List.member operator [ IsEmpty, IsNotEmpty, IsTrue, IsFalse, Between, IsAnyOf, IsNoneOf ]))
+                |> List.filter (\operator -> not (List.member operator [ IsEmpty, IsNotEmpty, IsTrue, IsFalse, Between, NotBetween, IsAnyOf, IsNoneOf ]))
                 |> List.filter (\operator -> Rule.operandsOf operator /= OneOperand)
             )
-        , check "English labels" [ "contains", "does not contain", "is", "is not", "starts with", "ends with", "is empty", "is not empty" ] (List.map (Rule.operatorLabel Locale.en Rule.TextKind) (Rule.operatorsFor Rule.TextKind))
-        , check "Norwegian labels" [ "inneholder", "inneholder ikke", "er", "er ikke", "starter med", "slutter med", "er tom", "er ikke tom" ] (List.map (Rule.operatorLabel Locale.nb Rule.TextKind) (Rule.operatorsFor Rule.TextKind))
+        , check "English labels" [ "contains", "does not contain", "is", "is not", "starts with", "ends with", "is empty", "is not empty" ] (List.map (Rule.operatorLabel Locale.en Rule.textKind) (Rule.operatorsFor Rule.textKind))
+        , check "Norwegian labels" [ "inneholder", "inneholder ikke", "er", "er ikke", "starter med", "slutter med", "er tom", "er ikke tom" ] (List.map (Rule.operatorLabel Locale.nb Rule.textKind) (Rule.operatorsFor Rule.textKind))
         , check "number comparisons are symbols in every language"
             [ "=", "≠", ">", "≥", "<", "≤" ]
-            (List.map (Rule.operatorLabel Locale.nb Rule.NumberKind) [ Equals, NotEquals, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual ])
-        , check "the symbols are the same in English" (List.map (Rule.operatorLabel Locale.nb Rule.NumberKind) [ Equals, NotEquals, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual ]) (List.map (Rule.operatorLabel Locale.en Rule.NumberKind) [ Equals, NotEquals, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual ])
-        , check "date labels" [ "before", "after", "on or before", "on or after", "in the last (days)", "in the next (days)" ] (List.map (Rule.operatorLabel Locale.en Rule.DateKind) [ Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays ])
-        , check "yes and no labels" [ "is yes", "is no", "er ja", "er nei" ] (List.map (Rule.operatorLabel Locale.en Rule.BooleanKind) [ IsTrue, IsFalse ] ++ List.map (Rule.operatorLabel Locale.nb Rule.BooleanKind) [ IsTrue, IsFalse ])
+            (List.map (Rule.operatorLabel Locale.nb Rule.numberKind) [ Is, IsNot, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual ])
+        , check "the symbols are the same in English" (List.map (Rule.operatorLabel Locale.nb Rule.numberKind) [ Is, IsNot, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual ]) (List.map (Rule.operatorLabel Locale.en Rule.numberKind) [ Is, IsNot, GreaterThan, GreaterOrEqual, LessThan, LessOrEqual ])
+        , check "date labels" [ "before", "after", "on or before", "on or after", "in the last (days)", "in the next (days)", "more than (days) ago", "in more than (days)", "is within", "not between" ] (List.map (Rule.operatorLabel Locale.en Rule.dateKind) [ Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, MoreThanDaysAgo, MoreThanDaysAhead, InPeriod, NotBetween ])
+        , check "Norwegian date labels" [ "for mer enn (dager) siden", "om mer enn (dager)", "er innenfor", "ikke mellom" ] (List.map (Rule.operatorLabel Locale.nb Rule.dateKind) [ MoreThanDaysAgo, MoreThanDaysAhead, InPeriod, NotBetween ])
+        , check "equality reads is on text and = on numbers" [ "is", "=", "is not", "≠" ] [ Rule.operatorLabel Locale.en Rule.textKind Is, Rule.operatorLabel Locale.en Rule.numberKind Is, Rule.operatorLabel Locale.en Rule.dateKind IsNot, Rule.operatorLabel Locale.en Rule.numberKind IsNot ]
+        , check "yes and no labels" [ "is yes", "is no", "er ja", "er nei" ] (List.map (Rule.operatorLabel Locale.en Rule.booleanKind) [ IsTrue, IsFalse ] ++ List.map (Rule.operatorLabel Locale.nb Rule.booleanKind) [ IsTrue, IsFalse ])
         , test "every operator has a label in both languages" <|
             \_ ->
                 allOperators
-                    |> List.filter (\operator -> Rule.operatorLabel Locale.en Rule.TextKind operator == "" || Rule.operatorLabel Locale.nb Rule.TextKind operator == "")
+                    |> List.filter (\operator -> Rule.operatorLabel Locale.en Rule.textKind operator == "" || Rule.operatorLabel Locale.nb Rule.textKind operator == "")
                     |> Expect.equal []
-        , test "the label of an operator does not depend on the kind" <|
+        , test "only equality is worded by the kind" <|
             \_ ->
                 allOperators
+                    |> List.filter (\operator -> operator /= Is && operator /= IsNot)
                     |> List.filter
                         (\operator ->
-                            List.map (\kind -> Rule.operatorLabel Locale.en kind operator) [ Rule.TextKind, Rule.NumberKind, Rule.DateKind, Rule.BooleanKind ]
+                            List.map (\kind -> Rule.operatorLabel Locale.en kind operator) [ Rule.textKind, Rule.numberKind, Rule.dateKind, Rule.booleanKind ]
                                 |> allSame
                                 |> not
                         )
@@ -540,7 +543,7 @@ orderTests =
         , check "number: between includes both ends" [ "ORD-1002", "ORD-1004" ] (run (group 0 All [ cond 1 "total" Between [ "20", "52" ] ]))
         , check "number: a decimal comma works" [ "ORD-1004" ] (run (group 0 All [ cond 1 "total" LessThan [ "20,5" ] ]))
         , check "number: a missing total is empty" [ "ORD-1003" ] (run (group 0 All [ cond 1 "total" IsEmpty [] ]))
-        , check "number: a missing total is not equal to 20" [ "ORD-1001", "ORD-1002", "ORD-1003" ] (run (group 0 All [ cond 1 "total" NotEquals [ "20" ] ]))
+        , check "number: a missing total is not equal to 20" [ "ORD-1001", "ORD-1002", "ORD-1003" ] (run (group 0 All [ cond 1 "total" IsNot [ "20" ] ]))
         , check "date: after" [ "ORD-1001", "ORD-1004" ] (run (group 0 All [ cond 1 "created" After [ "2026-01-01" ] ]))
         , check "date: in the last 30 days" [ "ORD-1001", "ORD-1004" ] (run (group 0 All [ cond 1 "created" InLastDays [ "30" ] ]))
         , check "date: in the last 3 days" [] (run (group 0 All [ cond 1 "created" InLastDays [ "3" ] ]))
@@ -602,14 +605,14 @@ textOperatorTests =
 numberOperatorTests : Test
 numberOperatorTests =
     describe "number operators"
-        [ truth "equals" True (numberMatch Equals [ "52" ] (Just 52))
-        , truth "equals with a decimal comma" True (numberMatch Equals [ "52,5" ] (Just 52.5))
-        , truth "equals with a decimal point" True (numberMatch Equals [ "52.5" ] (Just 52.5))
-        , truth "equals is false for another number" False (numberMatch Equals [ "52" ] (Just 53))
-        , truth "equals compares 0 and -0 as equal" True (numberMatch Equals [ "0" ] (Just 0))
-        , truth "not equals" True (numberMatch NotEquals [ "52" ] (Just 53))
-        , truth "not equals is false for the same number" False (numberMatch NotEquals [ "52" ] (Just 52))
-        , truth "not equals is true for a missing number" True (numberMatch NotEquals [ "52" ] Nothing)
+        [ truth "equals" True (numberMatch Is [ "52" ] (Just 52))
+        , truth "equals with a decimal comma" True (numberMatch Is [ "52,5" ] (Just 52.5))
+        , truth "equals with a decimal point" True (numberMatch Is [ "52.5" ] (Just 52.5))
+        , truth "equals is false for another number" False (numberMatch Is [ "52" ] (Just 53))
+        , truth "equals compares 0 and -0 as equal" True (numberMatch Is [ "0" ] (Just 0))
+        , truth "not equals" True (numberMatch IsNot [ "52" ] (Just 53))
+        , truth "not equals is false for the same number" False (numberMatch IsNot [ "52" ] (Just 52))
+        , truth "not equals is true for a missing number" True (numberMatch IsNot [ "52" ] Nothing)
         , truth "less than" True (numberMatch LessThan [ "52" ] (Just 51.99))
         , truth "less than is false for the same number" False (numberMatch LessThan [ "52" ] (Just 52))
         , truth "less or equal is true for the same number" True (numberMatch LessOrEqual [ "52" ] (Just 52))
@@ -619,7 +622,7 @@ numberOperatorTests =
         , truth "greater or equal is true for the same number" True (numberMatch GreaterOrEqual [ "52" ] (Just 52))
         , truth "greater or equal is false below" False (numberMatch GreaterOrEqual [ "52" ] (Just 51.99))
         , truth "comparing negative numbers" True (numberMatch LessThan [ "-1" ] (Just -2))
-        , truth "a thousand separator in the operand" True (numberMatch Equals [ "1 000" ] (Just 1000))
+        , truth "a thousand separator in the operand" True (numberMatch Is [ "1 000" ] (Just 1000))
         , truth "very large numbers" True (numberMatch GreaterThan [ "1e12" ] (Just 1.0e13))
         , truth "between includes the lower end" True (numberMatch Between [ "20", "52" ] (Just 20))
         , truth "between includes the upper end" True (numberMatch Between [ "20", "52" ] (Just 52))
@@ -635,7 +638,7 @@ numberOperatorTests =
         , truth "is not empty is false for a missing number" False (numberMatch IsNotEmpty [] Nothing)
         , truth "a missing number is not less than anything" False (numberMatch LessThan [ "100" ] Nothing)
         , truth "a missing number is not greater than anything" False (numberMatch GreaterThan [ "-100" ] Nothing)
-        , truth "a missing number is not equal to anything" False (numberMatch Equals [ "0" ] Nothing)
+        , truth "a missing number is not equal to anything" False (numberMatch Is [ "0" ] Nothing)
         ]
 
 
@@ -751,7 +754,7 @@ incompleteConditionTests =
         , ignored "a text condition without an operand" (group 0 All [ cond 1 "customer" Contains [] ])
         , ignored "a text condition with a blank operand" (group 0 All [ cond 1 "customer" Is [ "   " ] ])
         , ignored "a number condition with text for an operand" (group 0 All [ cond 1 "total" GreaterThan [ "abc" ] ])
-        , ignored "a number condition without an operand" (group 0 All [ cond 1 "total" Equals [] ])
+        , ignored "a number condition without an operand" (group 0 All [ cond 1 "total" Is [] ])
         , ignored "between with one operand" (group 0 All [ cond 1 "total" Between [ "10" ] ])
         , ignored "between with a bad second operand" (group 0 All [ cond 1 "total" Between [ "10", "x" ] ])
         , ignored "a date condition with a date that does not exist" (group 0 All [ cond 1 "created" Is [ "2026-02-30" ] ])
@@ -763,7 +766,7 @@ incompleteConditionTests =
         , ignored "is any of without choices" (group 0 All [ cond 1 "status" IsAnyOf [] ])
         , ignored "is any of with blank choices only" (group 0 All [ cond 1 "status" IsAnyOf [ "", " " ] ])
         , ignored "an operator of another kind on a choice field" (group 0 All [ cond 1 "status" GreaterThan [ "1" ] ])
-        , ignored "an operator of another kind on a text field" (group 0 All [ cond 1 "customer" Equals [ "1" ] ])
+        , ignored "an operator of another kind on a text field" (group 0 All [ cond 1 "customer" GreaterThan [ "1" ] ])
         , ignored "a text operator on a number field" (group 0 All [ cond 1 "total" Contains [ "1" ] ])
         , ignored "between on a text field" (group 0 All [ cond 1 "customer" Between [ "a", "z" ] ])
         , ignored "in the last days on a number field" (group 0 All [ cond 1 "total" InLastDays [ "30" ] ])
@@ -901,7 +904,7 @@ editingTests =
             , check "with the first operator that fits the field" (Just Contains) (operatorOf 5 (Rule.addCondition fields 0 sampleRule))
             , check "and no operands" [] (valuesOf 5 (Rule.addCondition fields 0 sampleRule))
             , check "it can be added in a nested group" [ 3, 4, 5 ] (childrenOf 2 (Rule.addCondition fields 2 sampleRule))
-            , check "the first operator follows the kind of the first field" (Just Equals) (operatorOf 1 (Rule.addCondition [ Rule.numberField "n" "N" (always Nothing) ] 0 Rule.emptyGroup))
+            , check "the first operator follows the kind of the first field" (Just Is) (operatorOf 1 (Rule.addCondition [ Rule.numberField "n" "N" (always Nothing) ] 0 Rule.emptyGroup))
             , check "the first field is used even when it is a yes or no field" (Just IsTrue) (operatorOf 1 (Rule.addCondition [ Rule.boolField "b" "B" (always True) ] 0 Rule.emptyGroup))
             , check "without fields the condition has no field" (Just "") (fieldOf 1 (Rule.addCondition [] 0 Rule.emptyGroup))
             , check "without fields the operator is 'is'" (Just Is) (operatorOf 1 (Rule.addCondition [] 0 Rule.emptyGroup))
@@ -957,7 +960,7 @@ editingTests =
         , describe "setField"
             [ check "changes the field" (Just "status") (fieldOf 3 (Rule.setField fields 3 "status" sampleRule))
             , check "keeps an operator that fits the new field" (Just Is) (operatorOf 1 (Rule.setField fields 1 "created" sampleRule))
-            , check "takes the first operator when the old one does not fit" (Just Equals) (operatorOf 1 (Rule.setField fields 1 "total" (group 0 All [ cond 1 "customer" Contains [ "x" ] ])))
+            , check "takes the first operator when the old one does not fit" (Just Is) (operatorOf 1 (Rule.setField fields 1 "total" (group 0 All [ cond 1 "customer" Contains [ "x" ] ])))
             , check "clears the operands" [] (valuesOf 3 (Rule.setField fields 3 "customer" sampleRule))
             , check "clears the operands even when the operator is kept" [] (valuesOf 1 (Rule.setField fields 1 "created" sampleRule))
             , check "an unknown field id only changes the field"
@@ -1030,7 +1033,7 @@ valueEditingTests =
         [ describe "setValue"
             [ check "sets the first operand" [ "99" ] (valuesOf 3 (Rule.setValue 3 0 "99" sampleRule))
             , check "grows the list with empty texts" [ "50", "", "x" ] (valuesOf 3 (Rule.setValue 3 2 "x" sampleRule))
-            , check "sets the second operand of 'between'" [ "10", "20" ] (valuesOf 1 (Rule.setValue 1 1 "20" (Rule.setValue 1 0 "10" (Rule.setOperator 1 Between (group 0 All [ cond 1 "total" Equals [] ])))))
+            , check "sets the second operand of 'between'" [ "10", "20" ] (valuesOf 1 (Rule.setValue 1 1 "20" (Rule.setValue 1 0 "10" (Rule.setOperator 1 Between (group 0 All [ cond 1 "total" Is [] ])))))
             , check "replaces only the operand at the index" [ "a", "z", "c" ] (valuesOf 1 (Rule.setValue 1 1 "z" (group 0 All [ cond 1 "status" IsAnyOf [ "a", "b", "c" ] ])))
             , check "a negative index changes nothing" sampleRule (Rule.setValue 3 -1 "x" sampleRule)
             , check "a group id changes nothing" sampleRule (Rule.setValue 2 0 "x" sampleRule)
@@ -1133,7 +1136,7 @@ describeTests =
         , check "an empty group inside a group is left out" "Status is Open" (words Locale.en (group 0 All [ group 1 Any [], cond 2 "status" Is [ "open" ] ]))
         , check "text operands are quoted" "Customer starts with “Ada”" (words Locale.en (cond 1 "customer" StartsWith [ "Ada" ]))
         , check "text operands keep what was typed" "Customer is “ GLOBEX ”" (words Locale.en (cond 1 "customer" Is [ " GLOBEX " ]))
-        , check "number operands are not quoted" "Total ≥ 50,5" (words Locale.en (cond 1 "total" GreaterOrEqual [ "50,5" ]))
+        , check "number operands are not quoted, and are written as they were read" "Total ≥ 50.5" (words Locale.en (cond 1 "total" GreaterOrEqual [ "50,5" ]))
         , check "choices are written with their label" "Status is not Open" (words Locale.en (cond 1 "status" IsNot [ "open" ]))
         , check "a choice that is not known is written as it is" "Status is void" (words Locale.en (cond 1 "status" Is [ "void" ]))
         , check "any of lists the labels" "Status is any of Paid, Open" (words Locale.en (cond 1 "status" IsAnyOf [ "paid", "open" ]))
@@ -1181,9 +1184,9 @@ validateTests =
         , check "a number that is no number in Norwegian" [ "Skriv inn et gyldig tall" ] (messages Locale.nb (group 0 All [ cond 1 "total" GreaterThan [ "abc" ] ]))
         , check "a date that is no date" [ "Choose a valid date" ] (messages Locale.en (group 0 All [ cond 1 "created" Is [ "yesterday" ] ]))
         , check "a date that is no date in Norwegian" [ "Velg en gyldig dato" ] (messages Locale.nb (group 0 All [ cond 1 "created" Is [ "yesterday" ] ]))
-        , check "days that are no number" [ "Enter a number of days" ] (messages Locale.en (group 0 All [ cond 1 "created" InLastDays [ "x" ] ]))
-        , check "a negative number of days" [ "Enter a number of days" ] (messages Locale.en (group 0 All [ cond 1 "created" InNextDays [ "-2" ] ]))
-        , check "days in Norwegian" [ "Skriv inn et antall dager" ] (messages Locale.nb (group 0 All [ cond 1 "created" InNextDays [ "-2" ] ]))
+        , check "days that are no number" [ "Enter a whole number of days" ] (messages Locale.en (group 0 All [ cond 1 "created" InLastDays [ "x" ] ]))
+        , check "a negative number of days" [ "Enter a whole number of days" ] (messages Locale.en (group 0 All [ cond 1 "created" InNextDays [ "-2" ] ]))
+        , check "days in Norwegian" [ "Skriv inn et helt antall dager" ] (messages Locale.nb (group 0 All [ cond 1 "created" InNextDays [ "-2" ] ]))
         , check "an unknown field" [ "Choose a field" ] (messages Locale.en (group 0 All [ cond 1 "nope" Is [ "x" ] ]))
         , check "an unknown field in Norwegian" [ "Velg et felt" ] (messages Locale.nb (group 0 All [ cond 1 "nope" Is [ "x" ] ]))
         , check "no field at all" [ "Choose a field" ] (messages Locale.en (group 0 All [ cond 1 "" Is [] ]))
@@ -1199,7 +1202,7 @@ validateTests =
         , check "a nested group that is empty" [ "The group is empty" ] (messages Locale.en (group 0 All [ group 1 Any [] ]))
         , check "an empty group in Norwegian" [ "Gruppen er tom" ] (messages Locale.nb (group 0 All [ group 1 Any [] ]))
         , check "the issue names the node" [ ( 1, "The group is empty" ) ] (problems Locale.en (group 0 All [ group 1 Any [] ]))
-        , check "the issues come in the order of the tree" [ 2, 3, 5 ] (Rule.validate Locale.en fields (group 0 All [ group 1 Any [ cond 2 "nope" Is [] ], cond 3 "total" Equals [ "x" ], group 4 All [ group 5 All [] ] ]) |> List.map .nodeId)
+        , check "the issues come in the order of the tree" [ 2, 3, 5 ] (Rule.validate Locale.en fields (group 0 All [ group 1 Any [ cond 2 "nope" Is [] ], cond 3 "total" Is [ "x" ], group 4 All [ group 5 All [] ] ]) |> List.map .nodeId)
         , check "every node has at most one issue"
             True
             (let
@@ -1263,15 +1266,18 @@ jsonTests =
         , check "the ids are not written" False (String.contains "\"id\"" (encoded sampleRule))
         , check "text is escaped" "{\"type\":\"condition\",\"field\":\"a\\\"b\",\"operator\":\"is\",\"values\":[\"\\\\ \\n\"]}" (encoded (cond 1 "a\"b" Is [ "\\ \n" ]))
         , check "the operator keys that are the name of the constructor"
-            [ "is", "isNot", "contains", "notContains", "startsWith", "endsWith", "between", "before", "after", "onOrBefore", "onOrAfter", "inLastDays", "inNextDays" ]
-            ([ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, Between, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays ]
+            [ "is", "isNot", "contains", "notContains", "startsWith", "endsWith", "between", "notBetween", "before", "after", "onOrBefore", "onOrAfter", "inLastDays", "inNextDays", "moreThanDaysAgo", "moreThanDaysAhead", "inPeriod" ]
+            ([ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, Between, NotBetween, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, MoreThanDaysAgo, MoreThanDaysAhead, InPeriod ]
                 |> List.map (\operator -> keyOf operator |> operatorKeyIn)
             )
         , check "the other operator keys"
-            [ "eq", "neq", "lt", "lte", "gt", "gte", "anyOf", "noneOf", "empty", "notEmpty", "true", "false" ]
-            ([ Equals, NotEquals, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
+            [ "lt", "lte", "gt", "gte", "anyOf", "noneOf", "empty", "notEmpty", "true", "false" ]
+            ([ LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
                 |> List.map (\operator -> keyOf operator |> operatorKeyIn)
             )
+        , check "the number equality of earlier versions is read as is and isNot"
+            [ Ok (cond 0 "f" Is []), Ok (cond 0 "f" IsNot []) ]
+            [ decoded (conditionJson "eq"), decoded (conditionJson "neq") ]
         , check "the keys of all operators are different" True (allUniqueStrings (List.map keyOf allOperators))
         , test "every operator is read back from its key" <|
             \_ ->
@@ -1287,7 +1293,9 @@ jsonTests =
         , check "an unknown type fails" True (isError (decoded "{\"type\":\"box\",\"children\":[]}"))
         , check "an unknown operator fails" True (isError (decoded (conditionJson "nope")))
         , check "an operator key is case sensitive" True (isError (decoded (conditionJson "IsNot")))
-        , check "a condition without values fails" True (isError (decoded "{\"type\":\"condition\",\"field\":\"f\",\"operator\":\"empty\"}"))
+        , check "a condition without values has none" (Ok (cond 0 "f" IsEmpty [])) (decoded "{\"type\":\"condition\",\"field\":\"f\",\"operator\":\"empty\"}")
+        , check "values that are null are none" (Ok (cond 0 "f" IsEmpty [])) (decoded "{\"type\":\"condition\",\"field\":\"f\",\"operator\":\"empty\",\"values\":null}")
+        , check "values that are not a list fail" True (isError (decoded "{\"type\":\"condition\",\"field\":\"f\",\"operator\":\"is\",\"values\":\"open\"}"))
         , check "values that are not texts fail" True (isError (decoded "{\"type\":\"condition\",\"field\":\"f\",\"operator\":\"is\",\"values\":[1]}"))
         , check "a missing type fails" True (isError (decoded "{\"combinator\":\"all\",\"children\":[]}"))
         , check "text that is no JSON fails" True (isError (decoded "not json"))

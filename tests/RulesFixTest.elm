@@ -5,8 +5,8 @@ module RulesFixTest exposing (suite)
   - `Rule.parseNumber` reads "1,234.5" (English), "1.234,5" and "1 234,5"
     (Norwegian and German) as well as "12,5" and "12.5", negative numbers
     included, and still says `Nothing` to anything that is not a number.
-  - `Rule.operatorLabel` keeps its signature and does not depend on the kind
-    of field.
+  - `Rule.operatorLabel` keeps its signature; only equality depends on the kind
+    of field ("is" on text, `=` on numbers).
   - A shortcut for the plus key (`"+"`, `"mod++"`) fires, and `Shortcut.keycaps`
     shows the plus.
   - Shortcuts do not fire while the user types in a field, a text area, a
@@ -27,7 +27,8 @@ import Klar.FilterBar as FilterBar
 import Klar.Format as Format
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay
-import Klar.Rule as Rule exposing (FieldKind(..), Operator(..), Rule(..))
+import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Rule as Rule exposing (FieldKind, Operator(..), Rule(..))
 import Klar.RuleBuilder as RuleBuilder
 import Klar.SavedViews as SavedViews
 import Klar.Shortcut as Shortcut exposing (Shortcut)
@@ -289,7 +290,7 @@ rulesWithSeparatorsTests =
         , test "a total of 2 000 is above \"1 234,5\"" <|
             \_ -> Expect.equal True (matching GreaterThan [ "1 234,5" ] 2000)
         , test "a total of 1 234.5 is equal to \"1,234.5\"" <|
-            \_ -> Expect.equal True (matching Equals [ "1,234.5" ] 1234.5)
+            \_ -> Expect.equal True (matching Is [ "1,234.5" ] 1234.5)
         , test "a total of 1 500 is between \"1,000.5\" and \"2.000,5\"" <|
             \_ -> Expect.equal True (matching Between [ "1,000.5", "2.000,5" ] 1500)
         , test "a total of 3 000 is not between \"1,000.5\" and \"2.000,5\"" <|
@@ -311,38 +312,38 @@ rulesWithSeparatorsTests =
 
 allOperators : List Operator
 allOperators =
-    [ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, Equals, NotEquals, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, Between, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
+    [ Is, IsNot, Contains, NotContains, StartsWith, EndsWith, LessThan, LessOrEqual, GreaterThan, GreaterOrEqual, Between, NotBetween, Before, After, OnOrBefore, OnOrAfter, InLastDays, InNextDays, MoreThanDaysAgo, MoreThanDaysAhead, InPeriod, IsAnyOf, IsNoneOf, IsEmpty, IsNotEmpty, IsTrue, IsFalse ]
 
 
 allKinds : List FieldKind
 allKinds =
-    [ TextKind, NumberKind, DateKind, BooleanKind, ChoiceKind [ { value = "paid", label = "Paid" } ] ]
+    [ Rule.textKind, Rule.numberKind, Rule.dateKind, Rule.booleanKind, Rule.choiceKind [ { value = "paid", label = "Paid" } ] ]
 
 
 operatorLabelTests : Test
 operatorLabelTests =
     describe "Rule.operatorLabel"
         [ test "takes a locale, the kind of the field and an operator" <|
-            \_ -> Expect.equal "does not contain" (Rule.operatorLabel Locale.en TextKind NotContains)
+            \_ -> Expect.equal "does not contain" (Rule.operatorLabel Locale.en Rule.textKind NotContains)
         , test "is written in Norwegian for the Norwegian locale" <|
-            \_ -> Expect.equal "inneholder ikke" (Rule.operatorLabel Locale.nb TextKind NotContains)
-        , test "\"is\" reads the same for every kind of field" <|
+            \_ -> Expect.equal "inneholder ikke" (Rule.operatorLabel Locale.nb Rule.textKind NotContains)
+        , test "\"is\" reads the same for every kind of field but numbers, where it is =" <|
             \_ ->
                 Expect.equal
-                    [ "is", "is", "is", "is", "is" ]
+                    [ "is", "=", "is", "is", "is" ]
                     (List.map (\kind -> Rule.operatorLabel Locale.en kind Is) allKinds)
-        , describe "does not depend on the kind of field"
+        , describe "does not depend on the kind of field, but for equality"
             (List.concatMap
                 (\locale ->
                     List.map
                         (\operator ->
-                            test (Locale.toCode locale ++ ": " ++ Rule.operatorLabel locale TextKind operator) <|
+                            test (Locale.toCode locale ++ ": " ++ Rule.operatorLabel locale Rule.textKind operator) <|
                                 \_ ->
                                     Expect.equal
-                                        (List.map (\_ -> Rule.operatorLabel locale TextKind operator) allKinds)
+                                        (List.map (\_ -> Rule.operatorLabel locale Rule.textKind operator) allKinds)
                                         (List.map (\kind -> Rule.operatorLabel locale kind operator) allKinds)
                         )
-                        allOperators
+                        (List.filter (\operator -> operator /= Is && operator /= IsNot) allOperators)
                 )
                 Locale.all
             )
@@ -357,19 +358,21 @@ englishLabels =
     , ( NotContains, "does not contain" )
     , ( StartsWith, "starts with" )
     , ( EndsWith, "ends with" )
-    , ( Equals, "=" )
-    , ( NotEquals, "≠" )
     , ( LessThan, "<" )
     , ( LessOrEqual, "≤" )
     , ( GreaterThan, ">" )
     , ( GreaterOrEqual, "≥" )
     , ( Between, "between" )
+    , ( NotBetween, "not between" )
     , ( Before, "before" )
     , ( After, "after" )
     , ( OnOrBefore, "on or before" )
     , ( OnOrAfter, "on or after" )
     , ( InLastDays, "in the last (days)" )
     , ( InNextDays, "in the next (days)" )
+    , ( MoreThanDaysAgo, "more than (days) ago" )
+    , ( MoreThanDaysAhead, "in more than (days)" )
+    , ( InPeriod, "is within" )
     , ( IsAnyOf, "is any of" )
     , ( IsNoneOf, "is none of" )
     , ( IsEmpty, "is empty" )
@@ -387,19 +390,21 @@ norwegianLabels =
     , ( NotContains, "inneholder ikke" )
     , ( StartsWith, "starter med" )
     , ( EndsWith, "slutter med" )
-    , ( Equals, "=" )
-    , ( NotEquals, "≠" )
     , ( LessThan, "<" )
     , ( LessOrEqual, "≤" )
     , ( GreaterThan, ">" )
     , ( GreaterOrEqual, "≥" )
     , ( Between, "mellom" )
+    , ( NotBetween, "ikke mellom" )
     , ( Before, "før" )
     , ( After, "etter" )
     , ( OnOrBefore, "senest" )
     , ( OnOrAfter, "tidligst" )
     , ( InLastDays, "siste (dager)" )
     , ( InNextDays, "neste (dager)" )
+    , ( MoreThanDaysAgo, "for mer enn (dager) siden" )
+    , ( MoreThanDaysAhead, "om mer enn (dager)" )
+    , ( InPeriod, "er innenfor" )
     , ( IsAnyOf, "er en av" )
     , ( IsNoneOf, "er ingen av" )
     , ( IsEmpty, "er tom" )
@@ -411,7 +416,7 @@ norwegianLabels =
 
 labelOf : Locale -> Operator -> String
 labelOf locale operator =
-    Rule.operatorLabel locale TextKind operator
+    Rule.operatorLabel locale Rule.textKind operator
 
 
 exactLabelTests : Test
@@ -430,7 +435,7 @@ exactLabelTests =
         , test "the lists above name every operator once" <|
             \_ ->
                 Expect.equal
-                    (List.map (Rule.operatorLabel Locale.en TextKind) allOperators)
+                    (List.map (Rule.operatorLabel Locale.en Rule.textKind) allOperators)
                     (List.map Tuple.second englishLabels)
         , describe "the operators of a kind of field have different labels in the picker"
             (List.concatMap
@@ -504,8 +509,8 @@ describeDaysTests =
                 \_ -> Expect.equal "Created in the next 7 days" (sentence Locale.en InNextDays "7")
             , test "English, in the last 0 days" <|
                 \_ -> Expect.equal "Created in the last 0 days" (sentence Locale.en InLastDays "0")
-            , test "English, 1,0 is one day too" <|
-                \_ -> Expect.equal "Created in the last 1,0 day" (sentence Locale.en InLastDays "1,0")
+            , test "English, 1,0 is one day too, written as it was read" <|
+                \_ -> Expect.equal "Created in the last 1 day" (sentence Locale.en InLastDays "1,0")
             , test "Norwegian, siste 1 dag" <|
                 \_ -> Expect.equal "Created siste 1 dag" (sentence Locale.nb InLastDays "1")
             , test "Norwegian, neste 1 dag" <|
@@ -557,56 +562,67 @@ theBuilderCount attributes =
 
 filterBarCountingTests : Test
 filterBarCountingTests =
-    describe "FilterBar.counting"
-        [ test "shows \"Running ...\" and a spinner" <|
+    describe "the match count of the filter bar and the rule builder"
+        [ test "Loading shows \"Counting ...\" and a spinner" <|
             \_ ->
-                theCount Locale.en [ FilterBar.counting True ]
+                theCount Locale.en [ FilterBar.matchCount Loading ]
                     |> Expect.all
-                        [ Query.has [ Selector.text "Running ..." ]
+                        [ Query.has [ Selector.text "Counting ..." ]
                         , Query.find [ Selector.class "klar-spinner" ] >> Query.has [ Selector.tag "span" ]
                         ]
         , test "shows it in Norwegian for the Norwegian locale" <|
-            \_ -> theCount Locale.nb [ FilterBar.counting True ] |> Query.has [ Selector.text "Kjører ..." ]
-        , test "shows it when there is no count yet" <|
-            \_ -> theCount Locale.en [ FilterBar.counting True, FilterBar.matchCount Nothing ] |> Query.has [ Selector.text "Running ..." ]
-        , test "takes the place of the count" <|
+            \_ -> theCount Locale.nb [ FilterBar.matchCount Loading ] |> Query.has [ Selector.text "Teller ..." ]
+        , test "a refreshed count stays, dimmed and busy, with a spinner" <|
             \_ ->
-                theCount Locale.en [ FilterBar.matchCount (Just 3), FilterBar.totalCount 10, FilterBar.counting True ]
+                theCount Locale.en [ FilterBar.matchCount (Remote.refresh (Loaded 3)), FilterBar.totalCount 10 ]
+                    |> Expect.all
+                        [ Query.find [ Selector.tag "strong" ] >> Query.has [ Selector.text "3" ]
+                        , Query.has [ Selector.class "klar-rule-count--refreshing" ]
+                        , Query.find [ Selector.class "klar-rule-count__text" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                        , Query.find [ Selector.class "klar-spinner" ] >> Query.has [ Selector.tag "span" ]
+                        ]
+        , test "a failed count says so and offers the retry" <|
+            \_ ->
+                theCount Locale.en [ FilterBar.matchCount (Failed (Remote.problem Remote.network)), FilterBar.onRetry Retried ]
+                    |> Expect.all
+                        [ Query.has [ Selector.text "The count failed" ]
+                        , Query.find [ Selector.tag "button" ] >> Event.simulate Event.click >> Event.expect Retried
+                        ]
+        , test "without onRetry a failed count has no button" <|
+            \_ ->
+                theCount Locale.en [ FilterBar.matchCount (Failed (Remote.problem Remote.network)) ]
+                    |> Query.findAll [ Selector.tag "button" ]
+                    |> Query.count (Expect.equal 0)
+        , test "the live region is there before the first count" <|
+            \_ ->
+                theCount Locale.en []
+                    |> Query.find [ Selector.class "klar-rule-count__text" ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-live" "polite") ]
+        , test "the live region is the same element when the count comes" <|
+            \_ ->
+                theCount Locale.en [ FilterBar.matchCount (Loaded 3) ]
+                    |> Query.find [ Selector.class "klar-rule-count__text" ]
+                    |> Expect.all
+                        [ Query.has [ Selector.attribute (Attr.attribute "aria-live" "polite") ]
+                        , Query.has [ Selector.text "matches" ]
+                        ]
+        , test "NotAsked shows no count" <|
+            \_ ->
+                theCount Locale.en [ FilterBar.matchCount NotAsked ]
                     |> Query.findAll [ Selector.tag "strong" ]
                     |> Query.count (Expect.equal 0)
-        , test "is a polite live region, like the count" <|
+        , test "the count with a total reads \"3 of 10 matches\"" <|
             \_ ->
-                theCount Locale.en [ FilterBar.counting True ]
-                    |> Query.has [ Selector.attribute (Attr.attribute "aria-live" "polite") ]
-        , test "a later attribute wins: counting False shows the count again" <|
-            \_ ->
-                theCount Locale.en [ FilterBar.matchCount (Just 3), FilterBar.counting True, FilterBar.counting False ]
-                    |> Query.has [ Selector.text "matches" ]
-        , test "is off by default: the count is shown" <|
-            \_ ->
-                theCount Locale.en [ FilterBar.matchCount (Just 3) ]
-                    |> Expect.all
-                        [ Query.has [ Selector.text "matches" ]
-                        , Query.hasNot [ Selector.class "klar-spinner" ]
-                        ]
-        , test "is off by default: nothing is shown without a count" <|
-            \_ ->
-                filterBar Locale.en [] (FilterBar.init "bar")
-                    |> Query.fromHtml
-                    |> Query.findAll [ Selector.class "klar-filterbar__count" ]
-                    |> Query.count (Expect.equal 0)
-        , test "the count with a total still reads \"3 of 10 matches\"" <|
-            \_ ->
-                theCount Locale.en [ FilterBar.matchCount (Just 3), FilterBar.totalCount 10 ]
+                theCount Locale.en [ FilterBar.matchCount (Loaded 3), FilterBar.totalCount 10 ]
                     |> Expect.all
                         [ Query.find [ Selector.tag "strong" ] >> Query.has [ Selector.text "3" ]
                         , Query.has [ Selector.text "of 10 matches" ]
                         ]
-        , test "says the same as RuleBuilder.counting" <|
+        , test "the rule builder says the same" <|
             \_ ->
                 Expect.all
-                    [ \_ -> Expect.all runningChecks (theBuilderCount [ RuleBuilder.counting True ])
-                    , \_ -> Expect.all runningChecks (theCount Locale.en [ FilterBar.counting True ])
+                    [ \_ -> Expect.all runningChecks (theBuilderCount [ RuleBuilder.matchCount Loading ])
+                    , \_ -> Expect.all runningChecks (theCount Locale.en [ FilterBar.matchCount Loading ])
                     ]
                     ()
         ]
@@ -616,8 +632,8 @@ filterBarCountingTests =
 -}
 runningChecks : List (Query.Single Msg -> Expectation)
 runningChecks =
-    [ Query.has [ Selector.text "Running ..." ]
-    , Query.has [ Selector.attribute (Attr.attribute "aria-live" "polite") ]
+    [ Query.has [ Selector.text "Counting ..." ]
+    , Query.find [ Selector.class "klar-rule-count__text" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-live" "polite") ]
     , Query.find [ Selector.class "klar-spinner" ] >> Query.has [ Selector.class "klar-spinner--sm" ]
     ]
 
@@ -627,7 +643,8 @@ runningChecks =
 
 
 type Msg
-    = ShortcutMsg Shortcut.Msg
+    = Retried
+    | ShortcutMsg Shortcut.Msg
     | OpenPalette
     | GoToOrders
     | ShowHelp
