@@ -115,7 +115,8 @@ The first release.
   of `Select`, `MultiSelect`, `Autocomplete.query` and `Tree.query` wait for a pause of
   300 ms in the typing, as the table's search does, so an application writes no debounce;
   `Toast.dismissAll` empties the stack; `Chart.withSlot` and `Chart.segmentSlot` name a
-  place in the theme's chart palette (not a `Klar.Color`).
+  place in the theme's chart palette (not a `Klar.Color`). Buttons are joined with `Klar.ButtonGroup` and key
+  caps drawn with `Klar.Kbd` (there is no `Button.group` or `Text.kbd`).
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
 

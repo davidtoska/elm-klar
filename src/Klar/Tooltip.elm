@@ -69,7 +69,6 @@ the stylesheet draw the tip: plain text, with the shortcut after a middle dot.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Internal as Internal
-import Klar.Text as Text
 
 
 {-| A setting for `attrsWith` and `wrap`. Make one with `shortcut`, `below`,
@@ -355,7 +354,7 @@ wrap options text child =
                 :: List.map
                     (\value ->
                         Html.span [ Internal.cls [ "klar-tip-bubble__keys" ] ]
-                            [ Text.kbdCombo (keyNames value) ]
+                            [ Internal.kbdCombo (keyNames value) ]
                     )
                     keys
             )

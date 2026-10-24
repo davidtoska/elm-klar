@@ -143,7 +143,6 @@ import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Spinner as Spinner
-import Klar.Text as Text
 import Klar.Theme as Theme exposing (Size(..))
 import Process
 import Task
@@ -578,7 +577,7 @@ view toMsg attributes (State state) =
                 Html.text ""
             , if showKeys then
                 Html.span [ Internal.cls [ "klar-search__keys" ], Attr.attribute "aria-hidden" "true" ]
-                    [ Internal.viewMaybe (\keys -> Text.kbd keys) config.shortcutHint ]
+                    [ Internal.viewMaybe (\keys -> Internal.kbd keys) config.shortcutHint ]
 
               else
                 Html.text ""

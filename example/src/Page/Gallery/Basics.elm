@@ -44,7 +44,6 @@ import View.Labels as Labels
 type alias Model =
     { clicks : Int
     , saving : Bool
-    , viewMode : ViewMode
     , menus : Dict String Menu.State
     , lastAction : String
     , tags : List Types.Warehouse
@@ -68,12 +67,6 @@ type alias Model =
     }
 
 
-type ViewMode
-    = AsList
-    | AsGrid
-    | AsColumns
-
-
 {-| What the pretend server does when the orders are asked for.
 -}
 type Scenario
@@ -88,7 +81,6 @@ type Msg
     | Clicked
     | SaveClicked
     | Saved
-    | ViewModeChosen ViewMode
     | MenuMsg String Menu.Msg
     | Picked String
     | TagRemoved String
@@ -118,7 +110,6 @@ init : ( Model, Cmd Msg )
 init =
     ( { clicks = 0
       , saving = False
-      , viewMode = AsList
       , menus = Dict.empty
       , lastAction = "No action picked yet"
       , tags = initialTags
@@ -224,9 +215,6 @@ update msg model =
 
         Saved ->
             ( { model | saving = False }, Cmd.none )
-
-        ViewModeChosen mode ->
-            ( { model | viewMode = mode }, Cmd.none )
 
         MenuMsg id inner ->
             let
@@ -518,17 +506,6 @@ viewButtons model =
                 )
             )
         , Doc.example
-            { title = "Button group"
-            , description = Just "Button.group joins buttons into one segmented control. Button.pressed tells screen readers which one is on; here the active one also gets the primary look. For a real choice between views, Klar.SegmentedControl is the better fit: it also handles the arrow keys."
-            , code = Just groupCode
-            }
-            (Button.group
-                [ viewModeButton model AsList Icon.list "List"
-                , viewModeButton model AsGrid Icon.grid "Grid"
-                , viewModeButton model AsColumns Icon.columns "Columns"
-                ]
-            )
-        , Doc.example
             { title = "Links and full width"
             , description = Just "A button with href is a real link, so it can be opened in a new tab, but it keeps the look of a button. Button.block fills its container."
             , code = Just linksCode
@@ -544,25 +521,6 @@ viewButtons model =
                 ]
             )
         ]
-
-
-viewModeButton : Model -> ViewMode -> Icon.Icon -> String -> Html Msg
-viewModeButton model mode icon label =
-    let
-        active =
-            model.viewMode == mode
-    in
-    Button.view
-        [ Button.icon icon
-        , Button.pressed active
-        , Button.onClick (ViewModeChosen mode)
-        , if active then
-            Button.primary
-
-          else
-            Button.secondary
-        ]
-        label
 
 
 
@@ -1276,31 +1234,6 @@ Save ->
 
 Saved ->
     ( { model | saving = False }, Cmd.none )
-"""
-
-
-groupCode : String
-groupCode =
-    """-- model:   mode : ViewMode   (AsList | AsGrid | AsColumns)
-
-viewModeButton model mode icon label =
-    Button.view
-        [ Button.icon icon
-        , Button.pressed (model.mode == mode)
-        , Button.onClick (ModeChosen mode)
-        , if model.mode == mode then
-            Button.primary
-
-          else
-            Button.secondary
-        ]
-        label
-
-Button.group
-    [ viewModeButton model AsList Icon.list "List"
-    , viewModeButton model AsGrid Icon.grid "Grid"
-    , viewModeButton model AsColumns Icon.columns "Columns"
-    ]
 """
 
 

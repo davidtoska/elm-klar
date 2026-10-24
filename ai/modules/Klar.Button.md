@@ -12,7 +12,6 @@ Types: `Attribute`
 -- Views
 view : List (Attribute msg) -> String -> Html msg
 iconOnly : List (Attribute msg) -> Icon.Icon -> String -> Html msg
-group : List (Html msg) -> Html msg
 
 -- Look and size
 type Attribute msg  -- opaque: no constructors are exposed
@@ -107,23 +106,6 @@ A square button with only an icon. The label is the accessible name and the
 native tooltip, so it must say what the button does.
 
     Button.iconOnly [ Button.ghost, Button.onClick Close ] Icon.close "Close"
-
-### `group`
-
-```elm
-group : List (Html msg) -> Html msg
-```
-
-Visually joins buttons into one segmented control.
-
-    Button.group
-        [ Button.view [ Button.pressed True ] "Day"
-        , Button.view [] "Week"
-        , Button.view [] "Month"
-        ]
-
-For a real choice between views, `Klar.SegmentedControl` also handles the arrow
-keys.
 
 ## Look and size
 

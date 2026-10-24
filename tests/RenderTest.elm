@@ -6,6 +6,7 @@ import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Alert as Alert
 import Klar.Button as Button
+import Klar.ButtonGroup as ButtonGroup
 import Klar.Checkbox as Checkbox
 import Klar.EmptyState as EmptyState
 import Klar.Field as Field
@@ -510,7 +511,7 @@ buttonTests =
         , test "htmlAttrs adds raw attributes" <|
             \_ -> rootHas [ attr "data-test" "x" ] (Button.view [ Button.htmlAttrs [ Attr.attribute "data-test" "x" ] ] "x")
         , test "a group is a group" <|
-            \_ -> rootHas [ attr "role" "group" ] (Button.group [ Button.view [] "Day", Button.view [] "Week" ])
+            \_ -> rootHas [ attr "role" "group" ] (ButtonGroup.view [] "Period" [ Button.view [] "Day", Button.view [] "Week" ])
         , describe "as a link"
             [ test "href makes it an anchor" <|
                 \_ -> rootHas [ Selector.tag "a", Selector.attribute (Attr.href "#/orders"), Selector.text "Orders" ] (Button.view [ Button.href "#/orders" ] "Orders")

@@ -27,12 +27,10 @@ caption : String -> Html msg
 strong : String -> Html msg
 link : { href : String, label : String } -> Html msg
 
--- Code and keys
+-- Code
 mono : String -> Html msg
 code : String -> Html msg
 codeBlock : String -> Html msg
-kbd : String -> Html msg
-kbdCombo : List String -> Html msg
 ```
 
 ## Documentation
@@ -44,6 +42,8 @@ everywhere.
 Use when: the page needs titles, paragraphs, small print or code that look the same everywhere.
 Do not use when: the text is a link (use `Klar.Link`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).
 
+    import Klar.Kbd as Kbd
+    import Klar.Shortcut as Shortcut
     import Klar.Text as Text
 
     Text.title "Orders"
@@ -52,7 +52,7 @@ Do not use when: the text is a link (use `Klar.Link`), an action (use `Klar.Butt
 
     Text.paragraphWith
         [ Text.text "Press "
-        , Text.kbdCombo [ "Ctrl", "K" ]
+        , Kbd.view [ Kbd.inline ] (Shortcut.mod (Shortcut.char 'k'))
         , Text.text " to search, or "
         , Text.link { href = "#/help", label = "read the help" }
         , Text.text "."
@@ -70,10 +70,9 @@ to each other (in a `Layout.stack`, say) end up on one line: put them in
 | | Functions |
 | --- | --- |
 | Block | `title`, `heading`, `subheading`, `overline`, `lead`, `paragraph`, `paragraphWith`, `codeBlock` |
-| Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `link`, `mono`, `code`, `kbd`, `kbdCombo` |
+| Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `link`, `mono`, `code` |
 
-Every function takes its text as a `String` (`kbdCombo` takes a list of strings
-and `paragraphWith` a list of HTML) and no attributes. When you need an id or an
+Every function takes its text as a `String` (`paragraphWith` takes a list of HTML) and no attributes. When you need an id or an
 event handler, wrap the result in an element of your own.
 
 ## Headings
@@ -212,7 +211,7 @@ is reported as `UrlRequested`, like every other link.
 
     Text.link { href = "#/orders", label = "All orders" }
 
-## Code and keys
+## Code
 
 ### `mono`
 
@@ -243,22 +242,4 @@ A block of preformatted code on a dark background. Line breaks and spaces
 are kept, and lines that are too wide scroll sideways. The block can take the
 keyboard focus, so that it can be scrolled without a mouse.
 
-### `kbd`
-
-```elm
-kbd : String -> Html msg
-```
-
-A single key cap (a `kbd` element), such as "Esc".
-
-    Text.kbd "Esc"
-
-### `kbdCombo`
-
-```elm
-kbdCombo : List String -> Html msg
-```
-
-Several key caps in a row, for a keyboard shortcut.
-
-    Text.kbdCombo [ "Ctrl", "K" ]
+Key caps are [Klar.Kbd](Klar.Kbd.md): `Kbd.view` for a shortcut, `Kbd.key` for one key.

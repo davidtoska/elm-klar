@@ -175,11 +175,6 @@ css =
  .klar-button--loading{cursor: progress;pointer-events: none}
  .klar-button--loading .klar-button__label{opacity: 0.75}
  .klar-button__label{overflow: hidden;text-overflow: ellipsis;line-height: 1.35}
- .klar-button-group{display: inline-flex;align-items: stretch}
- .klar-button-group > .klar-button{border-radius: 0;margin-left: -1px}
- .klar-button-group > .klar-button:first-child{border-radius: var(--klar-radius) 0 0 var(--klar-radius);margin-left: 0}
- .klar-button-group > .klar-button:last-child{border-radius: 0 var(--klar-radius) var(--klar-radius) 0}
- .klar-button-group > .klar-button:hover,.klar-button-group > .klar-button:focus-visible{position: relative;z-index: 1}
  .klar-spinner{display: inline-block;flex: none;width: 14px;height: 14px;border: 2px solid currentColor;border-right-color: transparent;border-radius: 50%;animation: klar-spin 0.7s linear infinite;vertical-align: -0.15em}
  .klar-spinner--sm{width: 12px;height: 12px;border-width: 1.5px}
  .klar-spinner--lg{width: 22px;height: 22px;border-width: 2.5px;color: var(--klar-primary)}

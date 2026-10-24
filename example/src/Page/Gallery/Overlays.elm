@@ -23,6 +23,7 @@ import Klar.Drawer as Drawer
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
+import Klar.Kbd as Kbd
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
@@ -1453,7 +1454,7 @@ paletteSection model =
                         , Button.onClick (OpenPalette "open-palette")
                         ]
                         "Open the palette of this page"
-                    , Text.kbdCombo [ "Ctrl", "K" ]
+                    , Kbd.view [] (Shortcut.mod (Shortcut.char 'k'))
                     , Text.caption "opens the palette of the application"
                     ]
                 , Checkbox.view
@@ -1482,7 +1483,7 @@ helpSection =
             }
             (Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
                 [ Button.view [ Button.id "open-help", Button.icon Icon.keyboard, Button.onClick OpenHelp ] "Show the shortcuts of this page"
-                , Text.kbd "?"
+                , Kbd.key [] "?"
                 , Text.caption "opens the sheet of the application"
                 ]
             )

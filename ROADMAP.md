@@ -128,8 +128,6 @@ Findings that belong to Phase A and A8 and are listed here so they are not lost:
   `keydown` of `Enter` with `isComposing`, the key that confirms an IME composition)
   showed that `Select` chooses an option on it, while `TreeSelect` and `Cascader` ignore
   keys during a composition: `Select.Popup` needs the same check.
-- `Button.group` and `Klar.ButtonGroup` do the same thing, and `Text.kbd` and `Klar.Kbd`
-  overlap.
 - `Menu` cannot open with the first item highlighted from the keyboard, and `Tag` cannot name
   its remove button differently, which the new components work around.
 

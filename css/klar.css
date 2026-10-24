@@ -1026,17 +1026,6 @@ table {
    box changes nothing but shows the whole letter. */
 .klar-button__label { overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
 
-.klar-button-group {
-  display: inline-flex;
-  align-items: stretch;
-}
-
-.klar-button-group > .klar-button { border-radius: 0; margin-left: -1px; }
-.klar-button-group > .klar-button:first-child { border-radius: var(--klar-radius) 0 0 var(--klar-radius); margin-left: 0; }
-.klar-button-group > .klar-button:last-child { border-radius: 0 var(--klar-radius) var(--klar-radius) 0; }
-.klar-button-group > .klar-button:hover,
-.klar-button-group > .klar-button:focus-visible { position: relative; z-index: 1; }
-
 /* ---- Spinner --------------------------------------------------------- */
 
 .klar-spinner {
