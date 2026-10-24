@@ -2843,12 +2843,12 @@
         "layer"
       ],
       "related": [
+        "Klar.Modal",
         "Klar.AppShell",
         "Klar.CommandPalette",
         "Klar.ConfirmDialog",
         "Klar.Drawer",
         "Klar.LeaveGuard",
-        "Klar.Modal",
         "Klar.Shortcut",
         "Klar.ShortcutHelp"
       ],
@@ -2901,9 +2901,9 @@
         "closeButtonId"
       ],
       "related": [
+        "Klar.Drawer",
         "Klar.Overlay",
         "Klar.ConfirmDialog",
-        "Klar.Drawer",
         "Klar.Menu",
         "Klar.Popover",
         "Klar.ContextMenu",
@@ -2959,7 +2959,8 @@
         "Klar.Overlay",
         "Klar.Remote",
         "Klar.Locale",
-        "Klar.Modal"
+        "Klar.Modal",
+        "Klar.Theme"
       ],
       "keywords": [
         "confirm dialog",
@@ -2982,7 +2983,7 @@
       "group": "Overlays",
       "purpose": "A panel that slides in from the side of the window: the details of a row in a list, a form with many filters, anything the user wants to see next to the page they came from.",
       "whenToUse": "the user looks at details or a form next to the page they came from, such as the details of a row in a list.",
-      "whenNot": "the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`) or the panel is small and next to a button (use `Klar.Popover`).",
+      "whenNot": "the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`), the panel is small and next to a button (use `Klar.Popover`), or the user keeps working in the page beside the panel, moving from row to row (use `Klar.Splitter`: a drawer makes the page behind it inert).",
       "state": [
         "State"
       ],
@@ -3055,15 +3056,17 @@
         "view",
         "init",
         "update",
-        "maxVisible",
+        "setMaxVisible",
         "count",
         "queued",
-        "push",
-        "dismiss"
+        "focus",
+        "push"
       ],
       "related": [
         "Klar.Overlay",
-        "Klar.Locale"
+        "Klar.Shortcut",
+        "Klar.Locale",
+        "Klar.Theme"
       ],
       "keywords": [
         "toast",
@@ -3142,15 +3145,17 @@
       "quickPath": [],
       "mainFunctions": [
         "attrs",
-        "attrsWith",
-        "withShortcut",
-        "placeBelow",
         "wrap",
         "shortcut",
+        "platform",
         "below",
-        "focusable"
+        "focusable",
+        "id"
       ],
-      "related": [],
+      "related": [
+        "Klar.Kbd",
+        "Klar.Shortcut"
+      ],
       "keywords": [
         "tooltip",
         "overlays",

@@ -42,8 +42,9 @@ Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListIt
 
     -- the same for a drawer or a dialog
     Drawer.view DrawerMsg
-        [ Drawer.title "Order 1042" ]
+        []
         model.drawer
+        "Order 1042"
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 `NotAsked` and `Loading` show a skeleton and set the body busy, with a polite

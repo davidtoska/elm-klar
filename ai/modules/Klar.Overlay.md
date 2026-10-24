@@ -45,9 +45,9 @@ does the rest:
         { attributes = []
         , page = [ viewOrders model ]
         , overlays =
-            [ Modal.view EditDialogMsg [ Modal.title "Edit order" ] model.editDialog [ orderForm ]
-            , Drawer.view OrderDrawerMsg [ Drawer.title "Order 1042" ] model.orderDrawer [ details ]
-            , ConfirmDialog.view CancelDialogMsg [ ConfirmDialog.title "Cancel order?" ] model.cancelDialog
+            [ Modal.view EditDialogMsg [] model.editDialog "Edit order" [ orderForm ]
+            , Drawer.view OrderDrawerMsg [] model.orderDrawer "Order 1042" [ details ]
+            , ConfirmDialog.view CancelDialogMsg [] model.cancelDialog "Cancel order?"
             , Toast.view ToastMsg [] model.toasts
             ]
         }
@@ -78,9 +78,13 @@ forget one:
     the toasts and then back to the first element of the dialog.
 
 Keep every overlay in the list all the time, also while it is closed (a closed
-dialog draws nothing, but it is the one that remembers where focus was). The order
-of the list is the stacking order: put a dialog that another one opens after it,
-and the toasts anywhere; they are always drawn last.
+dialog draws nothing, but it is the one that remembers where focus was). A list
+that changes length does no harm to the page (it keeps its place in the DOM, with
+its focus, its typed text and its scroll positions), but a dialog that is not in
+the list cannot remember anything. Up to 12 closed dialogs remember where focus
+was; any further ones return focus to their opener, or to the start of the page.
+The order of the list is the stacking order: put a dialog that another one opens
+after it, and the toasts anywhere; they are always drawn last.
 
 ## Page and overlays
 
@@ -120,9 +124,12 @@ main module with `List.map (Overlay.map PageMsg)`.
 
 ## Making your own overlay
 
-The components of this package build their overlays with these; so can you, for a
-lightbox or a wizard that is not a `Modal`. A page that is not built with `host`
-or `AppShell` takes the same steps with `layer`.
+The components of this package build their overlays with these. A lightbox or a
+wizard is a [Klar.Modal](Klar.Modal.md) (with `flush` and `hideClose`, say), which
+brings the focus trap, the recovery of lost focus, the scroll lock and the way
+back. `dialog` is for a surface that does all of that itself, as the command
+palette does. A page that is not built with `host` or `AppShell` takes the same
+steps with `layer`.
 
 ### `dialog`
 

@@ -1212,7 +1212,7 @@ deleteRow order =
             [ Button.ghost
             , Button.id (deleteButtonId order)
             , Button.onClick (AskDelete (deleteButtonId order) order)
-            , Button.htmlAttrs (Tooltip.attrs ("Delete " ++ Types.orderIdText order.id))
+            , Button.htmlAttrs (Tooltip.attrs [] ("Delete " ++ Types.orderIdText order.id))
             ]
             Icon.trash
             ("Delete " ++ Types.orderIdText order.id)
@@ -1351,31 +1351,39 @@ tooltipSection =
         "Short hints without JavaScript. They appear after a short pause with the mouse and at once on keyboard focus, sit above the element and move to the side or below when there is no room. A tooltip is a visual aid: the element needs a name of its own (icon buttons get it from aria-label)."
         [ Doc.example
             { title = "Icon buttons, with and without a shortcut"
-            , description = Just "Tooltip.attrs goes on any element. The shortcut is shown after the text."
+            , description = Just "Tooltip.attrs goes on any element. The shortcut is a Shortcut.Keys, the same value Klar.Shortcut listens to, and is shown after the text."
             , code = Just tooltipAttrsCode
             }
             (Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                [ Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs "Reload") ] Icon.refresh "Reload"
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs "Download as CSV") ] Icon.download "Download as CSV"
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs "Print" |> Tooltip.withShortcut "Ctrl P") ] Icon.print "Print"
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs "Open search" |> Tooltip.withShortcut "Ctrl K") ] Icon.search "Search"
-                , Button.iconOnly [ Button.ghost, Button.htmlAttrs (Tooltip.attrs "Delete order") ] Icon.trash "Delete order"
-                , Button.view [ Button.primary, Button.icon Icon.save, Button.htmlAttrs (Tooltip.attrs "Save all changes in the form" |> Tooltip.withShortcut "Ctrl S") ] "Save"
-                , Button.view [ Button.htmlAttrs (Tooltip.attrsWith [ Tooltip.below ] "Shown below the button") ] "Below"
+                [ Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [] "Reload") ] Icon.refresh "Reload"
+                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [] "Download as CSV") ] Icon.download "Download as CSV"
+                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'p')) ] "Print") ] Icon.print "Print"
+                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')) ] "Open search") ] Icon.search "Search"
+                , Button.iconOnly [ Button.ghost, Button.htmlAttrs (Tooltip.attrs [] "Delete order") ] Icon.trash "Delete order"
+                , Button.view [ Button.primary, Button.icon Icon.save, Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 's')) ] "Save all changes in the form") ] "Save"
+                , Button.view [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.below ] "Shown below the button") ] "Below"
                 ]
             )
         , Doc.example
             { title = "Around content, and at the edge"
-            , description = Just "Tooltip.wrap makes a real tooltip with role=tooltip, linked to the content, and shows the shortcut as key caps. Use it around what cannot take attributes, such as a disabled button. The buttons on the right show that the hint is not cut off by the edge of the window."
+            , description = Just "Tooltip.wrap makes a real tooltip with role=tooltip, which describes the control to screen readers, and shows the shortcut as key caps. An unavailable button stays focusable (Button.ariaDisabled), so that the keyboard reaches it and hears why. Content that cannot take focus, such as a badge, gets Tooltip.focusable. The buttons on the right show that the hint is not cut off by the edge of the window."
             , code = Just tooltipWrapCode
             }
             (Layout.row [ Layout.gap 3, Layout.alignCenter ]
-                [ Tooltip.wrap [] "You do not have permission to delete orders" (Button.view [ Button.danger, Button.disabled True ] "Delete")
-                , Tooltip.wrap [ Tooltip.shortcut "Ctrl K" ] "Open the command palette" (Button.view [ Button.icon Icon.command ] "Commands")
-                , Tooltip.wrap [ Tooltip.focusable ] "This is a long hint that wraps over several lines because it has a maximum width, and it can be reached with the keyboard because the wrapper can take focus." (Badge.view [ Badge.tone Info ] "Hover over me")
+                [ Tooltip.wrap [ Tooltip.id "gallery-tip-delete" ]
+                    "You do not have permission to delete orders"
+                    (\tip -> Button.view [ Button.danger, Button.ariaDisabled True, Button.htmlAttrs tip ] "Delete")
+                , Tooltip.wrap [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')), Tooltip.id "gallery-tip-commands" ]
+                    "Open the command palette"
+                    (\tip -> Button.view [ Button.icon Icon.command, Button.htmlAttrs tip ] "Commands")
+                , Tooltip.wrap [ Tooltip.focusable, Tooltip.id "gallery-tip-long" ]
+                    "This is a long hint that wraps over several lines because it has a maximum width, and it can be reached with the keyboard because the wrapper can take focus."
+                    (\_ -> Badge.view [ Badge.tone Info ] "Hover over me")
                 , Layout.spacer
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs "This hint sits right at the edge") ] Icon.settings "Settings"
-                , Tooltip.wrap [ Tooltip.shortcut "Ctrl Shift P" ] "Pin to the top" (Button.iconOnly [] Icon.bookmark "Pin")
+                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [] "This hint sits right at the edge") ] Icon.settings "Settings"
+                , Tooltip.wrap [ Tooltip.shortcut (Shortcut.mod (Shortcut.shift (Shortcut.char 'p'))), Tooltip.id "gallery-tip-pin" ]
+                    "Pin to the top"
+                    (\tip -> Button.iconOnly [ Button.htmlAttrs tip ] Icon.bookmark "Pin")
                 ]
             )
         ]
@@ -2260,24 +2268,29 @@ Popover.view HelpMsg [ Popover.icon Icon.help, Popover.iconOnly ] model.help "Wh
 tooltipAttrsCode : String
 tooltipAttrsCode =
     """Button.iconOnly
-    [ Button.htmlAttrs (Tooltip.attrs "Open search" |> Tooltip.withShortcut "Ctrl K") ]
+    [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')) ] "Open search") ]
     Icon.search
     "Search"
 
-Button.view [ Button.htmlAttrs (Tooltip.attrsWith [ Tooltip.below ] "Shown below the button") ] "Below"
+Button.view [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.below ] "Shown below the button") ] "Below"
 
 -- the shortcut follows the text after a middle dot, and is announced as aria-keyshortcuts"""
 
 
 tooltipWrapCode : String
 tooltipWrapCode =
-    """Tooltip.wrap [] "You do not have permission to delete orders"
-    (Button.view [ Button.danger, Button.disabled True ] "Delete")
+    """-- the function draws the control and gets the aria-describedby to put on it;
+-- an unavailable button stays focusable, so the keyboard hears why
+Tooltip.wrap [ Tooltip.id "delete-tip" ]
+    "You do not have permission to delete orders"
+    (\\tip -> Button.view [ Button.danger, Button.ariaDisabled True, Button.htmlAttrs tip ] "Delete")
 
-Tooltip.wrap [ Tooltip.shortcut "Ctrl K" ] "Open the command palette" child
+Tooltip.wrap [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')) ]
+    "Open the command palette"
+    (\\tip -> Button.view [ Button.htmlAttrs tip ] "Commands")
 
--- a badge or a truncated text can take focus too
-Tooltip.wrap [ Tooltip.focusable ] "A long hint" (Badge.view [ Badge.tone Info ] "Hover over me")"""
+-- a badge or a truncated text: the wrapper takes focus and is described
+Tooltip.wrap [ Tooltip.focusable ] "A long hint" (\\_ -> Badge.view [ Badge.tone Info ] "Hover over me")"""
 
 
 contextMenuCode : String

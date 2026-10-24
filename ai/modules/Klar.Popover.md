@@ -10,7 +10,7 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Html msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -27,14 +27,13 @@ toggle : State -> ( State, Cmd Msg )
 
 -- The button
 type Attribute msg  -- opaque: no constructors are exposed
-label : String -> Attribute msg
 icon : Icon.Icon -> Attribute msg
+iconOnly : Attribute msg
 trigger : List (Button.Attribute msg) -> Attribute msg
 customTrigger : (List (Html.Attribute msg) -> Html msg) -> Attribute msg
 
 -- The panel
 title : String -> Attribute msg
-ariaLabel : String -> Attribute msg
 closeButton : Attribute msg
 width : Int -> Attribute msg
 alignEnd : Attribute msg
@@ -75,13 +74,13 @@ Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
 
     -- view
     Popover.view PopoverMsg
-        [ Popover.label "Filter"
-        , Popover.icon Icon.filter
+        [ Popover.icon Icon.filter
         , Popover.title "Quick filter"
         , Popover.closeButton
         , Popover.initialFocus [ "filter-customer" ]
         ]
         model.popover
+        "Filter"
         [ TextInput.view
             [ TextInput.id "filter-customer"
             , TextInput.label "Customer"
@@ -98,11 +97,17 @@ there is no room below; other browsers get plain positioning. Clicks inside the
 panel do not close it. A click outside, `Escape` or the close button do, and
 focus returns to the button. `Tab` out of the panel closes it too, and focus
 goes where the user was heading. `Escape` pressed in a select or a menu that is
-open inside the panel closes only that popup. [Klar.Modal](Klar.Modal.md)
-describes these rules, shared by all popups and dialogs, in one place.
+open inside the panel closes only that popup, and so does an `Escape` that a
+control in the panel handled itself (a search field that cleared its text) or that
+ends an IME composition. If the element that has focus in the panel is removed or
+disabled (an "Apply" that becomes "Applying ..."), focus moves to the panel, so that
+`Escape` and `Tab` keep working. [Klar.Modal](Klar.Modal.md) describes these rules,
+shared by all popups and dialogs, in one place.
 
-The panel is announced as a dialog, named by its `title` or its `ariaLabel`.
-The only built-in text is the label of the close button; it follows `locale`.
+The label (`"Filter"` above) is a required argument of `view`: it is the text of
+the button, or the name of an `iconOnly` button, and it names the panel when the
+panel has no `title`. The panel is announced as a dialog. The only built-in text
+is the label of the close button; it follows `locale`.
 If a button in the panel opens a dialog, give the dialog to
 [`Overlay.host`](Klar.Overlay.md#host): the page is then `inert`, so closing the panel,
 which gives focus back to its button, cannot take focus away from the dialog.
@@ -112,12 +117,13 @@ which gives focus back to its button, cannot take focus away from the dialog.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Html msg
 ```
 
-The button and, while open, the panel with `content`. `toMsg` wraps the
-messages of the popover. The content is laid out in a column, one item below the
-other.
+The button labelled `label` and, while open, the panel with `content`. The
+label is the text of the button (its accessible name with `iconOnly`), and it
+names the panel when the panel has no `title`. `toMsg` wraps the messages of the
+popover. The content is laid out in a column, one item below the other.
 
 ## State
 
@@ -222,24 +228,24 @@ type Attribute msg  -- opaque: no constructors are exposed
 A setting of a popover. Make them with the functions below and pass a list to
 `view`; later attributes win over earlier ones.
 
-### `label`
-
-```elm
-label : String -> Attribute msg
-```
-
-Text on the button that opens the panel. Without a label (and without
-`customTrigger`) the button shows only an icon.
-
 ### `icon`
 
 ```elm
 icon : Icon.Icon -> Attribute msg
 ```
 
-An icon on the button, before the label. Without a `label` the button is an
-icon-only button (three dots if you give no icon), and `ariaLabel` is the only
-name it has, so always set it.
+An icon on the button, before the label.
+
+### `iconOnly`
+
+```elm
+iconOnly : Attribute msg
+```
+
+The button shows only its icon (three dots if you give no `icon`), and the
+label of `view` becomes its accessible name.
+
+    Popover.view HelpMsg [ Popover.icon Icon.help, Popover.iconOnly ] model.help "What is priority?" [ explanation ]
 
 ### `trigger`
 
@@ -260,7 +266,8 @@ customTrigger : (List (Html.Attribute msg) -> Html msg) -> Attribute msg
 Use your own element as the button. The function receives the attributes it
 must put on that element (`id`, `aria-haspopup`, `aria-expanded`, the click
 handler and the `ArrowDown` handler); without them the panel cannot open and
-focus cannot return to the element.
+focus cannot return to the element. Your element shows its own text; the label of
+`view` still names the panel when it has no `title`.
 
     Popover.customTrigger (\attrs -> Button.view [ Button.htmlAttrs attrs ] "Filter")
 
@@ -272,16 +279,8 @@ focus cannot return to the element.
 title : String -> Attribute msg
 ```
 
-A heading in the panel; it is also the accessible name of the panel.
-
-### `ariaLabel`
-
-```elm
-ariaLabel : String -> Attribute msg
-```
-
-An accessible name. It names the button when the button has no `label`, and
-it names the panel when the panel has no `title`.
+A heading in the panel; it is also the accessible name of the panel, instead
+of the label.
 
 ### `closeButton`
 

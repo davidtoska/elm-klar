@@ -10,7 +10,13 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Overlay.Overlay msg
+view :
+    (Msg -> msg)
+    -> List (Attribute msg)
+    -> State
+    -> String
+    -> List (Html msg)
+    -> Overlay.Overlay msg
 
 -- State
 type alias State = Modal.State
@@ -27,7 +33,6 @@ closeButtonId : State -> String
 
 -- Content
 type alias Attribute msg = Modal.Attribute msg
-title : String -> Attribute msg
 subtitle : String -> Attribute msg
 footer : List (Html msg) -> Attribute msg
 footerStart : List (Html msg) -> Attribute msg
@@ -61,7 +66,7 @@ a list, a form with many filters, anything the user wants to see next to the
 page they came from.
 
 Use when: the user looks at details or a form next to the page they came from, such as the details of a row in a list.
-Do not use when: the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`) or the panel is small and next to a button (use `Klar.Popover`).
+Do not use when: the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`), the panel is small and next to a button (use `Klar.Popover`), or the user keeps working in the page beside the panel, moving from row to row (use `Klar.Splitter`: a drawer makes the page behind it inert).
 Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.Button as Button
@@ -86,11 +91,11 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     -- view
     Drawer.view DrawerMsg
-        [ Drawer.title "Order 1042"
-        , Drawer.subtitle "Last changed 12 October"
+        [ Drawer.subtitle "Last changed 12 October"
         , Drawer.footer [ Button.view [ Button.onClick CloseDrawer ] "Close" ]
         ]
         model.drawer
+        "Order 1042"
         [ orderDetails ]
 
 A drawer is a [Klar.Modal](Klar.Modal.md) shown along the right or left edge of
@@ -111,8 +116,9 @@ Focus that was on the retry button goes back into the drawer when the data
 arrives.
 
     Drawer.view DrawerMsg
-        [ Drawer.title "Order 1042" ]
+        []
         model.drawer
+        "Order 1042"
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 The drawer is as tall as the window. It is `medium` (480px) unless you say
@@ -125,11 +131,18 @@ everything else comes from your application.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Overlay.Overlay msg
+view :
+    (Msg -> msg)
+    -> List (Attribute msg)
+    -> State
+    -> String
+    -> List (Html msg)
+    -> Overlay.Overlay msg
 ```
 
-The drawer, with `body` in its scrolling middle; it comes in from the right
-unless you say `left`. `toMsg` wraps the messages of the drawer. Renders nothing
+The drawer titled `title`, with `body` in its scrolling middle; it comes in
+from the right unless you say `left`. The title is the heading of the drawer and
+its accessible name. `toMsg` wraps the messages of the drawer. Renders nothing
 while closed, so it can stay in your view all the time. It returns an
 [`Overlay`](Klar.Overlay.md#overlay): put it in the list of overlays of
 [`Overlay.host`](Klar.Overlay.md#host) or `AppShell.overlays`.
@@ -243,15 +256,6 @@ type alias Attribute msg = Modal.Attribute msg
 A setting of a drawer. Make them with the functions below and pass a list
 to `view`; later attributes win over earlier ones. It is the same type as
 `Klar.Modal.Attribute`.
-
-### `title`
-
-```elm
-title : String -> Attribute msg
-```
-
-The heading of the drawer. It is also the accessible name of the drawer, so
-always set one.
 
 ### `subtitle`
 
@@ -391,8 +395,10 @@ and calls `close` when it is fine to go (after asking "Discard changes?", say).
 lastFocus : String -> Attribute msg
 ```
 
-The id of the last button in the drawer. When the user presses `Shift+Tab` on
-the first element, focus wraps around to this button instead of the footer.
+The id of the element that `Shift+Tab` on the first element of the drawer
+wraps around to, usually the primary button. Without it focus lands at the end of
+the footer (or of the body when there is no footer), and the next `Shift+Tab`
+reaches the last button.
 
 ## Texts
 
