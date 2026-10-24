@@ -10,6 +10,7 @@ module Api exposing
     , createCalendar
     , deleteCalendar
     , deleteEvent
+    , demoLogin
     , events
     , googleCalendars
     , googleEvents
@@ -210,9 +211,24 @@ userDecoder =
     Decode.map2 User (Decode.field "name" Decode.string) (Decode.field "email" Decode.string)
 
 
-config : (Result Problem String -> msg) -> Cmd msg
+{-| The server's settings: the Google client id, and the demo people when it
+runs with `--demo`.
+-}
+config : (Result Problem { googleClientId : String, demo : List User } -> msg) -> Cmd msg
 config toMsg =
-    get "/config.json" toMsg (Decode.field "googleClientId" Decode.string)
+    get "/config.json"
+        toMsg
+        (Decode.map2 (\id demo -> { googleClientId = id, demo = demo })
+            (Decode.field "googleClientId" Decode.string)
+            (Decode.oneOf [ Decode.field "demo" (Decode.list userDecoder), Decode.succeed [] ])
+        )
+
+
+{-| Signs in as a demo person, without a password (only with `--demo`).
+-}
+demoLogin : String -> (Result Problem User -> msg) -> Cmd msg
+demoLogin email toMsg =
+    send "POST" "/auth/demo" (Encode.object [ ( "email", Encode.string email ) ]) toMsg userDecoder
 
 
 me : (Result Problem User -> msg) -> Cmd msg

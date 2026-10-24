@@ -22,8 +22,9 @@ node calendar/server/server.mjs --demo       # http://localhost:8080
 
 `--demo` fills an empty data file with three people (`ada@example.com`,
 `bob@example.com`, `cleo@example.com`, password `calendar123`), a shared
-calendar, a repeating stand-up and an invitation. Without it the calendar starts
-empty and the first person registers.
+calendar, a repeating stand-up and an invitation, and the sign-in page offers
+them as buttons: one click signs in, no password. Without `--demo` there are no
+such buttons and the first person registers.
 
 | Setting | Default | |
 | --- | --- | --- |

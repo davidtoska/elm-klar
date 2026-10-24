@@ -438,7 +438,21 @@ const route = (method, pattern, handler, options = {}) => {
 
 // ---- people
 
-route('GET', '/config.json', async () => ({ googleClientId: GOOGLE_CLIENT_ID }));
+const DEMO = args.includes('--demo');
+
+route('GET', '/config.json', async () => ({
+  googleClientId: GOOGLE_CLIENT_ID,
+  demo: DEMO ? db.users.filter((u) => u.email.endsWith('@example.com')).map(publicUser) : [],
+}));
+
+// With --demo, the sign-in page offers the demo people: one click, no password.
+route('POST', '/auth/demo', async ({ body, res }) => {
+  const user = DEMO && findUser(body.email);
+  if (!user || !user.email.endsWith('@example.com')) throw new ApiError(404, 'notFound', 'Not Found');
+  startSession(res, user);
+  save();
+  return publicUser(user);
+});
 
 route('POST', '/auth/register', async ({ body, res }) => {
   const { name, email, password, timeZone } = body;

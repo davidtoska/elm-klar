@@ -167,6 +167,7 @@ type alias Model =
     , now : Time.Posix
     , today : Date
     , googleClientId : String
+    , demoUsers : List User
     , auth : Auth
     , registering : Bool
     , authName : String
@@ -232,6 +233,7 @@ init _ url key =
       , now = Time.millisToPosix 0
       , today = epoch
       , googleClientId = ""
+      , demoUsers = []
       , auth = Checking
       , registering = False
       , authName = ""
@@ -421,7 +423,8 @@ type Msg
     | Tick Time.Posix
     | GotZone Time.Zone
     | GotZoneName Time.ZoneName
-    | GotConfig (Result Problem String)
+    | GotConfig (Result Problem { googleClientId : String, demo : List User })
+    | DemoLogin String
       -- signing in
     | GotMe (Result Problem User)
     | SetRegistering Bool
@@ -618,8 +621,14 @@ update msg model =
                 Time.Offset _ ->
                     ( model, Cmd.none )
 
-        GotConfig result ->
-            ( { model | googleClientId = Result.withDefault "" result }, Cmd.none )
+        GotConfig (Ok config) ->
+            ( { model | googleClientId = config.googleClientId, demoUsers = config.demo }, Cmd.none )
+
+        GotConfig (Err _) ->
+            ( model, Cmd.none )
+
+        DemoLogin email ->
+            ( { model | authBusy = True, authProblem = Nothing }, Api.demoLogin email GotAuth )
 
         GotMe (Ok user) ->
             signedIn user model
@@ -2187,6 +2196,20 @@ viewAuth model =
         [ Layout.stack [ Layout.gap 4 ]
             [ Text.title "Calendar"
             , Text.secondary "Your calendars, shared calendars and invitations, in the format of Google Calendar."
+            , if List.isEmpty model.demoUsers then
+                Html.text ""
+
+              else
+                Card.view [ Card.title "Try it as", Card.subtitle "Demo people, no password needed." ]
+                    [ Layout.stack [ Layout.gap 2 ]
+                        (List.map
+                            (\u ->
+                                Button.view [ Button.block, Button.icon Icon.logIn, Button.onClick (DemoLogin u.email), Button.disabled model.authBusy ]
+                                    (u.name ++ " (" ++ u.email ++ ")")
+                            )
+                            model.demoUsers
+                        )
+                    ]
             , Card.view
                 [ Card.title
                     (if model.registering then
