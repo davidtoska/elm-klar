@@ -47,6 +47,7 @@ not found", "Something went wrong on our side", "Down for maintenance".
 
 Use when: the whole page is one result, such as not found, no access, a server error, maintenance or success after a submit.
 Do not use when: the result sits inside a table, card or panel, use `Klar.EmptyState` or `Klar.ErrorState`.
+Quick path: `view` with a kind (`pageNotFound`, `forbidden`, `fromProblem`), `actions`, `onRetry`
 
     import Klar.Button as Button
     import Klar.Remote as Remote exposing (Remote(..))

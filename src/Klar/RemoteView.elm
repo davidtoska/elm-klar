@@ -9,6 +9,7 @@ show, and the data, old or being refreshed. You write only what the data looks l
 
 Use when: the body of a card, a dialog or a drawer shows one piece of remote data.
 Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListItem`, which take a `Remote` themselves).
+Quick path: `view` with `onRetry`; `id` for focus after a retry, `emptyState` for an empty answer
 
     import Klar.Card as Card
     import Klar.RemoteView as RemoteView

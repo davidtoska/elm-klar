@@ -21,6 +21,7 @@ import Klar.Card as Card
 import Klar.Chart as Chart
 import Klar.CommandPalette as CommandPalette
 import Klar.Drawer as Drawer
+import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
@@ -574,7 +575,9 @@ optionsExample settings locale model =
         )
 
 
-{-| The body is one line: no `case`, no skeleton.
+{-| The body is one line: no `case`, no skeleton. An empty answer draws nothing and the
+body says so (`emptyState`); the Refresh button inside the body keeps focus while the
+refresh starts and ends, because the body is the same element in every state.
 -}
 detail : Settings -> Locale -> Model -> List (Html Msg)
 detail settings locale model =
@@ -583,16 +586,18 @@ detail settings locale model =
         , RemoteView.settings settings
         , RemoteView.onRetry Refresh
         , RemoteView.loadingLabel "Loading order"
+        , RemoteView.emptyState [ EmptyState.title "No orders" ]
         ]
         (Remote.map .orders model.data)
         (\orders ->
             case orders of
                 [] ->
-                    [ Text.paragraph "There are no orders." ]
+                    []
 
                 first :: _ ->
                     [ Text.paragraph (first.id ++ " for " ++ first.customer)
                     , Text.secondary ("Total " ++ String.fromFloat first.total)
+                    , Layout.row [] [ Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick Refresh ] "Refresh" ]
                     ]
         )
 

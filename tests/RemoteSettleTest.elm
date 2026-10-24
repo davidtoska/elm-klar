@@ -173,6 +173,18 @@ texts =
                     , Remote.title Locale.en (Remote.problem Remote.conflict)
                     , Remote.title Locale.nb (Remote.problem Remote.conflict)
                     ]
+        , test "too many requests is worth trying again, with its own texts" <|
+            \_ ->
+                Expect.equal
+                    [ "True", "Too many requests", "For mange forespørsler" ]
+                    [ if Remote.isRetryable (Remote.problem Remote.tooManyRequests) then
+                        "True"
+
+                      else
+                        "False"
+                    , Remote.title Locale.en (Remote.problem Remote.tooManyRequests)
+                    , Remote.title Locale.nb (Remote.problem Remote.tooManyRequests)
+                    ]
         , test "no ready-made text names fields or forms" <|
             \_ ->
                 [ Remote.validation, Remote.conflict ]

@@ -10,6 +10,7 @@ not found", "Something went wrong on our side", "Down for maintenance".
 
 Use when: the whole page is one result, such as not found, no access, a server error, maintenance or success after a submit.
 Do not use when: the result sits inside a table, card or panel, use `Klar.EmptyState` or `Klar.ErrorState`.
+Quick path: `view` with a kind (`pageNotFound`, `forbidden`, `fromProblem`), `actions`, `onRetry`
 
     import Klar.Button as Button
     import Klar.Remote as Remote exposing (Remote(..))
@@ -567,7 +568,7 @@ iconFor kind =
     if kind == Remote.network then
         Icon.wifiOff
 
-    else if kind == Remote.timeout then
+    else if kind == Remote.timeout || kind == Remote.tooManyRequests then
         Icon.clock
 
     else if kind == Remote.server then
@@ -597,7 +598,7 @@ toneFor kind =
     if kind == Remote.notFound || kind == Remote.forbidden || kind == Remote.unauthorized then
         "neutral"
 
-    else if kind == Remote.network || kind == Remote.timeout || kind == Remote.validation || kind == Remote.conflict then
+    else if kind == Remote.network || kind == Remote.timeout || kind == Remote.tooManyRequests || kind == Remote.validation || kind == Remote.conflict then
         "warning"
 
     else

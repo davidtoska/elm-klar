@@ -30,6 +30,7 @@ Delete".
 
 Use when: a list, a grid of cards or another selectable collection needs actions for the selected items.
 Do not use when: the items are in a `Klar.Table`, which draws a bar of its own for its selection (`Table.bulkActions`).
+Quick path: `view` with the toolbar, the count and the message of Clear selection; `selectAllMatching`; `id`, for `Klar.focus` after Clear selection
 
     import Klar.BulkBar as BulkBar
     import Klar.Button as Button

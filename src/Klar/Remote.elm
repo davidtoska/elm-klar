@@ -3,7 +3,7 @@ module Klar.Remote exposing
     , Kept, refresh, settle, refreshWith, isRefreshing, isStale, staleProblem, loadedAt, staleIn
     , Problem, problem, withTitle, withDetail, withCode, isRetryable
     , title, detail, code, kind
-    , Kind, network, timeout, server, notFound, forbidden, unauthorized, validation, conflict, unknown
+    , Kind, network, timeout, server, notFound, forbidden, unauthorized, validation, conflict, tooManyRequests, unknown
     )
 
 {-| The state of data that comes from a backend: not asked for yet, loading,
@@ -80,6 +80,9 @@ already on the screen:
             Http.BadStatus 404 ->
                 Remote.problem Remote.notFound
 
+            Http.BadStatus 429 ->
+                Remote.problem Remote.tooManyRequests
+
             _ ->
                 Remote.problem Remote.unknown
 
@@ -106,7 +109,7 @@ already on the screen:
 
 # Kinds of problems
 
-@docs Kind, network, timeout, server, notFound, forbidden, unauthorized, validation, conflict, unknown
+@docs Kind, network, timeout, server, notFound, forbidden, unauthorized, validation, conflict, tooManyRequests, unknown
 
 -}
 
@@ -165,6 +168,7 @@ below.
   - `unauthorized`: the user must sign in again (401)
   - `validation`: the server rejected what was sent (400 or 422)
   - `conflict`: the data changed in the meantime (409)
+  - `tooManyRequests`: the server asks to wait before the next request (429)
   - `unknown`: anything else
 
 -}
@@ -177,6 +181,7 @@ type Kind
     | Unauthorized
     | Validation
     | Conflict
+    | TooManyRequests
     | Unknown
 
 
@@ -234,6 +239,14 @@ validation =
 conflict : Kind
 conflict =
     Conflict
+
+
+{-| The server is busy with this user's requests and asks to wait (429). Trying again
+in a moment can help, so components offer "Try again".
+-}
+tooManyRequests : Kind
+tooManyRequests =
+    TooManyRequests
 
 
 {-| Anything else.
@@ -361,6 +374,11 @@ texts locale k =
             , pick "Noen andre har endret dette siden du hentet det. Last inn på nytt for å se siste versjon." "Someone else changed this after you loaded it. Reload to see the latest version."
             )
 
+        TooManyRequests ->
+            ( pick "For mange forespørsler" "Too many requests"
+            , pick "Tjenesten får mange forespørsler akkurat nå. Vent litt og prøv igjen." "The service is getting many requests right now. Wait a moment and try again."
+            )
+
         Unknown ->
             ( pick "Uventet feil" "Unexpected error"
             , pick "Noe uventet skjedde. Prøv igjen." "Something unexpected happened. Try again."
@@ -392,8 +410,9 @@ withCode own (Problem value) =
     Problem { value | code = Just own }
 
 
-{-| Whether trying again could help: network trouble, timeouts, server errors
-and unknown errors are worth retrying; the rest will fail the same way again.
+{-| Whether trying again could help: network trouble, timeouts, server errors,
+too many requests and unknown errors are worth retrying; the rest will fail the same
+way again.
 Components show the retry button only for retryable problems.
 -}
 isRetryable : Problem -> Bool
@@ -406,6 +425,9 @@ isRetryable (Problem value) =
             True
 
         Server ->
+            True
+
+        TooManyRequests ->
             True
 
         Unknown ->

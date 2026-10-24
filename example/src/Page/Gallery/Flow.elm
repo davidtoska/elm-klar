@@ -539,6 +539,7 @@ statusSection locale model =
                 , labelled "StatusPage.unauthorized" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/" ] "Sign in" ] ] StatusPage.unauthorized))
                 , labelled "StatusPage.server" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.reference "req-7f3a-91c2" ] StatusPage.server))
                 , labelled "StatusPage.network" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.network))
+                , labelled "StatusPage.retrying True: the button is busy where it is and keeps focus" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.retrying True ] StatusPage.network))
                 , labelled "StatusPage.maintenance" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.maintenance))
                 ]
             )
@@ -972,9 +973,13 @@ kindsCode =
     [ StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ]
     StatusPage.pageNotFound
 
--- the others: success, denied, sessionExpired, serverError, offline, maintenance
+-- the others: success, forbidden, unauthorized, server, network, maintenance
+-- (the failures have the names of Remote.Kind)
 StatusPage.view
-    [ StatusPage.onRetry ReloadOrders, StatusPage.reference "req-7f3a-91c2" ]
+    [ StatusPage.onRetry ReloadOrders
+    , StatusPage.retrying model.reloading -- busy in place while the request is on its way
+    , StatusPage.reference "req-7f3a-91c2"
+    ]
     StatusPage.server
 
 -- a page that stands on its own, without an AppShell, is the main landmark
@@ -984,7 +989,7 @@ StatusPage.view [ StatusPage.standalone ] StatusPage.forbidden"""
 problemCode : String
 problemCode =
     """case model.order of
-    Failure problem ->
+    Failed problem ->
         StatusPage.view
             [ StatusPage.onRetry ReloadOrder
             , StatusPage.reference requestId

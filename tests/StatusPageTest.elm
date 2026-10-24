@@ -484,6 +484,7 @@ iconAndToneTests =
                     , \_ -> iconIs StatusPage.network "wifi-off"
                     , \_ -> iconIs StatusPage.maintenance "wrench"
                     , \_ -> iconIs (problemOf Remote.timeout) "clock"
+                    , \_ -> iconIs (problemOf Remote.tooManyRequests) "clock"
                     , \_ -> iconIs (problemOf Remote.validation) "warning"
                     , \_ -> iconIs (problemOf Remote.conflict) "warning"
                     , \_ -> iconIs (problemOf Remote.unknown) "error-circle"
@@ -508,6 +509,7 @@ iconAndToneTests =
                     , \_ -> toneIs StatusPage.maintenance "warning"
                     , \_ -> toneIs (problemOf Remote.unknown) "danger"
                     , \_ -> toneIs (problemOf Remote.timeout) "warning"
+                    , \_ -> toneIs (problemOf Remote.tooManyRequests) "warning"
                     ]
                     ()
         ]

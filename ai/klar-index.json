@@ -3794,7 +3794,14 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "pageNotFound",
+        "forbidden",
+        "fromProblem",
+        "actions",
+        "onRetry"
+      ],
       "mainFunctions": [
         "view",
         "success",
@@ -3834,7 +3841,12 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "selectAllMatching",
+        "id",
+        "Klar.focus"
+      ],
       "mainFunctions": [
         "view"
       ],
@@ -4714,7 +4726,12 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "onRetry",
+        "id",
+        "emptyState"
+      ],
       "mainFunctions": [
         "view"
       ],

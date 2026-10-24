@@ -55,6 +55,7 @@ forbidden : Kind
 unauthorized : Kind
 validation : Kind
 conflict : Kind
+tooManyRequests : Kind
 unknown : Kind
 ```
 
@@ -133,6 +134,9 @@ already on the screen:
 
             Http.BadStatus 404 ->
                 Remote.problem Remote.notFound
+
+            Http.BadStatus 429 ->
+                Remote.problem Remote.tooManyRequests
 
             _ ->
                 Remote.problem Remote.unknown
@@ -419,8 +423,9 @@ Adds a technical code to show next to the problem, like `503`.
 isRetryable : Problem -> Bool
 ```
 
-Whether trying again could help: network trouble, timeouts, server errors
-and unknown errors are worth retrying; the rest will fail the same way again.
+Whether trying again could help: network trouble, timeouts, server errors,
+too many requests and unknown errors are worth retrying; the rest will fail the same
+way again.
 Components show the retry button only for retryable problems.
 
 ## Reading a problem
@@ -480,6 +485,7 @@ below.
   - `unauthorized`: the user must sign in again (401)
   - `validation`: the server rejected what was sent (400 or 422)
   - `conflict`: the data changed in the meantime (409)
+  - `tooManyRequests`: the server asks to wait before the next request (429)
   - `unknown`: anything else
 
 ### `network`
@@ -545,6 +551,15 @@ conflict : Kind
 ```
 
 The data changed in the meantime (409).
+
+### `tooManyRequests`
+
+```elm
+tooManyRequests : Kind
+```
+
+The server is busy with this user's requests and asks to wait (429). Trying again
+in a moment can help, so components offer "Try again".
 
 ### `unknown`
 
