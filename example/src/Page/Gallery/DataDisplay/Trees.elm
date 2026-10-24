@@ -34,6 +34,7 @@ type alias Model =
     , categories : Tree.State String
     , permissions : Tree.State String
     , orders : Tree.State String
+    , failedTree : Tree.State String
     , retrying : Bool
     }
 
@@ -44,6 +45,7 @@ type Msg
     | PermissionsMsg Tree.Msg
     | OrdersMsg Tree.Msg
     | StateMsg Tree.Msg
+    | FailedTreeMsg Tree.Msg
     | ExpandAll
     | CollapseAll
     | LoadBranch String
@@ -67,6 +69,7 @@ init =
             |> Tree.setExpandedIds Ids.string [ "orders", "admin" ]
             |> Tree.setCheckedIds Ids.string [ "orders-read", "orders-create", "products-read" ]
     , orders = Tree.init "order-tree"
+    , failedTree = Tree.init "tree-failed"
     , retrying = False
     }
 
@@ -112,6 +115,14 @@ update failing msg model =
 
         StateMsg _ ->
             ( model, Cmd.none )
+
+        FailedTreeMsg inner ->
+            -- The tree moves the focus off "Try again" before it goes away.
+            let
+                ( tree, cmd ) =
+                    Tree.update inner model.failedTree
+            in
+            ( { model | failedTree = tree }, Cmd.map FailedTreeMsg cmd )
 
         ExpandAll ->
             -- The ids of the nodes do not depend on the language.
@@ -332,14 +343,14 @@ statesExample : Locale -> Model -> Html Msg
 statesExample locale model =
     Doc.example
         { title = "Loading, failed and empty tree"
-        , description = Just "While loading, the tree shows a skeleton. A failure shows the problem with “Try again”: here the backend is down on purpose, so the tree loads for a moment and fails again. An empty list shows the text you give it."
+        , description = Just "While loading, the tree shows a skeleton. A failure shows the problem with “Try again”: here the backend is down on purpose, so the tree loads for a moment and fails again. Pressing it keeps the keyboard focus in the tree, which stays the same element in every state. An empty list shows the empty state you give it."
         , code = Just "Tree.viewRemote TreeMsg [ Tree.onRetry Reload, Tree.emptyState [ EmptyState.title \"No warehouses\" ] ] model.tree model.nodes"
         }
         (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
             [ Tree.viewRemote StateMsg [ Tree.locale locale ] (Tree.init "tree-loading") Remote.Loading
-            , Tree.viewRemote StateMsg
+            , Tree.viewRemote FailedTreeMsg
                 [ Tree.onRetry Retry, Tree.locale locale ]
-                (Tree.init "tree-failed")
+                model.failedTree
                 (Pretend.down locale model.retrying)
             , Tree.viewRemote StateMsg
                 [ Tree.emptyState [ EmptyState.title "No warehouses registered" ], Tree.locale locale ]
