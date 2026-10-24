@@ -170,11 +170,11 @@ syncDate value state =
         wanted =
             Date.fromIso value
     in
-    if DatePicker.date state == wanted then
+    if DatePicker.value state == wanted then
         state
 
     else
-        DatePicker.setDate wanted state
+        DatePicker.setValue wanted state
 
 
 
@@ -438,11 +438,11 @@ update msg rule ((Controls c) as controls) =
                     DatePicker.update inner before
 
                 changed =
-                    DatePicker.date after /= DatePicker.date before
+                    DatePicker.value after /= DatePicker.value before
 
                 newRule =
                     if changed then
-                        Rule.setValue node index (DatePicker.date after |> Maybe.map Date.toIso |> Maybe.withDefault "") rule
+                        Rule.setValue node index (DatePicker.value after |> Maybe.map Date.toIso |> Maybe.withDefault "") rule
 
                     else
                         rule
@@ -451,7 +451,7 @@ update msg rule ((Controls c) as controls) =
             , controls = Controls { c | dates = Dict.insert ( node, index ) after c.dates }
             , cmd = Cmd.map (DateMsg node index) cmd
             , touched =
-                if changed || DatePicker.isInvalid after then
+                if changed || not (DatePicker.isValid after) then
                     Just node
 
                 else

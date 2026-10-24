@@ -1,7 +1,9 @@
 module Klar.DateTimePicker exposing
     ( view
     , State, init, Msg, update
-    , DateTime, dateTime, isInvalid, text, setDateTime, clear, setText, validate
+    , value, isValid, text, setValue, clear, setText, setLimits
+    , date, time, setDate, setTime
+    , DateTime, toPosix, fromPosix, toIso, fromIso
     , Attribute, today, min, max, disabledWhen, markers, weekNumbers
     , minTime, maxTime, step
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
@@ -13,7 +15,7 @@ module Klar.DateTimePicker exposing
 
 Use when: the date and the time belong together, such as the moment of a pick-up.
 Do not use when: you need a date alone (as `Klar.DatePicker`) or a time alone (as `Klar.TimePicker`).
-Quick path: `init`, `update`, `view`, `dateTime`
+Quick path: `init`, `update`, `view`, `value`
 
     import Klar.DateTimePicker as DateTimePicker
 
@@ -41,15 +43,26 @@ Quick path: `init`, `update`, `view`, `dateTime`
         model.pickup
 
     -- read
-    DateTimePicker.dateTime model.pickup   -- Maybe { date : Date, time : Time }
+    DateTimePicker.value model.pickup   -- Maybe { date : Date, time : Time }
+
+    -- store or send it as local text, with the zone name your backend knows
+    Maybe.map DateTimePicker.toIso (DateTimePicker.value model.pickup)   -- Just "2026-10-20T14:30"
 
 Here `model.today` is a [Klar.Date](Klar-Date) value that the application keeps;
 the library never reads the clock.
 
-The state holds both parts, and there are no out-messages: compare `dateTime`
-before and after `update` to react to a change. `dateTime` is `Just` only when
+The state holds both parts, and there are no out-messages: compare `value`
+before and after `update` to react to a change. `value` is `Just` only when
 both parts hold an accepted value. When one part is empty or its text cannot be
-read it is `Nothing`, and `isInvalid` tells unreadable from empty.
+read it is `Nothing`, and `isValid` tells unreadable from empty. `date` and
+`time` read the parts on their own, for example to load the free slots of the
+chosen day.
+
+A `DateTime` is a wall-clock time without a time zone. `toIso` and `fromIso`
+write and read it as `2026-10-20T14:30`, the transport-neutral form to store and
+send. `toPosix` turns it into a moment in a `Time.Zone`, `fromPosix` the other
+way; do not add minutes to `Date.toPosix` yourself, which is an hour off on the
+days the clock changes.
 
 The two parts behave as described for [Klar.DatePicker](Klar-DatePicker) (typed
 dates, the calendar, its keyboard support) and
@@ -58,8 +71,8 @@ Their text inputs have the DOM ids `<id>-date` and `<id>-time`. Each part shows
 its own message below its input when its text cannot be read, such as "Invalid
 date" or "The time cannot be before 08:00". A text is read when the user leaves
 its input, presses `Enter`, or has typed a complete date or time. A form should
-also call `validate` when it is submitted, because the user may never have left
-the inputs; `text` and `setText` give and set the text of both inputs, for
+also call `setLimits` when it is submitted, because the user may never have
+left the inputs; `text` and `setText` give and set the text of both inputs, for
 example to pre-fill them from a stored value.
 
 The label, the hint and the error of your application belong to the pair: the
@@ -85,7 +98,17 @@ from `locale`; the default is English.
 
 # The value
 
-@docs DateTime, dateTime, isInvalid, text, setDateTime, clear, setText, validate
+@docs value, isValid, text, setValue, clear, setText, setLimits
+
+
+# The two parts
+
+@docs date, time, setDate, setTime
+
+
+# Moments and text
+
+@docs DateTime, toPosix, fromPosix, toIso, fromIso
 
 
 # Date limits and today
@@ -112,13 +135,14 @@ from `locale`; the default is English.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Calendar as Calendar
-import Klar.Date exposing (Date)
+import Klar.Date as Date exposing (Date)
 import Klar.DatePicker as DatePicker
 import Klar.Field as Field
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme exposing (Size(..))
 import Klar.TimePicker as TimePicker exposing (Time)
+import Time
 
 
 
@@ -126,8 +150,8 @@ import Klar.TimePicker as TimePicker exposing (Time)
 
 
 {-| The state of one date and time control: a date field and a time field. Make
-it with `init`, keep it in your model, and read it with `dateTime` and
-`isInvalid`.
+it with `init`, keep it in your model, and read it with `value` and
+`isValid`.
 -}
 type State
     = State
@@ -153,6 +177,145 @@ type alias DateTime =
     }
 
 
+{-| The moment a date and time of day stand for in a time zone. On the day the
+clock is put back, a time that happens twice is the first of the two; on the day
+it is put forward, a time that does not exist (02:30 when the clock jumps from
+02:00 to 03:00) is moved forward by the jump (03:30).
+
+    DateTimePicker.toPosix Time.utc { date = october20, time = { hour = 14, minute = 30 } }
+    -- 2026-10-20T14:30:00Z
+
+`Time.here` from `elm/time` gives the offset of the browser now, as one fixed
+offset without the rules of summer time, so a moment on the other side of a
+change of the clock is an hour off with it. Prefer to store and send the local
+text of `toIso` together with the name of the zone (such as "Europe/Oslo"), and
+let the backend, which knows the rules, make the moment.
+
+-}
+toPosix : Time.Zone -> DateTime -> Time.Posix
+toPosix zone local =
+    let
+        wall =
+            Date.toEpochDay local.date * 86400000 + (local.time.hour * 60 + local.time.minute) * 60000
+
+        offsetAt millis =
+            localMillis zone millis - millis
+
+        first =
+            wall - offsetAt wall
+
+        second =
+            wall - offsetAt first
+
+        existing =
+            List.filter (\millis -> localMillis zone millis == wall) [ first, second ]
+    in
+    Time.millisToPosix
+        (case List.minimum existing of
+            Just millis ->
+                millis
+
+            Nothing ->
+                -- In a gap: the offset from before the jump, which moves the time forward.
+                Basics.max first second
+        )
+
+
+{-| The local date and time of day of a moment in a time zone, to the minute
+(seconds are dropped). The inverse of `toPosix` for every time that exists.
+
+    DateTimePicker.fromPosix Time.utc (Time.millisToPosix 0)
+    -- { date = 1970-01-01, time = { hour = 0, minute = 0 } }
+
+-}
+fromPosix : Time.Zone -> Time.Posix -> DateTime
+fromPosix zone posix =
+    { date = Date.fromPosix zone posix
+    , time = { hour = Time.toHour zone posix, minute = Time.toMinute zone posix }
+    }
+
+
+localMillis : Time.Zone -> Int -> Int
+localMillis zone millis =
+    let
+        posix =
+            Time.millisToPosix millis
+    in
+    Date.toEpochDay (Date.fromPosix zone posix)
+        * 86400000
+        + Time.toHour zone posix
+        * 3600000
+        + Time.toMinute zone posix
+        * 60000
+        + Time.toSecond zone posix
+        * 1000
+        + Time.toMillis zone posix
+
+
+{-| Writes `YYYY-MM-DDTHH:MM`, the local date and time of ISO 8601 without a
+zone: the form to store and send, transport neutral and sortable as text.
+
+    DateTimePicker.toIso { date = october20, time = { hour = 9, minute = 5 } }
+    -- "2026-10-20T09:05"
+
+-}
+toIso : DateTime -> String
+toIso local =
+    Date.toIso local.date ++ "T" ++ TimePicker.toString local.time
+
+
+{-| Reads `YYYY-MM-DDTHH:MM`, the form `toIso` writes. Seconds (`T14:30:00`) are
+accepted and dropped. Text with a zone (`Z` or `+02:00`) is a moment rather than
+a wall-clock time and gives `Nothing`, and so does a date or a time that does
+not exist.
+
+    DateTimePicker.fromIso "2026-10-20T14:30" -- Just { date = 2026-10-20, time = 14:30 }
+
+    DateTimePicker.fromIso "2026-10-20T14:30Z" -- Nothing
+
+-}
+fromIso : String -> Maybe DateTime
+fromIso raw =
+    case String.split "T" (String.trim raw) of
+        [ datePart, timePart ] ->
+            Maybe.map2 DateTime (Date.fromIso datePart) (isoTime timePart)
+
+        _ ->
+            Nothing
+
+
+isoTime : String -> Maybe Time
+isoTime raw =
+    let
+        twoDigits part =
+            if String.length part == 2 && String.all Char.isDigit part then
+                String.toInt part
+
+            else
+                Nothing
+
+        build hour minute =
+            if hour <= 23 && minute <= 59 then
+                Just { hour = hour, minute = minute }
+
+            else
+                Nothing
+    in
+    case String.split ":" raw of
+        [ h, m ] ->
+            Maybe.map2 build (twoDigits h) (twoDigits m) |> Maybe.andThen identity
+
+        [ h, m, sec ] ->
+            if twoDigits sec /= Nothing && Maybe.withDefault 60 (twoDigits sec) <= 59 then
+                Maybe.map2 build (twoDigits h) (twoDigits m) |> Maybe.andThen identity
+
+            else
+                Nothing
+
+        _ ->
+            Nothing
+
+
 {-| An empty control. The `String` must be unique on the page: the date input
 gets the DOM id `<id>-date`, the time input `<id>-time`, and the label
 `<id>-label`.
@@ -172,33 +335,65 @@ init id =
 {-| The date and the time, when both parts hold an accepted value. `Nothing`
 when either part is empty or its text could not be read.
 -}
-dateTime : State -> Maybe DateTime
-dateTime (State s) =
-    Maybe.map2 DateTime (DatePicker.date s.date) (TimePicker.time s.time)
+value : State -> Maybe DateTime
+value (State s) =
+    Maybe.map2 DateTime (DatePicker.value s.date) (TimePicker.value s.time)
 
 
-{-| `True` when either part could not be read: the date is not a date, lies
+{-| The accepted date of the date part, also while the time is still missing.
+Use it to load what depends on the day, such as the free slots of that day.
+-}
+date : State -> Maybe Date
+date (State s) =
+    DatePicker.value s.date
+
+
+{-| The accepted time of the time part, also while the date is still missing.
+-}
+time : State -> Maybe Time
+time (State s) =
+    TimePicker.value s.time
+
+
+{-| Sets the date part alone, or empties it with `Nothing`; the time stays as
+it is. Text that was being typed in the date input is dropped.
+-}
+setDate : Maybe Date -> State -> State
+setDate maybeDate (State s) =
+    State { s | date = DatePicker.setValue maybeDate s.date }
+
+
+{-| Sets the time part alone, or empties it with `Nothing`; the date stays as
+it is. Text that was being typed in the time input is dropped.
+-}
+setTime : Maybe Time -> State -> State
+setTime maybeTime (State s) =
+    State { s | time = TimePicker.setValue maybeTime s.time }
+
+
+{-| `False` when either part could not be read: the date is not a date, lies
 outside `min` and `max` or is excluded by `disabledWhen`, or the time is not a
 time or lies outside `minTime` and `maxTime`. Each part shows its own message
-below its input.
+below its input. Empty parts are valid; whether they are required is for the
+application to say.
 
-Text is only tried when it looks complete (a full `hh:mm`, or a date of ten
-characters such as `2026-10-20`), when the user leaves its input or presses
-`Enter`, and when you call `validate`, so call `validate` first when you check
-this on submit.
+Text is only tried when it is complete (a full `hh:mm`, or a date with a day, a
+month and a four-digit year such as `20.10.2026` or `2026-10-20`), when the user
+leaves its input or presses `Enter`, and when you call `setLimits`, so call
+`setLimits` first when you check this on submit.
 
 -}
-isInvalid : State -> Bool
-isInvalid (State s) =
-    DatePicker.isInvalid s.date || TimePicker.isInvalid s.time
+isValid : State -> Bool
+isValid (State s) =
+    DatePicker.isValid s.date && TimePicker.isValid s.time
 
 
 {-| The text in the two inputs that has not been replaced by a formatted value
 yet: text the user is still typing, or text that could not be read. Each part is
 empty when its input shows an accepted value or nothing. Together with
-`dateTime` it tells empty inputs from garbage: `dateTime == Nothing` and a
+`value` it tells empty inputs from garbage: `value == Nothing` and a
 `text` that is not empty means there is text that is not (yet) a date or a time.
-Use `isInvalid` to ask whether the text was tried and rejected; see also
+Use `isValid` to ask whether the text was tried and rejected; see also
 [DatePicker.text](Klar-DatePicker#text) and
 [TimePicker.text](Klar-TimePicker#text).
 -}
@@ -211,30 +406,30 @@ text (State s) =
 
 {-| Sets both parts, or empties both with `Nothing`. The fields show the date
 and the time formatted for the locale; text that was being typed is dropped. The
-values are not checked against the limits.
+values are not checked against the limits until `setLimits` is called.
 
-    DateTimePicker.setDateTime (Just shipment.pickup) model.pickup
+    DateTimePicker.setValue (Just shipment.pickup) model.pickup
 
 -}
-setDateTime : Maybe DateTime -> State -> State
-setDateTime maybeValue (State s) =
+setValue : Maybe DateTime -> State -> State
+setValue maybeValue (State s) =
     State
         { s
-            | date = DatePicker.setDate (Maybe.map .date maybeValue) s.date
-            , time = TimePicker.setTime (Maybe.map .time maybeValue) s.time
+            | date = DatePicker.setValue (Maybe.map .date maybeValue) s.date
+            , time = TimePicker.setValue (Maybe.map .time maybeValue) s.time
         }
 
 
-{-| Empties both parts. The same as `setDateTime Nothing`.
+{-| Empties both parts. The same as `setValue Nothing`.
 -}
 clear : State -> State
 clear =
-    setDateTime Nothing
+    setValue Nothing
 
 
 {-| Fills the two inputs with text as if the user had typed it, for example to
 pre-fill them from text that you stored. The texts are read when the user leaves
-an input or presses `Enter`, or when you call `validate`; until then `dateTime`
+an input or presses `Enter`, or when you call `setLimits`; until then `value`
 keeps its old value.
 
     DateTimePicker.setText { date = "2026-10-20", time = "14:30" } model.pickup
@@ -249,27 +444,30 @@ setText texts (State s) =
         }
 
 
-{-| Reads the pending text of both inputs now, as if the user had left them:
-readable text becomes the date or the time and is shown formatted, text that
-cannot be read sets the problem that `isInvalid` reports. Pass the same
-attributes as to `view`, because `today`, the limits and the locale decide what
-is valid.
+{-| Reads both inputs again with the limits of these attributes, as if the
+user had left them: pending text that can be read becomes the date or the time
+and is shown formatted, and text that cannot sets the problem that `isValid`
+reports. A part that was accepted before and that the limits no longer allow
+keeps its text, with the message; it is never moved into the limits. Pass the
+same attributes as to `view`, because `today`, the limits and the locale decide
+what is valid.
 
-Use it when a form is submitted: the user may never have left the inputs.
+Use it when a form is submitted, since the user may never have left the inputs,
+and after the limits change.
 
-    DateTimePicker.validate attributes model.pickup
+    DateTimePicker.setLimits pickupLimits model.pickup
 
 -}
-validate : List Attribute -> State -> State
-validate attributes (State s) =
+setLimits : List (Attribute msg) -> State -> State
+setLimits attributes (State s) =
     let
         config =
             configure attributes
     in
     State
         { s
-            | date = DatePicker.validate (dateAttributesOf config) s.date
-            , time = TimePicker.validate (timeAttributesOf config) s.time
+            | date = DatePicker.setLimits (dateAttributesOf config) s.date
+            , time = TimePicker.setLimits (timeAttributesOf config) s.time
         }
 
 
@@ -303,17 +501,17 @@ update msg (State s) =
     case msg of
         DateMsg inner ->
             let
-                ( date, cmd ) =
+                ( datePart, cmd ) =
                     DatePicker.update inner s.date
             in
-            ( State { s | date = date }, Cmd.map DateMsg cmd )
+            ( State { s | date = datePart }, Cmd.map DateMsg cmd )
 
         TimeMsg inner ->
             let
-                ( time, cmd ) =
+                ( timePart, cmd ) =
                     TimePicker.update inner s.time
             in
-            ( State { s | time = time }, Cmd.map TimeMsg cmd )
+            ( State { s | time = timePart }, Cmd.map TimeMsg cmd )
 
 
 
@@ -323,7 +521,7 @@ update msg (State s) =
 {-| A setting of a date and time control. Make them with the functions below and
 pass a list to `view`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -346,7 +544,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
@@ -368,24 +566,25 @@ configure attributes =
         attributes
 
 
-updateField : (Field.Config -> Field.Config) -> Attribute
+updateField : (Field.Config -> Field.Config) -> Attribute msg
 updateField change =
     Attribute (\config -> { config | field = change config.field })
 
 
-{-| The label above the two fields. It names the group that holds them; the two
-inputs are named "Date" and "Time" for screen readers. Give the control a label,
-or hide it with `labelHidden`.
+{-| The label above the two fields. It names the group that holds them, and the
+two inputs are named after it for screen readers ("Pick-up time, date" and
+"Pick-up time, time"; "Date" and "Time" without a label). Give the control a
+label, or hide it with `labelHidden`.
 -}
-label : String -> Attribute
-label value =
-    updateField (Field.setLabel value)
+label : String -> Attribute msg
+label given =
+    updateField (Field.setLabel given)
 
 
 {-| Keeps the label for screen readers but does not show it, for a control in a
 toolbar or a table row. Needs `label`.
 -}
-labelHidden : Attribute
+labelHidden : Attribute msg
 labelHidden =
     updateField Field.setLabelHidden
 
@@ -393,9 +592,9 @@ labelHidden =
 {-| A short help text below the two fields. It describes the group that holds
 them (`aria-describedby`), so screen readers read it when the focus enters.
 -}
-hint : String -> Attribute
-hint value =
-    updateField (Field.setHint value)
+hint : String -> Attribute msg
+hint given =
+    updateField (Field.setHint given)
 
 
 {-| An error message from your application, shown below the two fields and
@@ -407,9 +606,9 @@ unreadable text, which appear below their own inputs.
     DateTimePicker.error "Choose a pick-up time"
 
 -}
-error : String -> Attribute
-error value =
-    updateField (Field.setError (Just value))
+error : String -> Attribute msg
+error given =
+    updateField (Field.setError (Just given))
 
 
 {-| Like `error`, but takes a `Maybe`: `Nothing` means no error. Convenient when
@@ -418,16 +617,16 @@ the message lives in a `Maybe` in your model.
     DateTimePicker.errorMaybe model.pickupError
 
 -}
-errorMaybe : Maybe String -> Attribute
-errorMaybe value =
-    updateField (Field.setError value)
+errorMaybe : Maybe String -> Attribute msg
+errorMaybe given =
+    updateField (Field.setError given)
 
 
 {-| Marks the control as required: an asterisk after the label, and
 `aria-required` on both inputs. The control does not enforce it; when the date or
 the time is missing, test `dateTime` for `Nothing` yourself and pass an `error`.
 -}
-required : Attribute
+required : Attribute msg
 required =
     updateField (Field.setRequired True)
 
@@ -435,34 +634,34 @@ required =
 {-| Text shown after the label of a control that is not `required`, such as
 "(optional)". Default: none.
 -}
-optionalText : String -> Attribute
-optionalText value =
-    updateField (Field.setOptionalText value)
+optionalText : String -> Attribute msg
+optionalText given =
+    updateField (Field.setOptionalText given)
 
 
 {-| Disables both fields and their buttons: they cannot be focused or changed
 and the popups cannot be opened. Takes a `Bool` so that it can come straight
 from your model, for example while a form is saving. Default: `False`.
 -}
-disabled : Bool -> Attribute
-disabled value =
-    Attribute (\config -> { config | disabled = value })
+disabled : Bool -> Attribute msg
+disabled given =
+    Attribute (\config -> { config | disabled = given })
 
 
 {-| The date and the time can be seen, selected and copied but not changed, and
 the popups do not open. Unlike `disabled`, the inputs can still be focused.
 Default: `False`.
 -}
-readOnly : Bool -> Attribute
-readOnly value =
-    Attribute (\config -> { config | readOnly = value })
+readOnly : Bool -> Attribute msg
+readOnly given =
+    Attribute (\config -> { config | readOnly = given })
 
 
 {-| Shows a small × button in each field while it has text; a button empties its
 own field and puts the focus back in it. The buttons are not in the tab order,
 and their accessible name is "Clear field". Default: no buttons.
 -}
-clearable : Attribute
+clearable : Attribute msg
 clearable =
     Attribute (\config -> { config | clearable = True })
 
@@ -470,9 +669,9 @@ clearable =
 {-| The size of both fields, a `Size` from [Klar.Theme](Klar-Theme).
 Default: `Medium`.
 -}
-size : Size -> Attribute
-size value =
-    Attribute (\config -> { config | size = value })
+size : Size -> Attribute msg
+size given =
+    Attribute (\config -> { config | size = given })
 
 
 {-| The language of the built-in text of both fields (placeholders, button
@@ -480,9 +679,9 @@ labels, error messages, names of months and weekdays) and the format in which
 the date is shown: `2026-10-20` in English, `20.10.2026` in Norwegian. Default:
 `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
 -}
-locale : Locale -> Attribute
-locale value =
-    Attribute (\config -> { config | locale = value })
+locale : Locale -> Attribute msg
+locale given =
+    Attribute (\config -> { config | locale = given })
 
 
 {-| Today, supplied by the application (the library never reads the clock). It
@@ -494,27 +693,27 @@ empty date field opens its calendar on January 2000 (or on the nearest month
 inside `min` and `max`).
 
 -}
-today : Date -> Attribute
-today value =
-    Attribute (\config -> { config | today = Just value })
+today : Date -> Attribute msg
+today given =
+    Attribute (\config -> { config | today = Just given })
 
 
 {-| The earliest date that can be chosen or typed: a typed date before it shows
 "The date cannot be before" followed by the limit, and the calendar disables the
 earlier days. The time of day has its own limit, `minTime`. Default: no limit.
 -}
-min : Date -> Attribute
-min value =
-    Attribute (\config -> { config | min = Just value })
+min : Date -> Attribute msg
+min given =
+    Attribute (\config -> { config | min = Just given })
 
 
 {-| The latest date that can be chosen or typed: a typed date after it shows
 "The date cannot be after" followed by the limit, and the calendar disables the
 later days. The time of day has its own limit, `maxTime`. Default: no limit.
 -}
-max : Date -> Attribute
-max value =
-    Attribute (\config -> { config | max = Just value })
+max : Date -> Attribute msg
+max given =
+    Attribute (\config -> { config | max = Just given })
 
 
 {-| Dates that cannot be used, such as weekends or public holidays. The
@@ -524,7 +723,7 @@ Default: every date is allowed.
     DateTimePicker.disabledWhen (\day -> Date.weekday day >= 6)
 
 -}
-disabledWhen : (Date -> Bool) -> Attribute
+disabledWhen : (Date -> Bool) -> Attribute msg
 disabledWhen predicate =
     Attribute (\config -> { config | disabledWhen = predicate })
 
@@ -533,14 +732,14 @@ disabledWhen predicate =
 with `Calendar.dot` and `Calendar.count` from [Klar.Calendar](Klar-Calendar).
 Default: none.
 -}
-markers : List Calendar.Marker -> Attribute
-markers value =
-    Attribute (\config -> { config | markers = value })
+markers : List Calendar.Marker -> Attribute msg
+markers given =
+    Attribute (\config -> { config | markers = given })
 
 
 {-| Shows ISO 8601 week numbers in the calendar. Default: off.
 -}
-weekNumbers : Attribute
+weekNumbers : Attribute msg
 weekNumbers =
     Attribute (\config -> { config | weekNumbers = True })
 
@@ -550,9 +749,9 @@ that range). A divisor of 60 (5, 10, 15, 20, 30 or 60) lines the list up with
 the hour, and typed times between the steps are accepted whatever the step is.
 The default is 15; see [TimePicker.step](Klar-TimePicker#step).
 -}
-step : Int -> Attribute
-step value =
-    Attribute (\config -> { config | step = value })
+step : Int -> Attribute msg
+step given =
+    Attribute (\config -> { config | step = given })
 
 
 {-| The earliest time of day that can be chosen or typed, on every date. Default:
@@ -561,9 +760,9 @@ step value =
     DateTimePicker.minTime { hour = 8, minute = 0 }
 
 -}
-minTime : Time -> Attribute
-minTime value =
-    Attribute (\config -> { config | minTime = Just value })
+minTime : Time -> Attribute msg
+minTime given =
+    Attribute (\config -> { config | minTime = Just given })
 
 
 {-| The latest time of day that can be chosen or typed, on every date. Default:
@@ -572,9 +771,9 @@ minTime value =
     DateTimePicker.maxTime { hour = 16, minute = 0 }
 
 -}
-maxTime : Time -> Attribute
-maxTime value =
-    Attribute (\config -> { config | maxTime = Just value })
+maxTime : Time -> Attribute msg
+maxTime given =
+    Attribute (\config -> { config | maxTime = Just given })
 
 
 
@@ -591,7 +790,7 @@ first argument wraps the picker's messages in one of yours.
         model.pickup
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 view toMsg attributes (State s) =
     let
         config =
@@ -667,9 +866,23 @@ hidden).
 partNames : Locale -> { date : String, time : String }
 partNames lang =
     Locale.pick lang
-        { nb = { date = "Dato", time = "Klokkeslett" }
-        , en = { date = "Date", time = "Time" }
+        { nb = { date = "dato", time = "klokkeslett" }
+        , en = { date = "date", time = "time" }
         }
+
+
+{-| The hidden label of one input: the label of the control and the part, such
+as "Pick-up time, date", so that a list of the form's fields tells two controls
+apart; the part alone, capitalized, without a label.
+-}
+partLabel : Config -> String -> String
+partLabel config part =
+    case config.field.label of
+        Just name ->
+            name ++ ", " ++ part
+
+        Nothing ->
+            String.toUpper (String.left 1 part) ++ String.dropLeft 1 part
 
 
 {-| What the date field gets from the attributes of the control. `view` draws it
@@ -677,10 +890,10 @@ with these, and `validate` reads the text by the same rules. The field is
 `required` when the control is, which puts `aria-required` on the input (the
 asterisk is in the hidden label, which nobody sees).
 -}
-dateAttributesOf : Config -> List DatePicker.Attribute
+dateAttributesOf : Config -> List (DatePicker.Attribute msg)
 dateAttributesOf config =
     List.filterMap identity
-        [ Just (DatePicker.label (partNames config.locale).date)
+        [ Just (DatePicker.label (partLabel config (partNames config.locale).date))
         , Just DatePicker.labelHidden
         , Just (DatePicker.locale config.locale)
         , Just (DatePicker.size config.size)
@@ -712,10 +925,10 @@ dateAttributesOf config =
 {-| What the time field gets from the attributes of the control, like
 `dateAttributesOf`.
 -}
-timeAttributesOf : Config -> List TimePicker.Attribute
+timeAttributesOf : Config -> List (TimePicker.Attribute msg)
 timeAttributesOf config =
     List.filterMap identity
-        [ Just (TimePicker.label (partNames config.locale).time)
+        [ Just (TimePicker.label (partLabel config (partNames config.locale).time))
         , Just TimePicker.labelHidden
         , Just (TimePicker.locale config.locale)
         , Just (TimePicker.size config.size)

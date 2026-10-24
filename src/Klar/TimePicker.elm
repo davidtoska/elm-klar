@@ -2,7 +2,7 @@ module Klar.TimePicker exposing
     ( view
     , State, init, Msg, update
     , Time, toString, toMinutes, fromMinutes
-    , time, isInvalid, text, setTime, clear, setText, validate
+    , value, isValid, text, setValue, clear, setText, setLimits
     , isOpen, open, close
     , Attribute, min, max, step
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
@@ -13,7 +13,7 @@ module Klar.TimePicker exposing
 
 Use when: the user enters a time of day only, such as an order cut-off.
 Do not use when: the user enters a date and a time together (as `Klar.DateTimePicker`).
-Quick path: `init`, `update`, `view`, `time`
+Quick path: `init`, `update`, `view`, `value`
 
 It holds a time of day only. For a date and a time together see
 [Klar.DateTimePicker](Klar-DateTimePicker).
@@ -44,16 +44,16 @@ It holds a time of day only. For a date and a time together see
         model.cutoff
 
     -- read
-    TimePicker.time model.cutoff   -- Maybe { hour : Int, minute : Int }
+    TimePicker.value model.cutoff   -- Maybe { hour : Int, minute : Int }
 
 The state holds the chosen time, and there are no out-messages: compare
-`TimePicker.time` before and after `update` to react to a change. The time is
+`TimePicker.value` before and after `update` to react to a change. The time is
 accepted when the user leaves the field, presses `Enter`, types a full `hh:mm`,
-or picks a time from the list. Until then `time` keeps the last accepted value.
-When the text cannot be read, `time` is `Nothing`, `isInvalid` is `True`, and
+or picks a time from the list. Until then `value` keeps the last accepted time.
+When the text cannot be read, `value` is `Nothing`, `isValid` is `False`, and
 the field shows a message such as "Invalid time" or "The time cannot be before
-08:00". A form should call `validate` when it is submitted, because the user may
-never have left the field.
+08:00". A form should call `setLimits` when it is submitted, because the user
+may never have left the field.
 
 The list offers a time every `step` minutes (15 by default) between `min` and
 `max`. The field itself also accepts times between the steps, such as 09:37, as
@@ -95,7 +95,7 @@ built-in text (placeholder, button label and error messages) comes from
 
 # The chosen time
 
-@docs time, isInvalid, text, setTime, clear, setText, validate
+@docs value, isValid, text, setValue, clear, setText, setLimits
 
 
 # The list popup
@@ -192,7 +192,7 @@ fromMinutes =
 
 {-| The state of one time field: the accepted time, any text that is still being
 typed, whether the list is open, and the highlighted entry. Make it with `init`,
-keep it in your model, and read it with `time`, `text` and `isInvalid`.
+keep it in your model, and read it with `value`, `text` and `isValid`.
 -}
 type State
     = State Inner
@@ -231,15 +231,15 @@ init id =
 be read. While the user is typing it keeps the previous value until the text is
 a full `hh:mm` or confirmed (see the module documentation).
 -}
-time : State -> Maybe Time
-time (State s) =
+value : State -> Maybe Time
+value (State s) =
     s.time
 
 
 {-| The text in the field that has not been replaced by the formatted time yet:
 text the user is still typing, or text that could not be read. Together with
-`time` it tells an empty field from garbage: `time == Nothing && text /= ""`
-means there is text that is not a time (yet). Use `isInvalid` to ask whether the
+`value` it tells an empty field from garbage: `value == Nothing && text /= ""`
+means there is text that is not a time (yet). Use `isValid` to ask whether the
 text was tried and rejected; see also [DatePicker.text](Klar-DatePicker#text).
 -}
 text : State -> String
@@ -247,18 +247,19 @@ text (State s) =
     Maybe.withDefault "" s.draft
 
 
-{-| `True` when the last attempt to read the field failed: the text is not a
+{-| `False` when the last attempt to read the field failed: the text is not a
 time, or the time is outside `min` and `max`. The field then shows the matching
-message.
+message. An empty field is valid; whether a time is required is for the
+application to say.
 
 Text is only tried when the user has typed a full `hh:mm`, leaves the field or
-presses `Enter`, and when you call `validate`, so call `validate` first when you
-check this on submit.
+presses `Enter`, and when you call `setLimits`, so call `setLimits` first when
+you check this on submit.
 
 -}
-isInvalid : State -> Bool
-isInvalid (State s) =
-    s.problem /= Nothing
+isValid : State -> Bool
+isValid (State s) =
+    s.problem == Nothing
 
 
 {-| `True` while the list of times is open. A field that is `disabled` or
@@ -271,58 +272,88 @@ isOpen (State s) =
 
 {-| Sets the time, or empties the field with `Nothing`. The field shows the time
 as `hh:mm`; text that was being typed is dropped. The time is not checked
-against `min` and `max`.
+against `min` and `max` until `setLimits` is called.
 
-    TimePicker.setTime (Just { hour = 16, minute = 0 }) model.cutoff
+    TimePicker.setValue (Just { hour = 16, minute = 0 }) model.cutoff
 
 -}
-setTime : Maybe Time -> State -> State
-setTime maybeTime (State s) =
+setValue : Maybe Time -> State -> State
+setValue maybeTime (State s) =
     State { s | time = maybeTime, draft = Nothing, problem = Nothing }
 
 
-{-| Empties the field. The same as `setTime Nothing`.
+{-| Empties the field. The same as `setValue Nothing`.
 -}
 clear : State -> State
 clear =
-    setTime Nothing
+    setValue Nothing
 
 
 {-| Fills the field with text as if the user had typed it. The text is read when
-the user leaves the field or presses `Enter`, or when you call `validate`; until
-then `time` keeps its old value.
+the user leaves the field or presses `Enter`, or when you call `setLimits`;
+until then `value` keeps its old time.
 
     TimePicker.setText "14:30" model.cutoff
 
 -}
 setText : String -> State -> State
-setText value (State s) =
-    State { s | draft = Just value, problem = Nothing }
+setText typed (State s) =
+    State { s | draft = Just typed, problem = Nothing }
 
 
-{-| Reads the pending text now, as if the user had left the field: readable text
-becomes the time and is shown as `hh:mm`, text that cannot be read sets the
-problem that `isInvalid` reports. Pass the same attributes as to `view`, because
-`min` and `max` decide what is valid.
+{-| Reads the field again with the limits of these attributes, as if the user
+had left it: pending text that can be read becomes the time and is shown as
+`hh:mm`, and text that cannot sets the problem that `isValid` reports. A time
+that was accepted before (or set with `setValue`) and that the limits no longer
+allow keeps its text in the field, with the message, and `value` becomes
+`Nothing`; it is never moved into the limits. Pass the same attributes as to
+`view`, because `min` and `max` decide what is valid.
 
-Use it when a form is submitted: the user may never have left the field.
+Use it when a form is submitted, since the user may never have left the field,
+and after the limits change.
 
-    TimePicker.validate attributes model.cutoff
+    TimePicker.setLimits cutoffLimits model.cutoff
 
 -}
-validate : List Attribute -> State -> State
-validate attributes (State s) =
-    State (commit (rulesOf (configure attributes)) s)
+setLimits : List (Attribute msg) -> State -> State
+setLimits attributes (State s) =
+    let
+        rules =
+            rulesOf (configure attributes)
+
+        committed =
+            commit rules s
+    in
+    case ( committed.draft, committed.time ) of
+        ( Nothing, Just accepted ) ->
+            case Parse.time { min = rules.min, max = rules.max } (Parse.formatTime accepted) of
+                Err problem ->
+                    State { committed | time = Nothing, draft = Just (Parse.formatTime accepted), problem = Just problem }
+
+                Ok _ ->
+                    State committed
+
+        _ ->
+            State committed
 
 
 {-| Opens the list and moves the focus to the text input, where it stays.
 Pending text is read first, and the list scrolls to the time closest to the
 chosen one (or to 08:00). The limits and the step come from the attributes, so
-pass the same list as to `view`.
+pass the same list as to `view`. A field that is `disabled` or `readOnly` stays
+closed.
 -}
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 open attributes (State s) =
-    openPopup (rulesOf (configure attributes)) s
+    let
+        config =
+            configure attributes
+    in
+    if config.disabled || config.readOnly then
+        ( State s, Cmd.none )
+
+    else
+        openPopup (rulesOf config) s
 
 
 {-| Closes the list and gives the focus back to the field. Does nothing when the
@@ -745,7 +776,7 @@ move rules delta s =
 {-| A setting of a time field. Make them with the functions below and pass a
 list to `view`, `validate` or `open`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -765,7 +796,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
@@ -784,7 +815,7 @@ configure attributes =
         attributes
 
 
-updateField : (Field.Config -> Field.Config) -> Attribute
+updateField : (Field.Config -> Field.Config) -> Attribute msg
 updateField change =
     Attribute (\config -> { config | field = change config.field })
 
@@ -792,15 +823,15 @@ updateField change =
 {-| The label above the field, tied to the text input. Give every field a label,
 or hide it with `labelHidden`: it is the name that screen readers announce.
 -}
-label : String -> Attribute
-label value =
-    updateField (Field.setLabel value)
+label : String -> Attribute msg
+label given =
+    updateField (Field.setLabel given)
 
 
 {-| Keeps the label for screen readers but does not show it, for a field in a
 toolbar or a table row. Needs `label`.
 -}
-labelHidden : Attribute
+labelHidden : Attribute msg
 labelHidden =
     updateField Field.setLabelHidden
 
@@ -808,9 +839,9 @@ labelHidden =
 {-| A short help text below the field. It is linked to the input with
 `aria-describedby`, so screen readers read it together with the field.
 -}
-hint : String -> Attribute
-hint value =
-    updateField (Field.setHint value)
+hint : String -> Attribute msg
+hint given =
+    updateField (Field.setHint given)
 
 
 {-| An error message from your application, shown below the field and announced
@@ -821,9 +852,9 @@ text ("Invalid time"), that message is shown instead.
     TimePicker.error "Choose a cut-off time"
 
 -}
-error : String -> Attribute
-error value =
-    updateField (Field.setError (Just value))
+error : String -> Attribute msg
+error given =
+    updateField (Field.setError (Just given))
 
 
 {-| Like `error`, but takes a `Maybe`: `Nothing` means no error. Convenient when
@@ -832,16 +863,16 @@ the message lives in a `Maybe` in your model.
     TimePicker.errorMaybe model.cutoffError
 
 -}
-errorMaybe : Maybe String -> Attribute
-errorMaybe value =
-    updateField (Field.setError value)
+errorMaybe : Maybe String -> Attribute msg
+errorMaybe given =
+    updateField (Field.setError given)
 
 
 {-| Marks the field as required: an asterisk after the label, and
 `aria-required` on the input. The picker does not enforce it; when the time is
 missing, test `time` for `Nothing` yourself and pass an `error`.
 -}
-required : Attribute
+required : Attribute msg
 required =
     updateField (Field.setRequired True)
 
@@ -849,41 +880,41 @@ required =
 {-| Text shown after the label of a field that is not `required`, such as
 "(optional)". Default: none.
 -}
-optionalText : String -> Attribute
-optionalText value =
-    updateField (Field.setOptionalText value)
+optionalText : String -> Attribute msg
+optionalText given =
+    updateField (Field.setOptionalText given)
 
 
 {-| The text shown in the empty field. Default: the format hint of the locale,
 `hh:mm` in English.
 -}
-placeholder : String -> Attribute
-placeholder value =
-    Attribute (\config -> { config | placeholder = Just value })
+placeholder : String -> Attribute msg
+placeholder given =
+    Attribute (\config -> { config | placeholder = Just given })
 
 
 {-| Disables the field and its clock button: the text cannot be focused or
 changed and the list cannot be opened. Takes a `Bool` so that it can come
 straight from your model, for example while a form is saving. Default: `False`.
 -}
-disabled : Bool -> Attribute
-disabled value =
-    Attribute (\config -> { config | disabled = value })
+disabled : Bool -> Attribute msg
+disabled given =
+    Attribute (\config -> { config | disabled = given })
 
 
 {-| The time can be seen, selected and copied but not changed, and the list does
 not open. Unlike `disabled`, the field can still be focused. Default: `False`.
 -}
-readOnly : Bool -> Attribute
-readOnly value =
-    Attribute (\config -> { config | readOnly = value })
+readOnly : Bool -> Attribute msg
+readOnly given =
+    Attribute (\config -> { config | readOnly = given })
 
 
 {-| Shows a small × button in the field while it has text; it empties the field
 and puts the focus back in it. The button is not in the tab order, and its
 accessible name is "Clear field". Default: no button.
 -}
-clearable : Attribute
+clearable : Attribute msg
 clearable =
     Attribute (\config -> { config | clearable = True })
 
@@ -891,9 +922,9 @@ clearable =
 {-| The size of the field, a `Size` from [Klar.Theme](Klar-Theme).
 Default: `Medium`.
 -}
-size : Size -> Attribute
-size value =
-    Attribute (\config -> { config | size = value })
+size : Size -> Attribute msg
+size given =
+    Attribute (\config -> { config | size = given })
 
 
 {-| The language of the built-in text: placeholder, button and list labels, the
@@ -901,9 +932,9 @@ size value =
 24-hour `hh:mm`. The default is `Locale.default`, which is English; see
 [Klar.Locale](Klar-Locale).
 -}
-locale : Locale -> Attribute
-locale value =
-    Attribute (\config -> { config | locale = value })
+locale : Locale -> Attribute msg
+locale given =
+    Attribute (\config -> { config | locale = given })
 
 
 {-| The earliest time that can be chosen or typed. The list starts at the first
@@ -913,9 +944,9 @@ cannot be before" followed by the limit. Default: 00:00.
     TimePicker.min { hour = 8, minute = 0 }
 
 -}
-min : Time -> Attribute
-min value =
-    Attribute (\config -> { config | min = Just value })
+min : Time -> Attribute msg
+min given =
+    Attribute (\config -> { config | min = Just given })
 
 
 {-| The latest time that can be chosen or typed. The list stops at the last time
@@ -925,9 +956,9 @@ after" followed by the limit. Default: 23:59.
     TimePicker.max { hour = 16, minute = 0 }
 
 -}
-max : Time -> Attribute
-max value =
-    Attribute (\config -> { config | max = Just value })
+max : Time -> Attribute msg
+max given =
+    Attribute (\config -> { config | max = Just given })
 
 
 {-| Minutes between the times in the list, from 1 to 60 (other numbers are cut to
@@ -938,16 +969,16 @@ The times are multiples of the step counted from midnight, so a step that divide
 between the steps are accepted whatever the step is.
 
 -}
-step : Int -> Attribute
-step value =
-    Attribute (\config -> { config | step = Basics.max 1 (Basics.min 60 value) })
+step : Int -> Attribute msg
+step given =
+    Attribute (\config -> { config | step = Basics.max 1 (Basics.min 60 given) })
 
 
 {-| Aligns the right edge of the list with the right edge of the field, instead
 of the left edges. Use it for a field near the right side of the page, so that
 the list does not run out of the window.
 -}
-alignEnd : Attribute
+alignEnd : Attribute msg
 alignEnd =
     Attribute (\config -> { config | alignEnd = True })
 
@@ -955,9 +986,9 @@ alignEnd =
 {-| The `name` attribute of the text input, for a plain HTML `form`. The value
 that is sent is the text in the field. Default: none.
 -}
-name : String -> Attribute
-name value =
-    Attribute (\config -> { config | name = Just value })
+name : String -> Attribute msg
+name given =
+    Attribute (\config -> { config | name = Just given })
 
 
 rulesOf : Config -> Rules
@@ -1006,7 +1037,7 @@ is open. The first argument wraps the picker's messages in one of yours.
         model.cutoff
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 view toMsg attributes (State s) =
     let
         config =
@@ -1042,6 +1073,10 @@ view toMsg attributes (State s) =
 
         showClear =
             config.clearable && shown /= "" && not inactive
+
+        -- With no time to offer there is no list, and nothing to point at.
+        hasOptions =
+            not (List.isEmpty (optionsOf rules))
 
         keys =
             if s.open then
@@ -1099,7 +1134,7 @@ view toMsg attributes (State s) =
                            , Attr.attribute "aria-haspopup" "listbox"
                            , Attr.attribute "aria-autocomplete" "list"
                            , Attr.attribute "aria-expanded" (boolString (s.open && not inactive))
-                           , Internal.attrIf (s.open && not inactive) (Attr.attribute "aria-controls" (listId s.id))
+                           , Internal.attrIf (s.open && not inactive && hasOptions) (Attr.attribute "aria-controls" (listId s.id))
                            , case ( s.open, s.highlight ) of
                                 ( True, Just minutes ) ->
                                     Attr.attribute "aria-activedescendant" (optionId s.id minutes)
@@ -1138,7 +1173,7 @@ view toMsg attributes (State s) =
                   else
                     Html.text ""
                 , Html.button
-                    [ Internal.cls [ "klar-datepicker__button" ]
+                    [ Internal.cls [ "klar-timepicker__button" ]
                     , Attr.type_ "button"
                     , Attr.id (s.id ++ "-button")
                     , Attr.tabindex -1
@@ -1227,8 +1262,8 @@ viewPopup toMsg config rules words s =
 
 
 boolString : Bool -> String
-boolString value =
-    if value then
+boolString given =
+    if given then
         "true"
 
     else

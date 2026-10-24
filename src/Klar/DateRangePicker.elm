@@ -1,13 +1,13 @@
 module Klar.DateRangePicker exposing
     ( view
     , State, init, Msg, update
-    , range, from, to, isInvalid, setRange, clear, setText, validate
+    , value, from, to, isValid, text, setValue, clear, setText, setLimits
     , isOpen, open, close, visibleMonth
     , Preset, preset, presets, noPresets
     , Attribute, today, min, max, maxRangeDays, disabledWhen
     , markers, weekNumbers, alignEnd
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , size, locale, disabled, readOnly, clearable
+    , placeholder, size, locale, disabled, readOnly, clearable
     )
 
 {-| A period field: a from date and a to date in one control, with one calendar
@@ -15,7 +15,7 @@ that shows two months and a list of quick choices.
 
 Use when: the user chooses a period, as in reports, filters and bookings.
 Do not use when: the user enters a single date (as `Klar.DatePicker`).
-Quick path: `init`, `update`, `view`, `range`
+Quick path: `init`, `update`, `view`, `value`
 
 For a single date see [Klar.DatePicker](Klar-DatePicker).
 
@@ -44,11 +44,11 @@ For a single date see [Klar.DatePicker](Klar-DatePicker).
         model.period
 
     -- read
-    DateRangePicker.range model.period   -- Maybe ( Date, Date )
+    DateRangePicker.value model.period   -- Maybe ( Date, Date )
 
 Here `model.today` is a [Klar.Date](Klar-Date) value that the application keeps;
 the library never reads the clock. The state holds the period, and there are no
-out-messages: compare `range` before and after `update` to react to a change.
+out-messages: compare `value` before and after `update` to react to a change.
 
 Choose the period with two clicks in the calendar. The choice applies on the
 second click and the popup closes. Between the clicks the days from the first
@@ -67,13 +67,13 @@ tooltip then gives the reason. Without `today` the list is empty. Give your own
 with `presets`, or turn them off with `noPresets`.
 
 The two fields take typed dates like [Klar.DatePicker](Klar-DatePicker); the
-forms it understands are listed there. `range` is `Just` only when both dates
+forms it understands are listed there. `value` is `Just` only when both dates
 are valid and `from` is not after `to`; `from` and `to` give the single dates,
 also when the period as a whole is not valid yet. When a date or the period is
 not valid, the field shows a message such as "The start date cannot be after the
-end date" or "The period cannot be longer than 90 days", and `isInvalid` is
-`True`. A form should call `validate` when it is submitted, because the user may
-never have left the fields.
+end date" or "The period cannot be longer than 90 days", and `isValid` is
+`False`. A form should call `setLimits` when it is submitted, because the user
+may never have left the fields.
 
 Keyboard: `ArrowDown` or `Alt+ArrowDown` in either text field opens the
 calendar. So does `Enter`, unless the user has just typed something that was not
@@ -103,7 +103,7 @@ text comes from `locale`; the default is English.
 
 # The period
 
-@docs range, from, to, isInvalid, setRange, clear, setText, validate
+@docs value, from, to, isValid, text, setValue, clear, setText, setLimits
 
 
 # The calendar popup
@@ -133,7 +133,7 @@ text comes from `locale`; the default is English.
 
 # Look and behavior
 
-@docs size, locale, disabled, readOnly, clearable
+@docs placeholder, size, locale, disabled, readOnly, clearable
 
 -}
 
@@ -142,7 +142,7 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Button as Button
 import Klar.Calendar as Calendar
-import Klar.Calendar.Parse as Parse exposing (Problem(..), Rules)
+import Klar.Calendar.Parse as Parse exposing (Bounds, Problem(..), Reading, Rules)
 import Klar.Calendar.Popup as Popup
 import Klar.Calendar.Util as Util
 import Klar.Date as Date exposing (Date)
@@ -161,7 +161,7 @@ import Klar.Theme as Theme exposing (Size(..))
 {-| The state of one period field: the accepted from and to dates, any text
 still being typed in the two inputs, whether the calendar is open, and the
 calendar itself. Make it with `init`, keep it in your model, and read it with
-`range`, `from`, `to` and `isInvalid`.
+`value`, `from`, `to` and `isValid`.
 -}
 type State
     = State Inner
@@ -209,8 +209,8 @@ when both dates are valid, `from` is not after `to`, and the period is not
 longer than `maxRangeDays`. While a field is empty or unreadable, or the period
 is rejected, it is `Nothing`.
 -}
-range : State -> Maybe ( Date, Date )
-range (State s) =
+value : State -> Maybe ( Date, Date )
+value (State s) =
     case ( s.from, s.to, s.rangeProblem ) of
         ( Just start, Just finish, Nothing ) ->
             Just ( start, finish )
@@ -236,19 +236,34 @@ to (State s) =
     s.to
 
 
-{-| `True` when the last attempt to read the fields failed: a date is not a date,
-lies outside `min` and `max`, or is excluded by `disabledWhen`, or the period is
-reversed or longer than `maxRangeDays`. The field shows the first matching
-message.
+{-| `False` when the last attempt to read the fields failed: a date is not a
+date, lies outside `min` and `max`, or is excluded by `disabledWhen`, or the
+period is reversed or longer than `maxRangeDays`. The field shows the first
+matching message. Empty fields are valid; whether a period is required is for
+the application to say.
 
-Text is only tried when it looks complete (ten characters, such as `2026-10-20`
-or `20.10.2026`), when the user leaves a field or presses `Enter`, and when you
-call `validate`, so call `validate` first when you check this on submit.
+Text is only tried when it is complete (a day, a month and a four-digit year,
+such as `1.2.2026`, `20.10.2026` or `2026-10-20`), when the user leaves a field
+or presses `Enter`, and when you call `setLimits`, so call `setLimits` first
+when you check this on submit.
 
 -}
-isInvalid : State -> Bool
-isInvalid (State s) =
-    s.fromProblem /= Nothing || s.toProblem /= Nothing || s.rangeProblem /= Nothing
+isValid : State -> Bool
+isValid (State s) =
+    s.fromProblem == Nothing && s.toProblem == Nothing && s.rangeProblem == Nothing
+
+
+{-| The text in the two inputs that has not been replaced by a formatted date
+yet: text the user is still typing, or text that could not be read. Each part
+is empty when its input shows an accepted date or nothing. Together with `from`
+and `to` it tells an empty input from garbage, as
+[DatePicker.text](Klar-DatePicker#text) does for one date.
+-}
+text : State -> { from : String, to : String }
+text (State s) =
+    { from = Maybe.withDefault "" s.fromDraft
+    , to = Maybe.withDefault "" s.toDraft
+    }
 
 
 {-| `True` while the calendar popup is open. A field that is `disabled` or
@@ -272,13 +287,14 @@ visibleMonth (State s) =
 
 {-| Sets the period, or empties both fields with `Nothing`. The two days may be
 given in either order, the earlier one becoming the from date. Text that was
-being typed is dropped, and the period is not checked against the limits.
+being typed is dropped, and the period is not checked against the limits until
+`setLimits` is called.
 
-    DateRangePicker.setRange (Just ( quarterStart, quarterEnd )) model.period
+    DateRangePicker.setValue (Just ( quarterStart, quarterEnd )) model.period
 
 -}
-setRange : Maybe ( Date, Date ) -> State -> State
-setRange maybeRange (State s) =
+setValue : Maybe ( Date, Date ) -> State -> State
+setValue maybeRange (State s) =
     let
         ( start, finish ) =
             case maybeRange of
@@ -304,16 +320,16 @@ setRange maybeRange (State s) =
         }
 
 
-{-| Empties both fields. The same as `setRange Nothing`.
+{-| Empties both fields. The same as `setValue Nothing`.
 -}
 clear : State -> State
 clear =
-    setRange Nothing
+    setValue Nothing
 
 
 {-| Fills the two fields with text as if the user had typed it. The texts are
 read when the user leaves a field or presses `Enter`, or when you call
-`validate`; until then `from`, `to` and `range` keep their old values.
+`setLimits`; until then `from`, `to` and `value` keep their old values.
 
     DateRangePicker.setText { from = "2026-10-01", to = "2026-10-31" } model.period
 
@@ -330,34 +346,83 @@ setText texts (State s) =
         }
 
 
-{-| Reads the pending text of both fields now, as if the user had left them:
-readable text becomes the date and is shown formatted, text that cannot be read
-sets the problem that `isInvalid` reports. Pass the same attributes as to
-`view`, because `today`, the limits, `maxRangeDays` and the locale decide what is
-valid.
+{-| Reads both fields again with the limits of these attributes, as if the user
+had left them: pending text that can be read becomes the date and is shown
+formatted, and text that cannot sets the problem that `isValid` reports. A date
+that was accepted before (or set with `setValue`) and that the limits no longer
+allow keeps its text in its input, with the message; it is never moved into the
+limits. Pass the same attributes as to `view`, because `today`, the limits,
+`maxRangeDays` and the locale decide what is valid.
 
-Use it when a form is submitted: the user may never have left the fields.
+Use it when a form is submitted, since the user may never have left the fields,
+and after the limits change.
 
-    DateRangePicker.validate attributes model.period
+    DateRangePicker.setLimits periodLimits model.period
 
 -}
-validate : List Attribute -> State -> State
-validate attributes (State s) =
+setLimits : List (Attribute msg) -> State -> State
+setLimits attributes (State s) =
     let
-        check =
-            checkOf (configure attributes)
+        config =
+            configure attributes
+
+        rules =
+            rulesOf config
+
+        readings =
+            pendingReadings rules s
+
+        committed =
+            s
+                |> commit FromSide config.maxRangeDays readings.from
+                |> commit ToSide config.maxRangeDays readings.to
+
+        recheck side inner =
+            case ( draftOf side inner, dateOf side inner ) of
+                ( Nothing, Just accepted ) ->
+                    case Parse.check rules accepted of
+                        Ok _ ->
+                            inner
+
+                        Err problem ->
+                            setProblem side (Format.date config.locale accepted) problem inner
+
+                _ ->
+                    inner
     in
-    State (s |> commit FromSide check |> commit ToSide check)
+    State
+        (committed
+            |> recheck FromSide
+            |> recheck ToSide
+            |> checkPeriod config.maxRangeDays
+        )
 
 
 {-| Opens the calendar and moves the focus into it, after reading any pending
 text. It opens on the from date, or else on the day given with `today`, kept
 inside `min` and `max`. Pass the same attributes as to `view`: the limits come
-from them.
+from them. A field that is `disabled` or `readOnly` stays closed.
 -}
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 open attributes (State s) =
-    openPopup (checkOf (configure attributes)) s
+    let
+        config =
+            configure attributes
+    in
+    if config.disabled || config.readOnly then
+        ( State s, Cmd.none )
+
+    else
+        openPopup (limitsOf config) (pendingReadings (rulesOf config) s) s
+
+
+{-| The pending texts of both fields, read with the rules.
+-}
+pendingReadings : Rules -> Inner -> Readings
+pendingReadings rules s =
+    { from = Parse.read rules (Maybe.withDefault "" s.fromDraft)
+    , to = Parse.read rules (Maybe.withDefault "" s.toDraft)
+    }
 
 
 {-| Closes the calendar, throws away a half-made choice, and gives the focus
@@ -377,23 +442,37 @@ type Side
     | ToSide
 
 
-{-| What the view knows about the limits when it sends a message.
+{-| What the view knows about the limits when it sends a message: plain data,
+the same idea as the bounds of `Klar.Calendar`.
 -}
-type alias Check =
-    { rules : Rules
+type alias Limits =
+    { bounds : Bounds
     , maxDays : Maybe Int
+    }
+
+
+{-| The texts of the two inputs, read in the view with the rules of the field.
+-}
+type alias Readings =
+    { from : Reading
+    , to : Reading
     }
 
 
 {-| The messages of a period field. Wrap them in one constructor of your own
 `Msg`, give that constructor to `view`, and pass what comes back to `update`.
+
+A message holds plain data only (the view reads the texts with the field's
+rules and sends what it found), so messages can be compared with `==`, logged
+and kept in the history of the Elm debugger.
+
 -}
 type Msg
-    = Typed Side Check String
-    | Blurred Side Check
-    | Entered Side Check
-    | OpenRequested Check
-    | Toggled Check
+    = Typed Side Limits Reading
+    | Blurred Side Limits Reading
+    | Entered Side Limits Readings
+    | OpenRequested Limits Readings
+    | Toggled Limits Readings
     | Closed
     | Left
     | Escaped
@@ -419,14 +498,14 @@ your own `Msg`.
 update : Msg -> State -> ( State, Cmd Msg )
 update msg (State s) =
     case msg of
-        Typed side check typed ->
+        Typed side limits reading ->
             let
                 draft =
-                    setDraft side typed s
+                    setDraft side reading.text s
             in
             ( State
-                (if Parse.isComplete typed then
-                    accept side check draft
+                (if Parse.isComplete reading.text then
+                    accept side limits.maxDays reading draft
 
                  else
                     draft
@@ -434,25 +513,25 @@ update msg (State s) =
             , Cmd.none
             )
 
-        Blurred side check ->
-            ( State (commit side check s), Cmd.none )
+        Blurred side limits reading ->
+            ( State (commit side limits.maxDays reading s), Cmd.none )
 
-        Entered side check ->
+        Entered side limits readings ->
             if draftOf side s /= Nothing && problemOf side s == Nothing then
-                ( State (commit side check s), Cmd.none )
+                ( State (commit side limits.maxDays (readingOf side readings) s), Cmd.none )
 
             else
-                openPopup check s
+                openPopup limits readings s
 
-        OpenRequested check ->
-            openPopup check s
+        OpenRequested limits readings ->
+            openPopup limits readings s
 
-        Toggled check ->
+        Toggled limits readings ->
             if s.open then
                 closePopup s
 
             else
-                openPopup check s
+                openPopup limits readings s
 
         Closed ->
             closePopup s
@@ -522,6 +601,26 @@ problemOf side s =
             s.toProblem
 
 
+dateOf : Side -> Inner -> Maybe Date
+dateOf side s =
+    case side of
+        FromSide ->
+            s.from
+
+        ToSide ->
+            s.to
+
+
+readingOf : Side -> Readings -> Reading
+readingOf side readings =
+    case side of
+        FromSide ->
+            readings.from
+
+        ToSide ->
+            readings.to
+
+
 setDraft : Side -> String -> Inner -> Inner
 setDraft side typed s =
     case side of
@@ -532,20 +631,30 @@ setDraft side typed s =
             { s | toDraft = Just typed, toProblem = Nothing, rangeProblem = Nothing }
 
 
-{-| Reads a field's text and keeps what it says, leaving the text as typed.
+{-| A date that the limits no longer allow: its text stays in its input, with
+the problem, and the side has no accepted date.
 -}
-accept : Side -> Check -> Inner -> Inner
-accept side check s =
-    case draftOf side s of
+setProblem : Side -> String -> Problem -> Inner -> Inner
+setProblem side shown problem s =
+    case side of
+        FromSide ->
+            { s | from = Nothing, fromDraft = Just shown, fromProblem = Just problem }
+
+        ToSide ->
+            { s | to = Nothing, toDraft = Just shown, toProblem = Just problem }
+
+
+{-| Keeps what the reading of a field's text says, leaving the text as typed. A
+reading of another text (the field changed after the view made it) is ignored.
+-}
+accept : Side -> Maybe Int -> Reading -> Inner -> Inner
+accept side maxDays reading s =
+    case Parse.apply (draftOf side s) reading of
         Nothing ->
             s
 
-        Just typed ->
-            let
-                result =
-                    Parse.date check.rules typed
-            in
-            checkPeriod check.maxDays
+        Just result ->
+            checkPeriod maxDays
                 (case ( side, result ) of
                     ( FromSide, Ok maybeDate ) ->
                         { s | from = maybeDate, fromProblem = Nothing }
@@ -563,13 +672,13 @@ accept side check s =
 
 {-| Like `accept`, and replaces the text with the formatted date.
 -}
-commit : Side -> Check -> Inner -> Inner
-commit side check s =
+commit : Side -> Maybe Int -> Reading -> Inner -> Inner
+commit side maxDays reading s =
     let
         accepted =
-            accept side check s
+            accept side maxDays reading s
     in
-    if problemOf side accepted == Nothing then
+    if problemOf side accepted == Nothing && Parse.apply (draftOf side s) reading /= Nothing then
         case side of
             FromSide ->
                 { accepted | fromDraft = Nothing }
@@ -606,11 +715,13 @@ checkPeriod maxDays s =
             { s | rangeProblem = Nothing }
 
 
-openPopup : Check -> Inner -> ( State, Cmd Msg )
-openPopup check s =
+openPopup : Limits -> Readings -> Inner -> ( State, Cmd Msg )
+openPopup limits readings s =
     let
         committed =
-            s |> commit FromSide check |> commit ToSide check
+            s
+                |> commit FromSide limits.maxDays readings.from
+                |> commit ToSide limits.maxDays readings.to
 
         target =
             (case committed.from of
@@ -618,9 +729,9 @@ openPopup check s =
                     start
 
                 Nothing ->
-                    Maybe.withDefault (Calendar.focusedDay committed.calendar) check.rules.today
+                    Maybe.withDefault (Calendar.focusedDay committed.calendar) limits.bounds.today
             )
-                |> Util.clampTo check.rules.min check.rules.max
+                |> Util.clampTo limits.bounds.min limits.bounds.max
 
         calendar =
             committed.calendar
@@ -682,7 +793,7 @@ toId id =
 {-| A setting of a period field. Make them with the functions below and pass a
 list to `view`, `validate` or `open`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -704,6 +815,7 @@ type alias Preset =
 
 type alias Config =
     { field : Field.Config
+    , placeholder : Maybe String
     , disabled : Bool
     , readOnly : Bool
     , clearable : Bool
@@ -721,10 +833,11 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
+        , placeholder = Nothing
         , disabled = False
         , readOnly = False
         , clearable = False
@@ -743,7 +856,7 @@ configure attributes =
         attributes
 
 
-updateField : (Field.Config -> Field.Config) -> Attribute
+updateField : (Field.Config -> Field.Config) -> Attribute msg
 updateField change =
     Attribute (\config -> { config | field = change config.field })
 
@@ -753,15 +866,15 @@ inputs, and each input adds "from date" or "to date" to it. Give every field a
 label, or hide it with `labelHidden`; without one the group is called "Choose
 period".
 -}
-label : String -> Attribute
-label value =
-    updateField (Field.setLabel value)
+label : String -> Attribute msg
+label given =
+    updateField (Field.setLabel given)
 
 
 {-| Keeps the label for screen readers but does not show it, for a field in a
 toolbar or a table row. Needs `label`.
 -}
-labelHidden : Attribute
+labelHidden : Attribute msg
 labelHidden =
     updateField Field.setLabelHidden
 
@@ -769,9 +882,9 @@ labelHidden =
 {-| A short help text below the field. It is linked to both inputs with
 `aria-describedby`, so screen readers read it together with the field.
 -}
-hint : String -> Attribute
-hint value =
-    updateField (Field.setHint value)
+hint : String -> Attribute msg
+hint given =
+    updateField (Field.setHint given)
 
 
 {-| An error message from your application, shown below the field and announced
@@ -783,9 +896,9 @@ message is shown instead.
     DateRangePicker.error "Choose a report period"
 
 -}
-error : String -> Attribute
-error value =
-    updateField (Field.setError (Just value))
+error : String -> Attribute msg
+error given =
+    updateField (Field.setError (Just given))
 
 
 {-| Like `error`, but takes a `Maybe`: `Nothing` means no error. Convenient when
@@ -794,16 +907,16 @@ the message lives in a `Maybe` in your model.
     DateRangePicker.errorMaybe model.periodError
 
 -}
-errorMaybe : Maybe String -> Attribute
-errorMaybe value =
-    updateField (Field.setError value)
+errorMaybe : Maybe String -> Attribute msg
+errorMaybe given =
+    updateField (Field.setError given)
 
 
 {-| Marks the field as required: an asterisk after the label, and
 `aria-required` on both inputs. The picker does not enforce it; when the period
 is missing, test `range` for `Nothing` yourself and pass an `error`.
 -}
-required : Attribute
+required : Attribute msg
 required =
     updateField (Field.setRequired True)
 
@@ -811,34 +924,42 @@ required =
 {-| Text shown after the label of a field that is not `required`, such as
 "(optional)". Default: none.
 -}
-optionalText : String -> Attribute
-optionalText value =
-    updateField (Field.setOptionalText value)
+optionalText : String -> Attribute msg
+optionalText given =
+    updateField (Field.setOptionalText given)
+
+
+{-| The text shown in the two empty inputs. Default: the format hint of the
+locale, `yyyy-mm-dd` in English.
+-}
+placeholder : String -> Attribute msg
+placeholder given =
+    Attribute (\config -> { config | placeholder = Just given })
 
 
 {-| Disables the field and its calendar button: the two inputs cannot be focused
 or changed and the calendar cannot be opened. Takes a `Bool` so that it can come
 straight from your model, for example while a form is saving. Default: `False`.
 -}
-disabled : Bool -> Attribute
-disabled value =
-    Attribute (\config -> { config | disabled = value })
+disabled : Bool -> Attribute msg
+disabled given =
+    Attribute (\config -> { config | disabled = given })
 
 
 {-| The period can be seen, selected and copied but not changed, and the
 calendar does not open. Unlike `disabled`, the inputs can still be focused.
 Default: `False`.
 -}
-readOnly : Bool -> Attribute
-readOnly value =
-    Attribute (\config -> { config | readOnly = value })
+readOnly : Bool -> Attribute msg
+readOnly given =
+    Attribute (\config -> { config | readOnly = given })
 
 
 {-| Shows a small × button in the field while one of the inputs has text; it
 empties both inputs and puts the focus back in the first. The button is not in
 the tab order, and its accessible name is "Clear field". Default: no button.
 -}
-clearable : Attribute
+clearable : Attribute msg
 clearable =
     Attribute (\config -> { config | clearable = True })
 
@@ -846,9 +967,9 @@ clearable =
 {-| The size of the field, a `Size` from [Klar.Theme](Klar-Theme).
 Default: `Medium`.
 -}
-size : Size -> Attribute
-size value =
-    Attribute (\config -> { config | size = value })
+size : Size -> Attribute msg
+size given =
+    Attribute (\config -> { config | size = given })
 
 
 {-| The language of the built-in text (placeholder, button labels, quick choices,
@@ -856,9 +977,9 @@ error messages, names of months and weekdays) and the format in which the fields
 show a date: `2026-10-20` in English, `20.10.2026` in Norwegian. Default:
 `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
 -}
-locale : Locale -> Attribute
-locale value =
-    Attribute (\config -> { config | locale = value })
+locale : Locale -> Attribute msg
+locale given =
+    Attribute (\config -> { config | locale = given })
 
 
 {-| Today, supplied by the application (the library never reads the clock). It
@@ -871,9 +992,9 @@ understood, and an empty field opens its calendar on January 2000 (or on the
 nearest month inside `min` and `max`).
 
 -}
-today : Date -> Attribute
-today value =
-    Attribute (\config -> { config | today = Just value })
+today : Date -> Attribute msg
+today given =
+    Attribute (\config -> { config | today = Just given })
 
 
 {-| The earliest date that can be chosen or typed. A typed date before it shows
@@ -881,9 +1002,9 @@ today value =
 earlier days, and the quick choices are cut to it (one that ends before it is
 disabled). Default: no limit.
 -}
-min : Date -> Attribute
-min value =
-    Attribute (\config -> { config | min = Just value })
+min : Date -> Attribute msg
+min given =
+    Attribute (\config -> { config | min = Just given })
 
 
 {-| The latest date that can be chosen or typed. A typed date after it shows
@@ -891,9 +1012,9 @@ min value =
 later days, and the quick choices are cut to it (one that starts after it is
 disabled). Default: no limit.
 -}
-max : Date -> Attribute
-max value =
-    Attribute (\config -> { config | max = Just value })
+max : Date -> Attribute msg
+max given =
+    Attribute (\config -> { config | max = Just given })
 
 
 {-| Dates that cannot be used, such as weekends or public holidays. The calendar
@@ -904,7 +1025,7 @@ and disabled when no day of it is allowed. Default: every date is allowed.
     DateRangePicker.disabledWhen (\day -> Date.weekday day >= 6)
 
 -}
-disabledWhen : (Date -> Bool) -> Attribute
+disabledWhen : (Date -> Bool) -> Attribute msg
 disabledWhen predicate =
     Attribute (\config -> { config | disabledWhen = predicate })
 
@@ -918,23 +1039,23 @@ cut to the limits) are disabled. Default: no limit.
     DateRangePicker.maxRangeDays 90
 
 -}
-maxRangeDays : Int -> Attribute
-maxRangeDays value =
-    Attribute (\config -> { config | maxRangeDays = Just value })
+maxRangeDays : Int -> Attribute msg
+maxRangeDays given =
+    Attribute (\config -> { config | maxRangeDays = Just given })
 
 
 {-| Marks on days in the calendar, such as deliveries or deadlines. Make them
 with `Calendar.dot` and `Calendar.count` from [Klar.Calendar](Klar-Calendar).
 Default: none.
 -}
-markers : List Calendar.Marker -> Attribute
-markers value =
-    Attribute (\config -> { config | markers = value })
+markers : List Calendar.Marker -> Attribute msg
+markers given =
+    Attribute (\config -> { config | markers = given })
 
 
 {-| Shows ISO 8601 week numbers in the calendar. Default: off.
 -}
-weekNumbers : Attribute
+weekNumbers : Attribute msg
 weekNumbers =
     Attribute (\config -> { config | weekNumbers = True })
 
@@ -943,7 +1064,7 @@ weekNumbers =
 field, instead of the left edges. Use it for a field near the right side of the
 page, so that the popup does not run out of the window.
 -}
-alignEnd : Attribute
+alignEnd : Attribute msg
 alignEnd =
     Attribute (\config -> { config | alignEnd = True })
 
@@ -958,9 +1079,9 @@ when the field has no `today`, and follow the same rules as the standard ones
         ]
 
 -}
-presets : List Preset -> Attribute
-presets value =
-    Attribute (\config -> { config | presets = CustomPresets value })
+presets : List Preset -> Attribute msg
+presets given =
+    Attribute (\config -> { config | presets = CustomPresets given })
 
 
 {-| A quick choice with a label and a period. The two days may be given in
@@ -972,31 +1093,37 @@ nothing is left or what is left is longer than `maxRangeDays`.
 
 -}
 preset : String -> Date -> Date -> Preset
-preset text start finish =
-    { label = text, from = Util.earlier start finish, to = Util.later start finish }
+preset name start finish =
+    { label = name, from = Util.earlier start finish, to = Util.later start finish }
 
 
 {-| No list of quick choices: only the calendar is shown.
 -}
-noPresets : Attribute
+noPresets : Attribute msg
 noPresets =
     Attribute (\config -> { config | presets = CustomPresets [] })
 
 
-checkOf : Config -> Check
-checkOf config =
-    { rules =
-        { locale = config.locale
-        , today = config.today
-        , min = config.min
-        , max = config.max
-        , isDisabled = config.disabledWhen
-        }
+rulesOf : Config -> Rules
+rulesOf config =
+    { locale = config.locale
+    , today = config.today
+    , min = config.min
+    , max = config.max
+    , isDisabled = config.disabledWhen
+    }
+
+
+limitsOf : Config -> Limits
+limitsOf config =
+    { bounds = Parse.boundsOf (rulesOf config)
     , maxDays = config.maxRangeDays
     }
 
 
-calendarAttributes : Config -> List Calendar.Attribute
+{-| The attributes of the calendar in the popup. It has no annotation, so that it
+fits the type of the calendar's attributes whatever their type parameters are.
+-}
 calendarAttributes config =
     List.filterMap identity
         [ Maybe.map Calendar.today config.today
@@ -1211,14 +1338,37 @@ argument wraps the picker's messages in one of yours.
         model.period
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 view toMsg attributes (State s) =
     let
         config =
             configure attributes
 
-        check =
-            checkOf config
+        rules =
+            rulesOf config
+
+        limits =
+            limitsOf config
+
+        -- The texts are read where the rules are known: here, at the moment of
+        -- the event (the input's own text), so a message holds plain data. The
+        -- other input is read from the state: the user is not typing in it.
+        pending =
+            pendingReadings rules s
+
+        readingsWith side typed =
+            case side of
+                FromSide ->
+                    { pending | from = Parse.read rules typed }
+
+                ToSide ->
+                    { pending | to = Parse.read rules typed }
+
+        isOpen_ =
+            s.open && not inactive
+
+        placeholderText =
+            Maybe.withDefault words.placeholder config.placeholder
 
         words =
             strings config.locale
@@ -1295,7 +1445,7 @@ view toMsg attributes (State s) =
         groupLabel =
             Maybe.withDefault words.dialog config.field.label
 
-        input side shown placeholderText extra =
+        input side shown extra =
             Html.input
                 (extra
                     ++ [ Internal.cls [ "klar-input__control", "klar-daterange__control" ]
@@ -1307,16 +1457,16 @@ view toMsg attributes (State s) =
                        , Attr.attribute "autocomplete" "off"
                        , Attr.attribute "aria-haspopup" "dialog"
                        , Attr.attribute "aria-keyshortcuts" "Alt+ArrowDown"
-                       , Events.onInput (\typed -> toMsg (Typed side check typed))
-                       , Events.onBlur (toMsg (Blurred side check))
+                       , Events.onInput (\typed -> toMsg (Typed side limits (Parse.read rules typed)))
+                       , Popup.onBlurValue (\typed -> toMsg (Blurred side limits (Parse.read rules typed)))
                        , if inactive then
                             Internal.noAttr
 
                          else
-                            Internal.onKeys
-                                [ ( "ArrowDown", toMsg (OpenRequested check) )
-                                , ( "Alt+ArrowDown", toMsg (OpenRequested check) )
-                                , ( "Enter", toMsg (Entered side check) )
+                            Popup.onFieldKeys
+                                [ ( "ArrowDown", \typed -> toMsg (OpenRequested limits (readingsWith side typed)) )
+                                , ( "Alt+ArrowDown", \typed -> toMsg (OpenRequested limits (readingsWith side typed)) )
+                                , ( "Enter", \typed -> toMsg (Entered side limits (readingsWith side typed)) )
                                 ]
                        ]
                 )
@@ -1351,14 +1501,12 @@ view toMsg attributes (State s) =
                 ]
                 [ input FromSide
                     fromShown
-                    words.placeholder
                     (Field.controlAttributes field
                         ++ [ Attr.attribute "aria-label" (groupLabel ++ ", " ++ words.fromDate) ]
                     )
                 , Html.span [ Internal.cls [ "klar-daterange__separator" ], Attr.attribute "aria-hidden" "true" ] [ Html.text "–" ]
                 , input ToSide
                     toShown
-                    words.placeholder
                     (toControlAttributes ++ [ Attr.attribute "aria-label" (groupLabel ++ ", " ++ words.toDate) ])
                 , if showClear then
                     Html.button
@@ -1373,20 +1521,20 @@ view toMsg attributes (State s) =
                   else
                     Html.text ""
                 , Html.button
-                    [ Internal.cls [ "klar-datepicker__button" ]
+                    [ Internal.cls [ "klar-daterange__button" ]
                     , Attr.type_ "button"
                     , Attr.id (s.id ++ "-button")
                     , Attr.tabindex -1
                     , Attr.attribute "aria-label" words.openCalendar
                     , Attr.attribute "aria-haspopup" "dialog"
-                    , Attr.attribute "aria-expanded" (boolString s.open)
-                    , Internal.attrIf s.open (Attr.attribute "aria-controls" (s.id ++ "-popup"))
+                    , Attr.attribute "aria-expanded" (boolString isOpen_)
+                    , Internal.attrIf isOpen_ (Attr.attribute "aria-controls" (s.id ++ "-popup"))
                     , Attr.disabled inactive
-                    , Events.onClick (toMsg (Toggled check))
+                    , Events.onClick (toMsg (Toggled limits pending))
                     ]
                     [ Icon.view Icon.calendar ]
                 ]
-            , if s.open && not inactive then
+            , if isOpen_ then
                 viewPopup toMsg config words s
 
               else
@@ -1488,8 +1636,8 @@ daysText lang n =
 
 
 boolString : Bool -> String
-boolString value =
-    if value then
+boolString given =
+    if given then
         "true"
 
     else

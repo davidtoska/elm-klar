@@ -403,12 +403,12 @@ monthTitle locale ( year, month ) =
 
 {-| Every date field on the page: its key, the locale it insists on (if any), its
 attributes and its starting state. The attributes are used for both `view` and
-the starting `validate`.
+the starting `setLimits`.
 -}
 type alias DateDemo =
     { key : String
     , fixed : Maybe Locale
-    , attributes : List DatePicker.Attribute
+    , attributes : List (DatePicker.Attribute Msg)
     , prepare : DatePicker.State -> DatePicker.State
     }
 
@@ -420,17 +420,17 @@ demoDates =
             { key = key, fixed = Nothing, attributes = attributes, prepare = identity }
 
         withDate key attributes day =
-            { key = key, fixed = Nothing, attributes = attributes, prepare = DatePicker.setDate (Just day) }
+            { key = key, fixed = Nothing, attributes = attributes, prepare = DatePicker.setValue (Just day) }
 
         typed key attributes typedText =
             { key = key
             , fixed = Nothing
             , attributes = attributes
-            , prepare = DatePicker.setText typedText >> DatePicker.validate attributes
+            , prepare = DatePicker.setText typedText >> DatePicker.setLimits attributes
             }
 
         norwegian key attributes day =
-            { key = key, fixed = Just Locale.nb, attributes = attributes, prepare = DatePicker.setDate (Just day) }
+            { key = key, fixed = Just Locale.nb, attributes = attributes, prepare = DatePicker.setValue (Just day) }
 
         base =
             [ DatePicker.today today ]
@@ -480,7 +480,7 @@ demoDates =
 type alias RangeDemo =
     { key : String
     , fixed : Maybe Locale
-    , attributes : List DateRangePicker.Attribute
+    , attributes : List (DateRangePicker.Attribute Msg)
     , prepare : DateRangePicker.State -> DateRangePicker.State
     }
 
@@ -492,17 +492,17 @@ demoRanges =
             { key = key, fixed = Nothing, attributes = attributes, prepare = identity }
 
         withRange key attributes start finish =
-            { key = key, fixed = Nothing, attributes = attributes, prepare = DateRangePicker.setRange (Just ( start, finish )) }
+            { key = key, fixed = Nothing, attributes = attributes, prepare = DateRangePicker.setValue (Just ( start, finish )) }
 
         typed key attributes typedTexts =
             { key = key
             , fixed = Nothing
             , attributes = attributes
-            , prepare = DateRangePicker.setText typedTexts >> DateRangePicker.validate attributes
+            , prepare = DateRangePicker.setText typedTexts >> DateRangePicker.setLimits attributes
             }
 
         norwegian key attributes start finish =
-            { key = key, fixed = Just Locale.nb, attributes = attributes, prepare = DateRangePicker.setRange (Just ( start, finish )) }
+            { key = key, fixed = Just Locale.nb, attributes = attributes, prepare = DateRangePicker.setValue (Just ( start, finish )) }
 
         base =
             [ DateRangePicker.today today ]
@@ -577,7 +577,7 @@ demoRanges =
 type alias TimeDemo =
     { key : String
     , fixed : Maybe Locale
-    , attributes : List TimePicker.Attribute
+    , attributes : List (TimePicker.Attribute Msg)
     , prepare : TimePicker.State -> TimePicker.State
     }
 
@@ -589,13 +589,13 @@ demoTimes =
             { key = key, fixed = Nothing, attributes = attributes, prepare = identity }
 
         withTime key attributes hour minute =
-            { key = key, fixed = Nothing, attributes = attributes, prepare = TimePicker.setTime (Just { hour = hour, minute = minute }) }
+            { key = key, fixed = Nothing, attributes = attributes, prepare = TimePicker.setValue (Just { hour = hour, minute = minute }) }
 
         typed key attributes typedText =
             { key = key
             , fixed = Nothing
             , attributes = attributes
-            , prepare = TimePicker.setText typedText >> TimePicker.validate attributes
+            , prepare = TimePicker.setText typedText >> TimePicker.setLimits attributes
             }
 
         opening =
@@ -634,7 +634,7 @@ demoTimes =
 type alias DateTimeDemo =
     { key : String
     , fixed : Maybe Locale
-    , attributes : List DateTimePicker.Attribute
+    , attributes : List (DateTimePicker.Attribute Msg)
     , prepare : DateTimePicker.State -> DateTimePicker.State
     }
 
@@ -649,14 +649,14 @@ demoDateTimes =
             { key = key
             , fixed = Nothing
             , attributes = attributes
-            , prepare = DateTimePicker.setDateTime (Just { date = day, time = { hour = hour, minute = minute } })
+            , prepare = DateTimePicker.setValue (Just { date = day, time = { hour = hour, minute = minute } })
             }
 
         norwegian key attributes day hour minute =
             { key = key
             , fixed = Just Locale.nb
             , attributes = attributes
-            , prepare = DateTimePicker.setDateTime (Just { date = day, time = { hour = hour, minute = minute } })
+            , prepare = DateTimePicker.setValue (Just { date = day, time = { hour = hour, minute = minute } })
             }
 
         base =
@@ -978,12 +978,12 @@ datePicker pageLocale model key =
 
 describeDate : Locale -> DatePicker.State -> String
 describeDate lang state =
-    case DatePicker.date state of
+    case DatePicker.value state of
         Just day ->
             "Value: " ++ Format.date lang day
 
         Nothing ->
-            if DatePicker.isInvalid state then
+            if not (DatePicker.isValid state) then
                 "Value: none (the text “" ++ DatePicker.text state ++ "” was not accepted)"
 
             else
@@ -1055,7 +1055,7 @@ rangePicker pageLocale model key =
 
 describeRange : Locale -> DateRangePicker.State -> String
 describeRange lang state =
-    case DateRangePicker.range state of
+    case DateRangePicker.value state of
         Just ( start, finish ) ->
             let
                 days =
@@ -1072,7 +1072,7 @@ describeRange lang state =
                 ++ ")"
 
         Nothing ->
-            if DateRangePicker.isInvalid state then
+            if not (DateRangePicker.isValid state) then
                 "Value: none (the period was not accepted)"
 
             else
@@ -1144,12 +1144,12 @@ timePicker pageLocale model key =
 
 describeTime : TimePicker.State -> String
 describeTime state =
-    case TimePicker.time state of
+    case TimePicker.value state of
         Just value ->
             "Value: " ++ TimePicker.toString value
 
         Nothing ->
-            if TimePicker.isInvalid state then
+            if not (TimePicker.isValid state) then
                 "Value: none (the text “" ++ TimePicker.text state ++ "” was not accepted)"
 
             else
@@ -1213,12 +1213,12 @@ dateTimePicker pageLocale model key =
 
 describeDateTime : Locale -> DateTimePicker.State -> String
 describeDateTime lang state =
-    case DateTimePicker.dateTime state of
+    case DateTimePicker.value state of
         Just value ->
             "Value: " ++ Format.date lang value.date ++ " " ++ TimePicker.toString value.time
 
         Nothing ->
-            if DateTimePicker.isInvalid state then
+            if not (DateTimePicker.isValid state) then
                 "Value: none (a part was not accepted)"
 
             else
@@ -1439,10 +1439,10 @@ DatePicker.view DueDateMsg
 -- states
 DatePicker.disabled True   -- cannot be focused or changed; takes a Bool, so it can come from your model
 DatePicker.readOnly True   -- can be focused and copied, not changed
-DatePicker.setDate (Just order.due) model.dueDate   -- fill the field from the application
+DatePicker.setValue (Just order.due) model.dueDate   -- fill the field from the application
 
 -- read
-DatePicker.date model.dueDate   -- Maybe Date"""
+DatePicker.value model.dueDate   -- Maybe Date"""
 
 
 datePastCode : String
@@ -1458,7 +1458,7 @@ datePastCode =
 
 dateInvalidCode : String
 dateInvalidCode =
-    """deliveryDate : Date -> List DatePicker.Attribute
+    """deliveryDate : Date -> List (DatePicker.Attribute msg)
 deliveryDate today =
     [ DatePicker.label "Delivery date"
     , DatePicker.today today
@@ -1469,7 +1469,7 @@ deliveryDate today =
 DatePicker.view DateMsg (deliveryDate model.today) model.date
 
 -- on submit: read the text the user has not left yet, then ask
-DatePicker.validate (deliveryDate model.today) model.date |> DatePicker.isInvalid   -- Bool
+DatePicker.setLimits (deliveryDate model.today) model.date |> DatePicker.isValid   -- Bool
 
 -- a missing date is an error of the application
 DatePicker.view DateMsg
@@ -1522,7 +1522,7 @@ DateRangePicker.view PeriodMsg
     model.period
 
 -- read
-DateRangePicker.range model.period   -- Maybe ( Date, Date )"""
+DateRangePicker.value model.period   -- Maybe ( Date, Date )"""
 
 
 rangeLimitsCode : String
@@ -1547,14 +1547,14 @@ DateRangePicker.view PeriodMsg
 
 rangeInvalidCode : String
 rangeInvalidCode =
-    """reportPeriod : Date -> List DateRangePicker.Attribute
+    """reportPeriod : Date -> List (DateRangePicker.Attribute msg)
 reportPeriod today =
     [ DateRangePicker.label "Report period", DateRangePicker.today today ]
 
 DateRangePicker.view PeriodMsg (reportPeriod model.today) model.period
 
 -- on submit: read the text the user has not left yet, then ask
-DateRangePicker.validate (reportPeriod model.today) model.period |> DateRangePicker.isInvalid   -- Bool
+DateRangePicker.setLimits (reportPeriod model.today) model.period |> DateRangePicker.isValid   -- Bool
 
 -- a missing period is an error of the application
 DateRangePicker.view PeriodMsg
@@ -1598,12 +1598,12 @@ TimePicker.view PickupMsg
     model.pickup
 
 -- read
-TimePicker.time model.pickup   -- Maybe { hour : Int, minute : Int }"""
+TimePicker.value model.pickup   -- Maybe { hour : Int, minute : Int }"""
 
 
 timeLimitsCode : String
 timeLimitsCode =
-    """pickupTime : List TimePicker.Attribute
+    """pickupTime : List (TimePicker.Attribute msg)
 pickupTime =
     [ TimePicker.label "Pick-up time"
     , TimePicker.hint "Opening hours are 08:00 to 16:00."
@@ -1614,7 +1614,7 @@ pickupTime =
 TimePicker.view PickupMsg pickupTime model.pickup
 
 -- on submit: read the text the user has not left yet, then ask
-TimePicker.validate pickupTime model.pickup |> TimePicker.isInvalid   -- Bool
+TimePicker.setLimits pickupTime model.pickup |> TimePicker.isValid   -- Bool
 
 -- a missing time is an error of the application
 TimePicker.view PickupMsg
@@ -1659,4 +1659,4 @@ DateTimePicker.view SlotMsg
     model.slot
 
 -- read
-DateTimePicker.dateTime model.slot   -- Maybe { date : Date, time : TimePicker.Time }"""
+DateTimePicker.value model.slot   -- Maybe { date : Date, time : TimePicker.Time }"""

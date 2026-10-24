@@ -1,15 +1,20 @@
 module Klar.Calendar.Parse exposing
-    ( Problem(..)
+    ( Bounds
+    , Problem(..)
+    , Reading
     , Rules
     , Time
     , TimeProblem(..)
     , TimeRules
+    , apply
+    , boundsOf
     , check
     , date
     , formatTime
     , fromMinutes
     , isComplete
     , message
+    , read
     , time
     , timeMessage
     , toMinutes
@@ -42,7 +47,10 @@ import Klar.Locale as Locale exposing (Locale)
 -- DATES
 
 
-{-| What a picker knows about the field when it validates typed text.
+{-| What a picker knows about the field when it validates typed text. It holds
+the `disabledWhen` predicate, so it lives only in the view (and in the functions
+that take the attributes): a message or a state never holds it. The view reads
+the text with these rules and puts the `Reading` in the message.
 -}
 type alias Rules =
     { locale : Locale
@@ -51,6 +59,51 @@ type alias Rules =
     , max : Maybe Date
     , isDisabled : Date -> Bool
     }
+
+
+{-| The part of the rules that `update` needs to open a calendar on the right
+month: plain data, the same idea as the bounds of `Klar.Calendar`, so that a
+message can be compared with `==` and kept in the debugger's history.
+-}
+type alias Bounds =
+    { today : Maybe Date
+    , min : Maybe Date
+    , max : Maybe Date
+    }
+
+
+boundsOf : Rules -> Bounds
+boundsOf rules =
+    { today = rules.today, min = rules.min, max = rules.max }
+
+
+{-| A text as the rules read it, worked out where the rules are known (the
+view, at the moment of the event): the text itself and what it says. `apply`
+uses it only for the text it was made from.
+-}
+type alias Reading =
+    { text : String
+    , result : Result Problem (Maybe Date)
+    }
+
+
+read : Rules -> String -> Reading
+read rules text =
+    { text = text, result = date rules text }
+
+
+{-| The result of a reading for the text a field holds now: `Nothing` when the
+field holds no pending text, or when the reading was made from another text
+(the field changed after the view sent it), so the text is left for a later
+reading.
+-}
+apply : Maybe String -> Reading -> Maybe (Result Problem (Maybe Date))
+apply pending reading =
+    if pending == Just reading.text then
+        Just reading.result
+
+    else
+        Nothing
 
 
 type Problem
