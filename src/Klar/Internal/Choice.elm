@@ -1,4 +1,4 @@
-module Klar.Internal.Choice exposing (groupId, inOptionOrder, setAll, toggle)
+module Klar.Internal.Choice exposing (groupId, inOptionOrder, isSet, setAll, toggle)
 
 {-| What `Klar.Radio`, `Klar.SegmentedControl` and `Klar.CheckboxGroup` share: the
 id of a group that was not given one, and the selection of a group of checkboxes.
@@ -111,3 +111,16 @@ unique values =
         []
         values
         |> List.reverse
+
+
+{-| Whether a handler was given, without comparing functions with `==`. A group
+without a handler is read-only: nothing would come back from a change.
+-}
+isSet : Maybe a -> Bool
+isSet maybe =
+    case maybe of
+        Just _ ->
+            True
+
+        Nothing ->
+            False

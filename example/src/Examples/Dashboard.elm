@@ -395,14 +395,15 @@ staleNames model =
 periodPicker : Period -> Html Msg
 periodPicker period =
     SegmentedControl.view
-        [ SegmentedControl.ariaLabel "Period"
+        [ SegmentedControl.label "Period"
+        , SegmentedControl.labelHidden
         , SegmentedControl.options
             [ SegmentedControl.option "7" "7 days"
             , SegmentedControl.option "30" "30 days"
             , SegmentedControl.option "90" "90 days"
             ]
-        , SegmentedControl.selected (Just (String.fromInt (periodDays period)))
-        , SegmentedControl.onSelect PeriodPicked
+        , SegmentedControl.selected (String.fromInt (periodDays period))
+        , SegmentedControl.onChange PeriodPicked
         ]
 
 

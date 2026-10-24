@@ -467,7 +467,7 @@ inlineEdits lang model =
                     [ Switch.label "Simulate a failure when saving"
                     , Switch.id "inline-fails"
                     , Switch.checked model.inlineFails
-                    , Switch.onToggle InlineFailsToggled
+                    , Switch.onCheck InlineFailsToggled
                     , Switch.locale lang
                     ]
                 ]

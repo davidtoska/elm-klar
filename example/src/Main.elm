@@ -988,14 +988,15 @@ topBarActions model =
     [ viewDensitySwitch model
     , viewZoneSwitch model
     , SegmentedControl.view
-        [ SegmentedControl.ariaLabel "Language of the components"
+        [ SegmentedControl.label "Language of the components"
+        , SegmentedControl.labelHidden
         , SegmentedControl.size Theme.Small
         , SegmentedControl.options
             [ SegmentedControl.option "en" "EN"
             , SegmentedControl.option "nb" "NO"
             ]
-        , SegmentedControl.selected (Just (Locale.toCode model.locale))
-        , SegmentedControl.onSelect
+        , SegmentedControl.selected (Locale.toCode model.locale)
+        , SegmentedControl.onChange
             (\code -> Locale.fromCode code |> Maybe.map SetLocale |> Maybe.withDefault NoOp)
         ]
     , Button.iconOnly
@@ -1021,15 +1022,16 @@ the `Moment`s that the pages make with the settings.
 viewDensitySwitch : Model -> Html Msg
 viewDensitySwitch model =
     SegmentedControl.view
-        [ SegmentedControl.ariaLabel "Density of the components"
+        [ SegmentedControl.label "Density of the components"
+        , SegmentedControl.labelHidden
         , SegmentedControl.size Theme.Small
         , SegmentedControl.options
             [ SegmentedControl.option "compact" "Compact"
             , SegmentedControl.option "normal" "Normal"
             , SegmentedControl.option "comfortable" "Roomy"
             ]
-        , SegmentedControl.selected (Just (densityCode (Settings.density model.settings)))
-        , SegmentedControl.onSelect (densityFromCode >> SetDensity)
+        , SegmentedControl.selected (densityCode (Settings.density model.settings))
+        , SegmentedControl.onChange (densityFromCode >> SetDensity)
         ]
 
 
@@ -1070,7 +1072,8 @@ type ZoneChoice
 viewZoneSwitch : Model -> Html Msg
 viewZoneSwitch model =
     SegmentedControl.view
-        [ SegmentedControl.ariaLabel "Time zone of the times"
+        [ SegmentedControl.label "Time zone of the times"
+        , SegmentedControl.labelHidden
         , SegmentedControl.size Theme.Small
         , SegmentedControl.options
             [ SegmentedControl.option "browser" "Local"
@@ -1078,19 +1081,17 @@ viewZoneSwitch model =
             , SegmentedControl.option "tokyo" "Tokyo"
             ]
         , SegmentedControl.selected
-            (Just
-                (case model.zoneChoice of
-                    Browser ->
-                        "browser"
+            (case model.zoneChoice of
+                Browser ->
+                    "browser"
 
-                    Utc ->
-                        "utc"
+                Utc ->
+                    "utc"
 
-                    Tokyo ->
-                        "tokyo"
-                )
+                Tokyo ->
+                    "tokyo"
             )
-        , SegmentedControl.onSelect (zoneFromCode >> SetZone)
+        , SegmentedControl.onChange (zoneFromCode >> SetZone)
         ]
 
 
@@ -1240,7 +1241,7 @@ viewPalette model =
 -- DEVELOPER TOOLS
 
 
-themeOption : Theme.Theme -> Radio.Option
+themeOption : Theme.Theme -> Radio.Option String
 themeOption theme =
     Radio.option (Theme.key theme) (Theme.name theme)
 
@@ -1295,7 +1296,7 @@ viewTools model =
                 , Radio.horizontal
                 , Radio.options (List.map themeOption Theme.all)
                 , Radio.selected (Just (Theme.key (Settings.theme model.settings)))
-                , Radio.onSelect SetTheme
+                , Radio.onChange SetTheme
                 , Radio.id "tools-theme"
                 ]
             , SegmentedControl.view
@@ -1306,8 +1307,8 @@ viewTools model =
                     , SegmentedControl.option "dark" "Dark"
                     , SegmentedControl.option "system" "System"
                     ]
-                , SegmentedControl.selected (Just (colorModeKey (Settings.mode model.settings)))
-                , SegmentedControl.onSelect SetColorMode
+                , SegmentedControl.selected (colorModeKey (Settings.mode model.settings))
+                , SegmentedControl.onChange SetColorMode
                 , SegmentedControl.id "tools-color-mode"
                 ]
             , Radio.view
@@ -1326,7 +1327,7 @@ viewTools model =
                         |> Radio.withDescription "Every third request fails."
                     ]
                 , Radio.selected (Just (modeKey sim.mode))
-                , Radio.onSelect (\key -> SetMode (modeFromKey key))
+                , Radio.onChange (\key -> SetMode (modeFromKey key))
                 , Radio.id "tools-mode"
                 ]
             , SegmentedControl.view
@@ -1336,8 +1337,8 @@ viewTools model =
                     , SegmentedControl.option "typical" "Typical"
                     , SegmentedControl.option "slow" "Slow"
                     ]
-                , SegmentedControl.selected (Just (latencyKey sim.latency))
-                , SegmentedControl.onSelect (\key -> SetLatency (latencyFromKey key))
+                , SegmentedControl.selected (latencyKey sim.latency)
+                , SegmentedControl.onChange (\key -> SetLatency (latencyFromKey key))
                 , SegmentedControl.id "tools-latency"
                 ]
             , SegmentedControl.view
@@ -1347,8 +1348,8 @@ viewTools model =
                     [ SegmentedControl.option "small" "Small (88 orders)"
                     , SegmentedControl.option "large" "Large (2,500 orders)"
                     ]
-                , SegmentedControl.selected (Just (datasetKey sim.dataset))
-                , SegmentedControl.onSelect (\key -> SetDataset (datasetFromKey key))
+                , SegmentedControl.selected (datasetKey sim.dataset)
+                , SegmentedControl.onChange (\key -> SetDataset (datasetFromKey key))
                 , SegmentedControl.id "tools-dataset"
                 ]
             , Layout.row [ Layout.gap 2, Layout.alignCenter ]

@@ -634,8 +634,8 @@ view config editor =
                                 (\priority -> SegmentedControl.option (Types.priorityLabel priority) (Types.priorityLabel priority))
                                 Types.allPriorities
                             )
-                        , SegmentedControl.selected (Just (Types.priorityLabel editor.priority))
-                        , SegmentedControl.onSelect (PriorityChosen >> toMsg)
+                        , SegmentedControl.selected (Types.priorityLabel editor.priority)
+                        , SegmentedControl.onChange (PriorityChosen >> toMsg)
                         , SegmentedControl.disabled (not (isEditable editor))
                         ]
                     , Select.view (OwnerMsg >> toMsg)

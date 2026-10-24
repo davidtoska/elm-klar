@@ -370,7 +370,7 @@ planExample locale model =
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
-                [ Switch.view [ Switch.label "Lock the list", Switch.checked model.locked, Switch.onToggle SetLocked ]
+                [ Switch.view [ Switch.label "Lock the list", Switch.checked model.locked, Switch.onCheck SetLocked ]
                 , Button.view [ Button.small, Button.icon Icon.trash, Button.onClick ClearPlan ] "Clear the list"
                 , Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick ResetPlan ] "Reset"
                 ]

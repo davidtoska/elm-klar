@@ -32,6 +32,7 @@ type Msg
     | Checked Bool
     | Moved Float
     | MovedRange Float Float
+    | Picked (List String)
 
 
 suite : Test
@@ -93,7 +94,7 @@ switchTests =
                         switch
                             [ Switch.id "notify"
                             , Switch.ariaLabel "Email notifications"
-                            , Switch.description "You get an email when an order ships."
+                            , Switch.hint "You get an email when an order ships."
                             ]
                 in
                 Expect.all
@@ -109,7 +110,7 @@ switchTests =
                         switch
                             [ Switch.id "notify"
                             , Switch.label "Email notifications"
-                            , Switch.description "You get an email when an order ships."
+                            , Switch.hint "You get an email when an order ships."
                             ]
                 in
                 Expect.all
@@ -154,7 +155,7 @@ switchTests =
                 switch
                     [ Switch.id "notify"
                     , Switch.label "Email notifications"
-                    , Switch.description "You get an email when an order ships."
+                    , Switch.hint "You get an email when an order ships."
                     , Switch.error "Turn this on to place the order"
                     ]
                     |> inputOf
@@ -171,32 +172,31 @@ switchTests =
                     , \r -> count [ Selector.id "notify-error" ] 0 r
                     ]
                     root
-        , test "while it is loading the input is disabled" <|
+        , test "while it is loading the input keeps the focus: it stays enabled and is aria-disabled and aria-busy" <|
             \_ ->
-                switch [ Switch.label "Email notifications", Switch.onToggle Toggled, Switch.loading True ]
+                switch [ Switch.label "Email notifications", Switch.onCheck Toggled, Switch.loading True ]
                     |> inputOf
-                    |> Query.has [ Selector.disabled True, aria "aria-busy" "true" ]
+                    |> Query.has [ Selector.disabled False, aria "aria-disabled" "true", aria "aria-busy" "true" ]
         , test "while it is loading a change on the input sends nothing" <|
             \_ ->
-                switch [ Switch.label "Email notifications", Switch.checked False, Switch.onToggle Toggled, Switch.loading True ]
+                switch [ Switch.label "Email notifications", Switch.checked False, Switch.onCheck Toggled, Switch.loading True ]
                     |> inputOf
                     |> Event.simulate (Event.check True)
                     |> Event.toResult
                     |> Expect.err
-        , test "while it is loading a click on the input sends nothing" <|
+        , test "while it is loading a click (or Space) is cancelled and sends the value the switch already has" <|
             \_ ->
-                switch [ Switch.label "Email notifications", Switch.checked False, Switch.onToggle Toggled, Switch.loading True ]
+                switch [ Switch.label "Email notifications", Switch.checked False, Switch.onCheck Toggled, Switch.loading True ]
                     |> inputOf
                     |> Event.simulate Event.click
-                    |> Event.toResult
-                    |> Expect.err
+                    |> Event.expect (Toggled False)
         , test "while it is loading the switch keeps showing the value it is given" <|
             \_ ->
                 Expect.all
                     [ \r -> Query.has [ Selector.class "klar-switch--on", Selector.class "klar-switch--loading" ] r
                     , \r -> Query.has [ Selector.checked True ] (inputOf r)
                     ]
-                    (switch [ Switch.label "Email notifications", Switch.checked True, Switch.onToggle Toggled, Switch.loading True ])
+                    (switch [ Switch.label "Email notifications", Switch.checked True, Switch.onCheck Toggled, Switch.loading True ])
         , test "loading does not dim the switch the way disabled does" <|
             \_ ->
                 switch [ Switch.label "Email notifications", Switch.loading True ]
@@ -205,7 +205,7 @@ switchTests =
             \_ ->
                 let
                     root =
-                        switch [ Switch.label "Email notifications", Switch.checked False, Switch.onToggle Toggled ]
+                        switch [ Switch.label "Email notifications", Switch.checked False, Switch.onCheck Toggled ]
                 in
                 Expect.all
                     [ \r -> Query.has [ Selector.disabled False ] (inputOf r)
@@ -390,7 +390,7 @@ checkboxTests =
 -- CHECKBOX GROUP
 
 
-extras : List (CheckboxGroup.Attribute Msg) -> Query.Single Msg
+extras : List (CheckboxGroup.Attribute String Msg) -> Query.Single Msg
 extras attributes =
     CheckboxGroup.view
         ([ CheckboxGroup.id "extras"
@@ -400,6 +400,7 @@ extras attributes =
                 |> CheckboxGroup.withDescription "Wrapped in paper."
             , CheckboxGroup.option "paper-invoice" "Paper invoice"
             ]
+         , CheckboxGroup.onChange Picked
          ]
             ++ attributes
         )
@@ -479,7 +480,7 @@ checkboxGroupTests =
 -- RADIO GROUP AND SEGMENTED CONTROL (the role radiogroup allows both states)
 
 
-deliveryOptions : List Radio.Option
+deliveryOptions : List (Radio.Option String)
 deliveryOptions =
     [ Radio.option "standard" "Standard", Radio.option "express" "Express" ]
 
@@ -567,16 +568,17 @@ sliderTests =
                         [ Query.hasNot [ aria "aria-invalid" "true" ]
                         , Query.hasNot [ aria "aria-required" "true" ]
                         ]
-        , test "the wrapper of a range slider is a group with aria-describedby, and only the two thumbs are aria-invalid" <|
+        , test "the wrapper of a range slider is a group, and the two thumbs are aria-invalid and joined to the hint and the error" <|
             \_ ->
                 -- (Query.has and Query.hasNot also look at the descendants, so the
                 -- elements that carry the attribute are counted instead.)
                 rangeSlider [ Slider.hint "At least 10.", Slider.required, Slider.error "Too few" ]
                     |> Expect.all
-                        [ Query.find [ Selector.id "quantity-group" ]
-                            >> Query.has [ role "group", aria "aria-describedby" "quantity-hint quantity-error" ]
+                        [ Query.find [ Selector.id "quantity-group" ] >> Query.has [ role "group" ]
                         , count [ aria "aria-invalid" "true" ] 2
                         , count [ Selector.tag "input", aria "aria-invalid" "true" ] 2
+                        , count [ Selector.tag "input", aria "aria-describedby" "quantity-hint quantity-error" ] 2
+                        , count [ aria "aria-describedby" "quantity-hint quantity-error" ] 2
                         , count [ aria "aria-required" "true" ] 0
                         ]
         , test "both thumbs of an invalid range slider are aria-invalid, and neither is aria-required" <|
@@ -601,8 +603,8 @@ sliderTests =
                 Expect.all
                     [ count [ Selector.id "quantity", Selector.tag "input" ] 1
                     , count [ Selector.id "quantity-upper", Selector.tag "input" ] 1
-                    , count [ aria "aria-label" "From" ] 1
-                    , count [ aria "aria-label" "To" ] 1
+                    , count [ aria "aria-label" "Order quantity, from" ] 1
+                    , count [ aria "aria-label" "Order quantity, to" ] 1
                     ]
                     root
         , test "a range slider without an error has no invalid thumb" <|

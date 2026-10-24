@@ -337,7 +337,7 @@ view attributes =
             ensureId config
 
         isReadOnly =
-            config.readOnly || config.onChange == Nothing
+            config.readOnly || not (Choice.isSet config.onChange)
 
         mainIndex =
             mainOptionIndex config isReadOnly

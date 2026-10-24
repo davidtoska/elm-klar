@@ -211,7 +211,8 @@ label text =
 
 
 {-| Keep the label for screen readers only, for a control that is clear from its
-segments, such as "Layout" for List and Grid icons. The label is still needed.
+segments, such as "Layout" for List and Grid icons: it becomes the `aria-label`
+of the group. The label is still needed.
 -}
 labelHidden : Attribute value msg
 labelHidden =
@@ -355,7 +356,7 @@ view attributes =
             ensureId config
 
         isReadOnly =
-            config.readOnly || config.onChange == Nothing
+            config.readOnly || not (Choice.isSet config.onChange)
 
         mainIndex =
             mainOptionIndex config isReadOnly
@@ -365,17 +366,10 @@ view attributes =
     in
     Field.viewGroup field
         (Html.div [ Internal.cls [ "klar-segmented-field" ] ]
-            [ case field.label of
-                Just text ->
+            [ case ( field.label, field.labelHidden ) of
+                ( Just text, False ) ->
                     Html.span
-                        [ Internal.cls
-                            [ "klar-field__label"
-                            , if field.labelHidden then
-                                "klar-sr-only"
-
-                              else
-                                ""
-                            ]
+                        [ Internal.cls [ "klar-field__label" ]
                         , Attr.id labelId
                         ]
                         [ Html.text text
@@ -389,7 +383,7 @@ view attributes =
                                 Html.text ""
                         ]
 
-                Nothing ->
+                _ ->
                     Html.text ""
             , Html.div
                 (Field.controlAttributes field
@@ -422,7 +416,18 @@ view attributes =
                                 ""
                             ]
                        , Attr.attribute "role" "radiogroup"
-                       , Internal.attrIf (field.label /= Nothing) (Attr.attribute "aria-labelledby" labelId)
+
+                       -- A hidden label names the group directly, so it adds no
+                       -- element and no id that a surrounding field could have.
+                       , case ( field.label, field.labelHidden ) of
+                            ( Just _, False ) ->
+                                Attr.attribute "aria-labelledby" labelId
+
+                            ( Just text, True ) ->
+                                Attr.attribute "aria-label" text
+
+                            ( Nothing, _ ) ->
+                                Internal.noAttr
                        , Internal.attrIf (isReadOnly && not config.disabled) (Attr.attribute "aria-readonly" "true")
                        ]
                 )

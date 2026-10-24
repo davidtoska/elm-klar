@@ -370,7 +370,7 @@ view attributes =
             ensureId config
 
         isReadOnly =
-            config.readOnly || config.onChange == Nothing
+            config.readOnly || not (Choice.isSet config.onChange)
 
         optionValues =
             List.map (\(Option o) -> o.value) config.options

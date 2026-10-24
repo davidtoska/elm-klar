@@ -291,7 +291,7 @@ view locale model =
                 , Switch.view
                     [ Switch.label "Prepared rows"
                     , Switch.checked model.useRows
-                    , Switch.onToggle PreparedToggled
+                    , Switch.onCheck PreparedToggled
                     ]
                 ]
             )

@@ -407,12 +407,13 @@ inbox locale model =
     Layout.stack [ Layout.gap 3 ]
         [ Layout.row [ Layout.gap 4, Layout.wrap, Layout.alignCenter ]
             [ SegmentedControl.view
-                [ SegmentedControl.ariaLabel "Speed of the server"
+                [ SegmentedControl.label "Speed of the server"
+                , SegmentedControl.labelHidden
                 , SegmentedControl.options (List.map (\( name, _, text ) -> SegmentedControl.option name text) speeds)
-                , SegmentedControl.selected (Just (speeds |> List.filter (\( _, speed, _ ) -> speed == model.speed) |> List.head |> Maybe.map (\( name, _, _ ) -> name) |> Maybe.withDefault "fast"))
-                , SegmentedControl.onSelect SpeedChosen
+                , SegmentedControl.selected (speeds |> List.filter (\( _, speed, _ ) -> speed == model.speed) |> List.head |> Maybe.map (\( name, _, _ ) -> name) |> Maybe.withDefault "fast")
+                , SegmentedControl.onChange SpeedChosen
                 ]
-            , Switch.view [ Switch.label "The server fails", Switch.checked model.failing, Switch.onToggle FailingToggled ]
+            , Switch.view [ Switch.label "The server fails", Switch.checked model.failing, Switch.onCheck FailingToggled ]
             , Button.view [ Button.secondary, Button.onClick SaveView ] "Save view ..."
             ]
         , Layout.row [ Layout.gap 2, Layout.alignStart ]
@@ -470,7 +471,7 @@ statusTone status =
 supplier : Locale -> Model -> Html Msg
 supplier locale model =
     Layout.stack [ Layout.gap 3 ]
-        [ Switch.view [ Switch.label "The supplier request fails", Switch.checked model.supplierFailing, Switch.onToggle SupplierFailingToggled ]
+        [ Switch.view [ Switch.label "The supplier request fails", Switch.checked model.supplierFailing, Switch.onCheck SupplierFailingToggled ]
         , Card.view [ Card.title "Supplier", Card.headingLevel 3 ]
             (RemoteView.view
                 [ RemoteView.id "supplier-body"
