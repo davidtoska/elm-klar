@@ -152,6 +152,8 @@ css =
   --klar-control: 32px;
   --klar-control-lg: 40px;
   --klar-control-px: 10px;
+  /* The row of a list in a popup. Elm computes the scroll position of a row from 32px
+     (Select.Popup.rowHeight, VirtualList), so it is the same at every density. */
   --klar-option-h: 32px;
 
   /* ---- Table rows ---- */
@@ -196,6 +198,8 @@ css =
   color-scheme: light;
 }
 
+/* Every transition and every entrance runs on these durations, so under reduced
+   motion they end at once. What has a duration of its own is in the list of Base. */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --klar-dur-fast: 0ms;

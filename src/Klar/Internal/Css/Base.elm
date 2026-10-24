@@ -195,6 +195,17 @@ table {
   padding: 0 1px;
 }
 
+/* Forced colors drop the background: a match takes the system colors of a mark
+   (Highlight where a browser does not know Mark). */
+@media (forced-colors: active) {
+  mark.klar-mark {
+    background: Highlight;
+    color: HighlightText;
+    background: Mark;
+    color: MarkText;
+  }
+}
+
 /* ---- Motion --------------------------------------------------------- */
 
 @keyframes klar-fade-in {
@@ -243,6 +254,59 @@ table {
 @keyframes klar-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
+}
+
+/* Reduced motion: the one list for every animation of the library.
+
+   - Entrances and exits (popups, dialogs, drawers, toasts, tips, bars that fade in)
+     and every transition run on the duration tokens, which are 0ms under reduced
+     motion (Tokens), so they appear at once. Only what has a duration of its own is
+     named here.
+   - Busy indicators (spinners, an indeterminate bar or ring) keep moving, more
+     slowly: a spinner that stands still looks like a program that hangs.
+   - Decoration that moves while something loads (the shimmer of a skeleton, the
+     stripes of a bar) stops, and a sweeping progress line becomes a still line.
+   - Not motion, and left alone: the focus guard of a dialog (`klar-focus-lost`,
+     whose start is a message) and the scroll shadows of a table, which follow the
+     scroll position and not the clock.
+
+   `!important`, because these rules come early in the stylesheet and must win over
+   the rules of every component, whatever their specificity. A new animation with a
+   duration of its own gets a line here. */
+@media (prefers-reduced-motion: reduce) {
+  .klar-modal__dialog--nudge-a,
+  .klar-modal__dialog--nudge-b,
+  .klar-skeleton,
+  .klar-progress--striped .klar-progress__bar {
+    animation: none !important;
+  }
+
+  .klar-spinner,
+  .klar-switch--loading .klar-switch__thumb::after,
+  .klar-progress-ring__arc {
+    animation-duration: 1.6s !important;
+  }
+
+  .klar-progress--indeterminate .klar-progress__bar {
+    animation-duration: 3.2s !important;
+  }
+
+  .klar-progress--indeterminate .klar-progress__segment {
+    --_wave: 3.2s !important;
+  }
+
+  .klar-table__progress::after,
+  .klar-compare__progress::after {
+    animation: none !important;
+    width: 100% !important;
+    opacity: 0.5 !important;
+    transform: none !important;
+  }
+
+  .klar-refreshing::after {
+    animation: none !important;
+    background: var(--klar-blue-200) !important;
+  }
 }
 
 /* ---- Popup primitives -----------------------------------------------
@@ -349,5 +413,32 @@ table {
   width: 1px;
   align-self: stretch;
   background: var(--klar-border);
+}
+
+/* ---- Print -----------------------------------------------------------
+   Icons, color dots, check marks, progress bars and the lines of a chart are a
+   background color, most of them shaped by a mask, and a browser leaves
+   backgrounds out of a print unless told: without `print-color-adjust: exact`
+   they print as nothing. What only works on a screen stays off the paper: the
+   click-away layers and their popups, toasts, tooltips, the moving line of a
+   refresh, and the tab stops that keep focus inside a dialog. */
+@media print {
+  [class*="klar-"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .klar-layer,
+  .klar-popup,
+  .klar-toasts,
+  .klar-tip-bubble,
+  .klar-modal__guard,
+  .klar-modal__sentinel {
+    display: none !important;
+  }
+
+  .klar-refreshing::after {
+    content: none;
+  }
 }
 """

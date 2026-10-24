@@ -33,7 +33,7 @@ css =
 
 .klar-stale__reason { color: var(--klar-text-secondary); }
 
-.klar-stale__action { margin-left: auto; }
+.klar-stale__action { margin-inline-start: auto; }
 
 /* Dimming is limited by contrast: muted text stays at 4.5:1 down to about 92%. A thin
    moving line at the top says the rest. */
@@ -54,9 +54,7 @@ css =
   to { background-position: 140% 0; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-refreshing::after { animation: none; background-position: 0 0; background-size: 100% 100%; background-color: var(--klar-blue-200); background-image: none; }
-}
+/* Under reduced motion the line stands still (the list in Base). */
 
 .klar-refreshing > :not(.klar-stale):not(.klar-sr-only) {
   opacity: 0.92;

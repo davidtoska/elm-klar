@@ -15,7 +15,7 @@ css =
    `Settings.scope`). The shell carries data-klar-density="compact" or "comfortable" (nothing for
    normal) and everything inside follows:
 
-   - the control tokens below, which buttons, inputs, selects, menus and options already use;
+   - the control tokens below, which buttons, inputs and the triggers of selects already use;
    - the compact and comfortable rules of the components that have their own density, which are
      written next to each component as a second selector (`:where([data-klar-density=...])`).
      Those have the specificity of the component's own class and leave out a component that has
@@ -23,6 +23,12 @@ css =
 
    The rows of a table, compare and permission matrix follow through those component rules, so
    --klar-row is not changed here.
+
+   --klar-option-h (a row of a select, a picker, a transfer list or a time list) is not changed
+   either: it stays 32px at every density, because Elm does the arithmetic of those lists in
+   pixels (which rows to draw, where to scroll to bring the highlighted row into view) with a
+   row of 32px (Select.Popup.rowHeight, TimePicker, VirtualList). A row of another height would
+   put the highlighted row out of view and draw the wrong rows of a long list.
    ========================================================================== */
 
 [data-klar-density="compact"] {
@@ -30,7 +36,6 @@ css =
   --klar-control: 28px;
   --klar-control-lg: 36px;
   --klar-control-px: 8px;
-  --klar-option-h: 28px;
 }
 
 [data-klar-density="comfortable"] {
@@ -38,7 +43,6 @@ css =
   --klar-control: 40px;
   --klar-control-lg: 48px;
   --klar-control-px: 12px;
-  --klar-option-h: 40px;
 }
 
 /* ---- Card ------------------------------------------------------------------ */
