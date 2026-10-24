@@ -14,6 +14,7 @@ import Klar
 import Klar.Locale as Locale
 import Klar.PermissionMatrix as PermissionMatrix exposing (Change, Matrix)
 import Klar.Remote as Remote
+import Klar.Settings as Settings
 import Klar.Theme as Theme
 import Set exposing (Set)
 import Support.Css as Css
@@ -22,6 +23,7 @@ import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
+import Time
 
 
 type Role
@@ -336,11 +338,18 @@ internalFor current event =
 
 through : ( String, Encode.Value ) -> PermissionMatrix.State -> PermissionMatrix.State
 through event current =
-    case internalFor current event of
-        Just inner ->
+    throughWith editable event current
+
+
+{-| The same through a matrix with these attributes, such as `saved`.
+-}
+throughWith : List (PermissionMatrix.Attribute Role Permission Msg) -> ( String, Encode.Value ) -> PermissionMatrix.State -> PermissionMatrix.State
+throughWith attributes event current =
+    case H.sends theScroll event (viewWith attributes current) of
+        Ok (MatrixMsg inner) ->
             Tuple.first (PermissionMatrix.update inner current)
 
-        Nothing ->
+        _ ->
             current
 
 
@@ -456,10 +465,11 @@ structureTests =
                         , Query.index 0 >> Query.has [ Selector.text "Orders", H.attr "aria-label" "Orders, 3 permissions", H.attr "aria-expanded" "true" ]
                         , Query.index 1 >> Query.has [ Selector.text "Stock", H.attr "aria-label" "Stock, 2 permissions" ]
                         ]
-        , test "the density is a class, the same names as the table" <|
+        , test "the density is a class, the same names as the table, and none without it, so the density of the application applies" <|
             \_ ->
                 Expect.all
-                    [ \_ -> viewIt editable |> H.has [ Selector.class "klar-permissions--normal" ]
+                    [ \_ -> viewIt editable |> H.hasNot [ Selector.class "klar-permissions--normal" ]
+                    , \_ -> viewIt (PermissionMatrix.density Theme.Normal :: editable) |> H.has [ Selector.class "klar-permissions--normal" ]
                     , \_ -> viewIt (PermissionMatrix.density Theme.Compact :: editable) |> H.has [ Selector.class "klar-permissions--compact" ]
                     ]
                     ()
@@ -1057,6 +1067,49 @@ savedTests =
             \_ ->
                 viewWith (PermissionMatrix.saved baseline :: editable) (PermissionMatrix.setQuery "stock" state)
                     |> H.inside [ Selector.class "klar-permissions__changes" ] [ Selector.text "2 unsaved changes" ]
+        , test "unsavedChanges lists the cells that are counted, with the own access they have now, for the save" <|
+            \_ ->
+                PermissionMatrix.unsavedChanges baseline (theMatrix (cellOf grants))
+                    |> summaryOf
+                    |> Expect.equal
+                        [ -- the dispatcher inherits view orders now: what was stored for it goes
+                          inheritingAgain ViewOrders Dispatcher
+                        , the EditOrders Supervisor
+                        ]
+        , test "unsavedChanges is empty when nothing differs, and leaves out a key that was seen before" <|
+            \_ ->
+                let
+                    twice =
+                        PermissionMatrix.matrix
+                            { roles = [ PermissionMatrix.role Picker "Picker", PermissionMatrix.role Picker "Picker again" ]
+                            , roleKey = roleKey
+                            , permissions = [ PermissionMatrix.permission ViewOrders "View orders" ]
+                            , permissionKey = permissionKey
+                            , cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.granted
+                            }
+                in
+                Expect.all
+                    [ \_ -> PermissionMatrix.unsavedChanges (cellOf grants) (theMatrix (cellOf grants)) |> Expect.equal []
+                    , \_ ->
+                        PermissionMatrix.unsavedChanges (\_ _ -> PermissionMatrix.direct PermissionMatrix.denied) twice
+                            |> summaryOf
+                            |> Expect.equal [ the ViewOrders Picker ]
+                    ]
+                    ()
+        , test "unsavedChanges agrees with the count above the grid in a big matrix" <|
+            \_ ->
+                let
+                    before r p =
+                        PermissionMatrix.direct (PermissionMatrix.fromBool (modBy 7 (r * 3 + p) == 0))
+                in
+                PermissionMatrix.unsavedChanges (\r p -> before r p) (bigMatrix 120 9)
+                    |> List.length
+                    |> (\n ->
+                            PermissionMatrix.view (\_ -> ()) [ PermissionMatrix.onChange (\_ -> ()), PermissionMatrix.saved before ] state (bigMatrix 120 9)
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.class "klar-permissions__changes" ]
+                                |> Query.has [ Selector.text (String.fromInt n ++ " unsaved changes") ]
+                       )
         ]
 
 
@@ -1114,13 +1167,13 @@ announcementTests =
                         state |> through ( "change", Encode.object [ insideTarget { row = 0, column = 3 } ] )
                 in
                 announced grants acted |> Query.has [ Selector.text "Supervisor: 3 of 6 permissions granted" ]
-        , test "a whole permission is announced as how many roles have it" <|
+        , test "a whole permission is announced as how many roles have it, the locked ones too, as the row shows them" <|
             \_ ->
                 let
                     acted =
                         state |> through ( "change", Encode.object [ insideTarget { row = 4, column = 0 } ] )
                 in
-                announced grants acted |> Query.has [ Selector.text "Cancel orders: granted to 0 of 3 roles" ]
+                announced grants acted |> Query.has [ Selector.text "Cancel orders: granted to 1 of 4 roles" ]
         , test "the region is polite and always on the page" <|
             \_ ->
                 viewIt editable
@@ -1296,7 +1349,91 @@ remoteTests =
                     , \_ -> none [ PermissionMatrix.role Picker "Picker" ] [] |> H.has [ Selector.text "No permissions to show" ]
                     ]
                     ()
+        , test "the frame has the id of init and can take focus in every state, so Klar.focus finds it after Try again" <|
+            \_ ->
+                Expect.all
+                    (List.map
+                        (\data ->
+                            \_ ->
+                                remote data
+                                    |> Query.fromHtml
+                                    |> Query.has [ Selector.id "roles", Selector.attribute (Attr.tabindex -1), Selector.class "klar-permissions" ]
+                        )
+                        [ Remote.NotAsked
+                        , Remote.Loading
+                        , Remote.Failed (Remote.problem Remote.network)
+                        , Remote.Loaded (theMatrix (cellOf grants))
+                        , Remote.refresh (Remote.Loaded (theMatrix (cellOf grants)))
+                        , oldData
+                        , Remote.Loaded (PermissionMatrix.matrix { roles = [], roleKey = roleKey, permissions = [], permissionKey = permissionKey, cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.denied })
+                        ]
+                    )
+                    ()
+        , test "data that is being refreshed stays as it is, editable, dimmed and busy" <|
+            \_ ->
+                remote (Remote.refresh (Remote.Loaded (theMatrix (cellOf grants))))
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.id "roles", Selector.class "klar-refreshing", H.attr "aria-busy" "true" ]
+                        , Query.find [ Selector.tag "table" ] >> Query.has [ H.attr "role" "grid" ]
+                        , Query.hasNot [ Selector.class "klar-stale" ]
+                        ]
+        , test "the frame and the grid are the same in Loaded and while refreshing, so the focus in the grid stays" <|
+            \_ ->
+                let
+                    shape html =
+                        html
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.tag "table" ]
+                            |> Query.findAll [ Selector.attribute (Attr.tabindex 0) ]
+                            |> Query.count (Expect.equal 1)
+                in
+                Expect.all
+                    [ \_ -> shape (remote (Remote.Loaded (theMatrix (cellOf grants))))
+                    , \_ -> shape (remote (Remote.refresh (Remote.Loaded (theMatrix (cellOf grants)))))
+                    , \_ -> shape (remote oldData)
+                    ]
+                    ()
+        , test "old data whose refresh failed says so above the grid, with a retry that sends the message" <|
+            \_ ->
+                let
+                    html =
+                        remote oldData
+                in
+                Expect.all
+                    [ \_ -> html |> H.inside [ Selector.class "klar-permissions__toolbar" ] [ Selector.class "klar-stale", Selector.text "Old data from 00:00" ]
+                    , \_ -> html |> H.has [ Selector.tag "table" ]
+                    , \_ -> html |> H.hasNot [ Selector.class "klar-refreshing" ]
+                    , \_ -> H.sends [ Selector.class "klar-stale", Selector.tag "button" ] ( "click", Encode.object [] ) html |> Expect.equal (Ok Reload)
+                    ]
+                    ()
+        , test "the time of old data is in the zone of the settings" <|
+            \_ ->
+                PermissionMatrix.viewRemote MatrixMsg
+                    [ PermissionMatrix.settings (Settings.withZone (Time.customZone 120 []) Settings.default) ]
+                    state
+                    oldData
+                    |> H.has [ Selector.class "klar-stale", Selector.text "Old data from 02:00" ]
+        , test "old data that is refreshed again is busy, and its retry shows that it is on its way" <|
+            \_ ->
+                remote (Remote.refresh oldData)
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.id "roles", Selector.class "klar-refreshing", H.attr "aria-busy" "true" ]
+                        , Query.find [ Selector.class "klar-stale", Selector.tag "button" ] >> Query.has [ H.attr "aria-busy" "true" ]
+                        ]
         ]
+
+
+{-| Grants that were loaded at midnight (UTC), and then a refresh a minute later that failed.
+-}
+oldData : Remote.Remote (Matrix Role Permission)
+oldData =
+    let
+        loaded =
+            Remote.refreshWith Remote.Loading (Ok (theMatrix (cellOf grants))) (Time.millisToPosix 0)
+    in
+    Remote.refreshWith (Remote.refresh loaded) (Err (Remote.problem Remote.network)) (Time.millisToPosix 60000)
 
 
 
@@ -1550,7 +1687,7 @@ inheritanceTests =
                             |> Query.find (cellNamed name)
                 in
                 Expect.all
-                    [ \_ -> markIn "Supervisor, View orders, denied, overrides inherited granted from Dispatcher" |> Query.has [ Selector.class "klar-permissions__cell--override", H.attr "aria-keyshortcuts" "Delete Backspace", Selector.containing [ Selector.class "klar-permissions__reset" ] ]
+                    [ \_ -> markIn "Supervisor, View orders, denied, overrides inherited granted from Dispatcher" |> Query.has [ Selector.class "klar-permissions__cell--override", H.attr "aria-keyshortcuts" "Space Enter Delete Backspace", Selector.containing [ Selector.class "klar-permissions__reset" ] ]
                     , \_ -> markIn "Dispatcher, View orders, granted, inherited from Picker" |> Query.hasNot [ Selector.containing [ Selector.class "klar-permissions__reset" ] ]
                     , \_ -> markIn "Picker, View orders, granted" |> Query.hasNot [ Selector.containing [ Selector.class "klar-permissions__reset" ] ]
                     , \_ -> inheritanceView [] |> H.none [ Selector.class "klar-permissions__reset" ]
@@ -1674,11 +1811,62 @@ reviewTests =
             \_ ->
                 let
                     acted =
-                        state |> through (click (place CancelOrders Supervisor))
+                        state |> throughWith (PermissionMatrix.saved baseline :: editable) (click (place CancelOrders Supervisor))
+
+                    now =
+                        Set.insert ( roleKey Supervisor, permissionKey CancelOrders ) grants
+                in
+                PermissionMatrix.view MatrixMsg (PermissionMatrix.saved baseline :: editable) acted (theMatrix (cellOf now))
+                    |> liveRegion
+                    |> Query.has [ Selector.text "Cancel orders granted to Supervisor. 3 unsaved changes" ]
+        , test "a save after the change does not change the announcement, so it is not said again" <|
+            \_ ->
+                let
+                    acted =
+                        state |> throughWith (PermissionMatrix.saved baseline :: editable) (click (place CancelOrders Supervisor))
+
+                    now =
+                        Set.insert ( roleKey Supervisor, permissionKey CancelOrders ) grants
+
+                    textWith savedCells =
+                        PermissionMatrix.view MatrixMsg (PermissionMatrix.saved savedCells :: editable) acted (theMatrix (cellOf now))
+                            |> liveRegion
+                            |> Query.has [ Selector.text "Cancel orders granted to Supervisor. 3 unsaved changes" ]
+                in
+                Expect.all
+                    [ \_ -> textWith baseline
+
+                    -- saved: the count above the grid is gone, the announcement stays as it was
+                    , \_ -> textWith (cellOf now)
+                    , \_ ->
+                        PermissionMatrix.view MatrixMsg (PermissionMatrix.saved (cellOf now) :: editable) acted (theMatrix (cellOf now))
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.class "klar-permissions__changes" ]
+                            |> Query.hasNot [ Selector.text "unsaved" ]
+                    ]
+                    ()
+        , test "a change that the application refused is said as the cell is, without a count" <|
+            \_ ->
+                let
+                    acted =
+                        state |> throughWith (PermissionMatrix.saved baseline :: editable) (click (place CancelOrders Supervisor))
                 in
                 PermissionMatrix.view MatrixMsg (PermissionMatrix.saved baseline :: editable) acted (theMatrix (cellOf grants))
                     |> liveRegion
-                    |> Query.has [ Selector.text "Cancel orders denied to Supervisor. 2 unsaved changes" ]
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Cancel orders denied to Supervisor" ]
+                        , Query.hasNot [ Selector.text "unsaved" ]
+                        ]
+        , test "a header checkbox is followed by the count it leads to" <|
+            \_ ->
+                let
+                    -- the checkbox of Supervisor grants the three permissions Supervisor does not have
+                    acted =
+                        state |> throughWith (PermissionMatrix.saved baseline :: editable) ( "change", Encode.object [ insideTarget { row = 0, column = 3 } ] )
+                in
+                PermissionMatrix.view MatrixMsg (PermissionMatrix.saved baseline :: editable) acted (theMatrix (cellOf grants))
+                    |> liveRegion
+                    |> Query.has [ Selector.text "Supervisor: 3 of 6 permissions granted. 5 unsaved changes" ]
         , test "a key that is held down changes a cell once: the application hears nothing from a repeat" <|
             \_ ->
                 viewIt editable
@@ -1833,7 +2021,52 @@ reviewTests =
                 viewWith [ PermissionMatrix.locale Locale.nb ] (PermissionMatrix.setQuery "stock" state)
                     |> liveRegion
                     |> Query.has [ Selector.text "2 av 6 tilganger samsvarer" ]
+        , test "an editable grid is described by what the keys do, and the description is on the page" <|
+            \_ ->
+                viewIt editable
+                    |> Expect.all
+                        [ H.inside theTable [ H.attr "aria-describedby" "roles/how" ]
+                        , H.has [ Selector.id "roles/how", Selector.text "Space or Enter changes a cell. Delete or Backspace makes an overriding cell inherit again." ]
+                        ]
+        , test "the description says nothing of inheriting where no cell inherits, and a read-only grid has none" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        PermissionMatrix.view MatrixMsg [ PermissionMatrix.onChange (always Reload) ] state (bigMatrixOf 3 2)
+                            |> H.has [ Selector.id "roles/how", Selector.text "Space or Enter changes a cell." ]
+                    , \_ ->
+                        PermissionMatrix.view MatrixMsg [ PermissionMatrix.onChange (always Reload) ] state (bigMatrixOf 3 2)
+                            |> H.hasNot [ Selector.text "inherit again" ]
+                    , \_ -> viewIt [] |> H.none [ Selector.id "roles/how" ]
+                    , \_ -> viewIt [] |> H.none [ H.attr "aria-describedby" "roles/how" ]
+                    ]
+                    ()
+        , test "every cell that can change names Space and Enter, a locked or read-only cell names nothing" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> viewIt editable |> H.inside (cellNamed "Supervisor, Cancel orders, denied") [ H.attr "aria-keyshortcuts" "Space Enter" ]
+                    , \_ -> viewIt editable |> Query.fromHtml |> Query.find (cellNamed "Administrator, Cancel orders, granted, locked") |> Query.hasNot [ Selector.attribute (Attr.attribute "aria-keyshortcuts" "Space Enter") ]
+                    , \_ -> viewIt [] |> H.none [ Selector.attribute (Attr.attribute "aria-keyshortcuts" "Space Enter") ]
+                    ]
+                    ()
+        , test "the description in Norwegian" <|
+            \_ ->
+                viewIt (PermissionMatrix.locale Locale.nb :: editable)
+                    |> H.has [ Selector.id "roles/how", Selector.text "Mellomrom eller Enter endrer en celle." ]
         ]
+
+
+{-| A matrix of Int roles and permissions with no inheritance, for the description test.
+-}
+bigMatrixOf : Int -> Int -> Matrix Int Int
+bigMatrixOf permissions roles =
+    PermissionMatrix.matrix
+        { roles = List.map (\r -> PermissionMatrix.role r ("Role " ++ String.fromInt r)) (List.range 1 roles)
+        , roleKey = String.fromInt
+        , permissions = List.map (\p -> PermissionMatrix.permission p ("Permission " ++ String.fromInt p)) (List.range 1 permissions)
+        , permissionKey = String.fromInt
+        , cell = \_ _ -> PermissionMatrix.direct PermissionMatrix.denied
+        }
 
 
 {-| The state after text is typed in the filter of a matrix that is in this state.

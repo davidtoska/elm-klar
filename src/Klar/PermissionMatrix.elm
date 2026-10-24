@@ -2,9 +2,9 @@ module Klar.PermissionMatrix exposing
     ( view, viewRemote
     , Matrix, matrix, Role, role, locked, Permission, permission, inGroup
     , Access, granted, denied, fromBool, isGranted, Cell, cell, direct
-    , Change, changedRole, changedPermission, newAccess
+    , Change, changedRole, changedPermission, newAccess, unsavedChanges
     , State, init, Msg, update, query, setQuery, collapsedGroups, setCollapsedGroups
-    , Attribute, onChange, saved, toolbarActions, density, ariaLabel, maxHeight, onRetry, locale
+    , Attribute, onChange, saved, toolbarActions, density, ariaLabel, maxHeight, onRetry, settings, locale
     )
 
 {-| A grid of roles and permissions that says what each role may do, and lets an
@@ -12,14 +12,17 @@ administrator change it: the classic screen of an application with users.
 
 Use when: an administrator sets which roles may do what, in a grid of roles and permissions.
 Do not use when: only a list of options is chosen for one user, use `Klar.CheckboxGroup`.
-Quick path: `init`, `update`, `matrix`, `onChange`, `viewRemote`
+Quick path: `init`, `update`, `matrix`, `onChange`, `saved`, `unsavedChanges`, `viewRemote`
 
+    import Klar
+    import Klar.Button as Button
     import Klar.PermissionMatrix as PermissionMatrix
     import Klar.Remote as Remote
 
     -- model
     { access : PermissionMatrix.State -- PermissionMatrix.init "role-matrix"
-    , grants : Remote Grants
+    , grants : Remote Grants -- what the grid shows, with the changes not saved yet
+    , savedGrants : Grants -- what the server has: set it when the grants load and when a save succeeds
     }
 
     -- update
@@ -32,6 +35,20 @@ Quick path: `init`, `update`, `matrix`, `onChange`, `viewRemote`
 
     CellsChanged changes ->
         ( { model | grants = Remote.map (applyChanges changes) model.grants }, Cmd.none )
+
+    Save ->
+        let
+            changes =
+                PermissionMatrix.unsavedChanges (cellOf model.savedGrants)
+                    (toMatrix (Remote.withDefault model.savedGrants model.grants))
+        in
+        ( model, Api.saveGrants changes GrantsSaved )
+
+    Reload ->
+        -- "Try again" goes away while the grants load: the matrix takes the focus
+        ( { model | grants = Remote.refresh model.grants }
+        , Cmd.batch [ Api.loadGrants GrantsLoaded, Klar.focus "role-matrix" NoOp ]
+        )
 
     applyChanges changes grants =
         List.foldl store grants changes
@@ -47,8 +64,11 @@ Quick path: `init`, `update`, `matrix`, `onChange`, `viewRemote`
     -- view
     PermissionMatrix.viewRemote MatrixMsg
         [ PermissionMatrix.onChange CellsChanged
-        , PermissionMatrix.saved (cellOf savedGrants)
+        , PermissionMatrix.saved (cellOf model.savedGrants)
+        , PermissionMatrix.toolbarActions
+            [ Button.view [ Button.primary, Button.small, Button.onClick Save ] "Save" ]
         , PermissionMatrix.onRetry Reload
+        , PermissionMatrix.settings model.settings
         ]
         model.access
         (Remote.map toMatrix model.grants)
@@ -113,8 +133,18 @@ so no application has to work out inheritance to undo an override.
 **Unsaved changes.** Give `saved` the values as they were last saved, and the cells where
 the role's own access differs are marked with a dot (and "unsaved change" for screen
 readers) and counted above the grid, next to your own buttons (`toolbarActions`), for
-Save and Discard. Nothing is kept inside the matrix: load a new baseline by giving a new
-`saved`.
+Save and Discard. `unsavedChanges` gives the same cells as a list of `Change`, which is
+what a Save request sends. Nothing is kept inside the matrix: load a new baseline by giving
+a new `saved`.
+
+**Remote data and focus.** `viewRemote` draws a skeleton while the matrix loads, the
+problem with "Try again" (`onRetry`) when it failed, and the matrix when it is there. Data
+that is `Kept` stays on the screen and editable: dimmed and busy while it is refreshed, and
+with "Old data from 14:05" and a retry above the grid when the last refresh failed (the time
+in the zone of `settings`). The grid is the same element while it refreshes, so the focus
+stays on the cell it was on. The id given to `init` is on the frame of the matrix in every
+state, and the frame can take focus: "Try again" goes away while the data loads, so call
+`Klar.focus` with that id in the update branch of the retry message.
 
 **Keyboard.** The grid is one tab stop. The arrow keys move between cells, `Home` and
 `End` to the first and last cell of the row, `Ctrl+Home` and `Ctrl+End` to the first
@@ -132,20 +162,22 @@ Header checkboxes skip a locked column.
 
 **Accessibility.** The grid is a `grid` with sticky headers. A cell is read as "Supervisor,
 Cancel orders, granted", with ", inherited from Dispatcher", ", overrides inherited denied
-from Dispatcher", ", locked" (read-only) and ", unsaved change" when that is so. There is one
-polite region. What a person does is announced in it ("Cancel orders granted to Supervisor.
-2 unsaved changes"), from the value that `cell` gives afterwards, so a change you refuse is
-not announced as made; while the filter is used it says how many permissions match.
-Headers and the filter have names; the state is never colour alone.
+from Dispatcher", ", locked" (read-only) and ", unsaved change" when that is so. An editable
+grid is described by a short instruction ("Space or Enter changes a cell") and every cell that
+can change names its keys in `aria-keyshortcuts`. There is one polite region. What a person
+does is announced in it ("Cancel orders granted to Supervisor. 2 unsaved changes"), from the
+value that `cell` gives afterwards, so a change you refuse is not announced as made. The
+number is the one the change led to, so a save does not say the change again, and the
+announcement is cleared after five seconds, so a refresh later does not either. While the
+filter is used the region says how many permissions match. Headers and the filter have names;
+the state is never colour alone.
 
 **Size.** Only the permissions that are shown are turned into HTML, up to 500 rows (a
 note says how many were cut: use the filter or the groups). Events are caught once on
-the grid, so no cell has handlers of its own: 200 permissions and 25 roles are 5 000 cells
-and stay responsive. Every message (a key that moves the focus, a toggle) builds the whole
-grid again, as in any Elm view: the cells cannot be skipped with `Html.Lazy`, because the
-roles, the permissions and the `cell` function are new values on every render. Header
-checkboxes act on every permission that matches the filter, folded groups and rows beyond
-the cap included.
+the grid, so no cell has handlers of its own, and each cell is drawn from a few plain values
+with `Html.Lazy`: a key that moves the focus draws two cells again, and a toggle the cells it
+changed, also in a grid of 200 permissions and 25 roles (5 000 cells). Header checkboxes act
+on every permission that matches the filter, folded groups and rows beyond the cap included.
 
 The built-in text follows `locale` (English by default). Names come from you.
 
@@ -167,7 +199,7 @@ The built-in text follows `locale` (English by default). Names come from you.
 
 # Changes
 
-@docs Change, changedRole, changedPermission, newAccess
+@docs Change, changedRole, changedPermission, newAccess, unsavedChanges
 
 
 # State
@@ -177,7 +209,7 @@ The built-in text follows `locale` (English by default). Names come from you.
 
 # Attributes
 
-@docs Attribute, onChange, saved, toolbarActions, density, ariaLabel, maxHeight, onRetry, locale
+@docs Attribute, onChange, saved, toolbarActions, density, ariaLabel, maxHeight, onRetry, settings, locale
 
 -}
 
@@ -187,22 +219,25 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Html.Keyed as Keyed
+import Html.Lazy as Lazy
 import Json.Decode as Decode exposing (Decoder)
 import Klar.Checkbox as Checkbox
 import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
-import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
-import Klar.Internal.Freshness as Freshness
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.PermissionMatrix.Grid as Grid exposing (ColumnKey(..), RowKey(..))
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.TextInput as TextInput
-import Klar.Theme as Theme exposing (Density(..), Size(..))
+import Klar.Theme exposing (Density, Size(..))
+import Process
 import Set exposing (Set)
+import Task
 
 
 
@@ -566,6 +601,45 @@ newAccess (Change data) =
     data.access
 
 
+{-| The unsaved changes of a matrix, for the request that saves them: one `Change` for every
+role and permission whose own access in the matrix differs from the saved one, with the own
+access the role has now as `newAccess` (`Nothing`: it inherits now, remove what was stored).
+Give it the same function as `saved`. These are the cells that the matrix marks with a dot
+and counts above the grid, by the same rule (what is inherited does not count), in the order
+of the permissions and then of the roles; a role or a permission whose key was seen before
+is left out, as in the grid.
+
+    PermissionMatrix.unsavedChanges (cellOf model.savedGrants) (toMatrix grants)
+
+-}
+unsavedChanges : (role -> permission -> Cell) -> Matrix role permission -> List (Change role permission)
+unsavedChanges before (Matrix data) =
+    let
+        ( roles, _ ) =
+            firstOfEachKey (\(Role r) -> data.roleKey r.value) data.roles
+
+        ( permissions, _ ) =
+            firstOfEachKey (\(Permission p) -> data.permissionKey p.value) data.permissions
+    in
+    permissions
+        |> List.concatMap
+            (\(Permission p) ->
+                List.filterMap
+                    (\(Role r) ->
+                        let
+                            (Cell now) =
+                                data.cell r.value p.value
+                        in
+                        if sameCell (Cell now) (before r.value p.value) then
+                            Nothing
+
+                        else
+                            Just (Change { role = r.value, permission = p.value, access = now.own })
+                    )
+                    roles
+            )
+
+
 
 -- ATTRIBUTES
 
@@ -580,10 +654,13 @@ type Attribute role permission msg
 
 type alias Config role permission msg =
     { locale : Locale
+    , settings : Settings
     , onChange : Maybe (List (Change role permission) -> msg)
     , saved : Maybe (role -> permission -> Cell)
     , actions : List (Html msg)
-    , density : Density
+
+    -- Nothing: the density of the application
+    , density : Maybe Density
     , label : Maybe String
     , maxHeight : Maybe Int
     , onRetry : Maybe msg
@@ -594,10 +671,11 @@ configure : List (Attribute role permission msg) -> Config role permission msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { locale = Locale.default
+        , settings = Settings.default
         , onChange = Nothing
         , saved = Nothing
         , actions = []
-        , density = Normal
+        , density = Nothing
         , label = Nothing
         , maxHeight = Nothing
         , onRetry = Nothing
@@ -638,13 +716,14 @@ toolbarActions html =
     Attribute (\config -> { config | actions = html })
 
 
-{-| The height of the rows: `Compact`, `Normal` (the default) or `Comfortable`, the same as
+{-| The height of the rows: `Compact`, `Normal` or `Comfortable`, the same as
 [Klar.Table](Klar-Table) (see [Klar.Theme](Klar-Theme)). Without it the rows follow the
-density of the application (`Klar.Settings`).
+density of the application (`Klar.Settings`), which is `Normal` unless it says otherwise;
+with it the matrix has this density whatever the application's is.
 -}
 density : Density -> Attribute role permission msg
 density value =
-    Attribute (\config -> { config | density = value })
+    Attribute (\config -> { config | density = Just value })
 
 
 {-| The accessible name of the grid, for example "Permissions of the roles". The default is
@@ -665,11 +744,28 @@ maxHeight pixels =
 
 
 {-| The message sent by the "Try again" button when `viewRemote` shows a failure that is
-worth retrying.
+worth retrying, or old data whose refresh failed. Without it there is no such button. The
+button goes away while the data loads: in the update branch of this message, call
+`Klar.focus` with the id given to `init`.
+
+    PermissionMatrix.onRetry Reload
+
 -}
 onRetry : msg -> Attribute role permission msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of "Old data from
+14:05" when `viewRemote` shows data whose refresh failed. Without it the time is written in
+UTC and says so.
+
+    PermissionMatrix.settings model.settings
+
+-}
+settings : Settings -> Attribute role permission msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text: the words of the cells, the names for screen readers,
@@ -698,25 +794,40 @@ type alias StateData =
     , query : String
     , collapsed : Set String
     , focus : Maybe ( RowKey, ColumnKey )
-    , acted : Maybe Subject
+    , acted : Maybe Acted
+
+    -- counts the announcements, so that the timer of an old one does not clear a new one
+    , announced : Int
     }
 
 
-{-| What the person did last, as keys: a cell, a whole role or a whole permission.
+{-| What the person did last, for the announcement: the subject, and how many changes were
+unsaved once the change was made (`Nothing` without `saved`). The number is taken when the
+person acts, so that a save afterwards does not change the text and say it again.
+-}
+type alias Acted =
+    { subject : Subject
+    , unsaved : Maybe Int
+    }
+
+
+{-| What the person did last, as keys: a cell (with the own access asked for, to tell a change
+the application refused), a whole role or a whole permission.
 -}
 type Subject
-    = CellOf String String
+    = CellOf String String (Maybe Access)
     | RoleOf String
     | PermissionOf String
 
 
 {-| A matrix with an empty filter, no group folded and the focus at the first cell. The
-`String` is a DOM id that must be unique on the page: it is the id of the matrix and the
-prefix of the ids of its cells.
+`String` is a DOM id that must be unique on the page: it is the id of the frame of the
+matrix, which can take focus with `Klar.focus` in every state (loading, failed, loaded), and
+the prefix of the ids of its cells.
 -}
 init : String -> State
 init id =
-    State { id = id, query = "", collapsed = Set.empty, focus = Nothing, acted = Nothing }
+    State { id = id, query = "", collapsed = Set.empty, focus = Nothing, acted = Nothing, announced = 0 }
 
 
 {-| The text in the filter box. Only the permissions that contain every word are shown.
@@ -757,12 +868,21 @@ type Msg
     | GroupToggled String
     | Focused RowKey ColumnKey
     | Moved RowKey ColumnKey
-    | Acted Subject
+    | Did Subject (Maybe Int)
+    | Cleared Int
     | Noop
 
 
+{-| How long an announcement stays in the live region: long enough to be read, short
+enough that a later refresh of the data is not announced as what the person did.
+-}
+announcementMs : Float
+announcementMs =
+    5000
+
+
 {-| Applies a message. The `Cmd` moves the browser's focus to the cell that an arrow key
-reached, so map it with your message constructor.
+reached, and clears an announcement after a while, so map it with your message constructor.
 -}
 update : Msg -> State -> ( State, Cmd Msg )
 update msg (State data) =
@@ -791,8 +911,21 @@ update msg (State data) =
             , Internal.focus (Grid.domId data.id row column) Noop
             )
 
-        Acted subject ->
-            ( State { data | acted = Just subject }, Cmd.none )
+        Did subject unsaved ->
+            let
+                number =
+                    data.announced + 1
+            in
+            ( State { data | acted = Just { subject = subject, unsaved = unsaved }, announced = number }
+            , Process.sleep announcementMs |> Task.perform (\_ -> Cleared number)
+            )
+
+        Cleared number ->
+            if number == data.announced then
+                ( State { data | acted = Nothing }, Cmd.none )
+
+            else
+                ( State data, Cmd.none )
 
         Noop ->
             ( State data, Cmd.none )
@@ -834,11 +967,31 @@ type alias Texts =
     , announceRole : String -> Int -> Int -> String
     , announcePermission : String -> Int -> Int -> String
     , lockedNote : String -> String -> String
+    , howToChange : String
+    , howToInheritAgain : String
     }
 
 
+{-| The texts in a language. They are made once per language, so that the same record is
+given to every render and `Html.Lazy` can tell that a cell has not changed.
+-}
 texts : Locale -> Texts
 texts loc =
+    Locale.pick loc { nb = textsNb, en = textsEn }
+
+
+textsNb : Texts
+textsNb =
+    textsIn Locale.nb
+
+
+textsEn : Texts
+textsEn =
+    textsIn Locale.en
+
+
+textsIn : Locale -> Texts
+textsIn loc =
     let
         pick nb en =
             Locale.pick loc { nb = nb, en = en }
@@ -942,6 +1095,8 @@ texts loc =
     , announceRole = \roleName yes total -> pick (roleName ++ ": " ++ number yes ++ " av " ++ number total ++ " tilganger tillatt") (roleName ++ ": " ++ number yes ++ " of " ++ number total ++ " permissions granted")
     , announcePermission = \permissionName yes total -> pick (permissionName ++ ": tillatt for " ++ number yes ++ " av " ++ number total ++ " roller") (permissionName ++ ": granted to " ++ number yes ++ " of " ++ number total ++ " roles")
     , lockedNote = \roleName reason -> roleName ++ ": " ++ reason
+    , howToChange = pick "Mellomrom eller Enter endrer en celle." "Space or Enter changes a cell."
+    , howToInheritAgain = pick "Delete eller Backspace lar en overstyrt celle arve igjen." "Delete or Backspace makes an overriding cell inherit again."
     }
 
 
@@ -988,6 +1143,14 @@ type alias Env role permission msg =
     , filtering : Bool
     , duplicateRoles : Int
     , duplicatePermissions : Int
+    , freshness : Freshness
+
+    -- the rows and columns as they are written in the DOM ids of the cells, worked out once
+    , rowTokens : Array String
+    , columnTokens : Array String
+
+    -- some cell inherits, so Delete can make a cell inherit again
+    , inherits : Bool
     }
 
 
@@ -1025,8 +1188,8 @@ firstOfEachKey keyOf items =
     ( List.reverse kept, List.length items - List.length kept )
 
 
-prepare : (Msg -> msg) -> Config role permission msg -> StateData -> Matrix role permission -> Env role permission msg
-prepare toMsg config state (Matrix data) =
+prepare : (Msg -> msg) -> Config role permission msg -> StateData -> Freshness -> Matrix role permission -> Env role permission msg
+prepare toMsg config state freshness (Matrix data) =
     let
         t =
             texts config.locale
@@ -1093,16 +1256,25 @@ prepare toMsg config state (Matrix data) =
         columnKeys =
             LabelKey :: List.map (\r -> RoleKey r.key) roles
 
-        indexOf token keys =
-            keys
-                |> List.indexedMap (\i key -> ( token key, i ))
+        rowTokenList =
+            List.map Grid.rowToken rowKeys
+
+        columnTokenList =
+            List.map Grid.columnToken columnKeys
+
+        indexOf tokens =
+            tokens
+                |> List.indexedMap (\i token -> ( token, i ))
                 |> Dict.fromList
 
         rowIndex =
-            indexOf Grid.rowToken rowKeys
+            indexOf rowTokenList
 
         columnIndex =
-            indexOf Grid.columnToken columnKeys
+            indexOf columnTokenList
+
+        cells =
+            cellsOf data.cell
 
         firstStop =
             if List.length rowKeys >= 2 then
@@ -1136,7 +1308,7 @@ prepare toMsg config state (Matrix data) =
     , permissions = Array.fromList permissions
     , roleByKey = roles |> List.map (\r -> ( r.key, r.index )) |> Dict.fromList
     , permissionByKey = permissions |> List.map (\p -> ( p.key, p.index )) |> Dict.fromList
-    , cells = cellsOf data.cell
+    , cells = cells
     , savedCells = Maybe.map cellsOf config.saved
     , layout = layout
     , rows = Array.fromList rowKeys
@@ -1148,6 +1320,14 @@ prepare toMsg config state (Matrix data) =
     , filtering = String.trim state.query /= ""
     , duplicateRoles = duplicateRoles
     , duplicatePermissions = duplicatePermissions
+    , freshness = freshness
+    , rowTokens = Array.fromList rowTokenList
+    , columnTokens = Array.fromList columnTokenList
+    , inherits =
+        Array.foldl
+            (\row found -> found || Array.foldl (\(Cell c) any -> any || c.inherited /= Nothing) False row)
+            False
+            cells
     }
 
 
@@ -1224,10 +1404,27 @@ rowCells env permissionIndex =
         |> List.map cellGranted
 
 
+{-| One cell that a click, a key or a header checkbox asks to change, by its place in the
+matrix: the permission, the role and the own access it should have.
+-}
+type alias Edit =
+    { permission : Int
+    , role : Int
+    , access : Maybe Access
+    }
+
+
+toChange : Env role permission msg -> Edit -> Maybe (Change role permission)
+toChange env edit =
+    Maybe.map2 (\info r -> Change { role = r.value, permission = info.value, access = edit.access })
+        (permissionAt env edit.permission)
+        (roleAt env edit.role)
+
+
 {-| What an application is asked to change when a role's checkbox says `yes`.
 -}
-columnChanges : Env role permission msg -> Int -> Bool -> List (Change role permission)
-columnChanges env roleIndex yes =
+columnEdits : Env role permission msg -> Int -> Bool -> List Edit
+columnEdits env roleIndex yes =
     case roleAt env roleIndex of
         Just r ->
             if r.locked /= Nothing then
@@ -1237,15 +1434,15 @@ columnChanges env roleIndex yes =
                 env.layout.matches
                     |> List.filterMap
                         (\p ->
-                            case ( permissionAt env p, cellAt env p roleIndex ) of
-                                ( Just info, Just theCell ) ->
+                            case cellAt env p roleIndex of
+                                Just theCell ->
                                     if cellGranted theCell == yes then
                                         Nothing
 
                                     else
-                                        Just (Change { role = r.value, permission = info.value, access = ownFor (fromBool yes) theCell })
+                                        Just { permission = p, role = roleIndex, access = ownFor (fromBool yes) theCell }
 
-                                _ ->
+                                Nothing ->
                                     Nothing
                         )
 
@@ -1253,29 +1450,71 @@ columnChanges env roleIndex yes =
             []
 
 
+rowEdits : Env role permission msg -> Int -> Bool -> List Edit
+rowEdits env permissionIndex yes =
+    env.roles
+        |> Array.toList
+        |> List.filter (\r -> r.locked == Nothing)
+        |> List.filterMap
+            (\r ->
+                case cellAt env permissionIndex r.index of
+                    Just theCell ->
+                        if cellGranted theCell == yes then
+                            Nothing
+
+                        else
+                            Just { permission = permissionIndex, role = r.index, access = ownFor (fromBool yes) theCell }
+
+                    Nothing ->
+                        Nothing
+            )
+
+
+columnChanges : Env role permission msg -> Int -> Bool -> List (Change role permission)
+columnChanges env roleIndex yes =
+    List.filterMap (toChange env) (columnEdits env roleIndex yes)
+
+
 rowChanges : Env role permission msg -> Int -> Bool -> List (Change role permission)
 rowChanges env permissionIndex yes =
-    case permissionAt env permissionIndex of
-        Just info ->
-            env.roles
-                |> Array.toList
-                |> List.filter (\r -> r.locked == Nothing)
-                |> List.filterMap
-                    (\r ->
-                        case cellAt env permissionIndex r.index of
-                            Just theCell ->
-                                if cellGranted theCell == yes then
-                                    Nothing
+    List.filterMap (toChange env) (rowEdits env permissionIndex yes)
 
-                                else
-                                    Just (Change { role = r.value, permission = info.value, access = ownFor (fromBool yes) theCell })
 
-                            Nothing ->
-                                Nothing
-                    )
-
+{-| How many changes are unsaved once these edits are made, the way the count above the
+grid will say it. `Nothing` without `saved`.
+-}
+unsavedAfter : Env role permission msg -> List Edit -> Maybe Int
+unsavedAfter env edits =
+    case env.savedCells of
         Nothing ->
-            []
+            Nothing
+
+        Just _ ->
+            let
+                one yes =
+                    if yes then
+                        1
+
+                    else
+                        0
+            in
+            Just
+                (List.foldl
+                    (\edit total ->
+                        let
+                            will =
+                                case savedAt env edit.permission edit.role of
+                                    Just (Cell before) ->
+                                        edit.access /= before.own
+
+                                    Nothing ->
+                                        False
+                        in
+                        total + one will - one (isChanged env edit.permission edit.role)
+                    )
+                    (changedCount env)
+                    edits
+                )
 
 
 {-| The matrix.
@@ -1284,51 +1523,15 @@ rowChanges env permissionIndex yes =
 
 -}
 view : (Msg -> msg) -> List (Attribute role permission msg) -> State -> Matrix role permission -> Html msg
-view toMsg attributes (State state) theMatrix =
-    let
-        config =
-            configure attributes
-
-        env =
-            prepare toMsg config state theMatrix
-
-        t =
-            env.t
-    in
-    if Array.isEmpty env.roles then
-        EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.users, EmptyState.title t.noRoles ]
-
-    else if Array.isEmpty env.permissions then
-        EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.shieldCheck, EmptyState.title t.noPermissions ]
-
-    else
-        Html.div
-            [ Internal.cls
-                [ "klar-permissions"
-                , "klar-permissions--" ++ Internal.densitySuffix config.density
-                , if env.editable then
-                    ""
-
-                  else
-                    "klar-permissions--readonly"
-                ]
-            , Attr.id state.id
-            ]
-            [ viewToolbar env
-            , viewBody env
-            , viewNotes env
-            , Html.div
-                [ Internal.cls [ "klar-sr-only" ]
-                , Attr.attribute "role" "status"
-                , Attr.attribute "aria-live" "polite"
-                ]
-                [ Html.text (liveText env) ]
-            ]
+view toMsg attributes state theMatrix =
+    viewMatrix toMsg (configure attributes) state Freshness.Fresh theMatrix
 
 
-{-| The same for a matrix that comes from the backend. `Success` shows the matrix, `Failure` shows
-the problem with a "Try again" button (`onRetry`), and `NotAsked` and `Loading` show a skeleton of
-a grid.
+{-| The same for a matrix that comes from the backend. `Loaded` shows the matrix, `Failed`
+shows the problem with a "Try again" button (`onRetry`), and `NotAsked` and `Loading` show a
+skeleton of a grid. `Kept` shows the matrix it keeps, editable as `Loaded`: dimmed and
+`aria-busy` while it is refreshed, and with "Old data from 14:05" and a retry above the grid
+when the last refresh failed. The frame of the matrix has the id of `init` in every state.
 
     PermissionMatrix.viewRemote MatrixMsg [ PermissionMatrix.onRetry Reload ] model.access (Remote.map toMatrix model.grants)
 
@@ -1341,26 +1544,32 @@ viewRemote toMsg attributes state data =
 
         t =
             texts config.locale
+
+        ( settled, freshness ) =
+            Freshness.settle data
     in
-    case Tuple.first (Freshness.settle data) of
+    case settled of
         Remote.Loaded theMatrix ->
-            view toMsg attributes state theMatrix
+            viewMatrix toMsg config state freshness theMatrix
 
         Remote.Failed problem ->
-            ErrorState.view
-                (List.filterMap identity
-                    [ Just ErrorState.compact
-                    , Just (ErrorState.locale config.locale)
-                    , Maybe.map ErrorState.onRetry config.onRetry
-                    ]
-                )
-                problem
+            frame config
+                state
+                { modifiers = [ "klar-permissions--failed" ], freshness = freshness }
+                [ ErrorState.view
+                    (List.filterMap identity
+                        [ Just ErrorState.compact
+                        , Just (ErrorState.locale config.locale)
+                        , Maybe.map ErrorState.onRetry config.onRetry
+                        ]
+                    )
+                    problem
+                ]
 
         _ ->
-            Html.div
-                [ Internal.cls [ "klar-permissions", "klar-permissions--" ++ Internal.densitySuffix config.density, "klar-permissions--skeleton" ]
-                , Attr.attribute "aria-busy" "true"
-                ]
+            frame config
+                state
+                { modifiers = [ "klar-permissions--skeleton" ], freshness = freshness }
                 (Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ] [ Html.text t.loading ]
                     :: Html.div [ Internal.cls [ "klar-permissions__skeleton-row", "klar-permissions__skeleton-row--head" ], Attr.attribute "aria-hidden" "true" ]
                         (Skeleton.line 40 :: List.map (\_ -> Skeleton.line 60) (List.range 1 4))
@@ -1371,6 +1580,110 @@ viewRemote toMsg attributes state data =
                         )
                         [ 55, 70, 45, 60, 50, 65 ]
                 )
+
+
+{-| The frame of the matrix, the same element in every state: it carries the id of `init`
+and can take focus (`tabindex` -1), so `Klar.focus` finds the matrix while it loads, after
+a failure and once it is there, and the focus stays where it is when the state changes.
+-}
+frame :
+    Config role permission msg
+    -> State
+    -> { modifiers : List String, freshness : Freshness }
+    -> List (Html msg)
+    -> Html msg
+frame config (State state) options children =
+    let
+        waiting =
+            List.member "klar-permissions--skeleton" options.modifiers
+    in
+    Html.div
+        [ Internal.cls
+            ("klar-permissions"
+                :: (case config.density of
+                        Just chosen ->
+                            "klar-permissions--" ++ Internal.densitySuffix chosen
+
+                        Nothing ->
+                            ""
+                   )
+                :: Freshness.className options.freshness
+                :: options.modifiers
+            )
+        , Attr.id state.id
+        , Attr.tabindex -1
+        , if waiting then
+            Attr.attribute "aria-busy" "true"
+
+          else
+            Freshness.busyAttr options.freshness
+        ]
+        children
+
+
+viewMatrix : (Msg -> msg) -> Config role permission msg -> State -> Freshness -> Matrix role permission -> Html msg
+viewMatrix toMsg config ((State state) as wrapped) freshness theMatrix =
+    let
+        env =
+            prepare toMsg config state freshness theMatrix
+
+        t =
+            env.t
+
+        notice =
+            Freshness.notice { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False } freshness
+
+        readonly =
+            if env.editable then
+                ""
+
+            else
+                "klar-permissions--readonly"
+    in
+    if Array.isEmpty env.roles then
+        frame config
+            wrapped
+            { modifiers = [ "klar-permissions--empty", readonly ], freshness = freshness }
+            [ notice, EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.users, EmptyState.title t.noRoles ] ]
+
+    else if Array.isEmpty env.permissions then
+        frame config
+            wrapped
+            { modifiers = [ "klar-permissions--empty", readonly ], freshness = freshness }
+            [ notice, EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.shieldCheck, EmptyState.title t.noPermissions ] ]
+
+    else
+        frame config
+            wrapped
+            { modifiers = [ readonly ], freshness = freshness }
+            [ viewToolbar env
+            , viewBody env
+            , viewNotes env
+            , Html.div
+                [ Internal.cls [ "klar-sr-only" ]
+                , Attr.attribute "role" "status"
+                , Attr.attribute "aria-live" "polite"
+                ]
+                [ Html.text (liveText env) ]
+
+            -- what the keys do, the description of an editable grid
+            , Internal.viewIf env.editable
+                (Html.span [ Internal.cls [ "klar-sr-only" ], Attr.id (howId env) ]
+                    [ Html.text
+                        (if env.inherits then
+                            t.howToChange ++ " " ++ t.howToInheritAgain
+
+                         else
+                            t.howToChange
+                        )
+                    ]
+                )
+            ]
+
+
+howId : Env role permission msg -> String
+howId env =
+    env.state.id ++ "/how"
 
 
 
@@ -1426,6 +1739,11 @@ viewToolbar env =
 
           else
             Html.text ""
+
+        -- always in this place, so that the buttons after it keep their focus when it comes and goes
+        , Freshness.notice
+            { locale = env.config.locale, settings = env.config.settings, onRetry = env.config.onRetry, inline = True }
+            env.freshness
         , Internal.viewIf (not (List.isEmpty env.config.actions))
             (Html.div [ Internal.cls [ "klar-permissions__actions" ] ] env.config.actions)
         ]
@@ -1546,6 +1864,7 @@ viewTable env =
          , Attr.attribute "aria-rowcount" (String.fromInt (Array.length env.rows))
          , Attr.attribute "aria-colcount" (String.fromInt (Array.length env.columns))
          , Internal.attrIf (not env.editable) (Attr.attribute "aria-readonly" "true")
+         , Internal.attrIf env.editable (Attr.attribute "aria-describedby" (howId env))
          ]
             ++ (case env.config.onChange of
                     Just toMsg ->
@@ -1580,10 +1899,10 @@ placeAttrs env row column =
 
 stopAttrs : Env role permission msg -> Int -> Int -> List (Html.Attribute msg)
 stopAttrs env row column =
-    case ( Array.get row env.rows, Array.get column env.columns ) of
-        ( Just rowKey, Just columnKey ) ->
+    case domIdAt env row column of
+        Just domId ->
             placeAttrs env row column
-                ++ [ Attr.id (Grid.domId env.state.id rowKey columnKey)
+                ++ [ Attr.id domId
                    , Attr.tabindex
                         (if env.stop == ( row, column ) then
                             0
@@ -1593,8 +1912,18 @@ stopAttrs env row column =
                         )
                    ]
 
-        _ ->
+        Nothing ->
             placeAttrs env row column
+
+
+{-| The DOM id of the stop at this place, the same as `Grid.domId` gives for its keys, from
+the tokens worked out once per render.
+-}
+domIdAt : Env role permission msg -> Int -> Int -> Maybe String
+domIdAt env row column =
+    Maybe.map2 (\rowToken columnToken -> env.state.id ++ "/" ++ rowToken ++ "/" ++ columnToken)
+        (Array.get row env.rowTokens)
+        (Array.get column env.columnTokens)
 
 
 viewHeaderRow : Env role permission msg -> Html msg
@@ -1699,12 +2028,7 @@ viewRoleHeader env r =
 
 domIdOf : Env role permission msg -> Int -> Int -> String
 domIdOf env row column =
-    case ( Array.get row env.rows, Array.get column env.columns ) of
-        ( Just rowKey, Just columnKey ) ->
-            Grid.domId env.state.id rowKey columnKey
-
-        _ ->
-            env.state.id
+    Maybe.withDefault env.state.id (domIdAt env row column)
 
 
 viewRow : Env role permission msg -> Int -> Grid.Row -> ( String, Html msg )
@@ -1862,33 +2186,153 @@ viewPermissionRow env rowNumber info =
         (header :: List.map (viewCell env rowNumber info) (Array.toList env.roles))
 
 
+{-| A cell, drawn with `Html.Lazy` from plain values (texts that are the same record for a
+language, strings, numbers): a render that changes nothing in a cell does not draw it again,
+so a key that moves the focus draws two cells of a 5 000 cell grid, not all of them.
+-}
 viewCell : Env role permission msg -> Int -> PermissionInfo permission -> RoleInfo role -> Html msg
 viewCell env rowNumber info r =
     let
-        t =
-            env.t
-
         facts =
             factsOf (cellAt env info.index r.index |> Maybe.withDefault (direct denied))
 
-        changed =
-            isChanged env info.index r.index
+        column =
+            r.index + 1
+
+        bit yes value =
+            if yes then
+                value
+
+            else
+                0
+
+        flags =
+            bit (facts.access == AccessGranted) flagGranted
+                + bit facts.inheriting flagInheriting
+                + bit facts.overriding flagOverriding
+                + bit (facts.inheritedAccess == Just AccessGranted) flagInheritedGranted
+                + bit (r.locked /= Nothing) flagLocked
+                + bit (isChanged env info.index r.index) flagChanged
+                + bit env.editable flagEditable
+                + bit (env.stop == ( rowNumber, column )) flagStop
+    in
+    Lazy.lazy8 drawCell
+        env.t
+        (domIdOf env rowNumber column)
+        rowNumber
+        column
+        (r.label ++ ", " ++ info.label)
+        flags
+        (Maybe.withDefault "" facts.source)
+        (case r.locked of
+            Just _ ->
+                reasonId env r.key
+
+            Nothing ->
+                ""
+        )
+
+
+flagGranted : Int
+flagGranted =
+    1
+
+
+flagInheriting : Int
+flagInheriting =
+    2
+
+
+flagOverriding : Int
+flagOverriding =
+    4
+
+
+flagInheritedGranted : Int
+flagInheritedGranted =
+    8
+
+
+flagLocked : Int
+flagLocked =
+    16
+
+
+flagChanged : Int
+flagChanged =
+    32
+
+
+flagEditable : Int
+flagEditable =
+    64
+
+
+flagStop : Int
+flagStop =
+    128
+
+
+hasFlag : Int -> Int -> Bool
+hasFlag flag flags =
+    modBy (flag * 2) flags >= flag
+
+
+{-| One cell, from its plain values: the texts, its DOM id, its place, "Role, Permission",
+the facts as bits, where it inherits from ("" for nowhere) and the id of the reason of a
+locked role ("" when the role is not locked).
+-}
+drawCell : Texts -> String -> Int -> Int -> String -> Int -> String -> String -> Html msg
+drawCell t domId rowNumber column names flags sourceText lockReasonId =
+    let
+        is flag =
+            hasFlag flag flags
+
+        accessOf yes =
+            if yes then
+                AccessGranted
+
+            else
+                AccessDenied
+
+        overriding =
+            is flagOverriding
+
+        facts =
+            { access = accessOf (is flagGranted)
+            , own = Nothing
+            , inheriting = is flagInheriting
+            , overriding = overriding
+            , source = Internal.nonEmpty sourceText
+            , inheritedAccess =
+                if overriding then
+                    Just (accessOf (is flagInheritedGranted))
+
+                else
+                    Nothing
+            }
 
         isLocked =
-            r.locked /= Nothing
+            is flagLocked
+
+        changed =
+            is flagChanged
+
+        editableCell =
+            is flagEditable
 
         -- the role has an access of its own over an inherited one, and may go back to inheriting
         canInheritAgain =
-            env.editable && not isLocked && facts.overriding
+            editableCell && not isLocked && facts.overriding
 
         name =
-            cellName t r.label info.label facts isLocked changed
+            cellName t names facts isLocked changed
 
         word =
             if facts.inheriting then
                 Just (Maybe.withDefault t.inheritedWord facts.source)
 
-            else if env.editable then
+            else if editableCell then
                 Nothing
 
             else
@@ -1900,14 +2344,28 @@ viewCell env rowNumber info r =
                     Icon.sized Icon.ExtraSmall Icon.check
 
                 AccessDenied ->
-                    if env.editable then
+                    if editableCell then
                         Html.text ""
 
                     else
                         Icon.sized Icon.ExtraSmall Icon.minus
+
+        -- a cell that can change names its keys: Space and Enter, and Delete where it can inherit again
+        keys =
+            if editableCell && not isLocked then
+                Just
+                    (if canInheritAgain then
+                        "Space Enter Delete Backspace"
+
+                     else
+                        "Space Enter"
+                    )
+
+            else
+                Nothing
     in
     Html.td
-        ([ Internal.cls
+        [ Internal.cls
             [ "klar-permissions__cell"
             , "klar-permissions__cell--" ++ accessSuffix facts.access
             , if facts.inheriting then
@@ -1930,22 +2388,30 @@ viewCell env rowNumber info r =
 
               else
                 ""
-            , if env.editable && not isLocked then
+            , if editableCell && not isLocked then
                 "klar-permissions__cell--editable"
 
               else
                 ""
             ]
-         , Attr.attribute "role" "gridcell"
-         , Attr.attribute "aria-label" name
+        , Attr.attribute "role" "gridcell"
+        , Attr.attribute "aria-label" name
 
-         -- the cell can be focused and read, but not changed: that is "read-only", not "disabled"
-         , Internal.attrIf isLocked (Attr.attribute "aria-readonly" "true")
-         , Internal.attrIf canInheritAgain (Attr.attribute "aria-keyshortcuts" "Delete Backspace")
-         , Internal.attrMaybe (\_ -> Attr.attribute "aria-describedby" (reasonId env r.key)) r.locked
-         ]
-            ++ stopAttrs env rowNumber (r.index + 1)
-        )
+        -- the cell can be focused and read, but not changed: that is "read-only", not "disabled"
+        , Internal.attrIf isLocked (Attr.attribute "aria-readonly" "true")
+        , Internal.attrMaybe (Attr.attribute "aria-keyshortcuts") keys
+        , Internal.attrMaybe (Attr.attribute "aria-describedby") (Internal.nonEmpty lockReasonId)
+        , Attr.attribute "data-r" (String.fromInt rowNumber)
+        , Attr.attribute "data-c" (String.fromInt column)
+        , Attr.id domId
+        , Attr.tabindex
+            (if is flagStop then
+                0
+
+             else
+                -1
+            )
+        ]
         [ Html.span [ Internal.cls [ "klar-permissions__content" ], Attr.attribute "aria-hidden" "true" ]
             [ Html.span [ Internal.cls [ "klar-permissions__mark" ] ] [ glyph ]
             , case word of
@@ -1962,7 +2428,7 @@ viewCell env rowNumber info r =
             (Html.span
                 [ Internal.cls [ "klar-permissions__reset" ]
                 , Attr.attribute "data-r" (String.fromInt rowNumber)
-                , Attr.attribute "data-c" (String.fromInt (r.index + 1))
+                , Attr.attribute "data-c" (String.fromInt column)
                 , Attr.attribute "data-reset" "1"
                 , Attr.title t.inheritAgain
                 , Attr.attribute "aria-hidden" "true"
@@ -1984,10 +2450,9 @@ accessSuffix access =
 
 {-| "Supervisor, Cancel orders, granted", with what else is true of the cell.
 -}
-cellName : Texts -> String -> String -> Facts -> Bool -> Bool -> String
-cellName t roleName permissionName facts isLocked changed =
-    [ Just roleName
-    , Just permissionName
+cellName : Texts -> String -> Facts -> Bool -> Bool -> String
+cellName t names facts isLocked changed =
+    [ Just names
     , Just (t.access facts.access)
     , if facts.inheriting then
         Just (Maybe.withDefault t.inheritedPlain (Maybe.map t.inheritedFrom facts.source))
@@ -2021,8 +2486,11 @@ cellName t roleName permissionName facts isLocked changed =
 
 {-| The one polite region of the matrix. What a person did last is said from the value the
 application gives now (so a change it refused is not announced as made), followed by how many
-changes are unsaved. Typing in the filter forgets what was done, and the region says how many
-permissions match instead.
+changes were unsaved once it was made: that number is taken when the person acts, so that a
+save afterwards does not change the text, which would say the change again. A cell whose own
+access is not the one asked for (the application refused it) gets no number. The
+announcement is cleared after `announcementMs`. Typing in the filter forgets what was done,
+and the region says how many permissions match instead.
 -}
 liveText : Env role permission msg -> String
 liveText env =
@@ -2031,19 +2499,28 @@ liveText env =
             env.t
     in
     case env.state.acted of
-        Just _ ->
+        Just acted ->
             let
                 said =
-                    announcement env
+                    announcement env acted.subject
 
-                unsaved =
-                    changedCount env
+                count =
+                    if refused env acted.subject then
+                        Nothing
+
+                    else
+                        acted.unsaved
             in
-            if said /= "" && unsaved > 0 then
-                said ++ ". " ++ t.changes unsaved
+            case count of
+                Just unsaved ->
+                    if said /= "" && unsaved > 0 then
+                        said ++ ". " ++ t.changes unsaved
 
-            else
-                said
+                    else
+                        said
+
+                Nothing ->
+                    said
 
         Nothing ->
             if not env.filtering then
@@ -2056,19 +2533,34 @@ liveText env =
                 t.matchCount (List.length env.layout.matches) env.layout.total
 
 
+{-| Whether the application did not make the change of a cell that the person asked for: the
+cell's own access is not the one asked for.
+-}
+refused : Env role permission msg -> Subject -> Bool
+refused env subject =
+    case subject of
+        CellOf roleKey permissionKey requested ->
+            case Maybe.map2 (cellAt env) (Dict.get permissionKey env.permissionByKey) (Dict.get roleKey env.roleByKey) of
+                Just (Just (Cell now)) ->
+                    now.own /= requested
+
+                _ ->
+                    True
+
+        _ ->
+            False
+
+
 {-| What a person did last, said from the value the application gives now.
 -}
-announcement : Env role permission msg -> String
-announcement env =
+announcement : Env role permission msg -> Subject -> String
+announcement env subject =
     let
         t =
             env.t
     in
-    case env.state.acted of
-        Nothing ->
-            ""
-
-        Just (CellOf roleKey permissionKey) ->
+    case subject of
+        CellOf roleKey permissionKey _ ->
             case ( Dict.get roleKey env.roleByKey, Dict.get permissionKey env.permissionByKey ) of
                 ( Just r, Just p ) ->
                     case ( roleAt env r, permissionAt env p, cellAt env p r ) of
@@ -2093,7 +2585,7 @@ announcement env =
                 _ ->
                     ""
 
-        Just (RoleOf roleKey) ->
+        RoleOf roleKey ->
             case Dict.get roleKey env.roleByKey |> Maybe.andThen (roleAt env) of
                 Just roleInfo ->
                     let
@@ -2105,12 +2597,15 @@ announcement env =
                 Nothing ->
                     ""
 
-        Just (PermissionOf permissionKey) ->
+        PermissionOf permissionKey ->
             case Dict.get permissionKey env.permissionByKey |> Maybe.andThen (permissionAt env) of
                 Just permissionInfo ->
                     let
+                        -- every role, the locked ones too: the total is the one the person sees in the row
                         cells =
-                            rowCells env permissionInfo.index
+                            Array.toList env.roles
+                                |> List.filterMap (\r -> cellAt env permissionInfo.index r.index)
+                                |> List.map cellGranted
                     in
                     t.announcePermission permissionInfo.label (List.length (List.filter identity cells)) (List.length cells)
 
@@ -2267,6 +2762,11 @@ where the role has an access of its own over an inherited one.
 -}
 cellChange : Env role permission msg -> Target -> Intent -> Maybe (Change role permission)
 cellChange env target intent =
+    cellEdit env target intent |> Maybe.andThen (toChange env)
+
+
+cellEdit : Env role permission msg -> Target -> Intent -> Maybe Edit
+cellEdit env target intent =
     if not target.own || not env.editable then
         Nothing
 
@@ -2279,17 +2779,30 @@ cellChange env target intent =
                 else
                     case intent of
                         Toggle ->
-                            Just (Change { role = found.role.value, permission = found.permission.value, access = toggled found.cell })
+                            Just { permission = found.permission.index, role = found.role.index, access = toggled found.cell }
 
                         InheritAgain ->
                             if (factsOf found.cell).overriding then
-                                Just (Change { role = found.role.value, permission = found.permission.value, access = Nothing })
+                                Just { permission = found.permission.index, role = found.role.index, access = Nothing }
 
                             else
                                 Nothing
 
             Nothing ->
                 Nothing
+
+
+{-| What the matrix remembers of a click or a key on a cell that changes it: the cell, the own
+access asked for, and how many changes are unsaved once it is made.
+-}
+didOnCell : Env role permission msg -> Target -> Intent -> Maybe Msg
+didOnCell env target intent =
+    case ( cellEdit env target intent, subjectOf env target ) of
+        ( Just edit, Just (CellOf roleKey permissionKey _) ) ->
+            Just (Did (CellOf roleKey permissionKey edit.access) (unsavedAfter env [ edit ]))
+
+        _ ->
+            Nothing
 
 
 {-| A click: on the "inherit again" mark of a cell, or on the cell.
@@ -2352,7 +2865,7 @@ subjectOf env target =
             Just (PermissionOf permissionKey)
 
         ( Just (PermissionKey permissionKey), Just (RoleKey roleKey) ) ->
-            Just (CellOf roleKey permissionKey)
+            Just (CellOf roleKey permissionKey Nothing)
 
         _ ->
             Nothing
@@ -2394,17 +2907,24 @@ clickDecoder env =
                                 Decode.succeed (GroupToggled name)
 
                         _ ->
-                            case ( cellChange env target (clickIntent target), subjectOf env target ) of
-                                ( Just _, Just subject ) ->
-                                    Decode.succeed (Acted subject)
+                            case didOnCell env target (clickIntent target) of
+                                Just did ->
+                                    Decode.succeed did
 
-                                _ ->
+                                Nothing ->
                                     Decode.fail "nothing to remember"
             )
 
 
+{-| A header checkbox: remembered as the whole role or the whole permission, with how many
+changes are unsaved once its cells change (the same cells as the checkbox asks for).
+-}
 changeDecoder : Env role permission msg -> Decoder Msg
 changeDecoder env =
+    let
+        did subject edits =
+            Decode.succeed (Did subject (unsavedAfter env edits))
+    in
     targetDecoder
         |> Decode.andThen
             (\target ->
@@ -2413,13 +2933,31 @@ changeDecoder env =
 
                 else
                     case subjectOf env target of
-                        Just (CellOf _ _) ->
-                            Decode.fail "not a header checkbox"
+                        Just (RoleOf roleKey) ->
+                            case Dict.get roleKey env.roleByKey of
+                                Just index ->
+                                    did (RoleOf roleKey)
+                                        (Grid.shouldGrant (columnCells env index)
+                                            |> Maybe.map (columnEdits env index)
+                                            |> Maybe.withDefault []
+                                        )
 
-                        Just subject ->
-                            Decode.succeed (Acted subject)
+                                Nothing ->
+                                    Decode.fail "not a role"
 
-                        Nothing ->
+                        Just (PermissionOf permissionKey) ->
+                            case Dict.get permissionKey env.permissionByKey of
+                                Just index ->
+                                    did (PermissionOf permissionKey)
+                                        (Grid.shouldGrant (rowCells env index)
+                                            |> Maybe.map (rowEdits env index)
+                                            |> Maybe.withDefault []
+                                        )
+
+                                Nothing ->
+                                    Decode.fail "not a permission"
+
+                        _ ->
                             Decode.fail "not a header checkbox"
             )
 
@@ -2515,11 +3053,11 @@ keyDecoder env =
                                                 Decode.succeed ( GroupToggled name, True )
 
                                         _ ->
-                                            case ( cellChange env target intent, subjectOf env target ) of
-                                                ( Just _, Just subject ) ->
-                                                    Decode.succeed ( Acted subject, True )
+                                            case didOnCell env target intent of
+                                                Just did ->
+                                                    Decode.succeed ( did, True )
 
-                                                _ ->
+                                                Nothing ->
                                                     if press.key == " " then
                                                         Decode.succeed ( Noop, True )
 

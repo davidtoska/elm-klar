@@ -42,13 +42,22 @@ css =
   font-size: var(--_font);
 }
 
+/* The frame takes focus (Klar.focus with the id of init) when "Try again" goes away. */
+.klar-permissions:focus { outline: none; }
+
+.klar-permissions:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 2px;
+}
+
+/* An explicit density (a modifier) wins over the density of the application. */
 .klar-permissions--normal {
   --_row-h: var(--klar-row);
   --_cell-px: var(--klar-space-3);
 }
 
 .klar-permissions--compact,
-:where([data-klar-density="compact"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
+:where([data-klar-density="compact"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--normal, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_font: var(--klar-text-sm);
@@ -57,10 +66,14 @@ css =
 }
 
 .klar-permissions--comfortable,
-:where([data-klar-density="comfortable"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
+:where([data-klar-density="comfortable"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--normal, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_cell-px: var(--klar-space-4);
 }
+
+/* A failure or an empty matrix sits in the frame with some room around it. */
+.klar-permissions--failed,
+.klar-permissions--empty { padding: var(--klar-space-2); }
 
 /* ---- Toolbar and notes -------------------------------------------------- */
 
@@ -442,6 +455,26 @@ css =
     background: Highlight;
     border-color: Highlight;
     color: HighlightText;
+  }
+
+  /* inherited and granted: a dashed box with the check, in the same system colour */
+  .klar-permissions__cell--inherited.klar-permissions__cell--granted .klar-permissions__mark {
+    forced-color-adjust: none;
+    background: Canvas;
+    border-color: Highlight;
+    color: Highlight;
+  }
+
+  /* the corner mark of an own value over an inherited one */
+  .klar-permissions__cell--override::before {
+    forced-color-adjust: none;
+    border-top-color: CanvasText;
+  }
+
+  /* an unsaved change keeps more than its dot: a frame around the cell */
+  .klar-permissions__cell--changed {
+    outline: 1px dashed Highlight;
+    outline-offset: -3px;
   }
 
   .klar-permissions__dot { forced-color-adjust: none; background: Highlight; }
