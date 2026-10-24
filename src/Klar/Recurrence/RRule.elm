@@ -30,6 +30,7 @@ import Klar.Recurrence.Spec as Spec
         , Ordinal(..)
         , Pattern(..)
         , Problem(..)
+        , Reason(..)
         , Spec
         )
 
@@ -192,7 +193,7 @@ oneLine text =
             in
             case List.filter (\name -> String.startsWith name (String.toUpper value)) [ "DTSTART", "DTEND", "EXDATE", "RDATE", "EXRULE" ] of
                 name :: _ ->
-                    Err (Unsupported (name ++ " (the dates around the rule are not part of the RRULE)"))
+                    Err (Unsupported name OutsideRule)
 
                 [] ->
                     if value == "" then
@@ -202,7 +203,7 @@ oneLine text =
                         Ok value
 
         _ ->
-            Err (Unsupported "several lines (give only the value of the RRULE)")
+            Err (Unsupported "" SeveralLines)
 
 
 knownParts : List String
@@ -236,7 +237,7 @@ addPart part result =
                             Err (CannotRead part)
 
                         else if not (List.member key knownParts) then
-                            Err (Unsupported key)
+                            Err (Unsupported key Plain)
 
                         else if Dict.member key found then
                             Err (RepeatedPart key)
@@ -300,7 +301,7 @@ frequencyOf found =
 
                 other ->
                     if List.member other [ "SECONDLY", "MINUTELY", "HOURLY" ] then
-                        Err (Unsupported ("FREQ=" ++ other))
+                        Err (Unsupported ("FREQ=" ++ other) Plain)
 
                     else
                         Err (CannotRead ("FREQ=" ++ raw))
@@ -353,7 +354,7 @@ endOf found =
 untilDate : String -> Result Problem End
 untilDate raw =
     if String.length raw > 8 && String.all (\c -> Char.isDigit c || c == 'T' || c == 'Z' || c == 't' || c == 'z') raw then
-        Err (Unsupported ("UNTIL=" ++ raw ++ " (only a date, such as UNTIL=20271231, is read: give the last day as a date)"))
+        Err (Unsupported ("UNTIL=" ++ raw) UntilWithTime)
 
     else if String.length raw == 8 && String.all Char.isDigit raw then
         case
@@ -431,7 +432,7 @@ wkstProblem freq every wkst =
                 Err (CannotRead ("WKST=" ++ raw))
 
             else if day /= "MO" && freq == FWeekly && every > 1 then
-                Err (Unsupported ("WKST=" ++ day ++ " with an interval above 1 (weeks are counted from Monday)"))
+                Err (Unsupported ("WKST=" ++ day) WeekStartWithInterval)
 
             else
                 Ok ()
@@ -441,7 +442,7 @@ noParts : String -> List ( String, Maybe String ) -> Result Problem ()
 noParts context checks =
     case List.filter (\( _, value ) -> value /= Nothing) checks of
         ( key, _ ) :: _ ->
-            Err (Unsupported (key ++ " with " ++ context))
+            Err (Unsupported key (With context))
 
         [] ->
             Ok ()
@@ -461,7 +462,7 @@ dailyPattern every byDay =
 
         Just raw ->
             if every > 1 then
-                Err (Unsupported "BYDAY with FREQ=DAILY and an interval above 1 (every n-th day, but only on those weekdays)")
+                Err (Unsupported "BYDAY" DaysWithDailyInterval)
 
             else
                 weeklyPattern "FREQ=DAILY" (Just raw)
@@ -479,7 +480,7 @@ weeklyPattern context byDay =
                     (\tokens ->
                         case List.filter (\( ordinal, _, _ ) -> ordinal /= Nothing) tokens of
                             ( _, _, text ) :: _ ->
-                                Err (Unsupported ("BYDAY=" ++ text ++ " with " ++ context))
+                                Err (Unsupported ("BYDAY=" ++ text) (With context))
 
                             [] ->
                                 Ok (Weekly (List.map (\( _, weekday, _ ) -> weekday) tokens))
@@ -490,7 +491,7 @@ monthlyPattern : Maybe String -> Maybe String -> Maybe String -> Result Problem 
 monthlyPattern byDay byMonthDay bySetPos =
     case ( byDay, byMonthDay ) of
         ( Just _, Just _ ) ->
-            Err (Unsupported "BYMONTHDAY together with BYDAY")
+            Err (Unsupported "BYMONTHDAY" (With "BYDAY"))
 
         ( Nothing, Nothing ) ->
             Err (MissingPart "BYMONTHDAY or BYDAY")
@@ -516,7 +517,7 @@ yearlyPattern byMonth byDay byMonthDay bySetPos =
                     (\month ->
                         case ( byDay, byMonthDay ) of
                             ( Just _, Just _ ) ->
-                                Err (Unsupported "BYMONTHDAY together with BYDAY")
+                                Err (Unsupported "BYMONTHDAY" (With "BYDAY"))
 
                             ( Nothing, Nothing ) ->
                                 Err (MissingPart "BYMONTHDAY or BYDAY")
@@ -563,7 +564,7 @@ monthOf raw =
 
         Nothing ->
             if String.contains "," raw && List.all (\token -> signed token /= Nothing) (String.split "," raw) then
-                Err (Unsupported "BYMONTH with several months")
+                Err (Unsupported "BYMONTH" SeveralMonths)
 
             else
                 Err (CannotRead ("BYMONTH=" ++ raw))
@@ -590,7 +591,7 @@ monthDayOf bySetPos raw =
                     Ok ( 31, UseLastDay )
 
                 else if day < 0 then
-                    Err (Unsupported ("BYMONTHDAY=" ++ String.fromInt day))
+                    Err (Unsupported ("BYMONTHDAY=" ++ String.fromInt day) Plain)
 
                 else if day < 1 || day > 31 then
                     Err (DayOutOfRange day)
@@ -599,7 +600,7 @@ monthDayOf bySetPos raw =
                     Ok ( day, Skip )
 
             ( _, Nothing ) ->
-                Err (Unsupported "BYMONTHDAY with several days")
+                Err (Unsupported "BYMONTHDAY" SeveralDays)
 
             ( _, Just position ) ->
                 let
@@ -610,13 +611,13 @@ monthDayOf bySetPos raw =
                         List.maximum sorted |> Maybe.withDefault 0
                 in
                 if String.trim position /= "-1" then
-                    Err (Unsupported ("BYSETPOS=" ++ position))
+                    Err (Unsupported ("BYSETPOS=" ++ position) Plain)
 
                 else if last >= 29 && last <= 31 && sorted == List.range 28 last then
                     Ok ( last, UseLastDay )
 
                 else
-                    Err (Unsupported ("BYSETPOS=-1 with BYMONTHDAY=" ++ raw ++ " (only 28 up to the day is read)"))
+                    Err (Unsupported ("BYMONTHDAY=" ++ raw) LastFromDay28)
 
 
 {-| The single `2TU` of a monthly or yearly `BYDAY`.
@@ -625,7 +626,7 @@ nthWeekdayOf : String -> Maybe String -> String -> Result Problem ( Ordinal, Int
 nthWeekdayOf context bySetPos raw =
     case bySetPos of
         Just position ->
-            Err (Unsupported ("BYSETPOS=" ++ position ++ " with BYDAY"))
+            Err (Unsupported ("BYSETPOS=" ++ position) (With "BYDAY"))
 
         Nothing ->
             dayTokens raw
@@ -636,10 +637,10 @@ nthWeekdayOf context bySetPos raw =
                                 Ok ( ordinal, weekday )
 
                             [ ( Nothing, _, text ) ] ->
-                                Err (Unsupported ("BYDAY=" ++ text ++ " with " ++ context ++ " (every such day of the month; give the number, such as 2" ++ String.right 2 text ++ ")"))
+                                Err (Unsupported ("BYDAY=" ++ text) (EveryWeekdayOf context ("2" ++ String.right 2 text)))
 
                             _ ->
-                                Err (Unsupported ("BYDAY with several days with " ++ context))
+                                Err (Unsupported "BYDAY" (SeveralDaysWith context))
                     )
 
 
@@ -696,7 +697,7 @@ dayToken token =
                             Err (CannotRead ("BYDAY=" ++ token))
 
                         else
-                            Err (Unsupported ("BYDAY=" ++ upper ++ " (only the first to the fourth and the last are read)"))
+                            Err (Unsupported ("BYDAY=" ++ upper) OrdinalBeyondFourth)
 
                     Nothing ->
                         Err (CannotRead ("BYDAY=" ++ token))

@@ -4,6 +4,7 @@ module Klar.Recurrence.Spec exposing
     , Ordinal(..)
     , Pattern(..)
     , Problem(..)
+    , Reason(..)
     , Spec
     , largest
     , lastYear
@@ -89,8 +90,42 @@ type Problem
     | MissingPart String
     | RepeatedPart String
     | CannotRead String
-    | Unsupported String
+    | Unsupported String Reason
     | Conflict String
+
+
+{-| Why a part of an RRULE is not read. The `String` of `Unsupported` is the
+part itself (data, written as the RRULE has it); the reason is turned into
+words in the language of the locale by `Words.problemText`.
+
+  - `Plain`: the part says it all (`FREQ=HOURLY`, `BYHOUR`).
+  - `With other`: the part together with another one (`BYMONTH` with `FREQ=DAILY`).
+  - `OutsideRule`: a line around the rule (`DTSTART`, `EXDATE`).
+  - `SeveralLines`: more than one line.
+  - `UntilWithTime`: an `UNTIL` with a time.
+  - `WeekStartWithInterval`: a `WKST` other than Monday with an interval above 1.
+  - `DaysWithDailyInterval`: `BYDAY` with `FREQ=DAILY` and an interval above 1.
+  - `SeveralMonths`, `SeveralDays`: more than one month or day of the month.
+  - `LastFromDay28`: `BYSETPOS=-1` with days of the month that do not run from 28.
+  - `EveryWeekdayOf context example`: a weekday without a number in a monthly or yearly rule.
+  - `SeveralDaysWith context`: several weekdays in a monthly or yearly rule.
+  - `OrdinalBeyondFourth`: a weekday number other than 1 to 4 and -1.
+
+-}
+type Reason
+    = Plain
+    | With String
+    | OutsideRule
+    | SeveralLines
+    | UntilWithTime
+    | WeekStartWithInterval
+    | DaysWithDailyInterval
+    | SeveralMonths
+    | SeveralDays
+    | LastFromDay28
+    | EveryWeekdayOf String String
+    | SeveralDaysWith String
+    | OrdinalBeyondFourth
 
 
 {-| The largest interval and the largest number of occurrences: 2 147 483 647,
@@ -257,18 +292,29 @@ dedupe =
     dedupeWith (==)
 
 
+{-| Drops the neighbours that are the same. It keeps what it found in an
+accumulator, so tens of thousands of skipped dates do not overflow the stack.
+-}
 dedupeWith : (a -> a -> Bool) -> List a -> List a
 dedupeWith same sorted =
+    dedupeHelp same sorted []
+
+
+dedupeHelp : (a -> a -> Bool) -> List a -> List a -> List a
+dedupeHelp same sorted kept =
     case sorted of
         a :: b :: rest ->
             if same a b then
-                dedupeWith same (b :: rest)
+                dedupeHelp same (b :: rest) kept
 
             else
-                a :: dedupeWith same (b :: rest)
+                dedupeHelp same (b :: rest) (a :: kept)
 
-        _ ->
-            sorted
+        [ a ] ->
+            List.reverse (a :: kept)
+
+        [] ->
+            List.reverse kept
 
 
 {-| The ISO weekday numbers (1 to 7) of a weekly rule, in order.
