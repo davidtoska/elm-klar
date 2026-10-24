@@ -308,7 +308,7 @@ numberValidityTests =
             , test "a typed number replaced by setValue is judged again" <|
                 \_ -> after [ typeIn discount "20", set 55 ] fresh |> expectValid False
             , test "reset keeps the limits the field has seen" <|
-                \_ -> after [ focusIn discount, \s -> Ok (NumberInput.reset s), set 55 ] fresh |> expectValid False
+                \_ -> after [ focusIn discount, \s -> Ok (NumberInput.clear s), set 55 ] fresh |> expectValid False
             ]
         , describe "while stepping"
             [ test "stepping up from 49 reaches 50, which is valid" <|
@@ -613,7 +613,11 @@ numberFormatTests =
                 , reads Locale.nb "1 234 567,89" 1234567.89
                 , reads Locale.nb "1,234" 1.234
                 , reads Locale.nb "12,5" 12.5
-                , reads Locale.nb "1.234" 1.234
+                , reads Locale.nb "1.234" 1234
+                , reads Locale.nb "10.000" 10000
+                , reads Locale.nb "1.5" 1.5
+                , reads Locale.nb "12.25" 12.25
+                , reads Locale.nb "0.500" 0.5
                 , reads Locale.nb "1'234,5" 1234.5
                 , reads Locale.nb "-1 234,5" -1234.5
                 , reads Locale.nb "1,234.56" 1234.56
@@ -1139,20 +1143,38 @@ strengthLengthAndPatternTests =
             ]
         , describe "an ascending run of letters of another script is a pattern too"
             [ letters "αβγδεζηθ" 1 ]
+        , describe "length counts most: a long passphrase is strong without digits or symbols"
+            [ letters "kxqzwmvtpqrlnbg" 2
+            , letters "correct horse battery" 3
+            , letters "correcthorsebatterystaple" 4
+            , letters "kxqzwmvtpqrlnbgkxqzwmvt" 3
+            ]
         ]
 
 
-{-| A password that would be strong (4) if it did not hold the word.
+{-| A strong password (4) with the word inside it.
 -}
 around : String -> String
 around word =
     "Xk9#" ++ word ++ "#Zq4!pLm"
 
 
+{-| A short password that is mostly the word.
+-}
+short : String -> String
+short word =
+    "Xk9#" ++ word
+
+
 weakWith : String -> Test
 weakWith word =
-    test (word ++ " makes a long password weak") <|
-        \_ -> Expect.equal 1 (PasswordInput.strength (around word))
+    test (word ++ " counts for nothing, so a short password with it is weak") <|
+        \_ ->
+            Expect.all
+                [ \_ -> Expect.equal 1 (PasswordInput.strength (short word))
+                , \_ -> Expect.equal (PasswordInput.strength (around "")) (PasswordInput.strength (around word))
+                ]
+                ()
 
 
 commonPasswordTests : Test
@@ -1167,11 +1189,13 @@ commonPasswordTests =
         , describe "Norwegian"
             (List.map weakWith [ "passord", "norge", "hemmelig", "velkommen", "sommer", "fotball", "elskerdeg", "kjaerlighet", "kjærlighet" ])
         , test "the case does not matter" <|
-            \_ -> Expect.equal [ 1, 1, 1 ] (List.map (around >> PasswordInput.strength) [ "DRAGON", "Hemmelig", "PaSsOrD" ])
+            \_ -> Expect.equal [ 1, 1, 1 ] (List.map (short >> PasswordInput.strength) [ "DRAGON", "Hemmelig", "PaSsOrD" ])
         , test "the locale does not matter: there is none" <|
-            \_ -> Expect.equal [ 1, 1 ] (List.map (around >> PasswordInput.strength) [ "password", "passord" ])
+            \_ -> Expect.equal [ 1, 1 ] (List.map (short >> PasswordInput.strength) [ "password", "passord" ])
         , test "a word inside a longer word counts" <|
-            \_ -> Expect.equal 1 (PasswordInput.strength (around "myDragonSlayer"))
+            \_ -> Expect.equal 1 (PasswordInput.strength (short "myDragon"))
+        , test "a password that is mostly a common one is weak however long it is" <|
+            \_ -> Expect.equal [ 1, 1 ] (List.map PasswordInput.strength [ "password123", "Qwertyuiop12" ])
         ]
 
 
@@ -1210,7 +1234,7 @@ wrapped =
       , focusable = "textarea"
       }
     , { name = "PasswordInput"
-      , view = \error -> PasswordInput.view Password [ PasswordInput.value "x", PasswordInput.errorMaybe error ] (PasswordInput.init "password")
+      , view = \error -> PasswordInput.view Password [ PasswordInput.errorMaybe error ] (PasswordInput.setValue "x" (PasswordInput.init "password"))
       , control = Selector.class "klar-password"
       , focusable = "input"
       }

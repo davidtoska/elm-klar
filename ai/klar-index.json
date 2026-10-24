@@ -1114,7 +1114,7 @@
       "group": "Inputs",
       "purpose": "A single-line text input with a label, a hint and an error message.",
       "whenToUse": "you need one line of text and want to own the value in your model.",
-      "whenNot": "the value is a number, a password, a search, tags or several lines (use `Klar.NumberInput`, `Klar.PasswordInput`, `Klar.SearchInput`, `Klar.TagInput` or `Klar.TextArea`).",
+      "whenNot": "the value is a number, a password, a search that waits for a pause, tags or several lines (use `Klar.NumberInput`, `Klar.PasswordInput`, `Klar.SearchInput`, `Klar.TagInput` or `Klar.TextArea`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -1124,14 +1124,14 @@
         "view"
       ],
       "related": [
+        "Klar.SearchInput",
+        "Klar.TextArea",
+        "Klar.Validate",
+        "Klar.Field",
         "Klar.NumberInput",
         "Klar.PasswordInput",
-        "Klar.SearchInput",
-        "Klar.Field",
         "Klar.TagInput",
-        "Klar.TextArea",
-        "Klar.Theme",
-        "Klar.Validate"
+        "Klar.Theme"
       ],
       "keywords": [
         "text input",
@@ -1161,8 +1161,8 @@
         "view"
       ],
       "related": [
-        "Klar.Field",
         "Klar.TextInput",
+        "Klar.Field",
         "Klar.Theme"
       ],
       "keywords": [
@@ -1205,7 +1205,7 @@
         "value",
         "setValue",
         "setLimits",
-        "reset",
+        "clear",
         "isValid"
       ],
       "related": [
@@ -1228,7 +1228,7 @@
       "name": "Klar.PasswordInput",
       "import": "import Klar.PasswordInput as PasswordInput",
       "group": "Inputs",
-      "purpose": "A password field with a \"show password\" button and an optional strength meter.",
+      "purpose": "A password field with a \"show password\" button, a Caps Lock warning and an optional strength meter.",
       "whenToUse": "the user types a password and may want to see it, or you want to show its strength.",
       "whenNot": "the text is not secret (use `Klar.TextInput`).",
       "state": [
@@ -1242,20 +1242,21 @@
       "quickPath": [
         "init",
         "update",
-        "view"
+        "view",
+        "value"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
+        "value",
+        "setValue",
+        "clear",
         "isRevealed",
-        "reveal",
-        "hide",
-        "strength"
+        "reveal"
       ],
       "related": [
         "Klar.Field",
-        "Klar.TextInput",
         "Klar.Theme"
       ],
       "keywords": [
@@ -1265,7 +1266,7 @@
         "password",
         "field",
         "button",
-        "optional"
+        "warning"
       ],
       "reference": "ai/modules/Klar.PasswordInput.md"
     },
@@ -1274,8 +1275,8 @@
       "import": "import Klar.SearchInput as SearchInput",
       "group": "Inputs",
       "purpose": "A search field that waits until the user stops typing.",
-      "whenToUse": "a list is filtered or searched as the user types and you want one message when the typing pauses.",
-      "whenNot": "you need an ordinary text field (use `Klar.TextInput`) or suggestions to pick from (use `Klar.Autocomplete`).",
+      "whenToUse": "a list is searched as the user types (a request to a server, say) and you want one message when the typing pauses.",
+      "whenNot": "you need an ordinary text field (use `Klar.TextInput`), a list that is filtered in the browser at every keystroke (use `TextInput.search`) or suggestions to pick from (use `Klar.Autocomplete`).",
       "state": [
         "State"
       ],
@@ -1336,14 +1337,14 @@
         "init",
         "update",
         "view",
-        "tags"
+        "values"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
-        "tags",
-        "setTags",
+        "values",
+        "setValues",
         "draft",
         "clear",
         "isTouched"

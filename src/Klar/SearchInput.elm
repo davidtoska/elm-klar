@@ -2,21 +2,22 @@ module Klar.SearchInput exposing
     ( view, Attribute
     , State, Msg, init, update
     , text, committed, isPending
-    , setText, clear, focus
+    , setText, clear
     , debounce
     , label, labelHidden, ariaLabel, hint, error, errorMaybe, optionalText
-    , placeholder, shortcutHint, loading, size, disabled, name
+    , placeholder, shortcut, remote, size, disabled, name
     , locale
     )
 
 {-| A search field that waits until the user stops typing.
 
-Use when: a list is filtered or searched as the user types and you want one message when the typing pauses.
-Do not use when: you need an ordinary text field (use `Klar.TextInput`) or suggestions to pick from (use `Klar.Autocomplete`).
+Use when: a list is searched as the user types (a request to a server, say) and you want one message when the typing pauses.
+Do not use when: you need an ordinary text field (use `Klar.TextInput`), a list that is filtered in the browser at every keystroke (use `TextInput.search`) or suggestions to pick from (use `Klar.Autocomplete`).
 Quick path: `init`, `update`, `view`, `committed`
 
     import Klar.Remote as Remote exposing (Remote)
     import Klar.SearchInput as SearchInput
+    import Klar.Shortcut as Shortcut
 
     type alias Model =
         { search : SearchInput.State
@@ -49,11 +50,19 @@ Quick path: `init`, `update`, `view`, `committed`
             ]
         )
 
+    OrdersFound query result ->
+        -- an answer to an older search can come after the newest one: drop it
+        if query == SearchInput.committed model.search then
+            ( { model | orders = Remote.fromResult result }, Cmd.none )
+
+        else
+            ( model, Cmd.none )
+
     -- view
     SearchInput.view SearchMsg
         [ SearchInput.placeholder "Search orders ..."
-        , SearchInput.shortcutHint "/"
-        , SearchInput.loading (Remote.isLoading model.orders)
+        , SearchInput.shortcut (Shortcut.char '/')
+        , SearchInput.remote model.orders
         ]
         model.search
 
@@ -61,21 +70,25 @@ Quick path: `init`, `update`, `view`, `committed`
 field right now, and `committed`, the text the application should search for.
 Every keystroke starts a short timer (`debounce`, 300 ms) and remembers a
 counter; when the timer fires only the last keystroke is still current, and
-only then is `committed` set to `text`. Enter commits at once, and the clear
-button (or Escape) empties and commits at once. The application starts a
+only then is `committed` set to `text`, without the spaces at its ends (so a
+space typed at the end starts no new search). Enter commits at once, and the
+clear button (or Escape) empties and commits at once. The application starts a
 search when `committed` differs from before `update`. The timer is a `Cmd`
 returned by `update`, so pass it on with `Cmd.map`: if it is dropped, typed text
-is never committed.
+is never committed. While an input method (Chinese, Japanese, Korean) composes
+a word, nothing is committed; the timer starts when the word is confirmed.
 
 **Keyboard and accessibility.** Enter commits the text and never submits a
-surrounding form. Escape clears a field that has text; in an empty field the key
-is left alone, so it can still close a dialog. A search field usually has no
-visible `label`, so give it an `ariaLabel` (the default is "Search"). While the
-search runs, `loading` shows a spinner that is announced as "Searching ...".
+surrounding form. Escape clears a field that has text and is then kept from
+closing a dialog around the field (its default is prevented); in an empty field
+the key is left alone, so it can close the dialog. A search field usually has
+no visible `label`, so give it an `ariaLabel` (the default is "Search"). While
+the `remote` is loading or refreshing, a spinner shows in the field and screen
+readers hear "Searching ...".
 
-`shortcutHint` only draws the key in the field: bind the key itself with
-[Klar.Shortcut](Klar-Shortcut) and use `focus` to move the cursor into the
-field.
+`shortcut` only draws the key in the field: bind the key itself with
+[Klar.Shortcut](Klar-Shortcut), with the same `Shortcut.Keys`, and move the
+cursor into the field with `Klar.focus` and the id given to `init`.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe` and `optionalText` are the
 common field attributes. They come with the field wrapper
@@ -110,7 +123,7 @@ spinner) follow `locale`.
 
 # Changing the search from the application
 
-@docs setText, clear, focus
+@docs setText, clear
 
 
 # Timing
@@ -125,7 +138,7 @@ spinner) follow `locale`.
 
 # Appearance and behavior
 
-@docs placeholder, shortcutHint, loading, size, disabled, name
+@docs placeholder, shortcut, remote, size, disabled, name
 
 
 # Language
@@ -137,11 +150,15 @@ spinner) follow `locale`.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Decoder)
 import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.TextField as TextField
+import Klar.Kbd as Kbd
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Remote as Remote exposing (Remote)
+import Klar.Shortcut as Shortcut
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..))
 import Process
@@ -166,7 +183,8 @@ type State
 
 
 {-| An empty search field. The `String` is the DOM id of the input; it must be
-unique on the page, because `focus` and the label point at it.
+unique on the page, because the label points at it, and it is the id to give
+`Klar.focus`.
 -}
 init : String -> State
 init id =
@@ -180,8 +198,9 @@ text (State state) =
     state.text
 
 
-{-| The text to search for: `text` after the user paused (or pressed Enter).
-Compare it before and after `update` to know when to start a search.
+{-| The text to search for: `text` after the user paused (or pressed Enter),
+without the spaces at its ends. Compare it before and after `update` to know
+when to start a search.
 -}
 committed : State -> String
 committed (State state) =
@@ -193,7 +212,7 @@ has typed something and the pause is not over yet.
 -}
 isPending : State -> Bool
 isPending (State state) =
-    state.text /= state.committed
+    String.trim state.text /= state.committed
 
 
 {-| Puts a text in the field and commits it at once, for example a search
@@ -201,7 +220,7 @@ restored from the address. A pause timer that is still running is ignored.
 -}
 setText : String -> State -> State
 setText value (State state) =
-    State { state | text = value, committed = value, version = state.version + 1 }
+    State { state | text = value, committed = String.trim value, version = state.version + 1 }
 
 
 {-| Empties the field and commits the empty text.
@@ -209,18 +228,6 @@ setText value (State state) =
 clear : State -> State
 clear =
     setText ""
-
-
-{-| A command that moves the keyboard focus into the field, for example when the
-user presses the key you show with `shortcutHint`. Map it into your own message
-type.
-
-    Cmd.map SearchMsg (SearchInput.focus model.search)
-
--}
-focus : State -> Cmd Msg
-focus (State state) =
-    Internal.focus state.id Noop
 
 
 
@@ -233,6 +240,7 @@ clear button. `view` wraps them with the function you give it; hand them to
 -}
 type Msg
     = Typed Int String
+    | Composing String
     | Pause Int
     | CommitNow
     | Cleared
@@ -252,7 +260,7 @@ update msg (State state) =
                     state.version + 1
             in
             if delay <= 0 then
-                ( State { state | text = value, committed = value, version = version }, Cmd.none )
+                ( State { state | text = value, committed = String.trim value, version = version }, Cmd.none )
 
             else
                 ( State { state | text = value, version = version }
@@ -260,16 +268,20 @@ update msg (State state) =
                     |> Task.perform (\_ -> Pause version)
                 )
 
+        Composing value ->
+            -- not final yet: no timer, and the one of the last keystroke is stale
+            ( State { state | text = value, version = state.version + 1 }, Cmd.none )
+
         Pause version ->
             -- Only the timer of the last keystroke commits.
             if version == state.version then
-                ( State { state | committed = state.text }, Cmd.none )
+                ( State { state | committed = String.trim state.text }, Cmd.none )
 
             else
                 ( State state, Cmd.none )
 
         CommitNow ->
-            ( State { state | committed = state.text, version = state.version + 1 }, Cmd.none )
+            ( State { state | committed = String.trim state.text, version = state.version + 1 }, Cmd.none )
 
         Cleared ->
             ( State { state | text = "", committed = "", version = state.version + 1 }
@@ -296,8 +308,8 @@ type alias Config =
     , ariaLabel : Maybe String
     , placeholder : Maybe String
     , debounce : Int
-    , shortcutHint : Maybe String
-    , loading : Bool
+    , shortcut : Maybe Shortcut.Keys
+    , busy : Bool
     , disabled : Bool
     , size : Size
     , name : Maybe String
@@ -312,8 +324,8 @@ configure attributes =
         , ariaLabel = Nothing
         , placeholder = Nothing
         , debounce = 300
-        , shortcutHint = Nothing
-        , loading = False
+        , shortcut = Nothing
+        , busy = False
         , disabled = False
         , size = Medium
         , name = Nothing
@@ -410,23 +422,31 @@ debounce milliseconds =
     Attribute (\config -> { config | debounce = milliseconds })
 
 
-{-| Draws a key cap such as `/` or `Ctrl K` at the end of the field while it is
-empty, not `loading` and not `disabled`. It is only a picture, hidden from
-screen readers: bind the key itself with [Klar.Shortcut](Klar-Shortcut) and move
-the cursor into the field with `focus`.
+{-| Draws the key caps of a shortcut, such as `/` or `Ctrl K`, at the end of the
+field while it is empty, not busy and not `disabled`. Give it the same
+`Shortcut.Keys` that [Klar.Shortcut](Klar-Shortcut) listens to, so that the hint
+and the binding cannot disagree. It is only a picture, hidden from screen
+readers: bind the key with `Klar.Shortcut` and move the cursor into the field
+with `Klar.focus`.
+
+    SearchInput.shortcut (Shortcut.char '/')
+
 -}
-shortcutHint : String -> Attribute msg
-shortcutHint keys =
-    Attribute (\config -> { config | shortcutHint = Just keys })
+shortcut : Shortcut.Keys -> Attribute msg
+shortcut keys =
+    Attribute (\config -> { config | shortcut = Just keys })
 
 
-{-| While `True` a small spinner is shown inside the field, announced as
-"Searching ...", so that the user sees the search is running. Pass whether your
-search request is on its way. Default `False`.
+{-| The results of the search, as your model has them: while they are loading,
+and while results that are shown are being refreshed, a small spinner shows in
+the field and screen readers hear "Searching ...". Default: no spinner.
+
+    SearchInput.remote model.orders
+
 -}
-loading : Bool -> Attribute msg
-loading value =
-    Attribute (\config -> { config | loading = value })
+remote : Remote a -> Attribute msg
+remote results =
+    Attribute (\config -> { config | busy = Remote.isLoading results || Remote.isRefreshing results })
 
 
 {-| While `True` the field is dimmed and cannot be focused or changed, and the
@@ -438,7 +458,8 @@ disabled value =
 
 
 {-| The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar-Theme). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar-Theme). Default `Medium`.
 -}
 size : Size -> Attribute msg
 size value =
@@ -454,9 +475,9 @@ name value =
 
 
 {-| The language of the built-in text: the default accessible name ("Search"),
-the clear button ("Clear search") and the spinner label ("Searching ...").
-Default `Locale.default`, which is English. Texts you pass in yourself are shown
-as they are.
+the clear button ("Clear search") and what screen readers hear while the search
+runs ("Searching ..."). Default `Locale.default`, which is English. Texts you
+pass in yourself are shown as they are.
 -}
 locale : Locale -> Attribute msg
 locale value =
@@ -494,9 +515,9 @@ view toMsg attributes (State state) =
             hasText && not config.disabled
 
         showKeys =
-            case config.shortcutHint of
+            case config.shortcut of
                 Just _ ->
-                    not hasText && not config.loading && not config.disabled
+                    not hasText && not config.busy && not config.disabled
 
                 Nothing ->
                     False
@@ -546,18 +567,15 @@ view toMsg attributes (State state) =
                        , Attr.attribute "enterkeyhint" "search"
                        , Internal.attrMaybe (Attr.attribute "aria-label") name_
                        , Internal.attrMaybe Attr.name config.name
-                       , Events.onInput (\value -> toMsg (Typed config.debounce value))
+                       , Events.on "input" (inputDecoder toMsg config.debounce)
+                       , Events.on "compositionend" (Decode.map (\value -> toMsg (Typed config.debounce value)) targetValue)
                        , Events.preventDefaultOn "keydown" (keyDecoder toMsg hasText)
                        ]
                 )
                 []
-            , if config.loading then
+            , if config.busy then
                 Html.span [ Internal.cls [ "klar-search__spinner" ] ]
-                    [ Spinner.view
-                        [ Spinner.size Small
-                        , Spinner.label (Locale.pick config.locale { nb = "Søker ...", en = "Searching ..." })
-                        ]
-                    ]
+                    [ Spinner.view [ Spinner.size Small, Spinner.label "" ] ]
 
               else
                 Html.text ""
@@ -575,22 +593,57 @@ view toMsg attributes (State state) =
 
               else
                 Html.text ""
-            , if showKeys then
-                Html.span [ Internal.cls [ "klar-search__keys" ], Attr.attribute "aria-hidden" "true" ]
-                    [ Internal.viewMaybe (\keys -> Internal.kbd keys) config.shortcutHint ]
+            , case ( showKeys, config.shortcut ) of
+                ( True, Just keys ) ->
+                    Html.span [ Internal.cls [ "klar-search__keys" ], Attr.attribute "aria-hidden" "true" ]
+                        [ Kbd.view [ Kbd.small, Kbd.locale config.locale ] keys ]
 
-              else
-                Html.text ""
+                _ ->
+                    Html.text ""
+
+            -- always there, so that "Searching ..." is read out the first time too
+            , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+                [ Html.text
+                    (if config.busy then
+                        Locale.pick config.locale { nb = "Søker ...", en = "Searching ..." }
+
+                     else
+                        ""
+                    )
+                ]
             ]
         )
 
 
-keyDecoder : (Msg -> msg) -> Bool -> Decode.Decoder ( msg, Bool )
+targetValue : Decoder String
+targetValue =
+    Decode.at [ "target", "value" ] Decode.string
+
+
+inputDecoder : (Msg -> msg) -> Int -> Decoder msg
+inputDecoder toMsg delay =
+    Decode.map2
+        (\isComposing value ->
+            if isComposing then
+                toMsg (Composing value)
+
+            else
+                toMsg (Typed delay value)
+        )
+        TextField.composing
+        targetValue
+
+
+keyDecoder : (Msg -> msg) -> Bool -> Decoder ( msg, Bool )
 keyDecoder toMsg hasText =
-    Internal.keyEvent
+    Decode.map2 Tuple.pair TextField.composing Internal.keyEvent
         |> Decode.andThen
-            (\event ->
-                if event.ctrl || event.meta || event.alt then
+            (\( isComposing, event ) ->
+                if isComposing then
+                    -- Enter confirms the composed word, Escape cancels it
+                    Decode.fail "composing"
+
+                else if event.ctrl || event.meta || event.alt then
                     Decode.fail "modifier"
 
                 else
@@ -600,6 +653,8 @@ keyDecoder toMsg hasText =
 
                         "Escape" ->
                             if hasText then
+                                -- prevented, so that a dialog around the field
+                                -- knows the key was used and stays open
                                 Decode.succeed ( toMsg Cleared, True )
 
                             else

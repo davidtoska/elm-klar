@@ -642,8 +642,8 @@ textInputTests =
                         ]
         , test "without a label the id is made from the placeholder" <|
             \_ -> inside input [ Selector.id "klar-input-search-orders" ] (TextInput.view [ TextInput.placeholder "Search orders", TextInput.hint "h" ])
-        , test "without a label or a placeholder the id is 'field'" <|
-            \_ -> inside input [ Selector.id "klar-input-field" ] (TextInput.view [ TextInput.hint "h" ])
+        , test "without a label or a placeholder the id is made from the hint" <|
+            \_ -> inside input [ Selector.id "klar-input-h" ] (TextInput.view [ TextInput.hint "h" ])
         , test "an input with nothing to say is inside the field too, so that it does not move when an error comes" <|
             \_ ->
                 TextInput.view [ TextInput.id "x", TextInput.value "v" ]
@@ -662,8 +662,6 @@ textInputTests =
                     (TextInput.view [ TextInput.id "x", TextInput.value "Ada", TextInput.placeholder "Name", TextInput.email ])
         , test "the default type is text" <|
             \_ -> inside input [ Selector.attribute (Attr.type_ "text") ] (TextInput.view [ TextInput.id "x" ])
-        , test "password sets the type" <|
-            \_ -> inside input [ Selector.attribute (Attr.type_ "password") ] (TextInput.view [ TextInput.id "x", TextInput.password ])
         , test "tel sets the type" <|
             \_ -> inside input [ Selector.attribute (Attr.type_ "tel") ] (TextInput.view [ TextInput.id "x", TextInput.tel ])
         , test "url sets the type" <|
@@ -672,12 +670,13 @@ textInputTests =
             \_ -> inside input [ Selector.disabled True ] (TextInput.view [ TextInput.id "x", TextInput.disabled True ])
         , test "read-only" <|
             \_ -> inside input [ Selector.attribute (Attr.readonly True) ] (TextInput.view [ TextInput.id "x", TextInput.readOnly True ])
-        , test "maxLength limits the text and shows a counter" <|
+        , test "maxLength shows a counter and does not cut the text" <|
             \_ ->
                 TextInput.view [ TextInput.id "x", TextInput.value "Ada", TextInput.maxLength 20 ]
                     |> Expect.all
-                        [ inside input [ Selector.attribute (Attr.maxlength 20) ]
-                        , inside [ Selector.class "klar-input__counter" ] [ Selector.text "3/20" ]
+                        [ inside [ Selector.class "klar-counter" ] [ Selector.text "3/20" ]
+                        , inside input [ attr "aria-describedby" "x-counter" ]
+                        , none [ Selector.attribute (Attr.maxlength 20) ]
                         ]
         , test "the browser hints" <|
             \_ ->

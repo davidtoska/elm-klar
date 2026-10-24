@@ -27,7 +27,6 @@ isPending : State -> Bool
 -- Changing the search from the application
 setText : String -> State -> State
 clear : State -> State
-focus : State -> Cmd Msg
 
 -- Timing
 debounce : Int -> Attribute msg
@@ -43,8 +42,8 @@ optionalText : String -> Attribute msg
 
 -- Appearance and behavior
 placeholder : String -> Attribute msg
-shortcutHint : String -> Attribute msg
-loading : Bool -> Attribute msg
+shortcut : Shortcut.Keys -> Attribute msg
+remote : Remote.Remote a -> Attribute msg
 size : Theme.Size -> Attribute msg
 disabled : Bool -> Attribute msg
 name : String -> Attribute msg
@@ -57,12 +56,13 @@ locale : Locale.Locale -> Attribute msg
 
 A search field that waits until the user stops typing.
 
-Use when: a list is filtered or searched as the user types and you want one message when the typing pauses.
-Do not use when: you need an ordinary text field (use `Klar.TextInput`) or suggestions to pick from (use `Klar.Autocomplete`).
+Use when: a list is searched as the user types (a request to a server, say) and you want one message when the typing pauses.
+Do not use when: you need an ordinary text field (use `Klar.TextInput`), a list that is filtered in the browser at every keystroke (use `TextInput.search`) or suggestions to pick from (use `Klar.Autocomplete`).
 Quick path: `init`, `update`, `view`, `committed`
 
     import Klar.Remote as Remote exposing (Remote)
     import Klar.SearchInput as SearchInput
+    import Klar.Shortcut as Shortcut
 
     type alias Model =
         { search : SearchInput.State
@@ -95,11 +95,19 @@ Quick path: `init`, `update`, `view`, `committed`
             ]
         )
 
+    OrdersFound query result ->
+        -- an answer to an older search can come after the newest one: drop it
+        if query == SearchInput.committed model.search then
+            ( { model | orders = Remote.fromResult result }, Cmd.none )
+
+        else
+            ( model, Cmd.none )
+
     -- view
     SearchInput.view SearchMsg
         [ SearchInput.placeholder "Search orders ..."
-        , SearchInput.shortcutHint "/"
-        , SearchInput.loading (Remote.isLoading model.orders)
+        , SearchInput.shortcut (Shortcut.char '/')
+        , SearchInput.remote model.orders
         ]
         model.search
 
@@ -107,21 +115,25 @@ Quick path: `init`, `update`, `view`, `committed`
 field right now, and `committed`, the text the application should search for.
 Every keystroke starts a short timer (`debounce`, 300 ms) and remembers a
 counter; when the timer fires only the last keystroke is still current, and
-only then is `committed` set to `text`. Enter commits at once, and the clear
-button (or Escape) empties and commits at once. The application starts a
+only then is `committed` set to `text`, without the spaces at its ends (so a
+space typed at the end starts no new search). Enter commits at once, and the
+clear button (or Escape) empties and commits at once. The application starts a
 search when `committed` differs from before `update`. The timer is a `Cmd`
 returned by `update`, so pass it on with `Cmd.map`: if it is dropped, typed text
-is never committed.
+is never committed. While an input method (Chinese, Japanese, Korean) composes
+a word, nothing is committed; the timer starts when the word is confirmed.
 
 **Keyboard and accessibility.** Enter commits the text and never submits a
-surrounding form. Escape clears a field that has text; in an empty field the key
-is left alone, so it can still close a dialog. A search field usually has no
-visible `label`, so give it an `ariaLabel` (the default is "Search"). While the
-search runs, `loading` shows a spinner that is announced as "Searching ...".
+surrounding form. Escape clears a field that has text and is then kept from
+closing a dialog around the field (its default is prevented); in an empty field
+the key is left alone, so it can close the dialog. A search field usually has
+no visible `label`, so give it an `ariaLabel` (the default is "Search"). While
+the `remote` is loading or refreshing, a spinner shows in the field and screen
+readers hear "Searching ...".
 
-`shortcutHint` only draws the key in the field: bind the key itself with
-[Klar.Shortcut](Klar.Shortcut.md) and use `focus` to move the cursor into the
-field.
+`shortcut` only draws the key in the field: bind the key itself with
+[Klar.Shortcut](Klar.Shortcut.md), with the same `Shortcut.Keys`, and move the
+cursor into the field with `Klar.focus` and the id given to `init`.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe` and `optionalText` are the
 common field attributes. They come with the field wrapper
@@ -194,7 +206,8 @@ init : String -> State
 ```
 
 An empty search field. The `String` is the DOM id of the input; it must be
-unique on the page, because `focus` and the label point at it.
+unique on the page, because the label points at it, and it is the id to give
+`Klar.focus`.
 
 ### `update`
 
@@ -222,8 +235,9 @@ What is in the field right now, including text that is not committed yet.
 committed : State -> String
 ```
 
-The text to search for: `text` after the user paused (or pressed Enter).
-Compare it before and after `update` to know when to start a search.
+The text to search for: `text` after the user paused (or pressed Enter),
+without the spaces at its ends. Compare it before and after `update` to know
+when to start a search.
 
 ### `isPending`
 
@@ -252,18 +266,6 @@ clear : State -> State
 ```
 
 Empties the field and commits the empty text.
-
-### `focus`
-
-```elm
-focus : State -> Cmd Msg
-```
-
-A command that moves the keyboard focus into the field, for example when the
-user presses the key you show with `shortcutHint`. Map it into your own message
-type.
-
-    Cmd.map SearchMsg (SearchInput.focus model.search)
 
 ## Timing
 
@@ -361,26 +363,32 @@ Text shown inside the empty field, for example `"Search orders ..."`. It is
 not a substitute for an accessible name (see `ariaLabel`), and it disappears as
 soon as the user types. Default: none.
 
-### `shortcutHint`
+### `shortcut`
 
 ```elm
-shortcutHint : String -> Attribute msg
+shortcut : Shortcut.Keys -> Attribute msg
 ```
 
-Draws a key cap such as `/` or `Ctrl K` at the end of the field while it is
-empty, not `loading` and not `disabled`. It is only a picture, hidden from
-screen readers: bind the key itself with [Klar.Shortcut](Klar.Shortcut.md) and move
-the cursor into the field with `focus`.
+Draws the key caps of a shortcut, such as `/` or `Ctrl K`, at the end of the
+field while it is empty, not busy and not `disabled`. Give it the same
+`Shortcut.Keys` that [Klar.Shortcut](Klar.Shortcut.md) listens to, so that the hint
+and the binding cannot disagree. It is only a picture, hidden from screen
+readers: bind the key with `Klar.Shortcut` and move the cursor into the field
+with `Klar.focus`.
 
-### `loading`
+    SearchInput.shortcut (Shortcut.char '/')
+
+### `remote`
 
 ```elm
-loading : Bool -> Attribute msg
+remote : Remote.Remote a -> Attribute msg
 ```
 
-While `True` a small spinner is shown inside the field, announced as
-"Searching ...", so that the user sees the search is running. Pass whether your
-search request is on its way. Default `False`.
+The results of the search, as your model has them: while they are loading,
+and while results that are shown are being refreshed, a small spinner shows in
+the field and screen readers hear "Searching ...". Default: no spinner.
+
+    SearchInput.remote model.orders
 
 ### `size`
 
@@ -389,7 +397,8 @@ size : Theme.Size -> Attribute msg
 ```
 
 The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar.Theme.md). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar.Theme.md). Default `Medium`.
 
 ### `disabled`
 
@@ -418,6 +427,6 @@ locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the default accessible name ("Search"),
-the clear button ("Clear search") and the spinner label ("Searching ...").
-Default `Locale.default`, which is English. Texts you pass in yourself are shown
-as they are.
+the clear button ("Clear search") and what screen readers hear while the search
+runs ("Searching ..."). Default `Locale.default`, which is English. Texts you
+pass in yourself are shown as they are.

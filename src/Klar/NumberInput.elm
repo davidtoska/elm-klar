@@ -1,10 +1,10 @@
 module Klar.NumberInput exposing
     ( view, Attribute
     , State, Msg, init, update
-    , value, setValue, setLimits, reset, isValid, isTouched
+    , value, setValue, setLimits, clear, isValid, isTouched
     , parse, parseIn
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , min, max, step, steppers
+    , min, max, step, noSteppers
     , decimals, grouped, prefixText, suffixText, alignRight, placeholder, size
     , disabled, readOnly, name
     , locale
@@ -68,14 +68,16 @@ goes.
 **Typing.** The field reads what is typed in the language of the field
 (`locale`), the way `Klar.Format` writes numbers. In English a point is the
 decimal point and a comma groups thousands: `1,234.5` and `1234.5` are both
-1234.5, and `1,234` is 1234. In Norwegian a comma is the decimal comma and a
-space groups thousands: `1 234,5` and `1234,5` are both 1234.5, and `1,234` is
-1.234. Spaces and apostrophes are ignored in both. A comma that cannot be a
-thousands separator (`1,5`, `12,34`, `1,2345`) is read as a decimal comma in
-English too. A number written with both separators is read with the last one as
-the decimal separator, so `1.234,56` and `1,234.56` are both 1234.56, and a
-lone `.` is the decimal point in both languages (`1.234` is one and 234
-thousandths, not 1234). See `parseIn`.
+1234.5, and `1,234` is 1234. In Norwegian a comma is the decimal comma, and a
+space or a point groups thousands, as people write them: `1 234,5`, `1.234,5`
+and `1234,5` are all 1234.5, `10.000` is ten thousand and `1,234` is 1.234.
+Spaces and apostrophes are ignored in both. The other separator than the
+decimal one that cannot group thousands is read as the decimal separator: `1,5`,
+`12,34` and `0,500` in English, `1.5`, `12.25` and `0.500` in Norwegian. A
+number written with both separators is read with the last one as the decimal
+separator, so `1.234,56` and `1,234.56` are both 1234.56. Whatever the field
+reads, it shows when it is left, so a reading the user did not mean is seen at
+once. See `parseIn`.
 
 **What the field shows.** The number is written by `Klar.Format` when the user
 leaves the field, with the separators of the language: a point as the decimal
@@ -109,14 +111,23 @@ needs `setLimits` once, with the same attributes you give to `view`.
 
 **Keyboard.** Arrow up and down change the number by `step`, and with Shift (or
 with page up and page down) by ten steps. Stepping never leaves `min` and `max`.
-Leaving the field, or pressing Enter, rounds the number to `decimals` and
-formats it; Enter still lets a surrounding form submit. The + and - buttons are
-not in the Tab order.
+Leaving the field, or pressing Enter, rounds the number to `decimals` (half
+away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
+`1.01`) and formats it; Enter still lets a surrounding form submit. Escape
+throws away the text being typed and brings back the number from before; its
+default is then prevented, so a dialog around the field stays open. The + and -
+buttons are not in the Tab order.
+
+**Phones.** A field whose `min` is 0 or more asks for the numeric keyboard
+(`inputmode` decimal, or numeric with `decimals 0`). A field that takes
+negative numbers, or has no `min`, gets the full keyboard, because the numeric
+keyboard of an iPhone has no minus key; give a field for amounts that cannot be
+negative `min 0`.
 
 **Accessibility.** The input has the role `spinbutton` with `aria-valuemin`,
-`aria-valuemax` and `aria-valuenow`. With a `prefixText` or `suffixText` it also
-has an `aria-valuetext` that includes the unit, so a screen reader reads
-"12 pcs" and not just "12".
+`aria-valuemax` and `aria-valuenow`, and an `aria-valuetext` that is the text
+of the field with its unit, so a screen reader reads "1 234,5 kg" as the field
+shows it and not "1234.5".
 
 The built-in texts (the errors, the names of the + and - buttons) and the number
 format (the decimal and thousands separators, in what is shown and what is read)
@@ -135,7 +146,7 @@ follow `locale`.
 
 # The number
 
-@docs value, setValue, setLimits, reset, isValid, isTouched
+@docs value, setValue, setLimits, clear, isValid, isTouched
 
 
 # Reading numbers
@@ -150,7 +161,7 @@ follow `locale`.
 
 # Range and steps
 
-@docs min, max, step, steppers
+@docs min, max, step, noSteppers
 
 
 # Display
@@ -177,6 +188,7 @@ import Klar.Field as Field
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.TextField as TextField
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme as Theme exposing (Size(..))
 
@@ -200,6 +212,9 @@ type alias Fields =
     , touched : Bool
     , focused : Bool
 
+    -- the number before the text being typed, for Escape
+    , before : Maybe Float
+
     -- the `min` and `max` the field last saw (in a message of the view, or from
     -- `setLimits`), so that `isValid` can tell whether the number is inside them
     , range : ( Maybe Float, Maybe Float )
@@ -215,7 +230,7 @@ number, use `setValue`.
 -}
 init : String -> State
 init id =
-    State { id = id, value = Nothing, draft = Nothing, touched = False, focused = False, range = ( Nothing, Nothing ) }
+    State { id = id, value = Nothing, draft = Nothing, touched = False, focused = False, before = Nothing, range = ( Nothing, Nothing ) }
 
 
 {-| The number in the field, or `Nothing` when the field is empty or the text
@@ -271,8 +286,8 @@ setLimits attributes (State state) =
 {-| Empties the field and forgets that the user has been in it (`isTouched` is
 `False` again), for example for a "Clear form" button.
 -}
-reset : State -> State
-reset (State state) =
+clear : State -> State
+clear (State state) =
     State { state | value = Nothing, draft = Nothing, touched = False }
 
 
@@ -326,7 +341,7 @@ isAbove high number =
 
 
 {-| `True` once the user has left the field, pressed Enter in it or used one of
-the stepper buttons. Use it to show errors only after the first visit. `reset`
+the stepper buttons. Use it to show errors only after the first visit. `clear`
 makes it `False` again.
 -}
 isTouched : State -> Bool
@@ -360,6 +375,7 @@ type Msg
     | Committed Rules
     | Entered Rules
     | Stepped Rules Float
+    | Reverted
     | Noop
 
 
@@ -372,7 +388,20 @@ update msg (State state) =
         Typed rules raw ->
             -- Every message brings the limits the view was given, so that
             -- `isValid` is right while the user is still typing.
-            ( State { state | draft = Just raw, value = parseIn rules.locale raw, range = rangeOf rules }, Cmd.none )
+            ( State
+                { state
+                    | draft = Just raw
+                    , value = parseIn rules.locale raw
+                    , range = rangeOf rules
+                    , before =
+                        if state.draft == Nothing then
+                            state.value
+
+                        else
+                            state.before
+                }
+            , Cmd.none
+            )
 
         Focused rules ->
             ( State { state | focused = True, range = rangeOf rules }, Cmd.none )
@@ -407,6 +436,10 @@ update msg (State state) =
             ( State { state | value = Just next, draft = Nothing, touched = True, range = rangeOf rules }
             , Internal.focus state.id Noop
             )
+
+        Reverted ->
+            -- Escape: the text being typed goes, the number from before is back
+            ( State { state | draft = Nothing, value = state.before }, Cmd.none )
 
         Noop ->
             ( State state, Cmd.none )
@@ -485,17 +518,22 @@ safeStep amount =
         1
 
 
+{-| Rounds as `Klar.Format` writes the number: on its decimal digits, half away
+from zero, so that `1.005` with two decimals is `1.01` (not `1.00`, as
+multiplying with floating point gives) and `-0.125` is `-0.13`, and the number
+that is kept is the number that is shown.
+-}
 roundTo : Int -> Float -> Float
 roundTo places number =
-    if places < 0 || abs number >= 1.0e15 then
+    if places < 0 || isNaN number || isInfinite number then
         number
 
     else
-        let
-            factor =
-                10 ^ toFloat places
-        in
-        toFloat (round (number * factor)) / factor
+        Format.decimal Locale.en places number
+            |> String.replace "," ""
+            |> String.replace "−" "-"
+            |> String.toFloat
+            |> Maybe.withDefault number
 
 
 
@@ -523,7 +561,7 @@ type alias Config =
     , grouped : Bool
     , prefix : Maybe Adornment
     , suffix : Maybe Adornment
-    , steppers : Bool
+    , noSteppers : Bool
     , alignRight : Bool
     , disabled : Bool
     , readOnly : Bool
@@ -545,7 +583,7 @@ configure attributes =
         , grouped = False
         , prefix = Nothing
         , suffix = Nothing
-        , steppers = True
+        , noSteppers = False
         , alignRight = False
         , disabled = False
         , readOnly = False
@@ -714,13 +752,14 @@ suffixText text =
     Attribute (\config -> { config | suffix = Just (Adornment text) })
 
 
-{-| Shows or hides the + and - buttons at the end of the field. They are shown
-by default, and never while the field is `disabled` or `readOnly`. The buttons
-are not in the Tab order; keyboard users have the arrow keys.
+{-| Hides the + and - buttons at the end of the field, for a field where
+stepping makes no sense, such as a price. They are shown by default, and never
+while the field is `disabled` or `readOnly`. The buttons are not in the Tab
+order; keyboard users have the arrow keys either way.
 -}
-steppers : Bool -> Attribute msg
-steppers visible =
-    Attribute (\config -> { config | steppers = visible })
+noSteppers : Attribute msg
+noSteppers =
+    Attribute (\config -> { config | noSteppers = True })
 
 
 {-| Aligns the number to the right, for columns of amounts. Default: left.
@@ -845,24 +884,40 @@ view toMsg attributes ((State state) as current) =
                 _ ->
                     False
 
-        -- "12 500.00 USD" for a screen reader; nothing while the field is empty
-        -- (a unit alone is not a value)
+        -- "12 500,00 USD" for a screen reader, as the field shows it (in the
+        -- language of the field, with the unit); nothing while the field is
+        -- empty (a unit alone is not a value)
         spokenValue =
-            case ( config.prefix, config.suffix ) of
-                ( Nothing, Nothing ) ->
-                    Internal.noAttr
+            if String.trim shown == "" then
+                Internal.noAttr
 
-                _ ->
-                    if String.trim shown == "" then
-                        Internal.noAttr
+            else
+                Attr.attribute "aria-valuetext"
+                    (String.join " "
+                        (List.filter (\part -> part /= "")
+                            [ adornmentText config.prefix, shown, adornmentText config.suffix ]
+                        )
+                    )
+
+        -- The phone keyboards for numbers have no minus key on an iPhone, so a
+        -- field that takes negative numbers gets the full keyboard.
+        keyboard =
+            case config.min of
+                Just low ->
+                    if low >= 0 then
+                        Attr.attribute "inputmode"
+                            (if config.decimals == Just 0 then
+                                "numeric"
+
+                             else
+                                "decimal"
+                            )
 
                     else
-                        Attr.attribute "aria-valuetext"
-                            (String.join " "
-                                (List.filter (\part -> part /= "")
-                                    [ adornmentText config.prefix, shown, adornmentText config.suffix ]
-                                )
-                            )
+                        Internal.noAttr
+
+                Nothing ->
+                    Internal.noAttr
     in
     -- stable: the field makes messages of its own while the user types
     Field.viewStable field
@@ -901,13 +956,7 @@ view toMsg attributes ((State state) as current) =
                                 ""
                             ]
                        , Attr.type_ "text"
-                       , Attr.attribute "inputmode"
-                            (if config.decimals == Just 0 then
-                                "numeric"
-
-                             else
-                                "decimal"
-                            )
+                       , keyboard
                        , Attr.attribute "autocomplete" "off"
                        , Attr.attribute "role" "spinbutton"
                        , Internal.attrMaybe (\low -> Attr.attribute "aria-valuemin" (String.fromFloat low)) config.min
@@ -922,12 +971,12 @@ view toMsg attributes ((State state) as current) =
                        , Events.onInput (\text -> toMsg (Typed rules text))
                        , Events.onFocus (toMsg (Focused rules))
                        , Events.onBlur (toMsg (Committed rules))
-                       , Internal.attrIf (not inactive) (Events.preventDefaultOn "keydown" (keyDecoder toMsg rules))
+                       , Internal.attrIf (not inactive) (Events.preventDefaultOn "keydown" (keyDecoder toMsg rules (state.draft /= Nothing)))
                        ]
                 )
                 []
             , viewAdornment "suffix" config.suffix
-            , if config.steppers && not inactive then
+            , if not config.noSteppers && not inactive then
                 viewSteppers toMsg config.locale rules atMin atMax
 
               else
@@ -1022,16 +1071,28 @@ stepper toMsg label_ icon blocked msg =
         [ Icon.sized Icon.Small icon ]
 
 
-keyDecoder : (Msg -> msg) -> Rules -> Decode.Decoder ( msg, Bool )
-keyDecoder toMsg rules =
-    Internal.keyEvent
+keyDecoder : (Msg -> msg) -> Rules -> Bool -> Decode.Decoder ( msg, Bool )
+keyDecoder toMsg rules editing =
+    Decode.map2 Tuple.pair TextField.composing Internal.keyEvent
         |> Decode.andThen
-            (\event ->
-                if event.ctrl || event.meta || event.alt then
+            (\( isComposing, event ) ->
+                if isComposing then
+                    Decode.fail "composing"
+
+                else if event.ctrl || event.meta || event.alt then
                     Decode.fail "modifier"
 
                 else
                     case event.key of
+                        "Escape" ->
+                            if editing then
+                                -- prevented, so that a dialog around the field
+                                -- knows the key was used and stays open
+                                Decode.succeed ( toMsg Reverted, True )
+
+                            else
+                                Decode.fail "nothing to undo"
+
                         "ArrowUp" ->
                             Decode.succeed ( toMsg (Stepped rules (stepsFor event.shift)), True )
 
@@ -1093,19 +1154,52 @@ displayText config (State state) =
         Nothing ->
             case state.value of
                 Just number ->
-                    let
-                        places =
-                            case config.decimals of
-                                Just fixed ->
-                                    fixed
+                    case config.decimals of
+                        Just fixed ->
+                            fieldNumber config.locale config.grouped fixed number
 
-                                Nothing ->
-                                    decimalPlaces number
-                    in
-                    fieldNumber config.locale config.grouped places number
+                        Nothing ->
+                            -- the decimals the number has, but not the noise of
+                            -- floating point: 0.1 + 0.2 is shown as 0.3
+                            fieldNumber config.locale config.grouped (decimalPlaces number) number
+                                |> withoutTrailingZeros config.locale
 
                 Nothing ->
                     ""
+
+
+{-| `0.3000000000` is `0.3`, `12.0` is `12`: the zeros at the end of the
+decimals are dropped, and the decimal separator with them when nothing is left.
+-}
+withoutTrailingZeros : Locale -> String -> String
+withoutTrailingZeros lang text =
+    let
+        separator =
+            Locale.decimalSeparator lang
+    in
+    case String.split separator text of
+        [ whole, fraction ] ->
+            let
+                kept =
+                    dropTrailingZeros fraction
+            in
+            if kept == "" then
+                whole
+
+            else
+                whole ++ separator ++ kept
+
+        _ ->
+            text
+
+
+dropTrailingZeros : String -> String
+dropTrailingZeros digits =
+    if String.endsWith "0" digits then
+        dropTrailingZeros (String.dropRight 1 digits)
+
+    else
+        digits
 
 
 
@@ -1189,14 +1283,16 @@ parse =
 
 
 {-| Reads a number the way the field does while the user types, in the language
-of the field. It reads like `parse`, except that a lone comma is what the
-language says it is. In English a comma groups thousands, so `1,234` is 1234, as
-`Klar.Format` writes it; in Norwegian it is the decimal comma, so `1,234` is
-1.234. A comma that cannot be a thousands separator (`1,5`, `12,34`, `1,2345`,
-`0,500`) is read as a decimal comma in either language, and a number written
-with both separators is read with the last one as the decimal separator
-(`1.234,56` and `1,234.56` are 1234.56 in both). A lone `.` is the decimal
-point in both, and spaces, no-break spaces and apostrophes are ignored.
+of the field. It reads like `parse`, except that a lone separator between groups
+of three digits is what the language says it is. In English a comma groups
+thousands, so `1,234` is 1234, as `Klar.Format` writes it, and a point is the
+decimal point. In Norwegian a comma is the decimal comma, so `1,234` is 1.234,
+and a point groups thousands, as many write it, so `10.000` is 10000. The other
+separator than the decimal one that cannot group thousands (`1,5`, `12,34`,
+`0,500` in English, `1.5`, `12.25`, `0.500` in Norwegian) is the decimal
+separator, and a number written with both separators is read with the last one
+as the decimal separator (`1.234,56` and `1,234.56` are 1234.56 in both).
+Spaces, no-break spaces and apostrophes are ignored.
 
     NumberInput.parseIn Locale.en "1,234.5" --> Just 1234.5
 
@@ -1210,6 +1306,10 @@ point in both, and spaces, no-break spaces and apostrophes are ignored.
 
     NumberInput.parseIn Locale.nb "1,234" --> Just 1.234
 
+    NumberInput.parseIn Locale.nb "10.000" --> Just 10000
+
+    NumberInput.parseIn Locale.nb "1.5" --> Just 1.5
+
 Whatever `Klar.Format.decimal` writes in a language, `parseIn` reads back with
 the same language.
 
@@ -1219,22 +1319,18 @@ parseIn lang =
     readNumber (groupingPoint lang)
 
 
-{-| The thousands separator of a language, when it is also a character that a
-number can hold as its separator (the comma in English). A no-break space is
-none: it is dropped before the number is read.
+{-| The separator that groups thousands when it stands alone between groups of
+three digits: the one that is not the decimal separator of the language. A comma
+in English (`1,234`), and a point in Norwegian, where many write `10.000` for
+ten thousand although the standard is a space.
 -}
 groupingPoint : Locale -> Maybe Char
 groupingPoint lang =
-    case String.uncons (Locale.thousandSeparator lang) of
-        Just ( c, "" ) ->
-            if isSeparator c then
-                Just c
+    if Locale.decimalSeparator lang == "," then
+        Just '.'
 
-            else
-                Nothing
-
-        _ ->
-            Nothing
+    else
+        Just ','
 
 
 readNumber : Maybe Char -> String -> Maybe Float

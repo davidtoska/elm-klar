@@ -11,8 +11,10 @@ import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.NumberInput as NumberInput
 import Klar.PasswordInput as PasswordInput
+import Klar.Remote as Remote
 import Klar.Search as Search
 import Klar.SearchInput as SearchInput
+import Klar.Shortcut as Shortcut
 import Klar.TextArea as TextArea
 import Klar.Theme exposing (Size(..))
 import Page.Gallery.Forms.Common exposing (grid, readout, resultTable, showNumber, stack, yesNo)
@@ -51,9 +53,6 @@ init =
             [ ( "ta-fixed", "Leave the parcel at the back door." )
             , ( "ta-small", "Short note" )
             , ( "ta-long", longNote )
-            , ( "pw-new", "password123" )
-            , ( "pw-repeat", "secret" )
-            , ( "pw-small", "secret" )
             ]
     , numbers =
         Dict.fromList
@@ -68,7 +67,10 @@ init =
             ]
     , passwords =
         Dict.fromList
-            [ ( "pw-repeat", PasswordInput.reveal (PasswordInput.init "pw-repeat") ) ]
+            [ ( "pw-new", PasswordInput.setValue "password123" (PasswordInput.init "pw-new") )
+            , ( "pw-repeat", PasswordInput.reveal (PasswordInput.setValue "secret" (PasswordInput.init "pw-repeat")) )
+            , ( "pw-small", PasswordInput.setValue "secret" (PasswordInput.init "pw-small") )
+            ]
     , searches =
         Dict.fromList
             [ ( "search-loading", SearchInput.setText "Fjord" (SearchInput.init "search-loading") ) ]
@@ -450,7 +452,7 @@ NumberInput.isValid model.total -- False when the number is outside min and max"
             , description = Just "An error from the application, disabled, read-only, small, large, without + and −, and with a prefix."
             , code = Just """NumberInput.view OrderValueMsg [ NumberInput.label "Order value", NumberInput.errorMaybe (belowMinimum model.orderValue) ] model.orderValue
 NumberInput.view (always NoOp) [ NumberInput.label "Locked", NumberInput.disabled True ] state
-NumberInput.view PriceMsg [ NumberInput.steppers False, NumberInput.prefixText "USD" ] model.price"""
+NumberInput.view PriceMsg [ NumberInput.noSteppers, NumberInput.prefixText "USD" ] model.price"""
             }
             (grid 240
                 [ NumberInput.view (NumberMsg "num-value")
@@ -498,7 +500,7 @@ NumberInput.view PriceMsg [ NumberInput.steppers False, NumberInput.prefixText "
                 , NumberInput.view (NumberMsg "num-plain")
                     [ NumberInput.label "No steppers"
                     , NumberInput.prefixText "USD"
-                    , NumberInput.steppers False
+                    , NumberInput.noSteppers
                     , NumberInput.grouped
                     , NumberInput.locale lang
                     ]
@@ -564,26 +566,24 @@ passwords lang model =
             , code = Just """PasswordInput.view LoginMsg
     [ PasswordInput.label "Password"
     , PasswordInput.currentPassword
-    , PasswordInput.value model.password
-    , PasswordInput.onInput PasswordChanged
+    , PasswordInput.onEnter SignIn
     ]
-    model.passwordState
+    model.password
 
 PasswordInput.view NewPasswordMsg
     [ PasswordInput.label "New password"
     , PasswordInput.newPassword
-    , PasswordInput.value model.newPassword
-    , PasswordInput.onInput NewPasswordChanged
     , PasswordInput.strengthMeter
     ]
-    model.newPasswordState"""
+    model.newPassword
+
+-- read it
+PasswordInput.value model.password -- String"""
             }
             (grid 300
                 [ PasswordInput.view (PasswordMsg "pw-login")
                     [ PasswordInput.label "Password"
                     , PasswordInput.currentPassword
-                    , PasswordInput.value (textOf "pw-login" model)
-                    , PasswordInput.onInput (TextChanged "pw-login")
                     , PasswordInput.hint "The password of your account."
                     , PasswordInput.locale lang
                     ]
@@ -592,8 +592,6 @@ PasswordInput.view NewPasswordMsg
                     [ PasswordInput.label "New password"
                     , PasswordInput.newPassword
                     , PasswordInput.required
-                    , PasswordInput.value (textOf "pw-new" model)
-                    , PasswordInput.onInput (TextChanged "pw-new")
                     , PasswordInput.strengthMeter
                     , PasswordInput.locale lang
                     ]
@@ -605,46 +603,39 @@ PasswordInput.view NewPasswordMsg
             , description = Just "With an error (until the two passwords are the same), disabled and small."
             , code = Just """PasswordInput.view RepeatMsg
     [ PasswordInput.label "Repeat password"
-    , PasswordInput.value model.repeat
-    , PasswordInput.onInput RepeatChanged
     , PasswordInput.errorMaybe
-        (if model.repeat /= model.password then
+        (if PasswordInput.value model.repeat /= PasswordInput.value model.password then
             Just "The passwords do not match"
 
          else
             Nothing
         )
     ]
-    model.repeatState"""
+    model.repeat"""
             }
             (grid 260
                 [ PasswordInput.view (PasswordMsg "pw-repeat")
                     [ PasswordInput.label "Repeat password"
                     , PasswordInput.hint "Compared with \"New password\" above."
                     , PasswordInput.errorMaybe
-                        (if textOf "pw-repeat" model /= textOf "pw-new" model then
+                        (if PasswordInput.value (passwordOf "pw-repeat" model) /= PasswordInput.value (passwordOf "pw-new" model) then
                             Just "The passwords do not match"
 
                          else
                             Nothing
                         )
-                    , PasswordInput.value (textOf "pw-repeat" model)
-                    , PasswordInput.onInput (TextChanged "pw-repeat")
                     , PasswordInput.locale lang
                     ]
                     (passwordOf "pw-repeat" model)
                 , PasswordInput.view (always NoOp)
                     [ PasswordInput.label "Disabled"
                     , PasswordInput.disabled True
-                    , PasswordInput.value "secret"
                     , PasswordInput.locale lang
                     ]
-                    (PasswordInput.init "pw-disabled")
+                    (PasswordInput.setValue "secret" (PasswordInput.init "pw-disabled"))
                 , PasswordInput.view (PasswordMsg "pw-small")
                     [ PasswordInput.label "Small"
                     , PasswordInput.size Small
-                    , PasswordInput.value (textOf "pw-small" model)
-                    , PasswordInput.onInput (TextChanged "pw-small")
                     , PasswordInput.locale lang
                     ]
                     (passwordOf "pw-small" model)
@@ -681,8 +672,8 @@ searches lang model =
             , description = Just "Count keystrokes against started searches: type \"logistics\" quickly and only one search starts. The hits come from a search through the customer names of 3,000 orders. The \"/\" in the field is only a hint for a shortcut; the application binds the key itself with Klar.Shortcut."
             , code = Just """SearchInput.view SearchMsg
     [ SearchInput.placeholder "Search orders ..."
-    , SearchInput.shortcutHint "/"
-    , SearchInput.loading model.searching
+    , SearchInput.shortcut (Shortcut.char '/')
+    , SearchInput.remote model.orders
     ]
     model.search
 
@@ -693,8 +684,14 @@ searchChanged =
             (stack
                 [ SearchInput.view SearchMsg
                     [ SearchInput.placeholder "Search orders ..."
-                    , SearchInput.shortcutHint "/"
-                    , SearchInput.loading model.searching
+                    , SearchInput.shortcut (Shortcut.char '/')
+                    , SearchInput.remote
+                        (if model.searching then
+                            Remote.Loading
+
+                         else
+                            Remote.NotAsked
+                        )
                     , SearchInput.locale lang
                     ]
                     model.search
@@ -742,7 +739,7 @@ searchChanged =
                     (searchOf "search-labelled" model)
                 , SearchInput.view (SearchStateMsg "search-loading")
                     [ SearchInput.placeholder "Loading ..."
-                    , SearchInput.loading True
+                    , SearchInput.remote Remote.Loading
                     , SearchInput.locale lang
                     ]
                     (searchOf "search-loading" model)
