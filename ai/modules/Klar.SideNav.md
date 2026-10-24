@@ -109,16 +109,16 @@ closed group that contains the current entry is marked too.
 
 **Groups are stateful**: whether a group is open lives in the `State` (a click
 toggles it, and the application can call `expandGroup`, `collapseGroup` and
-`reveal`). Call `reveal` with the current key when the application starts and
-whenever the route changes from somewhere else (the browser's back button, a link
+`reveal`). With the shell, `AppShell.setPage` does this. A side menu of your own calls
+`reveal` with the current key when the application starts and whenever the route changes
+from somewhere else (the browser's back button, a link
 in the page), so the current link is never hidden inside a closed group.
 
 `collapsed` shows icons only. The labels stay in the page for screen readers and
 every link has a `title` tooltip. A group then opens as a flyout to the right of
-its icon while it has the mouse or the keyboard focus. Inside the application
-shell, [Klar.AppShell](Klar.AppShell.md), pass the same flag to
-`AppShell.sidebarCollapsed`; the shell ignores it on narrow screens, where the
-sidebar is a drawer and always shows labels.
+its icon while it has the mouse or the keyboard focus. With
+[Klar.AppShell](Klar.AppShell.md)'s state the shell keeps this flag itself (its toggle flips it);
+on narrow screens the sidebar is a drawer and always shows labels.
 
 Keyboard: Tab moves between links as usual. Arrow Up and Down also move to the
 previous and next visible entry, Home and End to the first and last. Disabled
@@ -313,8 +313,8 @@ collapsed : Bool -> Attribute key msg
 
 Shows icons only: the labels stay in the page for screen readers, counts
 become small dots, badges are hidden and a group opens as a flyout. Default
-`False`. Inside [Klar.AppShell](Klar.AppShell.md) pass the same flag to
-`AppShell.sidebarCollapsed`.
+`False`. With [Klar.AppShell](Klar.AppShell.md)'s state the shell sets it; a hand-wired
+shell passes the same flag to `AppShell.sidebarCollapsed`.
 
 ### `ariaLabel`
 

@@ -4,7 +4,7 @@ A dashboard of Stat tiles, two charts, a tree and a timeline, each panel loading
 retrying on its own, all reloaded by a period picker. A reload keeps the old numbers, dimmed, and a failed one marks them as old.
 
 Modules: `Klar.Stat`, `Klar.Chart`, `Klar.Tree` (`nodeIds`, `viewRemote`), `Klar.Timeline`,
-`Klar.SegmentedControl`, `Klar.Card`, `Klar.Layout`, `Klar.PageHeader`, `Klar.Alert` (`stale`), `Klar.Remote` (`refresh`, `refreshWith`, `staleIn`).
+`Klar.SegmentedControl`, `Klar.Card`, `Klar.Layout`, `Klar.PageHeader`, `Klar.Alert` (`stale`), `Klar.Remote` (`refresh`, `refreshWith`, `staleIn`), `Klar.Settings` (`withZone`).
 
 The pattern:
 

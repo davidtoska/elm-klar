@@ -41,7 +41,8 @@ Install the package, then render the stylesheet once, anywhere in your view:
             , Button.view [ Button.primary, Button.onClick Save ] "Save"
             ]
 
-That is all the setup there is. The stylesheet is part of the package, so there is
+That is all the setup there is (with a theme of your choice it is `stylesheetFor`, see
+"Styling"). The stylesheet is part of the package, so there is
 nothing to link and nothing to bundle. It brings a small reset (box sizing, the page
 font and background, links, tables, focus rings) and every rule of every component,
 so Klar assumes that it owns the page. If your content security policy forbids inline
@@ -65,12 +66,13 @@ like `Html`, and what it must have:
 
 The attributes are values of an opaque type that belongs to the module. Later
 attributes win over earlier ones, so a list can be built from defaults and
-overrides.
+overrides (state flags such as `loading`, `failed` and `remote` add up instead).
 
 **Components with state.** A component that has a state of its own (a select that is
 open, a table that is sorted, a date field with half-typed text) comes with `State`,
 `Msg`, `update` and `view`, and is wired like any child in the Elm Architecture. The
-state holds the value too; read it with a function and compare before and after
+state holds the value too (`PasswordInput` is the exception: the application keeps the
+text); read it with a function and compare before and after
 `update` to react to a change. There are no out-messages. Clicks and other things
 that are not changes of the state are plain messages of your own:
 
@@ -114,9 +116,9 @@ label on one page need an `id` each. A column of a [Klar.Table](Klar.Table.md) i
 named with `Table.columnId`, and the same advice holds: name it once.
 
 **Data from a backend.** Components that show data take a [Klar.Remote](Klar.Remote.md)
-(`NotAsked | Loading | Loaded a | Failed Problem`) and draw the loading skeleton, the failure
-with a retry button and the empty state themselves. A screen is correct in every
-state without you writing the four cases every time. Data you already have stays on
+(`NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`) and draw the loading skeleton,
+the failure with a retry button and the empty state themselves. A screen is correct in every
+state without you writing the five cases every time. Data you already have stays on
 the screen while it is refreshed (`Remote.refresh`), and when a refresh fails it is
 marked "Old data from 14:05" with a retry (`Remote.refreshWith`), in every data
 component. The body of a card, dialog or drawer does the same with
@@ -145,76 +147,19 @@ for a field) the documentation says so.
 
 ## Styling
 
-The look is made of design tokens: CSS custom properties such as `--klar-primary`
-and `--klar-space-3` that components use instead of fixed colors and sizes. Define
-them again after Klar's CSS to restyle everything at once; they are listed in
-[Klar.Theme](Klar.Theme.md), which also holds the vocabulary components share
-(`Tone`, `Size`, `Density`).
+The look is one of ten themes, each with a light and a dark mode, chosen in a
+[Klar.Settings](Klar.Settings.md) and drawn by `stylesheetFor` in place of `stylesheet`:
+
+    Klar.stylesheetFor (Settings.default |> Settings.withTheme Theme.ocean |> Settings.withMode Theme.System)
+
+An application writes no CSS of its own. The design tokens (CSS custom properties such as
+`--klar-primary`) are listed in [Klar.Theme](Klar.Theme.md) as a reference, with the vocabulary
+components share (`Tone`, `Size`, `Density`).
 
 ## The modules
 
-  - **Foundations**: [Klar.Theme](Klar.Theme.md), [Klar.Locale](Klar.Locale.md),
-    [Klar.Layout](Klar.Layout.md), [Klar.Card](Klar.Card.md), [Klar.Text](Klar.Text.md),
-    [Klar.Icon](Klar.Icon.md)
-  - **Actions**: [Klar.Button](Klar.Button.md), [Klar.Menu](Klar.Menu.md),
-    [Klar.ButtonGroup](Klar.ButtonGroup.md), [Klar.ToggleGroup](Klar.ToggleGroup.md),
-    [Klar.SplitButton](Klar.SplitButton.md), [Klar.Link](Klar.Link.md), [Klar.Kbd](Klar.Kbd.md)
-  - **Status and feedback**: [Klar.Badge](Klar.Badge.md), [Klar.Tag](Klar.Tag.md),
-    [Klar.Alert](Klar.Alert.md), [Klar.Spinner](Klar.Spinner.md),
-    [Klar.Skeleton](Klar.Skeleton.md), [Klar.Progress](Klar.Progress.md),
-    [Klar.EmptyState](Klar.EmptyState.md), [Klar.ErrorState](Klar.ErrorState.md)
-  - **Forms and inputs**: [Klar.Form](Klar.Form.md), [Klar.Form.Spec](Klar.Form.Spec.md),
-    [Klar.Form.Layout](Klar.Form.Layout.md), [Klar.Form.Check](Klar.Form.Check.md),
-    [Klar.Ids](Klar.Ids.md), [Klar.Field](Klar.Field.md),
-    [Klar.Validate](Klar.Validate.md), [Klar.TextInput](Klar.TextInput.md),
-    [Klar.TextArea](Klar.TextArea.md), [Klar.NumberInput](Klar.NumberInput.md),
-    [Klar.PasswordInput](Klar.PasswordInput.md), [Klar.SearchInput](Klar.SearchInput.md),
-    [Klar.TagInput](Klar.TagInput.md), [Klar.FileDrop](Klar.FileDrop.md),
-    [Klar.InlineEdit](Klar.InlineEdit.md), [Klar.Checkbox](Klar.Checkbox.md),
-    [Klar.CheckboxGroup](Klar.CheckboxGroup.md), [Klar.Radio](Klar.Radio.md),
-    [Klar.Switch](Klar.Switch.md), [Klar.Slider](Klar.Slider.md),
-    [Klar.SegmentedControl](Klar.SegmentedControl.md),
-    [Klar.MaskedInput](Klar.MaskedInput.md), [Klar.Money](Klar.Money.md),
-    [Klar.MoneyInput](Klar.MoneyInput.md)
-  - **Choosing**: [Klar.Select](Klar.Select.md), [Klar.MultiSelect](Klar.MultiSelect.md),
-    [Klar.Autocomplete](Klar.Autocomplete.md), [Klar.VirtualList](Klar.VirtualList.md),
-    [Klar.TreeSelect](Klar.TreeSelect.md), [Klar.Cascader](Klar.Cascader.md),
-    [Klar.Transfer](Klar.Transfer.md), [Klar.Picking](Klar.Picking.md)
-  - **Date and time**: [Klar.Date](Klar.Date.md), [Klar.DatePicker](Klar.DatePicker.md),
-    [Klar.DateRangePicker](Klar.DateRangePicker.md), [Klar.TimePicker](Klar.TimePicker.md),
-    [Klar.DateTimePicker](Klar.DateTimePicker.md), [Klar.Calendar](Klar.Calendar.md),
-    [Klar.Recurrence](Klar.Recurrence.md), [Klar.RecurrencePicker](Klar.RecurrencePicker.md)
-  - **Tables and lists**: [Klar.Table](Klar.Table.md),
-    [Klar.Pagination](Klar.Pagination.md), [Klar.ListItem](Klar.ListItem.md),
-    [Klar.Tree](Klar.Tree.md)
-  - **Overlays**: [Klar.Modal](Klar.Modal.md), [Klar.ConfirmDialog](Klar.ConfirmDialog.md),
-    [Klar.Drawer](Klar.Drawer.md), [Klar.Toast](Klar.Toast.md),
-    [Klar.Popover](Klar.Popover.md), [Klar.Tooltip](Klar.Tooltip.md),
-    [Klar.ContextMenu](Klar.ContextMenu.md),
-    [Klar.CommandPalette](Klar.CommandPalette.md),
-    [Klar.ShortcutHelp](Klar.ShortcutHelp.md)
-  - **Navigation and structure**: [Klar.AppShell](Klar.AppShell.md),
-    [Klar.SideNav](Klar.SideNav.md), [Klar.PageHeader](Klar.PageHeader.md),
-    [Klar.Breadcrumbs](Klar.Breadcrumbs.md), [Klar.Tabs](Klar.Tabs.md),
-    [Klar.Stepper](Klar.Stepper.md), [Klar.Accordion](Klar.Accordion.md),
-    [Klar.Toolbar](Klar.Toolbar.md), [Klar.DescriptionList](Klar.DescriptionList.md)
-  - **Arranging**: [Klar.Sortable](Klar.Sortable.md), [Klar.Splitter](Klar.Splitter.md)
-  - **Pages and flow**: [Klar.StatusPage](Klar.StatusPage.md), [Klar.BulkBar](Klar.BulkBar.md),
-    [Klar.LeaveGuard](Klar.LeaveGuard.md), [Klar.History](Klar.History.md)
-  - **Text and change**: [Klar.Markdown](Klar.Markdown.md),
-    [Klar.MarkdownEditor](Klar.MarkdownEditor.md), [Klar.Diff](Klar.Diff.md),
-    [Klar.Compare](Klar.Compare.md)
-  - **Access and approval**: [Klar.PermissionMatrix](Klar.PermissionMatrix.md),
-    [Klar.ApprovalFlow](Klar.ApprovalFlow.md)
-  - **Data display**: [Klar.Stat](Klar.Stat.md), [Klar.Chart](Klar.Chart.md),
-    [Klar.Timeline](Klar.Timeline.md), [Klar.Avatar](Klar.Avatar.md),
-    [Klar.JsonViewer](Klar.JsonViewer.md)
-  - **Rules and filters**: [Klar.Rule](Klar.Rule.md),
-    [Klar.RuleBuilder](Klar.RuleBuilder.md), [Klar.FilterBar](Klar.FilterBar.md),
-    [Klar.SavedViews](Klar.SavedViews.md)
-  - **Data and utilities**: [Klar.Remote](Klar.Remote.md), [Klar.RemoteView](Klar.RemoteView.md),
-    [Klar.Search](Klar.Search.md),
-    [Klar.Format](Klar.Format.md), [Klar.Shortcut](Klar.Shortcut.md)
+The modules are listed by group in the package's `elm.json` and on its page on
+package.elm-lang.org, in the same order.
 
 ## The stylesheet
 

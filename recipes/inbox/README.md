@@ -2,7 +2,7 @@
 
 **Task:** a list of orders that lives on the server, with search, sorting, paging, a filter bar and saved views that hold the filter and the table's query; old rows stay on the screen while the next page comes.
 
-Klar modules: `Klar.ServerList` (it owns the table, the filter bar and the saved views), `Klar.Table`, `Klar.FilterBar`, `Klar.SavedViews`, `Klar.Rule`, `Klar.Remote`, `Klar.Button`, `Klar.Layout`, `Klar.PageHeader`, `Klar.Date`.
+Klar modules: `Klar.ServerList` (it owns the table, the filter bar and the saved views), `Klar.Table`, `Klar.FilterBar`, `Klar.SavedViews`, `Klar.Rule`, `Klar.Remote`, `Klar.Button`, `Klar.Layout`, `Klar.PageHeader`, `Klar.Date`, `Klar.Theme`.
 
 The pattern:
 

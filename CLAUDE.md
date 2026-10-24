@@ -9,9 +9,9 @@ It is published on package.elm-lang.org, so its public API is a promise: see
 
 - Vanilla Elm (0.19.x, built with 0.19.3). The library depends only on the official
   `elm/*` packages from the Elm team (core, html, browser, json, time, url and file today;
-  `file` only for `Klar.FileDrop`, which hands the application the `File` values; `svg`,
-  `bytes`, `http`, `parser`, `regex` and `random` are allowed, added to `elm.json`
-  only when a component needs them). The library never knows HTTP (`elm/http` stays out,
+  `file` only for `Klar.FileDrop` and the file fields of `Klar.Form`, which hand the
+  application the `File` values; `svg`, `bytes`, `parser`, `regex` and `random` are allowed,
+  added to `elm.json` only when a component needs them). The library never knows HTTP (`elm/http` stays out,
   see ROADMAP.md) and never reads or sends a `File`. No third-party Elm packages. Use
   `Klar.Internal.percentEncode`, not `Url.percentEncode`.
 - No ports, no kernel code, no `Debug`, no JavaScript in the library or the example.

@@ -18,7 +18,7 @@ What is in it:
 | `index.html` that mounts the program with `Elm.Main.init()` | `index.html` |
 
 Modules used: `Klar`, `Klar.AppShell`, `Klar.SideNav`, `Klar.PageHeader`, `Klar.Table`,
-`Klar.Remote`, `Klar.Button`, `Klar.ConfirmDialog`, `Klar.Toast`, `Klar.Overlay`, `Klar.Icon`.
+`Klar.Remote`, `Klar.Settings`, `Klar.Button`, `Klar.ConfirmDialog`, `Klar.Toast`, `Klar.Overlay`, `Klar.Icon`.
 
 ## Build and open
 

@@ -4,7 +4,7 @@ module FileDropRawTest exposing (suite)
 the accepted files. A test cannot make a real `File` (the events here are plain
 JSON), so what is proved is the part around it: a value that is not a `File`
 still gives the plain data, nothing is invented, and the real thing is walked in
-a browser (see design/ROWS-EXTRAS.md and the notes of the branch).
+a browser (see design/FORM-MODEL.md, section 11).
 -}
 
 import Expect

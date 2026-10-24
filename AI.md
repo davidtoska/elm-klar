@@ -9,7 +9,8 @@ Read in this order, and stop when you can write the screen: this file; `ai/klar-
 `keywords`, `purpose`, `whenToUse`, `whenNot`, `quickPath`, `related` before you open anything);
 `ai/modules/<Module>.md` (every signature, then the documentation; the long ones start with a Quick
 path); `recipes/<name>/src/Main.elm` (six compiled screens) and `template/` (the starting
-application); `USING.md` (project set-up, a backend). Do not read `docs.json`, `src/`, `example/` or `apps/`.
+application); `USING.md` (project set-up, a backend). Do not read `docs.json`, `src/`, `example/`, `apps/`,
+`design/` or `bench/`: they are the library's own source, showcase and history, not guidance.
 
 ## Start here
 
@@ -17,13 +18,13 @@ application); `USING.md` (project set-up, a backend). Do not read `docs.json`, `
 
 - **A component is `State` + `Msg` + `update` + `view`**, wired like any child in the Elm Architecture:
   `Foo.State` in your model, a `FooMsg Foo.Msg` in your `Msg`, `Foo.update m model.foo` with `Cmd.map FooMsg`,
-  `Foo.view FooMsg [ attributes ] model.foo`. Read the value with `Foo.value model.foo` and compare before and
+  `Foo.view FooMsg [ attributes ] model.foo`. Read the value with the module's reader (`Select.value`, `DatePicker.date` ...) and compare before and
   after `update` to react. There are no out-messages.
 - **A view-only component is one function and a list of attributes**: `Button.view [ Button.primary, Button.onClick Save ] "Save"`.
-  Attributes are opaque; their order does not matter; the last one of a kind wins.
+  Attributes are opaque. Their order matters only when the same attribute is given twice: the last one wins (state flags such as `loading`, `failed` and `remote` add up instead).
 - **The `String` you give to `init` is the DOM id**, unique on the page. Keep them as named values in one place.
-- **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem`, and `Kept`, see the traps). Give it to
-  `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.options` ...: they draw the skeleton, the failure
+- **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`; `Kept` is old data during or after a refresh, see the traps). Give it to
+  `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
   with retry and the empty state. Klar never sends a request; you turn the result into a `Remote` with `Remote.fromResult`.
 - **Your ids are your own types**, given once: `Table.rowIds { toKey, fromKey }`, `Tree.nodeIds`, `SideNav.keys`, `Klar.Ids`.
   A table column is a `Table.columnId "total"`, named once.
@@ -253,19 +254,19 @@ pageFromUrl url =
 2. **No CSS, no class, no `style`, no `Html.node "style"`.** Put `Klar.stylesheet` once in the view. Looks come from `Theme` values, layout from `Klar.Layout`, text from `Klar.Text`.
 3. **Your own id types.** A `type OrderId = OrderId Int`, with `toKey` and `fromKey` given once; DOM ids and column ids are named values.
 4. **Backend data is a `Remote`.** Do not write its cases; give it to the component. Turn your error into `Remote.problem Remote.timeout` (or `network`, `notFound`, `forbidden`, `server` ...).
-5. **Overlays go in the overlay list**, always, also while closed. Give the opener an id (`Button.id`) and pass it to `open`.
-6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. Find the module in the table below.
-7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** A `Time.Posix` is needed once, for today.
+5. **Overlays go in the overlay list**, always, also while closed. Give a button that opens one an id (`Button.id`) and pass it to `open`; an overlay that a route, the palette or a key opens takes `open ""`, and the layer finds the element to give focus back to.
+6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. Find the module in the table below. To put focus on an element of your page by its id (after a retry, on a stateless control), use `RemoteView.focus id NoOp`.
+7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** A `Time.Posix` is needed once, for today. A time of day you write yourself is `Settings.time model.settings posix` (it knows the zone, and says "UTC" until it does).
 8. **Forms use `Klar.Form`** (declared with `Klar.Form.Spec`, framed with `Klar.Form.Layout`). Server problems go in with `Form.rejected`, steps with `Form.advance`; do not keep a second copy of field values or of the problems.
-9. **Server mode is four steps**: compare `Table.query` (and the `FilterBar` rule) before and after `update`; `Table.setPage 1` when the rule changed; ask with a new ticket; drop an answer whose ticket is not the latest (`recipes/inbox`). **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. Debounce only what Klar does not: the query of a `CommandPalette.remote` section (a counter, see its doc) and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
+9. **A list on a server is `ServerList`** (`recipes/inbox`): one `State` and one `Msg` for the table, the filter bar and the saved views; `ServerList.update` returns the `request` to send and drops old answers, so you write no comparison, page reset or ticket. Only a server-mode `Table` on its own (no filter bar, no saved views) takes the four steps in the `Klar.Table` doc: compare `Table.query` before and after `update`, `Table.setPage 1` when an outside filter changed, ask with a new ticket, drop an answer whose ticket is not the latest. **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. Debounce only what Klar does not, and drop answers to an older query there: the query of a `CommandPalette.remote` section (a counter, see its doc), a server search in `Select.serverSearch`, `MultiSelect.serverSearch`, `Autocomplete` and a lazy `Tree` (their query changes on every key), and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
 10. **When Klar lacks something, say so.** Write the best honest version, put a comment `-- KLAR GAP: what is missing` above it, and carry on. Do not copy a component, wrap it in your own CSS or import an internal module.
 
 ## Small things that come up
 
 - **A day count from a data set to a date and back**: `Date.fromEpochDay (baseDay + n)` and `Date.toEpochDay date - baseDay` (day 0 is 1 January 1970); `Date.addDays` and `Date.diffDays` do the rest.
-- **A price rule ("if the category is X and the quantity above Y, take Z off")**: `Rule` and `RuleBuilder` hold only the condition. The outcome is yours: one `RuleBuilder.State` per outcome in a list, `{ when : RuleBuilder.State, discountPercent : Float }`, and `Rule.matches today fields (RuleBuilder.rule r.when) row` to ask a row. The example is in `ai/modules/Klar.RuleBuilder.md`.
+- **A price rule ("if the category is X and the quantity above Y, take Z off")**: `Rule` and `RuleBuilder` hold only the condition. Inside a `Klar.Form` the list of rules is `Spec.rows` with `Spec.conditions` for the condition (see `ai/modules/Klar.Form.md`). On a page without a form the outcome is yours: one `RuleBuilder.State` per outcome in a list, `{ when : RuleBuilder.State, discountPercent : Float }`, and `Rule.matches today fields (RuleBuilder.rule r.when) row` to ask a row. The example is in `ai/modules/Klar.RuleBuilder.md`.
 - **A failed save with "Try again"**: `FormLayout.onRetry` gets its own message, and that branch runs the save and `FormLayout.focusStatus`; "Try again" is replaced by "Saving ..." and focus would fall to the page. Server problems per field are `Form.rejected`, which also focuses the summary (`recipes/edit-form`).
-- **"Try again" of any region** (`RemoteView`, `Stat`, `Chart`, `Timeline`, `Table` does it itself): give the region an id (`RemoteView.id`, `Stat.id`, `Chart.id`, `Timeline.id`) and, in the update branch of **its own** retry message, `RemoteView.focus id NoOp`. A `Tree` branch: `Tree.focusNode` with the node id. Do it in a message of its own, so a "Reload" button elsewhere keeps its focus.
+- **"Try again" of any region** (`RemoteView`, `Stat`, `Chart`, `Timeline`, `ApprovalFlow` with its own `ApprovalFlow.focus`; `Table` does it itself): give the region an id (`RemoteView.id`, `Stat.id`, `Chart.id`, `Timeline.id`) and, in the update branch of **its own** retry message, `RemoteView.focus id NoOp`. A `Tree` branch: `Tree.focusNode` with the node id. Do it in a message of its own, so a "Reload" button elsewhere keeps its focus.
 - **A wizard draws the step fields inside `Form.stepBody v [ ... ]`**, or Elm reuses the focused input of one step for the next and "Required" shows on a field nobody touched.
 - **Words that call a palette item** ("go to order 1001"): `CommandPalette.withCommand "go to order"` on the item and `CommandPalette.argument items palette` for the text to send to the backend.
 - **Keep saved views** with `SavedViews.encode` / `SavedViews.decoder` (and `Table.encodeQuery` / `Table.queryDecoder`); the library stores nothing, you choose where the JSON goes.
@@ -285,7 +286,6 @@ Each is checked against the current source; the ones the library has fixed are g
 - **`Table.activeExternalFilters n`** tells "no matches" from "no data" for filters outside the table; wire `onResetFilters` once to clear the filter bar and the table's own filters.
 - **The first type parameter of `Form` and `Form.State` is the step type** (`()` for a form without steps). Declare the form in `Klar.Form.Spec` once, at the top of a file.
 - **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
-- **Toasts move to the top while a dialog or drawer is open** and can cover the drawer title for a few seconds.
 - **`Card.title` is an `h2`, and so is a `Form.Layout.section` title.** A card inside a section, or under any `h2`, needs `Card.headingLevel 3`.
 - **The page needs an `h1` in every state.** A `RemoteView` or `ErrorState` draws none while it loads or has failed, so keep the `PageHeader` outside it. For the focus after their "Try again" see "Try again of any region" above (a page that is only an `ErrorState` has no body to focus: `AppShell.goToContent model.shell |> Cmd.map ShellMsg`).
 - **`Timeline` day headings are `h3`** (right in a card with an `h2` title): directly under a page `h1` say `Timeline.headingLevel 2`. With `hasMore False` the "Load more" button is gone and focus on it falls to the page: move it with `Timeline.id` and `RemoteView.focus`.
@@ -330,4 +330,4 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 
 ## Links
 
-[llms.txt](llms.txt) | [ai/klar-index.json](ai/klar-index.json) | [ai/modules/README.md](ai/modules/README.md) | [USING.md](USING.md) | [recipes/README.md](recipes/README.md) | [template/README.md](template/README.md) | [bench/README.md](bench/README.md) | [CONTRIBUTING.md](CONTRIBUTING.md)
+[llms.txt](llms.txt) | [ai/klar-index.json](ai/klar-index.json) | [ai/modules/README.md](ai/modules/README.md) | [USING.md](USING.md) | [recipes/README.md](recipes/README.md) | [template/README.md](template/README.md)

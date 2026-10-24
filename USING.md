@@ -79,20 +79,22 @@ the dependencies of the application and not of a folder:
         "direct": {
             "elm/browser": "1.0.2",
             "elm/core": "1.0.5",
+            "elm/file": "1.0.5",
             "elm/html": "1.0.1",
             "elm/json": "1.1.4",
             "elm/time": "1.0.0",
             "elm/url": "1.0.0"
         },
-        "indirect": { "elm/virtual-dom": "1.0.5" }
+        "indirect": { "elm/bytes": "1.0.8", "elm/virtual-dom": "1.0.5" }
     }
 }
 ```
 
 `elm/url` is only needed by an application that uses `Browser.application` (every
 application with an `AppShell` does, see "Start here"); Klar itself imports it
-only in `AppShell`, whose state follows the address. Add the packages your own code imports (`elm/http` for requests, say) the
-same way.
+only in `AppShell` and `LeaveGuard`, which follow the address. `elm/file` is for
+`Klar.FileDrop` (and `Klar.Form`'s file fields), which hand the application the `File`
+values. Add the packages your own code imports (`elm/http` for requests, say) the same way.
 
 Replacing the submodule with `elm install davidtoska/elm-klar` later changes
 nothing in the application's code.
@@ -117,12 +119,8 @@ application can import Klar's internal modules (`Klar.Internal`, `Klar.Table.Sor
    ```
 
 3. **A rule for the people and tools that write the code.** Say it where they read
-   it, in the `CLAUDE.md` of the application (or its README):
-
-   > Klar (`vendor/klar`) is frozen. Never edit, copy or wrap a Klar component, and
-   > never import a module that Klar does not expose. If a component is missing a
-   > setting or a function, write what you need in `LIBRARY-REQUESTS.md` instead and
-   > build the page without it.
+   it, in the `CLAUDE.md` of the application (or its README): the paragraph is in
+   section 4.
 
    For Claude Code the folder can also be made read-only with a permission rule in
    `.claude/settings.json` (check the syntax of the rules in the Claude Code
@@ -137,7 +135,8 @@ application can import Klar's internal modules (`Klar.Internal`, `Klar.Table.Sor
 
 ## 3. An application, in the order you write it
 
-**One stylesheet.** `Klar.stylesheet` once in the view of the root (see the README).
+**One stylesheet.** `Klar.stylesheet` once in the view of the root (see the README), or
+`Klar.stylesheetFor model.settings` when the application picks a theme (below).
 
 **Density and time zone, stated once.** Keep one `Klar.Settings` in the model, ask the browser
 for the zone when the program starts, and give the settings to the shell:
@@ -160,11 +159,13 @@ zone reaches the components that write a time: give each of them `X.settings mod
 (`Table`, `Stat`, `Chart`, `Tree`, `ListItem`, `Select`, `MultiSelect`, `Autocomplete`,
 `CommandPalette`, `RemoteView`, `Timeline`, `ApprovalFlow`). Without it a time is written in UTC
 **and ends in "UTC"**, so a forgotten zone is seen, not found by a user two hours off. For a
-time you write yourself: `Settings.time model.settings posix`. See `design/SETTINGS.md`.
+time you write yourself: `Settings.time model.settings posix`. The theme is in the same
+settings (`Settings.withTheme Theme.ocean`, `Settings.withMode Theme.System`) and is drawn by
+`Klar.stylesheetFor model.settings` in place of `Klar.stylesheet`.
 
 **Data from a backend, with `elm/http` in the application.** Klar never sends a
 request and never imports `elm/http`. It draws the state of one, as a
-[`Remote`](src/Klar/Remote.elm). Turn the result of a request into a `Remote` and
+[`Remote`](ai/modules/Klar.Remote.md). Turn the result of a request into a `Remote` and
 give it to the component:
 
 ```elm
@@ -215,7 +216,7 @@ Alert.stale [] Reload (List.concat [ Remote.staleIn "orders" model.orders, Remot
 ```
 
 The time is shown in the zone of the application's settings (see "Density and time
-zone" below: `Table.settings model.settings`; UTC, and marked "UTC", until the zone is
+zone" above: `Table.settings model.settings`; UTC, and marked "UTC", until the zone is
 given). Read the data with `Remote.toMaybe`, `withDefault` or `map`: they see
 refreshed data too. A `case` of your own on a `Remote` needs a branch for `Kept`.
 `Remote.refresh` on nothing is `Loading`; for a new question (another customer, another
@@ -265,7 +266,7 @@ your own, `List.map (Overlay.map PageMsg) overlays` gives the list to the main m
 **Leaving a page with unsaved work.** `LeaveGuard` asks "Leave without saving?" on a
 link, on your own navigation and on the browser's Back and Forward buttons. Six
 functions, and the complete application is at the top of
-[`Klar.LeaveGuard`](src/Klar/LeaveGuard.elm): `initAt` (with the `Key` and the `Url`),
+[`Klar.LeaveGuard`](ai/modules/Klar.LeaveGuard.md): `initAt` (with the `Key` and the `Url`),
 `setDirty` (with the comparison, `draft /= saved`; in the branches of the messages that edit a form, never in a wrapper after every message, because "Leave" gives the changes up and a flag that says "dirty" again re-arms the guard), `request` (for links and your own
 navigation), `onUrlChange` (call it from your `onUrlChange`: it answers the buttons and
 says which page to show), `update` and `view`. With an `AppShell` the link click is a message of
@@ -273,12 +274,9 @@ your own (`LeaveGuard.request`, then `Nav.pushUrl`), `onUrlChange` stays the she
 (`AppShell.onUrlChange ShellMsg`) and the `Url` that `AppShell.update` returns goes to
 `LeaveGuard.onUrlChange`: the wiring, tried in Chrome, is in the docs of `LeaveGuard`. You do not write: a field for the
 address you are going back from, a target type that remembers where the request came
-from, a call to `Nav.forward`, or the code that remembers where focus was. Do not undo
-a Back with `Nav.forward 1` yourself: it reports the address it leaves, once at once,
-and a handler that asks again loops forever (measured; the guard never does it). Give
-the links that can ask an `id` so that focus returns to them after "Stay". Run
-`node scripts/test-leave-guard.mjs` (needs Chrome) to see the buttons answered in a
-real browser.
+from, a call to `Nav.forward` (never undo a Back yourself: the guard does it), or the code
+that remembers where focus was. Give the links that can ask an `id` so that focus returns to
+them after "Stay".
 
 **A form: declare it once.** The values, the rules, the steps, the rows of a repeating
 group, what the server refused and whether anything changed live in one `Form.State`.

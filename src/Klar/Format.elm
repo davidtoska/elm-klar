@@ -11,7 +11,7 @@ Use when: the application shows numbers, sizes, dates or times to people.
 Do not use when: the text is a machine format (use `iso8601` for a date in data, or the plain value).
 
     import Klar.Format as Format
-    import Klar.Locale exposing (Locale(..))
+    import Klar.Locale as Locale
 
     Format.int Locale.en 1234567 -- "1,234,567"
 
@@ -600,7 +600,9 @@ dateLong locale value =
         }
 
 
-{-| The time of day on a 24-hour clock, in a time zone: `14:05`.
+{-| The time of day on a 24-hour clock, in a time zone: `14:05`. An application that keeps
+a [Klar.Settings](Klar-Settings) writes `Settings.time model.settings posix` instead: it uses
+the zone of the settings and says "UTC" while that zone is not known yet.
 
     Time.here |> Task.andThen (\zone -> Task.map (Format.time zone) Time.now)
 
@@ -611,7 +613,7 @@ time zone posix =
 
 
 {-| The date and the time: `2026-10-20 14:05` in English, `20.10.2026 14:05` in
-Norwegian.
+Norwegian. With a [Klar.Settings](Klar-Settings), use `Settings.dateTime` (see `time`).
 -}
 dateTime : Locale -> Time.Zone -> Time.Posix -> String
 dateTime locale zone posix =

@@ -52,7 +52,7 @@ Acceptance:
 4. A saved form shows a toast and is no longer "unsaved"; a changed form shows that it has
    unsaved changes and can be reverted.
 
-Reference modules: `Form.Model`, `Form`, `Validate`, `Remote`, `Toast`. Recipe: edit-form.
+Reference modules: `Form`, `Form.Spec`, `Form.Layout`, `Validate`, `Remote`, `Toast`. Recipe: edit-form.
 
 ## T03. Dashboard
 
@@ -107,7 +107,7 @@ Acceptance:
    problem the server ties to a field (tax number `000`) is shown at that field, on its step.
 5. Success shows a confirmation page; no step can be re-entered with old values afterwards.
 
-Reference modules: `Stepper`, `Form.Model`, `Form`, `DescriptionList`, `Remote`. Recipe: multi-step.
+Reference modules: `Form` (its steps and `Form.stepper`), `Form.Spec`, `Form.Layout`, `DescriptionList`, `Remote`. Recipe: multi-step.
 
 ## T06. Command palette
 
@@ -239,4 +239,4 @@ Acceptance:
    the tab (it may leave the question out and keep the input).
 5. Closing the tab is not guarded (Klar says it cannot be); the interface does not claim it is.
 
-Reference modules: `LeaveGuard`, `Form.Model`, `Modal` or `ConfirmDialog`, `AppShell`. Recipe: multi-step.
+Reference modules: `LeaveGuard`, `Form`, `Form.Spec`, `Modal` or `ConfirmDialog`, `AppShell`. Recipe: multi-step.

@@ -27,7 +27,6 @@ Quick path: `initAt`, `setDirty`, `request`, `onUrlChange`, `update`, `view`
 The whole application, as it compiles:
 
     import Browser
-    import Browser.Dom as Dom
     import Browser.Navigation as Nav
     import Html exposing (Html)
     import Html.Attributes as Attr
@@ -35,7 +34,7 @@ The whole application, as it compiles:
     import Klar
     import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
     import Klar.Overlay as Overlay
-    import Task
+    import Klar.RemoteView as RemoteView
     import Url exposing (Url)
 
     type Route
@@ -117,7 +116,7 @@ The whole application, as it compiles:
                         ( { model | guard = guard, route = route }
                         , Cmd.batch
                             [ Cmd.map GuardMsg cmd
-                            , Task.attempt (\_ -> NoOp) (Dom.focus "content")
+                            , RemoteView.focus "content" NoOp
                             ]
                         )
 
@@ -197,10 +196,9 @@ that page (the guard replaces the address with itself, which adds no entry to th
 history, and `onUrlChange` then tells you to show it); "Stay" pushes the address of
 the page that is shown. One consequence is worth knowing: after "Stay" the entries
 that were ahead of the page are gone, and when the user pressed Forward there is one
-entry more than before. The recipe that used to be here, `Nav.forward 1` and ignoring
-the next call, looped forever: `Nav.back` and `Nav.forward` call `onUrlChange` at once
-with the address they are leaving, before the move, and a second time when the browser
-has moved, so every call looked like a new press of Back. You do not need `pushing` or
+entry more than before. Never undo a Back with `Nav.forward 1` yourself: the browser
+reports the address it leaves and then the one it reaches, so a handler that asks again
+loops forever. You do not need `pushing` or
 `restoring` fields, and a target type like `Go Route | GoBack`: all of it is
 `onUrlChange`. A `Nav.pushUrl` of your own that did not ask first is caught the same
 way, so asking is a courtesy that keeps the history tidy, not a duty the guard
@@ -316,8 +314,9 @@ its drawer and reset the scroll, which does no harm when the page stays):
 
 Tried in Chrome with unsaved input: the Back button opens the question with the address
 at the page the user wanted, "Stay" puts the address back, "Leave" shows the page and
-focus goes to the content. An application without a shell uses its own `UrlChanged` as
-in the example above, and `AppShell.setPage` and `AppShell.goToContent` in `enter`.
+focus goes to the content. With the shell, as here, `enter` calls `AppShell.setPage` and
+`AppShell.goToContent`; an application without a shell uses its own `UrlChanged`, as in the
+example at the top.
 
 
 # The guard

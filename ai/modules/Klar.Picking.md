@@ -51,7 +51,7 @@ Do not use when: you show a hierarchy on the page itself with open and closed br
     import Klar.Picking as Picking
     import Klar.Remote as Remote exposing (Remote(..))
 
-    -- how a RegionId is written as a key, once for the whole application
+    -- how a RegionId is written as a key, once for the pickers
     regionIds : Picking.Ids RegionId
     regionIds =
         Picking.ids RegionId.toString

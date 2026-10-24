@@ -9,7 +9,10 @@ Quick path: `make`, `toKey`, `fromKey`
 Several components keep their values as text keys internally (the form model's
 selects, the choices of a rule): an application with `CountryId` and
 `CategoryId` types writes the two functions once per type and hands the `Ids`
-to every component that needs them.
+to the parts that take one: `Spec.choice` and `Spec.choices` of a form, `Rule.choiceFieldOf`
+and `Form.Check.lostIds`. A table, a tree, the pickers, a sortable list and the side menu
+take their own small id type instead (`Table.rowIds`, `Tree.nodeIds`, `Picking.ids`,
+`Sortable.itemIds`, `SideNav.keys`).
 
     import Klar.Ids as Ids exposing (Ids)
 

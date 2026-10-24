@@ -14,11 +14,11 @@ The first release.
   is the element on its own. The colors are computed in Elm (`Klar.Internal.Palette`) as
   custom properties on `:root`, so the component CSS is unchanged and every token keeps its name;
   `--klar-blue-*` is now the accent scale of the chosen theme. `tests/ThemeTest.elm` checks WCAG AA
-  for the pairs of the library in every generated palette (the default light look is the stylesheet itself). New tokens `--klar-code-bg` and
-  `--klar-code-text`: code blocks stay dark in every theme. There is no way to make a color of
+  for the pairs of the library in every generated palette (the default light look is the
+  stylesheet itself). New tokens `--klar-code-bg` and `--klar-code-text`: code blocks stay dark in every theme. There is no way to make a color of
   your own.
 
-- About 90 components for data-intensive applications: a data table with client
+- More than a hundred components for data-intensive applications: a data table with client
   and server mode, searchable selects, pickers for dates, periods and times, a rule
   builder and filter bar, dialogs, drawers, toasts, a command palette, charts,
   trees, timelines and the pieces of an application shell.
@@ -111,6 +111,12 @@ The first release.
   (`Tree.State RegionId`, `Tree.nodeIds`, `SideNav.State Page`, `SideNav.keys`).
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
+
+## Before 1.0.0: development notes
+
+Nothing was released before 1.0.0, so nothing below is a change to a published API. These are
+the notes of the development, kept for the reasons and the measured numbers. Names in them may be
+older than the API: the module documentation is the reference.
 
 ### The seams of the form model (A0 round 3: R3O-003 to R3O-018)
 

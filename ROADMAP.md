@@ -135,7 +135,6 @@ Findings that belong to Phase A and A8 and are listed here so they are not lost:
   overlap.
 - `Menu` cannot open with the first item highlighted from the keyboard, and `Tag` cannot name
   its remove button differently, which the new components work around.
-- `Remote` has no stale state (all new data components say so in their admission answer).
 
 A pass in a real browser (Chrome only, 22 October 2026: real mouse and keys, 375, 640,
 1024 and 1280 px, English and Norwegian, reduced motion, IME composition events) found
@@ -150,8 +149,8 @@ contrast and a Mac keyboard.
 ## Technical rules
 
 - Official `elm/*` packages from the Elm team. The package depends on `core`, `html`,
-  `browser`, `json` and `time` today. Allowed when a component needs them: `svg`, `file`,
-  `bytes`, `parser`. Anything else needs a reason written in this file.
+  `browser`, `json`, `time`, `url` and `file` today. Allowed when a component needs them:
+  `svg`, `bytes`, `parser`, `regex`, `random`. Anything else needs a reason written in this file.
 - `elm/http` stays out: Klar is transport neutral, so `File` values and progress numbers
   pass through the application.
 - No ports, no JavaScript, no `iframe`, no third-party packages, no `elm-explorations/*`.
@@ -181,10 +180,11 @@ inside it matters: A0 first, because what it finds changes A1 to A7.
 [apps/ROUND2-EVALUATION.md](apps/ROUND2-EVALUATION.md) and
 [apps/ROUND3-EVALUATION.md](apps/ROUND3-EVALUATION.md). A1 (the AI documentation), A5 (types),
 A6 (no CSS), A7 (debts: overlay layer, performance, stale data, the form model, LeaveGuard)
-and most of A8 are built and merged; what is left is listed under "Next" in the round 3
-evaluation: one editing pass over the AI documents, global density and time zone, the
-server-mode helper, `RemoteView` focus, the last seams of the form model and the rule
-builder. After that the benchmark of A3 (`bench/`) is run once more and Phase B can start.
+and A8 are built and merged, and so is what the round 3 evaluation listed under "Next" (global
+density and time zone in `Klar.Settings`, the server-mode helper `Klar.ServerList`, `RemoteView`
+focus, the last seams of the form model and the rule builder). The benchmark of A3 has had its
+first run; its fixes are merged. The records of the three rounds are in `apps/` (history: the
+sources no longer build, see [apps/README.md](apps/README.md)).
 
 The first step, before any documentation or renaming: build two or three real
 applications with Klar as it is, written by an AI from the documentation. Write down every
@@ -207,8 +207,8 @@ in `npm run check`), six recipes and the application template (compiled by `npm 
 the paragraph for a consumer's `CLAUDE.md` in USING.md. Every module doc opens with its purpose, a
 `Use when:` and a `Do not use when:` line, and (for a module with a State and Msg) a `Quick path:`
 line; `check:ai-docs` fails when one is missing. `npm run check:doc-examples` compiles the complete
-examples of the module docs and runs with `--strict` in `check` (none fails; 21 need the application's
-own types and are listed in `ai/doc-example-report.md`). Not done: compiling the expression fragments
+examples of the module docs and runs with `--strict` in `check` (none fails; the few that need the
+application's own types are listed in `ai/doc-example-report.md`). Not done: compiling the expression fragments
 that make most of the doc examples, and the recipes beyond the six (the "twenty").
 
 | Piece | What it is | Size |
@@ -233,10 +233,11 @@ that make most of the doc examples, and the recipes beyond the six (the "twenty"
 
 ### A3. An AI benchmark
 
-**Status: set up, not run.** `bench/` has the twelve tasks, `bench/run.md` (briefing, what is
-recorded, the score and the rule that it may not drop), the baseline from A0 and
-`scripts/bench-workspace.mjs`, which builds the folder a fresh session is given. The first run
-comes after the Quick path.
+**Status: run 1 done (22 October 2026).** `bench/` has the twelve tasks, `bench/run.md` (briefing,
+what is recorded, the score and the rule that it may not drop), the A0 baseline,
+`scripts/bench-workspace.mjs`, which builds the folder a fresh session is given, and
+[bench/results/run-1.md](bench/results/run-1.md): seven of twelve tasks pass every acceptance
+line; the defects it found in Klar and its documentation are fixed on `main`.
 
 Twelve fixed tasks (an order list with filters, an edit form, a dashboard, a rule builder,
 ...). For each release, a fresh AI with only the documentation builds them. Record: compiles
@@ -252,34 +253,7 @@ with `Settings.withTheme` and `Settings.withMode`, drawn by `Klar.stylesheetFor`
 and colors of your own (Klar is for applications inside a company: one of ten themes is enough, and a
 chosen color cannot be promised to keep the contrast), component tokens, and a theme lab. Not
 done: the avatar palette and the chart palette are not tuned per theme, and no theme has been
-looked at in Firefox or Safari. The text below is the original plan.
-
-The look today is liked and stays the default. What is new is that an application can
-change it with a typed value instead of hand-written CSS. The tokens (`--klar-*`) stay a
-documented, stable part of the API.
-
-- **`Theme` value.** `Theme.make` takes the color roles: primary, secondary, success,
-  warning, danger, info and neutral, plus mode (light, dark, auto), corner radius and
-  font. `Klar.Theme.view theme` renders the style element. Scope: the whole page, or one
-  container.
-- **Typed colors.** `Theme.hex "#0b7285"` returns a `Result`, not a string, so a bad color
-  is a clear error, not a silent fallback (principle 2).
-- **Derived automatically, in Elm.** From one primary color the theme computes hover,
-  active, subtle, border and the text color on top of it. The text color is chosen by
-  measured contrast. `Theme.contrastProblems` lists any pair that falls under WCAG AA, so a
-  theme can be checked in a test.
-- **Ten presets**, each with light and dark: Klar (today's blue), Ocean (teal), Forest
-  (green), Indigo, Violet, Rose, Sunrise (amber), Slate, Graphite (neutral), Contrast
-  (high contrast for accessibility). That is twenty palettes; a test runs
-  `contrastProblems` on all of them.
-- **Component tokens.** Buttons first: `--klar-button-bg`, `--klar-button-text`, and so on,
-  each falling back to the role tokens, so one button style can differ without a fork. The
-  other components follow as they are touched.
-- **Theme lab** in the example: pick a preset or colors, see every component, and see the
-  contrast warnings. It is built from Klar's own components, so it tests them.
-- Work: M for the theme value and presets, L for dark mode (the tokens are drawn for a
-  light surface, and every component must be checked), M for the component tokens, S for
-  the lab.
+looked at in Firefox or Safari. The tokens (`--klar-*`) stay a documented, stable part of the API.
 
 ### A5. Types that cannot be misused
 
@@ -318,12 +292,11 @@ promise so an application never touches styling.
 
 | Item | Size |
 |---|---|
-| Split `Table.elm` (5 870 lines) and `Chart.elm` (2 988 lines) into internal modules, with the shared column / sort / filter core ready for the table family in Phase C | L |
+| Split `Table.elm` (about 7 000 lines) and `Chart.elm` (about 3 100 lines) into internal modules, with the shared column / sort / filter core ready for the table family in Phase C | L |
 | Firefox and Safari pass, not only Chromium | M |
 | Screen reader pass | M |
 | 100 000 rows in Table, Tree and Select as a test in `npm run check` | M |
-| Finish the typed ids that remain: `Autocomplete`, and a decision on `Rule`'s operators | M |
-| Commit the work that is waiting | S |
+| Finish the typed ids that remain: `Autocomplete` (its values are still `String`) | M |
 
 ### A8. Fixes from the real applications
 
@@ -333,14 +306,14 @@ new ones.
 
 | Item | Size |
 |---|---|
-| Sure fixes: rename the clashing `Success` (`Theme.Tone` against `Remote`), fix every doc example that does not compile (and compile them in `check:docs`), the mounting and `elm/url` recipe, and about twenty small gaps (`Date.toPosix`, `Format.iso8601`, `Stat.change`, `Layout.fillRest`, heading levels, target sizes, ...) | M |
-| **Form model**: one `Form.State` that owns every field's value, knows when it is dirty, loads and returns a record, takes server problems per field, and knows steps and their status | XL |
+| Sure fixes (done, see CHANGELOG): rename the clashing `Success` (`Theme.Tone` against `Remote`), fix every doc example that does not compile (and compile them in `check:docs`), the mounting and `elm/url` recipe, and about twenty small gaps (`Date.toPosix`, `Format.iso8601`, `Stat.change`, `Layout.fillRest`, heading levels, target sizes, ...) | M |
+| **Form model** (done: `Klar.Form`, see below): one `Form.State` that owns every field's value, knows when it is dirty, loads and returns a record, takes server problems per field, and knows steps and their status | XL |
 | **Overlay layer** (done: `Klar.Overlay`, see CHANGELOG): it owns focus, derives `modalOpen`, keeps toasts reachable and out of the way of dialogs, fixes the duplicate landmarks | L |
-| **Data-dense performance**: cache the sorted and filtered rows in `Table`, virtual rows, `Search` pre-filtering, one row type for `Table` and `VirtualList`, keyboard model for `VirtualList`; tested at 50 000 rows | L |
-| **Server-mode helper**: "compare, reset the page, ticket the answer, debounce" in one place, shared by `Table`, `FilterBar`, `SavedViews` and the palette section | L |
-| `Remote`-aware containers (`Drawer`, `Modal`, `Card`) and a stale state for refreshes that fail | M |
+| **Data-dense performance** (done, see below): cache the sorted and filtered rows in `Table`, virtual rows, `Search` pre-filtering, one row type for `Table` and `VirtualList`, keyboard model for `VirtualList`; tested at 50 000 rows | L |
+| **Server-mode helper** (done: `Klar.ServerList`, `design/SERVER-LIST.md`): "compare, reset the page, ticket the answer, debounce" in one place, shared by `Table`, `FilterBar`, `SavedViews` and the palette section | L |
+| `Remote`-aware containers and a stale state for refreshes that fail (done: `Klar.RemoteView`, `Remote.Kept`, see below) | M |
 | Typed ids where they are still strings: `Rule` choices over `Select.Option`, `Radio`, validators over any value, DOM ids derived from state | L |
-| Layout and density: a fixed width, fill the rest, `auto-fit`, one density that every component follows, sidebar width | M |
+| Layout and density: a fixed width, fill the rest, `auto-fit`, one density that every component follows (done: `Klar.Settings`), sidebar width | M |
 | axe in `npm run check` on every showcase page | S |
 
 **Status of density and time zone: done** (see `design/SETTINGS.md`). `Klar.Settings` holds both; the shell
@@ -386,23 +359,18 @@ iterations, `KLAR GAP` lines and behaviour bugs with the first round.
 
 ## Phase B: interaction
 
-*"I can arrange my workspace."*
+*"I can arrange my workspace."* Built already, and listed in "Built ahead of the plan" above: `Sortable`, `Splitter`, `Link`, `SplitButton`,
+`ButtonGroup`, `ToggleGroup`, `BulkBar`, `StatusPage`, `LeaveGuard`, `Kbd`, and the form error summary
+(`Form.summary`).
 
 | Component | Size |
 |---|---|
-| Sortable (drag to reorder, keyboard moves, announcements) | L |
-| Splitter / Resizable panels | M |
-| `Link` (typed route, active state, external marker) | S |
-| Navigation completion: `Menubar`, `NavigationMenu` (panels), `SplitButton`, `ButtonGroup`, `ToggleGroup`, `Tabs` overflow with closable and reorderable tabs, `Breadcrumbs` collapse, cursor `Pagination`, tenant / workspace switcher, favourites and recent items, skip links, focus and title on route change | L |
+| Navigation completion: `Menubar`, `NavigationMenu` (panels), `Tabs` overflow with closable and reorderable tabs, `Breadcrumbs` collapse, cursor `Pagination`, tenant / workspace switcher, favourites and recent items, skip links, focus and title on route change | L |
 | Notification centre (the bell, history next to `Toast`) | M |
-| Bulk action bar ("12 selected: Export, Delete") | S |
-| Form error summary with jump to the field | S |
 | Popconfirm and HoverCard | S |
-| Result pages (success, denied, 404, 500) | S |
-| Leave-guard for unsaved changes inside the application | S |
 | Tour (guided walkthrough that points at real elements) | M |
 | Anchor (table of contents) and Affix | S |
-| Kbd, Divider, Flex and Grid helpers | S |
+| Divider, Flex and Grid helpers | S |
 
 ## Phase C: the table family
 
@@ -418,28 +386,24 @@ a module name and a few attributes, not the way you think.
 | `Klar.TreeTable` | Hierarchy: tree rows, grouping, aggregates (sum, average, count), master/detail rows | XL |
 | `Klar.PivotTable` | Choose rows, columns and values; totals; drill down | L |
 | `Klar.CardList` | The same columns as cards or a gallery, for narrow screens and overviews | M |
-| `Klar.Compare` | Records side by side with the differences marked | M |
 
-Also: conditional formatting and sparklines in cells (all tables), TreeSelect, Cascader,
-Transfer (dual list), Stat v2 (trend, target against actual). M each or less.
+Also: conditional formatting and sparklines in cells (all tables), Stat v2 (trend, target against
+actual). M each or less. Built already: `Klar.Compare`, `TreeSelect`, `Cascader`, `Transfer`.
 
 ## Phase D: text, change and review
 
-*"I can see what changed, and decide."* The base of the AI interface.
+*"I can see what changed, and decide."* The base of the AI interface. Built already, and listed in "Built ahead of the plan" above: `Markdown`,
+`MarkdownEditor`, `Diff`, `PermissionMatrix`, `ApprovalFlow`, `History` (undo and redo).
 
 | Component | Size |
 |---|---|
-| Markdown parser and renderer (`elm/parser`), tolerant of unfinished text | L |
-| Markdown editor with preview | M |
-| Diff viewer (text, JSON, records) and read-only code block with highlighting | M |
+| Read-only code block with highlighting | M |
 | Query language for `FilterBar`: `status = open and total > 100` becomes a typed `Rule` | L |
 | Comment thread and mentions (`@` at the end of the text) | M |
 | Audit log and activity feed with diffs | M |
 | Conflict resolver (your version against theirs after a 409) | M |
 | Work queue: a list with `j` / `k`, a detail pane, approve / reject, comments | L |
-| Permission matrix, user and role picker, sharing dialog | M |
-| Approval flow (steps, owners, status) | M |
-| Undo / redo history for forms and editors | M |
+| User and role picker, sharing dialog (next to `PermissionMatrix`) | M |
 
 The query language is the contract between a person, an AI and a backend: a person types
 it, an AI writes it, `Rule` is the typed result, the server runs it.
@@ -488,14 +452,16 @@ Second slice:
 
 ## Phase F: forms and inputs
 
+Built already, and listed in "Built ahead of the plan" above: `MaskedInput`, `Money` and `MoneyInput`, `Recurrence` and
+`RecurrencePicker`, and the field arrays and steps of `Klar.Form`.
+
 | Component | Size |
 |---|---|
-| Masked input (phone, IBAN, organisation number, postal code), `elm/parser` | M |
-| Currency, unit and percent input | M |
-| Field arrays and Wizard form with a draft | L |
+| Unit and percent input | M |
+| A draft for a wizard form | M |
 | ColorPicker (also used by the theme lab) | M |
 | `Field` groups with conditional visibility | M |
-| Date and time: time zone aware field, recurring rule (every second Tuesday) | L |
+| Date and time: time zone aware field | L |
 | Session timeout | S |
 
 On demand: OTP / PIN input, Rate, Watermark.
@@ -525,7 +491,7 @@ arcs and edges only.
 |---|---|
 | Kanban (columns, swimlanes, WIP limits), built on Sortable | L |
 | Calendar week and day views with events, drag to move and resize | L |
-| Chart additions: curves, area, stacked, treemap, gauge, heatmap, sparkline | L |
+| Chart additions: curves, area, stacked, treemap, heatmap (gauge, meter and sparkline exist) | L |
 
 On demand (each is a product of its own, started only when a real application needs it):
 Scheduler / resource view, Gantt (dependencies, critical path, baselines), diagram and flow

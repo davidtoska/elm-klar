@@ -251,15 +251,16 @@ The view of the whole table is one function:
             state
 
 **Quick path: a server table.** The rows live on the server; you give the table one page
-of them and the number of matches, and it only records what the user asked for. Everything an
-inbox needs, in order:
+of them and the number of matches, and it only records what the user asked for. A server list
+with a filter bar or saved views is [Klar.ServerList](Klar.ServerList.md), which does every step
+below for you (`recipes/inbox`). A server table on its own needs, in order:
 
   - `Table.server { total = model.total }` and `Table.rows model.page` (a `Remote` of the
     current page only);
   - `Table.query` before and after `update`: when it differs, ask the server. The search
     box and the filter fields already wait 350 ms (`searchDebounce`); a sort click and a page change
     arrive at once, so **write no debounce of your own**. Give each request a ticket and drop an
-    answer that is not for the latest one (`recipes/inbox`);
+    answer that is not for the latest one;
   - `searchable` for the search box, `onRowClick` for the row that opens a drawer or a page,
     `selectable` with `Table.selectedIds` and `bulkActions` for "assign these 12", `exportCsv`
     for the download;

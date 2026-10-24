@@ -150,7 +150,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.ServerList](Klar.ServerList.md): A list whose rows live on a server: a table, a filter bar and saved views that edit one query, and the glue that every such list needs, in one place.
 ## Data and utilities
 
-- [Klar.Remote](Klar.Remote.md): The state of data that comes from a backend: not asked for yet, loading, failed, or here.
+- [Klar.Remote](Klar.Remote.md): The state of data that comes from a backend: not asked for yet, loading, failed, here, or kept (old data while it is refreshed, or after a refresh failed).
 - [Klar.RemoteView](Klar.RemoteView.md): The body of a card, a dialog or a drawer that shows one piece of remote data: a loading skeleton that screen readers hear, the failure with a retry, and the data, old or being refreshed.
 - [Klar.Search](Klar.Search.md): Text matching for search fields, selects and command palettes: forgiving about case and accents, and ranked, so the best match comes first.
 - [Klar.Format](Klar.Format.md): Formatting numbers, sizes, dates and times for people, in the conventions of a `Locale`.

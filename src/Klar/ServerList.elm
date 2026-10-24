@@ -33,6 +33,7 @@ the request is sent.
 
     import Browser
     import Html exposing (Html)
+    import Klar.FilterBar as FilterBar
     import Klar.Remote as Remote
     import Klar.Rule as Rule
     import Klar.SavedViews as SavedViews
@@ -106,7 +107,7 @@ the request is sent.
     view model =
         Html.div []
             [ ServerList.viewSavedViews OrdersMsg [] model.orders
-            , ServerList.viewFilterBar OrdersMsg [] model.orders
+            , ServerList.viewFilterBar OrdersMsg [ FilterBar.fields fields ] model.orders
             , ServerList.viewTable OrdersMsg
                 [ Table.columns columns
                 , Table.rowId Table.stringIds .id

@@ -196,7 +196,8 @@ parameters.** The reasons:
    `Form.Form () Fields Values`, `Spec.Builder step Fields (Country -> Values)`. The
    unresolved `step` is noise (a lower-case variable in a message), but it is always the
    first parameter, and it is `()` in a finished form.
-2. In 9 of the 11 mistakes tried (A, A2, B, E, F1, F2, G, H, J) the location is the right line and
+2. In 9 of the first 11 mistakes tried (A, A2, B, E, F1, F2, G, H, J; K and L came later, their
+   output is in `OUTPUT.txt`) the location is the right line and
    the types name the missing or wrong thing. In 2 (C, I) the message is about the
    records or the missing argument and the location is only close.
 3. What an AI needs to know is a rule it can read in the module doc: "the n-th `with` fills the

@@ -2,7 +2,7 @@
 
 Task: a three-step order flow (customer, delivery, review) with a stepper, validation before "Next", a submit that can fail, and a question before the user leaves with unsaved input, also when the user presses the browser Back button.
 
-Klar modules: `Klar.Form` (the form model, which owns the steps), `Klar.Form.Spec`, `Klar.Form.Layout`, `Klar.LeaveGuard`, `Klar.Overlay`, `Klar.Validate`, `Klar.DescriptionList`, `Klar.Card`, `Klar.PageHeader`, `Klar.Layout`, `Klar.Button`, `Klar.Toast`, `Klar.Remote`.
+Klar modules: `Klar.Form` (the form model, which owns the steps), `Klar.Form.Spec`, `Klar.Form.Layout`, `Klar.LeaveGuard`, `Klar.Overlay`, `Klar.Validate`, `Klar.DescriptionList`, `Klar.Card`, `Klar.PageHeader`, `Klar.Layout`, `Klar.Button`, `Klar.Toast`, `Klar.Remote`, `Klar.Locale`.
 
 The pattern:
 
