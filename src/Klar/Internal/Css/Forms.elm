@@ -1097,9 +1097,24 @@ css =
 }
 
 .klar-inline-edit__text { min-width: 0; overflow-wrap: anywhere; }
+.klar-inline-edit__text--multiline { white-space: pre-wrap; }
 .klar-inline-edit__text--empty { color: var(--klar-text-muted); }
 
 .klar-inline-edit__box { width: 100%; padding-inline-end: 2px; }
+
+/* A text of several lines: the box grows with its text area, and the buttons stay at
+   the top. */
+.klar-inline-edit__box--multiline {
+  height: auto;
+  align-items: flex-start;
+  padding-block: var(--klar-space-1);
+}
+
+.klar-inline-edit__textarea {
+  min-height: 4.5em;
+  resize: vertical;
+  line-height: 1.5;
+}
 
 .klar-inline-edit__action {
   display: flex;

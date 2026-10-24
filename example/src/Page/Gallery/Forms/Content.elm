@@ -441,6 +441,16 @@ inlineEdits lang model =
                         ]
                         (inlineOf "inline-reference" model)
                     ]
+                , Layout.row [ Layout.gap 4, Layout.alignStart, Layout.wrap ]
+                    [ Text.strong "Note:"
+                    , InlineEdit.view (InlineMsg "inline-note")
+                        [ InlineEdit.ariaLabel "Delivery note"
+                        , InlineEdit.multiline
+                        , InlineEdit.emptyText "Add a delivery note (Enter is a new line, Ctrl+Enter saves)"
+                        , InlineEdit.locale lang
+                        ]
+                        (inlineOf "inline-note" model)
+                    ]
                 , Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                     [ Text.strong "Locked:"
                     , InlineEdit.view (always NoOp)

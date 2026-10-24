@@ -5,7 +5,7 @@ module Klar.InlineEdit exposing
     , saved, failed, setValue, edit
     , ariaLabel, placeholder, emptyText
     , validate, maxLength
-    , disabled
+    , multiline, disabled
     , locale
     )
 
@@ -67,7 +67,9 @@ The first `String` given to `init` is the DOM id of the input that is shown whil
 editing, so there is no `id` attribute; the second is the text to show.
 
 **Keyboard.** Enter saves, Escape cancels, leaving the field saves, and the text
-is a button: Tab reaches it and Space or Enter starts editing. The Enter or
+is a button: Tab reaches it and Space or Enter starts editing. A `multiline` text
+is edited in a text area, where Enter starts a new line and Ctrl+Enter (Cmd+Enter on
+a Mac) saves. The Enter or
 Escape that ends an IME composition (Japanese, Chinese, Korean input) only picks
 the characters. Escape is handled here and its default is prevented, so a
 surrounding dialog that respects `defaultPrevented` stays open. Switching to
@@ -135,7 +137,7 @@ The built-in texts (the buttons, "Click to add", "Saving ...") follow `locale`.
 
 # Behavior
 
-@docs disabled
+@docs multiline, disabled
 
 
 # Language
@@ -512,6 +514,7 @@ type alias Config =
     , emptyText : Maybe String
     , maxLength : Maybe Int
     , validate : String -> Maybe String
+    , multiline : Bool
     , disabled : Bool
     , locale : Locale
     }
@@ -525,6 +528,7 @@ configure attributes =
         , emptyText = Nothing
         , maxLength = Nothing
         , validate = \_ -> Nothing
+        , multiline = False
         , disabled = False
         , locale = Locale.default
         }
@@ -582,6 +586,21 @@ types again), or `Nothing` to go on and save. Default: every text is accepted.
 validate : (String -> Maybe String) -> Attribute msg
 validate check =
     Attribute (\config -> { config | validate = check })
+
+
+{-| The text has several lines, such as a note or a description. The editor is a
+text area: Enter starts a new line, Ctrl+Enter (Cmd+Enter on a Mac) saves, Escape
+cancels and leaving the field saves, as in a single line. In reading mode the line
+breaks are kept. Default: a single line.
+
+    InlineEdit.view NoteMsg
+        [ InlineEdit.ariaLabel "Delivery note", InlineEdit.multiline ]
+        model.deliveryNote
+
+-}
+multiline : Attribute msg
+multiline =
+    Attribute (\config -> { config | multiline = True })
 
 
 {-| While `True` the text cannot be edited: no pencil, and a click does nothing.
@@ -774,7 +793,17 @@ staticText config text =
             [ Html.text (emptyLabel config) ]
 
     else
-        Html.span [ Internal.cls [ "klar-inline-edit__text" ] ] [ Html.text text ]
+        Html.span
+            [ Internal.cls
+                [ "klar-inline-edit__text"
+                , if config.multiline then
+                    "klar-inline-edit__text--multiline"
+
+                  else
+                    ""
+                ]
+            ]
+            [ Html.text text ]
 
 
 emptyLabel : Config -> String
@@ -835,11 +864,32 @@ viewEditor toMsg config state =
 
               else
                 ""
+            , if config.multiline then
+                "klar-inline-edit__box--multiline"
+
+              else
+                ""
             ]
         ]
-        [ Html.input
-            [ Internal.cls [ "klar-input__control" ]
-            , Attr.type_ "text"
+        [ (if config.multiline then
+            Html.textarea
+
+           else
+            Html.input
+          )
+            [ Internal.cls
+                [ "klar-input__control"
+                , if config.multiline then
+                    "klar-inline-edit__textarea"
+
+                  else
+                    ""
+                ]
+            , if config.multiline then
+                Attr.rows 3
+
+              else
+                Attr.type_ "text"
             , Attr.id state.id
             , Attr.value state.draft
             , Attr.placeholder config.placeholder
@@ -955,8 +1005,9 @@ failureText lang problem =
 
 {-| Enter confirms and Escape cancels; both are handled here, so their default is
 prevented (no form is submitted, and a dialog around the field that respects
-`defaultPrevented` stays open). The text comes from the input itself, so an Enter
-pressed before the next frame confirms what is in it. The key that ends an IME
+`defaultPrevented` stays open). In a `multiline` text a plain Enter is a new line,
+and Ctrl+Enter or Cmd+Enter confirms. The text comes from the input itself, so an
+Enter pressed before the next frame confirms what is in it. The key that ends an IME
 composition is left to the input method.
 -}
 keyDecoder : (Msg -> msg) -> Config -> Fields -> Decode.Decoder ( msg, Bool )
@@ -965,19 +1016,28 @@ keyDecoder toMsg config state =
         (Decode.map2 Tuple.pair Internal.keyEvent (textDecoder state)
             |> Decode.andThen
                 (\( event, text ) ->
-                    if event.ctrl || event.meta || event.alt then
-                        Decode.fail "modifier"
+                    let
+                        command =
+                            event.ctrl || event.meta
+                    in
+                    case event.key of
+                        "Enter" ->
+                            if event.alt || command /= config.multiline then
+                                -- a new line in a text area, or a key of the browser
+                                Decode.fail "not for the field"
 
-                    else
-                        case event.key of
-                            "Enter" ->
+                            else
                                 Decode.succeed ( toMsg (Confirm (confirmation config text)), True )
 
-                            "Escape" ->
+                        "Escape" ->
+                            if event.alt || command then
+                                Decode.fail "modifier"
+
+                            else
                                 Decode.succeed ( toMsg Cancel, True )
 
-                            _ ->
-                                Decode.fail "unhandled key"
+                        _ ->
+                            Decode.fail "unhandled key"
                 )
         )
 

@@ -159,6 +159,7 @@ suite =
         , correctionTests
         , announcementTests
         , nameTests
+        , multilineTests
         ]
 
 
@@ -387,4 +388,54 @@ nameTests =
                     |> Query.fromHtml
                     |> Query.find display
                     |> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-label" "Edit VAT number: NO974760673") ]
+        ]
+
+
+multilineTests : Test
+multilineTests =
+    let
+        note =
+            [ InlineEdit.multiline ]
+
+        area =
+            [ Selector.tag "textarea" ]
+
+        openNote =
+            InlineEdit.init "note" "Leave at the door"
+                |> on note display Event.click
+                |> Result.andThen (on note area (Event.input "Leave at the door\nRing twice"))
+    in
+    describe "a text of several lines"
+        [ test "is edited in a text area" <|
+            \_ ->
+                openNote
+                    |> Result.map (InlineEdit.view Edit note >> Query.fromHtml >> Query.has [ Selector.tag "textarea" ])
+                    |> Result.withDefault (Expect.fail "the editor did not open")
+        , test "Enter is a new line, not a save" <|
+            \_ -> openNote |> Result.andThen (on note area (key [] "Enter")) |> Expect.err
+        , test "Ctrl+Enter saves" <|
+            \_ ->
+                openNote
+                    |> Result.andThen (on note area (key [ ( "ctrlKey", Encode.bool True ) ] "Enter"))
+                    |> Result.map InlineEdit.pending
+                    |> Expect.equal (Ok (Just "Leave at the door\nRing twice"))
+        , test "Cmd+Enter saves" <|
+            \_ ->
+                openNote
+                    |> Result.andThen (on note area (key [ ( "metaKey", Encode.bool True ) ] "Enter"))
+                    |> Result.map InlineEdit.isSaving
+                    |> Expect.equal (Ok True)
+        , test "Escape cancels" <|
+            \_ ->
+                openNote
+                    |> Result.andThen (on note area (key [] "Escape"))
+                    |> Result.map InlineEdit.isEditing
+                    |> Expect.equal (Ok False)
+        , test "a single line does not save on Ctrl+Enter, which belongs to the page" <|
+            \_ -> on [] input (key [ ( "ctrlKey", Encode.bool True ) ] "Enter") editing |> Expect.err
+        , test "the line breaks are kept in reading mode" <|
+            \_ ->
+                InlineEdit.view Edit note (InlineEdit.init "note" "One\nTwo")
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.class "klar-inline-edit__text--multiline" ]
         ]
