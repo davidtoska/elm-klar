@@ -11,6 +11,7 @@ import Expect
 import Fuzz
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
+import Klar.Internal.Freshness as Freshness
 import Klar.Picking as Picking
 import Klar.Picking.Cover as Cover exposing (Check(..))
 import Klar.Picking.Index as Index exposing (Kids(..), Row(..))
@@ -18,6 +19,7 @@ import Klar.Remote as Remote
 import Set exposing (Set)
 import Support.PickingTrees as Trees
 import Test exposing (Test, describe, fuzz, fuzz2, test)
+import Time
 
 
 type RegionId
@@ -328,6 +330,9 @@ rowKeys shown =
 
                     FailedRow r ->
                         "failed:" ++ r.parent
+
+                    StaleRow r ->
+                        "stale:" ++ r.parent
             )
 
 
@@ -356,6 +361,49 @@ rowTests =
                     ( rowKeys (Index.rows (openOf [ "z" ]) (Index.build [ Picking.lazy Ids.string "z" "Z" Remote.Loading ]))
                     , rowKeys (Index.rows (openOf [ "z" ]) failing)
                     )
+        , test "children that are Kept are on screen: refreshing ones as they are, old ones under a stale row" <|
+            \_ ->
+                let
+                    kids =
+                        Remote.Loaded [ Picking.leaf Ids.string "y" "Y" ]
+
+                    refreshing =
+                        Index.build [ Picking.lazy Ids.string "z" "Z" (Remote.refresh kids) ]
+
+                    old =
+                        Index.build [ Picking.lazy Ids.string "z" "Z" (Remote.refreshWith kids (Err (Remote.problem Remote.server)) (Time.millisToPosix 0)) ]
+
+                    busy tree =
+                        Index.get "z" tree |> Maybe.map (.freshness >> Freshness.busy)
+                in
+                Expect.all
+                    [ \_ -> Expect.equal [ "z", "y" ] (rowKeys (Index.rows (openOf [ "z" ]) refreshing))
+                    , \_ -> Expect.equal [ "z", "stale:z", "y" ] (rowKeys (Index.rows (openOf [ "z" ]) old))
+                    , \_ -> Expect.equal ( Just True, Just False ) ( busy refreshing, busy old )
+                    , \_ -> Expect.equal (Just 1) (Index.failureIndex "z" (Index.rows (openOf [ "z" ]) old))
+                    ]
+                    ()
+        , test "the open lazy nodes that are not asked for are waiting, in the order of the rows; loading ones are not" <|
+            \_ ->
+                let
+                    tree =
+                        Index.build
+                            [ Picking.lazy Ids.string "a" "A" Remote.NotAsked
+                            , Picking.lazy Ids.string "b" "B" Remote.Loading
+                            , Picking.lazy Ids.string "c" "C" Remote.NotAsked
+                            , Picking.lazy Ids.string "d" "D" Remote.NotAsked
+                            ]
+                in
+                Expect.equal [ "a", "c" ] (Index.rows (openOf [ "c", "a", "b" ]) tree).waiting
+        , test "labels and paths are found below children that are Kept" <|
+            \_ ->
+                let
+                    nodes =
+                        [ Picking.lazy Ids.string "z" "Z" (Remote.refresh (Remote.Loaded [ Picking.leaf Ids.string "y" "Y" ])) ]
+                in
+                Expect.equal
+                    ( Dict.fromList [ ( "y", "Y" ) ], Just [ "Z", "Y" ] )
+                    ( Index.findLabels (Set.fromList [ "y" ]) nodes, Index.followPath [ "z", "y" ] nodes )
         , test "position and size among the siblings" <|
             \_ ->
                 let
