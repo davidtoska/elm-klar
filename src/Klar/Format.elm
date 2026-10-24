@@ -90,7 +90,11 @@ int locale n =
         grouped =
             groupThousands (Locale.thousandSeparator locale) (String.fromInt (abs n))
     in
-    if n < 0 then
+    if toFloat (abs n) >= 1.0e21 then
+        -- String.fromInt writes these with an exponent ("1e+21")
+        decimal locale 0 (toFloat n)
+
+    else if n < 0 then
         "−" ++ grouped
 
     else
@@ -160,9 +164,14 @@ percent locale decimals ratio =
     signOf parts ++ parts.text ++ suffix
 
 
-{-| An amount of money. The first argument after the locale is what to show for
-the currency, a symbol or a code, as you want it written. English puts it in
-front of the number, Norwegian after it.
+{-| A number shown as an amount of money. The first argument after the locale is what
+to show for the currency, a symbol or a code, as you want it written. English puts it
+in front of the number, Norwegian after it.
+
+Money the application keeps, adds or compares is a [Klar.Money](Klar-Money), and it is
+written with `Money.toString` (`"NOK 1,234.50"`) or `Money.toSymbolString`
+(`"$1,234.50"`), which take the decimals from the currency. Use `currency` only for a
+`Float` that is already only for show, such as a value on a chart axis.
 
 An ISO 4217 code that has a well-known symbol is written with the symbol (`"USD"`
 becomes `$`, `"EUR"` `€`, `"NOK"` `kr`; the table is the one `Klar.Money` uses). Any other
@@ -532,7 +541,7 @@ duration locale millis =
                 part bigValue bigUnit
 
             else
-                part bigValue bigUnit ++ " " ++ part smallValue smallUnit
+                part bigValue bigUnit ++ nbsp ++ part smallValue smallUnit
     in
     sign
         ++ (if magnitude < 1000 then
@@ -580,13 +589,31 @@ so use it where the year is obvious from the context.
 
     Format.dateShort Locale.nb september21 -- "21. sep."
 
+    Format.dateShort Locale.nb may1 -- "1. mai" (a whole word gets no point)
+
 -}
 dateShort : Locale -> Date -> String
 dateShort locale value =
     Locale.pick locale
-        { nb = String.fromInt (Date.day value) ++ ". " ++ Locale.monthShort locale (Date.month value) ++ "."
+        { nb = String.fromInt (Date.day value) ++ ". " ++ shortMonth locale (Date.month value)
         , en = String.fromInt (Date.day value) ++ " " ++ Locale.monthShort locale (Date.month value)
         }
+
+
+{-| The short name of a month with the point of an abbreviation, which a name that is
+already whole does not get: "sep." but "mai".
+-}
+shortMonth : Locale -> Int -> String
+shortMonth locale month =
+    let
+        short =
+            Locale.monthShort locale month
+    in
+    if short == Locale.monthName locale month then
+        short
+
+    else
+        short ++ "."
 
 
 {-| The date with the month spelled out: `20 October 2026` in English and
