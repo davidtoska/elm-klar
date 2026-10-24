@@ -211,6 +211,7 @@ type Msg
     | ToggleServerFailure
     | ToggleCustomerFailure
     | LoadSaved
+    | LoadSavedCustomer
     | CityEntered
 
 
@@ -429,6 +430,15 @@ update msg model =
             , Cmd.none
             )
 
+        LoadSavedCustomer ->
+            -- an order being edited: its customer's id and name, as saved
+            case List.head customerOptions of
+                Just saved ->
+                    ( { model | autos = Dict.update "auto-customer" (Maybe.map (Autocomplete.setOption saved)) model.autos }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
         CityEntered ->
             ( { model | lastEnter = Just (Autocomplete.text (autoState "auto-city" model)) }, Cmd.none )
 
@@ -628,7 +638,7 @@ failureButton on toggle =
 basics : Locale -> Model -> Html Msg
 basics locale model =
     Doc.section "Searchable select"
-        "Click the field, press Enter, Space, ArrowDown or ArrowUp, or just start typing to open it. In the list ArrowUp and ArrowDown, Home and End, and PageUp and PageDown move the highlight, Enter chooses, Escape closes the list and returns to the field, and Tab closes it and moves on. The search ignores case and accents (é, ü, ñ), accepts several words and shows the best match first. The chosen option has a check mark and is centered in the list when it opens."
+        "Click the field, press Enter, Space, ArrowDown or ArrowUp, or just start typing to open it. In the list ArrowUp and ArrowDown, and PageUp and PageDown move the highlight; Home and End go to the first and last option while the search box is empty and move the caret once you have typed (Ctrl+Home and Ctrl+End always go to the ends). Enter chooses, Escape closes the list and returns to the field, and Tab closes it and moves on. The Enter that confirms an input method composition (Japanese, Chinese, Korean) never chooses. The search ignores case and accents (é, ü, ñ), accepts several words and shows the best match first. The chosen option has a check mark and is centered in the list when it opens."
         [ Doc.example
             { title = "Basic"
             , description = Just "Countries from the sample data. Try “south af” or “nz”: every word has to match, and the grey codes are searched too."
@@ -1208,7 +1218,7 @@ autocompletes locale model =
             autoState "auto-required" model
     in
     Doc.section "Autocomplete"
-        "A free text field with suggestions: the user may type anything, the suggestions only help. Typing shows the suggestions with none highlighted, so Enter keeps the typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the first one goes back to the typed text), Enter chooses the highlighted one, Escape closes the list and Tab moves on. The field keeps focus when a suggestion is clicked, and the list closes when the field loses focus."
+        "A free text field with suggestions: the user may type anything, the suggestions only help. Typing shows the suggestions with none highlighted, so Enter keeps the typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the first one goes back to the typed text), Enter chooses the highlighted one, Escape closes the list and Tab moves on. The field keeps focus when a suggestion is clicked, and the list closes when the field loses focus. A typed text that is exactly a suggestion is picked however the field is left (Enter, Tab, Escape or a click elsewhere), and the values are of your own type, as in Select."
         [ Doc.example
             { title = "City with local suggestions"
             , description =
@@ -1242,12 +1252,21 @@ autocompletes locale model =
             )
         , Doc.example
             { title = "Suggestions from a server"
-            , description = Just ("Customer names from a simulated server. " ++ remoteDescription locale model.customerSearch.results)
+            , description =
+                Just
+                    ("Customer names from a simulated server. "
+                        ++ remoteDescription locale model.customerSearch.results
+                        ++ " Picked: "
+                        ++ Maybe.withDefault "none" (Autocomplete.picked (autoState "auto-customer" model))
+                        ++ ". “Load saved customer” puts a saved name and id back with setOption."
+                    )
             , code = Just autoServerCode
             }
             (Layout.stack [ Layout.gap 4 ]
                 [ Layout.row [ Layout.gap 2 ]
-                    [ failureButton model.customerFails ToggleCustomerFailure ]
+                    [ failureButton model.customerFails ToggleCustomerFailure
+                    , Button.view [ Button.icon Icon.bookmark, Button.onClick LoadSavedCustomer ] "Load saved customer"
+                    ]
                 , Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
                     [ autoView "auto-customer"
                         locale
