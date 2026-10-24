@@ -45,11 +45,12 @@ css =
   box-shadow: var(--klar-focus-ring);
 }
 
-.klar-textarea--invalid { border-color: var(--klar-danger); }
+.klar-textarea--invalid,
+.klar-textarea--invalid:hover { border-color: var(--klar-danger); }
 
 .klar-textarea--invalid:focus-within {
   border-color: var(--klar-danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--klar-danger) 22%, transparent);
+  box-shadow: var(--klar-focus-ring-danger);
 }
 
 .klar-textarea--disabled { background: var(--klar-gray-50); color: var(--klar-text-disabled); cursor: not-allowed; }
@@ -78,6 +79,15 @@ css =
 .klar-textarea--resize-none .klar-textarea__control { resize: none; }
 .klar-textarea--resize-vertical .klar-textarea__control { resize: vertical; }
 .klar-textarea--disabled .klar-textarea__control { resize: none; }
+
+/* Forced colors: the same focus outline and dashed invalid border as the input shell. */
+@media (forced-colors: active) {
+  .klar-textarea { border-color: CanvasText; }
+  .klar-textarea:focus-within { outline: 2px solid Highlight; outline-offset: 1px; border-color: Highlight; }
+  .klar-textarea--invalid,
+  .klar-textarea--invalid:hover { border-style: dashed; border-width: 2px; }
+  .klar-textarea--disabled { border-color: GrayText; color: GrayText; }
+}
 
 /* Auto-grow: the field is as tall as its text, between min and max rows. */
 .klar-textarea--autogrow .klar-textarea__control {
@@ -149,21 +159,40 @@ css =
 .klar-textarea__counter--near { color: var(--klar-amber-700); }
 .klar-textarea__counter--over { color: var(--klar-danger); font-weight: var(--klar-weight-bold); }
 
+/* The character counter of TextInput and TextArea, at the end of the line under
+   the field. The text says what the color says (12/200, 260/200). */
+.klar-counter {
+  font-size: var(--klar-text-xs);
+  color: var(--klar-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.klar-counter--near { color: var(--klar-amber-700); }
+.klar-counter--over { color: var(--klar-danger); font-weight: var(--klar-weight-bold); }
+
+@media (forced-colors: active) {
+  .klar-counter--near,
+  .klar-counter--over { color: CanvasText; }
+  .klar-counter--over { text-decoration: underline; }
+}
+
 /* ---- Number input ---------------------------------------------------- */
 
 .klar-number__control { font-variant-numeric: tabular-nums; }
-.klar-number__control--end { text-align: right; }
+.klar-number__control--end { text-align: end; }
 
 .klar-number__steps {
   display: flex;
   align-self: stretch;
   flex: none;
-  margin: 0 calc(var(--klar-control-px) * -1) 0 2px;
-  border-left: 1px solid var(--klar-border);
+  margin-block: 0;
+  margin-inline: 2px calc(var(--klar-control-px) * -1);
+  border-inline-start: 1px solid var(--klar-border);
 }
 
-.klar-input--sm .klar-number__steps { margin-right: -8px; }
-.klar-input--lg .klar-number__steps { margin-right: -12px; }
+.klar-input--sm .klar-number__steps { margin-inline-end: -8px; }
+.klar-input--lg .klar-number__steps { margin-inline-end: -12px; }
 
 .klar-number__step {
   display: flex;
@@ -177,8 +206,11 @@ css =
   transition: background-color var(--klar-dur-fast) var(--klar-ease);
 }
 
-.klar-number__step + .klar-number__step { border-left: 1px solid var(--klar-border-subtle); }
-.klar-number__step:last-child { border-radius: 0 calc(var(--klar-radius) - 1px) calc(var(--klar-radius) - 1px) 0; }
+.klar-number__step + .klar-number__step { border-inline-start: 1px solid var(--klar-border-subtle); }
+.klar-number__step:last-child {
+  border-start-end-radius: calc(var(--klar-radius) - 1px);
+  border-end-end-radius: calc(var(--klar-radius) - 1px);
+}
 .klar-number__step:hover:not(:disabled) { background: var(--klar-gray-100); color: var(--klar-text); }
 .klar-number__step:active:not(:disabled) { background: var(--klar-gray-150); }
 .klar-number__step:disabled { color: var(--klar-text-disabled); cursor: not-allowed; }
@@ -199,7 +231,7 @@ css =
   flex: none;
   width: 24px;
   height: 24px;
-  margin-right: -4px;
+  margin-inline-end: -4px;
   padding: 0;
   border: 0;
   border-radius: var(--klar-radius);
@@ -238,6 +270,22 @@ css =
 .klar-password__strength {
   font-size: var(--klar-text-sm);
   color: var(--klar-text-secondary);
+}
+
+.klar-password__caps {
+  display: flex;
+  align-items: center;
+  gap: var(--klar-space-1);
+  font-size: var(--klar-text-sm);
+  color: var(--klar-amber-700);
+}
+
+/* Forced colors take the background of the bars away: draw their outline, and
+   fill the bars that are on with the system highlight. */
+@media (forced-colors: active) {
+  .klar-password__bar { border: 1px solid CanvasText; }
+  .klar-password__bar--on { forced-color-adjust: none; background: Highlight; }
+  .klar-password__caps { color: CanvasText; }
 }
 
 /* ---- Radio group and checkbox group ---------------------------------- */
@@ -864,7 +912,7 @@ css =
 
 .klar-taginput__count {
   flex: none;
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: var(--klar-text-xs);
   color: var(--klar-text-muted);
 }

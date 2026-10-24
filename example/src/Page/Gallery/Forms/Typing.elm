@@ -300,7 +300,7 @@ TextArea.view
             , code = Just """TextArea.view [ TextArea.label "Reason", TextArea.required, TextArea.error "The reason must be filled in" ]
 TextArea.view [ TextArea.label "Order history", TextArea.readOnly True, TextArea.value history ]
 TextArea.view [ TextArea.label "Locked", TextArea.disabled True ]
-TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.resize TextArea.ResizeNone ]"""
+TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.noResize ]"""
             }
             (grid 300
                 [ TextArea.view
@@ -357,7 +357,7 @@ TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.resize TextAre
                 , TextArea.view
                     ([ TextArea.label "Fixed, no resize handle"
                      , TextArea.rows 3
-                     , TextArea.resize TextArea.ResizeNone
+                     , TextArea.noResize
                      ]
                         ++ field "ta-noresize"
                     )

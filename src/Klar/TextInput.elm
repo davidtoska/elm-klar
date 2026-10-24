@@ -2,7 +2,7 @@ module Klar.TextInput exposing
     ( view, Attribute
     , value, onInput, onEnter, onBlur, onFocus
     , label, labelHidden, hint, error, errorMaybe, required, optionalText, id
-    , type_, email, password, tel, url, search
+    , email, tel, url, search, verbatim
     , placeholder, prefixIcon, prefixText, suffixIcon, suffixText, clearable, maxLength, size
     , disabled, readOnly, autofocus, autocomplete, inputMode, name
     , locale
@@ -11,7 +11,7 @@ module Klar.TextInput exposing
 {-| A single-line text input with a label, a hint and an error message.
 
 Use when: you need one line of text and want to own the value in your model.
-Do not use when: the value is a number, a password, a search, tags or several lines (use `Klar.NumberInput`, `Klar.PasswordInput`, `Klar.SearchInput`, `Klar.TagInput` or `Klar.TextArea`).
+Do not use when: the value is a number, a password, a search that waits for a pause, tags or several lines (use `Klar.NumberInput`, `Klar.PasswordInput`, `Klar.SearchInput`, `Klar.TagInput` or `Klar.TextArea`).
 
     import Klar.TextInput as TextInput
 
@@ -29,7 +29,8 @@ state of its own, so there is no `State`, `Msg` or `update`. For numbers,
 passwords, searches, tags and text of several lines use
 [Klar.NumberInput](Klar-NumberInput), [Klar.PasswordInput](Klar-PasswordInput),
 [Klar.SearchInput](Klar-SearchInput), [Klar.TagInput](Klar-TagInput) and
-[Klar.TextArea](Klar-TextArea) instead.
+[Klar.TextArea](Klar-TextArea) instead. `search` makes a filter box that reports
+every keystroke, for a list that is filtered in the browser.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required`,
 `optionalText` and `id` are the common field attributes. They come with the
@@ -41,7 +42,9 @@ error message is announced when it appears.
 
 Every input needs an `id` that is unique on the page, because its label, hint
 and error point at it. If you do not set one, it is made from the label (or,
-failing that, the placeholder).
+failing that, the placeholder, the name, the hint or the error). An input with
+none of them gets no id, so two such inputs never share one; give it an `id`
+when something else must point at it.
 
 The input is always inside the wrapper, also when there is no `label`, `hint` or
 `error` to draw. It therefore stays where it is when the application shows an
@@ -49,8 +52,15 @@ error while the user is typing, and the keyboard focus is not lost. The wrapper
 of an input with nothing to draw takes the place and the width of the input
 alone, so the layout of a bare input does not change.
 
-The only text the input brings itself is the name of the clear button ("Clear
-field"); `locale` changes its language.
+**Length.** `maxLength` shows a counter such as `12/200` at the end of the line
+under the field, as [Klar.TextArea](Klar-TextArea) does. It never cuts what the
+user types or pastes: a longer text stays, the counter and the field turn red,
+and screen readers are told. Check the length when the form is sent, with
+`Validate.maxLength` from [Klar.Validate](Klar-Validate).
+
+The only texts the input brings itself are the name of the clear button ("Clear
+field") and what the counter tells screen readers; `locale` changes their
+language.
 
 
 # View
@@ -70,7 +80,7 @@ field"); `locale` changes its language.
 
 # Kind of input
 
-@docs type_, email, password, tel, url, search
+@docs email, tel, url, search, verbatim
 
 
 # Decoration and helpers
@@ -96,6 +106,7 @@ import Json.Decode as Decode
 import Klar.Field as Field
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.TextField as TextField
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme as Theme exposing (Size(..))
 
@@ -132,6 +143,7 @@ type alias Config msg =
     , name : Maybe String
     , inputMode : Maybe String
     , autofocus : Bool
+    , verbatim : Bool
     , locale : Locale
     }
 
@@ -158,6 +170,7 @@ configure attributes =
         , name = Nothing
         , inputMode = Nothing
         , autofocus = False
+        , verbatim = False
         , locale = Locale.default
         }
         attributes
@@ -236,7 +249,8 @@ optionalText text =
 
 {-| The DOM id of the input. It must be unique on the page, because the label,
 hint and error point at it. Without one, an id is made from the label (or the
-placeholder), so two inputs with the same label need explicit ids.
+placeholder, the name, the hint or the error), so two inputs with the same label
+need explicit ids; an input with none of them gets no id.
 -}
 id : String -> Attribute msg
 id value_ =
@@ -264,31 +278,13 @@ placeholder text =
     Attribute (\config -> { config | placeholder = text })
 
 
-{-| The HTML `type` of the input. Default `"text"`. `email`, `password`, `tel`,
-`url` and `search` cover the usual types; use this for others. For numbers use
-[Klar.NumberInput](Klar-NumberInput), which understands how people write them.
--}
-type_ : String -> Attribute msg
-type_ kind =
-    Attribute (\config -> { config | type_ = kind })
-
-
 {-| An email address: sets the HTML type `email`, so phones show a keyboard with
 the `@` key. To check the address, use `Validate.email` from
 [Klar.Validate](Klar-Validate).
 -}
 email : Attribute msg
 email =
-    type_ "email"
-
-
-{-| Hides the characters as they are typed (HTML type `password`). For a
-password field with a show/hide button and a strength meter, use
-[Klar.PasswordInput](Klar-PasswordInput).
--}
-password : Attribute msg
-password =
-    type_ "password"
+    kind "email"
 
 
 {-| A telephone number: sets the HTML type `tel`, so phones show a dial pad. The
@@ -296,7 +292,7 @@ text is not checked or reformatted.
 -}
 tel : Attribute msg
 tel =
-    type_ "tel"
+    kind "tel"
 
 
 {-| A web address: sets the HTML type `url`, so phones show a keyboard made for
@@ -304,22 +300,37 @@ addresses. The text is not checked.
 -}
 url : Attribute msg
 url =
-    type_ "url"
+    kind "url"
 
 
-{-| A search box: a magnifying glass at the start of the field and the search
+{-| A filter box: a magnifying glass at the start of the field and the search
 keyboard on phones. It is still a plain text input, and every keystroke reaches
-`onInput`. It replaces an earlier prefix. For a search that waits until the user
-stops typing, use [Klar.SearchInput](Klar-SearchInput).
+`onInput`, which suits a list that is filtered in the browser. It replaces an
+earlier prefix. For a search that waits until the user stops typing (a request
+to a server), use [Klar.SearchInput](Klar-SearchInput).
 -}
 search : Attribute msg
 search =
     Attribute (\config -> { config | type_ = "text", prefix = Just (AdornIcon Icon.search), inputMode = Just "search" })
 
 
-{-| Sends the new text each time the user changes the input, by typing, pasting
-or pressing the clear button (which sends `""`). The function gets the whole
-text. Store it in your model and pass it back with `value`.
+kind : String -> Attribute msg
+kind type_ =
+    Attribute (\config -> { config | type_ = type_ })
+
+
+{-| For codes, not words: order numbers, SKUs, IBANs, user names. Switches off
+spell checking (no red lines under `SKU-4471`), automatic capital letters and
+autocorrect on phones. Default: the browser decides.
+-}
+verbatim : Attribute msg
+verbatim =
+    Attribute (\config -> { config | verbatim = True })
+
+
+{-| Sends the new text each time the user changes the input, by typing,
+pasting or pressing the clear button (which sends `""`). The function gets the
+whole text. Store it in your model and pass it back with `value`.
 
     TextInput.onInput NameChanged -- NameChanged : String -> Msg
 
@@ -346,7 +357,8 @@ onFocus msg =
 
 {-| Sends this message when the user presses Enter in the input (without Shift,
 Ctrl, Alt or Cmd). The key press is cancelled, so it does not submit a
-surrounding `form`; leave `onEnter` out to let Enter submit it.
+surrounding `form`; leave `onEnter` out to let Enter submit it. The Enter that
+confirms a word in an input method (Chinese, Japanese, Korean) sends nothing.
 -}
 onEnter : msg -> Attribute msg
 onEnter msg =
@@ -370,7 +382,8 @@ readOnly value_ =
 
 
 {-| The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar-Theme). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar-Theme). Default `Medium`.
 
     TextInput.size Theme.Small
 
@@ -426,8 +439,14 @@ clearable =
     Attribute (\config -> { config | clearable = True })
 
 
-{-| Limits the text to this many characters (the HTML `maxlength`) and shows a
-counter such as `12/200` at the end of the field.
+{-| Shows a counter such as `12/200` at the end of the line under the field. It
+turns amber when the limit is near (10 characters or a tenth of the limit left,
+whichever is more) and red past it, and the field is then marked invalid
+(`aria-invalid`). Nothing is cut: a longer text that is typed or pasted stays,
+so that the user can see it and shorten it, so check the length yourself when
+the form is sent (`Validate.maxLength`). Screen readers hear "12 of 200
+characters" with the field, and are told once when the text comes near the
+limit, reaches it and passes it.
 -}
 maxLength : Int -> Attribute msg
 maxLength n =
@@ -471,9 +490,10 @@ autofocus =
     Attribute (\config -> { config | autofocus = True })
 
 
-{-| The language of the built-in text, which here is only the name of the clear
-button ("Clear field" in English). Default `Locale.default`, which is English.
-Texts you pass in yourself are shown as they are.
+{-| The language of the built-in text: the name of the clear button ("Clear
+field" in English) and what the counter of `maxLength` tells screen readers ("12
+of 200 characters"). Default `Locale.default`, which is English. Texts you pass
+in yourself are shown as they are.
 -}
 locale : Locale -> Attribute msg
 locale value_ =
@@ -513,83 +533,120 @@ view attributes =
 
         clearLabel =
             Locale.pick config.locale { nb = "Tøm feltet", en = "Clear field" }
+
+        length =
+            String.length config.value
+
+        over =
+            case config.maxLength of
+                Just limit ->
+                    TextField.isOver limit length
+
+                Nothing ->
+                    False
+
+        counterId =
+            if field.id == "" || config.maxLength == Nothing then
+                ""
+
+            else
+                field.id ++ "-counter"
+
+        control =
+            Html.div
+                [ Internal.cls
+                    [ "klar-input"
+                    , "klar-input--" ++ Internal.sizeSuffix config.size
+                    , if field.error /= Nothing || over then
+                        "klar-input--invalid"
+
+                      else
+                        ""
+                    , if config.disabled then
+                        "klar-input--disabled"
+
+                      else
+                        ""
+                    , if config.readOnly then
+                        "klar-input--readonly"
+
+                      else
+                        ""
+                    ]
+                ]
+                [ viewAdornment "prefix" config.prefix
+                , Html.input
+                    (TextField.controlAttributes field { describedBy = [ counterId ], invalid = over }
+                        ++ [ Internal.cls [ "klar-input__control" ]
+                           , Attr.type_ config.type_
+                           , Attr.value config.value
+                           , Attr.placeholder config.placeholder
+                           , Attr.disabled config.disabled
+                           , Attr.readonly config.readOnly
+                           , Internal.attrMaybe (Attr.attribute "autocomplete") config.autocomplete
+                           , Internal.attrMaybe Attr.name config.name
+                           , Internal.attrMaybe (Attr.attribute "inputmode") config.inputMode
+                           , Internal.attrIf config.autofocus (Attr.autofocus True)
+                           , Internal.attrIf config.verbatim (Attr.attribute "spellcheck" "false")
+                           , Internal.attrIf config.verbatim (Attr.attribute "autocapitalize" "off")
+                           , Internal.attrIf config.verbatim (Attr.attribute "autocorrect" "off")
+                           , Internal.attrMaybe Events.onInput config.onInput
+                           , Internal.attrMaybe Events.onBlur config.onBlur
+                           , Internal.attrMaybe Events.onFocus config.onFocus
+                           , Internal.attrMaybe (\msg -> Events.preventDefaultOn "keydown" (enterDecoder msg)) config.onEnter
+                           ]
+                    )
+                    []
+                , case ( showClear, config.onInput ) of
+                    ( True, Just toMsg ) ->
+                        Html.button
+                            [ Internal.cls [ "klar-input__clear" ]
+                            , Attr.type_ "button"
+                            , Attr.tabindex -1
+                            , Attr.attribute "aria-label" clearLabel
+
+                            -- Cleared on mouse down, which is kept from moving the
+                            -- focus: the button disappears with the text, and the
+                            -- focus would otherwise fall back to the page instead of
+                            -- staying in the field. The click that follows a press is
+                            -- ignored, so the message is sent once; a click without a
+                            -- press (a key, assistive technology) clears.
+                            , Internal.onMouseDownPrevent (toMsg "")
+                            , Events.on "click" (unpressedClick (toMsg ""))
+                            ]
+                            [ Icon.view Icon.close ]
+
+                    _ ->
+                        Html.text ""
+                , viewAdornment "suffix" config.suffix
+                ]
     in
     -- stable: the application may show an error while the user types, and the
     -- input must not move into the wrapper then (it would lose the focus)
-    Field.viewStable field
-        (Html.div
-            [ Internal.cls
-                [ "klar-input"
-                , "klar-input--" ++ Internal.sizeSuffix config.size
-                , if field.error /= Nothing then
-                    "klar-input--invalid"
+    case config.maxLength of
+        Just limit ->
+            Field.viewWithAside field
+                (TextField.counter { id = counterId, locale = config.locale, length = length, limit = limit })
+                control
 
-                  else
-                    ""
-                , if config.disabled then
-                    "klar-input--disabled"
+        Nothing ->
+            Field.viewStable field control
 
-                  else
-                    ""
-                , if config.readOnly then
-                    "klar-input--readonly"
 
-                  else
-                    ""
-                ]
-            ]
-            [ viewAdornment "prefix" config.prefix
-            , Html.input
-                (Field.controlAttributes field
-                    ++ [ Internal.cls [ "klar-input__control" ]
-                       , Attr.type_ config.type_
-                       , Attr.value config.value
-                       , Attr.placeholder config.placeholder
-                       , Attr.disabled config.disabled
-                       , Attr.readonly config.readOnly
-                       , Internal.attrMaybe Attr.maxlength config.maxLength
-                       , Internal.attrMaybe (Attr.attribute "autocomplete") config.autocomplete
-                       , Internal.attrMaybe Attr.name config.name
-                       , Internal.attrMaybe (Attr.attribute "inputmode") config.inputMode
-                       , Internal.attrIf config.autofocus (Attr.autofocus True)
-                       , Internal.attrMaybe Events.onInput config.onInput
-                       , Internal.attrMaybe Events.onBlur config.onBlur
-                       , Internal.attrMaybe Events.onFocus config.onFocus
-                       , Internal.attrMaybe (\msg -> Internal.onKeys [ ( "Enter", msg ) ]) config.onEnter
-                       ]
-                )
-                []
-            , case ( showClear, config.onInput ) of
-                ( True, Just toMsg ) ->
-                    Html.button
-                        [ Internal.cls [ "klar-input__clear" ]
-                        , Attr.type_ "button"
-                        , Attr.tabindex -1
-                        , Attr.attribute "aria-label" clearLabel
+{-| Enter without a modifier, and not the Enter that confirms the word of an
+input method.
+-}
+enterDecoder : msg -> Decode.Decoder ( msg, Bool )
+enterDecoder msg =
+    Decode.map2 Tuple.pair TextField.composing Internal.keyEvent
+        |> Decode.andThen
+            (\( isComposing, event ) ->
+                if not isComposing && event.key == "Enter" && not (event.ctrl || event.meta || event.alt || event.shift) then
+                    Decode.succeed ( msg, True )
 
-                        -- Cleared on mouse down, which is kept from moving the
-                        -- focus: the button disappears with the text, and the
-                        -- focus would otherwise fall back to the page instead of
-                        -- staying in the field. The click that follows a press is
-                        -- ignored, so the message is sent once; a click without a
-                        -- press (a key, assistive technology) clears.
-                        , Internal.onMouseDownPrevent (toMsg "")
-                        , Events.on "click" (unpressedClick (toMsg ""))
-                        ]
-                        [ Icon.view Icon.close ]
-
-                _ ->
-                    Html.text ""
-            , case config.maxLength of
-                Just limit ->
-                    Html.span [ Internal.cls [ "klar-input__counter" ] ]
-                        [ Html.text (String.fromInt (String.length config.value) ++ "/" ++ String.fromInt limit) ]
-
-                Nothing ->
-                    Html.text ""
-            , viewAdornment "suffix" config.suffix
-            ]
-        )
+                else
+                    Decode.fail "not a plain Enter"
+            )
 
 
 {-| A `click` that no press of the mouse button came before. A click that follows
@@ -625,18 +682,11 @@ viewAdornment position adornment =
 ensureId : Config msg -> Field.Config
 ensureId config =
     if config.field.id == "" then
-        let
-            seed =
-                config.field.label
-                    |> Maybe.withDefault
-                        (if config.placeholder /= "" then
-                            config.placeholder
-
-                         else
-                            "field"
-                        )
-        in
-        Field.setId ("klar-input-" ++ Internal.sanitizeId (String.toLower seed)) config.field
+        Field.setId
+            (TextField.generatedId "klar-input-"
+                [ config.field.label, Just config.placeholder, config.name, config.field.hint, config.field.error ]
+            )
+            config.field
 
     else
         config.field
