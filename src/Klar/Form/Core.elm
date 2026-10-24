@@ -1257,7 +1257,7 @@ rawOf slot =
                 RUnreadable
 
         STags state ->
-            RTags (TagInput.tags state)
+            RTags (TagInput.values state)
 
         SFiles state ->
             RFiles (FileDrop.files state) (FileDrop.hasProblems state)
@@ -1291,7 +1291,7 @@ putRaw raw slot =
             SNumber (NumberInput.setValue value state)
 
         ( RTags value, STags state ) ->
-            STags (TagInput.setTags value state)
+            STags (TagInput.setValues value state)
 
         ( RFiles value _, SFiles state ) ->
             SFiles (FileDrop.setFiles value state)
