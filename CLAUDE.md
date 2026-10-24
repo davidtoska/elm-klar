@@ -54,11 +54,13 @@ npm start            # builds and serves the showcase on http://localhost:8000
 ```
 
 `npm run check` runs, in order: `check:text` (UTF-8, LF, no BOM), `check:classes` (every
-`klar-` class the Elm code uses has a rule), `check:icons`, `check:docs` (every exposed name
-documented, `elm make --docs` passes), `check:ai-docs` (ai/ is current; AI.md is under 400
-lines, names every module, its program compiles), `check:ai-names` (every `Module.name` in
-AI.md, README and the doc comments exists), `check-doc-examples --strict` (complete examples
-in doc comments compile), `check:api` (no public signature names a type a user cannot name),
+`klar-` class the Elm code uses has a rule, every size, tone and density a suffix function can
+emit too), `check:icons`, `check:docs` (every exposed name documented, `elm make --docs`
+passes), `check:ai-docs` (ai/ is current; AI.md is under 400 lines, names every module, its
+program compiles), `check:ai-names` (every `Module.name` in AI.md, README and the doc comments
+exists), `check-doc-examples --strict` (complete examples in doc comments compile), `check:api`
+(no public signature names a type a user cannot name), `check:rules` (a report, `--strict` to
+fail: a `Msg` or `State` that holds a function, remote data whose freshness is thrown away),
 `check:format`, the tests, the showcase and its examples build, `check:example-imports` (only
 exposed modules; no class or style in `example/src/Examples/`).
 
