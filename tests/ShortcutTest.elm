@@ -25,8 +25,113 @@ suite =
         , insideDialogsTests
         , altGrTests
         , ignoredPressesTests
+        , takenKeysTests
+        , layoutTests
+        , macTests
+        , sameKeysTests
         , propertyTests
         ]
+
+
+
+-- KEYS THAT ARE ALREADY TAKEN, OTHER LAYOUTS, THE MAC
+
+
+{-| A component inside has handled the key and prevented its default action.
+-}
+handled : Press -> Press
+handled p =
+    { p | prevented = True }
+
+
+{-| The press belongs to the composition of an input method.
+-}
+composingText : Press -> Press
+composingText p =
+    { p | composing = True }
+
+
+{-| In an open popup (a menu): the target is inside `.klar-popup` and `.klar-layer`.
+-}
+inMenu : Press -> Press
+inMenu p =
+    { p | inPopup = True, tag = "DIV" }
+
+
+{-| The physical key, as `KeyboardEvent.code` names it.
+-}
+onKey : String -> Press -> Press
+onKey code p =
+    { p | code = code }
+
+
+onMac : Press -> Press
+onMac p =
+    { p | mac = True }
+
+
+takenKeysTests : Test
+takenKeysTests =
+    describe "keys that are already taken"
+        [ check "a key that a component handled does not fire" Nothing (alone (press "Escape" |> handled))
+        , check "Ctrl and K that a component handled does not fire" Nothing (alone (press "k" |> ctrl |> handled))
+        , check "the Enter or Escape that ends an input method's composition does not fire" Nothing (alone (press "Escape" |> inField |> composingText))
+        , check "a plain letter in an open menu does not fire" Nothing (alone (press "n" |> inMenu))
+        , check "a sequence does not start in an open menu" Nothing (series shortcuts [ press "g" |> inMenu, press "o" |> inMenu ] |> List.reverse |> List.head |> Maybe.andThen identity)
+        , check "Escape in an open menu is the menu's, even when the shortcut is marked inInputs" Nothing (alone (press "Escape" |> inMenu))
+        , check "Ctrl and K in an open menu fires" (Just OpenPalette) (alone (press "k" |> ctrl |> inMenu))
+        , check "a combination in an open menu fires" (Just NextRow) (alone (press "ArrowDown" |> alt |> inMenu))
+        ]
+
+
+layoutTests : Test
+layoutTests =
+    describe "other keyboard layouts"
+        [ check "Ctrl and the K key on a Russian layout (the key gives л)" (Just OpenPalette) (alone (press "л" |> ctrl |> onKey "KeyK"))
+        , check "Ctrl and the K key on a Greek layout, in a field" (Just OpenPalette) (alone (press "κ" |> ctrl |> onKey "KeyK" |> inField))
+        , check "Ctrl and the S key on a Hebrew layout" (Just Save) (alone (press "ד" |> ctrl |> onKey "KeyS"))
+        , check "Ctrl and the 1 key on an AZERTY keyboard (the key gives &)" (Just Save) (firesAlone "mod+1" (press "&" |> ctrl |> onKey "Digit1"))
+        , check "Ctrl, Shift and 1 (the key gives !)" (Just Save) (firesAlone "mod+shift+1" (press "!" |> ctrl |> shift |> onKey "Digit1"))
+        , check "a letter without Ctrl, Alt or Cmd is not found by its place" Nothing (alone (press "т" |> onKey "KeyN"))
+        , check "the key itself wins over its place: AZERTY Ctrl and A" (Just SelectAllRows) (alone (press "a" |> ctrl |> onKey "KeyQ"))
+        , check "AltGr and 8 on a German keyboard is still the symbol [" (Just OpenBracket) (firesAmong [ Shortcut.shortcut (Shortcut.char '[') "View" "Sidebar" OpenBracket ] (press "[" |> ctrl |> alt |> onKey "Digit8"))
+        , check "a symbol typed with AltGr in a field is still text, also by its place" Nothing (firesInFields "mod+alt+8" (press "[" |> ctrl |> alt |> onKey "Digit8" |> inField))
+        ]
+
+
+macTests : Test
+macTests =
+    describe "on a Mac"
+        [ check "Cmd and K fires mod+k" (Just OpenPalette) (alone (press "k" |> cmd |> onMac))
+        , check "Ctrl and K outside a field fires mod+k too" (Just OpenPalette) (alone (press "k" |> ctrl |> onMac))
+        , check "Ctrl and K in a field is the field's (delete to the end of the line)" Nothing (alone (press "k" |> ctrl |> onMac |> inField))
+        , check "Cmd and K in a field fires" (Just OpenPalette) (alone (press "k" |> cmd |> onMac |> inField))
+        , check "Option and A (the key gives å) fires alt+a" (Just Save) (firesAlone "alt+a" (press "å" |> alt |> onMac |> onKey "KeyA"))
+        , check "Option and N (a dead key) fires alt+n" (Just Save) (firesAlone "alt+n" (press "Dead" |> alt |> onMac |> onKey "KeyN"))
+        , check "Option and A in a field is text" Nothing (firesInFields "alt+a" (press "å" |> alt |> onMac |> onKey "KeyA" |> editable))
+        , check "Option and N in a field starts an accent, which is text" Nothing (firesInFields "alt+n" (press "Dead" |> alt |> onMac |> onKey "KeyN" |> inField))
+        ]
+
+
+sameKeysTests : Test
+sameKeysTests =
+    let
+        list =
+            [ Shortcut.shortcut Shortcut.escape "Navigation" "Close the panel" Close
+            , Shortcut.shortcut Shortcut.escape "Search" "Clear the search" Slash |> Shortcut.inInputs
+            ]
+    in
+    describe "two shortcuts with the same keys"
+        [ check "in a field the one marked inInputs fires" (Just Slash) (firesAmong list (press "Escape" |> inField))
+        , check "elsewhere the first one fires" (Just Close) (firesAmong list (press "Escape"))
+        ]
+
+
+{-| What one key press does with a shortcut of its own that is marked `inInputs`.
+-}
+firesInFields : String -> Press -> Maybe Msg
+firesInFields keys p =
+    firesAmong [ Shortcut.shortcut (Keys.parse keys) "Group" "Label" Save |> Shortcut.inInputs ] p
 
 
 
@@ -65,6 +170,11 @@ type alias Press =
     , tag : String
     , editable : Bool
     , dialogLevels : Maybe Int
+    , code : String
+    , prevented : Bool
+    , composing : Bool
+    , inPopup : Bool
+    , mac : Bool
     }
 
 
@@ -80,6 +190,11 @@ press key =
     , tag = "DIV"
     , editable = False
     , dialogLevels = Nothing
+    , code = ""
+    , prevented = False
+    , composing = False
+    , inPopup = False
+    , mac = False
     }
 
 
@@ -163,7 +278,15 @@ target p =
                     parents levels
 
                 Nothing ->
-                    Encode.object [ ( "tagName", Encode.string "BODY" ) ]
+                    if p.inPopup then
+                        Encode.object
+                            [ ( "tagName", Encode.string "DIV" )
+                            , ( "className", Encode.string "klar-popup klar-menu__popup" )
+                            , ( "parentElement", Encode.object [ ( "tagName", Encode.string "DIV" ), ( "className", Encode.string "klar-layer" ) ] )
+                            ]
+
+                    else
+                        Encode.object [ ( "tagName", Encode.string "BODY" ) ]
           )
         ]
 
@@ -179,6 +302,26 @@ keydown p =
              , ( "shiftKey", Encode.bool p.shift )
              , ( "repeat", Encode.bool p.repeat )
              , ( "target", target p )
+             , ( "code", Encode.string p.code )
+             , ( "defaultPrevented", Encode.bool p.prevented )
+             , ( "isComposing", Encode.bool p.composing )
+             , ( "view"
+               , Encode.object
+                    [ ( "navigator"
+                      , Encode.object
+                            [ ( "platform"
+                              , Encode.string
+                                    (if p.mac then
+                                        "MacIntel"
+
+                                     else
+                                        "Win32"
+                                    )
+                              )
+                            ]
+                      )
+                    ]
+               )
              ]
                 ++ (case p.time of
                         Just time ->

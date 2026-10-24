@@ -7,12 +7,16 @@ and an item can declare the words that call it.
 
 import Expect
 import Html.Attributes
+import Json.Encode as Encode
 import Klar.CommandPalette as CommandPalette
 import Klar.Overlay as Overlay
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Shortcut as Shortcut
 import Test exposing (Test, describe, test)
+import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
+import Time
 
 
 type Msg
@@ -131,4 +135,162 @@ suite =
                     CommandPalette.argument [ goToOrder ] (opened "go to orders")
                         |> Expect.equal "go to orders"
             ]
+        , describe "the query waits for a pause in the typing"
+            [ test "a typed text is not the query at once" <|
+                \_ ->
+                    typed "ada" (opened "")
+                        |> Expect.equal (Ok "")
+            , test "an emptied box is the query at once" <|
+                \_ ->
+                    typed "" (opened "ada")
+                        |> Expect.equal (Ok "")
+            , test "setQuery is the query at once, trimmed" <|
+                \_ ->
+                    CommandPalette.query (opened " ada ")
+                        |> Expect.equal "ada"
+            , test "closing empties the query, so a late answer is dropped" <|
+                \_ ->
+                    CommandPalette.close (opened "ada")
+                        |> Tuple.first
+                        |> CommandPalette.query
+                        |> Expect.equal ""
+            , test "the sections that the palette filters do not wait" <|
+                \_ ->
+                    let
+                        state =
+                            opened ""
+
+                        afterTyping =
+                            draw [ CommandPalette.sections [ CommandPalette.section "Actions" [ newOrder, goToOrder ] ] ] state
+                                |> Query.find [ Selector.id "palette-input" ]
+                                |> Event.simulate (Event.input "new")
+                                |> Event.toResult
+                    in
+                    case afterTyping of
+                        Ok (Palette inner) ->
+                            draw [ CommandPalette.sections [ CommandPalette.section "Actions" [ newOrder, goToOrder ] ] ]
+                                (Tuple.first (CommandPalette.update inner state))
+                                |> Query.findAll [ role "option" ]
+                                |> Query.count (Expect.equal 1)
+
+                        _ ->
+                            Expect.fail "the search box did not answer"
+            ]
+        , describe "remote sections in every state"
+            [ test "old data says so in the heading of its group, not inside the listbox" <|
+                \_ ->
+                    view "order" (Remote.refreshWith (Loaded [ goToOrder ]) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0))
+                        |> Expect.all
+                            [ Query.find [ role "listbox" ] >> Query.hasNot [ Selector.class "klar-palette__notice" ]
+                            , Query.find [ Selector.id "palette-group-s1" ] >> Query.has [ Selector.text "Old data" ]
+                            , Query.find [ role "status" ] >> Query.has [ Selector.text "Old data" ]
+                            ]
+            , test "data that is being refreshed is drawn busy" <|
+                \_ ->
+                    view "order" (Remote.refresh (Loaded [ goToOrder ]))
+                        |> Query.find [ Selector.class "klar-refreshing" ]
+                        |> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-busy" "true") ]
+            , test "an empty remote section says the palette's emptyText" <|
+                \_ ->
+                    draw
+                        [ CommandPalette.sections [ CommandPalette.remote "Orders" (Loaded []) ]
+                        , CommandPalette.emptyText "Nothing here"
+                        ]
+                        (opened "zzz")
+                        |> Query.has [ Selector.text "Nothing here" ]
+            , test "withEmptyText wins over the palette's emptyText" <|
+                \_ ->
+                    draw
+                        [ CommandPalette.sections [ CommandPalette.remote "Orders" (Loaded []) |> CommandPalette.withEmptyText "No orders found" ]
+                        , CommandPalette.emptyText "Nothing here"
+                        ]
+                        (opened "zzz")
+                        |> Query.has [ Selector.text "No orders found" ]
+            ]
+        , describe "items"
+            [ test "withKeywords called twice keeps both sets of words" <|
+                \_ ->
+                    let
+                        item =
+                            CommandPalette.item "New order" Go
+                                |> CommandPalette.withKeywords [ "create" ]
+                                |> CommandPalette.withKeywords [ "register" ]
+
+                        options text =
+                            draw [ CommandPalette.sections [ CommandPalette.section "Actions" [ item ] ] ] (opened text)
+                                |> Query.findAll [ role "option" ]
+                    in
+                    Expect.all
+                        [ \_ -> options "create" |> Query.count (Expect.equal 1)
+                        , \_ -> options "register" |> Query.count (Expect.equal 1)
+                        ]
+                        ()
+            , test "the shortcut of an item is drawn by Kbd, with a spoken phrase" <|
+                \_ ->
+                    draw
+                        [ CommandPalette.sections
+                            [ CommandPalette.section "Actions"
+                                [ newOrder |> CommandPalette.withShortcut (Shortcut.mod (Shortcut.char 'k')) ]
+                            ]
+                        ]
+                        (opened "")
+                        |> Query.find [ Selector.class "klar-palette__keys" ]
+                        |> Query.has [ Selector.text "Control plus K" ]
+            ]
+        , describe "focus stays in the search box"
+            [ test "a press on the frame of the palette keeps focus where it is" <|
+                \_ ->
+                    view "" NotAsked
+                        |> Query.find [ Selector.class "klar-palette__panel" ]
+                        |> Event.simulate (mouseDownOn "DIV")
+                        |> Event.expectPreventDefault
+            , test "a press in the search box places the caret as usual" <|
+                \_ ->
+                    view "" NotAsked
+                        |> Query.find [ Selector.class "klar-palette__panel" ]
+                        |> Event.simulate (mouseDownOn "INPUT")
+                        |> Event.toResult
+                        |> Expect.err
+            , test "the palette brings focus back when the focused element goes away" <|
+                \_ ->
+                    view "" NotAsked
+                        |> Query.find [ Selector.class "klar-palette__panel" ]
+                        |> Query.has [ Selector.class "klar-modal__guard" ]
+            , test "the footer is for the eye only" <|
+                \_ ->
+                    view "" NotAsked
+                        |> Query.find [ Selector.class "klar-palette__footer" ]
+                        |> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-hidden" "true") ]
+            ]
         ]
+
+
+draw : List (CommandPalette.Attribute Msg) -> CommandPalette.State -> Query.Single Msg
+draw attributes state =
+    CommandPalette.view Palette attributes state
+        |> (\overlay -> Overlay.host { attributes = [], page = [], overlays = [ overlay ] })
+        |> Query.fromHtml
+
+
+{-| The query after the user typed this text into the search box.
+-}
+typed : String -> CommandPalette.State -> Result String String
+typed text state =
+    draw [] state
+        |> Query.find [ Selector.id "palette-input" ]
+        |> Event.simulate (Event.input text)
+        |> Event.toResult
+        |> Result.andThen
+            (\msg ->
+                case msg of
+                    Palette inner ->
+                        Ok (CommandPalette.query (Tuple.first (CommandPalette.update inner state)))
+
+                    _ ->
+                        Err "not a message of the palette"
+            )
+
+
+mouseDownOn : String -> ( String, Encode.Value )
+mouseDownOn tag =
+    Event.custom "mousedown" (Encode.object [ ( "target", Encode.object [ ( "tagName", Encode.string tag ) ] ) ])

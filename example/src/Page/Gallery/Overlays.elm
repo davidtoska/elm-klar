@@ -262,6 +262,7 @@ type Msg
     | ResetFilter
       -- context menu
     | ContextMsg (ContextMenu.Msg Types.Order)
+    | OpenRowMenu Types.Order
     | ContextAction String
       -- palette
     | PaletteMsg CommandPalette.Msg
@@ -879,6 +880,10 @@ update msg model =
         ContextMsg inner ->
             ContextMenu.update inner model.context |> andMap ContextMsg (\state -> { model | context = state })
 
+        OpenRowMenu order ->
+            ContextMenu.openFor (contextRowId order ++ "-more") order model.context
+                |> andMap ContextMsg (\state -> { model | context = state })
+
         ContextAction note ->
             ( { model | lastNote = note }, Cmd.none )
 
@@ -1091,7 +1096,7 @@ view locale model =
                 , contextSection model
                 , paletteSection model
                 , helpSection
-                , ContextMenu.view ContextMsg contextItems model.context
+                , ContextMenu.view ContextMsg [ ContextMenu.items contextItems, ContextMenu.ariaLabel "Order actions", ContextMenu.locale locale ] model.context
                 ]
             ]
         , overlays = overlays locale model
@@ -1387,10 +1392,10 @@ tooltipSection =
 contextSection : Model -> Html Msg
 contextSection model =
     Doc.section "ContextMenu"
-        "The menu that opens where the user right-clicks. One menu serves many elements, and its content is built from the row that was clicked. Arrows, Home, End, Enter and Escape work as in an ordinary menu, and the menu opens towards the free side near the edge of the window. The context menu key (or Shift+F10) works on a row that has focus."
+        "The menu that opens where the user right-clicks. One menu serves many elements, and its content is built from the row that was clicked. Arrows, Home, End, Enter and Escape work as in an ordinary menu, and the menu opens towards the free side near the edge of the window. The context menu key (or Shift+F10) works on a row that has focus. A right-click with Shift held, or in a text field, keeps the browser's own menu. The ⋯ button opens the same menu with ContextMenu.openFor."
         [ Doc.example
             { title = "Rows with a right-click menu"
-            , description = Just ("Right-click a row, or tab to it and press Shift+F10. " ++ model.lastNote)
+            , description = Just ("Right-click a row, tab to it and press Shift+F10, or press its ⋯ button. " ++ model.lastNote)
             , code = Just contextMenuCode
             }
             (orderList model contextSamples (contextRow model))
@@ -1409,6 +1414,16 @@ contextRow model order =
                 ]
             , statusBadge order
             , Text.caption "Right-click"
+
+            -- the same menu, from a button: `ContextMenu.openFor`
+            , Button.iconOnly
+                [ Button.ghost
+                , Button.small
+                , Button.id (contextRowId order ++ "-more")
+                , Button.onClick (OpenRowMenu order)
+                ]
+                Icon.moreVertical
+                ("Actions for " ++ Types.orderIdText order.id)
             ]
         ]
 
@@ -2279,7 +2294,13 @@ contextMenuCode =
     { id = "order-" ++ order.id, target = order }
     [ row ]
 
-ContextMenu.view ContextMsg itemsFor model.context
+ContextMenu.view ContextMsg
+    [ ContextMenu.items itemsFor, ContextMenu.ariaLabel "Order actions" ]
+    model.context
+
+-- the same menu from the row's ⋯ button
+OpenRowMenu order ->
+    ContextMenu.openFor ("order-" ++ order.id ++ "-more") order model.context
 
 itemsFor : Order -> List (Menu.Item Msg)
 itemsFor order =
