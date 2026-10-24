@@ -160,6 +160,7 @@ link =
         , changes Link "⟦http://example.com/a?b=1⟧" "[⟦text⟧](http://example.com/a?b=1)"
         , changes Link "⟦[orders](https://example.com)⟧" "⟦orders⟧"
         , changes Link "⟦[a](b) and [c](d)⟧" "⟦a](b) and [c⟧"
+        , changes Link "https://x.y⟦[aa``- [ ] ](ahttps://x.y)⟧" "https://x.y⟦aa``- [ ] ⟧"
         , changes Link "😀 ⟦ab⟧" "😀 [ab](⟦https://⟧)"
         ]
 
@@ -500,14 +501,49 @@ markedTextKept =
                         let
                             words text =
                                 String.filter (\c -> c == 'a' || c == 'b' || c == '😀' || c == '\n') text
+
+                            result =
+                                Edit.apply { linkText = "" } action edit
                         in
-                        Edit.apply { linkText = "" } action edit
-                            |> .text
+                        result.text
                             |> words
-                            |> Expect.equal (words edit.text)
+                            |> Expect.equal (words (keptText action edit result))
             )
             allActions
         )
+
+
+{-| The text whose words an action keeps: all of it, except for `Link` on a selection
+that is a whole link, which takes the link out together with its address.
+-}
+keptText : Action -> Edit -> Edit -> String
+keptText action edit result =
+    let
+        { start, end } =
+            Edit.clampSelection edit.text edit.selection
+
+        before =
+            String.left start edit.text
+
+        after =
+            String.dropLeft end edit.text
+
+        linkWords =
+            String.slice start (String.length result.text - String.length after) result.text
+
+        selected =
+            String.slice start end edit.text
+
+        unlinked =
+            (action == Link)
+                && String.startsWith ("[" ++ linkWords ++ "](") selected
+                && String.endsWith ")" selected
+    in
+    if unlinked then
+        before ++ linkWords ++ after
+
+    else
+        edit.text
 
 
 actionName : Action -> String
