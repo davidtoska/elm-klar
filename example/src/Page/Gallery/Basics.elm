@@ -18,6 +18,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Remote as Remote exposing (Remote)
@@ -512,9 +513,9 @@ viewButtons model =
             }
             (Layout.stack [ Layout.gap 4 ]
                 [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view [ Button.href "#/components/forms", Button.iconRight Icon.arrowRight ] "Go to Forms"
-                    , Button.view [ Button.href "#/orders", Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
-                    , Button.view [ Button.link, Button.href "#/products" ] "Products"
+                    [ Button.view [ Button.href (Link.internal "#/components/forms"), Button.iconRight Icon.arrowRight ] "Go to Forms"
+                    , Button.view [ Button.href (Link.internal "#/orders"), Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
+                    , Button.view [ Button.link, Button.href (Link.internal "#/products") ] "Products"
                     ]
                 , Layout.container [ Layout.maxWidth 360, Layout.alignStart ]
                     [ Button.view [ Button.primary, Button.block, Button.onClick Clicked ] "Place order" ]
@@ -867,7 +868,7 @@ viewStates locale model =
                     , EmptyState.icon Icon.inbox
                     , EmptyState.title "No orders yet"
                     , EmptyState.description "Orders you create appear here."
-                    , EmptyState.action (Button.view [ Button.primary, Button.href "#/orders" ] "Open orders")
+                    , EmptyState.action (Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Open orders")
                     ]
                 ]
             )
@@ -1239,8 +1240,8 @@ Saved ->
 
 linksCode : String
 linksCode =
-    """Button.view [ Button.href "#/orders", Button.iconRight Icon.arrowRight ] "Go to orders"
-Button.view [ Button.href "#/orders", Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
+    """Button.view [ Button.href (Link.internal "#/orders"), Button.iconRight Icon.arrowRight ] "Go to orders"
+Button.view [ Button.href (Link.internal "#/orders"), Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
 Button.view [ Button.primary, Button.block ] "Place order"
 """
 
@@ -1469,7 +1470,7 @@ compactEmptyCode =
     [ EmptyState.compact
     , EmptyState.title "No orders yet"
     , EmptyState.description "Orders you create appear here."
-    , EmptyState.action (Button.view [ Button.primary, Button.href "#/orders" ] "Open orders")
+    , EmptyState.action (Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Open orders")
     ]
 """
 

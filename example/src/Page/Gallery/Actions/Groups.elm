@@ -18,6 +18,7 @@ import Klar.Button as Button
 import Klar.ButtonGroup as ButtonGroup
 import Klar.Icon as Icon
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Text as Text
@@ -128,7 +129,7 @@ buttonGroupSection _ model =
             }
             (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                 [ ButtonGroup.view [] "Order actions" (orderActions model)
-                , ButtonGroup.view [ ButtonGroup.disabled True ] "Order actions (not available)" (List.take 2 (orderActions model) ++ [ Button.view [ Button.href "#links/open" ] "Open" ])
+                , ButtonGroup.view [ ButtonGroup.disabled True ] "Order actions (not available)" (List.take 2 (orderActions model) ++ [ Button.view [ Button.href (Link.internal "#links/open") ] "Open" ])
                 ]
             )
         , Doc.example

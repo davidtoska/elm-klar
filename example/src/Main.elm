@@ -27,6 +27,7 @@ import Klar.Drawer as Drawer
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Overlay as Overlay exposing (Overlay)
@@ -976,7 +977,7 @@ viewPage model =
                         "The address does not exist. Use the menu, or press Ctrl K to search."
                     , Layout.row [ Layout.gap 2 ]
                         [ Button.view
-                            [ Button.primary, Button.icon Icon.home, Button.href (Route.path Overview) ]
+                            [ Button.primary, Button.icon Icon.home, Button.href (Link.internal (Route.path Overview)) ]
                             "Go to the overview"
                         ]
                     ]

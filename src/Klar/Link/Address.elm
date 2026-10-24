@@ -178,7 +178,9 @@ the fragment) or with `?` (a query), so it can never leave the application: not
 as `//evil.example` (which a browser reads as another site), not as
 `javascript:...` or any other scheme.
 
-  - `"/orders/12"`, `"#/orders/12"` and `"?page=2"` stay as they are.
+  - `"/orders/12"`, `"#/orders/12"` and `"?page=2"` stay as they are, and so does
+    a path relative to the page that says so with `./` or `../`
+    (`"./reports/q3.html"`, for an application that is not at the root of its site).
   - `"orders/12"` becomes `"/orders/12"`, and `"javascript:alert(1)"` becomes the
     harmless path `"/javascript:alert(1)"`.
   - Several leading slashes (or backslashes, which browsers read as slashes)
@@ -217,7 +219,12 @@ path raw =
             "/" ++ dropSlashes rest
 
         Just _ ->
-            "/" ++ text
+            -- `./` and `../` can only be a path of this site: no scheme, no host
+            if String.startsWith "./" text || String.startsWith "../" text then
+                text
+
+            else
+                "/" ++ text
 
 
 dropSlashes : String -> String

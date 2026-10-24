@@ -31,6 +31,7 @@ import Klar.Form.Layout as FormLayout
 import Klar.Form.Spec as Spec
 import Klar.Layout as Layout
 import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
+import Klar.Link as Link
 import Klar.Locale as Locale
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
@@ -351,13 +352,13 @@ viewPage model =
         Home ->
             Layout.stack []
                 [ PageHeader.view [ PageHeader.title "Orders" ]
-                , Button.view [ Button.primary, Button.href (routeToPath Order) ] "New order"
+                , Button.view [ Button.primary, Button.href (Link.internal (routeToPath Order)) ] "New order"
                 ]
 
         Done ->
             Layout.stack []
                 [ PageHeader.view [ PageHeader.title "Order placed" ]
-                , Button.view [ Button.href (routeToPath Home) ] "Back to orders"
+                , Button.view [ Button.href (Link.internal (routeToPath Home)) ] "Back to orders"
                 ]
 
         Order ->
@@ -401,7 +402,7 @@ viewOrder model =
                             viewReview model
                     ]
                 , FormLayout.actions
-                    [ Button.view [ Button.id "cancel-order", Button.ghost, Button.href (routeToPath Home) ] "Cancel"
+                    [ Button.view [ Button.id "cancel-order", Button.ghost, Button.href (Link.internal (routeToPath Home)) ] "Cancel"
                     , FormLayout.status attributes model.status
                     , Layout.spacer
                     , if step == Just Customer then

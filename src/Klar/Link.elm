@@ -1,6 +1,6 @@
 module Klar.Link exposing
     ( view
-    , Target, internal, external
+    , Target, internal, external, download
     , Attribute, current, disabled, inline, standalone, truncate, icon, id, onClick, locale
     )
 
@@ -25,8 +25,10 @@ Do not use when: the click is an action and not a navigation (as `Klar.Button`).
 
     Link.view [ Link.current (model.route == Route.Orders) ] (Link.internal "/orders") "Orders"
 
-**The destination is a `Target`**, made by `internal` or `external`, and no
-other string ever becomes an `href`. `external` accepts only `http`, `https`,
+**The destination is a `Target`**, made by `internal`, `external` or
+`download`, and no other string ever becomes an `href`; a
+[Klar.Button](Klar-Button) that is a link (`Button.href`) takes the same
+`Target`. `external` accepts only `http`, `https`,
 `mailto` and `tel` and answers `Nothing` for anything else, so a `javascript:`
 address from a database cannot be turned into a link. `internal` takes an
 address in your own application (`"/orders/12"`, or `"#/orders/12"` for a
@@ -56,12 +58,17 @@ window, the middle button) are never taken over. Because every `<a href>` reache
 `onUrlRequest`, use a [Klar.Button](Klar-Button) for anything that is not a
 navigation (an action, a skip link, an error-summary entry).
 
-**Disabled and current.** A `disabled` link has no `href` and is not in the tab
-order: it is drawn dimmed and a screen reader finds it as a link that is
-unavailable (`aria-disabled`), the way it finds a disabled button. Use it for a
-destination that exists but that the user may not visit, and say why in a
-[Klar.Tooltip](Klar-Tooltip) around it. A link to the page that the user is on is
-`current` (`aria-current="page"`).
+**A file to save** is a `download` target: the text is put in the link itself
+(a `data:` address, encoded so that any character is safe), the browser saves it
+under the name given instead of opening it, and no request goes to a server.
+
+**Disabled and current.** A `disabled` link has no `href`, so it cannot be
+followed, but it stays in the tab order: it is drawn dimmed and a screen reader
+finds it as a link that is unavailable (`aria-disabled`), the way it finds a
+disabled button, and a link that is disabled while it has focus keeps it. Use it
+for a destination that exists but that the user may not visit, and say why in a
+[Klar.Tooltip](Klar-Tooltip) around it, which the keyboard reaches too. A link to
+the page that the user is on is `current` (`aria-current="page"`).
 
 **Inline or standalone.** The default is `inline`: underlined and in the link
 color, a different color once visited, for a link inside a sentence. A link
@@ -80,7 +87,7 @@ The built-in text ("opens in a new tab") follows `locale` (English by default).
 
 # Destinations
 
-@docs Target, internal, external
+@docs Target, internal, external, download
 
 
 # Attributes
@@ -95,8 +102,8 @@ import Html.Events as Events
 import Json.Decode as Decode
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
-import Klar.Link.Address as Address
 import Klar.Link.Click as Click
+import Klar.Link.Destination as Destination
 import Klar.Locale as Locale exposing (Locale)
 
 
@@ -104,29 +111,27 @@ import Klar.Locale as Locale exposing (Locale)
 -- TARGET
 
 
-{-| Where a link leads. Make one with `internal` or `external`; the type is
-opaque, so it always holds an address that has been checked.
+{-| Where a link leads. Make one with `internal`, `external` or `download`; the
+type is opaque, so it always holds an address that has been checked.
+[`Button.href`](Klar-Button#href) takes it too.
 -}
-type Target
-    = Target { href : String, kind : Kind }
-
-
-type Kind
-    = Inside
-    | Outside Address.Kind
+type alias Target =
+    Destination.Target
 
 
 {-| A page of your application, given as a path (`"/orders/12"`), as a route in
-the fragment (`"#/orders/12"`) or as a query (`"?page=2"`): the text that your own
-route function makes. The link stays in the application, whatever the text:
-a text that does not begin with `/`, `#` or `?` gets a `/` in front, several
+the fragment (`"#/orders/12"`), as a query (`"?page=2"`) or as a path relative to
+the page (`"./reports/q3.html"`, for an application that is not at the root of its
+site): the text that your own route function makes. The link stays in the
+application, whatever the text: a text that does not begin with `/`, `#`, `?`,
+`./` or `../` gets a `/` in front, several
 leading slashes become one, and control characters are removed, so `"//evil.example"`
 and `"javascript:alert(1)"` become paths of your application (`"/evil.example"`,
 `"/javascript:alert(1)"`) that do not exist, and never a link that leaves it.
 -}
 internal : String -> Target
-internal text =
-    Target { href = Address.path text, kind = Inside }
+internal =
+    Destination.internal
 
 
 {-| An address that is not in your application, or `Nothing` when it cannot be a
@@ -144,16 +149,29 @@ Decide what to show then, usually the plain text.
 
 -}
 external : String -> Maybe Target
-external text =
-    Address.external text
-        |> Maybe.map (\checked -> Target { href = checked.href, kind = Outside checked.kind })
+external =
+    Destination.external
 
 
-{-| Does the link open in a new tab? Only a page on the web does.
+{-| A file that the browser saves when the link is followed, made from a text of
+your application: a CSV export, a JSON file, an invoice as text. The text is put
+in the link as a `data:` address, encoded as UTF-8 with every character that is
+not plain made safe (an emoji, a line break, a `#`), so no server is asked and
+nothing is lost. The link has the `download` attribute with the file name, opens
+in the same tab and is never taken over by `Browser.application`.
+
+    Link.view [ Link.icon Icon.download ]
+        (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = ordersCsv })
+        "Download orders"
+
+The `mimeType` is `type/subtype` (`text/csv`, `application/json`); anything else
+becomes `application/octet-stream`. An empty `fileName` becomes `download`. Keep
+the text to a few megabytes: it is part of the page.
+
 -}
-opensInNewTab : Target -> Bool
-opensInNewTab (Target target) =
-    target.kind == Outside Address.Web
+download : { fileName : String, mimeType : String, content : String } -> Target
+download =
+    Destination.download
 
 
 
@@ -213,10 +231,12 @@ current value =
     Attribute (\config -> { config | current = value })
 
 
-{-| A destination the user may not visit now. The link has no `href`, cannot be
-reached with Tab or clicked, and screen readers find it as a link that is
-unavailable (`aria-disabled`). It is drawn dimmed, and sends nothing. The default is
-`False`.
+{-| A destination the user may not visit now. The link has no `href`, so it
+cannot be followed, and screen readers find it as a link that is unavailable
+(`aria-disabled`). It stays in the tab order (`tabindex="0"`), so that a link
+disabled while it has focus keeps it and a [Klar.Tooltip](Klar-Tooltip) around it
+can say why to a keyboard user. It is drawn dimmed and sends nothing, also in a
+`Browser.application`. The default is `False`.
 -}
 disabled : Bool -> Attribute msg
 disabled value =
@@ -282,8 +302,8 @@ when it is clicked and still leads to a page when it is opened in a new tab.
 In a `Browser.application` you do not need it: Elm reports the click to
 `onUrlRequest` anyway, and `msg` would be sent as well. A link that opens in a
 new tab (a page on another site) ignores `onClick`: taking the click over would
-keep the browser from opening the tab, which is the point of the link. Such a link
-is always left to the browser.
+keep the browser from opening the tab, which is the point of the link. Such a link,
+and a `download` link, is always left to the browser.
 
 -}
 onClick : msg -> Attribute msg
@@ -311,13 +331,16 @@ readers, so make it say where the link leads ("Order 10001"), not "click here".
 
 -}
 view : List (Attribute msg) -> Target -> String -> Html msg
-view attributes ((Target target) as destination) label =
+view attributes destination label =
     let
         config =
             configure attributes
 
         newTab =
-            opensInNewTab destination && not config.disabled
+            Destination.opensInNewTab destination && not config.disabled
+
+        file =
+            Destination.fileName destination
 
         classNames =
             Internal.cls
@@ -358,29 +381,34 @@ view attributes ((Target target) as destination) label =
                 (Html.span [ Internal.cls [ "klar-link__external" ] ] [ Icon.sized Icon.Small Icon.externalLink ])
             ]
     in
+    -- One element whether it is disabled or not, so that a link that is disabled
+    -- while it has focus keeps it.
     if config.disabled then
         Html.a
-            [ classNames
-            , Attr.attribute "role" "link"
-            , Attr.attribute "aria-disabled" "true"
-            , Internal.attrMaybe Attr.id config.id
-            ]
+            (classNames
+                :: Internal.attrIf config.current (Attr.attribute "aria-current" "page")
+                :: Internal.attrIf config.truncate (Attr.title label)
+                :: Internal.attrMaybe Attr.id config.id
+                :: Destination.inactiveAttributes { focusable = True }
+            )
             content
 
     else
         Html.a
             [ classNames
-            , Attr.href target.href
+            , Attr.href (Destination.href destination)
             , Internal.attrIf newTab (Attr.target "_blank")
             , Internal.attrIf newTab (Attr.rel "noopener noreferrer")
+            , Internal.attrMaybe Attr.download file
             , Internal.attrIf config.current (Attr.attribute "aria-current" "page")
             , Internal.attrIf config.truncate (Attr.title label)
             , Internal.attrMaybe Attr.id config.id
 
-            -- A link that opens a new tab is left to the browser: stopping the click would stop the tab.
+            -- A link that opens a new tab or saves a file is left to the browser:
+            -- stopping the click would stop the tab or the file.
             , Internal.attrMaybe
                 (\msg -> Events.preventDefaultOn "click" (Decode.map (\_ -> ( msg, True )) Click.plain))
-                (if newTab then
+                (if newTab || file /= Nothing then
                     Nothing
 
                  else

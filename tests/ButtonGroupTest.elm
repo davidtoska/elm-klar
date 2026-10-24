@@ -6,6 +6,7 @@ import Html.Attributes as Attr
 import Klar.Button as Button
 import Klar.ButtonGroup as ButtonGroup
 import Klar.Icon as Icon
+import Klar.Link as Link
 import Klar.Menu as Menu
 import Klar.Theme exposing (Size(..))
 import Support.ActionsQuery as ActionsQuery
@@ -66,7 +67,7 @@ suite =
                 \_ ->
                     ButtonGroup.view [ ButtonGroup.disabled True ]
                         "Pages"
-                        [ Button.view [ Button.href "#/orders" ] "Orders", Button.view [ Button.href "#/products" ] "Products" ]
+                        [ Button.view [ Button.href (Link.internal "#/orders") ] "Orders", Button.view [ Button.href (Link.internal "#/products") ] "Products" ]
                         |> Query.fromHtml
                         |> Query.has [ Selector.tag "fieldset", Selector.attribute (Attr.attribute "inert" "") ]
             , test "an enabled group is not, also after it was disabled and enabled again" <|
@@ -79,7 +80,7 @@ suite =
                         ()
             , test "the links are still links in the page, so a screen reader that skips inert content finds nothing to follow" <|
                 \_ ->
-                    ButtonGroup.view [ ButtonGroup.disabled True ] "Pages" [ Button.view [ Button.href "#/orders" ] "Orders" ]
+                    ButtonGroup.view [ ButtonGroup.disabled True ] "Pages" [ Button.view [ Button.href (Link.internal "#/orders") ] "Orders" ]
                         |> Query.fromHtml
                         |> Query.find [ Selector.tag "a" ]
                         |> Query.has [ Selector.attribute (Attr.href "#/orders") ]
