@@ -26,6 +26,7 @@ import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Klar.TextArea as TextArea
 import Klar.Theme as Theme
+import Process
 import Set exposing (Set)
 import Showcase.Doc as Doc
 import Showcase.Sample as Sample
@@ -437,6 +438,8 @@ type alias Model =
     , readOnly : PermissionMatrix.State
     , loading : PermissionMatrix.State
     , failing : PermissionMatrix.State
+    , refreshing : PermissionMatrix.State
+    , stale : PermissionMatrix.State
     , retries : Int
     , big : PermissionMatrix.State
     , bigGrants : Set ( Int, Int )
@@ -444,6 +447,9 @@ type alias Model =
     , users : Dict String Verdicted
     , rejecting : Bool
     , reason : String
+
+    -- a decision is on its way (the demo waits a moment, as a server would)
+    , deciding : Bool
     }
 
 
@@ -455,6 +461,8 @@ type Msg
     | ReadOnlyMsg PermissionMatrix.Msg
     | LoadingMsg PermissionMatrix.Msg
     | FailingMsg PermissionMatrix.Msg
+    | RefreshingMsg PermissionMatrix.Msg
+    | StaleMsg PermissionMatrix.Msg
     | Retried
     | BigMsg PermissionMatrix.Msg
     | BigChanged (List (PermissionMatrix.Change Int Int))
@@ -478,6 +486,8 @@ init =
       , readOnly = PermissionMatrix.init "access-read-only"
       , loading = PermissionMatrix.init "access-loading"
       , failing = PermissionMatrix.init "access-failing"
+      , refreshing = PermissionMatrix.init "access-refreshing"
+      , stale = PermissionMatrix.init "access-stale"
       , retries = 0
       , big = PermissionMatrix.init "access-big"
       , bigGrants = initialBig
@@ -485,6 +495,7 @@ init =
       , users = initialDecisionsOfUsers
       , rejecting = False
       , reason = ""
+      , deciding = False
       }
     , Cmd.none
     )
@@ -513,7 +524,17 @@ update msg model =
             )
 
         Save ->
-            ( { model | saved = model.decisions, outcome = Just "Saved (nothing leaves this demo)." }, Cmd.none )
+            let
+                -- what a save request sends: the cells counted above the grid
+                changes =
+                    PermissionMatrix.unsavedChanges (cellOf model.saved) (theMatrix model.decisions)
+            in
+            ( { model
+                | saved = model.decisions
+                , outcome = Just ("Saved " ++ String.fromInt (List.length changes) ++ " changes (nothing leaves this demo).")
+              }
+            , Cmd.none
+            )
 
         Discard ->
             ( { model | decisions = model.saved, outcome = Just "Changes discarded." }, Cmd.none )
@@ -538,6 +559,20 @@ update msg model =
                     PermissionMatrix.update inner model.failing
             in
             ( { model | failing = state }, Cmd.map FailingMsg cmd )
+
+        RefreshingMsg inner ->
+            let
+                ( state, cmd ) =
+                    PermissionMatrix.update inner model.refreshing
+            in
+            ( { model | refreshing = state }, Cmd.map RefreshingMsg cmd )
+
+        StaleMsg inner ->
+            let
+                ( state, cmd ) =
+                    PermissionMatrix.update inner model.stale
+            in
+            ( { model | stale = state }, Cmd.map StaleMsg cmd )
 
         Retried ->
             ( { model | retries = model.retries + 1 }, Cmd.none )
@@ -571,7 +606,8 @@ update msg model =
             ( { model | viewer = user, rejecting = False }, Cmd.none )
 
         ApproveClicked ->
-            ( model, Task.perform (Decided Yes Nothing) Time.now )
+            -- the buttons are busy while the decision is on its way, so it cannot be sent twice
+            ( { model | deciding = True }, answerLater (Decided Yes Nothing) )
 
         RejectClicked ->
             ( { model | rejecting = True, reason = "" }, Cmd.none )
@@ -580,7 +616,7 @@ update msg model =
             ( { model | reason = text }, Cmd.none )
 
         RejectConfirmed ->
-            ( { model | rejecting = False }, Task.perform (Decided No (Just (String.trim model.reason))) Time.now )
+            ( { model | rejecting = False, deciding = True }, answerLater (Decided No (Just (String.trim model.reason))) )
 
         RejectCancelled ->
             ( { model | rejecting = False }, Cmd.none )
@@ -588,19 +624,31 @@ update msg model =
         Decided verdict comment time ->
             case model.viewer of
                 Just user ->
-                    ( { model | users = Dict.insert (userKey user) { verdict = verdict, at = time, comment = comment } model.users }
+                    ( { model
+                        | users = Dict.insert (userKey user) { verdict = verdict, at = time, comment = comment } model.users
+                        , deciding = False
+                      }
                       -- the buttons that had focus leave with the decision
                     , Klar.focus creditNoteId FlowFocused
                     )
 
                 Nothing ->
-                    ( model, Cmd.none )
+                    ( { model | deciding = False }, Cmd.none )
 
         FlowFocused ->
             ( model, Cmd.none )
 
         FlowReset ->
-            ( { model | users = initialDecisionsOfUsers, rejecting = False, reason = "" }, Cmd.none )
+            ( { model | users = initialDecisionsOfUsers, rejecting = False, reason = "", deciding = False }, Cmd.none )
+
+
+{-| The answer of the demo's server, a moment later, with the time of the decision.
+-}
+answerLater : (Time.Posix -> Msg) -> Cmd Msg
+answerLater toMsg =
+    Process.sleep 900
+        |> Task.andThen (\_ -> Time.now)
+        |> Task.perform toMsg
 
 
 subscriptions : Model -> Sub Msg
@@ -618,7 +666,7 @@ view settings locale model =
         { title = "Roles and approvals"
         , description = "A permission matrix for roles and an approval flow with approvers and status. The status of a flow is derived from the decisions, so what is drawn can never contradict them. The language switch in the top bar changes the built-in texts."
         }
-        [ matrixSection locale model
+        [ matrixSection settings locale model
         , approvalSection settings locale model
         ]
 
@@ -635,8 +683,19 @@ labelled name content =
 -- MATRIX
 
 
-matrixSection : Locale -> Model -> Html Msg
-matrixSection locale model =
+{-| Data that was loaded an hour ago, and whose refresh failed a minute ago.
+-}
+oldData : a -> Remote.Remote a
+oldData value =
+    let
+        loaded =
+            Remote.refreshWith Remote.Loading (Ok value) (Time.millisToPosix (Time.posixToMillis Sample.now - 3600000))
+    in
+    Remote.refreshWith (Remote.refresh loaded) (Err (Remote.problem Remote.network)) (Time.millisToPosix (Time.posixToMillis Sample.now - 60000))
+
+
+matrixSection : Settings -> Locale -> Model -> Html Msg
+matrixSection settings locale model =
     let
         changed =
             model.decisions /= model.saved
@@ -679,8 +738,8 @@ matrixSection locale model =
                 (theMatrix model.saved)
             )
         , Doc.example
-            { title = "Loading and failing"
-            , description = Just "A skeleton in the shape of a grid, and the problem with a Try again button when it is worth trying again."
+            { title = "Loading, failing, refreshing and old data"
+            , description = Just "A skeleton in the shape of a grid, and the problem with a Try again button when it is worth trying again. Data that is refreshed stays editable, dimmed and busy, and the focus stays on its cell; when the refresh failed, the grid says how old the data is, with Try again. The id of init is on the frame in every state, for Klar.focus after Try again."
             , code = Just remoteCode
             }
             (Layout.grid [ Layout.minColumn 360, Layout.gap 4 ]
@@ -692,11 +751,27 @@ matrixSection locale model =
                         model.failing
                         (Remote.Failed (Remote.problem Remote.network))
                     )
+                , labelled "Refreshing"
+                    (PermissionMatrix.viewRemote RefreshingMsg
+                        [ PermissionMatrix.locale locale, PermissionMatrix.maxHeight 240 ]
+                        model.refreshing
+                        (Remote.refresh (Remote.Loaded (theMatrix model.saved)))
+                    )
+                , labelled "Old data: the refresh failed"
+                    (PermissionMatrix.viewRemote StaleMsg
+                        [ PermissionMatrix.locale locale
+                        , PermissionMatrix.settings settings
+                        , PermissionMatrix.onRetry Retried
+                        , PermissionMatrix.maxHeight 240
+                        ]
+                        model.stale
+                        (oldData (theMatrix model.saved))
+                    )
                 ]
             )
         , Doc.example
             { title = "200 permissions by 25 roles"
-            , description = Just "5 000 cells and 12 groups. Events are caught once on the grid, so no cell has a handler of its own. Filter, fold a group, or press the checkbox of a role: it acts on every permission that matches the filter, folded groups included."
+            , description = Just "5 000 cells and 12 groups. Events are caught once on the grid, so no cell has a handler of its own, and each cell is drawn with Html.Lazy from a few plain values: an arrow key draws two cells again, a toggle the cells it changed. Filter, fold a group, or press the checkbox of a role: it acts on every permission that matches the filter, folded groups included."
             , code = Nothing
             }
             (PermissionMatrix.view BigMsg
@@ -736,6 +811,7 @@ flowAttributes settings locale model =
     [ ApprovalFlow.viewer model.viewer
     , ApprovalFlow.onApprove ApproveClicked
     , ApprovalFlow.onReject RejectClicked
+    , ApprovalFlow.deciding model.deciding
     , ApprovalFlow.now Sample.now
     , ApprovalFlow.settings settings
     , ApprovalFlow.locale locale
@@ -763,7 +839,7 @@ approvalSection settings locale model =
         "The steps of an approval, each with the rule for its approvers (all of them, or any one) and a decision from each. Where each step stands, and the flow, is worked out from the decisions: an approval in an any step wins over rejections, a rejection in an all step wins over approvals, and a rejection leaves the later steps not reached. Pick who you are, and decide."
         [ Doc.example
             { title = "Credit note 2024-117"
-            , description = Just "Choose a viewer. A pending approver of the current step gets Approve and Reject; the flow, the line above it and the second layout below change at once. Reject asks for a reason in a form of the application's own, and the reason is shown under the name. The line above the steps is a polite live region."
+            , description = Just "Choose a viewer. A pending approver of the current step gets Approve and Reject; while the decision is on its way (a moment here) the buttons are busy and keep the focus, then the flow takes it. Reject asks for a reason in a form of the application's own, and the reason is shown under the name. Only the approvers of the current step are pending; the others say not needed, not asked yet or not reached. The line above the steps says how far the current step is and is a polite live region."
             , code = Just flowCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -802,9 +878,9 @@ approvalSection settings locale model =
                 ]
             )
         , Doc.example
-            { title = "Loading and failing"
-            , description = Just "A skeleton of steps, and the problem with Try again."
-            , code = Just "ApprovalFlow.viewRemote personOf [ ApprovalFlow.onRetry Reload ] model.approval"
+            { title = "Loading, failing, refreshing and old data"
+            , description = Just "A skeleton of steps, and the problem with Try again. A flow that is refreshed stays, dimmed and busy; one whose refresh failed says how old it is, so nobody decides on an old state without knowing it."
+            , code = Just "ApprovalFlow.viewRemote personOf [ ApprovalFlow.id \"approval\", ApprovalFlow.onRetry Reload ] (Remote.map toFlow model.approval)"
             }
             (Layout.grid [ Layout.minColumn 340, Layout.gap 4 ]
                 [ labelled "Loading" (ApprovalFlow.viewRemote personOf (staticAttributes settings locale) Remote.Loading)
@@ -812,6 +888,13 @@ approvalSection settings locale model =
                     (ApprovalFlow.viewRemote personOf
                         (ApprovalFlow.onRetry Retried :: staticAttributes settings locale)
                         (Remote.Failed (Remote.problem Remote.timeout))
+                    )
+                , labelled "Refreshing"
+                    (ApprovalFlow.viewRemote personOf (staticAttributes settings locale) (Remote.refresh (Remote.Loaded approvedRequest)))
+                , labelled "Old data: the refresh failed"
+                    (ApprovalFlow.viewRemote personOf
+                        (ApprovalFlow.onRetry Retried :: staticAttributes settings locale)
+                        (oldData lateRequest)
                     )
                 ]
             )
@@ -900,9 +983,20 @@ readOnlyCode =
 remoteCode : String
 remoteCode =
     """PermissionMatrix.viewRemote MatrixMsg
-    [ PermissionMatrix.onChange CellsChanged, PermissionMatrix.onRetry Reload ]
-    model.access
-    (Remote.map toMatrix model.grants)"""
+    [ PermissionMatrix.onChange CellsChanged
+    , PermissionMatrix.onRetry Reload
+    , PermissionMatrix.settings model.settings   -- the zone of "Old data from 14:05"
+    ]
+    model.access                                 -- PermissionMatrix.init "role-matrix"
+    (Remote.map toMatrix model.grants)
+
+Reload ->      -- "Try again" goes away while the grants load: the matrix takes the focus
+    ( { model | grants = Remote.refresh model.grants }
+    , Cmd.batch [ Api.loadGrants GrantsLoaded, Klar.focus "role-matrix" NoOp ]
+    )
+
+Save ->        -- the cells that have a dot, with the own access they have now
+    ( model, Api.saveGrants (PermissionMatrix.unsavedChanges (cellOf model.saved) (toMatrix model.grants)) Saved )"""
 
 
 flowCode : String
@@ -911,6 +1005,7 @@ flowCode =
     [ ApprovalFlow.viewer (Just model.me)
     , ApprovalFlow.onApprove Approve
     , ApprovalFlow.onReject AskWhy        -- your own dialog; send the reason with the decision
+    , ApprovalFlow.deciding model.deciding  -- True while the request is on its way
     , ApprovalFlow.now model.now
     , ApprovalFlow.settings settings
     , ApprovalFlow.id "credit-note-flow"
