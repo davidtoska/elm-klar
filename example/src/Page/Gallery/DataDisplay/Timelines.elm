@@ -6,6 +6,7 @@ compact and ungrouped looks, and the loading, empty and failed states.
 
 import Api.Types exposing (orderIdText)
 import Html exposing (Html)
+import Klar
 import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
@@ -68,7 +69,7 @@ update failing msg model =
         Retry ->
             -- "Try again" is replaced by the skeleton: focus goes to the timeline (its id).
             ( { model | retrying = True }
-            , Cmd.batch [ Pretend.later RetryDone, RemoteView.focus "history-timeline" Focused ]
+            , Cmd.batch [ Pretend.later RetryDone, Klar.focus "history-timeline" Focused ]
             )
 
         Focused ->

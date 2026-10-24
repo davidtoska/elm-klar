@@ -25,6 +25,7 @@ import Klar.CommandPalette as CommandPalette
 import Klar.Date exposing (Date)
 import Klar.Drawer as Drawer
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
@@ -818,21 +819,21 @@ routeTitle route =
 menu : List (SideNav.Entry String Msg)
 menu =
     [ SideNav.section "Workspace"
-        [ SideNav.item SideNav.stringKeys { key = "overview", label = "Overview", href = Route.path Overview }
+        [ SideNav.item Ids.string { key = "overview", label = "Overview", href = Route.path Overview }
             |> SideNav.withIcon Icon.home
-        , SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = Route.path Orders }
+        , SideNav.item Ids.string { key = "orders", label = "Orders", href = Route.path Orders }
             |> SideNav.withIcon Icon.clipboard
-        , SideNav.item SideNav.stringKeys { key = "products", label = "Products", href = Route.path Products }
+        , SideNav.item Ids.string { key = "products", label = "Products", href = Route.path Products }
             |> SideNav.withIcon Icon.database
         ]
     , SideNav.section "Component library"
-        [ SideNav.item SideNav.stringKeys { key = "components", label = "Overview", href = Route.path (Components Nothing) }
+        [ SideNav.item Ids.string { key = "components", label = "Overview", href = Route.path (Components Nothing) }
             |> SideNav.withIcon Icon.layers
-        , SideNav.group SideNav.stringKeys
+        , SideNav.group Ids.string
             { key = "components-pages", label = "Components" }
             (List.map
                 (\section ->
-                    SideNav.item SideNav.stringKeys
+                    SideNav.item Ids.string
                         { key = "components-" ++ Catalog.slug section
                         , label = Catalog.title section
                         , href = Route.path (Components (Just (Catalog.slug section)))

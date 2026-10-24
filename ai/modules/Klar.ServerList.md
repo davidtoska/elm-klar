@@ -55,7 +55,7 @@ focus : State id row -> Cmd (Msg row)
 type Target id
     = Picked (List id)
     | Matching { query : Table.Query, rule : Rule.Rule, except : List id }
-target : Table.RowIds id -> State id row -> Maybe (Target id)
+target : Ids.Ids id -> State id row -> Maybe (Target id)
 ```
 
 ## Documentation
@@ -162,7 +162,7 @@ the request is sent.
             , ServerList.viewFilterBar OrdersMsg [ FilterBar.fields fields ] model.orders
             , ServerList.viewTable OrdersMsg
                 [ Table.columns columns
-                , Table.rowId Table.stringIds .id
+                , Table.rowId Ids.string .id
                 , Table.searchable
                 ]
                 model.orders
@@ -470,7 +470,7 @@ except the ones taken out. The table cannot list the second: your backend does i
 ### `target`
 
 ```elm
-target : Table.RowIds id -> State id row -> Maybe (Target id)
+target : Ids.Ids id -> State id row -> Maybe (Target id)
 ```
 
 The selection as a `Target`, or `Nothing` when nothing is selected. Needs the

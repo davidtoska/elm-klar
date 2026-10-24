@@ -1,18 +1,17 @@
-module Klar.Ids exposing (Ids, make, toKey, fromKey)
+module Klar.Ids exposing (Ids, make, list, string, int, toKey, fromKey)
 
 {-| How the application's own id type is written as text and read back, once.
 
-Use when: the application's own id type must be written as text and read back for components that keep text keys.
-Do not use when: the id is already a `String`; no `Ids` is needed.
-Quick path: `make`, `toKey`, `fromKey`
+Use when: a component keeps your own ids or keys (rows, nodes, items, pages, choices) and needs them as text inside.
+Do not use when: the value is not an id of yours (a label, a search text); plain text and whole-number ids take `Ids.string` and `Ids.int`.
+Quick path: `make`, `list`, `string`, `int`
 
-Several components keep their values as text keys internally (the form model's
-selects, the choices of a rule): an application with `CountryId` and
-`CategoryId` types writes the two functions once per type and hands the `Ids`
-to the parts that take one: `Spec.choice` and `Spec.choices` of a form, `Rule.choiceFieldOf`
-and `Form.Check.lostIds`. A table, a tree, the pickers, a sortable list and the side menu
-take their own small id type instead (`Table.rowIds`, `Tree.nodeIds`, `Picking.ids`,
-`Sortable.itemIds`, `SideNav.keys`).
+Components keep their values as text keys internally (a table's selection, the open
+nodes of a tree, the choices of a rule). An application writes the two functions once
+per id type, as a constant next to the type, and gives the same `Ids` to every
+component that holds that type: `Table.rowId`, `Tree.leaf`, `Picking.leaf`,
+`Sortable.view`, `SideNav.item`, `Spec.choice` and `Spec.choices` of a form,
+`Rule.choiceFieldOf` and `Form.Check.lostIds`.
 
     import Klar.Ids as Ids exposing (Ids)
 
@@ -30,7 +29,7 @@ take their own small id type instead (`Table.rowIds`, `Tree.nodeIds`, `Picking.i
 is not an id of yours. [`Klar.Form.Check.lostIds`](Klar-Form-Check#lostIds)
 tests that in one line.
 
-@docs Ids, make, toKey, fromKey
+@docs Ids, make, list, string, int, toKey, fromKey
 
 -}
 
@@ -45,8 +44,7 @@ type Ids id
         }
 
 
-{-| Both directions of an id type. The same pair of functions as
-`Table.rowIds` and `Tree.nodeIds` take.
+{-| Both directions of an id type.
 
     categoryIds : Ids CategoryId
     categoryIds =
@@ -59,6 +57,49 @@ type Ids id
 make : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
 make =
     Ids
+
+
+{-| The ids of a small closed set, such as the pages of an application: the function
+that writes one as text and the list of all of them. The way back is found in the list,
+so there is no parser to write.
+
+    type Page
+        = Orders
+        | Settings
+
+    pageIds : Ids Page
+    pageIds =
+        Ids.list pageToString [ Orders, Settings ]
+
+A value left out of the list is written as usual but never read back.
+
+-}
+list : (id -> String) -> List id -> Ids id
+list write all =
+    Ids
+        { toKey = write
+        , fromKey = \key -> List.head (List.filter (\one -> write one == key) all)
+        }
+
+
+{-| Ids that are plain text (a SKU, a code), used as they are.
+
+    Table.rowId Ids.string .sku
+
+-}
+string : Ids String
+string =
+    Ids { toKey = identity, fromKey = Just }
+
+
+{-| Ids that are whole numbers (a database id).
+
+    Table.rowId Ids.int .id
+
+-}
+int : Ids Int
+int =
+    Ids { toKey = String.fromInt, fromKey = String.toInt }
 
 
 {-| The text an id is written as.

@@ -20,6 +20,7 @@ view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 text : State -> String
 setText : String -> State -> State
 picked : State -> Maybe String
+query : State -> String
 isOpen : State -> Bool
 
 -- Attributes
@@ -94,7 +95,7 @@ Suggestions are options (`Select.Option`, made with `Select.option` and its
 `with*` helpers, see [Klar.Select.Option](Klar.Select.Option.md)): the label is what
 the field shows when one is picked, and the value is what `picked` returns. They
 are filtered locally (`options`) or come from the application (`suggestions`, a
-`Remote`): then fetch when `Autocomplete.text` changes. The list shows loading
+`Remote`): then fetch when `Autocomplete.query` changes (it waits for a pause in the typing). The list shows loading
 rows, a failure with a retry button, or "No suggestions".
 
 Keyboard: typing shows the suggestions with none highlighted, so Enter keeps the
@@ -160,7 +161,7 @@ message type with `Cmd.map`.
         in
         ( { model | city = city }, Cmd.map CityMsg cmd )
 
-With `suggestions`, compare `Autocomplete.text` before and after to see when to
+With `suggestions`, compare `Autocomplete.query` before and after to see when to
 fetch.
 
 ### `view`
@@ -192,7 +193,7 @@ text : State -> String
 ```
 
 What is in the field: what the user typed, or the label of the suggestion
-they picked. With `suggestions` from a backend, fetch when it changes.
+they picked. With `suggestions` from a backend, fetch when `query` changes.
 
 ### `setText`
 
@@ -215,6 +216,20 @@ The value of the suggestion the text came from, or `Nothing` when the text is
 free. It is set when a suggestion is picked, or when Enter is pressed on a text
 that is exactly the label of a suggestion (ignoring case and diacritics), and it
 is cleared as soon as the text is edited or replaced with `setText`.
+
+### `query`
+
+```elm
+query : State -> String
+```
+
+The text to fetch `suggestions` for: it follows `text` after a pause of 300 ms in
+the typing (at once when a suggestion is picked, the field is cleared or `setText` is
+called), so **write no debounce of your own**. Fetch when it changes, and drop an
+answer whose text is no longer the current `query`.
+
+    if Autocomplete.query city /= Autocomplete.query model.city then
+        fetchCities (Autocomplete.query city)
 
 ### `isOpen`
 
@@ -262,7 +277,7 @@ suggestions : Remote.Remote (List (Select.Option.Option String)) -> Attribute ms
 Suggestions from the application, usually the backend, as a `Remote` (see
 [Klar.Remote](Klar.Remote.md)). They are shown exactly as they come and the
 component does not filter them; the typed text is highlighted in them. Fetch
-when `Autocomplete.text` changes. The list is hidden while the data is
+when `Autocomplete.query` changes. The list is hidden while the data is
 `NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, an
 error on `Failed` (see `onRetry`), and "No suggestions" on `Loaded []`.
 Suggestions that are `Kept` stay in the list: dimmed and busy while they are

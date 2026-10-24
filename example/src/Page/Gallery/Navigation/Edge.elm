@@ -20,6 +20,7 @@ import Klar.Button as Button
 import Klar.Card as Card
 import Klar.DescriptionList as DescriptionList
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.PageHeader as PageHeader
@@ -44,7 +45,7 @@ type alias Model =
 init : Model
 init =
     { crumbs = Breadcrumbs.init "nav-crumbs-long"
-    , nav = SideNav.init "nav-long" |> SideNav.expandGroup SideNav.stringKeys "g"
+    , nav = SideNav.init "nav-long" |> SideNav.expandGroup Ids.string "g"
     , lastAction = Nothing
     }
 
@@ -193,15 +194,15 @@ section locale model =
 longMenu : List (SideNav.Entry String msg)
 longMenu =
     [ SideNav.section "Very long names"
-        [ SideNav.item SideNav.stringKeys { key = "a", label = "A menu entry with an incredibly long name that never fits", href = Demo.href "a" }
+        [ SideNav.item Ids.string { key = "a", label = "A menu entry with an incredibly long name that never fits", href = Demo.href "a" }
             |> SideNav.withIcon Icon.fileText
             |> SideNav.withCount 1482
-        , SideNav.item SideNav.stringKeys { key = "b", label = "Short", href = Demo.href "b" }
+        , SideNav.item Ids.string { key = "b", label = "Short", href = Demo.href "b" }
             |> SideNav.withIcon Icon.tag
             |> SideNav.withBadge (Badge.view [ Badge.tone Warning, Badge.size Small ] "Overdue")
-        , SideNav.group SideNav.stringKeys
+        , SideNav.group Ids.string
             { key = "g", label = "A group with a rather long name too" }
-            [ SideNav.item SideNav.stringKeys { key = "g1", label = "A sub-entry with a name as long as the rest", href = Demo.href "g1" } ]
+            [ SideNav.item Ids.string { key = "g1", label = "A sub-entry with a name as long as the rest", href = Demo.href "g1" } ]
             |> SideNav.withIcon Icon.folder
         ]
     ]

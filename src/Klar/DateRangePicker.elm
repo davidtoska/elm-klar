@@ -1328,7 +1328,7 @@ view toMsg attributes (State s) =
             [ Html.div
                 [ Internal.cls
                     [ "klar-input"
-                    , "klar-input--" ++ Theme.sizeSuffix config.size
+                    , "klar-input--" ++ Internal.sizeSuffix config.size
                     , "klar-daterange__box"
                     , if field.error /= Nothing then
                         "klar-input--invalid"

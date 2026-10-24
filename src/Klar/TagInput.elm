@@ -699,7 +699,7 @@ view toMsg attributes (State state) =
               Keyed.node "div"
                 ([ Internal.cls
                     [ "klar-input"
-                    , "klar-input--" ++ Theme.sizeSuffix config.size
+                    , "klar-input--" ++ Internal.sizeSuffix config.size
                     , "klar-taginput"
                     , if field.error /= Nothing then
                         "klar-input--invalid"

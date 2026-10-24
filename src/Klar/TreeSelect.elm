@@ -22,9 +22,9 @@ See also [Klar.Select](Klar-Select), [Klar.MultiSelect](Klar-MultiSelect),
     import Klar.TreeSelect as TreeSelect
 
     -- how a SiteId is written as a key, once
-    siteIds : Picking.Ids SiteId
+    siteIds : Ids SiteId
     siteIds =
-        Picking.ids SiteId.toString
+        Ids.make { toKey = SiteId.toString, fromKey = SiteId.fromString }
 
     -- model: one State per field; the String is a DOM id, unique on the page
     type alias Model =
@@ -169,10 +169,11 @@ import Klar.Button as Button
 import Klar.Checkbox as Checkbox
 import Klar.Field as Field
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Picking as Picking exposing (Ids, Node)
+import Klar.Picking as Picking exposing (Node)
 import Klar.Picking.Cover as Cover exposing (Check(..))
 import Klar.Picking.Index as Index exposing (Index, Kids(..), Row(..))
 import Klar.Picking.Texts as Texts exposing (Texts)
@@ -370,7 +371,7 @@ when the node may not be among them (it is inside a branch that is not loaded).
 -}
 setValue : Ids id -> id -> State Single id -> State Single id
 setValue ids id (State data) =
-    State (refreshCached (replaceChosen [ { id = id, key = Picking.toKey ids id, label = Nothing } ] data))
+    State (refreshCached (replaceChosen [ { id = id, key = Ids.toKey ids id, label = Nothing } ] data))
 
 
 {-| Chooses a node of a single field and remembers its label, so the field shows
@@ -398,7 +399,7 @@ setValues : Ids id -> List id -> State Multiple id -> State Multiple id
 setValues ids ids_ (State data) =
     State
         (refreshCached
-            (normalizeCover (replaceChosen (List.map (\id -> { id = id, key = Picking.toKey ids id, label = Nothing }) ids_) data))
+            (normalizeCover (replaceChosen (List.map (\id -> { id = id, key = Ids.toKey ids id, label = Nothing }) ids_) data))
         )
 
 
@@ -1921,7 +1922,7 @@ viewControl toMsg config field t env data =
 
         controlClasses =
             [ "klar-input"
-            , "klar-input--" ++ Theme.sizeSuffix config.size
+            , "klar-input--" ++ Internal.sizeSuffix config.size
             , "klar-select__control"
             , if data.multiple then
                 "klar-select__control--multi"
@@ -2121,8 +2122,8 @@ viewMultipleControl toMsg config t data controlClasses triggerAttributes openMsg
                 [ Html.span
                     [ Internal.cls
                         [ "klar-tag"
-                        , "klar-tag--" ++ Theme.toneSuffix Neutral
-                        , "klar-tag--" ++ Theme.sizeSuffix tagSize
+                        , "klar-tag--" ++ Internal.toneSuffix Neutral
+                        , "klar-tag--" ++ Internal.sizeSuffix tagSize
                         ]
                     ]
                     [ Html.span [ Internal.cls [ "klar-tag__label" ] ] [ Html.text (t.selected count) ]

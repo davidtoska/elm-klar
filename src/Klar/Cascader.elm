@@ -150,10 +150,11 @@ import Klar.Button as Button
 import Klar.Cascader.Columns as Columns exposing (Cell(..), Column)
 import Klar.Field as Field
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Picking as Picking exposing (Ids, Node)
+import Klar.Picking as Picking exposing (Node)
 import Klar.Picking.Index as Index exposing (Index, Kids(..))
 import Klar.Picking.Texts as Texts exposing (Texts)
 import Klar.Picking.View as View
@@ -305,7 +306,7 @@ value.
 -}
 setValue : Ids id -> List id -> State id -> State id
 setValue ids path (State data) =
-    State (refreshCached { data | path = List.map (\id -> { id = id, key = Picking.toKey ids id, label = Nothing }) path })
+    State (refreshCached { data | path = List.map (\id -> { id = id, key = Ids.toKey ids id, label = Nothing }) path })
 
 
 {-| Chooses a path of nodes and remembers their labels, so the field shows the
@@ -1883,7 +1884,7 @@ viewControl toMsg config field t env data =
     Html.div
         [ Internal.cls
             [ "klar-input"
-            , "klar-input--" ++ Theme.sizeSuffix config.size
+            , "klar-input--" ++ Internal.sizeSuffix config.size
             , "klar-select__control"
             , if field.error /= Nothing then
                 "klar-input--invalid"

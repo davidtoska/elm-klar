@@ -16,6 +16,7 @@ disabled), and a few fixed ones.
 
 import Dict exposing (Dict)
 import Fuzz exposing (Fuzzer)
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Picking as Picking exposing (Node)
 import Klar.Picking.Index as Index exposing (Index)
 import Klar.Remote as Remote
@@ -69,7 +70,7 @@ nodesOf spec =
                     "n" ++ String.fromInt i
 
                 base =
-                    Picking.branch Picking.stringIds name ("Node " ++ String.fromInt i) (List.map build kids)
+                    Picking.branch Ids.string name ("Node " ++ String.fromInt i) (List.map build kids)
             in
             if Dict.get i disabledAt == Just True then
                 Picking.disabled base
@@ -97,7 +98,7 @@ cities : List (Node String)
 cities =
     let
         ids =
-            Picking.stringIds
+            Ids.string
     in
     [ Picking.branch ids
         "europe"
@@ -120,7 +121,7 @@ cities =
 wide : Int -> List (Node String)
 wide n =
     List.range 1 n
-        |> List.map (\i -> Picking.leaf Picking.stringIds ("w" ++ String.fromInt i) ("Warehouse " ++ String.fromInt i))
+        |> List.map (\i -> Picking.leaf Ids.string ("w" ++ String.fromInt i) ("Warehouse " ++ String.fromInt i))
 
 
 {-| A node and everything below it, parents before children.

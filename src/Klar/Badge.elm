@@ -141,9 +141,9 @@ view attributes label =
     Html.span
         [ Internal.cls
             [ "klar-badge"
-            , "klar-badge--" ++ Theme.toneSuffix config.tone
+            , "klar-badge--" ++ Internal.toneSuffix config.tone
             , "klar-badge--" ++ styleSuffix config.style
-            , "klar-badge--" ++ Theme.sizeSuffix config.size
+            , "klar-badge--" ++ Internal.sizeSuffix config.size
             ]
         ]
         [ Internal.viewIf config.dot (Html.span [ Internal.cls [ "klar-badge__dot" ] ] [])
@@ -160,7 +160,7 @@ and lists, where a column of boxes would be noisy.
 -}
 status : Tone -> String -> Html msg
 status value label =
-    Html.span [ Internal.cls [ "klar-status", "klar-status--" ++ Theme.toneSuffix value ] ]
+    Html.span [ Internal.cls [ "klar-status", "klar-status--" ++ Internal.toneSuffix value ] ]
         [ Html.span [ Internal.cls [ "klar-status__dot" ] ] []
         , Html.span [ Internal.cls [ "klar-status__label" ], Internal.attrIf (String.length label > 24) (Attr.title label) ] [ Html.text label ]
         ]

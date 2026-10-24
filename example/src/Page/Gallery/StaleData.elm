@@ -22,6 +22,7 @@ import Klar.Chart as Chart
 import Klar.CommandPalette as CommandPalette
 import Klar.Drawer as Drawer
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Modal as Modal
@@ -179,7 +180,7 @@ init =
       , mode = Just Fresh
       , failing = False
       , table = Table.init "stale-orders"
-      , tree = Tree.init "stale-regions" |> Tree.setExpanded Tree.stringIds [ "North", "South" ]
+      , tree = Tree.init "stale-regions" |> Tree.setExpanded Ids.string [ "North", "South" ]
       , select = Select.init "stale-select"
       , multi = MultiSelect.init "stale-multi"
       , auto = Autocomplete.init "stale-auto"
@@ -445,7 +446,7 @@ tableExample settings locale model =
                 , Table.float (Table.columnId "total") "Total" 2 .total []
                 ]
             , Table.rows (Remote.map .orders model.data)
-            , Table.rowId Table.stringIds .id
+            , Table.rowId Ids.string .id
             , Table.onRetry Refresh
             , Table.onRefresh Refresh
             ]
@@ -529,7 +530,7 @@ treeExample settings locale model =
             (Remote.map
                 (\w ->
                     List.map
-                        (\( region, places ) -> Tree.branch Tree.stringIds region region (List.map (\place -> Tree.leaf Tree.stringIds place place) places))
+                        (\( region, places ) -> Tree.branch Ids.string region region (List.map (\place -> Tree.leaf Ids.string place place) places))
                         w.regions
                 )
                 model.data

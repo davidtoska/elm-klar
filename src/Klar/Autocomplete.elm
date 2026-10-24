@@ -1,6 +1,6 @@
 module Klar.Autocomplete exposing
     ( State, init, Msg, update, view
-    , text, setText, picked, isOpen
+    , text, setText, picked, query, isOpen
     , Attribute, options, suggestions, onRetry, onEnter
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale, settings
@@ -47,7 +47,7 @@ Suggestions are options (`Select.Option`, made with `Select.option` and its
 `with*` helpers, see [Klar.Select.Option](Klar-Select-Option)): the label is what
 the field shows when one is picked, and the value is what `picked` returns. They
 are filtered locally (`options`) or come from the application (`suggestions`, a
-`Remote`): then fetch when `Autocomplete.text` changes. The list shows loading
+`Remote`): then fetch when `Autocomplete.query` changes (it waits for a pause in the typing). The list shows loading
 rows, a failure with a retry button, or "No suggestions".
 
 Keyboard: typing shows the suggestions with none highlighted, so Enter keeps the
@@ -70,7 +70,7 @@ follow `locale` and are English by default (see [Klar.Locale](Klar-Locale)).
 
 # Value
 
-@docs text, setText, picked, isOpen
+@docs text, setText, picked, query, isOpen
 
 
 # Attributes
@@ -110,6 +110,8 @@ import Klar.Settings as Settings exposing (Settings)
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..))
 import Klar.VirtualList as VirtualList
+import Process
+import Task
 
 
 
@@ -124,6 +126,8 @@ type State
     = State
         { id : String
         , text : String
+        , searched : String
+        , wait : Int
         , picked : Maybe String
         , open : Bool
         , highlighted : Maybe Int
@@ -144,6 +148,8 @@ init id =
     State
         { id = id
         , text = ""
+        , searched = ""
+        , wait = 0
         , picked = Nothing
         , open = False
         , highlighted = Nothing
@@ -153,11 +159,25 @@ init id =
 
 
 {-| What is in the field: what the user typed, or the label of the suggestion
-they picked. With `suggestions` from a backend, fetch when it changes.
+they picked. With `suggestions` from a backend, fetch when `query` changes.
 -}
 text : State -> String
 text (State state) =
     state.text
+
+
+{-| The text to fetch `suggestions` for: it follows `text` after a pause of 300 ms in
+the typing (at once when a suggestion is picked, the field is cleared or `setText` is
+called), so **write no debounce of your own**. Fetch when it changes, and drop an
+answer whose text is no longer the current `query`.
+
+    if Autocomplete.query city /= Autocomplete.query model.city then
+        fetchCities (Autocomplete.query city)
+
+-}
+query : State -> String
+query (State state) =
+    state.searched
 
 
 {-| Replaces the text, for example to show a saved value. It clears `picked` and
@@ -168,7 +188,7 @@ closes the list.
 -}
 setText : String -> State -> State
 setText newText (State state) =
-    State { state | text = newText, picked = Nothing, open = False, highlighted = Nothing }
+    State { state | text = newText, searched = newText, picked = Nothing, open = False, highlighted = Nothing }
 
 
 {-| The value of the suggestion the text came from, or `Nothing` when the text is
@@ -213,6 +233,7 @@ type Msg
     | Close
     | Clear
     | ListMsg VirtualList.Msg
+    | Settle Int
     | NoOp
 
 
@@ -227,7 +248,7 @@ message type with `Cmd.map`.
         in
         ( { model | city = city }, Cmd.map CityMsg cmd )
 
-With `suggestions`, compare `Autocomplete.text` before and after to see when to
+With `suggestions`, compare `Autocomplete.query` before and after to see when to
 fetch.
 
 -}
@@ -247,12 +268,16 @@ update msg ((State state) as current) =
                     , highlighted = Nothing
                     , list = list
                     , cache = Just (Popup.refresh state.cache env newText)
+                    , wait = state.wait + 1
                 }
-            , if state.open then
-                Cmd.map ListMsg scroll
+            , Cmd.batch
+                [ if state.open then
+                    Cmd.map ListMsg scroll
 
-              else
-                Cmd.none
+                  else
+                    Cmd.none
+                , Process.sleep 300 |> Task.perform (\_ -> Settle (state.wait + 1))
+                ]
             )
 
         Blurred ->
@@ -289,7 +314,7 @@ update msg ((State state) as current) =
             ( State { state | highlighted = Just index }, Cmd.none )
 
         Pick opt ->
-            ( State { state | text = opt.label, picked = Just opt.value, open = False, highlighted = Nothing }, Cmd.none )
+            ( State { state | text = opt.label, searched = opt.label, picked = Just opt.value, open = False, highlighted = Nothing }, Cmd.none )
 
         Commit env ->
             let
@@ -315,9 +340,16 @@ update msg ((State state) as current) =
             ( State { state | open = False, highlighted = Nothing }, Cmd.none )
 
         Clear ->
-            ( State { state | text = "", picked = Nothing, open = False, highlighted = Nothing }
+            ( State { state | text = "", searched = "", picked = Nothing, open = False, highlighted = Nothing }
             , Internal.focus state.id NoOp
             )
+
+        Settle ticket ->
+            if ticket == state.wait then
+                ( State { state | searched = state.text }, Cmd.none )
+
+            else
+                ( current, Cmd.none )
 
         ListMsg inner ->
             let
@@ -410,7 +442,7 @@ options list =
 {-| Suggestions from the application, usually the backend, as a `Remote` (see
 [Klar.Remote](Klar-Remote)). They are shown exactly as they come and the
 component does not filter them; the typed text is highlighted in them. Fetch
-when `Autocomplete.text` changes. The list is hidden while the data is
+when `Autocomplete.query` changes. The list is hidden while the data is
 `NotAsked`, shows loading rows (and a spinner in the field) while `Loading`, an
 error on `Failed` (see `onRetry`), and "No suggestions" on `Loaded []`.
 Suggestions that are `Kept` stay in the list: dimmed and busy while they are
@@ -869,7 +901,7 @@ view toMsg attributes (State state) =
             [ Html.div
                 [ Internal.cls
                     [ "klar-input"
-                    , "klar-input--" ++ Theme.sizeSuffix config.size
+                    , "klar-input--" ++ Internal.sizeSuffix config.size
                     , if field.error /= Nothing then
                         "klar-input--invalid"
 
@@ -956,7 +988,7 @@ hasSomething config =
 
 
 viewPopup : (Msg -> msg) -> Config msg -> Popup.Texts -> String -> VirtualList.State -> Maybe Int -> String -> Maybe msg -> Content -> Html msg
-viewPopup toMsg config t id list highlighted query retry content =
+viewPopup toMsg config t id list highlighted typed retry content =
     let
         popup children =
             Html.div
@@ -992,7 +1024,7 @@ viewPopup toMsg config t id list highlighted query retry content =
             let
                 rowConfig =
                     { idBase = id
-                    , query = query
+                    , query = typed
                     , highlighted = highlighted
                     , setSize = rows.optionRows
                     , indicator = Popup.NoIndicator

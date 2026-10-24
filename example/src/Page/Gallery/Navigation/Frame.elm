@@ -20,6 +20,7 @@ import Klar.Button as Button
 import Klar.Card as Card
 import Klar.DescriptionList as DescriptionList
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Menu as Menu
@@ -119,7 +120,7 @@ update msg model =
             else
                 -- Opening: the links come after the whole top bar, so the keyboard
                 -- goes to the link of the current page.
-                ( { model | drawerOpen = True }, SideNav.focusLink SideNav.stringKeys model.page model.nav NoOp )
+                ( { model | drawerOpen = True }, SideNav.focusLink Ids.string model.page model.nav NoOp )
 
         CloseDrawer ->
             -- Closing: the links can no longer hold focus; the menu button gets it.
@@ -575,13 +576,13 @@ sideNavCode =
 menu : List (SideNav.Entry String msg)
 menu =
     [ SideNav.section "Workspace"
-        [ SideNav.item SideNav.stringKeys { key = "overview", label = "Overview", href = "#/" }
+        [ SideNav.item Ids.string { key = "overview", label = "Overview", href = "#/" }
             |> SideNav.withIcon Icon.home
-        , SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
+        , SideNav.item Ids.string { key = "orders", label = "Orders", href = "#/orders" }
             |> SideNav.withIcon Icon.clipboardCheck
             |> SideNav.withCount 12
-        , SideNav.group SideNav.stringKeys { key = "reports", label = "Reports" }
-            [ SideNav.item SideNav.stringKeys { key = "monthly", label = "Monthly report", href = "#/reports/monthly" } ]
+        , SideNav.group Ids.string { key = "reports", label = "Reports" }
+            [ SideNav.item Ids.string { key = "monthly", label = "Monthly report", href = "#/reports/monthly" } ]
             |> SideNav.withIcon Icon.barChart
         ]
     ]

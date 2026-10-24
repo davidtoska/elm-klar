@@ -410,7 +410,7 @@ view toMsg attributes content (State state) =
                 ""
 
               else
-                "klar-split--" ++ Theme.sizeSuffix config.size
+                "klar-split--" ++ Internal.sizeSuffix config.size
             , if config.loading then
                 "klar-split--loading"
 

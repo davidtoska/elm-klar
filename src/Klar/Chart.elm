@@ -1,7 +1,7 @@
 module Klar.Chart exposing
     ( line, bar, donut, gauge, meter, sparkline
-    , Series, series, seriesMaybe, withColor, withTone, dashed
-    , Segment, segment, segmentColor, segmentTone
+    , Series, series, seriesMaybe, withSlot, withTone, dashed
+    , Segment, segment, segmentSlot, segmentTone
     , Attribute, title, description, ariaLabel, id, size, height, tone, locale, settings, unit, valueFormat
     , categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
     , centerLabel, centerCaption, range, thresholds
@@ -66,7 +66,7 @@ sparkline is an image labelled with a summary of its numbers; give it an
 on hover. Tooltips enhance, they never gate.
 
 Series get the colors of an eight-color palette in the order you give them, and
-the palette starts over after eight. Use `withColor` to pin a series to a slot,
+the palette starts over after eight. Use `withSlot` to pin a series to a slot,
 so that its color does not change when other series come and go. A series that
 means good or bad should say so with `withTone`: the status colors are reserved
 for that.
@@ -84,12 +84,12 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Series
 
-@docs Series, series, seriesMaybe, withColor, withTone, dashed
+@docs Series, series, seriesMaybe, withSlot, withTone, dashed
 
 
 # Segments
 
-@docs Segment, segment, segmentColor, segmentTone
+@docs Segment, segment, segmentSlot, segmentTone
 
 
 # Attributes
@@ -135,7 +135,7 @@ import Klar.Theme as Theme exposing (Tone(..))
 
 
 {-| A named row of values, one per category: the data of a line or bar chart.
-Make one with `series` or `seriesMaybe`, adjust it with `withColor`, `withTone`
+Make one with `series` or `seriesMaybe`, adjust it with `withSlot`, `withTone`
 and `dashed`, and pass a list of them to `line` or `bar`.
 -}
 type Series
@@ -149,7 +149,7 @@ type Series
 
 
 {-| One slice of a donut. Make one with `segment`, adjust it with
-`segmentColor` and `segmentTone`, and pass a list of them to `donut`.
+`segmentSlot` and `segmentTone`, and pass a list of them to `donut`.
 -}
 type Segment
     = Segment
@@ -186,13 +186,14 @@ seriesMaybe name values =
 
 
 {-| Gives the series palette slot 1 to 8 instead of the slot that matches its
-position in the list. Use it to keep a color stable when series come and go.
+position in the list. A slot is a place in the chart palette of the theme, not a
+[Klar.Color](Klar-Color): a chart has no colors of your own, so it keeps its contrast. Use it to keep a color stable when series come and go.
 
-    Chart.series "Returns" [ 2, 3, 1 ] |> Chart.withColor 4
+    Chart.series "Returns" [ 2, 3, 1 ] |> Chart.withSlot 4
 
 -}
-withColor : Int -> Series -> Series
-withColor slot (Series s) =
+withSlot : Int -> Series -> Series
+withSlot slot (Series s) =
     Series { s | color = Just slot }
 
 
@@ -228,10 +229,10 @@ segment label value =
 
 
 {-| Gives this slice palette slot 1 to 8 instead of the slot that matches its
-position in the list.
+position in the list (see `withSlot`).
 -}
-segmentColor : Int -> Segment -> Segment
-segmentColor slot (Segment s) =
+segmentSlot : Int -> Segment -> Segment
+segmentSlot slot (Segment s) =
     Segment { s | color = Just slot }
 
 
@@ -349,7 +350,7 @@ configure attributes =
 {-| The DOM id of the chart, which then sits in an element that can take focus
 in every state (loading, failed, old data, drawn). The "Try again" button is
 replaced when the request starts again and focus would fall back to the page: call
-[`RemoteView.focus`](Klar-RemoteView#focus) with this id in the same `update`
+[`Klar.focus`](Klar#focus) with this id in the same `update`
 branch. The id must be unique on the page.
 -}
 id : String -> Attribute msg
@@ -978,7 +979,7 @@ colorClass chartTone index slot seriesTone =
 
 toneClass : Tone -> String
 toneClass t =
-    "klar-chart-t-" ++ Theme.toneSuffix t
+    "klar-chart-t-" ++ Internal.toneSuffix t
 
 
 valueAt : Int -> PSeries -> Maybe Float

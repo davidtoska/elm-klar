@@ -519,7 +519,7 @@ view toMsg attributes (State state) =
         (Html.div
             [ Internal.cls
                 [ "klar-input"
-                , "klar-input--" ++ Theme.sizeSuffix config.size
+                , "klar-input--" ++ Internal.sizeSuffix config.size
                 , "klar-search"
                 , if field.error /= Nothing then
                     "klar-input--invalid"

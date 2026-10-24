@@ -14,6 +14,7 @@ which removes the decision so that the cell inherits again.
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar
 import Klar.ApprovalFlow as ApprovalFlow
 import Klar.Avatar as Avatar
 import Klar.Button as Button
@@ -589,7 +590,7 @@ update msg model =
                 Just user ->
                     ( { model | users = Dict.insert (userKey user) { verdict = verdict, at = time, comment = comment } model.users }
                       -- the buttons that had focus leave with the decision
-                    , ApprovalFlow.focus creditNoteId FlowFocused
+                    , Klar.focus creditNoteId FlowFocused
                     )
 
                 Nothing ->
@@ -930,7 +931,7 @@ ApprovalFlow.pendingApprovers flow
 -- the buttons leave with the decision, so give the focus to the flow in the same update
 Decided ->
     ( { model | flow = record model.me model.flow }
-    , ApprovalFlow.focus "credit-note-flow" NoOp
+    , Klar.focus "credit-note-flow" NoOp
     )"""
 
 

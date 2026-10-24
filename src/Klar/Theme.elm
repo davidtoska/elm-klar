@@ -3,7 +3,6 @@ module Klar.Theme exposing
     , klar, ocean, teal, indigo, violet, plum, slate, graphite, sand, contrast
     , all, name, key, fromKey, style
     , Tone(..), Size(..), Density(..)
-    , toneSuffix, sizeSuffix, densitySuffix
     )
 
 {-| The look of the application: ten themes, each in a light and a dark mode, and
@@ -98,15 +97,6 @@ of `css/klar.css` in the source of the package.
 # Tones, sizes and density
 
 @docs Tone, Size, Density
-
-
-# Building your own components
-
-Not for an application built with Klar, which uses no class names: a page outside
-Klar's components that must match them can use the modifier names of its stylesheet: `"klar-badge--" ++ toneSuffix
-Success` is `"klar-badge--success"`.
-
-@docs toneSuffix, sizeSuffix, densitySuffix
 
 -}
 
@@ -317,62 +307,3 @@ type Density
     = Compact
     | Normal
     | Comfortable
-
-
-{-| The modifier of a tone in the class names of the stylesheet.
-
-    Theme.toneSuffix Warning -- "warning"
-
--}
-toneSuffix : Tone -> String
-toneSuffix tone =
-    case tone of
-        Neutral ->
-            "neutral"
-
-        Primary ->
-            "primary"
-
-        Info ->
-            "info"
-
-        Success ->
-            "success"
-
-        Warning ->
-            "warning"
-
-        Danger ->
-            "danger"
-
-
-{-| The modifier of a size in the class names of the stylesheet: `"sm"`, `"md"`
-or `"lg"`.
--}
-sizeSuffix : Size -> String
-sizeSuffix size =
-    case size of
-        Small ->
-            "sm"
-
-        Medium ->
-            "md"
-
-        Large ->
-            "lg"
-
-
-{-| The modifier of a density in the class names of the stylesheet:
-`"compact"`, `"normal"` or `"comfortable"`.
--}
-densitySuffix : Density -> String
-densitySuffix density =
-    case density of
-        Compact ->
-            "compact"
-
-        Normal ->
-            "normal"
-
-        Comfortable ->
-            "comfortable"

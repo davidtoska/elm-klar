@@ -272,7 +272,8 @@ query : State id -> String
 ```
 
 The text in the search box while the list is open, and `""` when it is
-closed. With `serverSearch`, fetch when it changes.
+closed. With `serverSearch`, fetch when it changes: it then follows the box after a
+pause of 300 ms in the typing, so it does not change on every key.
 
 ### `isOpen`
 
@@ -485,8 +486,11 @@ serverSearch : Attribute id msg
 
 The server does the searching. The select shows the options exactly as they
 come and does not filter them; the application fetches when `Select.query`
-changes. While the options are `NotAsked` (nothing fetched yet, or a text too
-short to search for) the list says "Type to search".
+changes. `query` waits for a pause of 300 ms in the typing (an empty text comes at
+once), so **write no debounce of your own**. Answers can still come back out of order:
+send the query with the request and drop an answer whose query is no longer
+`Select.query model.country`. While the options are `NotAsked` (nothing fetched yet, or
+a text too short to search for) the list says "Type to search".
 
     -- in update
     CountryMsg inner ->

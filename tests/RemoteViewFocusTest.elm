@@ -1,7 +1,7 @@
 module RemoteViewFocusTest exposing (suite)
 
 {-| `RemoteView.id` draws one element that can take focus in every state, so that
-`RemoteView.focus` has a place to put it after "Try again". And the pattern for a page that
+`Klar.focus` has a place to put it after "Try again". And the pattern for a page that
 is only a `RemoteView`: the page title is drawn outside the body, so there is one `h1` in
 every state.
 -}
@@ -9,6 +9,7 @@ every state.
 import Expect
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.RemoteView as RemoteView

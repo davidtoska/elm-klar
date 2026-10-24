@@ -24,6 +24,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Chart as Chart
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.Remote as Remote
 import Klar.Stat as Stat
@@ -129,7 +130,7 @@ nodeLabel id =
 
 leaves : List (Tree.Node String)
 leaves =
-    List.map (\id -> Tree.leaf Tree.stringIds id (nodeLabel id)) awkwardIds
+    List.map (\id -> Tree.leaf Ids.string id (nodeLabel id)) awkwardIds
 
 
 start : Tree.State String
@@ -291,7 +292,7 @@ treeIdTests =
                         let
                             tricky =
                                 [ "x", "x_row", "x.row", "x-row", "x_95_row", "a", "a_" ]
-                                    |> List.map (\id -> Tree.leaf Tree.stringIds id (nodeLabel id))
+                                    |> List.map (\id -> Tree.leaf Ids.string id (nodeLabel id))
 
                             html =
                                 treeHtml start tricky |> Query.fromHtml
@@ -343,13 +344,13 @@ treeKeyTests =
                     \_ ->
                         clickRow start leaves (nodeLabel "dir/row")
                             |> Result.andThen (\state -> pressAndUpdate state leaves (itemId "dir/row") "End")
-                            |> Result.map (Tree.focused Tree.stringIds)
+                            |> Result.map (Tree.focused Ids.string)
                             |> Expect.equal (Ok (Just "plain"))
                , test "Home jumps back to the first node" <|
                     \_ ->
                         clickRow start leaves (nodeLabel "plain")
                             |> Result.andThen (\state -> pressAndUpdate state leaves (itemId "plain") "Home")
-                            |> Result.map (Tree.focused Tree.stringIds)
+                            |> Result.map (Tree.focused Ids.string)
                             |> Expect.equal (Ok (Just "orders.row"))
                , test "a key from a control that has no id (a button in the tree) is not a key of the tree" <|
                     \_ ->
@@ -391,13 +392,13 @@ arrowTests =
                 \_ ->
                     clickRow start leaves (nodeLabel from)
                         |> Result.andThen (\state -> pressAndUpdate state leaves (itemId from) "ArrowDown")
-                        |> Result.map (Tree.focused Tree.stringIds)
+                        |> Result.map (Tree.focused Ids.string)
                         |> Expect.equal (Ok (Just to))
             , test ("ArrowUp moves from " ++ to ++ " to " ++ from) <|
                 \_ ->
                     clickRow start leaves (nodeLabel to)
                         |> Result.andThen (\state -> pressAndUpdate state leaves (itemId to) "ArrowUp")
-                        |> Result.map (Tree.focused Tree.stringIds)
+                        |> Result.map (Tree.focused Ids.string)
                         |> Expect.equal (Ok (Just from))
             ]
         )
@@ -410,11 +411,11 @@ arrowTests =
 
 family : List (Tree.Node String)
 family =
-    [ Tree.branch Tree.stringIds
+    [ Tree.branch Ids.string
         "dir/row"
         "Dir"
-        [ Tree.leaf Tree.stringIds "dir/row/a.row" "Child A"
-        , Tree.leaf Tree.stringIds "dir/row/b_row" "Child B"
+        [ Tree.leaf Ids.string "dir/row/a.row" "Child A"
+        , Tree.leaf Ids.string "dir/row/b_row" "Child B"
         ]
     ]
 
@@ -426,13 +427,13 @@ treeNestedTests =
             \_ ->
                 clickRow start family "Dir"
                     |> Result.andThen (\state -> play family state [ ( "dir/row", "ArrowRight" ) ])
-                    |> Result.map (Tree.isExpanded Tree.stringIds "dir/row")
+                    |> Result.map (Tree.isExpanded Ids.string "dir/row")
                     |> Expect.equal (Ok True)
         , test "ArrowDown then goes into the branch" <|
             \_ ->
                 clickRow start family "Dir"
                     |> Result.andThen (\state -> play family state [ ( "dir/row", "ArrowRight" ), ( "dir/row", "ArrowDown" ) ])
-                    |> Result.map (Tree.focused Tree.stringIds)
+                    |> Result.map (Tree.focused Ids.string)
                     |> Expect.equal (Ok (Just "dir/row/a.row"))
         , test "ArrowLeft on a child goes back to the parent" <|
             \_ ->
@@ -446,7 +447,7 @@ treeNestedTests =
                                 , ( "dir/row/a.row", "ArrowLeft" )
                                 ]
                         )
-                    |> Result.map (Tree.focused Tree.stringIds)
+                    |> Result.map (Tree.focused Ids.string)
                     |> Expect.equal (Ok (Just "dir/row"))
         , test "ArrowLeft on the open parent closes it" <|
             \_ ->
@@ -459,7 +460,7 @@ treeNestedTests =
                                 , ( "dir/row", "ArrowLeft" )
                                 ]
                         )
-                    |> Result.map (Tree.isExpanded Tree.stringIds "dir/row")
+                    |> Result.map (Tree.isExpanded Ids.string "dir/row")
                     |> Expect.equal (Ok False)
         , test "a child with an awkward id can be walked to and activated" <|
             \_ ->
@@ -499,7 +500,7 @@ treePropertyTests =
             \id ->
                 let
                     nodes =
-                        [ Tree.leaf Tree.stringIds id "Only node" ]
+                        [ Tree.leaf Ids.string id "Only node" ]
                 in
                 clickRow start nodes "Only node"
                     |> Result.andThen (\state -> press state nodes (itemId id) "Enter")
@@ -512,7 +513,7 @@ treePropertyTests =
                 else
                     let
                         html =
-                            treeHtml start [ Tree.leaf Tree.stringIds first "First", Tree.leaf Tree.stringIds second "Second" ]
+                            treeHtml start [ Tree.leaf Ids.string first "First", Tree.leaf Ids.string second "Second" ]
                                 |> Query.fromHtml
                     in
                     Expect.all

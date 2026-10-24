@@ -9,7 +9,7 @@ What is in it:
 |---|---|
 | `Browser.application` whose `onUrlRequest` and `onUrlChange` go to `AppShell` (hash routes) | `src/Main.elm` |
 | `AppShell` keeps the key, the sidebar, the drawer and the focus; `update` returns the address, the one place that learns of a new route | `ShellMsg` in `update` |
-| `SideNav` typed by the application's own `Page` (`SideNav.keys`) | `pageKeys`, `navigation` |
+| `SideNav` typed by the application's own `Page` (`Ids.list`) | `pageKeys`, `navigation` |
 | Two pages (`Orders`, `Settings`) chosen by `pageFromUrl` | `viewPage` |
 | A `Remote` from a backend stand-in, drawn by `Table` (loading, failure with retry, empty) | `fetchOrders`, `GotOrders` |
 | The `Klar.Settings` of the application (density and time zone, `Time.here` at the start), given to `AppShell.settings` and `Table.settings` | `settings`, `GotZone` |

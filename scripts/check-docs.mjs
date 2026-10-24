@@ -142,7 +142,7 @@ if (staticProblems.length > 0) {
 
 // Mistakes that were once found in the docs, as text patterns that can only be wrong:
 // a column id is a `Table.ColumnId` (never a string), a `SideNav` entry needs its
-// `Keys` first, and `Remote` has `Loaded` and `Failed` (`Success` is a `Theme.Tone`).
+// `Ids` first, and `Remote` has `Loaded` and `Failed` (`Success` is a `Theme.Tone`).
 // Compiling every example is a later task (ROADMAP A1).
 const KNOWN_BAD = [
   {
@@ -151,7 +151,7 @@ const KNOWN_BAD = [
   },
   {
     pattern: /\bSideNav\.(item|group)\s+\{/,
-    message: 'SideNav.item or SideNav.group with a record as the first argument: they take the Keys first (SideNav.stringKeys)',
+    message: 'SideNav.item or SideNav.group with a record as the first argument: they take the Ids first (Ids.string)',
   },
   {
     pattern: /\bRemote\.(Success|Failure)\b/,

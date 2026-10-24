@@ -18,14 +18,14 @@ view : (Msg id -> msg) -> List (Attribute id msg) -> State id -> Html msg
 
 -- Value
 values : State id -> List id
-setValues : Picking.Ids id -> List id -> State id -> State id
+setValues : Ids.Ids id -> List id -> State id -> State id
 clear : State id -> State id
 
 -- Attributes
 type Attribute id msg  -- opaque: no constructors are exposed
 type Order  -- opaque: no constructors are exposed
-options : Picking.Ids id -> List (Select.Option.Option id) -> Attribute id msg
-remote : Picking.Ids id -> Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
+options : Ids.Ids id -> List (Select.Option.Option id) -> Attribute id msg
+remote : Ids.Ids id -> Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
 onRetry : msg -> Attribute id msg
 titles : { available : String, chosen : String } -> Attribute id msg
 sourceOrder : Order
@@ -94,7 +94,7 @@ See also [Klar.MultiSelect](Klar.MultiSelect.md) and [Klar.TreeSelect](Klar.Tree
 The items are [Klar.Select](Klar.Select.md) options (see
 [Klar.Select.Option](Klar.Select.Option.md)): a value of your own id type, a label, an
 optional description, and `disabledOption` for an item that cannot be moved.
-Ids are compared through their key (see `Picking.ids` in
+Ids are compared through their key (see `Ids.make` in
 [Klar.Picking](Klar.Picking.md)), which keeps thousands of items fast. As in every
 Klar field, the state holds the value and there are no out-messages: compare
 `Transfer.values` before and after `update` to react.
@@ -231,7 +231,7 @@ The chosen ids: in the order of the source (or the order of moving, see
 ### `setValues`
 
 ```elm
-setValues : Picking.Ids id -> List id -> State id -> State id
+setValues : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Replaces the chosen ids from your code, for example to show a saved record.
@@ -274,7 +274,7 @@ In which order the chosen ids are kept, given to `order`. It is one of
 ### `options`
 
 ```elm
-options : Picking.Ids id -> List (Select.Option.Option id) -> Attribute id msg
+options : Ids.Ids id -> List (Select.Option.Option id) -> Attribute id msg
 ```
 
 The items to choose from, as options of [Klar.Select](Klar.Select.md), with the
@@ -289,7 +289,7 @@ the same key the first one is used.
 ### `remote`
 
 ```elm
-remote : Picking.Ids id -> Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
+remote : Ids.Ids id -> Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
 ```
 
 The items from the backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)).

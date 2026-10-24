@@ -4,7 +4,7 @@ A tree view for hierarchies: regions and warehouses, folders, product categories
 
 Import: `import Klar.Tree as Tree` | Group: Tables and lists
 
-Types: `Ids`, `Msg`, `Node`, `State`, `Attribute`
+Types: `Msg`, `Node`, `State`, `Attribute`
 
 ## Signatures
 
@@ -20,10 +20,10 @@ viewRemote :
 
 -- Nodes
 type Node id  -- opaque: no constructors are exposed
-leaf : Ids id -> id -> String -> Node id
-branch : Ids id -> id -> String -> List (Node id) -> Node id
-lazy : Ids id -> id -> String -> Remote.Remote (List (Node id)) -> Node id
-unloaded : Ids id -> id -> String -> Node id
+leaf : Ids.Ids id -> id -> String -> Node id
+branch : Ids.Ids id -> id -> String -> List (Node id) -> Node id
+lazy : Ids.Ids id -> id -> String -> Remote.Remote (List (Node id)) -> Node id
+unloaded : Ids.Ids id -> id -> String -> Node id
 withIcon : Icon.Icon -> Node id -> Node id
 withCount : Int -> Node id -> Node id
 withBadge : Theme.Tone -> String -> Node id -> Node id
@@ -35,38 +35,34 @@ type State id  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
 init : String -> State id
 update : Msg -> State id -> ( State id, Cmd Msg )
-type Ids id  -- opaque: no constructors are exposed
-nodeIds : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
-stringIds : Ids String
-intIds : Ids Int
 
 -- Open and closed
-expanded : Ids id -> State id -> List id
-isExpanded : Ids id -> id -> State id -> Bool
-setExpanded : Ids id -> List id -> State id -> State id
-expand : Ids id -> id -> State id -> State id
-collapse : Ids id -> id -> State id -> State id
+expanded : Ids.Ids id -> State id -> List id
+isExpanded : Ids.Ids id -> id -> State id -> Bool
+setExpanded : Ids.Ids id -> List id -> State id -> State id
+expand : Ids.Ids id -> id -> State id -> State id
+collapse : Ids.Ids id -> id -> State id -> State id
 expandAll : List (Node id) -> State id -> State id
 collapseAll : State id -> State id
-newlyExpanded : Ids id -> State id -> State id -> List id
+newlyExpanded : Ids.Ids id -> State id -> State id -> List id
 
 -- Selection and checkboxes
-selected : Ids id -> State id -> List id
-selectedId : Ids id -> State id -> Maybe id
-select : Ids id -> id -> State id -> State id
-setSelected : Ids id -> List id -> State id -> State id
-checked : Ids id -> State id -> List id
-setChecked : Ids id -> List id -> State id -> State id
+selected : Ids.Ids id -> State id -> List id
+selectedId : Ids.Ids id -> State id -> Maybe id
+select : Ids.Ids id -> id -> State id -> State id
+setSelected : Ids.Ids id -> List id -> State id -> State id
+checked : Ids.Ids id -> State id -> List id
+setChecked : Ids.Ids id -> List id -> State id -> State id
 clearChecked : State id -> State id
 
 -- Focus and filter
-focused : Ids id -> State id -> Maybe id
-focusNode : Ids id -> State id -> id -> Cmd Msg
+focused : Ids.Ids id -> State id -> Maybe id
+focusNode : Ids.Ids id -> State id -> id -> Cmd Msg
 query : State id -> String
 setQuery : String -> State id -> State id
 
 -- Lazy loading
-loadRequests : Ids id -> Msg -> List id
+loadRequests : Ids.Ids id -> Msg -> List id
 onLoadChildren : (id -> msg) -> Attribute id msg
 onRetry : (id -> msg) -> Attribute id msg
 onReload : msg -> Attribute id msg
@@ -119,9 +115,9 @@ tab stop for the whole tree and is fully usable from the keyboard.
     Tree.view TreeMsg
         [ Tree.ariaLabel "Warehouses", Tree.filterBox ]
         model.tree
-        [ Tree.branch Tree.stringIds "north" "Northern region"
-            [ Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B" |> Tree.withCount 24
-            , Tree.leaf Tree.stringIds "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
+        [ Tree.branch Ids.string "north" "Northern region"
+            [ Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withCount 24
+            , Tree.leaf Ids.string "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
             ]
         ]
 
@@ -133,7 +129,7 @@ Nodes are plain data (`leaf`, `branch`, `lazy`) that you build from your own
 data on every render; the state only remembers what the user did: which nodes
 are open, which are selected or checked, which has the focus, the filter text.
 Read it with `selected`, `expanded`, `checked` and compare before and after an
-update to react (`Tree.selected Tree.stringIds new /= Tree.selected Tree.stringIds old`). There are no
+update to react (`Tree.selected Ids.string new /= Tree.selected Ids.string old`). There are no
 out-messages. The state refers to nodes by id, so every node id must be unique
 in the whole tree.
 
@@ -183,7 +179,7 @@ it in every `view`.
                 Tree.update m model.tree
 
             requests =
-                Tree.loadRequests Tree.stringIds m
+                Tree.loadRequests Ids.string m
         in
         ( { model | tree = tree, regions = markLoading requests model.regions }
         , Cmd.batch (Cmd.map TreeMsg cmd :: List.map fetchChildren requests)
@@ -250,12 +246,12 @@ are plain data: build them from your own data on every render.
 ### `leaf`
 
 ```elm
-leaf : Ids id -> id -> String -> Node id
+leaf : Ids.Ids id -> id -> String -> Node id
 ```
 
 A node without children. The first `String` is the id, the second the label.
 
-    Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B"
+    Tree.leaf Ids.string "wh-3b" "Warehouse 3B"
 
 The id must be unique in the whole tree, not only among its siblings: it is how
 the state remembers what is open, selected and checked, and what the callbacks
@@ -265,13 +261,13 @@ cut with an ellipsis when it does not fit (the full label is the tooltip).
 ### `branch`
 
 ```elm
-branch : Ids id -> id -> String -> List (Node id) -> Node id
+branch : Ids.Ids id -> id -> String -> List (Node id) -> Node id
 ```
 
 A node with children. The arguments are the id, the label and the child
 nodes. The id must be unique in the whole tree.
 
-    Tree.branch Tree.stringIds "north" "Northern region" [ Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B" ]
+    Tree.branch Ids.string "north" "Northern region" [ Tree.leaf Ids.string "wh-3b" "Warehouse 3B" ]
 
 The children are only rendered while the node is open. A branch with an empty
 list of children has no arrow and looks like a leaf; use `lazy` for children that
@@ -280,7 +276,7 @@ you do not have yet.
 ### `lazy`
 
 ```elm
-lazy : Ids id -> id -> String -> Remote.Remote (List (Node id)) -> Node id
+lazy : Ids.Ids id -> id -> String -> Remote.Remote (List (Node id)) -> Node id
 ```
 
 A node whose children come from the backend and are fetched when the node
@@ -288,7 +284,7 @@ is first opened. Until then the `Remote` is `NotAsked`; while the request is on
 its way you pass `Loading`, and then `Loaded` with the children or `Failed`
 with a problem.
 
-    Tree.lazy Tree.stringIds "south" "Southern region" model.southWarehouses
+    Tree.lazy Ids.string "south" "Southern region" model.southWarehouses
 
 See `loadRequests` for how to find out when to fetch. A lazy node always has an
 arrow. When it is open the tree shows a spinner row while the children load, the
@@ -298,13 +294,13 @@ the list is empty.
 ### `unloaded`
 
 ```elm
-unloaded : Ids id -> id -> String -> Node id
+unloaded : Ids.Ids id -> id -> String -> Node id
 ```
 
 A node whose children have not been asked for yet: `lazy` with `NotAsked`.
 The arguments are the id and the label.
 
-    Tree.unloaded Tree.stringIds "south" "Southern region"
+    Tree.unloaded Ids.string "south" "Southern region"
 
 ### `withIcon`
 
@@ -314,7 +310,7 @@ withIcon : Icon.Icon -> Node id -> Node id
 
 An icon in front of the label.
 
-    Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B" |> Tree.withIcon Icon.building
+    Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withIcon Icon.building
 
 ### `withCount`
 
@@ -334,7 +330,7 @@ withBadge : Theme.Tone -> String -> Node id -> Node id
 A small colored label after the label, for a status. The `Tone` (from
 [Klar.Theme](Klar.Theme.md)) sets the color, the `String` is the text.
 
-    Tree.leaf Tree.stringIds "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
+    Tree.leaf Ids.string "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
 
 ### `withHint`
 
@@ -402,60 +398,25 @@ type-ahead letters after a short pause, so map it with `Cmd.map` like any other
 child. To react to what the user did, compare the state before and after.
 
 The `id` of `State id` and `Node id` is the type of your node ids (`Tree.State
-RegionId`). Say once how it is written as a key (see `nodeIds`), and the open,
-selected and checked nodes come back in your own type:
+RegionId`). Say once how it is written as a key, as a [Klar.Ids](Klar.Ids.md), and pass it
+to the node constructors and the functions that speak ids; the open, selected and checked
+nodes come back in your own type:
 
-### `Ids`
+    regions : Ids RegionId
 
-```elm
-type Ids id  -- opaque: no constructors are exposed
-```
-
-How the id type of your nodes (a `RegionId`, a `FolderId`, plain text ...) is
-written as a key and read back. Declare one value for each kind of tree, once,
-and pass it to the node constructors and to the functions that speak ids. The
-tree is typed by the id (`Tree.State RegionId`), so a tree of regions cannot be
-asked about folder ids.
-
-    regions : Tree.Ids RegionId
+    -- import Klar.Ids as Ids exposing (Ids)
     regions =
-        Tree.nodeIds { toKey = RegionId.toString, fromKey = RegionId.fromString }
+        Ids.make { toKey = RegionId.toString, fromKey = RegionId.fromString }
 
-The key is what the tree keeps inside its `State`, so `toKey` must give every id
-its own key and `fromKey` must give the id back. A key `fromKey` rejects (it can
-come from a saved view that holds an old id) is left out of the lists you get.
-The lists are ordered by key, as text.
-
-### `nodeIds`
-
-```elm
-nodeIds : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
-```
-
-Makes the `Ids` of an id type, see there.
-
-### `stringIds`
-
-```elm
-stringIds : Ids String
-```
-
-Ids that are plain text, used as they are.
-
-### `intIds`
-
-```elm
-intIds : Ids Int
-```
-
-Ids that are whole numbers.
+A key `fromKey` rejects (it can come from a saved view that holds an old id) is left out
+of the lists you get. The lists are ordered by key, as text.
 
 ## Open and closed
 
 ### `expanded`
 
 ```elm
-expanded : Ids id -> State id -> List id
+expanded : Ids.Ids id -> State id -> List id
 ```
 
 The ids of the open nodes, in alphabetical order. While a filter is active the
@@ -465,7 +426,7 @@ or closes meanwhile are temporary: they are not recorded here (see `setQuery`).
 ### `isExpanded`
 
 ```elm
-isExpanded : Ids id -> id -> State id -> Bool
+isExpanded : Ids.Ids id -> id -> State id -> Bool
 ```
 
 Is the node with this id open, in the sense of `expanded`?
@@ -473,7 +434,7 @@ Is the node with this id open, in the sense of `expanded`?
 ### `setExpanded`
 
 ```elm
-setExpanded : Ids id -> List id -> State id -> State id
+setExpanded : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Opens exactly the nodes with these ids and closes all others: for example to
@@ -482,7 +443,7 @@ restore a saved view. A node is only on screen when its parents are open too.
 ### `expand`
 
 ```elm
-expand : Ids id -> id -> State id -> State id
+expand : Ids.Ids id -> id -> State id -> State id
 ```
 
 Opens the node with this id. Its parents are not opened, so it stays out of
@@ -492,7 +453,7 @@ its children (see `loadRequests`).
 ### `collapse`
 
 ```elm
-collapse : Ids id -> id -> State id -> State id
+collapse : Ids.Ids id -> id -> State id -> State id
 ```
 
 Closes the node with this id.
@@ -524,7 +485,7 @@ Closes every node.
 ### `newlyExpanded`
 
 ```elm
-newlyExpanded : Ids id -> State id -> State id -> List id
+newlyExpanded : Ids.Ids id -> State id -> State id -> List id
 ```
 
 The ids of the nodes that were opened between two states: give it the state
@@ -538,7 +499,7 @@ returns a `Cmd`).
                 Tree.update m model.tree
 
             opened =
-                Tree.newlyExpanded Tree.stringIds model.tree tree
+                Tree.newlyExpanded Ids.string model.tree tree
         in
         ( { model | tree = tree }
         , Cmd.batch (Cmd.map TreeMsg cmd :: List.map loadDetails opened)
@@ -549,7 +510,7 @@ returns a `Cmd`).
 ### `selected`
 
 ```elm
-selected : Ids id -> State id -> List id
+selected : Ids.Ids id -> State id -> List id
 ```
 
 The ids of the selected nodes, in alphabetical order. A single-select tree has
@@ -558,7 +519,7 @@ at most one; a tree with `multiSelect` can have any number.
 ### `selectedId`
 
 ```elm
-selectedId : Ids id -> State id -> Maybe id
+selectedId : Ids.Ids id -> State id -> Maybe id
 ```
 
 The selected id of a single-select tree, or `Nothing` when nothing is
@@ -568,7 +529,7 @@ first in alphabetical order.
 ### `select`
 
 ```elm
-select : Ids id -> id -> State id -> State id
+select : Ids.Ids id -> id -> State id -> State id
 ```
 
 Selects exactly the node with this id, and makes it the start of a
@@ -578,7 +539,7 @@ sight: `expand` them as well.
 ### `setSelected`
 
 ```elm
-setSelected : Ids id -> List id -> State id -> State id
+setSelected : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Selects exactly the nodes with these ids: for example to restore a saved
@@ -587,7 +548,7 @@ selection in a `multiSelect` tree.
 ### `checked`
 
 ```elm
-checked : Ids id -> State id -> List id
+checked : Ids.Ids id -> State id -> List id
 ```
 
 The ids of the checked leaves, in alphabetical order (see `checkboxes`). A
@@ -597,7 +558,7 @@ checked. A `disabled` leaf is never checked by a click.
 ### `setChecked`
 
 ```elm
-setChecked : Ids id -> List id -> State id -> State id
+setChecked : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Checks exactly the leaves with these ids and unchecks all others. Give it
@@ -616,7 +577,7 @@ Unchecks every leaf.
 ### `focused`
 
 ```elm
-focused : Ids id -> State id -> Maybe id
+focused : Ids.Ids id -> State id -> Maybe id
 ```
 
 The id of the node that has (or last had) the keyboard focus, or `Nothing`
@@ -625,7 +586,7 @@ before the user has focused any node.
 ### `focusNode`
 
 ```elm
-focusNode : Ids id -> State id -> id -> Cmd Msg
+focusNode : Ids.Ids id -> State id -> id -> Cmd Msg
 ```
 
 A command that moves the keyboard focus to the node with this id. Use it
@@ -635,7 +596,7 @@ the page.
 
     LoadBranch id ->
         ( startLoading id model
-        , Cmd.map TreeMsg (Tree.focusNode Tree.stringIds model.tree id)
+        , Cmd.map TreeMsg (Tree.focusNode Ids.string model.tree id)
         )
 
 Here `LoadBranch` is the message you gave to `onRetry` or `onLoadChildren`, and
@@ -649,7 +610,9 @@ query : State id -> String
 ```
 
 The filter text: what the user typed in the filter box, or what `setQuery`
-set. Empty when the tree is not filtered.
+set. Empty when the tree is not filtered. The tree filters its own nodes at once; this
+text follows the box after a pause of 300 ms in the typing, so a lazy tree that asks the
+backend when it changes needs no debounce of its own.
 
 ### `setQuery`
 
@@ -667,7 +630,7 @@ whole tree again.
 ### `loadRequests`
 
 ```elm
-loadRequests : Ids id -> Msg -> List id
+loadRequests : Ids.Ids id -> Msg -> List id
 ```
 
 The ids of the lazy nodes that this message asks children for: the ones the

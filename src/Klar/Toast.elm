@@ -1,7 +1,7 @@
 module Klar.Toast exposing
     ( view
     , State, Msg, init, update, maxVisible, count, queued
-    , push, dismiss, clear, dismissAll
+    , push, dismiss, dismissAll
     , Attribute, title, message, action, key
     , tone, info, success, warning, danger, duration, sticky
     , locale
@@ -72,7 +72,7 @@ raise `maxVisible`).
 
 # Showing and removing toasts
 
-@docs push, dismiss, clear, dismissAll
+@docs push, dismiss, dismissAll
 
 
 # Content
@@ -118,7 +118,7 @@ import Task
 
 {-| The toasts on screen and the ones waiting in the queue. The type parameter is
 your message type, because a toast can carry an action message. Create it with
-`init`, keep it in your model, and change it with `push`, `clear` and `update`.
+`init`, keep it in your model, and change it with `push`, `dismissAll` and `update`.
 -}
 type State msg
     = State
@@ -206,16 +206,9 @@ withoutKey wanted state =
 
 {-| Removes every toast at once, the ones on screen and the ones in the queue.
 -}
-clear : State msg -> State msg
-clear (State state) =
-    State { state | visible = [], waiting = [] }
-
-
-{-| Same as `clear`.
--}
 dismissAll : State msg -> State msg
-dismissAll =
-    clear
+dismissAll (State state) =
+    State { state | visible = [], waiting = [] }
 
 
 {-| The messages of the toast stack (timers, dismissing, and the pause while a
@@ -694,7 +687,7 @@ viewStack toMsg attributes (State state) trap =
 viewItem : (Msg -> msg) -> Locale -> Item msg -> Html msg
 viewItem toMsg language item =
     Html.div
-        ([ Internal.cls [ "klar-toast", "klar-toast--" ++ Theme.toneSuffix item.tone ]
+        ([ Internal.cls [ "klar-toast", "klar-toast--" ++ Internal.toneSuffix item.tone ]
          , Events.onMouseEnter (toMsg (Hover item.id True))
          , Events.onMouseLeave (toMsg (Hover item.id False))
          , Events.on "focusin" (Decode.succeed (toMsg (Focus item.id True)))

@@ -233,9 +233,9 @@ Drawer.view DrawerMsg [ Drawer.title "Order 1042" ] model.drawer
 
 On a page or in a card, "Try again" is replaced by the skeleton and focus would fall to the
 page: give the body an `id` and move focus to it in the same `update` branch that asks again
-(`RemoteView.focus "order-body" NoOp`). The same holds for every region that shows a retry:
+(`Klar.focus "order-body" NoOp`). The same holds for every region that shows a retry:
 `Stat.id`, `Chart.id` and `Timeline.id` give the tile, the chart or the timeline the id,
-`RemoteView.focus` moves focus to it, and a `Tree` branch has `Tree.focusNode`. Use a
+`Klar.focus` moves focus to it, and a `Tree` branch has `Tree.focusNode`. Use a
 message of its own for the retry of the region, so that a "Reload" button elsewhere does not
 take focus. A page that is only a `RemoteView` draws its title
 (`PageHeader`) outside it, so that there is one `h1` while it loads and when it fails.
@@ -338,27 +338,29 @@ whose option the server has not sent); without it the field says "Unknown value"
 For a record that is not in the list yet, `Select.setOption` stores the option
 together with the id. Values are compared with `==`, so use plain data.
 
-**Row ids, once.** A table keeps the selection and the open rows by id. Say once how
-your id type is written as a key and read back, and the table speaks your type:
+**Ids, once per type.** A table keeps the selection and the open rows by id, a tree its
+open nodes, a picker its choices. Say once how your id type is written as a key and read
+back, as a `Klar.Ids`, and every component that holds that type speaks it:
 
 ```elm
-orderRows : Table.RowIds OrderId
-orderRows =
-    Table.rowIds { toKey = OrderId.toString, fromKey = OrderId.fromString }
+orderIds : Ids OrderId -- import Klar.Ids as Ids exposing (Ids)
+orderIds =
+    Ids.make { toKey = OrderId.toString, fromKey = OrderId.fromString }
 
-Table.rowId orderRows .id
-Table.selectedIds orderRows model.table -- List OrderId, for "assign 40 orders"
-Table.setSelected orderRows [ id ] False model.table
+Table.rowId orderIds .id
+Table.selectedIds orderIds model.table -- List OrderId, for "assign 40 orders"
+Table.setSelected orderIds [ id ] False model.table
 ```
 
 The table is typed by the id (`Table.State OrderId`), so a table of orders cannot be
-asked about customer ids. Text and whole-number ids have `Table.stringIds` and
-`Table.intIds`.
+asked about customer ids. Text and whole-number ids have `Ids.string` and
+`Ids.int`.
 
-`Klar.Tree` works the same way (`Tree.nodeIds`, `Tree.State RegionId`, nodes built
-with `Tree.leaf regions id label`), and `Klar.SideNav` is typed by its keys
-(`SideNav.keys`, `SideNav.item pages { key = Orders, ... }`), so a misspelled key is
-a compile error. `Klar.JsonViewer` keeps text: its ids are paths into the JSON
+`Klar.Tree` works the same way (`Tree.State RegionId`, nodes built with
+`Tree.leaf regionIds id label`), and so do the pickers, `Sortable` and `Klar.SideNav`,
+whose keys are your pages: `Ids.list pageToString [ Orders, Settings ]` reads a page back
+from the list, and `SideNav.item pageIds { key = Orders, ... }` makes a misspelled key a
+compile error. `Klar.JsonViewer` keeps text: its ids are paths into the JSON
 document, not ids of your data.
 
 **Columns named once.** A table column, a sort, a filter and a hidden column

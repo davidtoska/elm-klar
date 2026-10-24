@@ -5,6 +5,7 @@ import Fuzz exposing (Fuzzer)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Menu as Menu
 import Klar.Remote exposing (Remote(..))
 import Klar.Table as Table exposing (Direction(..), Filter(..), Selection(..))
@@ -363,9 +364,9 @@ type RowNo
     = RowNo Int
 
 
-rowNos : Table.RowIds RowNo
+rowNos : Ids RowNo
 rowNos =
-    Table.rowIds
+    Ids.make
         { toKey = \(RowNo n) -> "no-" ++ String.fromInt n
         , fromKey =
             \key ->
@@ -379,9 +380,9 @@ rowNos =
 
 {-| How ids were written in an older version of the app (a saved view may still hold them).
 -}
-oldNos : Table.RowIds RowNo
+oldNos : Ids RowNo
 oldNos =
-    Table.rowIds { toKey = \(RowNo n) -> "old-" ++ String.fromInt n, fromKey = always Nothing }
+    Ids.make { toKey = \(RowNo n) -> "old-" ++ String.fromInt n, fromKey = always Nothing }
 
 
 ownIdTests : Test
@@ -404,8 +405,8 @@ ownIdTests =
         , check "the selection as a value" (Selected [ RowNo 1 ]) (numbered |> Table.setSelected rowNos [ RowNo 1 ] True |> Table.selection rowNos)
         , check "expanded rows come back in the app's type" [ RowNo 7 ] (numbered |> Table.setExpanded rowNos (RowNo 7) True |> Table.expandedIds rowNos)
         , check "a key the app cannot read is left out" [] (numbered |> Table.setSelected oldNos [ RowNo 1 ] True |> Table.selectedIds rowNos)
-        , check "intIds keeps whole numbers" [ 1, 3 ] (Table.init "orders" |> Table.setSelected Table.intIds [ 3, 1 ] True |> Table.selectedIds Table.intIds)
-        , check "stringIds keeps text as it is" [ "a", "b" ] (Table.init "orders" |> Table.setSelected Table.stringIds [ "b", "a" ] True |> Table.selectedIds Table.stringIds)
+        , check "intIds keeps whole numbers" [ 1, 3 ] (Table.init "orders" |> Table.setSelected Ids.int [ 3, 1 ] True |> Table.selectedIds Ids.int)
+        , check "stringIds keeps text as it is" [ "a", "b" ] (Table.init "orders" |> Table.setSelected Ids.string [ "b", "a" ] True |> Table.selectedIds Ids.string)
         , check "a state of the app's type compares with ==" True (Table.setSelected rowNos [ RowNo 1 ] True numbered == Table.setSelected rowNos [ RowNo 1 ] True numbered)
         ]
 

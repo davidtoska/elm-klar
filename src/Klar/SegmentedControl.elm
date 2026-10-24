@@ -360,7 +360,7 @@ view attributes =
                     ++ [ Attr.id (field.id ++ "-group")
                        , Internal.cls
                             [ "klar-segmented"
-                            , "klar-segmented--" ++ Theme.sizeSuffix config.size
+                            , "klar-segmented--" ++ Internal.sizeSuffix config.size
                             , if config.fullWidth then
                                 "klar-segmented--full"
 

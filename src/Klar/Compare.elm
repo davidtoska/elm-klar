@@ -449,7 +449,7 @@ frame : Config id msg -> List String -> List (Html msg) -> Html msg
 frame settings modifiers content =
     Html.div
         [ Internal.cls
-            ([ "klar-compare", "klar-compare--" ++ Theme.densitySuffix settings.density ]
+            ([ "klar-compare", "klar-compare--" ++ Internal.densitySuffix settings.density ]
                 ++ modifiers
             )
         ]

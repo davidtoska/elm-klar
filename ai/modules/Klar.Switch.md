@@ -65,7 +65,7 @@ While `loading` is `True` (the application is saving the new value) the knob
 shows a spinner and the input is disabled, so neither a click nor the keyboard
 can change it; the switch keeps showing the value the application gives it. The
 browser takes the keyboard focus from a control that becomes disabled, so move
-it back with `Browser.Dom.focus` and the `id` of the switch when the save is
+it back with `Klar.focus` and the `id` of the switch when the save is
 done, if that matters.
 
 The description and the error message are drawn under the label, or beside the
@@ -128,7 +128,7 @@ While `True` the application is saving the change: the knob shows a
 spinner, the switch announces `aria-busy` and a screen-reader-only "Saving ...",
 and the input is disabled, so neither a click nor the keyboard changes it and
 nothing is sent to `onToggle`. A disabled control cannot keep the keyboard focus;
-move it back with `Browser.Dom.focus` (see `id`) when the save is done. Pass a
+move it back with `Klar.focus` (see `id`) when the save is done. Pass a
 field of your model. The default is `False`.
 
 ## Label and messages
@@ -212,7 +212,7 @@ id : String -> Attribute msg
 ```
 
 The DOM id of the `input` element, for moving focus to it with
-`Browser.Dom.focus`. The label, the description and the error message get the
+`Klar.focus`. The label, the description and the error message get the
 ids `<id>-label`, `<id>-description` and `<id>-error`. Without an id it is made
 from the label, or from the `ariaLabel` when there is no label, so give switches
 that share a text an id each.

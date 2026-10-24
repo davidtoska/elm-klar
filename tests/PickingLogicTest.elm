@@ -10,6 +10,7 @@ import Dict
 import Expect
 import Fuzz
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Picking as Picking
 import Klar.Picking.Cover as Cover exposing (Check(..))
 import Klar.Picking.Index as Index exposing (Kids(..), Row(..))
@@ -23,9 +24,12 @@ type RegionId
     = RegionId Int
 
 
-regionIds : Picking.Ids RegionId
+regionIds : Ids RegionId
 regionIds =
-    Picking.ids (\(RegionId n) -> "region-" ++ String.fromInt n)
+    Ids.make
+        { toKey = \(RegionId n) -> "region-" ++ String.fromInt n
+        , fromKey = String.dropLeft 7 >> String.toInt >> Maybe.map RegionId
+        }
 
 
 suite : Test
@@ -48,9 +52,9 @@ idTests : Test
 idTests =
     describe "Ids"
         [ test "an id of the application's own type is written as a key" <|
-            \_ -> Expect.equal "region-7" (Picking.toKey regionIds (RegionId 7))
+            \_ -> Expect.equal "region-7" (Ids.toKey regionIds (RegionId 7))
         , test "string and int ids" <|
-            \_ -> Expect.equal ( "a", "42" ) ( Picking.toKey Picking.stringIds "a", Picking.toKey Picking.intIds 42 )
+            \_ -> Expect.equal ( "a", "42" ) ( Ids.toKey Ids.string "a", Ids.toKey Ids.int 42 )
         ]
 
 
@@ -61,13 +65,13 @@ nodeTests =
             \_ ->
                 let
                     l =
-                        Picking.leaf Picking.stringIds "a" "A"
+                        Picking.leaf Ids.string "a" "A"
 
                     b =
-                        Picking.branch Picking.stringIds "b" "B" [ l ]
+                        Picking.branch Ids.string "b" "B" [ l ]
 
                     z =
-                        Picking.lazy Picking.stringIds "z" "Z" Remote.Loading
+                        Picking.lazy Ids.string "z" "Z" Remote.Loading
                 in
                 Expect.equal
                     ( Remote.Loaded [], Remote.Loaded [ l ], Remote.Loading )
@@ -76,7 +80,7 @@ nodeTests =
             \_ ->
                 let
                     a =
-                        Picking.leaf Picking.stringIds "a" "A"
+                        Picking.leaf Ids.string "a" "A"
                             |> Picking.withDescription "d"
                             |> Picking.withIcon Icon.home
                             |> Picking.withKeywords [ "x" ]
@@ -84,7 +88,7 @@ nodeTests =
                             |> Picking.disabled
 
                     b =
-                        Picking.leaf Picking.stringIds "a" "A"
+                        Picking.leaf Ids.string "a" "A"
                             |> Picking.disabled
                             |> Picking.withKeywords [ "x", "y" ]
                             |> Picking.withIcon Icon.home
@@ -132,7 +136,7 @@ indexTests =
             \_ ->
                 let
                     index =
-                        Index.build (Picking.branch Picking.stringIds "e" "Empty" [] :: Trees.cities)
+                        Index.build (Picking.branch Ids.string "e" "Empty" [] :: Trees.cities)
                 in
                 Expect.equal
                     ( Just Unloaded, Just NoKids )
@@ -153,8 +157,8 @@ indexTests =
                 let
                     index =
                         Index.build
-                            [ Picking.branch Picking.stringIds "a" "A" [ Picking.leaf Picking.stringIds "b" "B" |> Picking.disabled ]
-                            , Picking.leaf Picking.stringIds "c" "C"
+                            [ Picking.branch Ids.string "a" "A" [ Picking.leaf Ids.string "b" "B" |> Picking.disabled ]
+                            , Picking.leaf Ids.string "c" "C"
                             ]
                 in
                 Expect.equal
@@ -167,7 +171,7 @@ indexTests =
             \_ ->
                 let
                     ids =
-                        Picking.stringIds
+                        Ids.string
 
                     index =
                         Index.build
@@ -180,7 +184,7 @@ indexTests =
             \_ ->
                 let
                     ids =
-                        Picking.stringIds
+                        Ids.string
                 in
                 Index.build [ Picking.branch ids "a" "A" [ Picking.leaf ids "a" "Again" ] ]
                     |> .order
@@ -345,11 +349,11 @@ rowTests =
             \_ ->
                 let
                     failing =
-                        Index.build [ Picking.lazy Picking.stringIds "z" "Z" (Remote.Failed (Remote.problem Remote.network)) ]
+                        Index.build [ Picking.lazy Ids.string "z" "Z" (Remote.Failed (Remote.problem Remote.network)) ]
                 in
                 Expect.equal
                     ( [ "z", "loading:z" ], [ "z", "failed:z" ] )
-                    ( rowKeys (Index.rows (openOf [ "z" ]) (Index.build [ Picking.lazy Picking.stringIds "z" "Z" Remote.Loading ]))
+                    ( rowKeys (Index.rows (openOf [ "z" ]) (Index.build [ Picking.lazy Ids.string "z" "Z" Remote.Loading ]))
                     , rowKeys (Index.rows (openOf [ "z" ]) failing)
                     )
         , test "position and size among the siblings" <|
@@ -486,7 +490,7 @@ rowTests =
             \_ ->
                 let
                     ids =
-                        Picking.stringIds
+                        Ids.string
 
                     big =
                         List.range 1 100
@@ -683,7 +687,7 @@ coverTests =
                 \_ ->
                     let
                         ids =
-                            Picking.stringIds
+                            Ids.string
 
                         tree =
                             Index.build
@@ -709,7 +713,7 @@ coverTests =
                 \_ ->
                     let
                         ids =
-                            Picking.stringIds
+                            Ids.string
 
                         tree =
                             Index.build
@@ -736,7 +740,7 @@ coverTests =
                 \_ ->
                     let
                         ids =
-                            Picking.stringIds
+                            Ids.string
 
                         tree =
                             Index.build [ Picking.branch ids "p" "P" [ Picking.leaf ids "a" "A", Picking.leaf ids "b" "B" |> Picking.disabled ] ]

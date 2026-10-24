@@ -846,7 +846,7 @@ update msg model =
                     ]
 
         ClearToasts ->
-            ( { model | toasts = Toast.clear model.toasts }, Cmd.none )
+            ( { model | toasts = Toast.dismissAll model.toasts }, Cmd.none )
 
         -- POPOVERS
         FilterPopoverMsg inner ->

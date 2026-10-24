@@ -101,7 +101,7 @@ view attributes =
             configure attributes
 
         classNames =
-            Internal.cls [ "klar-spinner", "klar-spinner--" ++ Theme.sizeSuffix config.size ]
+            Internal.cls [ "klar-spinner", "klar-spinner--" ++ Internal.sizeSuffix config.size ]
     in
     if String.isEmpty config.label then
         Html.span [ classNames, Attr.attribute "aria-hidden" "true" ] []

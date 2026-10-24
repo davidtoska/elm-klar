@@ -71,7 +71,7 @@ The first release.
   of A0 round 3 lost its `changed`, `viewsChanged`, `fetchNow`, ticket and `GotPage` (150
   lines). `Table.dropAllMatching` drops an "all matching" selection when something outside the
   table changes what it means.
-- `RemoteView.id` and `RemoteView.focus` keep keyboard focus on a body that is replaced by
+- `RemoteView.id` and `Klar.focus` keep keyboard focus on a body that is replaced by
   its skeleton after "Try again"; the pattern for a page that is one `RemoteView` (the title
   outside it, one `h1` in every state) is documented and tested.
 - `Toast.key` names a toast so that a new one replaces it, and `Toast.dismiss` takes it
@@ -107,8 +107,15 @@ The first release.
   not free text (`Table.columnId`, `Shortcut.mod (Shortcut.char 'k')`,
   `Remote.problem Remote.timeout`), a rule field offers only the operators you
   choose (`Rule.withOperators`), and a table speaks your row id type
-  (`Table.State OrderId`, `Table.rowIds`, `Table.selectedIds orderRows state`), and so do trees and the side menu
-  (`Tree.State RegionId`, `Tree.nodeIds`, `SideNav.State Page`, `SideNav.keys`).
+  (`Table.State OrderId`, `Table.selectedIds orderIds state`), and so do trees, pickers,
+  sortable lists and the side menu, all with one `Klar.Ids` per id type (`Ids.make`,
+  `Ids.list`, `Ids.string`, `Ids.int`).
+- One way to do each thing: `Klar.focus id msg` is the one command that moves focus to
+  an element of the page (after a retry, a decision, a removed tag); the server searches
+  of `Select`, `MultiSelect`, `Autocomplete.query` and `Tree.query` wait for a pause of
+  300 ms in the typing, as the table's search does, so an application writes no debounce;
+  `Toast.dismissAll` empties the stack; `Chart.withSlot` and `Chart.segmentSlot` name a
+  place in the theme's chart palette (not a `Klar.Color`).
 - A guide for building an application, also before the package is published
   ([USING.md](USING.md)), and `scripts/check-app.mjs` to keep a copy of Klar frozen.
 
@@ -506,12 +513,12 @@ Fixes from benchmark run 1 (`bench/results/run-1.md`):
   "No more events"). `headingLevel` sets the level of the day headings (default `h3`, which is right
   inside a card with an `h2` title; directly under a page `h1` say 2). `id` gives the timeline a DOM id
   and a focus stop in every state, see the retry focus entry below. The button is no longer the place
-  where focus is kept at the end of the list: that is what `id` and `RemoteView.focus` are for.
+  where focus is kept at the end of the list: that is what `id` and `Klar.focus` are for.
 - Retry focus in `Stat`, `Chart`, `Timeline` (and `Tree`, which has `focusNode`): "Try again" is
   replaced by the skeleton, and the focus fell to `body` in every region, not only in `RemoteView`.
   `Stat.id`, `Chart.id` and `Timeline.id` give the region an element with that id that takes focus
   in every state (a `tabindex="-1"` on the tile, the chart's wrapper or the section), and
-  `RemoteView.focus` moves it there in the update branch of the retry. Verified in Chrome for the
+  `Klar.focus` moves it there in the update branch of the retry. Verified in Chrome for the
   three in the showcase. Why not automatic: Elm can only move focus from a command, and a `Stat` or
   `Chart` has no state and no message of its own to receive one, so the focus guard that dialogs
   use (CSS animation plus `animationstart`) would still need a message from the application; the

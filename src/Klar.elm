@@ -1,4 +1,7 @@
-module Klar exposing (stylesheet, stylesheetFor, css)
+module Klar exposing
+    ( stylesheet, stylesheetFor, css
+    , focus
+    )
 
 {-| **Klar** (Norwegian for "clear" and "ready") is a toolkit of interface
 components for data-intensive applications: tables with thousands of rows,
@@ -8,8 +11,8 @@ state the data is in. It is plain Elm and plain CSS: besides the official `elm/*
 packages it needs nothing, and it has no ports and no JavaScript.
 
 Use when: you start any application with Klar, to put its stylesheet on the page once.
-Do not use when: you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet.
-Quick path: `stylesheet`
+Do not use when: you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet and `focus`.
+Quick path: `stylesheet`, `focus`
 
 
 # Start here
@@ -155,6 +158,11 @@ package.elm-lang.org, in the same order.
 
 @docs stylesheet, stylesheetFor, css
 
+
+# Focus
+
+@docs focus
+
 -}
 
 import Html exposing (Html)
@@ -206,3 +214,21 @@ root.
 css : String
 css =
     Css.css
+
+
+{-| Moves keyboard focus to the element with this DOM id. The message is sent when it is
+done, whether the element was found or not, so use one that changes nothing:
+
+    Klar.focus "order-body" NoOp
+
+It waits one frame, so it also works on an element that the same `update` creates. Use it
+where an element that had focus goes away and the component cannot know where focus
+should go next: after "Try again" of a region (`RemoteView.id`, `Stat.id`, `Chart.id`,
+`Timeline.id`), after an approval decision (`ApprovalFlow.id`), after a save that replaced
+a switch or a checkbox, or on the next tag after one was removed. Dialogs, drawers, the
+palette, the shell and the table move focus themselves; never call it for them.
+
+-}
+focus : String -> msg -> Cmd msg
+focus =
+    Internal.focus

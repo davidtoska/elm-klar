@@ -20,6 +20,7 @@ import Klar
 import Klar.Alert as Alert
 import Klar.Card as Card
 import Klar.Chart as Chart
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
@@ -129,9 +130,9 @@ init =
     ( model, Cmd.batch [ loadAll model, Task.perform GotZone Time.here ] )
 
 
-regionIds : Tree.Ids RegionId
+regionIds : Ids RegionId
 regionIds =
-    Tree.nodeIds { toKey = \(RegionId n) -> String.fromInt n, fromKey = \s -> Maybe.map RegionId (String.toInt s) }
+    Ids.make { toKey = \(RegionId n) -> String.fromInt n, fromKey = \s -> Maybe.map RegionId (String.toInt s) }
 
 
 

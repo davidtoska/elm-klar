@@ -637,7 +637,7 @@ listTests =
                     |> Query.has [ Selector.tag "section", Selector.id "credit-note-flow", Selector.attribute (Attr.tabindex -1) ]
         , test "focus is a command that is sent even when the flow is not on the page" <|
             \_ ->
-                ApprovalFlow.focus "credit-note-flow" Retry
+                Klar.focus "credit-note-flow" Retry
                     |> (\cmd -> cmd /= Cmd.none)
                     |> Expect.equal True
         , test "the flow gets a visible focus ring when it is focused by program" <|

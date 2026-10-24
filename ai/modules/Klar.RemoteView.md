@@ -19,9 +19,6 @@ loadingLabel : String -> Attribute msg
 skeleton : Html msg -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 settings : Settings.Settings -> Attribute msg
-
--- Focus
-focus : String -> msg -> Cmd msg
 ```
 
 ## Documentation
@@ -67,7 +64,7 @@ has an `id` and you move focus to it when you start the new request:
 
     Retry ->
         ( { model | supplier = Remote.refresh model.supplier }
-        , Cmd.batch [ fetchSupplier, RemoteView.focus "supplier" NoOp ]
+        , Cmd.batch [ fetchSupplier, Klar.focus "supplier" NoOp ]
         )
 
 **A page that is only a `RemoteView`** has no heading while the data loads or when the
@@ -118,7 +115,7 @@ id : String -> Attribute msg
 
 The DOM id of the body. With it, the body is drawn inside one element that is the
 same in every state (loading, failed, old data, data) and can take focus, so that
-`focus` has a place to put it. The id must be unique on the page.
+`Klar.focus` has a place to put it. The id must be unique on the page.
 
 ### `loadingLabel`
 
@@ -157,22 +154,3 @@ The settings of the application (`Klar.Settings`): the time zone of the time in
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
     RemoteView.settings model.settings
-
-## Focus
-
-### `focus`
-
-```elm
-focus : String -> msg -> Cmd msg
-```
-
-Moves keyboard focus to the body that has this `id`. Call it in the same
-`update` branch that starts the request again, so that focus is not lost when the
-retry button is replaced by the skeleton: the screen reader then reads "Loading",
-and a keyboard user stays on the page. The message is sent when it is done.
-
-It works with any element that has the id and can take focus: the body of a
-`RemoteView` (`id`), and the tile, chart or timeline that was given an id
-(`Stat.id`, `Chart.id`, `Timeline.id`). Use a message of its own for the retry of
-the region (not the one a "Reload" button also sends), so that focus moves only
-when the user pressed "Try again".

@@ -32,11 +32,6 @@ style : Theme -> Mode -> Html msg
 type Tone = Neutral | Primary | Info | Success | Warning | Danger
 type Size = Small | Medium | Large
 type Density = Compact | Normal | Comfortable
-
--- Building your own components
-toneSuffix : Tone -> String
-sizeSuffix : Size -> String
-densitySuffix : Density -> String
 ```
 
 ## Documentation
@@ -307,37 +302,3 @@ comfortable.
 
 The application says its density once, in its [Klar.Settings](Klar.Settings.md), and
 every component follows it; a component that is given a density of its own keeps it.
-
-## Building your own components
-
-Not for an application built with Klar, which uses no class names: a page outside
-Klar's components that must match them can use the modifier names of its stylesheet: `"klar-badge--" ++ toneSuffix
-Success` is `"klar-badge--success"`.
-
-### `toneSuffix`
-
-```elm
-toneSuffix : Tone -> String
-```
-
-The modifier of a tone in the class names of the stylesheet.
-
-    Theme.toneSuffix Warning -- "warning"
-
-### `sizeSuffix`
-
-```elm
-sizeSuffix : Size -> String
-```
-
-The modifier of a size in the class names of the stylesheet: `"sm"`, `"md"`
-or `"lg"`.
-
-### `densitySuffix`
-
-```elm
-densitySuffix : Density -> String
-```
-
-The modifier of a density in the class names of the stylesheet:
-`"compact"`, `"normal"` or `"comfortable"`.

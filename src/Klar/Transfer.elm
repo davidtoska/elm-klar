@@ -49,7 +49,7 @@ See also [Klar.MultiSelect](Klar-MultiSelect) and [Klar.TreeSelect](Klar-TreeSel
 The items are [Klar.Select](Klar-Select) options (see
 [Klar.Select.Option](Klar-Select-Option)): a value of your own id type, a label, an
 optional description, and `disabledOption` for an item that cannot be moved.
-Ids are compared through their key (see `Picking.ids` in
+Ids are compared through their key (see `Ids.make` in
 [Klar.Picking](Klar-Picking)), which keeps thousands of items fast. As in every
 Klar field, the state holds the value and there are no out-messages: compare
 `Transfer.values` before and after `update` to react.
@@ -142,10 +142,11 @@ import Klar.Button as Button
 import Klar.Checkbox as Checkbox
 import Klar.Field as Field
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Picking as Picking exposing (Ids)
+import Klar.Picking as Picking
 import Klar.Picking.Texts as Texts exposing (Texts)
 import Klar.Picking.View as View
 import Klar.Remote as Remote exposing (Remote(..))
@@ -326,7 +327,7 @@ setValues ids newValues (State data) =
                 (\id ( kept, seen ) ->
                     let
                         key =
-                            Picking.toKey ids id
+                            Ids.toKey ids id
                     in
                     if Set.member key seen then
                         ( kept, seen )

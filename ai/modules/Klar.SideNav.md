@@ -4,7 +4,7 @@ Vertical navigation for the sidebar of an application: sections, links with icon
 
 Import: `import Klar.SideNav as SideNav` | Group: Navigation
 
-Types: `Msg`, `Keys`, `Entry`, `State`, `Attribute`
+Types: `Msg`, `Entry`, `State`, `Attribute`
 
 ## Signatures
 
@@ -12,15 +12,10 @@ Types: `Msg`, `Keys`, `Entry`, `State`, `Attribute`
 -- View
 view : (Msg -> msg) -> List (Attribute key msg) -> State key -> Html msg
 
--- Keys
-type Keys key  -- opaque: no constructors are exposed
-keys : (key -> String) -> Keys key
-stringKeys : Keys String
-
 -- Entries
 type Entry key msg  -- opaque: no constructors are exposed
-item : Keys key -> { key : key, label : String, href : String } -> Entry key msg
-group : Keys key -> { key : key, label : String } -> List (Entry key msg) -> Entry key msg
+item : Ids.Ids key -> { key : key, label : String, href : String } -> Entry key msg
+group : Ids.Ids key -> { key : key, label : String } -> List (Entry key msg) -> Entry key msg
 section : String -> List (Entry key msg) -> Entry key msg
 rule : Entry key msg
 withIcon : Icon.Icon -> Entry key msg -> Entry key msg
@@ -41,11 +36,11 @@ locale : Locale.Locale -> Attribute key msg
 type State key  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
 init : String -> State key
-isExpanded : Keys key -> key -> State key -> Bool
-expandGroup : Keys key -> key -> State key -> State key
-collapseGroup : Keys key -> key -> State key -> State key
+isExpanded : Ids.Ids key -> key -> State key -> Bool
+expandGroup : Ids.Ids key -> key -> State key -> State key
+collapseGroup : Ids.Ids key -> key -> State key -> State key
 reveal : key -> List (Entry key msg) -> State key -> State key
-focusLink : Keys key -> key -> State key -> msg -> Cmd msg
+focusLink : Ids.Ids key -> key -> State key -> msg -> Cmd msg
 focusCurrent : State key -> msg -> Cmd msg
 update : Msg -> State key -> ( State key, Cmd Msg )
 ```
@@ -57,14 +52,15 @@ icons and counts, and groups that open and close.
 
 Use when: the sidebar needs vertical navigation with sections, links, counts and groups that open and close.
 Do not use when: you need tabs inside a page (use `Klar.Tabs`) or the path to the current page (use `Klar.Breadcrumbs`).
-Quick path: `keys`, `item`, `section`, `withIcon`, `entries`; the state, `init`, `update`, `view` and `reveal`, belong to the shell
+Quick path: `item`, `section`, `withIcon`, `entries`; the state, `init`, `update`, `view` and `reveal`, belong to the shell
 
 **In an application, `Klar.AppShell` holds the state and the messages of the side menu**: you write the
-entries (`keys`, `item`, `withIcon`) and give `AppShell.sideNav ShellMsg [ SideNav.entries menu ] model.shell` to the shell's
+entries (`item`, `withIcon`, with the [Klar.Ids](Klar.Ids.md) of your page type) and give `AppShell.sideNav ShellMsg [ SideNav.entries menu ] model.shell` to the shell's
 `sidebar`. Do not add a `SideNav.State` of your own beside it. The wiring below is for a side menu
 without the shell (a gallery, a drawer of your own).
 
     import Klar.Icon as Icon
+    import Klar.Ids as Ids
     import Klar.SideNav as SideNav
 
     -- model: sideNav : SideNav.State String
@@ -89,14 +85,14 @@ without the shell (a gallery, a drawer of your own).
     menu : List (SideNav.Entry String msg)
     menu =
         [ SideNav.section "Workspace"
-            [ SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
+            [ SideNav.item Ids.string { key = "orders", label = "Orders", href = "#/orders" }
                 |> SideNav.withIcon Icon.clipboardCheck
                 |> SideNav.withCount 12
-            , SideNav.item SideNav.stringKeys { key = "customers", label = "Customers", href = "#/customers" }
+            , SideNav.item Ids.string { key = "customers", label = "Customers", href = "#/customers" }
                 |> SideNav.withIcon Icon.users
-            , SideNav.group SideNav.stringKeys { key = "reports", label = "Reports" }
-                [ SideNav.item SideNav.stringKeys { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" }
-                , SideNav.item SideNav.stringKeys { key = "reports-exports", label = "Exports", href = "#/reports/exports" }
+            , SideNav.group Ids.string { key = "reports", label = "Reports" }
+                [ SideNav.item Ids.string { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" }
+                , SideNav.item Ids.string { key = "reports-exports", label = "Exports", href = "#/reports/exports" }
                 ]
                 |> SideNav.withIcon Icon.barChart
             ]
@@ -141,39 +137,15 @@ your own.
 
 Every link and group has a key. It is a value of your own type (a `Page`, a
 `ReportId`), so a misspelled key is a compile error. Say once how it is written
-as text (see `keys`); the menu is then typed by it (`SideNav.State Page`).
+as text, once, as a [Klar.Ids](Klar.Ids.md); the menu is then typed by it
+(`SideNav.State Page`). The text is used for the DOM ids of the links, so give every key
+its own text.
 
-### `Keys`
+    pageIds : Ids Page
 
-```elm
-type Keys key  -- opaque: no constructors are exposed
-```
-
-How the key type of your menu (`Page`, `ReportId` ...) is written as text.
-Declare one value for the menu, once, and pass it to `item`, `group` and the
-functions that speak keys.
-
-    pageKeys : SideNav.Keys Page
-    pageKeys =
-        SideNav.keys pageToString
-
-The text is used for the DOM ids of the links, so give every key its own text.
-
-### `keys`
-
-```elm
-keys : (key -> String) -> Keys key
-```
-
-Makes the `Keys` of a key type, see there.
-
-### `stringKeys`
-
-```elm
-stringKeys : Keys String
-```
-
-Keys that are plain text, used as they are.
+    -- import Klar.Ids as Ids exposing (Ids)
+    pageIds =
+        Ids.make { toKey = pageToString, fromKey = pageFromString }
 
 ## Entries
 
@@ -191,28 +163,28 @@ and groups with `withIcon`, `withCount`, `withBadge` and `disabledItem`. The
 ### `item`
 
 ```elm
-item : Keys key -> { key : key, label : String, href : String } -> Entry key msg
+item : Ids.Ids key -> { key : key, label : String, href : String } -> Entry key msg
 ```
 
 A link. The `key` identifies the entry (see `current` and `reveal`) and must
 be unique in the menu, the `label` is its text, and the `href` is where it goes
 (`#/path` for navigation inside a single page application).
 
-    SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
+    SideNav.item Ids.string { key = "orders", label = "Orders", href = "#/orders" }
 
 ### `group`
 
 ```elm
-group : Keys key -> { key : key, label : String } -> List (Entry key msg) -> Entry key msg
+group : Ids.Ids key -> { key : key, label : String } -> List (Entry key msg) -> Entry key msg
 ```
 
 A group of entries that opens and closes; groups can contain groups. The `key`
 identifies the group in the state (`isExpanded`, `expandGroup` and the others) and
 must be unique in the menu. A group is a button, not a link, so it has no `href`.
 
-    SideNav.group SideNav.stringKeys
+    SideNav.group Ids.string
         { key = "reports", label = "Reports" }
-        [ SideNav.item SideNav.stringKeys { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" } ]
+        [ SideNav.item Ids.string { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" } ]
 
 ### `section`
 
@@ -384,7 +356,7 @@ the DOM id of the `nav` element and the prefix of the ids of the links.
 ### `isExpanded`
 
 ```elm
-isExpanded : Keys key -> key -> State key -> Bool
+isExpanded : Ids.Ids key -> key -> State key -> Bool
 ```
 
 Whether the group with this key is open in the state.
@@ -392,7 +364,7 @@ Whether the group with this key is open in the state.
 ### `expandGroup`
 
 ```elm
-expandGroup : Keys key -> key -> State key -> State key
+expandGroup : Ids.Ids key -> key -> State key -> State key
 ```
 
 Opens the group with this key. Does nothing when it is already open.
@@ -400,7 +372,7 @@ Opens the group with this key. Does nothing when it is already open.
 ### `collapseGroup`
 
 ```elm
-collapseGroup : Keys key -> key -> State key -> State key
+collapseGroup : Ids.Ids key -> key -> State key -> State key
 ```
 
 Closes the group with this key. Does nothing when it is already closed.
@@ -422,7 +394,7 @@ the current one, for `focusCurrent`.
 ### `focusLink`
 
 ```elm
-focusLink : Keys key -> key -> State key -> msg -> Cmd msg
+focusLink : Ids.Ids key -> key -> State key -> msg -> Cmd msg
 ```
 
 Moves keyboard focus to the link with this key: the current page, when the
@@ -430,7 +402,7 @@ sidebar opens as a drawer. Does nothing if that link is not in the page (inside 
 closed group, say). The message is sent when it is done, whether the link was
 found or not, so use one that changes nothing.
 
-    SideNav.focusLink SideNav.stringKeys "orders" model.sideNav NoOp
+    SideNav.focusLink Ids.string "orders" model.sideNav NoOp
 
 ### `focusCurrent`
 

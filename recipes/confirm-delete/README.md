@@ -3,7 +3,7 @@
 Delete one row or a selection only after a confirmation that shows the request busy, failed (with
 "Try again") and done, followed by a toast with an Undo, and with focus kept right.
 
-Modules: `Klar.Table` (`selectable`, `bulkActions`, `rowActions`, `rowIds`), `Klar.Menu`,
+Modules: `Klar.Table` (`selectable`, `bulkActions`, `rowActions`, `rowId` with a `Klar.Ids`), `Klar.Menu`,
 `Klar.ConfirmDialog`, `Klar.Toast`, `Klar.Overlay` (`host`), `Klar.Remote` (the problem),
 `Klar.PageHeader`, `Klar.Button`, `Klar.Icon`.
 

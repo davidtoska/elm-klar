@@ -2,7 +2,6 @@ module Klar.Tree exposing
     ( view, viewRemote
     , Node, leaf, branch, lazy, unloaded, withIcon, withCount, withBadge, withHint, disabled
     , State, Msg, init, update
-    , Ids, nodeIds, stringIds, intIds
     , expanded, isExpanded, setExpanded, expand, collapse, expandAll, collapseAll, newlyExpanded
     , selected, selectedId, select, setSelected, checked, setChecked, clearChecked
     , focused, focusNode, query, setQuery
@@ -39,9 +38,9 @@ tab stop for the whole tree and is fully usable from the keyboard.
     Tree.view TreeMsg
         [ Tree.ariaLabel "Warehouses", Tree.filterBox ]
         model.tree
-        [ Tree.branch Tree.stringIds "north" "Northern region"
-            [ Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B" |> Tree.withCount 24
-            , Tree.leaf Tree.stringIds "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
+        [ Tree.branch Ids.string "north" "Northern region"
+            [ Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withCount 24
+            , Tree.leaf Ids.string "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
             ]
         ]
 
@@ -53,7 +52,7 @@ Nodes are plain data (`leaf`, `branch`, `lazy`) that you build from your own
 data on every render; the state only remembers what the user did: which nodes
 are open, which are selected or checked, which has the focus, the filter text.
 Read it with `selected`, `expanded`, `checked` and compare before and after an
-update to react (`Tree.selected Tree.stringIds new /= Tree.selected Tree.stringIds old`). There are no
+update to react (`Tree.selected Ids.string new /= Tree.selected Ids.string old`). There are no
 out-messages. The state refers to nodes by id, so every node id must be unique
 in the whole tree.
 
@@ -103,7 +102,7 @@ it in every `view`.
                 Tree.update m model.tree
 
             requests =
-                Tree.loadRequests Tree.stringIds m
+                Tree.loadRequests Ids.string m
         in
         ( { model | tree = tree, regions = markLoading requests model.regions }
         , Cmd.batch (Cmd.map TreeMsg cmd :: List.map fetchChildren requests)
@@ -136,10 +135,18 @@ English unless you set `locale`. Labels, hints, counts and badges come from you.
 @docs State, Msg, init, update
 
 The `id` of `State id` and `Node id` is the type of your node ids (`Tree.State
-RegionId`). Say once how it is written as a key (see `nodeIds`), and the open,
-selected and checked nodes come back in your own type:
+RegionId`). Say once how it is written as a key, as a [Klar.Ids](Klar-Ids), and pass it
+to the node constructors and the functions that speak ids; the open, selected and checked
+nodes come back in your own type:
 
-@docs Ids, nodeIds, stringIds, intIds
+    regions : Ids RegionId
+
+    -- import Klar.Ids as Ids exposing (Ids)
+    regions =
+        Ids.make { toKey = RegionId.toString, fromKey = RegionId.fromString }
+
+A key `fromKey` rejects (it can come from a saved view that holds an old id) is left out
+of the lists you get. The lists are ordered by key, as text.
 
 
 # Open and closed
@@ -181,6 +188,7 @@ import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
@@ -200,63 +208,19 @@ import Task
 -- IDS
 
 
-{-| How the id type of your nodes (a `RegionId`, a `FolderId`, plain text ...) is
-written as a key and read back. Declare one value for each kind of tree, once,
-and pass it to the node constructors and to the functions that speak ids. The
-tree is typed by the id (`Tree.State RegionId`), so a tree of regions cannot be
-asked about folder ids.
-
-    regions : Tree.Ids RegionId
-    regions =
-        Tree.nodeIds { toKey = RegionId.toString, fromKey = RegionId.fromString }
-
-The key is what the tree keeps inside its `State`, so `toKey` must give every id
-its own key and `fromKey` must give the id back. A key `fromKey` rejects (it can
-come from a saved view that holds an old id) is left out of the lists you get.
-The lists are ordered by key, as text.
-
--}
-type Ids id
-    = Ids
-        { toKey : id -> String
-        , fromKey : String -> Maybe id
-        }
-
-
-{-| Makes the `Ids` of an id type, see there.
--}
-nodeIds : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
-nodeIds =
-    Ids
-
-
-{-| Ids that are plain text, used as they are.
--}
-stringIds : Ids String
-stringIds =
-    Ids { toKey = identity, fromKey = Just }
-
-
-{-| Ids that are whole numbers.
--}
-intIds : Ids Int
-intIds =
-    Ids { toKey = String.fromInt, fromKey = String.toInt }
-
-
 idOf : Ids id -> String -> Maybe id
-idOf (Ids i) key =
-    i.fromKey key
+idOf i key =
+    Ids.fromKey i key
 
 
 idsOf : Ids id -> Set String -> List id
-idsOf (Ids i) keys =
-    List.filterMap i.fromKey (Set.toList keys)
+idsOf i keys =
+    List.filterMap (Ids.fromKey i) (Set.toList keys)
 
 
 keysOf : Ids id -> List id -> List String
-keysOf (Ids i) =
-    List.map i.toKey
+keysOf i =
+    List.map (Ids.toKey i)
 
 
 
@@ -292,9 +256,9 @@ type Children id
 
 
 make : Ids id -> id -> String -> Children id -> Node id
-make (Ids ids) id label children =
+make ids id label children =
     Node
-        { id = ids.toKey id
+        { id = Ids.toKey ids id
         , value = id
         , label = label
         , icon = Nothing
@@ -308,7 +272,7 @@ make (Ids ids) id label children =
 
 {-| A node without children. The first `String` is the id, the second the label.
 
-    Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B"
+    Tree.leaf Ids.string "wh-3b" "Warehouse 3B"
 
 The id must be unique in the whole tree, not only among its siblings: it is how
 the state remembers what is open, selected and checked, and what the callbacks
@@ -324,7 +288,7 @@ leaf ids id label =
 {-| A node with children. The arguments are the id, the label and the child
 nodes. The id must be unique in the whole tree.
 
-    Tree.branch Tree.stringIds "north" "Northern region" [ Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B" ]
+    Tree.branch Ids.string "north" "Northern region" [ Tree.leaf Ids.string "wh-3b" "Warehouse 3B" ]
 
 The children are only rendered while the node is open. A branch with an empty
 list of children has no arrow and looks like a leaf; use `lazy` for children that
@@ -341,7 +305,7 @@ is first opened. Until then the `Remote` is `NotAsked`; while the request is on
 its way you pass `Loading`, and then `Loaded` with the children or `Failed`
 with a problem.
 
-    Tree.lazy Tree.stringIds "south" "Southern region" model.southWarehouses
+    Tree.lazy Ids.string "south" "Southern region" model.southWarehouses
 
 See `loadRequests` for how to find out when to fetch. A lazy node always has an
 arrow. When it is open the tree shows a spinner row while the children load, the
@@ -369,7 +333,7 @@ lazy ids id label children =
 {-| A node whose children have not been asked for yet: `lazy` with `NotAsked`.
 The arguments are the id and the label.
 
-    Tree.unloaded Tree.stringIds "south" "Southern region"
+    Tree.unloaded Ids.string "south" "Southern region"
 
 -}
 unloaded : Ids id -> id -> String -> Node id
@@ -379,7 +343,7 @@ unloaded ids id label =
 
 {-| An icon in front of the label.
 
-    Tree.leaf Tree.stringIds "wh-3b" "Warehouse 3B" |> Tree.withIcon Icon.building
+    Tree.leaf Ids.string "wh-3b" "Warehouse 3B" |> Tree.withIcon Icon.building
 
 -}
 withIcon : Icon -> Node id -> Node id
@@ -398,7 +362,7 @@ withCount n (Node data) =
 {-| A small colored label after the label, for a status. The `Tone` (from
 [Klar.Theme](Klar-Theme)) sets the color, the `String` is the text.
 
-    Tree.leaf Tree.stringIds "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
+    Tree.leaf Ids.string "wh-4a" "Warehouse 4A" |> Tree.withBadge Warning "Closed"
 
 -}
 withBadge : Tone -> String -> Node id -> Node id
@@ -492,6 +456,8 @@ type alias StateData =
     , focused : Maybe String
     , pendingFocus : Maybe String
     , query : String
+    , searched : String
+    , wait : Int
     , flips : Set String
     , extra : Dict String Int
     , typeahead : String
@@ -517,6 +483,8 @@ init id =
         , focused = Nothing
         , pendingFocus = Nothing
         , query = ""
+        , searched = ""
+        , wait = 0
         , flips = Set.empty
         , extra = Dict.empty
         , typeahead = ""
@@ -536,8 +504,8 @@ expanded ids (State s) =
 {-| Is the node with this id open, in the sense of `expanded`?
 -}
 isExpanded : Ids id -> id -> State id -> Bool
-isExpanded (Ids ids) id (State s) =
-    Set.member (ids.toKey id) s.expanded
+isExpanded ids id (State s) =
+    Set.member (Ids.toKey ids id) s.expanded
 
 
 {-| Opens exactly the nodes with these ids and closes all others: for example to
@@ -553,15 +521,15 @@ sight while one of them is closed. Opening a lazy node this way does not ask for
 its children (see `loadRequests`).
 -}
 expand : Ids id -> id -> State id -> State id
-expand (Ids ids) id (State s) =
-    State { s | expanded = Set.insert (ids.toKey id) s.expanded }
+expand ids id (State s) =
+    State { s | expanded = Set.insert (Ids.toKey ids id) s.expanded }
 
 
 {-| Closes the node with this id.
 -}
 collapse : Ids id -> id -> State id -> State id
-collapse (Ids ids) id (State s) =
-    State { s | expanded = Set.remove (ids.toKey id) s.expanded }
+collapse ids id (State s) =
+    State { s | expanded = Set.remove (Ids.toKey ids id) s.expanded }
 
 
 {-| Opens every node that has children, at every depth; nodes that are already
@@ -611,7 +579,7 @@ returns a `Cmd`).
                 Tree.update m model.tree
 
             opened =
-                Tree.newlyExpanded Tree.stringIds model.tree tree
+                Tree.newlyExpanded Ids.string model.tree tree
         in
         ( { model | tree = tree }
         , Cmd.batch (Cmd.map TreeMsg cmd :: List.map loadDetails opened)
@@ -645,8 +613,8 @@ selectedId ids (State s) =
 sight: `expand` them as well.
 -}
 select : Ids id -> id -> State id -> State id
-select (Ids ids) id (State s) =
-    State { s | selected = Set.singleton (ids.toKey id), anchor = Just (ids.toKey id) }
+select ids id (State s) =
+    State { s | selected = Set.singleton (Ids.toKey ids id), anchor = Just (Ids.toKey ids id) }
 
 
 {-| Selects exactly the nodes with these ids: for example to restore a saved
@@ -685,8 +653,8 @@ clearChecked (State s) =
 before the user has focused any node.
 -}
 focused : Ids id -> State id -> Maybe id
-focused (Ids ids) (State s) =
-    s.focused |> Maybe.andThen ids.fromKey
+focused ids (State s) =
+    s.focused |> Maybe.andThen (Ids.fromKey ids)
 
 
 {-| A command that moves the keyboard focus to the node with this id. Use it
@@ -696,7 +664,7 @@ the page.
 
     LoadBranch id ->
         ( startLoading id model
-        , Cmd.map TreeMsg (Tree.focusNode Tree.stringIds model.tree id)
+        , Cmd.map TreeMsg (Tree.focusNode Ids.string model.tree id)
         )
 
 Here `LoadBranch` is the message you gave to `onRetry` or `onLoadChildren`, and
@@ -705,16 +673,18 @@ node has to be on screen (all its parents open) when the command runs.
 
 -}
 focusNode : Ids id -> State id -> id -> Cmd Msg
-focusNode (Ids ids) (State s) id =
-    Internal.focus (rowDomId s.id (ids.toKey id)) Noop
+focusNode ids (State s) id =
+    Internal.focus (rowDomId s.id (Ids.toKey ids id)) Noop
 
 
 {-| The filter text: what the user typed in the filter box, or what `setQuery`
-set. Empty when the tree is not filtered.
+set. Empty when the tree is not filtered. The tree filters its own nodes at once; this
+text follows the box after a pause of 300 ms in the typing, so a lazy tree that asks the
+backend when it changes needs no debounce of its own.
 -}
 query : State id -> String
 query (State s) =
-    s.query
+    s.searched
 
 
 {-| Sets the filter text, as if the user had typed it in the filter box. It also
@@ -724,7 +694,7 @@ whole tree again.
 -}
 setQuery : String -> State id -> State id
 setQuery text (State s) =
-    State { s | query = text, flips = Set.empty, extra = Dict.empty }
+    State { s | query = text, searched = text, flips = Set.empty, extra = Dict.empty }
 
 
 
@@ -763,6 +733,7 @@ type Msg
     | StepRange Int (List String) (List String)
     | Guard String Msg
     | QueryChanged String
+    | SettleQuery Int
     | ClearQuery
     | ShowMore String Int String
     | TypeAhead String (List ( String, String ))
@@ -901,10 +872,19 @@ update msg (State s) =
                     ( State s, Cmd.none )
 
         QueryChanged text ->
-            ( State { s | query = text, flips = Set.empty, extra = Dict.empty }, Cmd.none )
+            ( State { s | query = text, flips = Set.empty, extra = Dict.empty, wait = s.wait + 1 }
+            , Process.sleep 300 |> Task.perform (\_ -> SettleQuery (s.wait + 1))
+            )
+
+        SettleQuery ticket ->
+            if ticket == s.wait then
+                ( State { s | searched = s.query }, Cmd.none )
+
+            else
+                ( State s, Cmd.none )
 
         ClearQuery ->
-            ( State { s | query = "", flips = Set.empty, extra = Dict.empty }, Cmd.none )
+            ( State { s | query = "", searched = "", flips = Set.empty, extra = Dict.empty }, Cmd.none )
 
         ShowMore key count firstNew ->
             -- The button that was pressed moves down (or goes away): keyboard

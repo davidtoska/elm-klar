@@ -654,7 +654,7 @@ view toMsg attributes (State state) =
         state.modal
         [ Html.div [ Internal.cls [ "klar-confirm" ] ]
             [ Html.span
-                [ Internal.cls [ "klar-confirm__icon", "klar-confirm__icon--" ++ Theme.toneSuffix config.tone ] ]
+                [ Internal.cls [ "klar-confirm__icon", "klar-confirm__icon--" ++ Internal.toneSuffix config.tone ] ]
                 [ Icon.sized Icon.Large (Maybe.withDefault (defaultIcon config.tone) config.icon) ]
             , Html.div [ Internal.cls [ "klar-confirm__content" ] ]
                 [ Html.div [ Internal.cls [ "klar-confirm__text" ], Attr.id (messageId state.id) ]

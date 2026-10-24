@@ -417,7 +417,7 @@ viewOption config field mainIndex index (Option o) =
     Html.label
         [ Internal.cls
             [ "klar-radio"
-            , "klar-radio--" ++ Theme.sizeSuffix config.size
+            , "klar-radio--" ++ Internal.sizeSuffix config.size
             , if isDisabled then
                 "klar-radio--disabled"
 

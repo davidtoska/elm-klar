@@ -11,6 +11,9 @@ Import: `import Klar` | Group: Start here
 stylesheet : Html msg
 stylesheetFor : Settings.Settings -> Html msg
 css : String
+
+-- Focus
+focus : String -> msg -> Cmd msg
 ```
 
 ## Documentation
@@ -23,8 +26,8 @@ state the data is in. It is plain Elm and plain CSS: besides the official `elm/*
 packages it needs nothing, and it has no ports and no JavaScript.
 
 Use when: you start any application with Klar, to put its stylesheet on the page once.
-Do not use when: you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet.
-Quick path: `stylesheet`
+Do not use when: you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet and `focus`.
+Quick path: `stylesheet`, `focus`
 
 ## Start here
 
@@ -203,3 +206,23 @@ give the `<style>` element a `nonce` of your own, or to put the rules into a sha
 root.
 
     Html.node "style" [ Html.Attributes.attribute "nonce" model.nonce ] [ Html.text Klar.css ]
+
+## Focus
+
+### `focus`
+
+```elm
+focus : String -> msg -> Cmd msg
+```
+
+Moves keyboard focus to the element with this DOM id. The message is sent when it is
+done, whether the element was found or not, so use one that changes nothing:
+
+    Klar.focus "order-body" NoOp
+
+It waits one frame, so it also works on an element that the same `update` creates. Use it
+where an element that had focus goes away and the component cannot know where focus
+should go next: after "Try again" of a region (`RemoteView.id`, `Stat.id`, `Chart.id`,
+`Timeline.id`), after an approval decision (`ApprovalFlow.id`), after a save that replaced
+a switch or a checkbox, or on the next tag after one was removed. Dialogs, drawers, the
+palette, the shell and the table move focus themselves; never call it for them.

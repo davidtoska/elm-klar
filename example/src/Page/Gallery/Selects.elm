@@ -378,8 +378,8 @@ update msg model =
                     { model | autos = Dict.insert id new model.autos }
 
                 ( final, extra ) =
-                    if id == "auto-customer" && Autocomplete.text new /= Autocomplete.text old then
-                        search CustomerSearch (Autocomplete.text new) updated
+                    if id == "auto-customer" && Autocomplete.query new /= Autocomplete.query old then
+                        search CustomerSearch (Autocomplete.query new) updated
 
                     else
                         ( updated, Cmd.none )
@@ -408,7 +408,7 @@ update msg model =
                             MultiSelect.query (multiState "multi-server" model)
 
                         CustomerSearch ->
-                            Autocomplete.text (autoState "auto-customer" model)
+                            Autocomplete.query (autoState "auto-customer" model)
             in
             search target text model
 
@@ -1620,9 +1620,9 @@ autoServerCode =
     ]
     model.customer
 
--- update: fetch when the text changes
-if Autocomplete.text new /= Autocomplete.text old then
-    fetchCustomers (Autocomplete.text new)
+-- update: fetch when the query changes (it waits for a pause in the typing)
+if Autocomplete.query new /= Autocomplete.query old then
+    fetchCustomers (Autocomplete.query new)
 
 else
     Cmd.none"""

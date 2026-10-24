@@ -19,6 +19,7 @@ import Klar.DescriptionList as DescriptionList
 import Klar.EmptyState as EmptyState
 import Klar.Format as Format
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
@@ -529,7 +530,7 @@ update msg model =
         PickingNotified ->
             let
                 names =
-                    Table.selectedIds Table.stringIds model.simple.picking
+                    Table.selectedIds Ids.string model.simple.picking
             in
             -- the selection is over, and the bar with the button that was pressed with it
             ( withSimple
@@ -2172,7 +2173,7 @@ simpleSection locale simple =
             (Table.view OwnersTable
                 [ Table.columns ownerColumns
                 , Table.rows ownerRows
-                , Table.rowId Table.stringIds .name
+                , Table.rowId Ids.string .name
                 , Table.label "Owners"
                 , Table.locale locale
                 , Table.unpaged
@@ -2189,7 +2190,7 @@ simpleSection locale simple =
                 [ Table.view PickingTable
                     [ Table.columns ownerColumns
                     , Table.rows ownerRows
-                    , Table.rowId Table.stringIds .name
+                    , Table.rowId Ids.string .name
                     , Table.label "Owners with selection"
                     , Table.locale locale
                     , Table.unpaged
@@ -2211,7 +2212,7 @@ ownersCode =
         , Table.float (columnIds.averageTotal) "Average total" 2 .averageTotal []
         ]
     , Table.rows model.rows
-    , Table.rowId Table.stringIds .name
+    , Table.rowId Ids.string .name
     , Table.unpaged
     , Table.zebra
     ]
@@ -2223,7 +2224,7 @@ pickingCode =
     """Table.view TableMsg
     [ Table.columns columns
     , Table.rows model.owners
-    , Table.rowId Table.stringIds .name
+    , Table.rowId Ids.string .name
     , Table.unpaged
     , Table.bulkActions [ Button.view [ Button.small, Button.onClick SendSummary ] "Send summary" ]
     ]

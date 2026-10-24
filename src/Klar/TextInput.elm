@@ -464,7 +464,7 @@ inputMode value_ =
 attribute). Browsers honor it for one element at most, and not once the user has
 started to move the focus around, so it is unreliable for an input that appears
 later, in a dialog for example. To move the focus yourself, use
-`Browser.Dom.focus` with the `id` of the input.
+`Klar.focus` with the `id` of the input.
 -}
 autofocus : Attribute msg
 autofocus =
@@ -520,7 +520,7 @@ view attributes =
         (Html.div
             [ Internal.cls
                 [ "klar-input"
-                , "klar-input--" ++ Theme.sizeSuffix config.size
+                , "klar-input--" ++ Internal.sizeSuffix config.size
                 , if field.error /= Nothing then
                     "klar-input--invalid"
 

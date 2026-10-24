@@ -266,8 +266,8 @@ view attributes =
     Html.div
         ([ Internal.cls
             [ "klar-progress"
-            , "klar-progress--" ++ Theme.toneSuffix config.tone
-            , "klar-progress--" ++ Theme.sizeSuffix config.size
+            , "klar-progress--" ++ Internal.toneSuffix config.tone
+            , "klar-progress--" ++ Internal.sizeSuffix config.size
             , if config.indeterminate then
                 "klar-progress--indeterminate"
 
@@ -354,8 +354,8 @@ ring attributes =
     Html.div
         ([ Internal.cls
             [ "klar-progress-ring"
-            , "klar-progress--" ++ Theme.toneSuffix config.tone
-            , "klar-progress-ring--" ++ Theme.sizeSuffix config.size
+            , "klar-progress--" ++ Internal.toneSuffix config.tone
+            , "klar-progress-ring--" ++ Internal.sizeSuffix config.size
             , if config.indeterminate then
                 "klar-progress--indeterminate"
 

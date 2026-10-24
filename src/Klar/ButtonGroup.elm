@@ -120,7 +120,7 @@ view attributes name children =
                 ""
 
               else
-                "klar-btn-group--" ++ Theme.sizeSuffix config.size
+                "klar-btn-group--" ++ Internal.sizeSuffix config.size
             , if config.disabled then
                 "klar-btn-group--disabled"
 

@@ -137,6 +137,8 @@ import Klar.Select.Popup as Popup
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Theme as Theme exposing (Size(..), Tone)
 import Klar.VirtualList as VirtualList
+import Process
+import Task
 
 
 
@@ -274,6 +276,8 @@ type State id
         { id : String
         , open : Bool
         , query : String
+        , searched : String
+        , wait : Int
         , highlighted : Maybe Int
         , value : Maybe id
         , picked : Maybe (Option id)
@@ -295,6 +299,8 @@ init id =
         { id = id
         , open = False
         , query = ""
+        , searched = ""
+        , wait = 0
         , highlighted = Nothing
         , value = Nothing
         , picked = Nothing
@@ -365,11 +371,12 @@ clear (State state) =
 
 
 {-| The text in the search box while the list is open, and `""` when it is
-closed. With `serverSearch`, fetch when it changes.
+closed. With `serverSearch`, fetch when it changes: it then follows the box after a
+pause of 300 ms in the typing, so it does not change on every key.
 -}
 query : State id -> String
 query (State state) =
-    state.query
+    state.searched
 
 
 {-| Whether the list is open.
@@ -393,7 +400,7 @@ for example from a button of your own. Map the command like the one from
 -}
 open : State id -> ( State id, Cmd (Msg id) )
 open (State state) =
-    ( State { state | open = True, query = "", highlighted = Nothing, list = VirtualList.reset state.list }
+    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list }
     , Internal.focus (searchId state.id) NoOp
     )
 
@@ -403,7 +410,7 @@ if the list was open. Map the command like the one from `update`.
 -}
 close : State id -> ( State id, Cmd (Msg id) )
 close (State state) =
-    ( State { state | open = False, query = "", highlighted = Nothing }
+    ( State { state | open = False, query = "", searched = "", highlighted = Nothing }
     , if state.open then
         Internal.focus state.id NoOp
 
@@ -449,6 +456,7 @@ type Msg id
     | Clear
     | FocusSearch
     | ListMsg VirtualList.Msg
+    | Settle Int
     | NoOp
 
 
@@ -524,22 +532,22 @@ update msg ((State state) as current) =
             close current
 
         Dismiss ->
-            ( State { state | open = False, query = "", highlighted = Nothing }, Cmd.none )
+            ( State { state | open = False, query = "", searched = "", highlighted = Nothing }, Cmd.none )
 
         QueryChanged env text ->
             let
                 ( list, scroll ) =
                     VirtualList.scrollTo 0 state.list
             in
-            ( State
+            State
                 { state
                     | query = text
                     , highlighted = Nothing
                     , list = list
                     , cache = Just (Popup.refresh state.cache env text)
                 }
-            , Cmd.map ListMsg scroll
-            )
+                |> settle env
+                |> Tuple.mapSecond (\wait -> Cmd.batch [ Cmd.map ListMsg scroll, wait ])
 
         Hover index ->
             ( State { state | highlighted = Just index }, Cmd.none )
@@ -570,8 +578,38 @@ update msg ((State state) as current) =
             in
             ( State { state | list = list }, Cmd.map ListMsg cmd )
 
+        Settle ticket ->
+            if ticket == state.wait then
+                ( State { state | searched = state.query }, Cmd.none )
+
+            else
+                ( current, Cmd.none )
+
         NoOp ->
             ( current, Cmd.none )
+
+
+{-| How long the search text of a `serverSearch` select must stay still before `query`
+reports it, in milliseconds.
+-}
+searchWait : Float
+searchWait =
+    300
+
+
+{-| A list that filters itself reports the search text at once; for `serverSearch`,
+where the application asks the server each time `query` changes, the text waits for a
+pause in the typing (`searchWait`), and an empty text is reported at once.
+-}
+settle : Popup.Env id -> State id -> ( State id, Cmd (Msg id) )
+settle env (State state) =
+    if env.filterLocally || state.query == "" then
+        ( State { state | searched = state.query }, Cmd.none )
+
+    else
+        ( State { state | wait = state.wait + 1 }
+        , Process.sleep searchWait |> Task.perform (\_ -> Settle (state.wait + 1))
+        )
 
 
 {-| The message for choosing the "Create" row: the typed text as the label, and
@@ -608,7 +646,7 @@ openWith env rowsVisible text (State state) =
                 Nothing ->
                     ( VirtualList.reset state.list, Cmd.none )
     in
-    ( State
+    State
         { state
             | open = True
             , query = text
@@ -616,8 +654,8 @@ openWith env rowsVisible text (State state) =
             , list = list
             , cache = Just cache
         }
-    , Cmd.batch [ Internal.focus (searchId state.id) NoOp, Cmd.map ListMsg scroll ]
-    )
+        |> settle env
+        |> Tuple.mapSecond (\wait -> Cmd.batch [ Internal.focus (searchId state.id) NoOp, Cmd.map ListMsg scroll, wait ])
 
 
 choose : Option id -> State id -> ( State id, Cmd (Msg id) )
@@ -628,6 +666,7 @@ choose opt (State state) =
             , picked = Just opt
             , open = False
             , query = ""
+            , searched = ""
             , highlighted = Nothing
         }
     , Internal.focus state.id NoOp
@@ -726,8 +765,11 @@ remote data =
 
 {-| The server does the searching. The select shows the options exactly as they
 come and does not filter them; the application fetches when `Select.query`
-changes. While the options are `NotAsked` (nothing fetched yet, or a text too
-short to search for) the list says "Type to search".
+changes. `query` waits for a pause of 300 ms in the typing (an empty text comes at
+once), so **write no debounce of your own**. Answers can still come back out of order:
+send the query with the request and drop an answer whose query is no longer
+`Select.query model.country`. While the options are `NotAsked` (nothing fetched yet, or
+a text too short to search for) the list says "Type to search".
 
     -- in update
     CountryMsg inner ->
@@ -1126,7 +1168,7 @@ viewControl toMsg config field t env ((State state) as current) =
     Html.div
         [ Internal.cls
             [ "klar-input"
-            , "klar-input--" ++ Theme.sizeSuffix config.size
+            , "klar-input--" ++ Internal.sizeSuffix config.size
             , "klar-select__control"
             , if field.error /= Nothing then
                 "klar-input--invalid"

@@ -229,7 +229,7 @@ view attributes children =
                 ""
             , case config.accent of
                 Just tone ->
-                    "klar-card--accent klar-card--accent-" ++ Theme.toneSuffix tone
+                    "klar-card--accent klar-card--accent-" ++ Internal.toneSuffix tone
 
                 Nothing ->
                     ""

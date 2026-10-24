@@ -11,6 +11,7 @@ import Klar.Alert as Alert
 import Klar.Card as Card
 import Klar.Chart as Chart
 import Klar.CommandPalette as CommandPalette
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.Overlay as Overlay
 import Klar.Remote as Remote exposing (Remote(..))
@@ -241,7 +242,7 @@ components =
                     (Tree.viewRemote TreeMsg
                         [ Tree.onReload Retry ]
                         (Tree.init "tree")
-                        (Remote.refreshWith (Remote.refreshWith Loading (Ok [ Tree.leaf Tree.stringIds "a" "Alpha" ]) fourteenOhFive) (Err failure) (at 1000))
+                        (Remote.refreshWith (Remote.refreshWith Loading (Ok [ Tree.leaf Ids.string "a" "Alpha" ]) fourteenOhFive) (Err failure) (at 1000))
                     )
                     |> Query.has [ text "Old data from 14:05", text "Alpha" ]
         , test "the marker is announced politely and has a retry button" <|

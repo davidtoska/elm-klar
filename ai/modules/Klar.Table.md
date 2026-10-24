@@ -4,7 +4,7 @@ A data table for records: search, column filters, sorting, selection with bulk a
 
 Import: `import Klar.Table as Table` | Group: Tables and lists
 
-Types: `Msg`, `Rows`, `State`, `Column`, `Filter`, `RowIds`, `ColumnId`, `Attribute`, `Direction`, `Selection`, `ColumnAttribute`, `Query`
+Types: `Msg`, `Rows`, `State`, `Column`, `Filter`, `ColumnId`, `Attribute`, `Direction`, `Selection`, `ColumnAttribute`, `Query`
 
 ## Signatures
 
@@ -18,10 +18,6 @@ type Msg  -- opaque: no constructors are exposed
 init : String -> State id
 update : Msg -> State id -> ( State id, Cmd Msg )
 focus : State id -> Cmd Msg
-type RowIds id  -- opaque: no constructors are exposed
-rowIds : { toKey : id -> String, fromKey : String -> Maybe id } -> RowIds id
-stringIds : RowIds String
-intIds : RowIds Int
 
 -- Sort, page, search and filters
 type ColumnId  -- opaque: no constructors are exposed
@@ -54,18 +50,18 @@ clearFilters : State id -> State id
 
 -- Selection
 type Selection id = Selected (List id) | AllMatching { except : List id }
-selection : RowIds id -> State id -> Selection id
-selectedIds : RowIds id -> State id -> List id
+selection : Ids.Ids id -> State id -> Selection id
+selectedIds : Ids.Ids id -> State id -> List id
 selectedCount : Int -> State id -> Int
-isSelected : RowIds id -> id -> State id -> Bool
-setSelected : RowIds id -> List id -> Bool -> State id -> State id
+isSelected : Ids.Ids id -> id -> State id -> Bool
+setSelected : Ids.Ids id -> List id -> Bool -> State id -> State id
 clearSelection : State id -> State id
 dropAllMatching : State id -> State id
 
 -- Expanded rows, columns and density
-expandedIds : RowIds id -> State id -> List id
-isExpanded : RowIds id -> id -> State id -> Bool
-setExpanded : RowIds id -> id -> Bool -> State id -> State id
+expandedIds : Ids.Ids id -> State id -> List id
+isExpanded : Ids.Ids id -> id -> State id -> Bool
+setExpanded : Ids.Ids id -> id -> Bool -> State id -> State id
 isColumnVisible : ColumnId -> State id -> Maybe Bool
 setColumnVisible : ColumnId -> Bool -> State id -> State id
 density : State id -> Theme.Density
@@ -75,7 +71,7 @@ setDensity : Theme.Density -> State id -> State id
 type Attribute id row msg  -- opaque: no constructors are exposed
 columns : List (Column row msg) -> Attribute id row msg
 rows : Remote.Remote (List row) -> Attribute id row msg
-rowId : RowIds id -> (row -> id) -> Attribute id row msg
+rowId : Ids.Ids id -> (row -> id) -> Attribute id row msg
 rowLabel : (row -> String) -> Attribute id row msg
 server : { total : Int } -> Attribute id row msg
 label : String -> Attribute id row msg
@@ -223,7 +219,7 @@ filters, sorts and pages them. In this order:
   - `Table.view TableMsg [ ... ] model.table` with the attributes `columns` (made with
     `Table.text`, `int`, `float`, `date`, each with a `Table.columnId` named once), `rows`
     (a `Remote (List row)`, which draws the skeleton, the failure and the empty state) and `rowId`
-    (`Table.stringIds`, `Table.intIds`, or `Table.rowIds` for your own id type);
+    (a [Klar.Ids](Klar.Ids.md): `Ids.string`, `Ids.int`, or `Ids.make` for your own id type);
   - when you need them: `searchable`, `selectable`, `bulkActions`, `rowActions`, `onRetry`.
 
 The view of the whole table is one function:
@@ -244,7 +240,7 @@ The view of the whole table is one function:
                 , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
                 ]
             , Table.rows orders
-            , Table.rowId Table.stringIds .id
+            , Table.rowId Ids.string .id
             , Table.searchable
             , Table.onRetry retry
             ]
@@ -286,7 +282,7 @@ The view with all of it, and the comparison that decides whether to ask:
                 ]
             , Table.server { total = total }
             , Table.rows page
-            , Table.rowId Table.stringIds .id
+            , Table.rowId Ids.string .id
             , Table.searchable
             , Table.onRowClick on.open
             , Table.selectable
@@ -335,7 +331,7 @@ The columns are given twice, once to `prepareRows` and once to the view:
         Table.view toMsg
             [ Table.columns columns
             , Table.preparedRows rows
-            , Table.rowId Table.stringIds .id
+            , Table.rowId Ids.string .id
             , Table.searchable
             , Table.virtual
             ]
@@ -369,9 +365,9 @@ the rows are prepared (see "Many rows" below).
     , table : Table.State OrderId -- Table.init "orders"
     }
 
-    orderRows : Table.RowIds OrderId
-    orderRows =
-        Table.rowIds { toKey = OrderId.toString, fromKey = OrderId.fromString }
+    orderIds : Ids OrderId -- import Klar.Ids as Ids exposing (Ids)
+    orderIds =
+        Ids.make { toKey = OrderId.toString, fromKey = OrderId.fromString }
 
     customer : Table.ColumnId
     customer =
@@ -393,7 +389,7 @@ the rows are prepared (see "Many rows" below).
             , Table.int (Table.columnId "items") "Items" .items [ Table.filterRange, Table.footerSum ]
             ]
         , Table.rows model.orders
-        , Table.rowId orderRows .id
+        , Table.rowId orderIds .id
         , Table.searchable
         , Table.selectable
         , Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
@@ -599,64 +595,16 @@ would fall back to the page.
 
     DeleteSelected ->
         ( { model
-            | orders = withoutOrders (Table.selectedIds orderRows model.table) model.orders
+            | orders = withoutOrders (Table.selectedIds orderIds model.table) model.orders
             , table = Table.clearSelection model.table
           }
         , Cmd.map TableMsg (Table.focus model.table)
         )
 
 The `id` of `State id` is the type of your row ids (`State OrderId`). Declare how
-it is written as a key once with `rowIds`, and the selection and the expanded rows
-come back in your own type, with no converting to text and back:
-
-### `RowIds`
-
-```elm
-type RowIds id  -- opaque: no constructors are exposed
-```
-
-How your row id type (an `OrderId`, a `CustomerId` ...) is written as a key
-and read back. Declare one value for each kind of row, once, and pass it to
-`rowId`, `selectedIds`, `isSelected`, `setSelected` and the other functions that
-speak ids. The `State` of the table is then typed by the id: a table of orders
-cannot be asked about customer ids.
-
-    orderRows : Table.RowIds OrderId
-    orderRows =
-        Table.rowIds { toKey = OrderId.toString, fromKey = OrderId.fromString }
-
-The key is what the table keeps inside its `State`, so `toKey` must give every id
-its own key and `fromKey` must give the id back. A key `fromKey` rejects (it can
-come from a saved view that holds an old id) is left out of the lists you get.
-The lists are ordered by key, as text, not in the order the ids were selected.
-
-### `rowIds`
-
-```elm
-rowIds : { toKey : id -> String, fromKey : String -> Maybe id } -> RowIds id
-```
-
-Makes the `RowIds` of an id type, see there.
-
-### `stringIds`
-
-```elm
-stringIds : RowIds String
-```
-
-Row ids that are plain text (a SKU, a code), used as they are.
-
-    Table.rowId Table.stringIds .sku
-
-### `intIds`
-
-```elm
-intIds : RowIds Int
-```
-
-Row ids that are whole numbers (a database id).
-
-    Table.rowId Table.intIds .id
+it is written as a key once, as a [Klar.Ids](Klar.Ids.md) (`Ids.make`, or `Ids.string` and
+`Ids.int`), and the selection and the expanded rows come back in your own type, with no
+converting to text and back. The same `Ids` serves every other component that holds that type.
 
 A table that never needs its row ids (no `selectable`, no `expandedRow`) can use
 any type for `id`, for example `Table.State ()`.
@@ -924,7 +872,7 @@ rows.
 ### `selection`
 
 ```elm
-selection : RowIds id -> State id -> Selection id
+selection : Ids.Ids id -> State id -> Selection id
 ```
 
 What is selected, as a `Selection`. In client mode `selectedIds` is enough; in
@@ -933,7 +881,7 @@ server mode check this one for `AllMatching`.
 ### `selectedIds`
 
 ```elm
-selectedIds : RowIds id -> State id -> List id
+selectedIds : Ids.Ids id -> State id -> List id
 ```
 
 The ids (see `rowId`) of the selected rows. After "Select all N matching" in
@@ -953,7 +901,7 @@ mode any number will do.
 ### `isSelected`
 
 ```elm
-isSelected : RowIds id -> id -> State id -> Bool
+isSelected : Ids.Ids id -> id -> State id -> Bool
 ```
 
 Is the row with this id selected? After "Select all N matching" every id
@@ -962,7 +910,7 @@ counts as selected except the exceptions.
 ### `setSelected`
 
 ```elm
-setSelected : RowIds id -> List id -> Bool -> State id -> State id
+setSelected : Ids.Ids id -> List id -> Bool -> State id -> State id
 ```
 
 Selects (`True`) or deselects (`False`) the rows with these ids, as the
@@ -994,7 +942,7 @@ the table.
 ### `expandedIds`
 
 ```elm
-expandedIds : RowIds id -> State id -> List id
+expandedIds : Ids.Ids id -> State id -> List id
 ```
 
 The ids (see `rowId`) of the rows that are expanded. Rows only expand when you
@@ -1003,7 +951,7 @@ give the table an `expandedRow`.
 ### `isExpanded`
 
 ```elm
-isExpanded : RowIds id -> id -> State id -> Bool
+isExpanded : Ids.Ids id -> id -> State id -> Bool
 ```
 
 Is the row with this id expanded?
@@ -1011,7 +959,7 @@ Is the row with this id expanded?
 ### `setExpanded`
 
 ```elm
-setExpanded : RowIds id -> id -> Bool -> State id -> State id
+setExpanded : Ids.Ids id -> id -> Bool -> State id -> State id
 ```
 
 Expands (`True`) or collapses (`False`) the row with this id, for example to
@@ -1103,7 +1051,7 @@ button (`onRetry`).
 ### `rowId`
 
 ```elm
-rowId : RowIds id -> (row -> id) -> Attribute id row msg
+rowId : Ids.Ids id -> (row -> id) -> Attribute id row msg
 ```
 
 A stable, unique id for each row, such as a database id. Selection, expanded
@@ -1112,9 +1060,9 @@ position in the current (filtered and sorted) result, so a selection or an open
 row does not follow its row when the order changes, and `selectable` needs it.
 
 The first argument says how your id type is written as a key and read back
-(see `rowIds`); the `State` of the table then speaks your id type:
+(a [Klar.Ids](Klar.Ids.md)); the `State` of the table then speaks your id type:
 
-    Table.rowId orderRows .id
+    Table.rowId orderIds .id
 
 ### `rowLabel`
 

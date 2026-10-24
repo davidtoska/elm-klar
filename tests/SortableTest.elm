@@ -4,6 +4,7 @@ import Expect exposing (Expectation)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.Sortable as Sortable
 import Test exposing (Test, describe, test)
@@ -57,7 +58,7 @@ withFixed names model =
 
 view : Model -> Html Sortable.Msg
 view model =
-    Sortable.view Sortable.stringIds
+    Sortable.view Ids.string
         identity
         (Sortable.ariaLabel "Pick sequence" :: model.attributes)
         model.sortable
@@ -86,7 +87,7 @@ apply msg model =
     in
     { model
         | sortable = next
-        , items = Sortable.reorder Sortable.stringIds identity model.sortable next model.items
+        , items = Sortable.reorder Ids.string identity model.sortable next model.items
     }
 
 
@@ -190,7 +191,7 @@ says text model =
 
 held : Model -> Maybe String
 held model =
-    Sortable.lifted Sortable.stringIds model.sortable
+    Sortable.lifted Ids.string model.sortable
 
 
 isOk : Result e a -> Bool
@@ -587,14 +588,14 @@ reorderTests =
                     )
 
         reorderWith list =
-            dropOne |> Result.map (\( before, after ) -> Sortable.reorder Sortable.stringIds identity before after list)
+            dropOne |> Result.map (\( before, after ) -> Sortable.reorder Ids.string identity before after list)
     in
     describe "reorder"
         [ test "an update that dropped nothing leaves the list alone" <|
             \_ ->
                 messageOf (handleOf "a") space five
                     |> Result.map (\msg -> Tuple.first (Sortable.update msg five.sortable))
-                    |> Result.map (\after -> Sortable.reorder Sortable.stringIds identity five.sortable after [ "a", "b", "c" ])
+                    |> Result.map (\after -> Sortable.reorder Ids.string identity five.sortable after [ "a", "b", "c" ])
                     |> Expect.equal (Ok [ "a", "b", "c" ])
         , test "the move is applied to the list the application has now, found by id" <|
             \_ ->
@@ -611,7 +612,7 @@ reorderTests =
                 dropOne
                     |> Result.map
                         (\( before, after ) ->
-                            Sortable.reorder Sortable.stringIds .name before after [ { name = "a" }, { name = "b" }, { name = "c" } ]
+                            Sortable.reorder Ids.string .name before after [ { name = "a" }, { name = "b" }, { name = "c" } ]
                                 |> List.map .name
                         )
                     |> Expect.equal (Ok [ "a", "c", "b" ])
@@ -626,7 +627,7 @@ reorderTests =
 
                     result presses =
                         dropAfter visible presses
-                            |> Result.map (\( before, after ) -> Sortable.reorder Sortable.stringIds identity before after full)
+                            |> Result.map (\( before, after ) -> Sortable.reorder Ids.string identity before after full)
                 in
                 Expect.equal
                     [ Ok [ "b", "c", "d", "e", "a" ]
@@ -650,13 +651,13 @@ reorderTests =
                         start [ "b", "d", "f" ]
                 in
                 dropAfter visible [ ( "b", space ), ( "b", key "End" ) ]
-                    |> Result.map (\( before, after ) -> Sortable.reorder Sortable.stringIds identity before after full)
+                    |> Result.map (\( before, after ) -> Sortable.reorder Ids.string identity before after full)
                     |> Result.map (List.filter (\name -> List.member name [ "b", "d", "f" ]))
                     |> Expect.equal (Ok [ "d", "f", "b" ])
         , test "an item that was removed from your list while it was held is skipped for the nearest one that is left" <|
             \_ ->
                 dropAfter five [ ( "c", space ), ( "c", key "ArrowDown" ), ( "c", key "ArrowDown" ) ]
-                    |> Result.map (\( before, after ) -> Sortable.reorder Sortable.stringIds identity before after [ "a", "b", "c", "e" ])
+                    |> Result.map (\( before, after ) -> Sortable.reorder Ids.string identity before after [ "a", "b", "c", "e" ])
                     |> Expect.equal (Ok [ "a", "b", "e", "c" ])
         , test "a drop is only applied when exactly one drop happened between the two states" <|
             \_ ->
@@ -667,9 +668,9 @@ reorderTests =
                 dropAfter five [ ( "b", space ), ( "b", key "ArrowDown" ) ]
                     |> Result.map
                         (\( before, after ) ->
-                            [ Sortable.reorder Sortable.stringIds identity before after list
-                            , Sortable.reorder Sortable.stringIds identity after after list
-                            , Sortable.reorder Sortable.stringIds identity after before list
+                            [ Sortable.reorder Ids.string identity before after list
+                            , Sortable.reorder Ids.string identity after after list
+                            , Sortable.reorder Ids.string identity after before list
                             ]
                         )
                     |> Expect.equal (Ok [ [ "a", "c", "b", "d", "e" ], list, list ])
@@ -681,7 +682,7 @@ reorderTests =
                 in
                 afterKeys [ ( "b", space ), ( "b", key "ArrowDown" ), ( "b", space ) ] five
                     |> Result.andThen (\once -> dropAfter once [ ( "d", space ), ( "d", key "ArrowUp" ) ])
-                    |> Result.map (\( _, twice ) -> Sortable.reorder Sortable.stringIds identity five.sortable twice list)
+                    |> Result.map (\( _, twice ) -> Sortable.reorder Ids.string identity five.sortable twice list)
                     |> Expect.equal (Ok list)
         ]
 
@@ -958,9 +959,9 @@ type StepId
     = StepId Int
 
 
-stepIds : Sortable.Ids StepId
+stepIds : Ids StepId
 stepIds =
-    Sortable.itemIds
+    Ids.make
         { toKey = \(StepId n) -> "step-" ++ String.fromInt n
         , fromKey = \text -> String.toInt (String.dropLeft 5 text) |> Maybe.map StepId
         }
@@ -969,13 +970,13 @@ stepIds =
 typedIdTests : Test
 typedIdTests =
     let
-        liftedAfterSpaceOn : Sortable.Ids StepId -> String -> Result String (Maybe StepId)
+        liftedAfterSpaceOn : Ids StepId -> String -> Result String (Maybe StepId)
         liftedAfterSpaceOn ids handle =
             let
                 state =
                     Sortable.init "steps"
             in
-            Sortable.view Sortable.stringIds
+            Sortable.view Ids.string
                 identity
                 []
                 state

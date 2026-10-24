@@ -6,7 +6,6 @@ module Klar.ApprovalFlow exposing
     , StepStatus, stepStatuses, stepIsWaiting, stepIsInProgress, stepIsApproved, stepIsRejected, stepIsSkipped
     , currentStep, pendingApprovers
     , Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale, id
-    , focus
     )
 
 {-| The approval process of one item: an ordered list of steps, each with one or
@@ -109,7 +108,7 @@ the reason of a rejection, the request to the server and the new decision are
 yours. A reject message is the place to open a comment field; when the answer
 comes back, put it in the decision (`rejected { at = ..., comment = ... }`). The buttons
 leave with the decision, and the focus with them (it falls to the page body and a screen
-reader says nothing): give the flow an `id` and call `focus` with it in the same `update`
+reader says nothing): give the flow an `id` and call `Klar.focus` with it in the same `update`
 that records the decision.
 
 **Times** are shown in the zone of the `settings` you give (`Klar.Settings`, UTC and marked as such if you give none) and in the format of `locale`, with
@@ -144,11 +143,6 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 # Attributes
 
 @docs Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale, id
-
-
-# Focus
-
-@docs focus
 
 -}
 
@@ -734,31 +728,12 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| The DOM id of the flow, which must be unique on the page. It lets `focus` find the
-flow. There is no id by default.
+{-| The DOM id of the flow, which must be unique on the page. It lets `Klar.focus` find
+the flow. There is no id by default.
 -}
 id : String -> Attribute approver msg
 id value =
     Attribute (\config -> { config | id = Just value })
-
-
-{-| Gives focus to the flow with this `id` (see the attribute `id`). The flow can be given
-focus by program but is not a tab stop, so `Tab` goes on from it to the first control
-inside. Call it in the `update` that handles "Approve" or "Reject": the button that was
-pressed is gone with the decision (the viewer has nothing left to decide), a focused
-element that disappears leaves focus on the page body, and the screen reader says nothing.
-The flow is read by its name, and the line above the steps, a polite live region, says
-where the flow stands now. The message is sent when it is done, whether it worked or not.
-
-    Approved ->
-        ( { model | flow = decide model.me model.flow }
-        , ApprovalFlow.focus "credit-note-flow" NoOp
-        )
-
--}
-focus : String -> msg -> Cmd msg
-focus domId done =
-    Internal.focus domId done
 
 
 
