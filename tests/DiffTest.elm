@@ -97,19 +97,19 @@ start diff =
     { state = Diff.init "diff", diff = diff }
 
 
-viewOf : List Diff.Attribute -> Model -> Html Diff.Msg
+viewOf : List (Diff.Attribute Diff.Msg) -> Model -> Html Diff.Msg
 viewOf attributes model =
     Diff.view identity attributes model.state model.diff
 
 
-query : List Diff.Attribute -> Model -> Query.Single Diff.Msg
+query : List (Diff.Attribute Diff.Msg) -> Model -> Query.Single Diff.Msg
 query attributes model =
     Query.fromHtml (viewOf attributes model)
 
 
 {-| Presses the element and lets the viewer handle the message.
 -}
-press : List Diff.Attribute -> List Selector -> Model -> Result String Model
+press : List (Diff.Attribute Diff.Msg) -> List Selector -> Model -> Result String Model
 press attributes selectors model =
     query attributes model
         |> Query.find selectors
@@ -118,7 +118,7 @@ press attributes selectors model =
         |> Result.map (\msg -> { model | state = Tuple.first (Diff.update msg model.state) })
 
 
-typeKey : List Diff.Attribute -> String -> Model -> Result String Model
+typeKey : List (Diff.Attribute Diff.Msg) -> String -> Model -> Result String Model
 typeKey attributes key model =
     query attributes model
         |> Query.find [ Selector.class "klar-diff__scroll" ]
@@ -590,7 +590,38 @@ interactionTests =
             start (Diff.lines [] oldPolicy newPolicy)
     in
     describe "using the viewer"
-        [ test "pressing the fold opens it" <|
+        [ test "there is no current change before the first step" <|
+            \_ -> Expect.equal Nothing (Diff.currentHunk policy.diff policy.state)
+        , test "the current change is the one the user stepped to" <|
+            \_ ->
+                typeKey [] "n" policy
+                    |> Result.map (\moved -> Diff.currentHunk moved.diff moved.state |> Maybe.map Diff.hunkKey)
+                    |> Result.map (Expect.equal (List.head (Diff.hunks policy.diff) |> Maybe.map Diff.hunkKey))
+                    |> resultExpectation
+        , test "going to a change by its key makes it current, draws it and focuses it" <|
+            \_ ->
+                let
+                    keys =
+                        List.map Diff.hunkKey (Diff.hunks many.diff)
+
+                    last =
+                        List.drop (List.length keys - 1) keys |> List.head |> Maybe.withDefault ""
+
+                    ( state, _ ) =
+                        Diff.goToHunk many.diff last many.state
+
+                    moved =
+                        { many | state = state }
+                in
+                Expect.all
+                    [ \_ -> Expect.equal (Just last) (Diff.currentHunk moved.diff moved.state |> Maybe.map Diff.hunkKey)
+                    , \_ -> query [] moved |> Query.has [ Selector.id ("diff-change-" ++ String.fromInt (List.length keys - 1)) ]
+                    ]
+                    ()
+        , test "a key that is not in the diff changes nothing" <|
+            \_ ->
+                Expect.equal policy.state (Tuple.first (Diff.goToHunk policy.diff "nope" policy.state))
+        , test "pressing the fold opens it" <|
             \_ ->
                 press [] (button "16 unchanged lines") long
                     |> Result.map (\opened -> query [] opened)
@@ -702,11 +733,52 @@ interactionTests =
                         [ Query.findAll [ Selector.tag "th", Selector.attribute (Attr.scope "col") ] >> Query.count (Expect.equal 6)
                         , Query.findAll [ Selector.tag "tr", Selector.containing [ Selector.tag "del" ], Selector.containing [ Selector.tag "ins" ] ] >> Query.count (Expect.equal 1)
                         ]
-        , test "in the side by side layout the copy of an unchanged line is hidden from screen readers" <|
+        , test "in the side by side layout the copy of an unchanged line is hidden from screen readers, and its cells stay in the table" <|
             \_ ->
                 query [] { policy | state = Diff.setSplit True policy.state }
-                    |> Query.findAll [ Selector.class "klar-diff__code", Selector.attribute (Attr.attribute "aria-hidden" "true") ]
-                    |> Query.count (Expect.equal 2)
+                    |> Expect.all
+                        [ Query.findAll [ Selector.class "klar-diff__text", Selector.attribute (Attr.attribute "aria-hidden" "true") ] >> Query.count (Expect.equal 2)
+                        ]
+        , test "every row of the side by side layout has the six cells of the heading" <|
+            \_ ->
+                let
+                    model =
+                        start (Diff.lines [] "a\nb\nc\n" "a\nB\nx\ny\nc\nd\n")
+                in
+                query [] { model | state = Diff.setSplit True model.state }
+                    |> Query.findAll [ Selector.tag "tr", Selector.class "klar-diff__row" ]
+                    |> Expect.all
+                        [ Query.count (Expect.atLeast 4)
+                        , Query.each (Query.findAll [ Selector.tag "td" ] >> Query.count (Expect.equal 6))
+                        ]
+        , test "with white space ignored the old column of the side by side layout shows the old text" <|
+            \_ ->
+                let
+                    model =
+                        start (Diff.lines [ Diff.ignoreWhitespace ] "  a\nb\n" "a\nc\n")
+                in
+                query [] { model | state = Diff.setSplit True model.state }
+                    |> Query.findAll [ Selector.tag "tr", Selector.containing [ Selector.class "klar-diff__cell--context" ] ]
+                    |> Query.first
+                    |> Query.findAll [ Selector.class "klar-diff__code" ]
+                    |> Expect.all
+                        [ Query.index 0 >> Query.has [ Selector.text "  a" ]
+                        , Query.index 1 >> Query.has [ Selector.text "a" ]
+                        , Query.index 1 >> Query.hasNot [ Selector.attribute (Attr.attribute "aria-hidden" "true") ]
+                        , Query.index 1 >> Query.findAll [ Selector.attribute (Attr.attribute "aria-hidden" "true") ] >> Query.count (Expect.equal 0)
+                        ]
+        , test "with case ignored the old column of the side by side layout shows the old text" <|
+            \_ ->
+                let
+                    model =
+                        start (Diff.lines [ Diff.ignoreCase ] "Hello\nb\n" "hello\nc\n")
+                in
+                query [] { model | state = Diff.setSplit True model.state }
+                    |> Query.findAll [ Selector.tag "tr", Selector.containing [ Selector.class "klar-diff__cell--context" ] ]
+                    |> Query.first
+                    |> Query.findAll [ Selector.class "klar-diff__code" ]
+                    |> Query.index 0
+                    |> Query.has [ Selector.text "Hello" ]
         , test "only the first changes are drawn when there are many" <|
             \_ ->
                 query [] many
@@ -933,7 +1005,7 @@ staticViewTests =
                     |> Query.find [ Selector.class "klar-diff__scroll" ]
                     |> Expect.all
                         [ Query.has
-                            [ region
+                            [ Selector.attribute (Attr.attribute "role" "group")
                             , Selector.attribute (Attr.tabindex 0)
                             , Selector.attribute (Attr.attribute "aria-label" "Changes to the policy")
                             ]

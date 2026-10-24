@@ -375,7 +375,8 @@ css =
   grid-template-columns: 1.4em minmax(8ch, 24ch) minmax(0, 1fr);
   align-items: baseline;
   gap: 0 var(--klar-space-2);
-  padding: 4px var(--klar-space-3) 4px var(--klar-space-2);
+  padding-block: 4px;
+  padding-inline: var(--klar-space-2) var(--klar-space-3);
   border-bottom: 1px solid var(--klar-border-subtle);
   line-height: var(--klar-leading);
 }
@@ -427,9 +428,13 @@ css =
 }
 
 .klar-diff__arrow {
-  margin: 0 var(--klar-space-2);
+  display: inline-block;
+  margin-inline: var(--klar-space-2);
   color: var(--klar-text-muted);
 }
+
+/* "from → to" reads from the old value to the new one in a page written from right to left too. */
+:dir(rtl) .klar-diff__arrow { transform: scaleX(-1); }
 
 .klar-diff__cut {
   margin-inline-start: var(--klar-space-1);

@@ -5,7 +5,7 @@ module Klar.Diff exposing
     , JsonOption, matchBy
     , isEmpty, tooLarge, stats
     , Hunk, hunks, hunkKey, hunkBefore, hunkAfter
-    , State, init, Msg, update, setSplit, isSplit
+    , State, init, Msg, update, setSplit, isSplit, currentHunk, goToHunk
     , Attribute, ariaLabel, context, maxChanges, maxHeight, wrapLines, showUnchangedFields, locale
     )
 
@@ -85,7 +85,7 @@ when there is only one JSON value.
 
 # State
 
-@docs State, init, Msg, update, setSplit, isSplit
+@docs State, init, Msg, update, setSplit, isSplit, currentHunk, goToHunk
 
 
 # Attributes
@@ -659,6 +659,46 @@ isSplit (State state) =
     state.split
 
 
+{-| The change the user went to last (with `n` and `p`, or the buttons "Next" and
+"Previous"), in this diff, or `Nothing` before the first step. Use it to show a panel
+for the change the user is on, such as "Accept" and "Reject" for that hunk, with
+`hunkKey` to remember the decision.
+
+    Diff.currentHunk model.policyDiff model.policyView
+        |> Maybe.map Diff.hunkKey
+
+-}
+currentHunk : Diff -> State -> Maybe Hunk
+currentHunk diff (State state) =
+    state.current
+        |> Maybe.andThen (\index -> List.head (List.drop index (hunks diff)))
+
+
+{-| Goes to the change with this `hunkKey`, as if the user had stepped to it: it
+becomes the current change, it is drawn even when it is after the first changes that
+are shown, and the command moves the keyboard focus to it (map it with `Cmd.map`).
+A key that is not in this diff changes nothing. Use it for a list of the changes next
+to the viewer, or to go back to the change the user decided on last.
+
+    ( state, cmd ) =
+        Diff.goToHunk model.policyDiff key model.policyView
+
+-}
+goToHunk : Diff -> String -> State -> ( State, Cmd Msg )
+goToHunk diff key state =
+    case
+        hunks diff
+            |> List.indexedMap Tuple.pair
+            |> List.filter (\( _, hunk ) -> hunkKey hunk == key)
+            |> List.head
+    of
+        Just ( index, _ ) ->
+            update (Go index) state
+
+        Nothing ->
+            ( state, Cmd.none )
+
+
 {-| The messages of the viewer. Wrap them in a message of your own, give them to
 `update` and use the same wrapper in `view`.
 -}
@@ -764,7 +804,7 @@ revealedBefore key folds =
 {-| A setting of the viewer. Make them with the functions below and pass a list to
 `view` or `viewStatic`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -779,7 +819,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { ariaLabel = Nothing
@@ -797,7 +837,7 @@ configure attributes =
 names the area that scrolls, which screen readers announce as a region. The
 default is "Changes".
 -}
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ariaLabel text =
     Attribute (\config -> { config | ariaLabel = Just text })
 
@@ -806,7 +846,7 @@ ariaLabel text =
 are folded into a row that says how many they are and opens when it is pressed.
 The default is 3, and the value is kept between 0 and 20.
 -}
-context : Int -> Attribute
+context : Int -> Attribute msg
 context count =
     Attribute (\config -> { config | context = clamp 0 20 count })
 
@@ -818,7 +858,7 @@ lines is cut as well, after 500 lines, with a button that shows 500 more. `viewS
 has no buttons, so it draws at most 1,000 changes and 500 lines of a block, and says
 how many it left out.
 -}
-maxChanges : Int -> Attribute
+maxChanges : Int -> Attribute msg
 maxChanges count =
     Attribute (\config -> { config | maxChanges = clamp 10 5000 count })
 
@@ -827,7 +867,7 @@ maxChanges count =
 default the viewer grows with its content. A diff of lines scrolls sideways inside
 its own box in any case, never the page.
 -}
-maxHeight : Int -> Attribute
+maxHeight : Int -> Attribute msg
 maxHeight pixels =
     Attribute (\config -> { config | maxHeight = Just pixels })
 
@@ -835,7 +875,7 @@ maxHeight pixels =
 {-| Wraps long lines of a text diff instead of scrolling sideways. Good for
 prose, such as a policy; code is easier to read when it keeps its lines.
 -}
-wrapLines : Attribute
+wrapLines : Attribute msg
 wrapLines =
     Attribute (\config -> { config | wrap = True })
 
@@ -844,7 +884,7 @@ wrapLines =
 `fields`. By default only the fields that changed are shown. It has no effect on
 other diffs.
 -}
-showUnchangedFields : Attribute
+showUnchangedFields : Attribute msg
 showUnchangedFields =
     Attribute (\config -> { config | unchangedFields = True })
 
@@ -852,7 +892,7 @@ showUnchangedFields =
 {-| The language of the built-in text: the toolbar, the rows that fold unchanged
 lines, the counts and the notes. The default is `Locale.default`, which is English.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -1036,7 +1076,7 @@ The viewer needs an id from `init` for the focus. For a list of many diffs, wher
 a state for each would be a nuisance, use `viewStatic`.
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Diff -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Diff -> Html msg
 view toMsg attributes state diff =
     render (Just toMsg) (configure attributes) state diff
 
@@ -1053,7 +1093,7 @@ A diff of lines scrolls sideways inside a box that is a tab stop; the others do 
 need one and are plain lists.
 
 -}
-viewStatic : List Attribute -> Diff -> Html msg
+viewStatic : List (Attribute msg) -> Diff -> Html msg
 viewStatic attributes diff =
     render Nothing (configure attributes) (init "") diff
 
@@ -1126,7 +1166,7 @@ render toMsg config state ((Diff diff) as whole) =
                     False
 
                 LinesContent _ ->
-                    not (isEmpty whole)
+                    not (isEmpty whole) && linesScroll config
 
                 EntriesContent _ _ ->
                     interactive
@@ -1169,6 +1209,14 @@ render toMsg config state ((Diff diff) as whole) =
                     viewEntries ctx label source entries
                 , viewFooter ctx
                 ]
+
+
+{-| Whether the table of lines can scroll, and so must be a tab stop: sideways unless
+the lines are wrapped, and up and down with a `maxHeight`.
+-}
+linesScroll : Config -> Bool
+linesScroll config =
+    not config.wrap || config.maxHeight /= Nothing
 
 
 isLines : Content -> Bool
@@ -1472,7 +1520,16 @@ scrollArea ctx label tabStop content =
          ]
             ++ (if tabStop then
                     [ Attr.tabindex 0
-                    , Attr.attribute "role" "region"
+
+                    -- the viewer is a landmark of the page; a static diff is one of many in
+                    -- a list (an audit log), and fifty landmarks would flood the list of them
+                    , Attr.attribute "role"
+                        (if ctx.interactive then
+                            "region"
+
+                         else
+                            "group"
+                        )
                     , Attr.attribute "aria-label" label
                     ]
                         ++ (if ctx.interactive then
@@ -1554,7 +1611,7 @@ viewLines ctx label compared =
     in
     scrollArea ctx
         label
-        True
+        (linesScroll ctx.config)
         [ Keyed.node "table"
             [ Internal.cls
                 [ "klar-diff__table"
@@ -1833,9 +1890,18 @@ contextRows ctx split compared opened oldStart newStart from count =
                         compared.newMissingNewline && newNumber == Array.length compared.new
                 in
                 if split then
+                    let
+                        -- with ignoreWhitespace or ignoreCase an unchanged line can still be
+                        -- written differently: the old column shows the old text
+                        oldText =
+                            Array.get (oldNumber - 1) compared.old |> Maybe.withDefault text
+
+                        oldMissing =
+                            compared.oldMissingNewline && oldNumber == Array.length compared.old
+                    in
                     Html.tr (Internal.cls [ "klar-diff__row" ] :: openedRowAttributes ctx opened offset)
-                        (sideCells ctx ContextRow (Just oldNumber) [ { text = text, changed = False } ] missing Nothing False
-                            ++ sideCells ctx ContextRow (Just newNumber) [ { text = text, changed = False } ] missing Nothing True
+                        (sideCells ctx ContextRow (Just oldNumber) [ { text = oldText, changed = False } ] oldMissing Nothing False
+                            ++ sideCells ctx ContextRow (Just newNumber) [ { text = text, changed = False } ] missing Nothing (oldText == text && oldMissing == missing)
                         )
 
                 else
@@ -2043,9 +2109,12 @@ codeCell extra ctx kind parts missingNewline =
         ]
 
 
+{-| The side of a row that has no line: three empty cells. They stay in the table for
+screen readers, so every row has the six columns of the heading.
+-}
 fillerCells : List (Html msg)
 fillerCells =
-    List.repeat 3 (Html.td [ Internal.cls [ "klar-diff__filler" ], ariaHidden ] [])
+    List.repeat 3 (Html.td [ Internal.cls [ "klar-diff__filler" ] ] [])
 
 
 {-| The text of a line: what changed inside it is an `ins` or a `del`, and the white
@@ -2235,18 +2304,26 @@ readers, so the line is read once.
 -}
 sideCells : Ctx msg -> RowKind -> Maybe Int -> List Part -> Bool -> Maybe ( String, String ) -> Bool -> List (Html msg)
 sideCells ctx kind number parts missingNewline focus duplicate =
-    let
-        extra =
-            if duplicate then
-                [ ariaHidden ]
+    if duplicate then
+        -- the same text as the other side: a screen reader hears it once, and the cells
+        -- stay in the table so that every row has the columns of the heading
+        [ numberCell [] kind number
+        , markCell [] ctx kind focus
+        , Html.td [ Internal.cls [ "klar-diff__code", kindClass kind ] ]
+            [ Html.span [ Internal.cls [ "klar-diff__text" ], ariaHidden ] (viewParts kind parts)
+            , if missingNewline then
+                Html.span [ Internal.cls [ "klar-diff__noeol" ], ariaHidden ] [ Html.text ctx.t.missingNewline ]
 
-            else
-                []
-    in
-    [ numberCell extra kind number
-    , markCell extra ctx kind focus
-    , codeCell extra ctx kind parts missingNewline
-    ]
+              else
+                Html.text ""
+            ]
+        ]
+
+    else
+        [ numberCell [] kind number
+        , markCell [] ctx kind focus
+        , codeCell [] ctx kind parts missingNewline
+        ]
 
 
 
