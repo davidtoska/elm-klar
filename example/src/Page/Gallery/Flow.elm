@@ -225,7 +225,7 @@ history, not the text of one field.
 -}
 pageShortcuts : Locale -> List (Shortcut Msg)
 pageShortcuts locale =
-    History.shortcuts locale { onUndo = UndoPressed, onRedo = RedoPressed }
+    History.shortcuts [ History.locale locale ] { onUndo = UndoPressed, onRedo = RedoPressed }
         |> List.map Shortcut.inInputs
 
 
@@ -744,7 +744,7 @@ orderRow locale model order =
 -- LEAVE GUARD
 
 
-guardAttributes : Locale -> Model -> List LeaveGuard.Attribute
+guardAttributes : Locale -> Model -> List (LeaveGuard.Attribute Msg)
 guardAttributes locale model =
     LeaveGuard.locale locale
         :: (if model.offerSave then
@@ -1152,7 +1152,7 @@ History.controls [ History.showShortcuts ]
 
 -- keys: the page listens, History only makes the shortcuts
 Shortcut.listen ShortcutMsg
-    (History.shortcuts Locale.en { onUndo = UndoPressed, onRedo = RedoPressed }
+    (History.shortcuts [] { onUndo = UndoPressed, onRedo = RedoPressed }
         |> List.map Shortcut.inInputs
     )
     model.shortcuts

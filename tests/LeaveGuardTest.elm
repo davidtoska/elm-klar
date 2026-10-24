@@ -66,7 +66,7 @@ asked target guard =
 {-| The dialog as the application renders it. The messages stay what the guard makes
 them, so the test can hand them to `update` as the application would.
 -}
-dialog : List LeaveGuard.Attribute -> Guard -> Html LeaveGuard.Msg
+dialog : List (LeaveGuard.Attribute LeaveGuard.Msg) -> Guard -> Html LeaveGuard.Msg
 dialog attributes guard =
     Overlay.host { attributes = [], page = [], overlays = [ LeaveGuard.view identity attributes guard ] }
 

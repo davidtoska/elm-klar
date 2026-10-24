@@ -754,10 +754,9 @@ messageId id =
 
 
 {-| A setting of the dialog. Make them with the functions below and pass a list
-to `view`; later attributes win over earlier ones. They carry no messages, so the
-type has no `msg` parameter.
+to `view`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -769,7 +768,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { title = Nothing, message = Nothing, save = False, locale = Locale.default }
@@ -779,7 +778,7 @@ configure attributes =
 {-| The question, replacing "Leave without saving?". It is the accessible name of
 the dialog.
 -}
-title : String -> Attribute
+title : String -> Attribute msg
 title value =
     Attribute (\config -> { config | title = Just value })
 
@@ -788,7 +787,7 @@ title value =
 leave now, they are lost." Name what is lost: "Order 1042 and its lines are not
 saved."
 -}
-message : String -> Attribute
+message : String -> Attribute msg
 message value =
     Attribute (\config -> { config | message = Just value })
 
@@ -797,7 +796,7 @@ message value =
 here. Pressing it closes the dialog and `update` gives you a `Decision` for which `savesFirst` is `True`. It is the
 primary button of the dialog; focus still starts on "Stay".
 -}
-saveAndLeave : Attribute
+saveAndLeave : Attribute msg
 saveAndLeave =
     Attribute (\config -> { config | save = True })
 
@@ -805,7 +804,7 @@ saveAndLeave =
 {-| The language of the built-in text: the question, the sentence and the
 buttons. The default is [`Locale.default`](Klar-Locale#default), which is English.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -821,7 +820,7 @@ view all the time; put it in the `overlays` of
     LeaveGuard.view GuardMsg [ LeaveGuard.saveAndLeave ] model.guard
 
 -}
-view : (Msg -> msg) -> List Attribute -> Guard source target -> Overlay msg
+view : (Msg -> msg) -> List (Attribute msg) -> Guard source target -> Overlay msg
 view toMsg attributes (Guard state) =
     let
         config =
