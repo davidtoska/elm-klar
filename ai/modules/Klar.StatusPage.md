@@ -15,11 +15,11 @@ view : List (Attribute msg) -> Kind -> Html msg
 -- Kinds of pages
 type Kind  -- opaque: no constructors are exposed
 success : Kind
-notFound : Kind
-denied : Kind
-sessionExpired : Kind
-serverError : Kind
-offline : Kind
+pageNotFound : Kind
+forbidden : Kind
+unauthorized : Kind
+server : Kind
+network : Kind
 maintenance : Kind
 fromProblem : Remote.Problem -> Kind
 
@@ -31,15 +31,13 @@ icon : Icon.Icon -> Attribute msg
 actions : List (Html msg) -> Attribute msg
 reference : String -> Attribute msg
 onRetry : msg -> Attribute msg
+retrying : Bool -> Attribute msg
 
 -- Structure and text
 headingLevel : Int -> Attribute msg
 standalone : Attribute msg
 id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
-
--- Focus
-focusTitle : String -> msg -> Cmd msg
 ```
 
 ## Documentation
@@ -51,16 +49,17 @@ Use when: the whole page is one result, such as not found, no access, a server e
 Do not use when: the result sits inside a table, card or panel, use `Klar.EmptyState` or `Klar.ErrorState`.
 
     import Klar.Button as Button
+    import Klar.Remote as Remote exposing (Remote(..))
     import Klar.StatusPage as StatusPage
 
     -- the router found nothing for the address
     StatusPage.view
         [ StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ]
-        StatusPage.notFound
+        StatusPage.pageNotFound
 
     -- the data of the page failed to load: the page follows the kind of the problem
     case model.order of
-        Failure problem ->
+        Failed problem ->
             StatusPage.view
                 [ StatusPage.onRetry ReloadOrder
                 , StatusPage.reference "req-7f3a-91c2"
@@ -82,10 +81,12 @@ It is the whole-page version of [Klar.EmptyState](Klar.EmptyState.md) and
 [Klar.ErrorState](Klar.ErrorState.md): use those inside a table, a card or a panel,
 and this when the result is the page. The page is centered, with a large calm
 title, a sentence under it and a row of actions that you give as buttons. The
-kind of page (`notFound`, `denied`, `serverError` ...) chooses the icon, the color
+kind of page (`pageNotFound`, `forbidden`, `server` ...) chooses the icon, the color
 and the built-in texts, in English and Norwegian Bokmål (see `locale`); `title`
-and `description` replace them. The kinds are values of an opaque type, so that
-more can be added later.
+and `description` replace them. The kinds of a failure have the names of the kinds of
+[`Remote.Kind`](Klar.Remote.md#kind) and are the pages of those problems (`forbidden` is
+`fromProblem (Remote.problem Remote.forbidden)`). The kinds are values of an opaque
+type, so that more can be added later.
 
 ## Semantics
 
@@ -102,9 +103,9 @@ to rely on.
 When the page replaces what the user was looking at without a navigation (the
 form that was just submitted, a list that failed to load), the focused button is
 gone with it and focus falls to the page body, so nothing is read. Give the page an
-`id` and, in the same `update` that shows it, call `focusTitle` with the same text:
+`id` and, in the same `update` that shows it, call `Klar.focus` with the same text:
 the title takes focus and the screen reader reads the result. Keep the text in one
-place, a value of your own, so that the two cannot differ; `focusTitle` does nothing
+place, a value of your own, so that the two cannot differ; `Klar.focus` does nothing
 when no element has the id.
 
     orderCreated : String
@@ -113,7 +114,17 @@ when no element has the id.
 
     StatusPage.view [ StatusPage.id orderCreated ] StatusPage.success
 
-    StatusPage.focusTitle orderCreated NoOp
+    Klar.focus orderCreated NoOp
+
+**Trying again in place.** "Try again" is a button of the page. Keep the page on the
+screen while the new request is on its way, with `retrying`: the button turns busy
+where it is and keeps focus, instead of a skeleton that takes the focused button away.
+When the answer comes, the page goes and the content (or a new status page) takes its
+place: move focus to it.
+
+    StatusPage.view
+        [ StatusPage.onRetry ReloadOrder, StatusPage.retrying model.reloading ]
+        (StatusPage.fromProblem problem)
 
 The page fills the height of the region it is in (the content of an `AppShell`, a
 panel with a height) without making it scroll, and grows when its content needs
@@ -135,7 +146,7 @@ view : List (Attribute msg) -> Kind -> Html msg
 The page: an icon, the title, a sentence, the actions and the reference,
 centered in the region.
 
-    StatusPage.view [ StatusPage.actions [ homeButton ] ] StatusPage.denied
+    StatusPage.view [ StatusPage.actions [ homeButton ] ] StatusPage.forbidden
 
 ## Kinds of pages
 
@@ -145,8 +156,8 @@ centered in the region.
 type Kind  -- opaque: no constructors are exposed
 ```
 
-What the page is about. Make one with `success`, `notFound`, `denied`,
-`sessionExpired`, `serverError`, `offline`, `maintenance` or, for a failed
+What the page is about. Make one with `success`, `pageNotFound`, `forbidden`,
+`unauthorized`, `server`, `network`, `maintenance` or, for a failed
 request, `fromProblem`, and give it to `view`. The type is opaque, so that new
 kinds can be added without breaking anyone.
 
@@ -159,49 +170,50 @@ success : Kind
 The action went through: "Order created". A green check, the title "Done" and
 a short sentence; you will usually set your own `title` and `description`.
 
-### `notFound`
+### `pageNotFound`
 
 ```elm
-notFound : Kind
+pageNotFound : Kind
 ```
 
-The address matches nothing (404): "Page not found". A search icon in a
-quiet gray. For a single record that is missing, use `fromProblem` with
-`Remote.notFound` so that the texts of the problem are used.
+The address matches no page of the application (the 404 of the router): "Page
+not found", with the advice to check the address. A search icon in a quiet gray. For
+a record that a request did not find, use `fromProblem` with `Remote.notFound` ("We
+couldn't find that"), so that the texts of the problem are used.
 
-### `denied`
+### `forbidden`
 
 ```elm
-denied : Kind
+forbidden : Kind
 ```
 
 The user may not see this (403): "No access", and the advice to contact an
 administrator. A lock in a quiet gray. It is `fromProblem` for a
 `Remote.forbidden` problem.
 
-### `sessionExpired`
+### `unauthorized`
 
 ```elm
-sessionExpired : Kind
+unauthorized : Kind
 ```
 
 The user has to sign in again (401): "Please sign in again". It is
 `fromProblem` for a `Remote.unauthorized` problem. Give it a sign-in button
 as an action.
 
-### `serverError`
+### `server`
 
 ```elm
-serverError : Kind
+server : Kind
 ```
 
 The server failed (500): "Something went wrong on our side", in red. It is
 `fromProblem` for a `Remote.server` problem, and worth trying again (`onRetry`).
 
-### `offline`
+### `network`
 
 ```elm
-offline : Kind
+network : Kind
 ```
 
 There is no contact with the server: "Can't reach the service". It is
@@ -304,10 +316,22 @@ onRetry : msg -> Attribute msg
 ```
 
 The message sent by a "Try again" button, placed before your own actions. The
-button is there only when trying again can help: for `serverError`, `offline`,
+button is there only when trying again can help: for `server`, `network`,
 `maintenance` and a `fromProblem` page whose problem is worth retrying
 (`Remote.isRetryable`), and never for the others. Without `onRetry` there is no
 button.
+
+### `retrying`
+
+```elm
+retrying : Bool -> Attribute msg
+```
+
+Whether the request that "Try again" sent is on its way: while `True` the button
+shows a spinner, is busy and ignores clicks, and keeps focus where it is
+(`Button.loading`). Pass a field of your model. The default is `False`.
+
+    StatusPage.retrying model.reloading
 
 ## Structure and text
 
@@ -338,11 +362,12 @@ page fills the region it is placed in and is an ordinary `div`.
 id : String -> Attribute msg
 ```
 
-The DOM id of the element that `focusTitle` moves focus to, which must be unique
+The DOM id of the element that `Klar.focus` moves focus to, which must be unique
 on the page: the title, which becomes focusable, or the whole page when it has no
-title (a blank `title`), so that there is always something to focus. Give `focusTitle`
-the same text. There is no id by default, and without one `focusTitle` finds nothing
-and does nothing.
+title (a blank `title`), so that there is always something to focus. Give `Klar.focus`
+the same text. There is no id by default.
+
+    Klar.focus "order-created" NoOp
 
 ### `locale`
 
@@ -354,19 +379,3 @@ The language of the built-in text: the texts of the kinds, "Try again" and
 the label of the reference. The default is [`Locale.default`](Klar.Locale.md#default),
 which is English. The title and the explanation of a `fromProblem` page come from
 the problem, in this language.
-
-## Focus
-
-### `focusTitle`
-
-```elm
-focusTitle : String -> msg -> Cmd msg
-```
-
-Moves focus to the title of the page that has this `id` (the page itself when it
-has no title; see the attribute `id`). Pass the same text as to `id`: if no element
-has it, nothing happens. Call it in the same `update` that starts to show the page,
-when the page replaces what the user was working with. The message is sent when it is
-done, whether it worked or not.
-
-    StatusPage.focusTitle "order-created" NoOp

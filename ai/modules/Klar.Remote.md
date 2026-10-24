@@ -13,6 +13,7 @@ Types: `Kept`, `Kind`, `Remote`, `Problem`
 type Remote a = NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)
 fromResult : Result Problem a -> Remote a
 map : (a -> b) -> Remote a -> Remote b
+map2 : (a -> b -> c) -> Remote a -> Remote b -> Remote c
 toMaybe : Remote a -> Maybe a
 withDefault : a -> Remote a -> a
 isLoading : Remote a -> Bool
@@ -22,6 +23,7 @@ isFailed : Remote a -> Bool
 -- Refreshing and old data
 type Kept a  -- opaque: no constructors are exposed
 refresh : Remote a -> Remote a
+settle : Remote a -> Result Problem a -> Remote a
 refreshWith : Remote a -> Result Problem a -> Time.Posix -> Remote a
 isRefreshing : Remote a -> Bool
 isStale : Remote a -> Bool
@@ -63,6 +65,7 @@ failed, here, or kept (old data while it is refreshed, or after a refresh failed
 
 Use when: a screen shows data that comes from a backend and can be loading, failed or old.
 Do not use when: the data is always there, as a plain value in the model.
+Quick path: `refresh` when the request leaves, `settle` when the answer comes, then give the `Remote` to a component.
 
     import Klar.Remote as Remote exposing (Remote(..))
 
@@ -70,33 +73,46 @@ Do not use when: the data is always there, as a plain value in the model.
         { orders : Remote (List Order) }
 
     -- NotAsked -> Loading -> Loaded orders | Failed problem
-    -- and on a refresh: Kept (old orders, refreshing or failed)
+    -- with data on the screen, a refresh or a failed refresh is Kept (the data stays)
 
-Components that show remote data (`Klar.Table`, `Klar.Select`, `Klar.ListItem` ...)
-take a `Remote` and render the loading skeleton, the failure with a retry button
-and the empty state themselves, so a screen is correct in every state without
-you writing the five cases each time.
+Components that show remote data (`Klar.Table`, `Klar.Select`, `Klar.ListItem`,
+`Klar.RemoteView` ...) take a `Remote` and render the loading skeleton, the failure
+with a retry button and the empty state themselves, so a screen is correct in every
+state without you writing the cases each time.
 
     Table.rows model.orders
 
-**Refreshing and old data.** After the first load most of what a screen shows is
-data you already have: it is refreshed, or the refresh failed and what is on the
+**The two lines of every request.** After the first load most of what a screen shows
+is data you already have: it is refreshed, or the refresh failed and what is on the
 screen is old. Two functions carry that, and every component draws it (the data
-stays, dimmed and busy while it is refreshed; "Old data from 14:05" with a retry
-when the refresh failed):
+stays, dimmed and busy while it is refreshed; "Old data" with a retry when the
+refresh failed):
 
-    -- the request leaves
-    ( { model | orders = Remote.refresh model.orders }, fetchOrders )
+    -- the request leaves (the first time too: anything without data becomes Loading)
+    Reload ->
+        ( { model | orders = Remote.refresh model.orders }, fetchOrders )
 
-    -- the answer comes back, good or bad; `at` is when it came
-    GotOrders result at ->
-        ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
+    -- the answer comes back, good or bad
+    GotOrders result ->
+        ( { model | orders = Remote.settle model.orders (Result.mapError toProblem result) }
+        , Cmd.none
+        )
 
     -- one notice for the whole page
-    Alert.stale [] Refresh (Remote.staleIn "orders" model.orders)
+    Alert.stale [] Reload (Remote.staleIn "orders" model.orders)
 
-Read the data with `toMaybe`, `withDefault` or `map`, which see refreshed data too.
-A `case` of your own on a `Remote` needs a branch for `Kept` (or `toMaybe`).
+`refreshWith` is `settle` with the time of the answer, for requests that carry it, so
+that old data says "Old data from 14:05". For a new question (another customer,
+another period) the old answer does not apply: set `Loading` instead of `refresh`.
+When the user can ask again before the answer comes (a search, a drawer that opens
+another order), put the question in the message (`GotCustomer id result`) and settle
+only the answer to the question that is shown, so that a late answer to an old
+question is dropped.
+
+Read the data with `toMaybe`, `withDefault` or `map`, which see refreshed data too,
+and combine two with `map2`. A `case` of your own on a `Remote` needs a branch for
+`Kept` (or `toMaybe`): a `case` that only knows `Loaded` shows a skeleton while the
+data is refreshed.
 
 A `Problem` says what went wrong in terms that decide what to tell the user: a
 `Kind` (whether trying again could help), an optional title, explanation and
@@ -130,11 +146,12 @@ type Remote a = NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)
 ```
 
 Data you ask for. Start in `NotAsked` (or `Loading` if the request is sent
-in `init`), then move to `Loaded` or `Failed`.
+in `init`); `refresh` when a request leaves and `settle` when its answer comes move
+it to `Loaded`, `Failed` or `Kept`.
 
 `Kept` is data you still show while it is refreshed, or after a refresh failed:
 it carries the data, when it was loaded, and why the last refresh failed. You
-never build it by hand. `refresh` and `refreshWith` move between the states, and
+never build it by hand. `refresh`, `settle` and `refreshWith` move between the states, and
 every component that takes a `Remote` draws it: the old data stays, with a calm
 "Old data from 14:05" and a retry when the refresh failed, and dimmed with a busy
 state while it is refreshing.
@@ -150,8 +167,12 @@ mistaken for "no data".
 fromResult : Result Problem a -> Remote a
 ```
 
-Turns the `Result` of a request into a `Remote`. Convert your error to a
-`Problem` first, with `Result.mapError`.
+Turns the `Result` of a request into a `Remote`, for an answer to a new
+question, where nothing old is on the screen to keep: a value for one key of a
+`Dict`, search hits that belong to the latest query. It is `settle Loading`. For the
+answer to a request that refreshes what is shown, use `settle`, which keeps the data
+when the refresh fails. Convert your error to a `Problem` first, with
+`Result.mapError`.
 
     Result.mapError toProblem result
         |> Remote.fromResult
@@ -165,6 +186,22 @@ map : (a -> b) -> Remote a -> Remote b
 Transforms the data when it is there.
 
     Remote.map List.length model.orders -- Remote Int
+
+### `map2`
+
+```elm
+map2 : (a -> b -> c) -> Remote a -> Remote b -> Remote c
+```
+
+Combines two remotes, for a view that needs both: an order and its customer in one
+`RemoteView`. The data is there when both are there. Otherwise the state that says
+the most wins: a failure (the first one), then loading, then not asked. When either
+side is refreshed or old, so is the combination: refreshing while either is, old with
+the problem of the first old side, and loaded at the earlier of the two times.
+
+    Remote.map2 (\order customer -> { order = order, customer = customer })
+        model.order
+        model.customer
 
 ### `toMaybe`
 
@@ -239,21 +276,42 @@ set it busy.
 For a new question (another customer, another period) the old answer does not
 apply: set `Loading` instead.
 
+### `settle`
+
+```elm
+settle : Remote a -> Result Problem a -> Remote a
+```
+
+Takes the answer of a request into the state, in one line, for the first load
+and for every refresh. `Ok` gives fresh `Loaded` data. `Err` while there is data to
+show keeps the data and makes it old, with the problem (components then draw "Old
+data" and a retry); `Err` when there is nothing to show is a plain `Failed`. A failed
+refresh never writes over good data.
+
+    GotOrders result ->
+        ( { model | orders = Remote.settle model.orders (Result.mapError toProblem result) }
+        , Cmd.none
+        )
+
+The answer of an `Http` request comes as it is, with no time: this is the line for it.
+When you do have the time of the answer, `refreshWith` does the same and remembers it,
+so that old data says when it was loaded ("Old data from 14:05").
+
 ### `refreshWith`
 
 ```elm
 refreshWith : Remote a -> Result Problem a -> Time.Posix -> Remote a
 ```
 
-Takes the answer of a request into the state, in one line. `Ok` gives fresh
-data that remembers when it was loaded (give the time of the answer). `Err` while
-there is data to show keeps the data and makes it stale, with the problem; `Err`
-when there is nothing to show is a plain `Failed`.
+`settle`, for an answer whose time you have: `Ok` gives fresh data that
+remembers when it was loaded, so that old data says when ("Old data from 14:05"
+instead of "Old data"). `Err` is the same as for `settle`.
 
     GotOrders result at ->
         ( { model | orders = Remote.refreshWith model.orders result at }, Cmd.none )
 
-The same line works for the first load.
+The time comes with the answer when the request is a `Task` that ends with
+`Time.now` (as `ServerList` requests do); for a request that is a `Cmd`, use `settle`.
 
 ### `isRefreshing`
 
@@ -383,7 +441,8 @@ detail : Locale.Locale -> Problem -> Maybe String
 ```
 
 The explanation: the one set with `withDetail`, or the ready-made text for
-the kind in the given language.
+the kind in the given language. A blank explanation (`withDetail ""`) hides it:
+the result is then `Nothing`, and components draw no empty paragraph.
 
 ### `code`
 

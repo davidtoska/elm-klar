@@ -1,6 +1,6 @@
 # Klar.RemoteView
 
-The body of a card, a dialog or a drawer that shows one piece of remote data: a loading skeleton that screen readers hear, the failure with a retry, and the data, old or being refreshed.
+The body of a card, a dialog or a drawer that shows one piece of remote data.
 
 Import: `import Klar.RemoteView as RemoteView` | Group: Data and utilities
 
@@ -17,6 +17,7 @@ onRetry : msg -> Attribute msg
 id : String -> Attribute msg
 loadingLabel : String -> Attribute msg
 skeleton : Html msg -> Attribute msg
+emptyState : List (EmptyState.Attribute msg) -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 settings : Settings.Settings -> Attribute msg
 ```
@@ -24,8 +25,8 @@ settings : Settings.Settings -> Attribute msg
 ## Documentation
 
 The body of a card, a dialog or a drawer that shows one piece of remote data:
-a loading skeleton that screen readers hear, the failure with a retry, and the
-data, old or being refreshed. You write only what the data looks like.
+a loading skeleton that screen readers hear, the failure with a retry, nothing to
+show, and the data, old or being refreshed. You write only what the data looks like.
 
 Use when: the body of a card, a dialog or a drawer shows one piece of remote data.
 Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListItem`, which take a `Remote` themselves).
@@ -46,18 +47,26 @@ Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListIt
         model.drawer
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
-`NotAsked` and `Loading` show a skeleton and set the body busy, with a polite
-"Loading" for screen readers (`loadingLabel` says what is loading). `Failed` shows
-the problem with a "Try again" button (`onRetry`). `Loaded` calls your function.
-Data that is `Kept` ([Klar.Remote](Klar.Remote.md)) stays on the screen: dimmed and
-busy while it is refreshed, and with "Old data from 14:05" and a retry when the
-last refresh failed. An empty result is yours to draw, with
-[Klar.EmptyState](Klar.EmptyState.md), inside the function.
+`NotAsked` and `Loading` show a skeleton, with a polite "Loading" for screen readers
+(`loadingLabel` says what is loading). `Failed` shows the problem with a "Try again"
+button (`onRetry`) when trying again can help. The data calls your function, and when
+your function returns no nodes at all the body says "Nothing to show"
+(`emptyState` says it your way). Data that is `Kept` ([Klar.Remote](Klar.Remote.md)) stays
+on the screen: dimmed and busy while it is refreshed, and with "Old data from 14:05"
+and a retry when the last refresh failed.
 
-The body is a list of nodes, so it fits wherever a list of children goes: the body
-of a `Card`, a `Modal` or a `Drawer`, or any `Html.div`. Inside a `Modal` or
-`Drawer`, focus that was on the retry button when the data reloads goes back into
-the dialog by itself; in a `Card` or on a page it falls to the page, unless the body
+**One element in every state.** The body is always one `div` that holds a live region
+and then the content of the state, so that a refresh never rebuilds your nodes: a
+button inside the body that starts a refresh keeps focus while the refresh is on its
+way and when it ends, and so do the caret of a field, an open `<details>` and the
+scroll position of an inner pane. The live region is the same element from loading to
+data, and only its text changes, which is what screen readers announce reliably.
+
+The body is a list with that one node, so it fits wherever a list of children goes:
+the body of a `Card`, a `Modal` or a `Drawer`, or any `Html.div`. Inside, the content
+is a column with the small gap of the library. When the data replaces a failure, the
+"Try again" button that had focus is gone: inside a `Modal` or `Drawer` focus goes back
+into the dialog by itself; in a `Card` or on a page it falls to the page, unless the body
 has an `id` and you move focus to it when you start the new request:
 
     RemoteView.view [ RemoteView.id "supplier", RemoteView.onRetry Retry ] model.supplier viewSupplier
@@ -83,8 +92,9 @@ its own: there is then one `h1` in every state.
 view : List (Attribute msg) -> Remote.Remote a -> (a -> List (Html msg)) -> List (Html msg)
 ```
 
-The body for a `Remote`: the skeleton, the failure, or what your function
-makes of the data.
+The body for a `Remote`: the skeleton, the failure, the empty state, or what your
+function makes of the data. The result is a list with one element, the same element in
+every state.
 
 ## Attributes
 
@@ -113,9 +123,9 @@ of old data. The button is only shown for problems worth retrying (see
 id : String -> Attribute msg
 ```
 
-The DOM id of the body. With it, the body is drawn inside one element that is the
-same in every state (loading, failed, old data, data) and can take focus, so that
-`Klar.focus` has a place to put it. The id must be unique on the page.
+The DOM id of the body, which must be unique on the page. The body is one element
+in every state (loading, failed, nothing to show, old data, data); with an id it can
+take focus, so that `Klar.focus` has a place to put it. There is no id by default.
 
 ### `loadingLabel`
 
@@ -135,14 +145,30 @@ skeleton : Html msg -> Attribute msg
 The placeholder shown while loading, drawn with [Klar.Skeleton](Klar.Skeleton.md).
 The default is a title line and a few lines of text.
 
+### `emptyState`
+
+```elm
+emptyState : List (EmptyState.Attribute msg) -> Attribute msg
+```
+
+What the body shows when the data is there but your function draws nothing for
+it (returns `[]`): an [Klar.EmptyState](Klar.EmptyState.md). The default is a compact
+one that says "Nothing to show"; your attributes are applied after it, so yours win.
+Return `[]` for an empty result and let the body say so:
+
+    RemoteView.view
+        [ RemoteView.emptyState [ EmptyState.title "No notes yet", EmptyState.action addNoteButton ] ]
+        model.notes
+        (List.map viewNote)
+
 ### `locale`
 
 ```elm
 locale : Locale.Locale -> Attribute msg
 ```
 
-The language of the built-in text ("Loading", "Try again", "Old data from").
-The default is `Locale.default`, which is English.
+The language of the built-in text ("Loading", "Try again", "Old data from",
+"Nothing to show"). The default is `Locale.default`, which is English.
 
 ### `settings`
 

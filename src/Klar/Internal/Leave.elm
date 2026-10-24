@@ -39,6 +39,11 @@ application that this address is now the page (`Replace`: the same address, no n
 entry). "Stay" pushes the address of the page that is shown (`Push`), which is the
 one move that does not need to know the direction.
 
+An address is a departure only when it means another page: the machine knows what the
+page that is shown means to the application (`page`, the target of its address), and
+an address with the same target (a query that the target does not see: a sort, a
+filter, a tab) is taken as the page's own new address, without a question.
+
 -}
 
 
@@ -47,6 +52,7 @@ type alias State source target =
     , held : Held target
     , shown : Maybe String
     , away : Maybe String
+    , page : Maybe target
     }
 
 
@@ -70,7 +76,7 @@ type Effect
 
 init : State source target
 init =
-    { dirty = [], held = Idle, shown = Nothing, away = Nothing }
+    { dirty = [], held = Idle, shown = Nothing, away = Nothing, page = Nothing }
 
 
 {-| The address the page shows right now.
@@ -124,12 +130,12 @@ isOpen state =
     state.held /= Idle
 
 
-{-| Asks. `Nothing` means: nothing is dirty and no question is open, go. Otherwise
-the new state, and the question is open.
+{-| Asks. `Nothing` means: go, nothing is dirty and no question is open, or the
+target is the page that is shown. Otherwise the new state, and the question is open.
 -}
 request : target -> State source target -> Maybe (State source target)
 request target state =
-    if List.isEmpty state.dirty && state.held == Idle then
+    if state.held == Idle && (List.isEmpty state.dirty || state.page == Just target) then
         Nothing
 
     else
@@ -150,10 +156,20 @@ dismiss state =
 
 {-| The address changed (`onUrlChange`). The result says whether the page may
 enter this address (`True`), and what the guard has to do. `target` is what the
-address means to the application; it is only used when the question is asked.
+address means to the application, and `shownTarget` what the address of the page
+that is shown means (`Nothing` when it is not known).
 -}
-changed : String -> target -> State source target -> ( State source target, List Effect, Bool )
-changed address target state =
+changed : String -> target -> Maybe target -> State source target -> ( State source target, List Effect, Bool )
+changed address target shownTarget before =
+    let
+        state =
+            case before.page of
+                Just _ ->
+                    before
+
+                Nothing ->
+                    { before | page = shownTarget }
+    in
     if state.shown == Nothing then
         -- Not watching the address: nothing to compare with, every change is a page.
         ( state, [], True )
@@ -171,8 +187,30 @@ changed address target state =
             ( Nothing, _ ) ->
                 ( state, [], False )
 
+    else if state.page == Just target then
+        -- The page that is shown, at another address: no departure. A question the
+        -- browser buttons opened is answered (the bar is at this page again); the page
+        -- is entered again only when nothing is dirty, as any address is.
+        ( { state
+            | shown = Just address
+            , away = Nothing
+            , held =
+                if isFromBrowser state.held then
+                    Idle
+
+                else
+                    state.held
+          }
+        , if isFromBrowser state.held then
+            [ Close ]
+
+          else
+            []
+        , List.isEmpty state.dirty
+        )
+
     else if List.isEmpty state.dirty then
-        ( { state | shown = Just address, away = Nothing, held = Idle }
+        ( { state | shown = Just address, away = Nothing, held = Idle, page = Just target }
         , if state.held == Idle then
             []
 
@@ -221,12 +259,13 @@ restore state =
             []
 
 
-{-| "Leave": the changes are given up. A request is handed back to the
-application (`Just target`). An address the browser moved to needs nothing from
-it: the machine replaces the address with itself, which makes the application's
-`onUrlChange` see the new page.
+{-| "Leave": the changes are given up, and the target is always handed back, so that
+the application resets what was given up in one place. With it comes whether the
+address is already there: a request still has to be pushed (`False`); an address the
+browser moved to is replaced with itself by the machine (`True`), which makes the
+application's `onUrlChange` see the new page.
 -}
-leave : State source target -> ( State source target, List Effect, Maybe target )
+leave : State source target -> ( State source target, List Effect, Maybe ( target, Bool ) )
 leave state =
     let
         clean =
@@ -234,13 +273,13 @@ leave state =
     in
     case ( state.held, state.away ) of
         ( Requested target, _ ) ->
-            ( { clean | away = Nothing }, [ Close ], Just target )
+            ( { clean | away = Nothing }, [ Close ], Just ( target, False ) )
 
-        ( FromBrowser _, Just address ) ->
-            ( { clean | away = Nothing }, [ Close, Replace address ], Nothing )
+        ( FromBrowser target, Just address ) ->
+            ( { clean | away = Nothing }, [ Close, Replace address ], Just ( target, True ) )
 
         ( FromBrowser target, Nothing ) ->
-            ( clean, [ Close ], Just target )
+            ( clean, [ Close ], Just ( target, False ) )
 
         ( Idle, _ ) ->
             ( state, [], Nothing )

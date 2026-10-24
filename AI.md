@@ -281,7 +281,7 @@ pageFromUrl url =
 - **Words that call a palette item** ("go to order 1001"): `CommandPalette.withCommand "go to order"` on the item and `CommandPalette.argument items palette` for the text to send to the backend.
 - **Keep saved views** with `SavedViews.encode` / `SavedViews.decoder` (and `Table.encodeQuery` / `Table.queryDecoder`); the library stores nothing, you choose where the JSON goes.
 - **A footer range worded your way** ("1 to 25 of 200"): `Table.rangeText` (same in `ServerList.viewTable`), `Pagination.rangeText`.
-- **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave when the user answers "Leave" (`Examples/MultiStep.elm`).
+- **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave in the branch that gets the decision of "Leave" (every Leave gives one, after a link and after Back), then go with `LeaveGuard.follow toPath answer guard` (`Examples/MultiStep.elm`).
 - **A sidebar that is not a `SideNav`**: `AppShell.sidebar` takes any `Html` (a `Tree`, a list of saved views).
 
 ## Common traps

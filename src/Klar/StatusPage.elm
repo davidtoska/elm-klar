@@ -119,7 +119,6 @@ selects completely (`user-select: all`); then `Ctrl C` copies it.
 
 @docs headingLevel, standalone, id, locale
 
-
 -}
 
 import Html exposing (Html)
@@ -380,7 +379,6 @@ the problem, in this language.
 locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
-
 
 
 

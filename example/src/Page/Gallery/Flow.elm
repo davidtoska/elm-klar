@@ -1124,12 +1124,13 @@ UrlChanged url ->
             -- asked, or nothing to do
             ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
--- "Leave" on a link or a call hands the route back; the browser buttons need nothing
+-- every "Leave" hands the route back, after a link and after Back: reset what was
+-- given up here; follow pushes a link and does nothing after Back (the address is there)
 GuardMsg inner ->
     case LeaveGuard.update inner model.guard of
         ( guard, cmd, Just answer ) ->
-            ( { model | guard = guard }
-            , Cmd.batch [ Cmd.map GuardMsg cmd, Nav.pushUrl model.key (Route.toPath (LeaveGuard.destination answer)) ]
+            ( { model | guard = guard, note = model.noteSaved }
+            , Cmd.batch [ Cmd.map GuardMsg cmd, LeaveGuard.follow Route.toPath answer guard ]
             )
 
         ( guard, cmd, Nothing ) ->
