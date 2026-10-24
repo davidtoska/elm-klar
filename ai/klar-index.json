@@ -2741,7 +2741,7 @@
       "group": "Tables and lists",
       "purpose": "A dense list row, and the list that holds the rows.",
       "whenToUse": "the application shows records such as orders, tickets and files, a menu of things to open, or a master list next to a detail pane.",
-      "whenNot": "people must search, sort and act on many rows of one kind (as `Klar.Table`).",
+      "whenNot": "people must search, sort and act on many rows of one kind (use `Klar.Table`), or the list has thousands of rows (use `Klar.VirtualList` with `ListItem.content`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -2752,10 +2752,10 @@
         "content",
         "heading",
         "list",
-        "listLabel",
+        "keyedList",
+        "ariaLabel",
         "undivided",
-        "compact",
-        "bordered"
+        "density"
       ],
       "related": [
         "Klar.VirtualList",

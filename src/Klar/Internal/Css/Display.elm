@@ -1183,11 +1183,19 @@ css =
   text-decoration: none;
 }
 
+/* The density of the list (`ListItem.density`), or else the density of the application. */
 .klar-list--compact .klar-list-item__main,
-:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--compact, .klar-list--comfortable)) .klar-list-item__main {
+:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--normal, .klar-list--comfortable)) .klar-list-item__main {
   gap: 8px;
   min-height: 32px;
   padding: 4px 10px;
+}
+
+.klar-list--comfortable .klar-list-item__main,
+:where([data-klar-density="comfortable"]) .klar-list:where(:not(.klar-list--compact, .klar-list--normal)) .klar-list-item__main {
+  gap: 12px;
+  min-height: 52px;
+  padding: 10px 14px;
 }
 
 .klar-list-item--interactive .klar-list-item__main { cursor: pointer; }
@@ -1232,7 +1240,7 @@ css =
 }
 
 .klar-list--compact .klar-list-item__leading--icon,
-:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--compact, .klar-list--comfortable)) .klar-list-item__leading--icon { width: 22px; height: 22px; }
+:where([data-klar-density="compact"]) .klar-list:where(:not(.klar-list--normal, .klar-list--comfortable)) .klar-list-item__leading--icon { width: 22px; height: 22px; }
 
 .klar-list-item__body {
   display: flex;
@@ -1290,6 +1298,19 @@ css =
 }
 
 .klar-list-item--skeleton .klar-list-item__main { pointer-events: none; }
+
+/* A disabled row keeps its button or link, so it must not look clickable. */
+.klar-list-item--disabled a.klar-list-item__main { text-decoration: none; }
+
+@media (forced-colors: active) {
+  /* The colored strip of `accent` is a background, which the high-contrast mode removes. */
+  .klar-list-item--accent::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .klar-list-item--disabled .klar-list-item__main { color: GrayText; }
+}
 
 
 /* ==========================================================================

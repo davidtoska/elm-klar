@@ -13,6 +13,7 @@ import Html exposing (Html)
 import Klar.Card as Card
 import Klar.Chart as Chart
 import Klar.Date as Date
+import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
@@ -176,14 +177,15 @@ viewSummary context summary =
                 , Card.subtitle "Overdue or urgent orders that are still open"
                 , Card.flush
                 ]
-                [ ListItem.remote
-                    [ ListItem.listLabel "Orders that need attention"
-                    , ListItem.emptyTitle "Nothing needs attention"
-                    , ListItem.emptyDescription "No open order is overdue or urgent right now."
+                [ ListItem.viewRemote
+                    [ ListItem.ariaLabel "Orders that need attention"
+                    , ListItem.emptyState
+                        [ EmptyState.title "Nothing needs attention"
+                        , EmptyState.description "No open order is overdue or urgent right now."
+                        ]
                     , ListItem.skeletonRows 4
                     ]
-                    (attentionRow context)
-                    (Remote.map .attention summary)
+                    (Remote.map (.attention >> List.map (\order -> ( Types.orderIdText order.id, attentionRow context order ))) summary)
                 ]
             , Card.view [ Card.headingLevel 2, Card.title "Recent activity", Card.subtitle "The latest things that happened to orders" ]
                 [ activity context summary ]

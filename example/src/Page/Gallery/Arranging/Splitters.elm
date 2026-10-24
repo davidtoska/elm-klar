@@ -211,7 +211,7 @@ RestoreLayout ->
 
 orderList : Int -> Html Msg
 orderList selected =
-    ListItem.list [ ListItem.listLabel "Orders" ]
+    ListItem.list [ ListItem.ariaLabel "Orders" ]
         (List.indexedMap
             (\index order ->
                 ListItem.view
@@ -297,7 +297,7 @@ workspaceExample locale model =
 
 warehouseList : Html msg
 warehouseList =
-    ListItem.list [ ListItem.listLabel "Warehouses" ]
+    ListItem.list [ ListItem.ariaLabel "Warehouses" ]
         (List.map
             (\warehouse -> ListItem.view [ ListItem.icon Icon.warehouse ] warehouse.name)
             (List.take 8 Sample.warehouses)
@@ -369,7 +369,7 @@ filterPanel =
 
 resultList : Locale -> Html msg
 resultList locale =
-    ListItem.list [ ListItem.listLabel "Results" ]
+    ListItem.list [ ListItem.ariaLabel "Results" ]
         (List.map
             (\order ->
                 ListItem.view
