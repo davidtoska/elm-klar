@@ -4,7 +4,7 @@ Global keyboard shortcuts for the whole application, including sequences of two 
 
 Import: `import Klar.Shortcut as Shortcut` | Group: Data and utilities
 
-Types: `Msg`, `Keys`, `State`, `Shortcut`
+Types: `Msg`, `State`, `Shortcut`, `Keys`
 
 ## Signatures
 
@@ -19,7 +19,7 @@ labelOf : Shortcut msg -> String
 firesInInputs : Shortcut msg -> Bool
 
 -- Keys
-type Keys  -- opaque: no constructors are exposed
+type alias Keys = Internal.Keys.Keys
 char : Char -> Keys
 function : Int -> Keys
 escape : Keys
@@ -48,9 +48,6 @@ init : State
 update : List (Shortcut msg) -> Msg -> State -> ( State, Maybe msg )
 listen : (Msg -> msg) -> List (Shortcut msg) -> State -> Html.Attribute msg
 subscription : (Msg -> msg) -> List (Shortcut msg) -> State -> Sub msg
-
--- Showing keys
-keycaps : Keys -> List (List String)
 ```
 
 ## Documentation
@@ -130,13 +127,30 @@ that shortcuts keep working after a dialog has closed.
 select or any editable element, a shortcut fires only if it is marked
 `inInputs`, also when it uses Ctrl, Alt or Cmd. Keys pressed inside a modal
 dialog ([Klar.Modal](Klar.Modal.md), [Klar.Drawer](Klar.Drawer.md) or the
-[command palette](Klar.CommandPalette.md)), but not in a field, only reach
-shortcuts with Ctrl, Alt or Cmd (not Ctrl+A or Cmd+A, which select everything)
-and those marked `inInputs`: a sequence like `g o` must not take the user away
-behind an open dialog. Everywhere else every shortcut fires. Holding a key down
-does not repeat a shortcut. A symbol typed with AltGr (on a German keyboard `[`
-is AltGr and 8) counts as the plain symbol, not as Ctrl+Alt, and in a field it is
-text that never fires a shortcut.
+[command palette](Klar.CommandPalette.md)) or inside an open popup (a menu, a
+context menu, the list of a select), but not in a field, only reach shortcuts
+with Ctrl, Alt or Cmd (not Ctrl+A or Cmd+A, which select everything) and those
+marked `inInputs`: a sequence like `g o` must not take the user away behind an
+open dialog. `Escape` in a popup is the popup's own and never fires a shortcut.
+Everywhere else every shortcut fires.
+
+**Keys that are already taken** never fire a shortcut: a key that a component
+handled (an arrow in a menu, `Escape` that closes a dialog, `Enter` in the
+command palette) prevents its default action, and a shortcut ignores a key press
+whose default action was prevented. The `Enter` or `Escape` that ends the
+composition of an input method (Japanese, Chinese, Korean) is never a shortcut
+either. Holding a key down does not repeat a shortcut.
+
+**Keyboards**: a symbol typed with AltGr (on a German keyboard `[` is AltGr and
+
+1.  counts as the plain symbol, not as Ctrl+Alt, and in a field it is text that
+    never fires a shortcut. With Ctrl, Alt or Cmd held, a letter or digit is also
+    found by the key's place on the keyboard, so `mod (char 'k')` fires on a Russian
+    or Greek layout, and `alt (char 'a')` with Option and A on a Mac (where the key
+    types "å"). On a Mac `mod` is Cmd; Ctrl counts as `mod` too, except in a text
+    field, where Ctrl+A, Ctrl+E and Ctrl+K keep their editing meaning. To show the
+    keys, give the same `Keys` to [Klar.Kbd](Klar.Kbd.md), which writes them for a PC
+    or a Mac.
 
 ## Defining shortcuts
 
@@ -164,8 +178,8 @@ so write them for people.
 
     Shortcut.shortcut (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ]) "Navigation" "Go to orders" GoToOrders
 
-`mod` is Ctrl, or Cmd on a Mac, depending on the keyboard. The help sheet and
-`keycaps` always write it as "Ctrl".
+`mod` is Ctrl, or Cmd on a Mac. The help sheet, the command palette and
+[Klar.Kbd](Klar.Kbd.md) write it for the `platform` they are given.
 
 ### `inInputs`
 
@@ -221,11 +235,13 @@ Whether the shortcut was marked with `inInputs`.
 ### `Keys`
 
 ```elm
-type Keys  -- opaque: no constructors are exposed
+type alias Keys = Internal.Keys.Keys
 ```
 
 The keys of a shortcut: one key, a key with modifiers, or a sequence of them.
-Build them with `char`, the named keys, `mod`, `alt`, `shift` and `sequence`.
+Build them with `char`, the named keys, `mod`, `alt`, `shift` and `sequence`, and
+show them with [Klar.Kbd](Klar.Kbd.md). The type is opaque: two `Keys` can be
+compared with `==`.
 
 ### `char`
 
@@ -431,7 +447,9 @@ update : List (Shortcut msg) -> Msg -> State -> ( State, Maybe msg )
 Applies a message from `listen` or `subscription`. The result is the new
 state and, when a shortcut fired, the message of that shortcut: handle it like
 any other message of your application (see the wiring at the top of this page).
-Give it the same list of shortcuts as `listen`.
+Give it the same list of shortcuts as `listen`. When two shortcuts have the same
+keys, the one that fires is the first of the list that may fire where the key
+was pressed (in a field, the first one marked `inInputs`).
 
 ### `listen`
 
@@ -443,7 +461,8 @@ An attribute for the focusable root element of the application (give it
 `tabindex -1`). It hears the key presses of everything inside the element and
 prevents the browser's own action for the ones that trigger a shortcut, so
 Ctrl+K does not reach the browser. A key that only starts a sequence is not
-prevented.
+prevented, and a key that an element inside has already handled (its default
+action is prevented) is left alone.
 
     Html.div
         [ Shortcut.listen ShortcutMsg shortcuts model.shortcuts
@@ -460,25 +479,3 @@ subscription : (Msg -> msg) -> List (Shortcut msg) -> State -> Sub msg
 Catches the key presses that happen while nothing has focus (the target is
 the page itself), so that shortcuts keep working after a dialog has closed and
 focus was lost. Key presses on a focused element are left to `listen`.
-
-## Showing keys
-
-### `keycaps`
-
-```elm
-keycaps : Keys -> List (List String)
-```
-
-Key caps as text, one list per step of the sequence, for a place that needs the
-names of the keys. To draw them, give the `Keys` to `Kbd.view` of [Klar.Kbd](Klar.Kbd.md).
-
-    Shortcut.keycaps (Shortcut.mod (Shortcut.char 'k')) == [ [ "Ctrl", "K" ] ]
-
-    Shortcut.keycaps (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'm' ]) == [ [ "G" ], [ "M" ] ]
-
-    Shortcut.keycaps (Shortcut.char '?') == [ [ "?" ] ]
-
-    Shortcut.keycaps (Shortcut.mod (Shortcut.char '+')) == [ [ "Ctrl", "+" ] ]
-
-`mod` means Ctrl, or Cmd on a Mac, depending on the keyboard, but it is always
-written as "Ctrl" here. The arrow keys are shown as arrows.

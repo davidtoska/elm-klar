@@ -85,7 +85,6 @@ type alias Model =
     , toasts : Toast.State Msg
     , palette : CommandPalette.State
     , orderHits : Remote (List (CommandPalette.Item Msg))
-    , hitTicket : Int
     , help : ShortcutHelp.State
     , tools : Drawer.State
     , overview : Overview.Model
@@ -133,7 +132,6 @@ init _ url key =
             , toasts = Toast.init |> Toast.maxVisible 3
             , palette = CommandPalette.init "palette"
             , orderHits = Remote.NotAsked
-            , hitTicket = 0
             , help = ShortcutHelp.init "shortcut-help"
             , tools = Drawer.init "dev-tools"
             , overview = overview
@@ -192,8 +190,7 @@ type Msg
     | OpenPalette
     | PaletteMsg CommandPalette.Msg
     | PaletteAction Msg
-    | HitsDebounced Int
-    | HitsLoaded Int (Result ApiError (Page Types.Order))
+    | HitsLoaded String (Result ApiError (Page Types.Order))
     | RetryHits
       -- help and developer tools
     | OpenHelp
@@ -384,33 +381,26 @@ update msg model =
                 ( palette, cmd ) =
                     CommandPalette.open "" model.palette
             in
-            -- A new ticket: an answer to a search from the last time the palette
-            -- was open must not show up under the empty query.
-            ( { model | palette = palette, orderHits = Remote.NotAsked, hitTicket = model.hitTicket + 1 }, Cmd.map PaletteMsg cmd )
+            -- The hits of the last opening do not belong to the new, empty query.
+            ( { model | palette = palette, orderHits = Remote.NotAsked }, Cmd.map PaletteMsg cmd )
 
         PaletteMsg inner ->
             let
                 ( palette, cmd ) =
                     CommandPalette.update inner model.palette
 
-                query =
-                    String.trim (CommandPalette.query palette)
-
-                changed =
-                    CommandPalette.query palette /= CommandPalette.query model.palette
+                asked =
+                    CommandPalette.query palette
             in
-            if changed && query /= "" then
-                -- Loading from the first key press, so the palette says "Searching ..."
-                -- during the debounce instead of flashing "No results".
-                ( { model | palette = palette, orderHits = Remote.Loading, hitTicket = model.hitTicket + 1 }
-                , Cmd.batch
-                    [ Cmd.map PaletteMsg cmd
-                    , Process.sleep 250 |> Task.perform (\_ -> HitsDebounced (model.hitTicket + 1))
-                    ]
-                )
+            if asked /= CommandPalette.query model.palette then
+                -- The query settled on a new text (the palette waits for a pause in
+                -- the typing): ask for it, or forget the hits for an empty query.
+                if asked == "" then
+                    ( { model | palette = palette, orderHits = Remote.NotAsked }, Cmd.map PaletteMsg cmd )
 
-            else if changed then
-                ( { model | palette = palette, orderHits = Remote.NotAsked, hitTicket = model.hitTicket + 1 }, Cmd.map PaletteMsg cmd )
+                else
+                    searchOrders { model | palette = palette, orderHits = Remote.Loading }
+                        |> Tuple.mapSecond (\search -> Cmd.batch [ Cmd.map PaletteMsg cmd, search ])
 
             else
                 ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
@@ -436,15 +426,9 @@ update msg model =
                 ]
             )
 
-        HitsDebounced ticket ->
-            if ticket == model.hitTicket && String.trim (CommandPalette.query model.palette) /= "" then
-                searchOrders ticket { model | orderHits = Remote.Loading }
-
-            else
-                ( model, Cmd.none )
-
-        HitsLoaded ticket result ->
-            if ticket == model.hitTicket then
+        HitsLoaded asked result ->
+            -- an answer to a query that is no longer the palette's comes too late
+            if asked == CommandPalette.query model.palette then
                 ( { model
                     | orderHits =
                         case result of
@@ -461,7 +445,7 @@ update msg model =
                 ( model, Cmd.none )
 
         RetryHits ->
-            searchOrders model.hitTicket { model | orderHits = Remote.Loading }
+            searchOrders { model | orderHits = Remote.Loading }
 
         OpenHelp ->
             -- Opened by `?` or from the palette: focus goes back to wherever it was.
@@ -725,8 +709,8 @@ toneAttribute tone =
             Toast.info
 
 
-searchOrders : Int -> Model -> ( Model, Cmd Msg )
-searchOrders ticket model =
+searchOrders : Model -> ( Model, Cmd Msg )
+searchOrders model =
     let
         query =
             { search = CommandPalette.query model.palette
@@ -737,7 +721,7 @@ searchOrders ticket model =
             }
 
         ( backend, cmd ) =
-            Api.listOrders query (HitsLoaded ticket) model.backend
+            Api.listOrders query (HitsLoaded (CommandPalette.query model.palette)) model.backend
     in
     ( { model | backend = backend }, cmd )
 

@@ -145,7 +145,6 @@ type alias Model =
     -- palette
     , palette : CommandPalette.State
     , hits : Remote (List Types.Order)
-    , ticket : Int
     , failSearch : Bool
     , recent : List Types.Order
 
@@ -268,8 +267,7 @@ type Msg
     | PaletteMsg CommandPalette.Msg
     | OpenPalette String
     | PaletteRan String
-    | Debounced Int
-    | GotHits Int (Result Problem (List Types.Order))
+    | GotHits String (Result Problem (List Types.Order))
     | RetryHits
     | FailSearchChanged Bool
       -- shortcut sheet
@@ -323,7 +321,6 @@ init =
       , context = ContextMenu.init "row-context"
       , palette = CommandPalette.init "demo-palette"
       , hits = Remote.NotAsked
-      , ticket = 0
       , failSearch = False
       , recent = []
       , help = ShortcutHelp.init "demo-shortcut-help"
@@ -894,52 +891,32 @@ update msg model =
                     CommandPalette.update inner model.palette
             in
             if CommandPalette.query palette /= CommandPalette.query model.palette then
-                -- The query changed: forget old hits, and ask the "backend"
-                -- after a short pause (so typing does not send a request per key).
-                let
-                    ticket =
-                        model.ticket + 1
-                in
-                ( { model | palette = palette, hits = Remote.NotAsked, ticket = ticket }
-                , Cmd.batch
-                    [ Cmd.map PaletteMsg cmd
-                    , Process.sleep 250 |> Task.perform (\_ -> Debounced ticket)
-                    ]
-                )
+                -- The query settled on a new text (the palette waits for a pause
+                -- in the typing): ask the "backend" for it.
+                askOrders { model | palette = palette } (Cmd.map PaletteMsg cmd)
 
             else
                 ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
 
         OpenPalette opener ->
-            -- A new ticket: an answer to a search from the last time the palette
-            -- was open must not show up under the empty query.
+            -- The hits of the last opening do not belong to the new, empty query.
             CommandPalette.open opener model.palette
-                |> andMap PaletteMsg (\state -> { model | palette = state, hits = Remote.NotAsked, ticket = model.ticket + 1 })
+                |> andMap PaletteMsg (\state -> { model | palette = state, hits = Remote.NotAsked })
 
         PaletteRan label ->
             ( { model | lastNote = "Command: " ++ label ++ "." }, Cmd.none )
                 |> withToast [ Toast.info, Toast.title "Command run", Toast.message label ]
 
-        Debounced ticket ->
-            if ticket == model.ticket && paletteArgument model.palette /= "" then
-                ( { model | hits = Remote.Loading }
-                , searchOrders ticket (paletteArgument model.palette) model.failSearch
-                )
-
-            else
-                ( model, Cmd.none )
-
-        GotHits ticket result ->
-            if ticket == model.ticket then
+        GotHits asked result ->
+            -- an answer to a query that is no longer the palette's comes too late
+            if asked == CommandPalette.query model.palette then
                 ( { model | hits = Remote.fromResult result }, Cmd.none )
 
             else
                 ( model, Cmd.none )
 
         RetryHits ->
-            ( { model | hits = Remote.Loading, ticket = model.ticket + 1 }
-            , searchOrders (model.ticket + 1) (paletteArgument model.palette) model.failSearch
-            )
+            askOrders model Cmd.none
 
         FailSearchChanged value ->
             ( { model | failSearch = value }, Cmd.none )
@@ -959,11 +936,30 @@ loadOrder id =
     Process.sleep 700 |> Task.perform (\_ -> DrawerLoaded id)
 
 
+{-| Asks for the orders of the palette's query, without the words of the command
+("go to order ORD-1001" asks for "ORD-1001"). The answer carries the query it
+answers, so that a late one can be dropped.
+-}
+askOrders : Model -> Cmd Msg -> ( Model, Cmd Msg )
+askOrders model cmd =
+    let
+        text =
+            paletteArgument model.palette
+    in
+    if text == "" then
+        ( { model | hits = Remote.NotAsked }, cmd )
+
+    else
+        ( { model | hits = Remote.Loading }
+        , Cmd.batch [ cmd, searchOrders (CommandPalette.query model.palette) text model.failSearch ]
+        )
+
+
 {-| The pretend backend: finds orders by customer or number after 700 ms, or
 fails.
 -}
-searchOrders : Int -> String -> Bool -> Cmd Msg
-searchOrders ticket text shouldFail =
+searchOrders : String -> String -> Bool -> Cmd Msg
+searchOrders asked text shouldFail =
     Process.sleep 700
         |> Task.map
             (\_ ->
@@ -973,7 +969,7 @@ searchOrders ticket text shouldFail =
                 else
                     Ok (Search.filter (\order -> order.customer ++ " " ++ Types.orderIdText order.id) text Sample.orders |> List.take 6)
             )
-        |> Task.perform (GotHits ticket)
+        |> Task.perform (GotHits asked)
 
 
 toastFor : Tone -> List (Toast.Attribute Msg)
@@ -1455,7 +1451,7 @@ contextItems order =
 paletteSection : Model -> Html Msg
 paletteSection model =
     Doc.section "CommandPalette"
-        "One search box for commands and content. Type to narrow down (case and accents do not matter), use the arrow keys to move, Enter to run and Escape to close. Without a query the recent items are listed. Ctrl K opens the palette of this application (the search field in the top bar); the button below opens the one that belongs to this page. Its “Orders” section is asynchronous: the page watches the query, waits a moment and asks the “server”, and the palette shows a skeleton meanwhile, then a short failure with “Try again”, or “No orders found”."
+        "One search box for commands and content. Type to narrow down (case and accents do not matter), use the arrow keys to move, Enter to run and Escape to close. Without a query the recent items are listed. Ctrl K opens the palette of this application (the search field in the top bar); the button below opens the one that belongs to this page. Its “Orders” section is asynchronous: the query waits for a pause in the typing, the page asks the “server” when it changes (and drops an answer to an older query), and the palette shows a skeleton meanwhile, then a short failure with “Try again”, or “No orders found”. Old results are dimmed while the next query waits."
         [ Doc.example
             { title = "Command palette"
             , description = Just ("Search for a customer or an order number, for example “cobalt” or “ORD-100”. " ++ model.lastNote)
@@ -2324,22 +2320,30 @@ paletteCode =
     ]
     model.palette
 
--- the query lives in the state: watch it, wait a moment, ask the server
+-- the query waits for a pause in the typing: ask when it changes
 PaletteMsg inner ->
     let
         ( palette, cmd ) =
             CommandPalette.update inner model.palette
+
+        asked =
+            CommandPalette.query palette
     in
-    if CommandPalette.query palette /= CommandPalette.query model.palette then
-        ( { model | palette = palette, hits = NotAsked, ticket = model.ticket + 1 }
-        , Cmd.batch
-            [ Cmd.map PaletteMsg cmd
-            , Process.sleep 250 |> Task.perform (\\_ -> Debounced (model.ticket + 1))
-            ]
+    if asked /= CommandPalette.query model.palette then
+        ( { model | palette = palette, hits = Loading }
+        , Cmd.batch [ Cmd.map PaletteMsg cmd, searchOrders asked ]
         )
 
     else
-        ( { model | palette = palette }, Cmd.map PaletteMsg cmd )"""
+        ( { model | palette = palette }, Cmd.map PaletteMsg cmd )
+
+-- an answer to a query that is no longer the palette's comes too late
+GotHits asked result ->
+    if asked == CommandPalette.query model.palette then
+        ( { model | hits = Remote.fromResult result }, Cmd.none )
+
+    else
+        ( model, Cmd.none )"""
 
 
 helpCode : String

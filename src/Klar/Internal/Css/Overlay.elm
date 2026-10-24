@@ -702,6 +702,16 @@ html:has(.klar-modal-lock) {
   background: var(--klar-primary-subtle);
 }
 
+/* Windows high contrast drops the backgrounds: the area whose menu is open keeps
+   an outline in the system colors. */
+@media (forced-colors: active) {
+  .klar-context-area--active,
+  .klar-context-area--active:hover {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+}
+
 /* ---- Command palette ------------------------------------------------- */
 
 /* Row heights below are mirrored in Klar/CommandPalette.elm (they let the
@@ -746,9 +756,10 @@ html:has(.klar-modal-lock) {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--klar-space-2);
   height: 48px;
-  padding: 0 var(--klar-space-3) 0 var(--klar-space-4);
+  padding-block: 0;
+  padding-inline: var(--klar-space-4) var(--klar-space-3);
   border-bottom: 1px solid var(--klar-border);
 }
 
@@ -810,19 +821,34 @@ html:has(.klar-modal-lock) {
   max-height: 400px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px;
+  padding: var(--klar-space-1);
 }
 
 .klar-palette__heading {
   display: flex;
   align-items: flex-end;
+  gap: var(--klar-space-2);
+  min-width: 0;
   height: 28px;
-  padding: 0 10px 4px;
+  padding-block: 0 var(--klar-space-1);
+  padding-inline: var(--klar-space-2);
   color: var(--klar-text-muted);
   font-size: var(--klar-text-xs);
   font-weight: var(--klar-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* "Old data from 14:05" of a section whose last refresh failed, after its title. */
+.klar-palette__old {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--klar-space-1);
+  color: var(--klar-amber-700);
+  font-weight: var(--klar-weight);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .klar-palette__row {
@@ -832,16 +858,30 @@ html:has(.klar-modal-lock) {
 .klar-palette__item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--klar-space-2);
   width: 100%;
   height: 100%;
-  padding: 0 10px;
+  padding-block: 0;
+  padding-inline: var(--klar-space-2);
   border-radius: var(--klar-radius);
   cursor: pointer;
 }
 
 .klar-palette__item--active {
   background: var(--klar-primary-subtle);
+}
+
+/* Windows high contrast drops the background: the highlighted item keeps an
+   outline in the system colors. */
+@media (forced-colors: active) {
+  .klar-palette__item--active {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .klar-palette__item--active .klar-palette__icon {
+    color: Highlight;
+  }
 }
 
 .klar-palette__item--loading {
@@ -865,7 +905,7 @@ html:has(.klar-modal-lock) {
   min-width: 0;
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--klar-space-2);
 }
 
 .klar-palette__item--loading .klar-palette__text {
@@ -887,15 +927,16 @@ html:has(.klar-modal-lock) {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 8px;
+  gap: var(--klar-space-2);
 }
 
 .klar-palette__notice {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--klar-space-2);
   height: 40px;
-  padding: 0 10px;
+  padding-block: 0;
+  padding-inline: var(--klar-space-2);
   color: var(--klar-text-secondary);
 }
 
@@ -931,7 +972,7 @@ html:has(.klar-modal-lock) {
 .klar-palette__hint {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--klar-space-1);
 }
 
 @media (max-width: 640px) {
@@ -964,6 +1005,10 @@ html:has(.klar-modal-lock) {
   gap: var(--klar-space-1);
 }
 
+.klar-shortcuts__heading {
+  margin: 0;
+}
+
 .klar-shortcuts__list {
   display: flex;
   flex-direction: column;
@@ -988,7 +1033,7 @@ html:has(.klar-modal-lock) {
 }
 
 .klar-shortcuts__note {
-  margin-left: var(--klar-space-2);
+  margin-inline-start: var(--klar-space-2);
   color: var(--klar-text-muted);
   font-size: var(--klar-text-xs);
 }
@@ -997,11 +1042,5 @@ html:has(.klar-modal-lock) {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 6px;
-}
-
-.klar-shortcuts__then {
-  color: var(--klar-text-muted);
-  font-size: var(--klar-text-xs);
 }
 """
