@@ -124,7 +124,7 @@ css =
   min-width: 0;
 }
 
-/* Focused by BulkBar.focus after the bar has taken itself away. */
+/* Focused with Klar.focus and the id of the box after the bar has taken itself away. */
 .klar-bulk:focus-visible {
   outline: 2px solid var(--klar-focus-color);
   outline-offset: 2px;
@@ -184,8 +184,26 @@ css =
   align-items: center;
   justify-content: flex-end;
   gap: var(--klar-space-2);
-  margin-left: auto;
+  margin-inline-start: auto;
   max-width: 100%;
+}
+
+/* The bar has the size of the toolbar it covers (Toolbar.small, Toolbar.large), so the
+   shared cell is not taller than a small toolbar and the bar is not smaller than a large one. */
+.klar-bulk:has(> .klar-bulk__under > .klar-toolbar--sm) > .klar-bulk__bar {
+  --klar-control: var(--klar-control-sm);
+  padding: var(--klar-space-1) 6px;
+  gap: var(--klar-space-1) 6px;
+}
+
+.klar-bulk:has(> .klar-bulk__under > .klar-toolbar--lg) > .klar-bulk__bar {
+  --klar-control: var(--klar-control-lg);
+  padding: var(--klar-space-2) var(--klar-space-3);
+}
+
+@media (forced-colors: active) {
+  /* the tint that tells the bar from the toolbar is gone: the border says it */
+  .klar-bulk__bar { border-color: Highlight; }
 }
 
 /* ---- Leave guard ----------------------------------------------------------

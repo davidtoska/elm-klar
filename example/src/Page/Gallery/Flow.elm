@@ -13,6 +13,7 @@ import Api.Types as Types
 import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar
 import Klar.Alert as Alert
 import Klar.Badge as Badge
 import Klar.BulkBar as BulkBar
@@ -166,7 +167,7 @@ init =
 
 
 
--- THE ID OF THE PAGE THAT REPLACES THE FORM: one place, so that `id` and `focusTitle` agree
+-- THE ID OF THE PAGE THAT REPLACES THE FORM: one place, so that `id` and `Klar.focus` agree
 
 
 createdId : String
@@ -264,7 +265,7 @@ update msg model =
         CreateOrder ->
             -- the form is gone in the next frame, and so is the focused button:
             -- the title of the page that replaces it takes focus
-            ( { model | created = True }, StatusPage.focusTitle createdId NoOp )
+            ( { model | created = True }, Klar.focus createdId NoOp )
 
         CreateAnother ->
             ( { model | created = False, customer = "" }
@@ -459,7 +460,7 @@ that the toolbar and the bar share, which is always on the page, takes it.
 clearSelection : Model -> Maybe String -> ( Model, Cmd Msg )
 clearSelection model outcome =
     ( { model | picked = Set.empty, everything = False, outcome = outcome }
-    , BulkBar.focus "flow-bulk" NoOp
+    , Klar.focus "flow-bulk" NoOp
     )
 
 
@@ -533,11 +534,11 @@ statusSection locale model =
             }
             (Layout.grid [ Layout.minColumn 320, Layout.gap 4 ]
                 [ labelled "StatusPage.success" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href "#/components/flow" ] "Back to orders" ] ] StatusPage.success))
-                , labelled "StatusPage.notFound" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ] StatusPage.notFound))
-                , labelled "StatusPage.denied" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href "#/" ] "Home" ] ] StatusPage.denied))
-                , labelled "StatusPage.sessionExpired" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/" ] "Sign in" ] ] StatusPage.sessionExpired))
-                , labelled "StatusPage.serverError" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.reference "req-7f3a-91c2" ] StatusPage.serverError))
-                , labelled "StatusPage.offline" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.offline))
+                , labelled "StatusPage.pageNotFound" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ] StatusPage.pageNotFound))
+                , labelled "StatusPage.forbidden" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href "#/" ] "Home" ] ] StatusPage.forbidden))
+                , labelled "StatusPage.unauthorized" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/" ] "Sign in" ] ] StatusPage.unauthorized))
+                , labelled "StatusPage.server" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.reference "req-7f3a-91c2" ] StatusPage.server))
+                , labelled "StatusPage.network" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.network))
                 , labelled "StatusPage.maintenance" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.maintenance))
                 ]
             )
@@ -572,7 +573,7 @@ statusSection locale model =
             )
         , Doc.example
             { title = "Replacing a form, with focus"
-            , description = Just "The form is replaced by the result without a navigation, so the button that was pressed is gone and focus would fall to the page. The page has an id and the update calls focusTitle: the title takes focus, and a screen reader reads the result. Create another order takes focus back to the field."
+            , description = Just "The form is replaced by the result without a navigation, so the button that was pressed is gone and focus would fall to the page. The page has an id and the update calls Klar.focus with it: the title takes focus, and a screen reader reads the result. Create another order takes focus back to the field."
             , code = Just focusCode
             }
             (frame 380
@@ -652,7 +653,7 @@ bulkSection locale model =
         "Appears when a selection is not empty: the count, the actions for it and Clear selection. It does not push anything: the bar takes the place of the toolbar, in the same box, and the toolbar underneath keeps its state (type in the search field, then select a row). The count is announced politely by one region that is always on the page. It never takes focus by itself, and Escape does nothing here: whether Escape clears is the application's decision."
         [ Doc.example
             { title = "A selectable list of orders"
-            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Select all stays in its place as an inactive button, so focus is never lost. Clear selection and Delete take the bar away with the button that has focus, and the update calls BulkBar.focus: focus goes to the toolbar box, and Tab reaches its first control."
+            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Select all stays in its place as an inactive button, so focus is never lost. Clear selection and Delete take the bar away with the button that has focus, and the update calls Klar.focus with the id of the bar: focus goes to the toolbar box, and Tab reaches its first control."
             , code = Just bulkCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -969,15 +970,15 @@ kindsCode : String
 kindsCode =
     """StatusPage.view
     [ StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ]
-    StatusPage.notFound
+    StatusPage.pageNotFound
 
 -- the others: success, denied, sessionExpired, serverError, offline, maintenance
 StatusPage.view
     [ StatusPage.onRetry ReloadOrders, StatusPage.reference "req-7f3a-91c2" ]
-    StatusPage.serverError
+    StatusPage.server
 
 -- a page that stands on its own, without an AppShell, is the main landmark
-StatusPage.view [ StatusPage.standalone ] StatusPage.denied"""
+StatusPage.view [ StatusPage.standalone ] StatusPage.forbidden"""
 
 
 problemCode : String
@@ -1001,7 +1002,7 @@ focusCode : String
 focusCode =
     """CreateOrder ->
     ( { model | created = True }
-    , StatusPage.focusTitle "order-created" NoOp
+    , Klar.focus "order-created" NoOp
     )
 
 StatusPage.view
@@ -1029,7 +1030,7 @@ bulkCode =
 -- the bar and its focused button are gone in the next frame: the box that the toolbar
 -- and the bar share is always on the page and takes focus
 ClearSelection ->
-    ( { model | picked = Set.empty }, BulkBar.focus "orders-bulk" NoOp )
+    ( { model | picked = Set.empty }, Klar.focus "orders-bulk" NoOp )
 
 -- the "Select all" button stays where it is (inactive): nothing to move
 SelectEverything ->

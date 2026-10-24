@@ -55,11 +55,11 @@ heading =
 allKinds : List ( String, Kind )
 allKinds =
     [ ( "success", StatusPage.success )
-    , ( "notFound", StatusPage.notFound )
-    , ( "denied", StatusPage.denied )
-    , ( "sessionExpired", StatusPage.sessionExpired )
-    , ( "serverError", StatusPage.serverError )
-    , ( "offline", StatusPage.offline )
+    , ( "pageNotFound", StatusPage.pageNotFound )
+    , ( "forbidden", StatusPage.forbidden )
+    , ( "unauthorized", StatusPage.unauthorized )
+    , ( "server", StatusPage.server )
+    , ( "network", StatusPage.network )
     , ( "maintenance", StatusPage.maintenance )
     ]
 
@@ -100,11 +100,11 @@ kindTests =
         , test "the English title of each kind" <|
             \_ ->
                 [ ( StatusPage.success, "Done" )
-                , ( StatusPage.notFound, "Page not found" )
-                , ( StatusPage.denied, "No access" )
-                , ( StatusPage.sessionExpired, "Please sign in again" )
-                , ( StatusPage.serverError, "Something went wrong on our side" )
-                , ( StatusPage.offline, "Can't reach the service" )
+                , ( StatusPage.pageNotFound, "Page not found" )
+                , ( StatusPage.forbidden, "No access" )
+                , ( StatusPage.unauthorized, "Please sign in again" )
+                , ( StatusPage.server, "Something went wrong on our side" )
+                , ( StatusPage.network, "Can't reach the service" )
                 , ( StatusPage.maintenance, "Down for maintenance" )
                 ]
                     |> List.map (\( kind, text ) -> \_ -> page [] kind |> H.inside [ heading ] [ Selector.text text ])
@@ -112,11 +112,11 @@ kindTests =
         , test "the Norwegian title of each kind" <|
             \_ ->
                 [ ( StatusPage.success, "Ferdig" )
-                , ( StatusPage.notFound, "Fant ikke siden" )
-                , ( StatusPage.denied, "Ingen tilgang" )
-                , ( StatusPage.sessionExpired, "Du må logge inn på nytt" )
-                , ( StatusPage.serverError, "Noe gikk galt hos oss" )
-                , ( StatusPage.offline, "Ingen kontakt med tjenesten" )
+                , ( StatusPage.pageNotFound, "Fant ikke siden" )
+                , ( StatusPage.forbidden, "Ingen tilgang" )
+                , ( StatusPage.unauthorized, "Du må logge inn på nytt" )
+                , ( StatusPage.server, "Noe gikk galt hos oss" )
+                , ( StatusPage.network, "Ingen kontakt med tjenesten" )
                 , ( StatusPage.maintenance, "Under vedlikehold" )
                 ]
                     |> List.map (\( kind, text ) -> \_ -> page [ StatusPage.locale Locale.nb ] kind |> H.inside [ heading ] [ Selector.text text ])
@@ -124,10 +124,10 @@ kindTests =
         , test "denied, sessionExpired, serverError and offline are the problems of their kind" <|
             \_ ->
                 Expect.all
-                    [ \_ -> Expect.equal StatusPage.denied (StatusPage.fromProblem (Remote.problem Remote.forbidden))
-                    , \_ -> Expect.equal StatusPage.sessionExpired (StatusPage.fromProblem (Remote.problem Remote.unauthorized))
-                    , \_ -> Expect.equal StatusPage.serverError (StatusPage.fromProblem (Remote.problem Remote.server))
-                    , \_ -> Expect.equal StatusPage.offline (StatusPage.fromProblem (Remote.problem Remote.network))
+                    [ \_ -> Expect.equal StatusPage.forbidden (StatusPage.fromProblem (Remote.problem Remote.forbidden))
+                    , \_ -> Expect.equal StatusPage.unauthorized (StatusPage.fromProblem (Remote.problem Remote.unauthorized))
+                    , \_ -> Expect.equal StatusPage.server (StatusPage.fromProblem (Remote.problem Remote.server))
+                    , \_ -> Expect.equal StatusPage.network (StatusPage.fromProblem (Remote.problem Remote.network))
                     ]
                     ()
         ]
@@ -156,16 +156,16 @@ textTests =
                         ]
         , test "a blank title leaves out the heading" <|
             \_ ->
-                page [ StatusPage.title "   " ] StatusPage.notFound
+                page [ StatusPage.title "   " ] StatusPage.pageNotFound
                     |> Expect.all
                         [ H.none [ heading ]
                         , H.none [ Selector.tag "h1" ]
                         ]
         , test "a blank description leaves out the sentence" <|
-            \_ -> page [ StatusPage.description "" ] StatusPage.notFound |> H.none [ Selector.class "klar-status-page__description" ]
+            \_ -> page [ StatusPage.description "" ] StatusPage.pageNotFound |> H.none [ Selector.class "klar-status-page__description" ]
         , test "later attributes win" <|
             \_ ->
-                page [ StatusPage.title "First", StatusPage.title "Second" ] StatusPage.notFound
+                page [ StatusPage.title "First", StatusPage.title "Second" ] StatusPage.pageNotFound
                     |> H.inside [ heading ] [ Selector.text "Second" ]
         , test "the order of the attributes does not matter" <|
             \_ ->
@@ -194,17 +194,17 @@ headingTests : Test
 headingTests =
     describe "the heading"
         [ test "there is exactly one h1 by default" <|
-            \_ -> page [] StatusPage.notFound |> H.count 1 [ Selector.tag "h1" ]
+            \_ -> page [] StatusPage.pageNotFound |> H.count 1 [ Selector.tag "h1" ]
         , test "and no other heading" <|
             \_ ->
-                page [] StatusPage.notFound
+                page [] StatusPage.pageNotFound
                     |> Expect.all
                         [ H.none [ Selector.tag "h2" ]
                         , H.none [ Selector.tag "h3" ]
                         ]
         , test "headingLevel 2 gives an h2 and no h1" <|
             \_ ->
-                page [ StatusPage.headingLevel 2 ] StatusPage.notFound
+                page [ StatusPage.headingLevel 2 ] StatusPage.pageNotFound
                     |> Expect.all
                         [ H.count 1 [ Selector.tag "h2" ]
                         , H.none [ Selector.tag "h1" ]
@@ -212,17 +212,17 @@ headingTests =
         , test "levels outside 1 to 6 count as the nearest" <|
             \_ ->
                 Expect.all
-                    [ \_ -> page [ StatusPage.headingLevel 0 ] StatusPage.notFound |> H.count 1 [ Selector.tag "h1" ]
-                    , \_ -> page [ StatusPage.headingLevel 9 ] StatusPage.notFound |> H.count 1 [ Selector.tag "h6" ]
-                    , \_ -> page [ StatusPage.headingLevel -4 ] StatusPage.notFound |> H.count 1 [ Selector.tag "h1" ]
+                    [ \_ -> page [ StatusPage.headingLevel 0 ] StatusPage.pageNotFound |> H.count 1 [ Selector.tag "h1" ]
+                    , \_ -> page [ StatusPage.headingLevel 9 ] StatusPage.pageNotFound |> H.count 1 [ Selector.tag "h6" ]
+                    , \_ -> page [ StatusPage.headingLevel -4 ] StatusPage.pageNotFound |> H.count 1 [ Selector.tag "h1" ]
                     ]
                     ()
         , fuzz (Fuzz.intRange -20 20) "any level gives exactly one heading element" <|
             \level ->
-                page [ StatusPage.headingLevel level ] StatusPage.serverError
+                page [ StatusPage.headingLevel level ] StatusPage.server
                     |> H.count 1 [ Selector.class "klar-status-page__title" ]
         , test "the level changes the element and not the class" <|
-            \_ -> page [ StatusPage.headingLevel 3 ] StatusPage.notFound |> H.inside [ Selector.tag "h3" ] [ heading ]
+            \_ -> page [ StatusPage.headingLevel 3 ] StatusPage.pageNotFound |> H.inside [ Selector.tag "h3" ] [ heading ]
         ]
 
 
@@ -250,16 +250,16 @@ semanticsTests =
                         )
                     |> (\checks -> Expect.all checks ())
         , test "the root is an ordinary div by default" <|
-            \_ -> page [] StatusPage.notFound |> H.has [ Selector.tag "div", Selector.class "klar-status-page" ]
+            \_ -> page [] StatusPage.pageNotFound |> H.has [ Selector.tag "div", Selector.class "klar-status-page" ]
         , test "standalone makes it the main landmark and as tall as the window" <|
-            \_ -> page [ StatusPage.standalone ] StatusPage.notFound |> H.has [ Selector.tag "main", Selector.classes [ "klar-status-page", "klar-status-page--standalone" ] ]
+            \_ -> page [ StatusPage.standalone ] StatusPage.pageNotFound |> H.has [ Selector.tag "main", Selector.classes [ "klar-status-page", "klar-status-page--standalone" ] ]
         , test "the default has no standalone class" <|
-            \_ -> page [] StatusPage.notFound |> H.hasNot [ Selector.class "klar-status-page--standalone" ]
+            \_ -> page [] StatusPage.pageNotFound |> H.hasNot [ Selector.class "klar-status-page--standalone" ]
         , test "the icon is hidden from assistive technology" <|
-            \_ -> page [] StatusPage.notFound |> H.inside [ Selector.class "klar-status-page__icon" ] [ Selector.containing [ H.attr "aria-hidden" "true" ] ]
+            \_ -> page [] StatusPage.pageNotFound |> H.inside [ Selector.class "klar-status-page__icon" ] [ Selector.containing [ H.attr "aria-hidden" "true" ] ]
         , test "nothing can take focus by itself: no tabindex, no autofocus, no button" <|
             \_ ->
-                page [] StatusPage.denied
+                page [] StatusPage.forbidden
                     |> Expect.all
                         [ H.none [ Selector.attribute (Attr.tabindex -1) ]
                         , H.none [ Selector.attribute (Attr.autofocus True) ]
@@ -276,12 +276,12 @@ actionTests : Test
 actionTests =
     describe "actions"
         [ test "none by default" <|
-            \_ -> page [] StatusPage.notFound |> H.none [ Selector.class "klar-status-page__actions" ]
+            \_ -> page [] StatusPage.pageNotFound |> H.none [ Selector.class "klar-status-page__actions" ]
         , test "in the order given" <|
             \_ ->
                 let
                     row =
-                        page [ StatusPage.actions [ Button.view [ Button.onClick Home ] "Go home", Button.view [ Button.onClick Done ] "Orders" ] ] StatusPage.notFound
+                        page [ StatusPage.actions [ Button.view [ Button.onClick Home ] "Go home", Button.view [ Button.onClick Done ] "Orders" ] ] StatusPage.pageNotFound
                             |> Query.fromHtml
                             |> Query.find [ Selector.class "klar-status-page__actions" ]
                             |> Query.findAll [ Selector.tag "button" ]
@@ -293,7 +293,7 @@ actionTests =
                     ()
         , test "the buttons send their own messages" <|
             \_ ->
-                page [ StatusPage.actions [ Button.view [ Button.onClick Home ] "Go home" ] ] StatusPage.notFound
+                page [ StatusPage.actions [ Button.view [ Button.onClick Home ] "Go home" ] ] StatusPage.pageNotFound
                     |> H.sends [ Selector.tag "button" ] Event.click
                     |> Expect.equal (Ok Home)
         ]
@@ -307,18 +307,18 @@ referenceTests : Test
 referenceTests =
     describe "reference"
         [ test "none by default" <|
-            \_ -> page [] StatusPage.serverError |> H.none [ Selector.class "klar-status-page__meta" ]
+            \_ -> page [] StatusPage.server |> H.none [ Selector.class "klar-status-page__meta" ]
         , test "shown in a monospace value that one click selects" <|
             \_ ->
-                page [ StatusPage.reference "req-7f3a-91c2" ] StatusPage.serverError
+                page [ StatusPage.reference "req-7f3a-91c2" ] StatusPage.server
                     |> H.inside [ Selector.tag "code", Selector.class "klar-status-page__value" ] [ Selector.text "req-7f3a-91c2" ]
         , test "with a label, in English" <|
             \_ ->
-                page [ StatusPage.reference "abc" ] StatusPage.serverError
+                page [ StatusPage.reference "abc" ] StatusPage.server
                     |> H.inside [ Selector.class "klar-status-page__meta" ] [ Selector.text "Reference: " ]
         , test "and in Norwegian" <|
             \_ ->
-                page [ StatusPage.reference "abc", StatusPage.locale Locale.nb ] StatusPage.serverError
+                page [ StatusPage.reference "abc", StatusPage.locale Locale.nb ] StatusPage.server
                     |> H.inside [ Selector.class "klar-status-page__meta" ] [ Selector.text "Referanse: " ]
         , test "the code of a problem is shown next to it" <|
             \_ ->
@@ -331,10 +331,10 @@ referenceTests =
         , test "a blank reference draws nothing, like a blank title" <|
             \_ ->
                 Expect.all
-                    [ \_ -> page [ StatusPage.reference "" ] StatusPage.serverError |> H.none [ Selector.class "klar-status-page__meta" ]
-                    , \_ -> page [ StatusPage.reference "   " ] StatusPage.serverError |> H.none [ Selector.class "klar-status-page__meta" ]
-                    , \_ -> page [ StatusPage.reference "" ] StatusPage.serverError |> H.none [ Selector.text "Reference" ]
-                    , \_ -> page [ StatusPage.reference "" ] StatusPage.serverError |> H.none [ Selector.tag "code" ]
+                    [ \_ -> page [ StatusPage.reference "" ] StatusPage.server |> H.none [ Selector.class "klar-status-page__meta" ]
+                    , \_ -> page [ StatusPage.reference "   " ] StatusPage.server |> H.none [ Selector.class "klar-status-page__meta" ]
+                    , \_ -> page [ StatusPage.reference "" ] StatusPage.server |> H.none [ Selector.text "Reference" ]
+                    , \_ -> page [ StatusPage.reference "" ] StatusPage.server |> H.none [ Selector.tag "code" ]
                     ]
                     ()
         , test "a blank reference does not hide the code of the problem" <|
@@ -350,7 +350,7 @@ referenceTests =
                     |> H.none [ Selector.class "klar-status-page__meta" ]
         , test "a reference that is a long unbroken word stays inside the meta line" <|
             \_ ->
-                page [ StatusPage.reference (String.repeat 200 "x") ] StatusPage.serverError
+                page [ StatusPage.reference (String.repeat 200 "x") ] StatusPage.server
                     |> H.count 1 [ Selector.class "klar-status-page__meta" ]
         ]
 
@@ -375,8 +375,8 @@ retryTests =
         [ test "offered when trying again can help" <|
             \_ ->
                 Expect.all
-                    [ \_ -> offered StatusPage.serverError
-                    , \_ -> offered StatusPage.offline
+                    [ \_ -> offered StatusPage.server
+                    , \_ -> offered StatusPage.network
                     , \_ -> offered StatusPage.maintenance
                     , \_ -> offered (StatusPage.fromProblem (Remote.problem Remote.timeout))
                     , \_ -> offered (StatusPage.fromProblem (Remote.problem Remote.unknown))
@@ -386,26 +386,26 @@ retryTests =
             \_ ->
                 Expect.all
                     [ \_ -> notOffered StatusPage.success
-                    , \_ -> notOffered StatusPage.notFound
-                    , \_ -> notOffered StatusPage.denied
-                    , \_ -> notOffered StatusPage.sessionExpired
+                    , \_ -> notOffered StatusPage.pageNotFound
+                    , \_ -> notOffered StatusPage.forbidden
+                    , \_ -> notOffered StatusPage.unauthorized
                     , \_ -> notOffered (StatusPage.fromProblem (Remote.problem Remote.validation))
                     , \_ -> notOffered (StatusPage.fromProblem (Remote.problem Remote.conflict))
                     ]
                     ()
         , test "not offered without onRetry" <|
-            \_ -> page [] StatusPage.serverError |> H.none [ Selector.tag "button" ]
+            \_ -> page [] StatusPage.server |> H.none [ Selector.tag "button" ]
         , test "it sends the message" <|
-            \_ -> page [ StatusPage.onRetry Retry ] StatusPage.serverError |> H.sends retryButton Event.click |> Expect.equal (Ok Retry)
+            \_ -> page [ StatusPage.onRetry Retry ] StatusPage.server |> H.sends retryButton Event.click |> Expect.equal (Ok Retry)
         , test "in Norwegian" <|
             \_ ->
-                page [ StatusPage.onRetry Retry, StatusPage.locale Locale.nb ] StatusPage.serverError
+                page [ StatusPage.onRetry Retry, StatusPage.locale Locale.nb ] StatusPage.server
                     |> H.count 1 [ Selector.tag "button", Selector.containing [ Selector.text "Prøv igjen" ] ]
         , test "it comes before the actions of the application" <|
             \_ ->
                 let
                     buttons =
-                        page [ StatusPage.onRetry Retry, StatusPage.actions [ Button.view [] "Go home" ] ] StatusPage.serverError
+                        page [ StatusPage.onRetry Retry, StatusPage.actions [ Button.view [] "Go home" ] ] StatusPage.server
                             |> Query.fromHtml
                             |> Query.findAll [ Selector.tag "button" ]
                 in
@@ -427,11 +427,11 @@ problemTests =
         [ test "uses the ready-made texts of the problem's kind" <|
             \_ ->
                 page [] (StatusPage.fromProblem (Remote.problem Remote.conflict))
-                    |> H.inside [ heading ] [ Selector.text "The action can't be completed" ]
+                    |> H.inside [ heading ] [ Selector.text "The data changed in the meantime" ]
         , test "in the language of the page" <|
             \_ ->
                 page [ StatusPage.locale Locale.nb ] (StatusPage.fromProblem (Remote.problem Remote.conflict))
-                    |> H.inside [ heading ] [ Selector.text "Handlingen kan ikke gjennomføres" ]
+                    |> H.inside [ heading ] [ Selector.text "Dataene er endret i mellomtiden" ]
         , test "the title and the detail the application gave the problem are used" <|
             \_ ->
                 page []
@@ -477,11 +477,11 @@ iconAndToneTests =
             \_ ->
                 Expect.all
                     [ \_ -> iconIs StatusPage.success "check-circle"
-                    , \_ -> iconIs StatusPage.notFound "search"
-                    , \_ -> iconIs StatusPage.denied "lock"
-                    , \_ -> iconIs StatusPage.sessionExpired "key"
-                    , \_ -> iconIs StatusPage.serverError "server"
-                    , \_ -> iconIs StatusPage.offline "wifi-off"
+                    , \_ -> iconIs StatusPage.pageNotFound "search"
+                    , \_ -> iconIs StatusPage.forbidden "lock"
+                    , \_ -> iconIs StatusPage.unauthorized "key"
+                    , \_ -> iconIs StatusPage.server "server"
+                    , \_ -> iconIs StatusPage.network "wifi-off"
                     , \_ -> iconIs StatusPage.maintenance "wrench"
                     , \_ -> iconIs (problemOf Remote.timeout) "clock"
                     , \_ -> iconIs (problemOf Remote.validation) "warning"
@@ -500,11 +500,11 @@ iconAndToneTests =
             \_ ->
                 Expect.all
                     [ \_ -> toneIs StatusPage.success "success"
-                    , \_ -> toneIs StatusPage.notFound "neutral"
-                    , \_ -> toneIs StatusPage.denied "neutral"
-                    , \_ -> toneIs StatusPage.sessionExpired "neutral"
-                    , \_ -> toneIs StatusPage.serverError "danger"
-                    , \_ -> toneIs StatusPage.offline "warning"
+                    , \_ -> toneIs StatusPage.pageNotFound "neutral"
+                    , \_ -> toneIs StatusPage.forbidden "neutral"
+                    , \_ -> toneIs StatusPage.unauthorized "neutral"
+                    , \_ -> toneIs StatusPage.server "danger"
+                    , \_ -> toneIs StatusPage.network "warning"
                     , \_ -> toneIs StatusPage.maintenance "warning"
                     , \_ -> toneIs (problemOf Remote.unknown) "danger"
                     , \_ -> toneIs (problemOf Remote.timeout) "warning"
@@ -534,9 +534,9 @@ focusTests =
                         [ H.inside [ Selector.id "order-created" ] [ Selector.tag "h1", Selector.attribute (Attr.tabindex -1) ]
                         , H.count 1 [ Selector.attribute (Attr.tabindex -1) ]
                         ]
-        , test "the id of the title is exactly the text given, so that focusTitle can be given the same text" <|
+        , test "the id of the title is exactly the text given, so that Klar.focus can be given the same text" <|
             \_ ->
-                page [ StatusPage.id "x" ] StatusPage.notFound
+                page [ StatusPage.id "x" ] StatusPage.pageNotFound
                     |> H.inside [ Selector.id "x" ] [ heading ]
         , test "with a blank title the page itself has the id and can take focus, so that there is always something to find" <|
             \_ ->
@@ -549,6 +549,4 @@ focusTests =
             \_ ->
                 page [ StatusPage.id "order-created" ] StatusPage.success
                     |> H.count 1 [ Selector.id "order-created" ]
-        , test "focusTitle is a command" <|
-            \_ -> Expect.notEqual Cmd.none (StatusPage.focusTitle "order-created" Done)
         ]

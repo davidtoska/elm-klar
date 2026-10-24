@@ -295,9 +295,13 @@ orderTests =
                     , \_ -> inBar |> Query.index 2 |> Query.has [ Selector.class "klar-bulk__actions" ]
                     ]
                     ()
-        , test "the bar is a named group" <|
+        , test "the bar is a group named with the count, so Tab into it says how many" <|
             \_ ->
-                bar [] 2 |> H.inside [ theBar ] [ H.attr "role" "group", H.attr "aria-label" "Actions for the selected items" ]
+                Expect.all
+                    [ \_ -> bar [] 2 |> H.inside [ theBar ] [ H.attr "role" "group", H.attr "aria-label" "Actions, 2 selected" ]
+                    , \_ -> bar [ everything 12340 25 ] 25 |> H.inside [ theBar ] [ H.attr "aria-label" "Actions, 25 of 12,340 selected" ]
+                    ]
+                    ()
         , test "the actions send their messages" <|
             \_ ->
                 Expect.all
@@ -514,7 +518,7 @@ localeTests =
                         , H.count 1 [ Selector.tag "button", Selector.containing [ Selector.text "Fjern valg" ] ]
                         ]
         , test "the group" <|
-            \_ -> bar [ BulkBar.locale Locale.nb ] 3 |> H.inside [ theBar ] [ H.attr "aria-label" "Handlinger for valgte elementer" ]
+            \_ -> bar [ BulkBar.locale Locale.nb ] 3 |> H.inside [ theBar ] [ H.attr "aria-label" "Handlinger, 3 valgt" ]
         , test "English is the default and uses commas" <|
             \_ -> bar [ everything 12340 25 ] 25 |> H.inside [ live ] [ Selector.exactText "25 of 12,340 selected" ]
         ]
@@ -546,6 +550,4 @@ focusTests =
                         , H.none [ Selector.id "orders-bulk" ]
                         , H.none [ Selector.attribute (Attr.tabindex -1) ]
                         ]
-        , test "focus is a command" <|
-            \_ -> Expect.notEqual Cmd.none (BulkBar.focus "orders-bulk" Search)
         ]

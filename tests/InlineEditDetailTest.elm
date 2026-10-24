@@ -36,12 +36,12 @@ suite =
             \_ ->
                 failedWith (Remote.problem Remote.validation |> Remote.withDetail "This domain is blocked.")
                     |> failureText []
-                    |> Query.has [ Selector.text "Could not save. The form has errors: This domain is blocked." ]
+                    |> Query.has [ Selector.text "Could not save. The request was rejected: This domain is blocked." ]
         , test "shows only the title when the detail is the ready-made one" <|
             \_ ->
                 failedWith (Remote.problem Remote.validation)
                     |> failureText []
-                    |> Query.has [ Selector.text "Could not save. The form has errors" ]
+                    |> Query.has [ Selector.text "Could not save. The request was rejected" ]
         , test "a title of its own and a detail of its own both show" <|
             \_ ->
                 failedWith (Remote.problem Remote.validation |> Remote.withTitle "Blocked" |> Remote.withDetail "Not this domain.")

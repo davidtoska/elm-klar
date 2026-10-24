@@ -1,11 +1,11 @@
 module Klar.RemoteView exposing
     ( view
-    , Attribute, onRetry, id, loadingLabel, skeleton, locale, settings
+    , Attribute, onRetry, id, loadingLabel, skeleton, emptyState, locale, settings
     )
 
 {-| The body of a card, a dialog or a drawer that shows one piece of remote data:
-a loading skeleton that screen readers hear, the failure with a retry, and the
-data, old or being refreshed. You write only what the data looks like.
+a loading skeleton that screen readers hear, the failure with a retry, nothing to
+show, and the data, old or being refreshed. You write only what the data looks like.
 
 Use when: the body of a card, a dialog or a drawer shows one piece of remote data.
 Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListItem`, which take a `Remote` themselves).
@@ -26,18 +26,26 @@ Do not use when: the data is a table or a list (use `Klar.Table` or `Klar.ListIt
         model.drawer
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
-`NotAsked` and `Loading` show a skeleton and set the body busy, with a polite
-"Loading" for screen readers (`loadingLabel` says what is loading). `Failed` shows
-the problem with a "Try again" button (`onRetry`). `Loaded` calls your function.
-Data that is `Kept` ([Klar.Remote](Klar-Remote)) stays on the screen: dimmed and
-busy while it is refreshed, and with "Old data from 14:05" and a retry when the
-last refresh failed. An empty result is yours to draw, with
-[Klar.EmptyState](Klar-EmptyState), inside the function.
+`NotAsked` and `Loading` show a skeleton, with a polite "Loading" for screen readers
+(`loadingLabel` says what is loading). `Failed` shows the problem with a "Try again"
+button (`onRetry`) when trying again can help. The data calls your function, and when
+your function returns no nodes at all the body says "Nothing to show"
+(`emptyState` says it your way). Data that is `Kept` ([Klar.Remote](Klar-Remote)) stays
+on the screen: dimmed and busy while it is refreshed, and with "Old data from 14:05"
+and a retry when the last refresh failed.
 
-The body is a list of nodes, so it fits wherever a list of children goes: the body
-of a `Card`, a `Modal` or a `Drawer`, or any `Html.div`. Inside a `Modal` or
-`Drawer`, focus that was on the retry button when the data reloads goes back into
-the dialog by itself; in a `Card` or on a page it falls to the page, unless the body
+**One element in every state.** The body is always one `div` that holds a live region
+and then the content of the state, so that a refresh never rebuilds your nodes: a
+button inside the body that starts a refresh keeps focus while the refresh is on its
+way and when it ends, and so do the caret of a field, an open `<details>` and the
+scroll position of an inner pane. The live region is the same element from loading to
+data, and only its text changes, which is what screen readers announce reliably.
+
+The body is a list with that one node, so it fits wherever a list of children goes:
+the body of a `Card`, a `Modal` or a `Drawer`, or any `Html.div`. Inside, the content
+is a column with the small gap of the library. When the data replaces a failure, the
+"Try again" button that had focus is gone: inside a `Modal` or `Drawer` focus goes back
+into the dialog by itself; in a `Card` or on a page it falls to the page, unless the body
 has an `id` and you move focus to it when you start the new request:
 
     RemoteView.view [ RemoteView.id "supplier", RemoteView.onRetry Retry ] model.supplier viewSupplier
@@ -62,12 +70,13 @@ its own: there is then one `h1` in every state.
 
 # Attributes
 
-@docs Attribute, onRetry, id, loadingLabel, skeleton, locale, settings
+@docs Attribute, onRetry, id, loadingLabel, skeleton, emptyState, locale, settings
 
 -}
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
@@ -89,6 +98,7 @@ type alias Config msg =
     , id : Maybe String
     , loadingLabel : Maybe String
     , skeleton : Maybe (Html msg)
+    , emptyState : List (EmptyState.Attribute msg)
     , locale : Locale
     , settings : Settings
     }
@@ -97,7 +107,14 @@ type alias Config msg =
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { onRetry = Nothing, id = Nothing, loadingLabel = Nothing, skeleton = Nothing, locale = Locale.default, settings = Settings.default }
+        { onRetry = Nothing
+        , id = Nothing
+        , loadingLabel = Nothing
+        , skeleton = Nothing
+        , emptyState = []
+        , locale = Locale.default
+        , settings = Settings.default
+        }
         attributes
 
 
@@ -110,9 +127,9 @@ onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
 
-{-| The DOM id of the body. With it, the body is drawn inside one element that is the
-same in every state (loading, failed, old data, data) and can take focus, so that
-`Klar.focus` has a place to put it. The id must be unique on the page.
+{-| The DOM id of the body, which must be unique on the page. The body is one element
+in every state (loading, failed, nothing to show, old data, data); with an id it can
+take focus, so that `Klar.focus` has a place to put it. There is no id by default.
 -}
 id : String -> Attribute msg
 id value =
@@ -135,6 +152,22 @@ skeleton html =
     Attribute (\config -> { config | skeleton = Just html })
 
 
+{-| What the body shows when the data is there but your function draws nothing for
+it (returns `[]`): an [Klar.EmptyState](Klar-EmptyState). The default is a compact
+one that says "Nothing to show"; your attributes are applied after it, so yours win.
+Return `[]` for an empty result and let the body say so:
+
+    RemoteView.view
+        [ RemoteView.emptyState [ EmptyState.title "No notes yet", EmptyState.action addNoteButton ] ]
+        model.notes
+        (List.map viewNote)
+
+-}
+emptyState : List (EmptyState.Attribute msg) -> Attribute msg
+emptyState attributes =
+    Attribute (\config -> { config | emptyState = attributes })
+
+
 {-| The settings of the application (`Klar.Settings`): the time zone of the time in
 "Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
 
@@ -146,29 +179,20 @@ settings given =
     Attribute (\config -> { config | settings = given })
 
 
-{-| The language of the built-in text ("Loading", "Try again", "Old data from").
-The default is `Locale.default`, which is English.
+{-| The language of the built-in text ("Loading", "Try again", "Old data from",
+"Nothing to show"). The default is `Locale.default`, which is English.
 -}
 locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| The body for a `Remote`: the skeleton, the failure, or what your function
-makes of the data.
+{-| The body for a `Remote`: the skeleton, the failure, the empty state, or what your
+function makes of the data. The result is a list with one element, the same element in
+every state.
 -}
 view : List (Attribute msg) -> Remote a -> (a -> List (Html msg)) -> List (Html msg)
 view attributes data toBody =
-    case (configure attributes).id of
-        Just domId ->
-            [ Html.div [ Attr.id domId, Attr.tabindex -1 ] (body attributes data toBody) ]
-
-        Nothing ->
-            body attributes data toBody
-
-
-body : List (Attribute msg) -> Remote a -> (a -> List (Html msg)) -> List (Html msg)
-body attributes data toBody =
     let
         config =
             configure attributes
@@ -176,53 +200,72 @@ body attributes data toBody =
         ( settled, freshness ) =
             Freshness.settle data
 
-        loading =
+        -- The one element of every state: the same tag, the live region first and the
+        -- content after it, so that Elm patches it in place from one state to the next.
+        wrap modifiers busy announced content =
             [ Html.div
-                [ Internal.cls [ "klar-remote-body", "klar-remote-body--loading" ]
-                , Attr.attribute "aria-busy" "true"
+                [ Internal.cls ("klar-remote-body" :: modifiers)
+                , busy
+                , Internal.attrMaybe Attr.id config.id
+                , Internal.attrIf (config.id /= Nothing) (Attr.tabindex -1)
                 ]
-                [ Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
-                    [ Html.text (Maybe.withDefault (Locale.pick config.locale { nb = "Laster", en = "Loading" }) config.loadingLabel) ]
-                , case config.skeleton of
-                    Just html ->
-                        html
-
-                    Nothing ->
-                        Html.div [ Internal.cls [ "klar-remote-body" ] ]
-                            [ Skeleton.line 45
-                            , Skeleton.paragraph 3
-                            ]
-                ]
+                (Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ] [ Html.text announced ]
+                    :: content
+                )
             ]
     in
     case settled of
         Remote.Loaded value ->
-            case freshness of
-                Freshness.Fresh ->
-                    toBody value
+            -- The marker is one node in every state (empty text while the data is
+            -- fresh), so the nodes of the body keep their places when it comes and goes.
+            wrap [ Freshness.className freshness ]
+                (Freshness.busyAttr freshness)
+                ""
+                (Freshness.notice
+                    { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                    freshness
+                    :: (case toBody value of
+                            [] ->
+                                [ EmptyState.view
+                                    (EmptyState.compact
+                                        :: EmptyState.title (Locale.pick config.locale { nb = "Ingenting å vise", en = "Nothing to show" })
+                                        :: config.emptyState
+                                    )
+                                ]
 
-                _ ->
-                    [ Html.div
-                        [ Internal.cls [ "klar-remote-body", Freshness.className freshness ]
-                        , Freshness.busyAttr freshness
-                        ]
-                        (Freshness.notice
-                            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
-                            freshness
-                            :: toBody value
-                        )
-                    ]
+                            nodes ->
+                                nodes
+                       )
+                )
 
         Remote.Failed problem ->
-            [ ErrorState.view
-                (List.filterMap identity
-                    [ Just ErrorState.compact
-                    , Just (ErrorState.locale config.locale)
-                    , Maybe.map ErrorState.onRetry config.onRetry
-                    ]
-                )
-                problem
-            ]
+            wrap []
+                Internal.noAttr
+                ""
+                [ ErrorState.view
+                    (List.filterMap identity
+                        [ Just ErrorState.compact
+                        , Just (ErrorState.locale config.locale)
+                        , Maybe.map ErrorState.onRetry config.onRetry
+                        ]
+                    )
+                    problem
+                ]
 
         _ ->
-            loading
+            -- Busy is the placeholder, never an element around the live region: a
+            -- screen reader may hold back what a busy region says.
+            wrap [ "klar-remote-body--loading" ]
+                Internal.noAttr
+                (Maybe.withDefault (Locale.pick config.locale { nb = "Laster", en = "Loading" }) config.loadingLabel)
+                [ Html.div [ Internal.cls [ "klar-remote-body" ], Attr.attribute "aria-busy" "true" ]
+                    (case config.skeleton of
+                        Just html ->
+                            [ html ]
+
+                        Nothing ->
+                            [ Skeleton.line 45
+                            , Skeleton.paragraph 3
+                            ]
+                    )
+                ]
