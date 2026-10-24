@@ -113,7 +113,7 @@ import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Theme exposing (Tone(..))
+import Klar.Theme as Theme exposing (Tone(..))
 
 
 
@@ -1389,7 +1389,7 @@ viewSummary ctx summary =
     Html.div [ Internal.cls [ "klar-diff__summary" ] ]
         [ Alert.viewWith [ Alert.tone Warning, Alert.compact, Alert.locale ctx.config.locale ]
             [ Html.text t.tooLarge ]
-        , DescriptionList.view [ DescriptionList.columns 2, DescriptionList.labelBeside, DescriptionList.bordered, DescriptionList.compact, DescriptionList.locale ctx.config.locale ]
+        , DescriptionList.view [ DescriptionList.columns 2, DescriptionList.labelBeside, DescriptionList.bordered, DescriptionList.density Theme.Compact, DescriptionList.locale ctx.config.locale ]
             [ row t.summaryOld summary.oldLines
             , row t.summaryNew summary.newLines
             , row t.summaryStart summary.sameAtStart

@@ -30,7 +30,7 @@ suite =
 
 type alias Model =
     { split : Splitter.State
-    , attributes : List Splitter.Attribute
+    , attributes : List (Splitter.Attribute Splitter.Msg)
     , panes : List (Splitter.Pane Splitter.Msg)
     }
 

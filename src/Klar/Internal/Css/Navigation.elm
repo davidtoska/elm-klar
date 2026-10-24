@@ -1361,19 +1361,28 @@ css =
 
 /* ---- Description list ------------------------------------------------------ */
 
+/* A column is never narrower than --_min (200px; with the label beside, the label column
+   and 160px for the value), and never wider than the list. */
 .klar-description-list {
   --_gap: var(--klar-space-6);
+  --_min: 200px;
   display: grid;
   grid-template-columns: repeat(
     auto-fill,
-    minmax(max(200px, calc((100% - (var(--klar-dl-cols, 1) - 1) * var(--_gap)) / var(--klar-dl-cols, 1) - 0.5px)), 1fr)
+    minmax(min(100%, max(var(--_min), calc((100% - (var(--klar-dl-cols, 1) - 1) * var(--_gap)) / var(--klar-dl-cols, 1) - 0.5px))), 1fr)
   );
   gap: var(--klar-space-4) var(--_gap);
   margin: 0;
 }
 
+.klar-description-list--beside { --_min: calc(var(--klar-dl-label-w, 160px) + var(--klar-space-4) + 160px); }
+
+/* The density of the list (`DescriptionList.density`), or else the density of the application. */
 .klar-description-list--compact,
-:where([data-klar-density="compact"]) .klar-description-list:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) { row-gap: var(--klar-space-2); }
+:where([data-klar-density="compact"]) .klar-description-list:where(:not(.klar-description-list--normal, .klar-description-list--comfortable)) { row-gap: var(--klar-space-2); }
+
+.klar-description-list--comfortable,
+:where([data-klar-density="comfortable"]) .klar-description-list:where(:not(.klar-description-list--compact, .klar-description-list--normal)) { row-gap: var(--klar-space-6); }
 
 .klar-description-list__item {
   display: flex;
@@ -1422,7 +1431,10 @@ css =
 }
 
 .klar-description-list--bordered.klar-description-list--compact .klar-description-list__item,
-:where([data-klar-density="compact"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--comfortable)) .klar-description-list__item { padding: 6px 0; }
+:where([data-klar-density="compact"]) .klar-description-list--bordered:where(:not(.klar-description-list--normal, .klar-description-list--comfortable)) .klar-description-list__item { padding: 6px 0; }
+
+.klar-description-list--bordered.klar-description-list--comfortable .klar-description-list__item,
+:where([data-klar-density="comfortable"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--normal)) .klar-description-list__item { padding: 14px 0; }
 
 /* ---- Stepper --------------------------------------------------------------- */
 

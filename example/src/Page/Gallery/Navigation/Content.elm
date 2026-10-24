@@ -29,7 +29,7 @@ import Klar.Menu as Menu
 import Klar.Stepper as Stepper
 import Klar.Text as Text
 import Klar.TextInput as TextInput
-import Klar.Theme exposing (Size(..), Tone(..))
+import Klar.Theme as Theme exposing (Size(..), Tone(..))
 import Klar.Toolbar as Toolbar
 import Page.Gallery.Navigation.Demo as Demo
 import Showcase.Doc as Doc
@@ -526,7 +526,7 @@ descriptionListSection locale =
                     (List.take 6 descriptionItems)
                 , DescriptionList.view
                     [ DescriptionList.columns 3
-                    , DescriptionList.compact
+                    , DescriptionList.density Theme.Compact
                     , DescriptionList.bordered
                     , DescriptionList.locale locale
                     ]

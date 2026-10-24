@@ -26,7 +26,7 @@ columns : Int -> Attribute
 labelBeside : Attribute
 labelWidth : Int -> Attribute
 bordered : Attribute
-compact : Attribute
+density : Theme.Density -> Attribute
 locale : Locale.Locale -> Attribute
 ```
 
@@ -35,7 +35,7 @@ locale : Locale.Locale -> Attribute
 Label and value pairs for detail views, rendered as a semantic `dl`.
 
 Use when: the application shows the facts about one thing, such as an order, a customer or a shipment.
-Do not use when: there are many things of the same kind to compare or sort, use `Klar.Table`.
+Do not use when: there are many things of the same kind to compare or sort (use `Klar.Table`), or two or more versions of one thing are compared side by side (use `Klar.Compare`).
 
     import Klar.Badge as Badge
     import Klar.DescriptionList as DescriptionList
@@ -62,8 +62,24 @@ follows `locale` (English by default).
 The label sits above the value by default. `labelBeside` puts it in a column to
 the left, which reads like a table and works well with `bordered`. The number of
 `columns` is a maximum: the grid drops to fewer columns when there is no room
-(a column is never narrower than 200px). Rows keep the order they are given in.
+(a column is never narrower than 200px, and with `labelBeside` never narrower than
+the label column and 160px for the value). Rows keep the order they are given in.
 The list has no state and sends no messages.
+
+While the data is on its way, show the same labels with `Skeleton.line` values in
+the place of [Klar.RemoteView](Klar.RemoteView.md), so that nothing jumps when the
+data arrives:
+
+    RemoteView.view
+        [ RemoteView.skeleton
+            (DescriptionList.view [ DescriptionList.columns 2 ]
+                [ DescriptionList.html "Customer number" (Skeleton.line 40)
+                , DescriptionList.html "Phone" (Skeleton.line 60)
+                ]
+            )
+        ]
+        model.customer
+        (\customer -> [ customerFacts customer ])
 
 ## View
 
@@ -188,14 +204,18 @@ bordered : Attribute
 
 A thin line under every row.
 
-### `compact`
+### `density`
 
 ```elm
-compact : Attribute
+density : Theme.Density -> Attribute
 ```
 
-Tighter vertical spacing between the rows, for dense detail views. It follows a
-compact density of the application (`Klar.Settings`) without it.
+How tightly the rows are packed: `Compact` (less space between the rows, for
+dense detail views), `Normal` or `Comfortable` (more space). Without it the list
+follows the density of the application (`Klar.Settings`), so give it only to a
+list that must differ from the rest.
+
+    DescriptionList.density Compact
 
 ### `locale`
 

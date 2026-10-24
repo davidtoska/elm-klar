@@ -51,7 +51,7 @@ import Klar.SegmentedControl as SegmentedControl
 import Klar.Select as Select
 import Klar.TextArea as TextArea
 import Klar.TextInput as TextInput
-import Klar.Theme exposing (Tone(..))
+import Klar.Theme as Theme exposing (Tone(..))
 import Page.Effect exposing (Context)
 import View.Labels as Labels
 
@@ -682,7 +682,7 @@ viewOrderFacts context editor =
 
         ExistingOrder order ->
             Layout.stack [ Layout.gap 4 ]
-                [ DescriptionList.view [ DescriptionList.columns 3, DescriptionList.compact, DescriptionList.locale context.locale ]
+                [ DescriptionList.view [ DescriptionList.columns 3, DescriptionList.density Theme.Compact, DescriptionList.locale context.locale ]
                     (List.filterMap identity
                         [ Just (DescriptionList.html "Status" (Labels.statusBadge order.status))
                         , Just (DescriptionList.text "Created" (Format.date context.locale order.created))

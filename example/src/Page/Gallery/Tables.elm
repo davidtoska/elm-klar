@@ -1302,7 +1302,7 @@ disabledUnless allowed item =
 
 orderDetail : Locale -> Order -> Html Msg
 orderDetail locale o =
-    DescriptionList.view [ DescriptionList.columns 3, DescriptionList.compact, DescriptionList.locale locale ]
+    DescriptionList.view [ DescriptionList.columns 3, DescriptionList.density Theme.Compact, DescriptionList.locale locale ]
         [ DescriptionList.text "Warehouse" (Sample.warehouseName o.warehouse)
         , DescriptionList.text "Created" (Format.date locale o.created)
         , DescriptionList.text "Due" (Format.dateLong locale o.due)
@@ -1996,7 +1996,7 @@ sortingNotes =
                     ]
                 )
     in
-    DescriptionList.view [ DescriptionList.labelBeside, DescriptionList.labelWidth 110, DescriptionList.bordered, DescriptionList.compact ]
+    DescriptionList.view [ DescriptionList.labelBeside, DescriptionList.labelWidth 110, DescriptionList.bordered, DescriptionList.density Theme.Compact ]
         [ note "Owner" "sortText" "Sorts by last name, not by the first name that is shown. Orders without an owner come last."
         , note "Due" "sortDate, exportAs" "Shown as “20 October 2026”, sorted by date, exported as an ISO date."
         , note "Delivery" "sortMaybeNumber, alignRight" "Sorts by days early or late. Orders that are not delivered yet are a dash and come last, whichever way you sort."

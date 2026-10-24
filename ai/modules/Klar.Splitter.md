@@ -11,7 +11,7 @@ Types: `Msg`, `Pane`, `Share`, `State`, `Attribute`
 ```elm
 -- View
 type Pane msg  -- opaque: no constructors are exposed
-view : (Msg -> msg) -> List Attribute -> State -> List (Pane msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Pane msg) -> Html msg
 pane : String -> Html msg -> Pane msg
 minSize : Share -> Pane msg -> Pane msg
 maxSize : Share -> Pane msg -> Pane msg
@@ -34,11 +34,11 @@ percent : Float -> Share
 toPercent : Share -> Float
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-stacked : Attribute
-height : Int -> Attribute
-fillRest : Attribute
-locale : Locale.Locale -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+stacked : Attribute msg
+height : Int -> Attribute msg
+fillRest : Attribute msg
+locale : Locale.Locale -> Attribute msg
 ```
 
 ## Documentation
@@ -134,7 +134,7 @@ One pane: a name and what to draw. Refine it with `minSize`, `maxSize`,
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> List (Pane msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Pane msg) -> Html msg
 ```
 
 The splitter. It takes the constructor that wraps the messages, the attributes,
@@ -326,7 +326,7 @@ The share in percent, from 0 to 100.
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of the splitter. Make them with the functions below and pass a list to
@@ -335,7 +335,7 @@ A setting of the splitter. Make them with the functions below and pass a list to
 ### `stacked`
 
 ```elm
-stacked : Attribute
+stacked : Attribute msg
 ```
 
 The panes lie one above the other, with horizontal separators, instead of side
@@ -345,7 +345,7 @@ side by side.
 ### `height`
 
 ```elm
-height : Int -> Attribute
+height : Int -> Attribute msg
 ```
 
 The height of the splitter in pixels. Without it the splitter is as high as its
@@ -356,7 +356,7 @@ to divide anything.
 ### `fillRest`
 
 ```elm
-fillRest : Attribute
+fillRest : Attribute msg
 ```
 
 Makes the splitter as high as the room that is left in its parent, instead of
@@ -373,7 +373,7 @@ area fills the window under the page header with no pixel height; see
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: "Resize" in the name of a separator and the

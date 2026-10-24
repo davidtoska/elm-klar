@@ -240,7 +240,7 @@ collapsible (Pane data) =
 {-| A setting of the splitter. Make them with the functions below and pass a list to
 `view`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -252,7 +252,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { stacked = False, height = Nothing, fillRest = False, locale = Locale.default }
@@ -263,7 +263,7 @@ configure attributes =
 by side. The keyboard then moves a separator with `Up` and `Down`. The default is
 side by side.
 -}
-stacked : Attribute
+stacked : Attribute msg
 stacked =
     Attribute (\config -> { config | stacked = True })
 
@@ -273,7 +273,7 @@ parent, which must then have a height of its own; a splitter inside a pane of
 another splitter does not need one. A `stacked` splitter needs a height to be able
 to divide anything.
 -}
-height : Int -> Attribute
+height : Int -> Attribute msg
 height pixels =
     Attribute (\config -> { config | height = Just (Basics.max 0 pixels) })
 
@@ -290,7 +290,7 @@ area fills the window under the page header with no pixel height; see
         ]
 
 -}
-fillRest : Attribute
+fillRest : Attribute msg
 fillRest =
     Attribute (\config -> { config | fillRest = True })
 
@@ -299,7 +299,7 @@ fillRest =
 value ("40 percent"). The default is `Locale.default`, which is English. See
 [Klar.Locale](Klar-Locale).
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -424,7 +424,7 @@ empty splitter.
         ]
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> List (Pane msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Pane msg) -> Html msg
 view toMsg attributes (State s) panes =
     let
         config =

@@ -3664,7 +3664,7 @@
       "group": "Structure",
       "purpose": "Label and value pairs for detail views, rendered as a semantic `dl`.",
       "whenToUse": "the application shows the facts about one thing, such as an order, a customer or a shipment.",
-      "whenNot": "there are many things of the same kind to compare or sort, use `Klar.Table`.",
+      "whenNot": "there are many things of the same kind to compare or sort (use `Klar.Table`), or two or more versions of one thing are compared side by side (use `Klar.Compare`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -3679,6 +3679,7 @@
         "fullWidth"
       ],
       "related": [
+        "Klar.RemoteView",
         "Klar.Table"
       ],
       "keywords": [
