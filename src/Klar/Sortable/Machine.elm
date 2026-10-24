@@ -8,6 +8,7 @@ module Klar.Sortable.Machine exposing
     , helpDomId
     , init
     , itemDomId
+    , moveDomId
     , update
     )
 
@@ -80,6 +81,7 @@ type Msg
     | Cancel
     | Blurred String
     | Focused (List String)
+    | MoveBy Layout Int
     | Noop
 
 
@@ -208,7 +210,46 @@ update msg s =
                 Nothing ->
                     ( s, Cmd.none )
 
+        MoveBy layout delta ->
+            moveBy layout delta s
+
         Noop ->
+            ( s, Cmd.none )
+
+
+{-| A press of a move button: the item is picked up, moved one place and dropped in
+one go, as with the keyboard, so it passes no fixed item and lands in `reorder`
+like any drop. The focus goes back to the button, which the keyed list has moved
+with its item (and the browser takes the focus from a moved element).
+-}
+moveBy : Layout -> Int -> State -> ( State, Cmd Msg )
+moveBy layout delta s =
+    case Session.keyboard (s.serial + 1) layout of
+        Just session ->
+            let
+                target =
+                    (Session.step delta session).to
+
+                total =
+                    List.length session.order
+            in
+            if target == session.from then
+                ( { s | serial = session.serial, session = Nothing, note = Just (AtLimit (session.from + 1) total) }
+                , Cmd.none
+                )
+
+            else
+                ( { s
+                    | serial = session.serial
+                    , session = Nothing
+                    , drops = s.drops + 1
+                    , last = Just { key = session.source, to = target, placed = Order.move session.from target session.order }
+                    , note = Just (MovedTo (target + 1) total)
+                  }
+                , Internal.focus (moveDomId s.domId session.source delta) Noop
+                )
+
+        Nothing ->
             ( s, Cmd.none )
 
 
@@ -392,3 +433,17 @@ handleDomId domId key =
 helpDomId : String -> String
 helpDomId domId =
     domId ++ "-help"
+
+
+{-| The id of the "Move up" (a negative step) or "Move down" button of an item.
+-}
+moveDomId : String -> String -> Int -> String
+moveDomId domId key delta =
+    domId
+        ++ (if delta < 0 then
+                "-up-"
+
+            else
+                "-down-"
+           )
+        ++ Internal.percentEncode key

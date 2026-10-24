@@ -11,8 +11,8 @@ Types: `Msg`, `Item`, `State`, `Attribute`
 ```elm
 -- View
 type Item id msg  -- opaque: no constructors are exposed
-view : Ids.Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
-item : id -> String -> Html msg -> Item id msg
+view : (Msg -> msg) -> List (Attribute msg) -> State id -> List (Item id msg) -> Html msg
+item : Ids.Ids id -> id -> String -> Html msg -> Item id msg
 fixed : Item id msg -> Item id msg
 
 -- State and messages
@@ -24,16 +24,16 @@ lifted : Ids.Ids id -> State id -> Maybe id
 
 -- Putting the list in the new order
 reorder : Ids.Ids id -> (a -> id) -> State id -> State id -> List a -> List a
-move : { from : Int, to : Int } -> List a -> List a
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-ariaLabel : String -> Attribute
-horizontal : Attribute
-wholeItem : Attribute
-disabled : Bool -> Attribute
-emptyText : String -> Attribute
-locale : Locale.Locale -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+ariaLabel : String -> Attribute msg
+horizontal : Attribute msg
+wholeItem : Attribute msg
+moveButtons : Attribute msg
+disabled : Bool -> Attribute msg
+emptyText : String -> Attribute msg
+locale : Locale.Locale -> Attribute msg
 ```
 
 ## Documentation
@@ -68,11 +68,10 @@ Quick path: `init`, `update`, `view`, `reorder`
         )
 
     -- view
-    Sortable.view stepIds
-        SortableMsg
-        [ Sortable.ariaLabel "Pick sequence" ]
+    Sortable.view SortableMsg
+        [ Sortable.ariaLabel "Pick sequence", Sortable.moveButtons ]
         model.sortable
-        (List.map (\step -> Sortable.item step.id step.title (viewStep step)) model.steps)
+        (List.map (\step -> Sortable.item stepIds step.id step.title (viewStep step)) model.steps)
 
 Your list stays yours. You draw it in your own order, and the component only
 remembers what the user is doing right now (which item is held and where it would
@@ -85,13 +84,10 @@ a list item with a handle.
 
 Dragging is not for everybody, and the guidelines for accessibility ask for another way
 than a movement with the pointer (WCAG 2.5.7). The keyboard is one. For a person who
-uses a pointer and cannot drag, give each item "Move up" and "Move down" buttons that
-use `move`, which moves an item the same way and keeps it inside the list:
-
-    MoveUp index ->
-        ( { model | steps = Sortable.move { from = index, to = index - 1 } model.steps }
-        , Cmd.none
-        )
+uses a pointer and cannot drag, `moveButtons` gives each item "Move up" and "Move down"
+buttons. They move the item the same way a drop does (past no `fixed` item, announced,
+put in place by `reorder`) and keep the focus on the button that was pressed, so there
+is nothing to write for them.
 
 Use it for a short list whose order matters: the steps of a pick sequence, the
 filters of a saved view, a chip list. For a table whose columns can be moved, use
@@ -151,30 +147,28 @@ One item of the list. Make it with `item` and, if it must stay in its place,
 ### `view`
 
 ```elm
-view : Ids.Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State id -> List (Item id msg) -> Html msg
 ```
 
-The list. It takes the `Ids` of your item type, the constructor that wraps the
-messages, the attributes, the state and the items in the order you want them
-drawn.
+The list. It takes the constructor that wraps the messages, the attributes, the
+state and the items in the order you want them drawn.
 
-    Sortable.view steps
-        SortableMsg
+    Sortable.view SortableMsg
         [ Sortable.ariaLabel "Pick sequence" ]
         model.sortable
-        (List.map viewStep model.steps)
+        (List.map (\step -> Sortable.item stepIds step.id step.title (viewStep step)) model.steps)
 
 An empty list draws the `emptyText`. Reordering needs the same `Ids` in `reorder`.
 
 ### `item`
 
 ```elm
-item : id -> String -> Html msg -> Item id msg
+item : Ids.Ids id -> id -> String -> Html msg -> Item id msg
 ```
 
-An item: its id, its label and what to draw.
+An item: the `Ids` of your id type, its id, its label and what to draw.
 
-    Sortable.item step.id step.title (Html.text step.title)
+    Sortable.item stepIds step.id step.title (Html.text step.title)
 
 The label names the item for screen readers (the handle is called after it, and the
 announcements use it: "Scan the tote picked up"), so it is required and should be
@@ -253,7 +247,7 @@ though the page no longer shows it as held.
 ## Ids
 
 The id type of your items (a `StepId`, plain text ...) is written as a key once, as a
-[Klar.Ids](Klar.Ids.md), and given to `view`, `reorder` and `lifted`. The state is typed by
+[Klar.Ids](Klar.Ids.md), and given to `item`, `reorder` and `lifted`. The state is typed by
 the id (`Sortable.State StepId`). The key becomes part of the DOM ids, so `toKey` must give
 every id its own key; a list that holds the same key twice shows the first item only.
 
@@ -268,7 +262,7 @@ reorder : Ids.Ids id -> (a -> id) -> State id -> State id -> List a -> List a
 Puts your list in the order the user just chose. Give it the state before and
 the state after the same `update` call, and your list.
 
-    Sortable.reorder steps .id model.sortable sortable model.steps
+    Sortable.reorder stepIds .id model.sortable sortable model.steps
 
 When the user dropped an item in that `update`, the item moves to its new place and
 the rest of the list stays as it is; otherwise the list is returned unchanged. The
@@ -286,30 +280,12 @@ that is still there. So hiding some items with a filter, or adding and removing
 items while the user holds one, never puts the dropped item somewhere else than
 among its new neighbours.
 
-### `move`
-
-```elm
-move : { from : Int, to : Int } -> List a -> List a
-```
-
-Moves one element of a list from one place to another, counting from 0. The
-place `to` is where the element ends up. A `to` beyond the ends counts as the
-nearest end, and a `from` that is not in the list changes nothing. Use it for the
-same move without dragging, for example for "Move up" and "Move down" buttons in a
-menu, so that people who cannot drag have another way. A button inside the item goes
-with the item to its new place, and the browser takes the focus from an element that is
-moved in the page: give the button an `id` and send the focus back to it in the same
-`update`, with `Klar.focus`, or a keyboard user starts again from the top of the
-page after every press.
-
-    Sortable.move { from = 0, to = 2 } [ "a", "b", "c", "d" ] --> [ "b", "c", "a", "d" ]
-
 ## Attributes
 
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of the list. Make them with the functions below and pass a list to
@@ -318,7 +294,7 @@ A setting of the list. Make them with the functions below and pass a list to
 ### `ariaLabel`
 
 ```elm
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ```
 
 The accessible name of the list, for example "Pick sequence". Give every list
@@ -327,7 +303,7 @@ on a page its own name; without it the list has none.
 ### `horizontal`
 
 ```elm
-horizontal : Attribute
+horizontal : Attribute msg
 ```
 
 The items run side by side (a chip list) instead of one below the other, and
@@ -338,7 +314,7 @@ vertical list.
 ### `wholeItem`
 
 ```elm
-wholeItem : Attribute
+wholeItem : Attribute msg
 ```
 
 Lets the mouse take hold of an item anywhere, not only by its handle, except
@@ -347,10 +323,25 @@ finger or pen still uses the handle only, so that the rest of the item scrolls t
 page. The handle stays: it is how the keyboard and screen readers reach the item.
 The default is the handle only.
 
+### `moveButtons`
+
+```elm
+moveButtons : Attribute msg
+```
+
+Gives every item that can move two small buttons at its end, "Move up" and
+"Move down" ("Move left" and "Move right" in a `horizontal` list): the way to
+reorder for a person who uses a pointer and cannot drag (WCAG 2.5.7). A press moves
+the item one place, past no `fixed` item, and lands in `reorder` like a drop; the
+live region says where it went, and the focus stays on the button. At the end of
+the list the button is dimmed, and a press says that the item cannot move further.
+The buttons are named after the item ("Move Scan the tote up"). There are none by
+default.
+
 ### `disabled`
 
 ```elm
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 ```
 
 Makes the whole list unchangeable: the handles are dimmed and cannot be used.
@@ -359,7 +350,7 @@ The default is `False`.
 ### `emptyText`
 
 ```elm
-emptyText : String -> Attribute
+emptyText : String -> Attribute msg
 ```
 
 The text drawn when there are no items. The default is "No items".
@@ -367,9 +358,9 @@ The text drawn when there are no items. The default is "No items".
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the description of the handle, the
-announcements, "Fixed position" and the empty text. The default is
-`Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
+announcements, "Fixed position", the names of the `moveButtons` and the empty text.
+The default is `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).

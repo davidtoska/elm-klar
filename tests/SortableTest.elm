@@ -21,6 +21,7 @@ suite =
         , reorderTests
         , pointerTests
         , typedIdTests
+        , moveButtonTests
         ]
 
 
@@ -31,7 +32,7 @@ suite =
 type alias Model =
     { sortable : Sortable.State String
     , items : List String
-    , attributes : List Sortable.Attribute
+    , attributes : List (Sortable.Attribute Sortable.Msg)
     , fixedItems : List String
     }
 
@@ -46,7 +47,7 @@ five =
     start [ "a", "b", "c", "d", "e" ]
 
 
-withAttributes : List Sortable.Attribute -> Model -> Model
+withAttributes : List (Sortable.Attribute Sortable.Msg) -> Model -> Model
 withAttributes attributes model =
     { model | attributes = attributes }
 
@@ -58,17 +59,16 @@ withFixed names model =
 
 view : Model -> Html Sortable.Msg
 view model =
-    Sortable.view Ids.string
-        identity
+    Sortable.view identity
         (Sortable.ariaLabel "Pick sequence" :: model.attributes)
         model.sortable
         (List.map
             (\name ->
                 if List.member name model.fixedItems then
-                    Sortable.item name ("Step " ++ name) (Html.text ("content " ++ name)) |> Sortable.fixed
+                    Sortable.item Ids.string name ("Step " ++ name) (Html.text ("content " ++ name)) |> Sortable.fixed
 
                 else
-                    Sortable.item name ("Step " ++ name) (Html.span [ Attr.class "step" ] [ Html.text ("content " ++ name) ])
+                    Sortable.item Ids.string name ("Step " ++ name) (Html.span [ Attr.class "step" ] [ Html.text ("content " ++ name) ])
             )
             model.items
         )
@@ -976,11 +976,10 @@ typedIdTests =
                 state =
                     Sortable.init "steps"
             in
-            Sortable.view Ids.string
-                identity
+            Sortable.view identity
                 []
                 state
-                [ Sortable.item "step-7" "Seven" (Html.text "seven"), Sortable.item "step-8" "Eight" (Html.text "eight"), Sortable.item "odd" "Odd" (Html.text "odd") ]
+                [ Sortable.item Ids.string "step-7" "Seven" (Html.text "seven"), Sortable.item Ids.string "step-8" "Eight" (Html.text "eight"), Sortable.item Ids.string "odd" "Odd" (Html.text "odd") ]
                 |> Query.fromHtml
                 |> Query.find [ Selector.id ("steps-handle-" ++ handle) ]
                 |> Event.simulate space
@@ -997,4 +996,101 @@ typedIdTests =
             \_ ->
                 liftedAfterSpaceOn stepIds "odd"
                     |> Expect.equal (Ok Nothing)
+        ]
+
+
+
+-- MOVE BUTTONS
+
+
+moveDown : String -> List Selector
+moveDown name =
+    [ Selector.id ("list-down-" ++ name) ]
+
+
+moveUp : String -> List Selector
+moveUp name =
+    [ Selector.id ("list-up-" ++ name) ]
+
+
+click : ( String, Encode.Value )
+click =
+    ( "click", Encode.object [] )
+
+
+withButtons : Model
+withButtons =
+    withAttributes [ Sortable.moveButtons ] five
+
+
+moveButtonTests : Test
+moveButtonTests =
+    describe "moveButtons: the way to reorder without dragging"
+        [ test "there are none by default" <|
+            \_ ->
+                rendered five
+                    |> Query.findAll [ Selector.class "klar-sortable__move" ]
+                    |> Query.count (Expect.equal 0)
+        , test "every item that can move gets two, named after it" <|
+            \_ ->
+                rendered withButtons
+                    |> Expect.all
+                        [ Query.findAll [ Selector.class "klar-sortable__move" ] >> Query.count (Expect.equal 10)
+                        , Query.find (moveUp "b") >> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Move Step b up") ]
+                        , Query.find (moveDown "b") >> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Move Step b down") ]
+                        ]
+        , test "Move down puts the item one place further, through reorder" <|
+            \_ ->
+                send (moveDown "b") click withButtons
+                    |> order
+                    |> Expect.equal (Ok [ "a", "c", "b", "d", "e" ])
+        , test "Move up puts the item one place back" <|
+            \_ ->
+                send (moveUp "d") click withButtons
+                    |> order
+                    |> Expect.equal (Ok [ "a", "b", "d", "c", "e" ])
+        , test "a move is announced" <|
+            \_ ->
+                send (moveDown "b") click withButtons
+                    |> Result.map (says "Moved to position 3 of 5.")
+                    |> Result.withDefault (Expect.fail "no move")
+        , test "at the end the button is dimmed but stays a button, and a press moves nothing and says so" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> rendered withButtons |> Query.find (moveUp "a") |> Query.has [ Selector.tag "button", Selector.attribute (Attr.attribute "aria-disabled" "true") ]
+                    , \_ -> rendered withButtons |> Query.find (moveDown "e") |> Query.has [ Selector.attribute (Attr.attribute "aria-disabled" "true") ]
+                    , \_ -> send (moveUp "a") click withButtons |> order |> Expect.equal (Ok [ "a", "b", "c", "d", "e" ])
+                    , \_ ->
+                        send (moveUp "a") click withButtons
+                            |> Result.map (says "It cannot move further.")
+                            |> Result.withDefault (Expect.fail "no press")
+                    ]
+                    ()
+        , test "the buttons do not pass a fixed item" <|
+            \_ ->
+                let
+                    model =
+                        withButtons |> withFixed [ "a" ]
+                in
+                Expect.all
+                    [ \_ -> rendered model |> Query.find (moveUp "b") |> Query.has [ Selector.attribute (Attr.attribute "aria-disabled" "true") ]
+                    , \_ -> send (moveUp "b") click model |> order |> Expect.equal (Ok [ "a", "b", "c", "d", "e" ])
+                    , \_ -> rendered model |> Query.findAll (moveDown "a") |> Query.count (Expect.equal 0)
+                    ]
+                    ()
+        , test "a disabled list has none" <|
+            \_ ->
+                rendered (withAttributes [ Sortable.moveButtons, Sortable.disabled True ] five)
+                    |> Query.findAll [ Selector.class "klar-sortable__move" ]
+                    |> Query.count (Expect.equal 0)
+        , test "a horizontal list moves left and right" <|
+            \_ ->
+                rendered (withAttributes [ Sortable.moveButtons, Sortable.horizontal ] five)
+                    |> Query.find (moveUp "b")
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Move Step b left") ]
+        , test "the names are in Norwegian with the Norwegian locale" <|
+            \_ ->
+                rendered (withAttributes [ Sortable.moveButtons, Sortable.locale Locale.nb ] five)
+                    |> Query.find (moveDown "b")
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Flytt Step b ned") ]
         ]

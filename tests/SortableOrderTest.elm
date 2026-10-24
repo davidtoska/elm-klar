@@ -127,14 +127,14 @@ moveTests =
 
 publicMoveTests : Test
 publicMoveTests =
-    describe "Sortable.move"
+    describe "Order.move"
         [ test "is the same move, with named places" <|
             \_ ->
-                Sortable.move { from = 0, to = 2 } [ "a", "b", "c", "d" ]
+                Order.move 0 2 [ "a", "b", "c", "d" ]
                     |> Expect.equal [ "b", "c", "a", "d" ]
         , fuzz3 letters position position "never loses an element" <|
             \list from to ->
-                Sortable.move { from = from, to = to } list
+                Order.move from to list
                     |> List.sort
                     |> Expect.equal (List.sort list)
         ]

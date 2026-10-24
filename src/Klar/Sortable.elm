@@ -1,8 +1,8 @@
 module Klar.Sortable exposing
     ( view, Item, item, fixed
     , State, Msg, init, update, lifted
-    , reorder, move
-    , Attribute, ariaLabel, horizontal, wholeItem, disabled, emptyText, locale
+    , reorder
+    , Attribute, ariaLabel, horizontal, wholeItem, moveButtons, disabled, emptyText, locale
     )
 
 {-| A list the user can put in a new order: by dragging an item by its handle, or
@@ -35,11 +35,10 @@ Quick path: `init`, `update`, `view`, `reorder`
         )
 
     -- view
-    Sortable.view stepIds
-        SortableMsg
-        [ Sortable.ariaLabel "Pick sequence" ]
+    Sortable.view SortableMsg
+        [ Sortable.ariaLabel "Pick sequence", Sortable.moveButtons ]
         model.sortable
-        (List.map (\step -> Sortable.item step.id step.title (viewStep step)) model.steps)
+        (List.map (\step -> Sortable.item stepIds step.id step.title (viewStep step)) model.steps)
 
 Your list stays yours. You draw it in your own order, and the component only
 remembers what the user is doing right now (which item is held and where it would
@@ -52,13 +51,10 @@ a list item with a handle.
 
 Dragging is not for everybody, and the guidelines for accessibility ask for another way
 than a movement with the pointer (WCAG 2.5.7). The keyboard is one. For a person who
-uses a pointer and cannot drag, give each item "Move up" and "Move down" buttons that
-use `move`, which moves an item the same way and keeps it inside the list:
-
-    MoveUp index ->
-        ( { model | steps = Sortable.move { from = index, to = index - 1 } model.steps }
-        , Cmd.none
-        )
+uses a pointer and cannot drag, `moveButtons` gives each item "Move up" and "Move down"
+buttons. They move the item the same way a drop does (past no `fixed` item, announced,
+put in place by `reorder`) and keep the focus on the button that was pressed, so there
+is nothing to write for them.
 
 Use it for a short list whose order matters: the steps of a pick sequence, the
 filters of a saved view, a chip list. For a table whose columns can be moved, use
@@ -118,19 +114,19 @@ means the same; an item that is taken out of the list while it is held is let go
 # Ids
 
 The id type of your items (a `StepId`, plain text ...) is written as a key once, as a
-[Klar.Ids](Klar-Ids), and given to `view`, `reorder` and `lifted`. The state is typed by
+[Klar.Ids](Klar-Ids), and given to `item`, `reorder` and `lifted`. The state is typed by
 the id (`Sortable.State StepId`). The key becomes part of the DOM ids, so `toKey` must give
 every id its own key; a list that holds the same key twice shows the first item only.
 
 
 # Putting the list in the new order
 
-@docs reorder, move
+@docs reorder
 
 
 # Attributes
 
-@docs Attribute, ariaLabel, horizontal, wholeItem, disabled, emptyText, locale
+@docs Attribute, ariaLabel, horizontal, wholeItem, moveButtons, disabled, emptyText, locale
 
 -}
 
@@ -158,16 +154,16 @@ import Set exposing (Set)
 -}
 type Item id msg
     = Item
-        { id : id
+        { key : String
         , label : String
         , content : Html msg
         , fixed : Bool
         }
 
 
-{-| An item: its id, its label and what to draw.
+{-| An item: the `Ids` of your id type, its id, its label and what to draw.
 
-    Sortable.item step.id step.title (Html.text step.title)
+    Sortable.item stepIds step.id step.title (Html.text step.title)
 
 The label names the item for screen readers (the handle is called after it, and the
 announcements use it: "Scan the tote picked up"), so it is required and should be
@@ -175,9 +171,9 @@ plain text that tells the items apart. The `Html` is drawn as it is next to the
 handle.
 
 -}
-item : id -> String -> Html msg -> Item id msg
-item id label content =
-    Item { id = id, label = label, content = content, fixed = False }
+item : Ids id -> id -> String -> Html msg -> Item id msg
+item ids id label content =
+    Item { key = Ids.toKey ids id, label = label, content = content, fixed = False }
 
 
 {-| An item that stays where it is. It has no handle (a small lock takes its
@@ -198,21 +194,17 @@ type alias Entry msg =
     }
 
 
-entriesOf : Ids id -> List (Item id msg) -> List (Entry msg)
-entriesOf ids items =
+entriesOf : List (Item id msg) -> List (Entry msg)
+entriesOf items =
     items
         |> List.foldl
             (\(Item data) ( seen, kept ) ->
-                let
-                    key =
-                        Ids.toKey ids data.id
-                in
-                if Set.member key seen then
+                if Set.member data.key seen then
                     ( seen, kept )
 
                 else
-                    ( Set.insert key seen
-                    , { key = key, label = data.label, content = data.content, fixed = data.fixed } :: kept
+                    ( Set.insert data.key seen
+                    , { key = data.key, label = data.label, content = data.content, fixed = data.fixed } :: kept
                     )
             )
             ( Set.empty, [] )
@@ -227,7 +219,7 @@ entriesOf ids items =
 {-| A setting of the list. Make them with the functions below and pass a list to
 `view`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -235,18 +227,20 @@ type alias Config =
     { label : Maybe String
     , horizontal : Bool
     , wholeItem : Bool
+    , moveButtons : Bool
     , disabled : Bool
     , emptyText : Maybe String
     , locale : Locale
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { label = Nothing
         , horizontal = False
         , wholeItem = False
+        , moveButtons = False
         , disabled = False
         , emptyText = Nothing
         , locale = Locale.default
@@ -257,7 +251,7 @@ configure attributes =
 {-| The accessible name of the list, for example "Pick sequence". Give every list
 on a page its own name; without it the list has none.
 -}
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ariaLabel text =
     Attribute (\config -> { config | label = Just text })
 
@@ -267,7 +261,7 @@ wrap onto more lines when they do not fit. The keyboard moves an item with the
 `Left` and `Right` arrow keys instead of `Up` and `Down`. The default is a
 vertical list.
 -}
-horizontal : Attribute
+horizontal : Attribute msg
 horizontal =
     Attribute (\config -> { config | horizontal = True })
 
@@ -278,31 +272,45 @@ finger or pen still uses the handle only, so that the rest of the item scrolls t
 page. The handle stays: it is how the keyboard and screen readers reach the item.
 The default is the handle only.
 -}
-wholeItem : Attribute
+wholeItem : Attribute msg
 wholeItem =
     Attribute (\config -> { config | wholeItem = True })
+
+
+{-| Gives every item that can move two small buttons at its end, "Move up" and
+"Move down" ("Move left" and "Move right" in a `horizontal` list): the way to
+reorder for a person who uses a pointer and cannot drag (WCAG 2.5.7). A press moves
+the item one place, past no `fixed` item, and lands in `reorder` like a drop; the
+live region says where it went, and the focus stays on the button. At the end of
+the list the button is dimmed, and a press says that the item cannot move further.
+The buttons are named after the item ("Move Scan the tote up"). There are none by
+default.
+-}
+moveButtons : Attribute msg
+moveButtons =
+    Attribute (\config -> { config | moveButtons = True })
 
 
 {-| Makes the whole list unchangeable: the handles are dimmed and cannot be used.
 The default is `False`.
 -}
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 disabled value =
     Attribute (\config -> { config | disabled = value })
 
 
 {-| The text drawn when there are no items. The default is "No items".
 -}
-emptyText : String -> Attribute
+emptyText : String -> Attribute msg
 emptyText text =
     Attribute (\config -> { config | emptyText = Just text })
 
 
 {-| The language of the built-in text: the description of the handle, the
-announcements, "Fixed position" and the empty text. The default is
-`Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
+announcements, "Fixed position", the names of the `moveButtons` and the empty text.
+The default is `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -322,6 +330,7 @@ type alias Texts =
     , atLimit : Int -> Int -> String
     , dropped : String -> Int -> Int -> String
     , cancelled : String -> Int -> Int -> String
+    , move : Bool -> Int -> String -> String
     }
 
 
@@ -354,6 +363,20 @@ texts loc =
     , atLimit = \position total -> pick "Posisjon " "Position " ++ place position total ++ pick ". Kan ikke flyttes lenger." ". It cannot move further."
     , dropped = \label position total -> label ++ pick " er sluppet på posisjon " " dropped at position " ++ place position total ++ "."
     , cancelled = \label position total -> pick "Avbrutt. " "Cancelled. " ++ label ++ pick " er tilbake på posisjon " " is back at position " ++ place position total ++ "."
+    , move =
+        \isHorizontal delta label ->
+            case ( isHorizontal, delta < 0 ) of
+                ( False, True ) ->
+                    pick ("Flytt " ++ label ++ " opp") ("Move " ++ label ++ " up")
+
+                ( False, False ) ->
+                    pick ("Flytt " ++ label ++ " ned") ("Move " ++ label ++ " down")
+
+                ( True, True ) ->
+                    pick ("Flytt " ++ label ++ " til venstre") ("Move " ++ label ++ " left")
+
+                ( True, False ) ->
+                    pick ("Flytt " ++ label ++ " til høyre") ("Move " ++ label ++ " right")
     }
 
 
@@ -431,7 +454,7 @@ update (Msg msg) (State s) =
 {-| Puts your list in the order the user just chose. Give it the state before and
 the state after the same `update` call, and your list.
 
-    Sortable.reorder steps .id model.sortable sortable model.steps
+    Sortable.reorder stepIds .id model.sortable sortable model.steps
 
 When the user dropped an item in that `update`, the item moves to its new place and
 the rest of the list stays as it is; otherwise the list is returned unchanged. The
@@ -464,43 +487,23 @@ reorder ids toId (State before) (State after) list =
                 list
 
 
-{-| Moves one element of a list from one place to another, counting from 0. The
-place `to` is where the element ends up. A `to` beyond the ends counts as the
-nearest end, and a `from` that is not in the list changes nothing. Use it for the
-same move without dragging, for example for "Move up" and "Move down" buttons in a
-menu, so that people who cannot drag have another way. A button inside the item goes
-with the item to its new place, and the browser takes the focus from an element that is
-moved in the page: give the button an `id` and send the focus back to it in the same
-`update`, with `Klar.focus`, or a keyboard user starts again from the top of the
-page after every press.
-
-    Sortable.move { from = 0, to = 2 } [ "a", "b", "c", "d" ] --> [ "b", "c", "a", "d" ]
-
--}
-move : { from : Int, to : Int } -> List a -> List a
-move { from, to } list =
-    Order.move from to list
-
-
 
 -- VIEW
 
 
-{-| The list. It takes the `Ids` of your item type, the constructor that wraps the
-messages, the attributes, the state and the items in the order you want them
-drawn.
+{-| The list. It takes the constructor that wraps the messages, the attributes, the
+state and the items in the order you want them drawn.
 
-    Sortable.view steps
-        SortableMsg
+    Sortable.view SortableMsg
         [ Sortable.ariaLabel "Pick sequence" ]
         model.sortable
-        (List.map viewStep model.steps)
+        (List.map (\step -> Sortable.item stepIds step.id step.title (viewStep step)) model.steps)
 
 An empty list draws the `emptyText`. Reordering needs the same `Ids` in `reorder`.
 
 -}
-view : Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
-view ids toMsg attributes (State drawn) items =
+view : (Msg -> msg) -> List (Attribute msg) -> State id -> List (Item id msg) -> Html msg
+view toMsg attributes (State drawn) items =
     let
         send =
             toMsg << Msg
@@ -512,7 +515,7 @@ view ids toMsg attributes (State drawn) items =
             texts config.locale
 
         entries =
-            entriesOf ids items
+            entriesOf items
 
         keys =
             List.map .key entries
@@ -702,6 +705,20 @@ viewEntry toMsg config t s keys layout marker index entry =
                            )
                     )
                     [ Icon.view Icon.grip ]
+
+        moves =
+            if config.moveButtons && movable then
+                let
+                    ( low, high ) =
+                        Order.bounds layout.fixed index
+                in
+                Html.span [ Internal.cls [ "klar-sortable__moves" ] ]
+                    [ moveButton toMsg config t s layout entry (index <= low) -1
+                    , moveButton toMsg config t s layout entry (index >= high) 1
+                    ]
+
+            else
+                Html.text ""
     in
     Html.li
         ([ Internal.cls
@@ -745,7 +762,44 @@ viewEntry toMsg config t s keys layout marker index entry =
         )
         [ handle
         , Html.div [ Internal.cls [ "klar-sortable__content" ] ] [ entry.content ]
+        , moves
         ]
+
+
+{-| A "Move up" or "Move down" button of `moveButtons`. At the end of the list it
+stays a button that can hold the focus (a press there says that the item cannot move
+further), so the focus does not drop when the item reaches the end.
+-}
+moveButton : (Machine.Msg -> msg) -> Config -> Texts -> Machine.State -> Layout -> Entry msg -> Bool -> Int -> Html msg
+moveButton toMsg config t s layout entry atEnd delta =
+    let
+        name =
+            t.move config.horizontal delta entry.label
+
+        glyph =
+            case ( config.horizontal, delta < 0 ) of
+                ( False, True ) ->
+                    Icon.arrowUp
+
+                ( False, False ) ->
+                    Icon.arrowDown
+
+                ( True, True ) ->
+                    Icon.arrowLeft
+
+                ( True, False ) ->
+                    Icon.arrowRight
+    in
+    Html.button
+        [ Internal.cls [ "klar-sortable__move" ]
+        , Attr.id (Machine.moveDomId s.domId entry.key delta)
+        , Attr.type_ "button"
+        , Attr.attribute "aria-label" name
+        , Attr.title name
+        , Internal.attrIf atEnd (Attr.attribute "aria-disabled" "true")
+        , Events.onClick (toMsg (Machine.MoveBy layout delta))
+        ]
+        [ Icon.sized Icon.Small glyph ]
 
 
 {-| While a press or a drag goes on, the whole list listens for the pointer, so that

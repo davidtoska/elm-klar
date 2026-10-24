@@ -2,10 +2,9 @@ module Page.Gallery.Arranging.Sortables exposing (Model, Msg, init, update, view
 
 {-| The sortable section: a pick sequence with ids of its own type, a chip list, a
 list with fixed items that can be locked or emptied, and a list whose whole items
-can be dragged and that has buttons of its own.
+can be dragged and that has move buttons.
 -}
 
-import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Badge as Badge
@@ -19,7 +18,6 @@ import Klar.Switch as Switch
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Showcase.Doc as Doc
-import Task
 
 
 
@@ -72,8 +70,6 @@ type Msg
     | SetLocked Bool
     | ClearPlan
     | ResetPlan
-    | MoveShipment String Int
-    | MovedButton
 
 
 init : Model
@@ -192,26 +188,6 @@ update msg model =
         ResetPlan ->
             ( { model | plan = fixedPlan }, Cmd.none )
 
-        MoveShipment number delta ->
-            -- the same move as a drag, from a button: the item at its place, plus or minus one
-            let
-                index =
-                    model.shipments
-                        |> List.indexedMap Tuple.pair
-                        |> List.filter (\( _, other ) -> other == number)
-                        |> List.head
-                        |> Maybe.map Tuple.first
-                        |> Maybe.withDefault 0
-            in
-            ( { model | shipments = Sortable.move { from = index, to = index + delta } model.shipments }
-            , -- the item is drawn in a new place, which takes the button that was pressed
-              -- with it (and its focus): put the focus back on it, for the keyboard
-              Dom.focus (moveButtonId number delta) |> Task.attempt (\_ -> MovedButton)
-            )
-
-        MovedButton ->
-            ( model, Cmd.none )
-
 
 
 -- VIEW
@@ -261,23 +237,21 @@ StepsMsg inner ->
     )
 
 -- view
-Sortable.view stepIds
-    StepsMsg
+Sortable.view StepsMsg
     [ Sortable.ariaLabel "Pick sequence" ]
     model.stepList
     (List.map
         (\\step ->
-            Sortable.item step.id step.title (viewStep step)
+            Sortable.item stepIds step.id step.title (viewStep step)
         )
         model.steps
     )"""
         }
         (Layout.stack [ Layout.gap 3 ]
-            [ Sortable.view stepIds
-                StepsMsg
+            [ Sortable.view StepsMsg
                 [ Sortable.ariaLabel "Pick sequence", Sortable.locale locale ]
                 model.stepList
-                (List.map (\step -> Sortable.item step.id step.title (stepRow step)) model.steps)
+                (List.map (\step -> Sortable.item stepIds step.id step.title (stepRow step)) model.steps)
             , Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
                 [ Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick ResetSteps ] "Reset"
                 , Text.caption
@@ -308,11 +282,10 @@ chipsExample locale model =
     Doc.example
         { title = "A chip list"
         , description = Just "Left and Right move an item in a horizontal list. The chips wrap onto more lines; the line shows the gap the item would land in. The ids are plain text here."
-        , code = Just """Sortable.view Ids.string
-    ChipsMsg
+        , code = Just """Sortable.view ChipsMsg
     [ Sortable.horizontal, Sortable.ariaLabel "Preferred warehouses" ]
     model.chipList
-    (List.map (\\name -> Sortable.item name name (Html.text name)) model.chips)
+    (List.map (\\name -> Sortable.item Ids.string name name (Html.text name)) model.chips)
 
 -- update
 ChipsMsg inner ->
@@ -328,11 +301,10 @@ ChipsMsg inner ->
     )"""
         }
         (Layout.stack [ Layout.gap 3 ]
-            [ Sortable.view Ids.string
-                ChipsMsg
+            [ Sortable.view ChipsMsg
                 [ Sortable.horizontal, Sortable.ariaLabel "Preferred warehouses", Sortable.locale locale ]
                 model.chipList
-                (List.map (\name -> Sortable.item name name (Html.text name)) model.chips)
+                (List.map (\name -> Sortable.item Ids.string name name (Html.text name)) model.chips)
             , Layout.row [ Layout.gap 2, Layout.alignCenter ]
                 [ Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick ResetChips ] "Reset"
                 , Text.caption (order model.chips)
@@ -345,10 +317,10 @@ planExample : Locale -> Model -> Html Msg
 planExample locale model =
     Doc.example
         { title = "Fixed steps, a locked list and an empty list"
-        , description = Just "The first and the last step are fixed: they have a lock instead of a grip, cannot be moved, and nothing can be moved past them. Lock the list and every grip is dimmed and out of reach of the keyboard. Clear the list to see the empty state."
-        , code = Just """Sortable.view stepIds
-    PlanMsg
+        , description = Just "The first and the last step are fixed: they have a lock instead of a grip, cannot be moved, and nothing can be moved past them. Lock the list and every grip is dimmed and out of reach of the keyboard. The move buttons stop at the fixed steps too. Clear the list to see the empty state."
+        , code = Just """Sortable.view PlanMsg
     [ Sortable.ariaLabel "Plan"
+    , Sortable.moveButtons
     , Sortable.disabled model.locked
     , Sortable.emptyText "No steps in the plan."
     ]
@@ -357,7 +329,7 @@ planExample locale model =
         (\\step ->
             let
                 row =
-                    Sortable.item step.id step.title (viewStep step)
+                    Sortable.item stepIds step.id step.title (viewStep step)
             in
             if step.fixed then
                 Sortable.fixed row
@@ -374,9 +346,9 @@ planExample locale model =
                 , Button.view [ Button.small, Button.icon Icon.trash, Button.onClick ClearPlan ] "Clear the list"
                 , Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick ResetPlan ] "Reset"
                 ]
-            , Sortable.view stepIds
-                PlanMsg
+            , Sortable.view PlanMsg
                 [ Sortable.ariaLabel "Plan"
+                , Sortable.moveButtons
                 , Sortable.disabled model.locked
                 , Sortable.emptyText "No steps in the plan."
                 , Sortable.locale locale
@@ -386,7 +358,7 @@ planExample locale model =
                     (\step ->
                         let
                             row =
-                                Sortable.item step.id step.title (stepRow step)
+                                Sortable.item stepIds step.id step.title (stepRow step)
                         in
                         if step.fixed then
                             Sortable.fixed row
@@ -404,54 +376,21 @@ planExample locale model =
 shipmentsExample : Locale -> Model -> Html Msg
 shipmentsExample locale model =
     Doc.example
-        { title = "The whole item as the handle, and buttons inside it"
-        , description = Just "With wholeItem the mouse can take hold of an item anywhere, except on its buttons and links, so the arrows work as buttons. A finger uses the grip only, so the rest of the item still scrolls the page. The arrows use Sortable.move: another way to reorder for people who cannot drag. A moved item takes its buttons with it, and a button that is moved in the page loses the focus, so the update puts the focus back on it with Browser.Dom.focus."
-        , code = Just """Sortable.view Ids.string
-    ShipmentsMsg
-    [ Sortable.wholeItem, Sortable.ariaLabel "Shipments" ]
+        { title = "The whole item as the handle, and move buttons"
+        , description = Just "With wholeItem the mouse can take hold of an item anywhere, except on its buttons and links. A finger uses the grip only, so the rest of the item still scrolls the page. moveButtons adds Move up and Move down to every item: the way to reorder for people who cannot drag. A press moves the item one place, through reorder like a drop, says where it went, and the focus stays on the button; at the end the button is dimmed and says that the item cannot move further. Nothing to write in the update."
+        , code = Just """Sortable.view ShipmentsMsg
+    [ Sortable.wholeItem, Sortable.moveButtons, Sortable.ariaLabel "Shipments" ]
     model.shipmentList
-    (List.map
-        (\\number ->
-            Sortable.item number number
-                (Layout.row [ Layout.alignCenter ]
-                    [ Html.text number
-                    , Layout.spacer
-                    , Button.iconOnly [ Button.small, Button.ghost, Button.onClick (MoveShipment number -1) ] Icon.arrowUp "Move up"
-                    , Button.iconOnly [ Button.small, Button.ghost, Button.onClick (MoveShipment number 1) ] Icon.arrowDown "Move down"
-                    ]
-                )
-        )
-        model.shipments
-    )
-
--- the same move without dragging; the button moves with its item, so give it the focus again
-MoveShipment number delta ->
-    ( { model | shipments = Sortable.move { from = index, to = index + delta } model.shipments }
-    , Dom.focus (moveButtonId number delta) |> Task.attempt (\\_ -> NoOp)
-    )"""
+    (List.map (\\number -> Sortable.item Ids.string number number (shipmentRow number)) model.shipments)"""
         }
         (Layout.stack [ Layout.gap 3 ]
-            [ Sortable.view Ids.string
-                ShipmentsMsg
-                [ Sortable.wholeItem, Sortable.ariaLabel "Shipments", Sortable.locale locale ]
+            [ Sortable.view ShipmentsMsg
+                [ Sortable.wholeItem, Sortable.moveButtons, Sortable.ariaLabel "Shipments", Sortable.locale locale ]
                 model.shipmentList
-                (List.map (\number -> Sortable.item number number (shipmentRow number)) model.shipments)
+                (List.map (\number -> Sortable.item Ids.string number number (shipmentRow number)) model.shipments)
             , Text.caption ("Order: " ++ order model.shipments)
             ]
         )
-
-
-moveButtonId : String -> Int -> String
-moveButtonId number delta =
-    let
-        direction =
-            if delta < 0 then
-                "up"
-
-            else
-                "down"
-    in
-    "move-" ++ number ++ "-" ++ direction
 
 
 shipmentRow : String -> Html Msg
@@ -459,7 +398,4 @@ shipmentRow number =
     Layout.row [ Layout.gap 2, Layout.alignCenter ]
         [ Html.span [ Attr.class "klar-tabular" ] [ Html.text number ]
         , Badge.view [ Badge.tone Info ] "Ready to ship"
-        , Layout.spacer
-        , Button.iconOnly [ Button.small, Button.ghost, Button.id (moveButtonId number -1), Button.onClick (MoveShipment number -1) ] Icon.arrowUp ("Move " ++ number ++ " up")
-        , Button.iconOnly [ Button.small, Button.ghost, Button.id (moveButtonId number 1), Button.onClick (MoveShipment number 1) ] Icon.arrowDown ("Move " ++ number ++ " down")
         ]

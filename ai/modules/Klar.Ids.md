@@ -30,7 +30,7 @@ Components keep their values as text keys internally (a table's selection, the o
 nodes of a tree, the choices of a rule). An application writes the two functions once
 per id type, as a constant next to the type, and gives the same `Ids` to every
 component that holds that type: `Table.rowId`, `Tree.leaf`, `Picking.leaf`,
-`Sortable.view`, `SideNav.item`, `Spec.choice` and `Spec.choices` of a form,
+`Sortable.item`, `Accordion.section`, `SideNav.item`, `Spec.choice` and `Spec.choices` of a form,
 `Rule.choiceFieldOf` and `Form.Check.lostIds`.
 
     import Klar.Ids as Ids exposing (Ids)
