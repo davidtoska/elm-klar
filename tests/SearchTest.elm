@@ -270,6 +270,28 @@ filtering =
             \_ -> Expect.equal [ "b", "a" ] (Search.filter identity "  " [ "b", "a" ])
         , test "works on records" <|
             \_ -> Expect.equal [ 2 ] (Search.filter .name "lov" [ { id = 1, name = "Alan" }, { id = 2, name = "Lovelace" } ] |> List.map .id)
+        , test "filterBy puts a match in the main text before one in a later text" <|
+            \_ ->
+                Search.filterBy [ .name, .city ] "acme" [ { name = "Fjord Foods", city = "Acme" }, { name = "Acme", city = "Oslo" } ]
+                    |> List.map .name
+                    |> Expect.equal [ "Acme", "Fjord Foods" ]
+        , test "filterBy finds each word in any text" <|
+            \_ ->
+                Search.filterBy [ .name, .city ] "fjord oslo" [ { name = "Fjord Foods", city = "Oslo" }, { name = "Fjord Foods", city = "Bergen" } ]
+                    |> List.map .city
+                    |> Expect.equal [ "Oslo" ]
+        , test "filterBy with an empty query leaves the list alone" <|
+            \_ ->
+                Search.filterBy [ identity ] " " [ "b", "a" ]
+                    |> Expect.equal [ "b", "a" ]
+        , test "filterBy with no texts finds nothing" <|
+            \_ ->
+                Search.filterBy [] "a" [ "a" ]
+                    |> Expect.equal []
+        , test "filterBy with one text ranks like filter" <|
+            \_ ->
+                Search.filterBy [ identity ] "ber" [ "Åsberg", "Oslo", "Bergen" ]
+                    |> Expect.equal (Search.filter identity "ber" [ "Åsberg", "Oslo", "Bergen" ])
         , test "rank keeps the scores" <|
             \_ -> Expect.equal [ ( 1, "Bergen" ), ( 3, "Åsberg" ) ] (Search.rank identity "ber" [ "Åsberg", "Oslo", "Bergen" ])
         ]

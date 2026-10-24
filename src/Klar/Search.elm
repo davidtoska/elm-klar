@@ -1,5 +1,5 @@
 module Klar.Search exposing
-    ( filter, rank
+    ( filter, filterBy, rank
     , score, matches, highlight
     , Prepared, Query, prepare, prepareMany, query, scorePrepared
     , normalize
@@ -22,6 +22,8 @@ treats a query as several words that must all match somewhere:
     Search.score "xyz" "Ada Lovelace" -- Nothing
 
     Search.filter .name "ada" customers -- matching items, best first
+
+    Search.filterBy [ .name, .city ] "ada london" customers -- over several texts, the name first
 
     Search.highlight "ada" "Ada Lovelace" -- the text, with <mark> around "Ada"
 
@@ -54,7 +56,7 @@ once and keep the result:
 
 # Searching a list
 
-@docs filter, rank
+@docs filter, filterBy, rank
 
 
 # Scoring one text
@@ -420,6 +422,64 @@ filter toText queryText items =
 
     else
         rank toText queryText items |> List.map Tuple.second
+
+
+{-| Like `filter`, over several texts of each item: the first is the main one (a name),
+the others count less (a city, a description, keywords). Every word of the query is
+scored against each text and takes the best; a word found only in a later text scores
+3 more, so a name that starts with the word comes before a city that does. All words
+must match, each in any of the texts: `"fjord oslo"` finds the customer "Fjord Foods"
+in Oslo. With no texts nothing matches.
+
+    Search.filterBy [ .name, .city ] "acme" customers
+
+-}
+filterBy : List (a -> String) -> String -> List a -> List a
+filterBy keys queryText items =
+    if String.isEmpty (String.trim queryText) then
+        items
+
+    else
+        let
+            (Query words) =
+                query queryText
+
+            -- every key's texts are prepared in one go, then regrouped by item
+            byItem =
+                List.foldr (List.map2 (::)) (List.map (\_ -> []) items) (List.map (\key -> prepareMany (List.map key items)) keys)
+        in
+        List.map2 (\item texts -> scoreAcross words texts |> Maybe.map (\points -> ( points, item ))) items byItem
+            |> List.filterMap identity
+            |> List.sortBy Tuple.first
+            |> List.map Tuple.second
+
+
+scoreAcross : List Word -> List Prepared -> Maybe Int
+scoreAcross words texts =
+    if List.isEmpty texts then
+        Nothing
+
+    else
+        List.foldl (\word total -> Maybe.map2 (+) total (bestScore word texts)) (Just 0) words
+
+
+bestScore : Word -> List Prepared -> Maybe Int
+bestScore word texts =
+    texts
+        |> List.indexedMap
+            (\index text ->
+                scoreWord word text
+                    |> Maybe.map
+                        (\points ->
+                            if index == 0 then
+                                points
+
+                            else
+                                points + 3
+                        )
+            )
+        |> List.filterMap identity
+        |> List.minimum
 
 
 {-| Like `filter`, but keeps the scores: `( score, item )`, best first.

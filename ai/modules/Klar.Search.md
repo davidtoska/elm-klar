@@ -11,6 +11,7 @@ Types: `Query`, `Prepared`
 ```elm
 -- Searching a list
 filter : (a -> String) -> String -> List a -> List a
+filterBy : List (a -> String) -> String -> List a -> List a
 rank : (a -> String) -> String -> List a -> List ( Int, a )
 
 -- Scoring one text
@@ -49,6 +50,8 @@ treats a query as several words that must all match somewhere:
     Search.score "xyz" "Ada Lovelace" -- Nothing
 
     Search.filter .name "ada" customers -- matching items, best first
+
+    Search.filterBy [ .name, .city ] "ada london" customers -- over several texts, the name first
 
     Search.highlight "ada" "Ada Lovelace" -- the text, with <mark> around "Ada"
 
@@ -91,6 +94,21 @@ keep their original order. A query that is empty or only spaces returns the
 list unchanged.
 
     Search.filter identity "ber" [ "Åsberg", "Oslo", "Bergen" ] -- [ "Bergen", "Åsberg" ]
+
+### `filterBy`
+
+```elm
+filterBy : List (a -> String) -> String -> List a -> List a
+```
+
+Like `filter`, over several texts of each item: the first is the main one (a name),
+the others count less (a city, a description, keywords). Every word of the query is
+scored against each text and takes the best; a word found only in a later text scores
+3 more, so a name that starts with the word comes before a city that does. All words
+must match, each in any of the texts: `"fjord oslo"` finds the customer "Fjord Foods"
+in Oslo. With no texts nothing matches.
+
+    Search.filterBy [ .name, .city ] "acme" customers
 
 ### `rank`
 

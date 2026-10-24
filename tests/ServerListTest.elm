@@ -458,6 +458,9 @@ fixTests =
                     |> ServerList.rows
                     |> Remote.toMaybe
                     |> Expect.equal (Just [ { id = "a", status = "packed" } ])
+        , test "views that arrive while the first page is on its way and change nothing ask for nothing" <|
+            \_ ->
+                Expect.equal (ServerList.setViews views started.state).request Nothing
         , test "a view applied right after init asks, also when nothing changed" <|
             \_ ->
                 Expect.notEqual (ServerList.applyView "Open" started.state).request Nothing

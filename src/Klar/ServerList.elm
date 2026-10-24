@@ -164,9 +164,10 @@ the match count, the saved views' current rule and query.
 
 # Other changes
 
-Each returns a `Step` like `update`. Before the first answer has come, each of them asks
-(again): so the application can make the list with `init`, change it at once (a stored
-view, the address, a page size) and follow only the last step.
+Each returns a `Step` like `update`. Before the first answer has come, `setRule`,
+`applyView`, `fromQueryString` and `mapTable` always ask (again): so the application can
+make the list with `init`, change it at once (a stored view, the address, a page size)
+and follow only the last step.
 
 @docs refresh, clearFilters, setRule, setViews, applyView, startSaveView
 
@@ -624,8 +625,18 @@ setViews views (State before) =
                 Nothing ->
                     withViews
 
+        settled =
+            settle before applied Cmd.none
+
+        -- the first page is asked here when `init` calls this; views that arrive while
+        -- it is on its way ask only when they changed the query
         step =
-            whileWaiting before (settle before applied Cmd.none)
+            case before.rows of
+                NotAsked ->
+                    forceRequest settled
+
+                _ ->
+                    settled
     in
     -- the views came from the application: nothing to store
     { step | save = Nothing }

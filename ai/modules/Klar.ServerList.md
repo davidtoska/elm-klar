@@ -342,9 +342,10 @@ Tells a request from the ones before it. You never make one: it is in the
 
 ## Other changes
 
-Each returns a `Step` like `update`. Before the first answer has come, each of them asks
-(again): so the application can make the list with `init`, change it at once (a stored
-view, the address, a page size) and follow only the last step.
+Each returns a `Step` like `update`. Before the first answer has come, `setRule`,
+`applyView`, `fromQueryString` and `mapTable` always ask (again): so the application can
+make the list with `init`, change it at once (a stored view, the address, a page size)
+and follow only the last step.
 
 ### `refresh`
 
