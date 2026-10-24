@@ -24,6 +24,7 @@ import Klar.Menu as Menu
 import Klar.Remote as Remote exposing (Remote)
 import Klar.RemoteView as RemoteView
 import Klar.Search as Search
+import Klar.Shortcut as Shortcut
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Tag as Tag
@@ -531,7 +532,7 @@ viewButtons model =
 viewMenus : Model -> Html Msg
 viewMenus model =
     Doc.section "Menus"
-        "Dropdown menus for actions that do not deserve a button of their own. Keyboard: ArrowDown on the button opens the menu, the arrow keys move the highlight, Home and End jump to the first and last item, Enter or Space picks an item, and Escape or Tab closes the menu. The menu opens above everything else and is never clipped by tables or dialogs. The text on the right of a row (Menu.withHint) only shows a shortcut; the application connects the shortcut itself with Klar.Shortcut."
+        "Dropdown menus for actions that do not deserve a button of their own. Keyboard: Enter, Space or ArrowDown on the button opens the menu with the first item highlighted (ArrowUp with the last), the arrow keys move the highlight, a letter jumps to the next item that starts with it, Home and End jump to the first and last item, Enter or Space picks an item, and Escape or Tab closes the menu. The menu opens above everything else and is never clipped by tables or dialogs. The keys on the right of a row (Menu.withShortcut) only show a shortcut, as small caps and as aria-keyshortcuts; the application connects the shortcut itself with Klar.Shortcut. The items under a heading are a group named after it."
         [ Doc.example
             { title = "Menus and triggers"
             , description = Just model.lastAction
@@ -543,8 +544,8 @@ viewMenus model =
                     [ Menu.label "Actions"
                     , Menu.items
                         [ Menu.heading "Order"
-                        , Menu.item "Edit" (Picked "Edit") |> Menu.withIcon Icon.edit |> Menu.withHint "E"
-                        , Menu.item "Duplicate" (Picked "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withHint "Ctrl D"
+                        , Menu.item "Edit" (Picked "Edit") |> Menu.withIcon Icon.edit |> Menu.withShortcut (Shortcut.char 'e')
+                        , Menu.item "Duplicate" (Picked "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withShortcut (Shortcut.mod (Shortcut.char 'd'))
                         , Menu.item "Export" (Picked "Export") |> Menu.withIcon Icon.download |> Menu.disabledItem
                         , Menu.separator
                         , Menu.item "Delete" (Picked "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
@@ -1263,7 +1264,7 @@ Menu.view MenuMsg
     [ Menu.label "Actions"
     , Menu.items
         [ Menu.heading "Order"
-        , Menu.item "Edit" EditOrder |> Menu.withIcon Icon.edit |> Menu.withHint "E"
+        , Menu.item "Edit" EditOrder |> Menu.withIcon Icon.edit |> Menu.withShortcut (Shortcut.char 'e')
         , Menu.item "Duplicate" DuplicateOrder |> Menu.withIcon Icon.copy
         , Menu.item "Export" ExportOrder |> Menu.withIcon Icon.download |> Menu.disabledItem
         , Menu.separator

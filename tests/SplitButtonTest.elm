@@ -51,7 +51,7 @@ opened =
     SplitButton.open closed |> Tuple.first
 
 
-split : List SplitButton.Attribute -> SplitButton.State -> Html Msg
+split : List (SplitButton.Attribute Msg) -> SplitButton.State -> Html Msg
 split attributes state =
     SplitButton.view SplitMsg
         attributes
@@ -459,7 +459,23 @@ inactiveTests =
                     |> arrow
                     |> Expect.all
                         [ Query.has [ attribute "aria-disabled" "true", Selector.disabled False ]
-                        , Event.simulate Event.click >> Event.toResult >> Expect.err
+
+                        -- the browser's click carries the button, which is drawn unavailable
+                        , Event.simulate (clickOn "klar-button klar-button--disabled") >> Event.toResult >> Expect.err
+
+                        -- and a message made while it was loading cannot open the menu
+                        , Event.simulate Event.click
+                            >> Event.toResult
+                            >> Result.map
+                                (\msg ->
+                                    case msg of
+                                        SplitMsg inner ->
+                                            SplitButton.update inner closed |> Tuple.first |> SplitButton.isOpen
+
+                                        _ ->
+                                            False
+                                )
+                            >> Expect.equal (Ok False)
                         ]
         , test "a menu that is open when loading starts stays open and drawn: the state is not faked" <|
             \_ ->
@@ -533,14 +549,55 @@ inactiveTests =
                     |> Query.fromHtml
                     |> arrow
                     |> Query.hasNot [ attribute "aria-disabled" "true" ]
-        , test "disabled turns off both parts" <|
+        , test "disabled turns off both parts, which stay in the tab order (aria-disabled) and keep the focus" <|
             \_ ->
                 split [ SplitButton.disabled True ] closed
                     |> Query.fromHtml
                     |> Expect.all
-                        [ mainPart >> Query.has [ Selector.disabled True ]
-                        , arrow >> Query.has [ Selector.disabled True ]
+                        [ mainPart >> Query.has [ attribute "aria-disabled" "true", Selector.disabled False ]
+                        , arrow >> Query.has [ attribute "aria-disabled" "true", Selector.disabled False ]
+                        , mainPart >> Event.simulate Event.click >> Event.toResult >> Expect.err
                         ]
+        , test "mainId and triggerId name the two parts" <|
+            \_ ->
+                split [] closed
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ mainPart >> Query.has [ Selector.id (SplitButton.mainId closed) ]
+                        , arrow >> Query.has [ Selector.id (SplitButton.triggerId closed) ]
+                        ]
+        , test "the arrow shows its name as a tooltip" <|
+            \_ ->
+                split [] closed
+                    |> Query.fromHtml
+                    |> arrow
+                    |> Query.has [ attribute "data-tip" "More options for Save" ]
+        , test "a menu that is open when its items go away stays drawn, and closing it gives focus to the main part" <|
+            \_ ->
+                let
+                    empty =
+                        SplitButton.view SplitMsg [] { label = "Save", onClick = Save, items = [] } opened
+                in
+                Expect.all
+                    [ \_ -> empty |> Query.fromHtml |> Query.has [ Selector.attribute (Attr.attribute "role" "menu") ]
+                    , \_ ->
+                        empty
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.class "klar-layer" ]
+                            |> Event.simulate Event.click
+                            |> Event.toResult
+                            |> Result.map
+                                (\msg ->
+                                    case msg of
+                                        SplitMsg inner ->
+                                            SplitButton.update inner opened |> (\( state, cmd ) -> ( SplitButton.isOpen state, cmd /= Cmd.none ))
+
+                                        _ ->
+                                            ( True, False )
+                                )
+                            |> Expect.equal (Ok ( False, True ))
+                    ]
+                    ()
         , test "a menu that is open when the button is disabled stays open until it is closed" <|
             \_ ->
                 split [ SplitButton.disabled True ] opened
@@ -603,3 +660,15 @@ lookTests =
                     ]
                     ()
         ]
+
+
+{-| A click as the browser sends it, with the button it was on.
+-}
+clickOn : String -> ( String, Encode.Value )
+clickOn className =
+    Event.custom "click"
+        (Encode.object
+            [ ( "detail", Encode.int 1 )
+            , ( "currentTarget", Encode.object [ ( "className", Encode.string className ) ] )
+            ]
+        )

@@ -1141,14 +1141,6 @@ helpOpenerId =
     "help-opener"
 
 
-{-| The button of the user menu is `<menu id>-trigger` (see `Klar.Menu`). A dialog
-opened from the menu gives focus back to it: the item itself is gone by then.
--}
-userMenuTriggerId : String
-userMenuTriggerId =
-    "user-menu-trigger"
-
-
 viewUserMenu : Model -> Html Msg
 viewUserMenu model =
     Menu.view UserMenuMsg
@@ -1156,9 +1148,9 @@ viewUserMenu model =
         , Menu.alignEnd
         , Menu.items
             [ Menu.heading "Demo user"
-            , Menu.item "Switch language" ToggleLocale |> Menu.withIcon Icon.globe |> Menu.withHint "Alt L"
-            , Menu.item "Keyboard shortcuts" (OpenHelpFrom userMenuTriggerId) |> Menu.withIcon Icon.keyboard |> Menu.withHint "?"
-            , Menu.item "Developer tools" OpenTools |> Menu.withIcon Icon.sliders |> Menu.withHint "G D"
+            , Menu.item "Switch language" ToggleLocale |> Menu.withIcon Icon.globe |> Menu.withShortcut (Shortcut.alt (Shortcut.char 'l'))
+            , Menu.item "Keyboard shortcuts" (OpenHelpFrom (Menu.triggerId model.userMenu)) |> Menu.withIcon Icon.keyboard |> Menu.withShortcut (Shortcut.char '?')
+            , Menu.item "Developer tools" OpenTools |> Menu.withIcon Icon.sliders |> Menu.withShortcut (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'd' ])
             , Menu.separator
             , Menu.item "Sign out" NoOp |> Menu.withIcon Icon.logOut |> Menu.disabledItem
             ]
