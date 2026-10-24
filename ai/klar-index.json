@@ -298,7 +298,9 @@
         "paragraphWith",
         "lead"
       ],
-      "related": [],
+      "related": [
+        "Klar.Kbd"
+      ],
       "keywords": [
         "text",
         "foundations",
@@ -354,8 +356,7 @@
       "quickPath": [],
       "mainFunctions": [
         "view",
-        "iconOnly",
-        "group"
+        "iconOnly"
       ],
       "related": [],
       "keywords": [
@@ -4839,7 +4840,7 @@
         "Klar.ShortcutHelp",
         "Klar.CommandPalette",
         "Klar.Drawer",
-        "Klar.Text"
+        "Klar.Kbd"
       ],
       "keywords": [
         "shortcut",

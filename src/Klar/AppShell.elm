@@ -308,7 +308,6 @@ import Klar.Locale as Locale exposing (Locale)
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Settings as Settings exposing (Settings)
 import Klar.SideNav as SideNav
-import Klar.Text as Text
 import Klar.Theme exposing (Density(..))
 import Task
 import Url exposing (Url)
@@ -1333,7 +1332,7 @@ viewSearch config strings msg =
         , Html.span [ Internal.cls [ "klar-app-shell__search-text" ] ]
             [ Html.text (Maybe.withDefault strings.search config.searchPlaceholder) ]
         , Internal.viewIf (not (List.isEmpty config.searchShortcut))
-            (Html.span [ Internal.cls [ "klar-app-shell__search-keys" ] ] [ Text.kbdCombo config.searchShortcut ])
+            (Html.span [ Internal.cls [ "klar-app-shell__search-keys" ] ] [ Internal.kbdCombo config.searchShortcut ])
         ]
 
 

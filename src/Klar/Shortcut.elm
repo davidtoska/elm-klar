@@ -823,9 +823,8 @@ modifierName part =
             part
 
 
-{-| Key caps for display, one list per step of the sequence. Show each list as
-one combination of keys, for example with `Text.kbdCombo` from
-[Klar.Text](Klar-Text).
+{-| Key caps as text, one list per step of the sequence, for a place that needs the
+names of the keys. To draw them, give the `Keys` to `Kbd.view` of [Klar.Kbd](Klar-Kbd).
 
     Shortcut.keycaps (Shortcut.mod (Shortcut.char 'k')) == [ [ "Ctrl", "K" ] ]
 

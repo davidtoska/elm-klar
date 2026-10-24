@@ -213,7 +213,6 @@ import Klar.Search as Search
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Shortcut as Shortcut
 import Klar.Skeleton as Skeleton
-import Klar.Text as Text
 import Task
 
 
@@ -1440,7 +1439,7 @@ viewSearch toMsg config language state activeEntry hasList runMsg hasRetry =
                 [ Icon.view Icon.close ]
 
           else
-            Html.span [ Internal.cls [ "klar-palette__esc" ] ] [ Text.kbd "Esc" ]
+            Html.span [ Internal.cls [ "klar-palette__esc" ] ] [ Internal.kbd "Esc" ]
         ]
 
 
@@ -1597,7 +1596,7 @@ viewShortcut : Shortcut.Keys -> Html msg
 viewShortcut keys =
     Html.span [ Internal.cls [ "klar-palette__keys" ] ]
         (Shortcut.keycaps keys
-            |> List.map Text.kbdCombo
+            |> List.map Internal.kbdCombo
         )
 
 
@@ -1632,7 +1631,7 @@ viewFooter language =
 hint : List String -> String -> Html msg
 hint keys text =
     Html.span [ Internal.cls [ "klar-palette__hint" ] ]
-        [ Text.kbdCombo keys
+        [ Internal.kbdCombo keys
         , Html.text text
         ]
 

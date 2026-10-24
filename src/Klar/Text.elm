@@ -2,7 +2,7 @@ module Klar.Text exposing
     ( title, heading, subheading, overline, figure
     , paragraph, paragraphWith, lead, text
     , secondary, muted, caption, strong, link
-    , mono, code, codeBlock, kbd, kbdCombo
+    , mono, code, codeBlock
     )
 
 {-| Typography: titles, paragraphs, small print and code. Application code uses
@@ -12,6 +12,8 @@ everywhere.
 Use when: the page needs titles, paragraphs, small print or code that look the same everywhere.
 Do not use when: the text is a link (use `Klar.Link`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).
 
+    import Klar.Kbd as Kbd
+    import Klar.Shortcut as Shortcut
     import Klar.Text as Text
 
     Text.title "Orders"
@@ -20,7 +22,7 @@ Do not use when: the text is a link (use `Klar.Link`), an action (use `Klar.Butt
 
     Text.paragraphWith
         [ Text.text "Press "
-        , Text.kbdCombo [ "Ctrl", "K" ]
+        , Kbd.view [ Kbd.inline ] (Shortcut.mod (Shortcut.char 'k'))
         , Text.text " to search, or "
         , Text.link { href = "#/help", label = "read the help" }
         , Text.text "."
@@ -38,10 +40,9 @@ to each other (in a `Layout.stack`, say) end up on one line: put them in
 | | Functions |
 | --- | --- |
 | Block | `title`, `heading`, `subheading`, `overline`, `lead`, `paragraph`, `paragraphWith`, `codeBlock` |
-| Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `link`, `mono`, `code`, `kbd`, `kbdCombo` |
+| Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `link`, `mono`, `code` |
 
-Every function takes its text as a `String` (`kbdCombo` takes a list of strings
-and `paragraphWith` a list of HTML) and no attributes. When you need an id or an
+Every function takes its text as a `String` (`paragraphWith` takes a list of HTML) and no attributes. When you need an id or an
 event handler, wrap the result in an element of your own.
 
 
@@ -60,9 +61,11 @@ event handler, wrap the result in an element of your own.
 @docs secondary, muted, caption, strong, link
 
 
-# Code and keys
+# Code
 
-@docs mono, code, codeBlock, kbd, kbdCombo
+@docs mono, code, codeBlock
+
+Key caps are [Klar.Kbd](Klar-Kbd): `Kbd.view` for a shortcut, `Kbd.key` for one key.
 
 -}
 
@@ -202,26 +205,6 @@ keyboard focus, so that it can be scrolled without a mouse.
 codeBlock : String -> Html msg
 codeBlock content =
     Html.pre [ Internal.cls [ "klar-code-block" ], Attr.tabindex 0 ] [ Html.code [] [ Html.text content ] ]
-
-
-{-| A single key cap (a `kbd` element), such as "Esc".
-
-    Text.kbd "Esc"
-
--}
-kbd : String -> Html msg
-kbd key =
-    Html.kbd [ Internal.cls [ "klar-kbd" ] ] [ Html.text key ]
-
-
-{-| Several key caps in a row, for a keyboard shortcut.
-
-    Text.kbdCombo [ "Ctrl", "K" ]
-
--}
-kbdCombo : List String -> Html msg
-kbdCombo keys =
-    Html.span [ Internal.cls [ "klar-kbd-combo" ] ] (List.map kbd keys)
 
 
 {-| An ordinary link (an `a` element). Use hash URLs such as `#/orders` to

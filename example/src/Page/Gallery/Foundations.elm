@@ -14,9 +14,11 @@ import Klar.EmptyState as EmptyState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Icon.Library as Library
+import Klar.Kbd as Kbd
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Search as Search
+import Klar.Shortcut as Shortcut
 import Klar.Tag as Tag
 import Klar.Text as Text
 import Klar.TextInput as TextInput
@@ -293,7 +295,7 @@ inlineText locale =
         [ Text.text "Orders are shipped within "
         , Text.strong "two days"
         , Text.text ". Press "
-        , Text.kbdCombo [ "Ctrl", "K" ]
+        , Kbd.view [ Kbd.inline ] (Shortcut.mod (Shortcut.char 'k'))
         , Text.text " to search, or "
         , Text.link { href = "#/orders", label = "open all orders" }
         , Text.text "."
@@ -309,7 +311,7 @@ inlineText locale =
                 [ Text.text "Orders are shipped within "
                 , Text.strong "two days"
                 , Text.text ". Press "
-                , Text.kbdCombo [ "Ctrl", "K" ]
+                , Kbd.view [ Kbd.inline ] (Shortcut.mod (Shortcut.char 'k'))
                 , Text.text " to search, or "
                 , Text.link { href = "#/orders", label = "open all orders" }
                 , Text.text "."
@@ -326,13 +328,13 @@ codeAndKeys : Html Msg
 codeAndKeys =
     Doc.example
         { title = "Code and keys"
-        , description = Just "Inline code, ids in monospace, key caps and code blocks. kbdCombo writes a keyboard shortcut, kbd a single key."
+        , description = Just "Inline code, ids in monospace, key caps and code blocks. Key caps come from Klar.Kbd: Kbd.view draws a shortcut, Kbd.key a single key."
         , code = Just """Layout.stack [ Layout.gap 3 ]
     [ Layout.row [ Layout.gap 3 ]
         [ Text.code "Table.view"
         , Text.mono "ORD-10001"
-        , Text.kbdCombo [ "Ctrl", "K" ]
-        , Text.kbd "Esc"
+        , Kbd.view [ Kbd.inline ] (Shortcut.mod (Shortcut.char 'k'))
+        , Kbd.key [ Kbd.inline ] "Esc"
         ]
     , Text.codeBlock "Select.view CountryMsg [ ... ] model.country"
     ]"""
@@ -341,8 +343,8 @@ codeAndKeys =
             [ Layout.row [ Layout.gap 3 ]
                 [ Text.code "Table.view"
                 , Text.mono "ORD-10001"
-                , Text.kbdCombo [ "Ctrl", "K" ]
-                , Text.kbd "Esc"
+                , Kbd.view [ Kbd.inline ] (Shortcut.mod (Shortcut.char 'k'))
+                , Kbd.key [ Kbd.inline ] "Esc"
                 ]
             , Text.codeBlock selectSample
             ]

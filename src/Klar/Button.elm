@@ -1,5 +1,5 @@
 module Klar.Button exposing
-    ( view, iconOnly, group
+    ( view, iconOnly
     , Attribute, primary, secondary, ghost, link, danger, small, large, size, block
     , icon, iconRight, loading
     , onClick, submit, href, newTab, disabled, ariaDisabled
@@ -44,7 +44,7 @@ submits a form.
 
 # Views
 
-@docs view, iconOnly, group
+@docs view, iconOnly
 
 
 # Look and size
@@ -368,23 +368,6 @@ iconOnly attributes iconName label =
             configure attributes
     in
     render True { config | icon = Just iconName, ariaLabel = Just label, title = Just (Maybe.withDefault label config.title) } ""
-
-
-{-| Visually joins buttons into one segmented control.
-
-    Button.group
-        [ Button.view [ Button.pressed True ] "Day"
-        , Button.view [] "Week"
-        , Button.view [] "Month"
-        ]
-
-For a real choice between views, `Klar.SegmentedControl` also handles the arrow
-keys.
-
--}
-group : List (Html msg) -> Html msg
-group buttons =
-    Html.div [ Internal.cls [ "klar-button-group" ], Attr.attribute "role" "group" ] buttons
 
 
 render : Bool -> Config msg -> String -> Html msg

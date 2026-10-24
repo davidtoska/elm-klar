@@ -17,6 +17,7 @@ import Html exposing (Html)
 import Klar.Accordion as Accordion
 import Klar.Badge as Badge
 import Klar.Button as Button
+import Klar.ButtonGroup as ButtonGroup
 import Klar.Card as Card
 import Klar.DescriptionList as DescriptionList
 import Klar.Format as Format
@@ -332,7 +333,8 @@ toolbarSection locale model =
                                 ]
                             , Toolbar.separator
                             , Toolbar.groupLabelled "View"
-                                [ Button.group
+                                [ ButtonGroup.view []
+                                    "View"
                                     [ Button.view [ Button.icon Icon.list ] "List"
                                     , Button.view [ Button.icon Icon.grid ] "Grid"
                                     ]
@@ -424,7 +426,7 @@ toolbarSizesCode =
         ]
     , Toolbar.separator
     , Toolbar.groupLabelled "View"
-        [ Button.group
+        [ ButtonGroup.view [] "View"
             [ Button.view [ Button.icon Icon.list ] "List"
             , Button.view [ Button.icon Icon.grid ] "Grid"
             ]

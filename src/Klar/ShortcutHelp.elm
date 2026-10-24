@@ -336,7 +336,7 @@ viewShortcut language entry =
             ]
         , Html.span [ Internal.cls [ "klar-shortcuts__keys" ] ]
             (Shortcut.keycaps (Shortcut.keysOf entry)
-                |> List.map Text.kbdCombo
+                |> List.map Internal.kbdCombo
                 |> List.intersperse (Html.span [ Internal.cls [ "klar-shortcuts__then" ] ] [ Html.text language.then_ ])
             )
         ]

@@ -11,6 +11,8 @@ module Klar.Internal exposing
     , focusFirst
     , hasLatinLetters
     , heading
+    , kbd
+    , kbdCombo
     , keyEvent
     , markDot
     , noAttr
@@ -627,3 +629,21 @@ densitySuffix density =
 
         Comfortable ->
             "comfortable"
+
+
+
+-- KEY CAPS
+
+
+{-| A single key cap (a `kbd` element), such as "Esc", for the hints the components draw.
+-}
+kbd : String -> Html msg
+kbd key =
+    Html.kbd [ cls [ "klar-kbd" ] ] [ Html.text key ]
+
+
+{-| Several key caps in a row, for a keyboard shortcut.
+-}
+kbdCombo : List String -> Html msg
+kbdCombo keys =
+    Html.span [ cls [ "klar-kbd-combo" ] ] (List.map kbd keys)
