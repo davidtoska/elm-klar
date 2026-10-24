@@ -1,12 +1,17 @@
 module SavedViewsTest exposing (suite)
 
-import Expect
+import Expect exposing (Expectation)
+import Html exposing (Html)
+import Html.Attributes as Attr
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Klar.Rule as Rule
 import Klar.SavedViews as SavedViews
 import Klar.Table as Table
 import Test exposing (Test, describe, test)
+import Test.Html.Event as Event
+import Test.Html.Query as Query
+import Test.Html.Selector as Selector exposing (Selector)
 
 
 state : SavedViews.State
@@ -128,4 +133,122 @@ suite =
                         |> Result.toMaybe
                         |> Expect.equal Nothing
             ]
+        , behaviourTests
+        ]
+
+
+
+-- DRIVEN THROUGH THE MARKUP
+
+
+drawn : SavedViews.State -> Html SavedViews.Msg
+drawn current =
+    SavedViews.view identity [ SavedViews.currentRule Rule.emptyGroup ] current
+
+
+{-| Send the event to the element and let the component handle the message.
+-}
+on : ( String, Encode.Value ) -> List Selector -> Result String SavedViews.State -> Result String SavedViews.State
+on event selectors =
+    Result.andThen
+        (\current ->
+            drawn current
+                |> Query.fromHtml
+                |> Query.find selectors
+                |> Event.simulate event
+                |> Event.toResult
+                |> Result.map (\msg -> Tuple.first (SavedViews.update msg current))
+        )
+
+
+button : String -> List Selector
+button name =
+    [ Selector.tag "button", Selector.attribute (Attr.attribute "aria-label" name) ]
+
+
+opened : Result String SavedViews.State
+opened =
+    on Event.click [ Selector.id "views-trigger" ] (Ok state)
+
+
+expectOk : (SavedViews.State -> Expectation) -> Result String SavedViews.State -> Expectation
+expectOk check result =
+    case result of
+        Ok current ->
+            check current
+
+        Err why ->
+            Expect.fail why
+
+
+behaviourTests : Test
+behaviourTests =
+    describe "what the user does"
+        [ test "apply and setActive find a name ignoring case and spaces" <|
+            \_ ->
+                Expect.equal
+                    ( SavedViews.apply " late " state |> SavedViews.active |> Maybe.map .name
+                    , SavedViews.setActive (Just "OPEN") state |> SavedViews.active |> Maybe.map .name
+                    )
+                    ( Just "Late", Just "Open" )
+        , test "setViews keeps a rename that is being typed" <|
+            \_ ->
+                opened
+                    |> on Event.click (button "Rename: Late")
+                    |> on (Event.input "Later") [ Selector.id "views-rename" ]
+                    |> expectOk
+                        (\renaming ->
+                            drawn (SavedViews.setViews (SavedViews.views renaming) renaming)
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.id "views-rename" ]
+                                |> Query.has [ Selector.attribute (Attr.value "Later") ]
+                        )
+        , test "setViews closes a rename of a view that is gone" <|
+            \_ ->
+                opened
+                    |> on Event.click (button "Rename: Late")
+                    |> expectOk
+                        (\renaming ->
+                            drawn (SavedViews.setViews (List.take 1 (SavedViews.views renaming)) renaming)
+                                |> Query.fromHtml
+                                |> Query.findAll [ Selector.id "views-rename" ]
+                                |> Query.count (Expect.equal 0)
+                        )
+        , test "a rename can change the note" <|
+            \_ ->
+                opened
+                    |> on Event.click (button "Rename: Late")
+                    |> on (Event.input "Older than a week") [ Selector.id "views-note" ]
+                    |> on Event.click [ Selector.tag "button", Selector.class "klar-button--primary" ]
+                    |> expectOk
+                        (\renamed ->
+                            SavedViews.views renamed
+                                |> List.map .note
+                                |> Expect.equal [ Nothing, Just "Older than a week" ]
+                        )
+        , test "the question of a deletion describes its buttons" <|
+            \_ ->
+                opened
+                    |> on Event.click (button "Delete: Late")
+                    |> expectOk
+                        (\deleting ->
+                            drawn deleting
+                                |> Query.fromHtml
+                                |> Expect.all
+                                    [ Query.find [ Selector.id "views-confirm" ]
+                                        >> Query.has [ Selector.attribute (Attr.attribute "aria-describedby" "views-question") ]
+                                    , Query.find [ Selector.id "views-question" ] >> Query.has [ Selector.text "Delete “Late”?" ]
+                                    ]
+                        )
+        , test "the default toggle keeps its name and says its state with aria-pressed" <|
+            \_ ->
+                opened
+                    |> on Event.click (button "Default view: Open")
+                    |> expectOk
+                        (\toggled ->
+                            drawn toggled
+                                |> Query.fromHtml
+                                |> Query.find (button "Default view: Open")
+                                |> Query.has [ Selector.attribute (Attr.attribute "aria-pressed" "true") ]
+                        )
         ]
