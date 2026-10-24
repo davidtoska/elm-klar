@@ -1,6 +1,6 @@
 module Klar.Pagination exposing
     ( view
-    , Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, rangeText, disabled, id, label, locale
+    , Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, rangeText, disabled, id, ariaLabel, locale
     , pageCount, range, Item(..), pageItems
     )
 
@@ -47,7 +47,9 @@ Keyboard and accessibility: every control is a native button, select or input.
 In "Go to page", type a number and press Enter. The component is a `nav`
 landmark; the current page has `aria-current="page"`, and the buttons that are
 not available at the first or last page stay in the tab order, so the keyboard
-focus is not lost when the user reaches that page. The built-in texts ("Rows per
+focus is not lost when the user reaches that page. A page button keeps the focus
+when the row of numbers moves under it, and the range ("26–50 of 3,000") is a polite
+live region, so a screen reader hears where the list stands after paging. The built-in texts ("Rows per
 page", "Next page" ...) follow `locale` and are English by default (see
 [Klar.Locale](Klar-Locale)).
 
@@ -59,7 +61,7 @@ page", "Next page" ...) follow `locale` and are English by default (see
 
 # Attributes
 
-@docs Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, rangeText, disabled, id, label, locale
+@docs Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, rangeText, disabled, id, ariaLabel, locale
 
 
 # Page math
@@ -73,6 +75,7 @@ The same arithmetic the view uses, for fetching and showing pages yourself.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Keyed as Keyed
 import Json.Decode as Decode exposing (Decoder)
 import Klar.Button as Button
 import Klar.Format as Format
@@ -97,7 +100,7 @@ type alias Config msg =
     , siblings : Int
     , disabled : Bool
     , id : String
-    , label : Maybe String
+    , ariaLabel : Maybe String
     , locale : Locale
     , summary : Maybe (List (Html msg))
     , rangeText : Maybe (Int -> Int -> Int -> String)
@@ -115,7 +118,7 @@ configure attributes =
         , siblings = 1
         , disabled = False
         , id = "klar-pagination"
-        , label = Nothing
+        , ariaLabel = Nothing
         , locale = Locale.default
         , summary = Nothing
         , rangeText = Nothing
@@ -188,8 +191,10 @@ siblings n =
     Attribute (\config -> { config | siblings = max 0 n })
 
 
-{-| While `True` every control is disabled, for example while a page is loading.
-The default is `False`.
+{-| While `True` no control does anything, for example while a page is loading. The
+default is `False`. The controls are marked `aria-disabled` and dimmed, but they stay in
+the tab order and keep the keyboard focus: the Next button that the user just pressed
+is still focused when the page has loaded.
 -}
 disabled : Bool -> Attribute msg
 disabled value =
@@ -209,13 +214,13 @@ id value =
     Attribute (\config -> { config | id = value })
 
 
-{-| The accessible name of the navigation landmark. The default is "Pagination"
-(in the language of `locale`). Name it more closely when a page has several
-paginations, such as "Orders pages".
+{-| The accessible name of the navigation landmark, heard by screen readers only. The
+default is "Pagination" (in the language of `locale`). Name it more closely when a page
+has several paginations, such as "Orders pages".
 -}
-label : String -> Attribute msg
-label value =
-    Attribute (\config -> { config | label = Just value })
+ariaLabel : String -> Attribute msg
+ariaLabel value =
+    Attribute (\config -> { config | ariaLabel = Just value })
 
 
 {-| The language of the built-in text: the range, "Rows per page", the button
@@ -486,16 +491,23 @@ view attributes model =
         ( first, last ) =
             range { page = current, pageSize = size, total = total }
 
+        -- polite and atomic: after paging the whole range is read once
+        live =
+            [ Internal.cls [ "klar-pagination__summary", "klar-tabular" ]
+            , Attr.attribute "aria-live" "polite"
+            , Attr.attribute "aria-atomic" "true"
+            ]
+
         summaryView =
             case config.summary of
                 Just [] ->
                     Html.text ""
 
                 Just content ->
-                    Html.span [ Internal.cls [ "klar-pagination__summary", "klar-tabular" ] ] content
+                    Html.span live content
 
                 Nothing ->
-                    Html.span [ Internal.cls [ "klar-pagination__summary", "klar-tabular" ] ]
+                    Html.span live
                         [ Html.text
                             (case config.rangeText of
                                 Just words ->
@@ -520,23 +532,14 @@ view attributes model =
 
         stepButton icon text target enabled =
             Button.iconOnly
-                (if config.disabled then
-                    [ Button.ghost, Button.small, Button.disabled True ]
-
-                 else if enabled then
+                (if enabled && not config.disabled then
                     [ Button.ghost, Button.small, go target ]
 
                  else
-                    -- At the first or last page the button only looks disabled:
-                    -- a natively disabled button would drop the keyboard focus
-                    -- the moment it is used to reach that page.
-                    [ Button.ghost
-                    , Button.small
-                    , Button.htmlAttrs
-                        [ Attr.attribute "aria-disabled" "true"
-                        , Internal.cls [ "klar-button--disabled" ]
-                        ]
-                    ]
+                    -- At the first or last page, or while a page loads, the button
+                    -- only looks disabled: a natively disabled button would drop the
+                    -- keyboard focus the moment it is used to reach that page.
+                    [ Button.ghost, Button.small, Button.ariaDisabled True ]
                 )
                 icon
                 text
@@ -562,7 +565,7 @@ view attributes model =
                 ""
             ]
         , Attr.id config.id
-        , Attr.attribute "aria-label" (Maybe.withDefault t.label config.label)
+        , Attr.attribute "aria-label" (Maybe.withDefault t.label config.ariaLabel)
         ]
         (if config.compact then
             [ summaryView
@@ -578,9 +581,12 @@ view attributes model =
                 [ Html.div [ Internal.cls [ "klar-pagination__controls" ] ]
                     [ stepButton Icon.chevronsLeft t.first 1 (current > 1)
                     , previous
-                    , Html.ul [ Internal.cls [ "klar-pagination__pages" ] ]
+                    , -- keyed by page: the button that was pressed keeps the focus
+                      -- when the row of numbers moves under it
+                      Keyed.ul [ Internal.cls [ "klar-pagination__pages" ] ]
                         (pageItems { siblings = config.siblings, page = current, pageCount = count }
-                            |> List.map (viewItem config t current)
+                            |> keyedItems
+                            |> List.map (\( key, item ) -> ( key, viewItem config t current item ))
                         )
                     , next
                     , stepButton Icon.chevronsRight t.last count (current < count)
@@ -594,6 +600,29 @@ view attributes model =
                 ]
             ]
         )
+
+
+{-| The slots with their keys for `Html.Keyed`: a page by its number, the two gaps by
+their side.
+-}
+keyedItems : List Item -> List ( String, Item )
+keyedItems items =
+    List.indexedMap
+        (\index item ->
+            case item of
+                Page number ->
+                    ( "page-" ++ String.fromInt number, item )
+
+                Ellipsis ->
+                    ( if index <= 1 then
+                        "gap-start"
+
+                      else
+                        "gap-end"
+                    , item
+                    )
+        )
+        items
 
 
 viewItem : Config msg -> Texts -> Int -> Item -> Html msg
@@ -618,10 +647,11 @@ viewItem config t current item =
                             ""
                         ]
                     , Attr.type_ "button"
+                    , Attr.id (config.id ++ "-page-" ++ String.fromInt number)
                     , Attr.attribute "aria-label" (t.page number)
                     , Internal.attrIf isCurrent (Attr.attribute "aria-current" "page")
-                    , Attr.disabled config.disabled
-                    , case ( isCurrent, config.onPage ) of
+                    , Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true")
+                    , case ( isCurrent || config.disabled, config.onPage ) of
                         ( False, Just toMsg ) ->
                             Events.onClick (toMsg number)
 
@@ -651,7 +681,10 @@ viewPageSize config t size toMsg =
             [ Html.select
                 [ Internal.cls [ "klar-pagination__select-control", "klar-tabular" ]
                 , Attr.id selectId
-                , Attr.disabled config.disabled
+
+                -- While disabled the select keeps its focus: only the size it shows
+                -- can be chosen.
+                , Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true")
                 , Events.on "change" (Decode.map toMsg intValue)
                 ]
                 (List.map
@@ -659,6 +692,7 @@ viewPageSize config t size toMsg =
                         Html.option
                             [ Attr.value (String.fromInt choice)
                             , Attr.selected (choice == size)
+                            , Attr.disabled (config.disabled && choice /= size)
                             ]
                             [ Html.text (String.fromInt choice) ]
                     )
@@ -689,19 +723,30 @@ viewJump config t current count toMsg =
             , Attr.step "1"
             , Attr.attribute "inputmode" "numeric"
             , Attr.value (String.fromInt current)
-            , Attr.disabled config.disabled
-            , Events.on "change" jump
-            , Events.preventDefaultOn "keydown"
-                (Decode.field "key" Decode.string
-                    |> Decode.andThen
-                        (\key ->
-                            if key == "Enter" then
-                                Decode.map (\msg -> ( msg, True )) jump
 
-                            else
-                                Decode.fail "not Enter"
-                        )
-                )
+            -- While disabled the field keeps its focus and takes no input.
+            , Attr.readonly config.disabled
+            , Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true")
+            , if config.disabled then
+                Internal.noAttr
+
+              else
+                Events.on "change" jump
+            , if config.disabled then
+                Internal.noAttr
+
+              else
+                Events.preventDefaultOn "keydown"
+                    (Decode.field "key" Decode.string
+                        |> Decode.andThen
+                            (\key ->
+                                if key == "Enter" then
+                                    Decode.map (\msg -> ( msg, True )) jump
+
+                                else
+                                    Decode.fail "not Enter"
+                            )
+                    )
             ]
             []
         ]

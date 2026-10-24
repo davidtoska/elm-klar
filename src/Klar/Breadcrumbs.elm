@@ -1,6 +1,6 @@
 module Klar.Breadcrumbs exposing
-    ( view, static
-    , Crumb, link, text, withIcon
+    ( view, viewStatic
+    , Crumb, link, button, text, withIcon
     , Attribute, items, maxItems, ariaLabel, locale
     , State, init, isOpen, close, Msg, update
     )
@@ -10,7 +10,12 @@ is the current page.
 
 Use when: the user must see where the current page sits in the application, as a trail of links.
 Do not use when: you need the main navigation (use `Klar.SideNav`) or sections within one page (use `Klar.Tabs`).
-Quick path: `init`, `update`, `view`
+Quick path: `viewStatic` for a trail of at most `maxItems` levels; `init`, `update`, `view` for a trail that can grow deeper
+
+Which one: a trail with a fixed depth of two or three levels (Orders, then an order)
+is `viewStatic`, with no state. A trail built from a path that can be deep (folders,
+regions, a category tree) is `view`, which folds its middle into a "more" button and
+keeps whether that list is open in a `State`:
 
     import Klar.Breadcrumbs as Breadcrumbs
 
@@ -28,34 +33,37 @@ Quick path: `init`, `update`, `view`
     -- view
     Breadcrumbs.view CrumbsMsg
         [ Breadcrumbs.items
-            [ Breadcrumbs.link "Home" "#/"
-            , Breadcrumbs.link "Customers" "#/customers"
+            [ Breadcrumbs.link { label = "Home", href = "#/" }
+            , Breadcrumbs.link { label = "Customers", href = "#/customers" }
             , Breadcrumbs.text "Ada Lovelace"
             ]
         ]
         model.crumbs
 
-When there are more than `maxItems` crumbs, the first crumb and the last
-`maxItems - 1` crumbs stay visible and the ones in between fold into a "more"
-button that opens a small list of links (Escape closes it, the arrow keys move
-between the links). The state only remembers whether that list is open. A trail
-that never grows long needs no state: use `static`.
+When there are at least two crumbs more than `maxItems`, the first crumb and the last
+`maxItems - 1` crumbs stay visible and the ones in between fold into a "more" button
+that opens a small list of them (Escape closes it and gives focus back to the button,
+the arrow keys move between the levels, Tab moves on). A trail only one crumb longer
+is shown whole: a button for a single crumb would save no room. The list closes by
+itself when the trail changes under it (Back, a shortcut).
 
 The last crumb is always the current page: it is shown as plain text and marked
 with `aria-current="page"`, even if it was made with `link`. Every other crumb
 that has a link is a real link, so routing, middle click and "open in new tab"
-work as usual. The built-in text (the name of the navigation landmark and of the
-"more" button) follows `locale`, English by default.
+work as usual; a `button` crumb sends a message instead, for a trail that is not made
+of addresses (the levels of a folder browser or a drill-down inside one page). The
+built-in text (the name of the navigation landmark and of the "more" button) follows
+`locale`, English by default.
 
 
 # Views
 
-@docs view, static
+@docs view, viewStatic
 
 
 # Crumbs
 
-@docs Crumb, link, text, withIcon
+@docs Crumb, link, button, text, withIcon
 
 
 # Attributes
@@ -72,6 +80,7 @@ work as usual. The built-in text (the name of the navigation landmark and of the
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode as Decode exposing (Decoder)
 import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
@@ -82,27 +91,46 @@ import Klar.Locale as Locale exposing (Locale)
 -- CRUMBS
 
 
-{-| One level of the trail. Make it with `link` or `text` and refine it with
-`withIcon`.
+{-| One level of the trail. Make it with `link`, `button` or `text` and refine it with
+`withIcon`. The `msg` is your message type, sent by a `button` crumb.
 -}
-type Crumb
+type Crumb msg
     = Crumb
         { label : String
-        , href : Maybe String
+        , target : Target msg
         , icon : Maybe Icon
         }
 
 
-{-| A level with a link: the label first, then the URL. Use `#/path` for
-navigation inside a single page application. The last crumb of a trail is always
-shown as the current page, as plain text, whether or not it has a link.
+type Target msg
+    = Href String
+    | OnClick msg
+    | NoTarget
 
-    Breadcrumbs.link "Customers" "#/customers"
+
+{-| A level with a link. Use `#/path` for navigation inside a single page application.
+The last crumb of a trail is always shown as the current page, as plain text, whether
+or not it has a link.
+
+    Breadcrumbs.link { label = "Customers", href = "#/customers" }
 
 -}
-link : String -> String -> Crumb
-link label href =
-    Crumb { label = label, href = Just href, icon = Nothing }
+link : { label : String, href : String } -> Crumb msg
+link options =
+    Crumb { label = options.label, target = Href options.href, icon = Nothing }
+
+
+{-| A level that sends a message instead of following an address: the label, then the
+message. For trails that are not routes, such as the folders of a file browser or the
+levels of a drill-down in a chart; it looks like a link. As the last crumb it is the
+current level and plain text, like any last crumb.
+
+    Breadcrumbs.button "2025" (DrillUpTo Year)
+
+-}
+button : String -> msg -> Crumb msg
+button label msg =
+    Crumb { label = label, target = OnClick msg, icon = Nothing }
 
 
 {-| A level without a link, just the label. The current page is always shown as
@@ -112,19 +140,19 @@ trail that has no page of its own can use it too.
     Breadcrumbs.text "Ada Lovelace"
 
 -}
-text : String -> Crumb
+text : String -> Crumb msg
 text label =
-    Crumb { label = label, href = Nothing, icon = Nothing }
+    Crumb { label = label, target = NoTarget, icon = Nothing }
 
 
 {-| An icon before the label, for example `Icon.home` on the first level. The icon
 is decorative: the label still names the crumb.
 
-    Breadcrumbs.link "Home" "#/"
+    Breadcrumbs.link { label = "Home", href = "#/" }
         |> Breadcrumbs.withIcon Icon.home
 
 -}
-withIcon : Icon -> Crumb -> Crumb
+withIcon : Icon -> Crumb msg -> Crumb msg
 withIcon icon (Crumb crumb) =
     Crumb { crumb | icon = Just icon }
 
@@ -134,22 +162,22 @@ withIcon icon (Crumb crumb) =
 
 
 {-| A setting of the trail. Make them with the functions below and pass a list to
-`view` or `static`; later attributes win over earlier ones. Breadcrumbs send no
-messages of their own, so the type has no `msg` parameter.
+`view` or `viewStatic`; later attributes win over earlier ones. The `msg` is your
+message type, of the `button` crumbs.
 -}
-type Attribute
-    = Attribute (Config -> Config)
+type Attribute msg
+    = Attribute (Config msg -> Config msg)
 
 
-type alias Config =
-    { items : List Crumb
+type alias Config msg =
+    { items : List (Crumb msg)
     , maxItems : Int
     , ariaLabel : Maybe String
     , locale : Locale
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { items = []
@@ -162,17 +190,17 @@ configure attributes =
 
 {-| The trail, from the top level to the current page, which comes last.
 -}
-items : List Crumb -> Attribute
+items : List (Crumb msg) -> Attribute msg
 items value =
     Attribute (\config -> { config | items = value })
 
 
-{-| The most crumbs shown at once. Default 4; a smaller number counts as 2. When
-the trail is longer, the first crumb and the last `n - 1` crumbs stay visible and
-the ones between fold into the "more" button (only `view` folds a trail, `static`
-shows every crumb).
+{-| The most crumbs shown at once by `view`. Default 4; a smaller number counts as 2.
+When the trail has at least two crumbs more, the first crumb and the last `n - 1`
+crumbs stay visible and the ones between fold into the "more" button; a trail only
+one crumb longer is shown whole. `viewStatic` shows every crumb.
 -}
-maxItems : Int -> Attribute
+maxItems : Int -> Attribute msg
 maxItems value =
     Attribute (\config -> { config | maxItems = max 2 value })
 
@@ -180,7 +208,7 @@ maxItems value =
 {-| The accessible name of the `nav` landmark. Default "Breadcrumb" (in the
 language of `locale`).
 -}
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ariaLabel value =
     Attribute (\config -> { config | ariaLabel = Just value })
 
@@ -188,7 +216,7 @@ ariaLabel value =
 {-| The language of the built-in text: the name of the `nav` landmark and of the
 "more" button ("Show 3 hidden levels"). Default `Locale.en`.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -199,12 +227,15 @@ locale value =
 
 {-| The state of a trail: whether the list of hidden levels is open. Make one
 with `init`, keep it in your model, and give it to `view`. A trail shown with
-`static` needs none.
+`viewStatic` needs none.
 -}
 type State
     = State
         { id : String
-        , open : Bool
+
+        -- The hidden levels the list was opened for: a list opened for another
+        -- trail (the route changed under it) is not drawn.
+        , openFor : Maybe String
         }
 
 
@@ -217,15 +248,15 @@ it opens.
 -}
 init : String -> State
 init id =
-    State { id = id, open = False }
+    State { id = id, openFor = Nothing }
 
 
-{-| Whether the list of hidden levels has been opened and not closed since. The
-list is only drawn while the trail is long enough to fold.
+{-| Whether the list of hidden levels has been opened and not closed since. The list
+is only drawn while the trail still folds the same levels.
 -}
 isOpen : State -> Bool
 isOpen (State state) =
-    state.open
+    state.openFor /= Nothing
 
 
 {-| The messages of a trail: the "more" button was used, a key was pressed in the
@@ -233,9 +264,10 @@ list of hidden levels. Wrap it in a constructor of your own message type, pass
 that constructor to `view`, and hand the messages you get back to `update`.
 -}
 type Msg
-    = Toggle String
-    | Open String
+    = Toggle String String
+    | Open String String
     | Close
+    | CloseQuiet
     | Focus String
     | Noop
 
@@ -247,18 +279,22 @@ constructor.
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
-        Toggle firstId ->
-            if state.open then
+        Toggle signature firstId ->
+            if state.openFor == Just signature then
                 close current
 
             else
-                ( State { state | open = True }, Internal.focus firstId Noop )
+                ( State { state | openFor = Just signature }, Internal.focus firstId Noop )
 
-        Open firstId ->
-            ( State { state | open = True }, Internal.focus firstId Noop )
+        Open signature firstId ->
+            ( State { state | openFor = Just signature }, Internal.focus firstId Noop )
 
         Close ->
             close current
+
+        CloseQuiet ->
+            -- Tab moves on by itself: focus must not be pulled back to the button.
+            ( State { state | openFor = Nothing }, Cmd.none )
 
         Focus domId ->
             ( current, Internal.focus domId Noop )
@@ -268,13 +304,13 @@ update msg ((State state) as current) =
 
 
 {-| Closes the list of hidden levels and gives keyboard focus back to the "more"
-button (only when the list was open). Use it to close the list from your own
-code, for instance when the route changes while the list is open.
+button (only when the list was open). The list also closes by itself when the trail
+changes, so this is for closing it from your own code, such as a shortcut.
 -}
 close : State -> ( State, Cmd Msg )
 close (State state) =
-    ( State { state | open = False }
-    , if state.open then
+    ( State { state | openFor = Nothing }
+    , if state.openFor /= Nothing then
         Internal.focus (triggerId state.id) Noop
 
       else
@@ -301,59 +337,65 @@ hiddenLinkId id index =
 -- VIEW
 
 
-{-| A trail that folds its middle into a "more" button when it has more than
-`maxItems` crumbs. The button opens a list of the hidden levels. The first
-argument wraps the trail's `Msg` in your own message type.
+{-| How a trail of `total` crumbs folds for `maxItems`: the number of crumbs between the
+first one and the visible tail that go into the "more" list, 0 when it shows whole.
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+hiddenCount : Int -> Int -> Int
+hiddenCount most total =
+    if total - most >= 2 then
+        total - most
+
+    else
+        0
+
+
+{-| A trail that folds its middle into a "more" button when it has at least two crumbs
+more than `maxItems`. The button opens a list of the hidden levels. The first argument
+wraps the trail's `Msg` in your own message type.
+-}
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 view toMsg attributes current =
     let
         config =
             configure attributes
 
-        total =
-            List.length config.items
-
-        collapsed =
-            total > config.maxItems
-
-        hiddenCount =
-            total - config.maxItems
+        hiding =
+            hiddenCount config.maxItems (List.length config.items)
     in
-    if collapsed then
+    if hiding > 0 then
         let
             visibleHead =
                 List.take 1 config.items
 
             hidden =
-                config.items |> List.drop 1 |> List.take hiddenCount
+                config.items |> List.drop 1 |> List.take hiding
 
             visibleTail =
-                List.drop (1 + hiddenCount) config.items
+                List.drop (1 + hiding) config.items
         in
         wrapper config
             (List.map (viewCrumb False) visibleHead
                 ++ [ viewMore toMsg config current hidden ]
-                ++ viewTail visibleTail
+                ++ viewAll visibleTail
             )
 
     else
         wrapper config (viewAll config.items)
 
 
-{-| A trail that always shows every level, however many. No state and no
-messages; a trail that does not fit on one line wraps onto more lines.
+{-| A trail that always shows every level, however many. No state and no messages of
+its own; a trail that does not fit on one line wraps onto more lines.
 
-    Breadcrumbs.static
+    Breadcrumbs.viewStatic
         [ Breadcrumbs.items
-            [ Breadcrumbs.link "Orders" "#/orders"
+            [ Breadcrumbs.link { label = "Orders", href = "#/orders" }
             , Breadcrumbs.text "Order 10482"
             ]
         ]
 
 -}
-static : List Attribute -> Html msg
-static attributes =
+viewStatic : List (Attribute msg) -> Html msg
+viewStatic attributes =
     let
         config =
             configure attributes
@@ -361,7 +403,7 @@ static attributes =
     wrapper config (viewAll config.items)
 
 
-wrapper : Config -> List (Html msg) -> Html msg
+wrapper : Config msg -> List (Html msg) -> Html msg
 wrapper config children =
     Html.nav
         [ Internal.cls [ "klar-breadcrumbs" ]
@@ -371,7 +413,9 @@ wrapper config children =
         [ Html.ol [ Internal.cls [ "klar-breadcrumbs__list" ] ] children ]
 
 
-viewAll : List Crumb -> List (Html msg)
+{-| The crumbs in order; the last of them is the current page.
+-}
+viewAll : List (Crumb msg) -> List (Html msg)
 viewAll crumbs =
     let
         lastIndex =
@@ -380,45 +424,54 @@ viewAll crumbs =
     List.indexedMap (\index crumb -> viewCrumb (index == lastIndex) crumb) crumbs
 
 
-{-| The tail always ends with the current page.
--}
-viewTail : List Crumb -> List (Html msg)
-viewTail crumbs =
-    viewAll crumbs
-
-
-viewCrumb : Bool -> Crumb -> Html msg
+viewCrumb : Bool -> Crumb msg -> Html msg
 viewCrumb isCurrent (Crumb crumb) =
     let
         content =
             [ Internal.viewMaybe Icon.view crumb.icon
             , Html.span [ Internal.cls [ "klar-breadcrumbs__label" ] ] [ Html.text crumb.label ]
             ]
+
+        plain =
+            Html.span
+                [ Internal.cls
+                    [ "klar-breadcrumbs__text"
+                    , if isCurrent then
+                        "klar-breadcrumbs__text--current"
+
+                      else
+                        ""
+                    ]
+                , Attr.title crumb.label
+                , Internal.attrIf isCurrent (Attr.attribute "aria-current" "page")
+                ]
+                content
     in
     Html.li [ Internal.cls [ "klar-breadcrumbs__item" ] ]
-        [ case ( isCurrent, crumb.href ) of
-            ( False, Just href ) ->
-                Html.a
-                    [ Internal.cls [ "klar-breadcrumbs__link" ]
-                    , Attr.href href
-                    , Attr.title crumb.label
-                    ]
-                    content
+        [ if isCurrent then
+            plain
 
-            _ ->
-                Html.span
-                    [ Internal.cls
-                        [ "klar-breadcrumbs__text"
-                        , if isCurrent then
-                            "klar-breadcrumbs__text--current"
-
-                          else
-                            ""
+          else
+            case crumb.target of
+                Href href ->
+                    Html.a
+                        [ Internal.cls [ "klar-breadcrumbs__link" ]
+                        , Attr.href href
+                        , Attr.title crumb.label
                         ]
-                    , Attr.title crumb.label
-                    , Internal.attrIf isCurrent (Attr.attribute "aria-current" "page")
-                    ]
-                    content
+                        content
+
+                OnClick msg ->
+                    Html.button
+                        [ Internal.cls [ "klar-breadcrumbs__link", "klar-breadcrumbs__link--button" ]
+                        , Attr.type_ "button"
+                        , Attr.title crumb.label
+                        , Events.onClick msg
+                        ]
+                        content
+
+                NoTarget ->
+                    plain
         , Internal.viewIf (not isCurrent) separator
         ]
 
@@ -429,7 +482,17 @@ separator =
         [ Icon.sized Icon.ExtraSmall Icon.chevronRight ]
 
 
-viewMore : (Msg -> msg) -> Config -> State -> List Crumb -> Html msg
+isTarget : Crumb msg -> Bool
+isTarget (Crumb crumb) =
+    case crumb.target of
+        NoTarget ->
+            False
+
+        _ ->
+            True
+
+
+viewMore : (Msg -> msg) -> Config msg -> State -> List (Crumb msg) -> Html msg
 viewMore toMsg config (State state) hidden =
     let
         indexed =
@@ -438,8 +501,8 @@ viewMore toMsg config (State state) hidden =
         focusable =
             indexed
                 |> List.filterMap
-                    (\( index, Crumb crumb ) ->
-                        if crumb.href /= Nothing then
+                    (\( index, crumb ) ->
+                        if isTarget crumb then
                             Just index
 
                         else
@@ -454,10 +517,22 @@ viewMore toMsg config (State state) hidden =
                 [] ->
                     popupId state.id
 
+        -- what the list is opened for: these hidden levels, in this order
+        signature =
+            hidden
+                |> List.map (\(Crumb crumb) -> crumb.label)
+                |> String.join "\n"
+
+        open =
+            state.openFor == Just signature
+
+        count =
+            List.length hidden
+
         label =
             Locale.pick config.locale
-                { nb = "Vis " ++ String.fromInt (List.length hidden) ++ " skjulte nivåer"
-                , en = "Show " ++ String.fromInt (List.length hidden) ++ " hidden levels"
+                { nb = "Vis " ++ String.fromInt count ++ " skjulte nivåer"
+                , en = "Show " ++ String.fromInt count ++ " hidden levels"
                 }
     in
     Html.li [ Internal.cls [ "klar-breadcrumbs__item", "klar-breadcrumbs__item--more" ] ]
@@ -466,19 +541,19 @@ viewMore toMsg config (State state) hidden =
                 [ Button.ghost
                 , Button.small
                 , Button.id (triggerId state.id)
-                , Button.expanded state.open
+                , Button.expanded open
                 , Button.htmlAttrs
                     -- A list of links, not a menu: `aria-expanded` and
                     -- `aria-controls`, no `aria-haspopup` (a screen reader would
                     -- announce a "menu button" and look for menu items).
-                    [ Internal.attrIf state.open (Attr.attribute "aria-controls" (popupId state.id))
-                    , Internal.onKeys [ ( "ArrowDown", toMsg (Open firstId) ) ]
+                    [ Internal.attrIf open (Attr.attribute "aria-controls" (popupId state.id))
+                    , Internal.onKeys [ ( "ArrowDown", toMsg (Open signature firstId) ) ]
                     ]
-                , Button.onClick (toMsg (Toggle firstId))
+                , Button.onClick (toMsg (Toggle signature firstId))
                 ]
                 Icon.moreHorizontal
                 label
-            , if state.open then
+            , if open then
                 viewHidden toMsg state.id focusable indexed
 
               else
@@ -488,16 +563,48 @@ viewMore toMsg config (State state) hidden =
         ]
 
 
-viewHidden : (Msg -> msg) -> String -> List Int -> List ( Int, Crumb ) -> Html msg
+{-| Escape closes the list and gives focus back to the button, and prevents its
+default, so that a drawer or a dialog around the trail leaves that press alone; Tab and
+Shift+Tab close it quietly and move on. The Escape that ends an IME composition is not
+acted on.
+-}
+layerKeys : (Msg -> msg) -> Decoder ( msg, Bool )
+layerKeys toMsg =
+    Decode.map3
+        (\key composing keyCode ->
+            if composing || keyCode == 229 then
+                Nothing
+
+            else if key == "Escape" then
+                Just ( toMsg Close, True )
+
+            else if key == "Tab" then
+                -- Shift+Tab too: its key is Tab as well
+                Just ( toMsg CloseQuiet, False )
+
+            else
+                Nothing
+        )
+        (Decode.field "key" Decode.string)
+        (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "keyCode" Decode.int, Decode.succeed 0 ])
+        |> Decode.andThen
+            (\handled ->
+                case handled of
+                    Just result ->
+                        Decode.succeed result
+
+                    Nothing ->
+                        Decode.fail "not a key of the list"
+            )
+
+
+viewHidden : (Msg -> msg) -> String -> List Int -> List ( Int, Crumb msg ) -> Html msg
 viewHidden toMsg id focusable indexed =
     Html.div
         [ Internal.cls [ "klar-layer" ]
         , Events.onClick (toMsg Close)
-        , Internal.onKeysPassive
-            [ ( "Escape", toMsg Close )
-            , ( "Tab", toMsg Close )
-            , ( "Shift+Tab", toMsg Close )
-            ]
+        , Events.preventDefaultOn "keydown" (layerKeys toMsg)
         ]
         [ Html.div
             [ Internal.cls [ "klar-popup", "klar-breadcrumbs__popup" ]
@@ -510,7 +617,7 @@ viewHidden toMsg id focusable indexed =
         ]
 
 
-viewHiddenCrumb : (Msg -> msg) -> String -> List Int -> ( Int, Crumb ) -> Html msg
+viewHiddenCrumb : (Msg -> msg) -> String -> List Int -> ( Int, Crumb msg ) -> Html msg
 viewHiddenCrumb toMsg id focusable ( index, Crumb crumb ) =
     let
         content =
@@ -542,8 +649,8 @@ viewHiddenCrumb toMsg id focusable ( index, Crumb crumb ) =
                 ]
     in
     Html.li []
-        [ case crumb.href of
-            Just href ->
+        [ case crumb.target of
+            Href href ->
                 Html.a
                     [ Internal.cls [ "klar-breadcrumbs__hidden-item" ]
                     , Attr.href href
@@ -552,6 +659,17 @@ viewHiddenCrumb toMsg id focusable ( index, Crumb crumb ) =
                     ]
                     content
 
-            Nothing ->
+            OnClick msg ->
+                -- The click also reaches the layer, which closes the list.
+                Html.button
+                    [ Internal.cls [ "klar-breadcrumbs__hidden-item", "klar-breadcrumbs__hidden-item--button" ]
+                    , Attr.type_ "button"
+                    , Attr.id (hiddenLinkId id index)
+                    , Events.onClick msg
+                    , Internal.onKeys keys
+                    ]
+                    content
+
+            NoTarget ->
                 Html.span [ Internal.cls [ "klar-breadcrumbs__hidden-item", "klar-breadcrumbs__hidden-item--text" ] ] content
         ]

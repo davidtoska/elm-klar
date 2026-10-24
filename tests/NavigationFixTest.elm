@@ -61,92 +61,63 @@ expectOn selectors check html =
 -- TABS
 
 
-orderTabs : List Tabs.Tab
+type OrderTab
+    = Overview
+    | History
+    | Billing
+    | Settings
+
+
+orderTabs : List (Tabs.Tab OrderTab msg)
 orderTabs =
-    [ Tabs.tab "overview" "Overview"
-    , Tabs.tab "history" "History"
-    , Tabs.tab "billing" "Billing" |> Tabs.disabledTab
+    [ Tabs.tab Overview "Overview" |> Tabs.withPanel (\_ -> Html.text "Overview content")
+    , Tabs.tab History "History" |> Tabs.withPanel (\_ -> Html.text "History content")
+    , Tabs.tab Billing "Billing" |> Tabs.disabledTab |> Tabs.withPanel (\_ -> Html.text "Billing content")
     ]
 
 
-panelEntries : List ( String, () -> Html msg )
-panelEntries =
-    [ ( "overview", \_ -> Html.text "Overview content" )
-    , ( "history", \_ -> Html.text "History content" )
-    , ( "billing", \_ -> Html.text "Billing content" )
-    ]
-
-
-strip : Tabs.State -> Html Tabs.Msg
-strip state =
+{-| What an application draws: the strip and the panel of the active tab, from one call.
+-}
+page : Tabs.State OrderTab -> Html (Tabs.Msg OrderTab)
+page state =
     Tabs.view identity [ Tabs.tabs orderTabs ] state
 
 
-{-| What an application draws: the strip and its panels from one resolved state.
+{-| The active key is a tab that is disabled.
 -}
-page : Tabs.State -> Html Tabs.Msg
-page state =
-    let
-        resolved =
-            Tabs.resolve orderTabs state
-    in
-    Html.div []
-        [ Tabs.view identity [ Tabs.tabs orderTabs ] resolved
-        , Tabs.panels resolved panelEntries
-        ]
-
-
-{-| The active key is "billing", a tab that is disabled.
--}
-disabledKey : Tabs.State
+disabledKey : Tabs.State OrderTab
 disabledKey =
-    Tabs.init "t" "billing"
+    Tabs.init "t" Billing
 
 
-{-| The active key is "settings", which belongs to no tab.
+{-| The active key belongs to no tab.
 -}
-unknownKey : Tabs.State
+unknownKey : Tabs.State OrderTab
 unknownKey =
-    Tabs.init "t" "settings"
+    Tabs.init "t" Settings
 
 
 tabsTests : Test
 tabsTests =
-    describe "Klar.Tabs: the strip and the panels agree"
+    describe "Klar.Tabs: the strip and the panel agree"
         [ test "the strip selects the first enabled tab when the active key is disabled" <|
             \_ ->
-                strip disabledKey
+                page disabledKey
                     |> Query.fromHtml
                     |> Expect.all
-                        [ Query.find [ Selector.id "t-tab-overview" ] >> Query.has [ attr "aria-selected" "true" ]
-                        , Query.find [ Selector.id "t-tab-history" ] >> Query.has [ attr "aria-selected" "false" ]
-                        , Query.find [ Selector.id "t-tab-billing" ] >> Query.has [ attr "aria-selected" "false" ]
+                        [ Query.find [ Selector.id "t-tab-0" ] >> Query.has [ attr "aria-selected" "true" ]
+                        , Query.find [ Selector.id "t-tab-1" ] >> Query.has [ attr "aria-selected" "false" ]
+                        , Query.find [ Selector.id "t-tab-2" ] >> Query.has [ attr "aria-selected" "false" ]
                         ]
         , test "the strip selects the first enabled tab when the active key is unknown" <|
             \_ ->
-                strip unknownKey
-                    |> expectOn [ Selector.id "t-tab-overview" ] (Query.has [ attr "aria-selected" "true" ])
-        , test "resolve moves a disabled active key to the first enabled tab" <|
+                page unknownKey
+                    |> expectOn [ Selector.id "t-tab-0" ] (Query.has [ attr "aria-selected" "true" ])
+        , test "active keeps the key the application gave, and the strip shows what it can" <|
             \_ ->
-                Tabs.resolve orderTabs disabledKey
-                    |> Tabs.active
-                    |> Expect.equal "overview"
-        , test "resolve moves an unknown active key to the first enabled tab" <|
-            \_ ->
-                Tabs.resolve orderTabs unknownKey
-                    |> Tabs.active
-                    |> Expect.equal "overview"
-        , test "resolve keeps an active key that belongs to an enabled tab" <|
-            \_ ->
-                Tabs.resolve orderTabs (Tabs.init "t" "history")
-                    |> Tabs.active
-                    |> Expect.equal "history"
-        , test "resolve leaves an empty key when no tab is enabled" <|
-            \_ ->
-                Tabs.resolve [ Tabs.tab "a" "A" |> Tabs.disabledTab ] (Tabs.init "t" "a")
-                    |> Tabs.active
-                    |> Expect.equal ""
-        , test "after resolve, panels builds only the panel of the tab that the strip selects" <|
+                Tabs.active disabledKey
+                    |> Expect.equal Billing
+        , test "only the panel of the tab that the strip selects is built" <|
             \_ ->
                 page disabledKey
                     |> Query.fromHtml
@@ -155,22 +126,9 @@ tabsTests =
                         , Query.hasNot [ Selector.text "Billing content" ]
                         , Query.hasNot [ Selector.text "History content" ]
                         ]
-        , test "after resolve, an unknown key shows the panel of the first enabled tab" <|
+        , test "an unknown key shows the panel of the first enabled tab" <|
             \_ ->
                 page unknownKey
-                    |> Query.fromHtml
-                    |> Query.has [ Selector.text "Overview content" ]
-        , test "after resolve, panel renders nothing for the disabled tab" <|
-            \_ ->
-                Html.div [] [ Tabs.panel (Tabs.resolve orderTabs disabledKey) "billing" (\_ -> Html.text "Billing content") ]
-                    |> Query.fromHtml
-                    |> Expect.all
-                        [ Query.hasNot [ Selector.text "Billing content" ]
-                        , Query.hasNot [ attr "role" "tabpanel" ]
-                        ]
-        , test "after resolve, panel renders the content of the first enabled tab" <|
-            \_ ->
-                Html.div [] [ Tabs.panel (Tabs.resolve orderTabs unknownKey) "overview" (\_ -> Html.text "Overview content") ]
                     |> Query.fromHtml
                     |> Query.has [ Selector.text "Overview content" ]
         , test "the selected tab and the panel point at each other" <|
@@ -179,17 +137,15 @@ tabsTests =
                     |> Query.fromHtml
                     |> Expect.all
                         [ Query.find [ attr "aria-selected" "true" ]
-                            >> Query.has [ Selector.id "t-tab-overview", attr "aria-controls" "t-panel-overview" ]
+                            >> Query.has [ Selector.id "t-tab-0", attr "aria-controls" "t-panel-0" ]
                         , Query.find [ attr "role" "tabpanel" ]
-                            >> Query.has [ Selector.id "t-panel-overview", attr "aria-labelledby" "t-tab-overview" ]
+                            >> Query.has [ Selector.id "t-panel-0", attr "aria-labelledby" "t-tab-0" ]
                         ]
         , test "no panel is built when no tab is enabled" <|
             \_ ->
-                let
-                    resolved =
-                        Tabs.resolve [ Tabs.tab "overview" "Overview" |> Tabs.disabledTab ] (Tabs.init "t" "overview")
-                in
-                Html.div [] [ Tabs.panels resolved panelEntries ]
+                Tabs.view identity
+                    [ Tabs.tabs [ Tabs.tab Overview "Overview" |> Tabs.disabledTab |> Tabs.withPanel (\_ -> Html.text "Overview content") ] ]
+                    (Tabs.init "t" Overview)
                     |> Query.fromHtml
                     |> Query.hasNot [ attr "role" "tabpanel" ]
         ]

@@ -7012,7 +7012,7 @@ viewPagination ctx summary =
                 , Just (Pagination.locale ctx.loc)
                 , Maybe.map Pagination.rangeText ctx.config.rangeText
                 , -- the landmark is named after the table, so that two tables on a page are told apart
-                  Maybe.map (\name -> Pagination.label (ctx.t.pagination name)) (Internal.nonEmpty (Maybe.withDefault "" ctx.config.label))
+                  Maybe.map (\name -> Pagination.ariaLabel (ctx.t.pagination name)) (Internal.nonEmpty (Maybe.withDefault "" ctx.config.label))
                 , Maybe.map Pagination.summary summary
                 ]
             )
