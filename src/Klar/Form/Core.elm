@@ -14,14 +14,23 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Keyed as Keyed
 import Klar.Button as Button
+import Klar.Checkbox as Checkbox
+import Klar.Date as Date exposing (Date)
+import Klar.DatePicker as DatePicker
+import Klar.DateRangePicker as DateRangePicker
 import Klar.FileDrop as FileDrop
 import Klar.Form.Layout as FormLayout
+import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
+import Klar.MaskedInput as MaskedInput
+import Klar.Money as Money exposing (Currency, Money)
+import Klar.MoneyInput as MoneyInput
 import Klar.MultiSelect as MultiSelect
 import Klar.NumberInput as NumberInput
+import Klar.Radio as Radio
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Rule as Rule
 import Klar.RuleBuilder as RuleBuilder
@@ -101,6 +110,11 @@ type Msg
     | TagsMsg String TagInput.Msg
     | FilesMsg String FileDrop.Msg
     | RuleMsg String RuleBuilder.Msg
+    | DateMsg String DatePicker.Msg
+    | PeriodMsg String DateRangePicker.Msg
+    | MoneyMsg String MoneyInput.Msg
+    | MaskedMsg String MaskedInput.Msg
+    | Picked String String
     | Toggled String Bool
     | AddRow String
     | RemoveRow String Int
@@ -188,10 +202,21 @@ type alias SpecData control output =
     }
 
 
+{-| What the control of a field needs from the declaration: the limits and decimals
+of a number, the earliest and latest date, the lowest and highest amount, the
+currency of an amount and the mask of an identifier. The limits of dates and
+amounts are checked by `limitProblems`, from these values.
+-}
 type alias Limits =
     { min : Maybe Float
     , max : Maybe Float
     , decimals : Maybe Int
+    , earliest : Maybe Date
+    , latest : Maybe Date
+    , lowest : Maybe Money
+    , highest : Maybe Money
+    , currency : Maybe Currency
+    , mask : Maybe MaskedInput.Mask
     }
 
 
@@ -249,6 +274,10 @@ type Raw
     | RFiles (List FileDrop.FileInfo) Bool
     | RRule Rule.Rule
     | RRows (List Int)
+    | RDate (Maybe Date)
+    | RPeriod (Maybe ( Date, Date ))
+    | RMoney (Maybe Money)
+    | RMasked (Maybe String)
 
 
 type Slot
@@ -261,6 +290,10 @@ type Slot
     | SRule RuleBuilder.State
     | SToggle Bool
     | SRows { order : List Int, next : Int }
+    | SDate DatePicker.State
+    | SPeriod DateRangePicker.State
+    | SMoney MoneyInput.State
+    | SMasked MaskedInput.State
 
 
 {-| What the form knows about one field without knowing its types.
@@ -692,6 +725,118 @@ files label =
     Spec { spec | few = \locale n -> Locale.pick locale { nb = "Legg ved minst " ++ String.fromInt n, en = "Attach at least " ++ String.fromInt n } }
 
 
+{-| A date, typed or picked in a calendar, drawn by `datePicker`. Empty is
+`Nothing`. Add `required`, `minDate` or `maxDate`. Text that is not a date is
+the problem "Invalid date" until it is fixed.
+-}
+date : String -> Spec (Maybe Date) (Maybe Date)
+date label =
+    makeRefusing (\locale -> Locale.pick locale { nb = "Ugyldig dato", en = "Invalid date" })
+        label
+        Nothing
+        RDate
+        (\raw ->
+            case raw of
+                RDate value ->
+                    Just value
+
+                RUnreadable ->
+                    Just Nothing
+
+                _ ->
+                    Nothing
+        )
+        (\_ value -> Ok value)
+
+
+{-| A period from one date to another, both included, drawn by
+`dateRangePicker`. Empty is `Nothing`. Add `required`. Text that is not a date,
+or an end before the start, is the problem "Invalid period" until it is fixed.
+-}
+dateRange : String -> Spec (Maybe ( Date, Date )) (Maybe ( Date, Date ))
+dateRange label =
+    makeRefusing (\locale -> Locale.pick locale { nb = "Ugyldig periode", en = "Invalid period" })
+        label
+        Nothing
+        RPeriod
+        (\raw ->
+            case raw of
+                RPeriod value ->
+                    Just value
+
+                RUnreadable ->
+                    Just Nothing
+
+                _ ->
+                    Nothing
+        )
+        (\_ value -> Ok value)
+
+
+{-| An amount of money in one currency, drawn by `moneyInput`. Empty is
+`Nothing`. A negative amount is refused unless `minMoney` is below zero. Add
+`required`, `minMoney` or `maxMoney`.
+-}
+money : Currency -> String -> Spec (Maybe Money) (Maybe Money)
+money currency label =
+    let
+        (Spec spec) =
+            makeRefusing (\locale -> Locale.pick locale { nb = "Må være et gyldig beløp", en = "Must be an amount" })
+                label
+                Nothing
+                RMoney
+                (\raw ->
+                    case raw of
+                        RMoney value ->
+                            Just value
+
+                        RUnreadable ->
+                            Just Nothing
+
+                        _ ->
+                            Nothing
+                )
+                (\_ value -> Ok value)
+
+        limits =
+            spec.limits
+    in
+    Spec { spec | limits = { limits | currency = Just currency } }
+
+
+{-| An identifier with a fixed shape (an organisation number, an IBAN, a postal
+code), drawn by `maskedInput`. The value is the identifier without separators
+(`MaskedInput.value`); empty is `Nothing`. An identifier that is not complete
+or has a wrong check digit is the problem "Incomplete or invalid" until it is
+fixed. Add `required`.
+-}
+masked : MaskedInput.Mask -> String -> Spec (Maybe String) (Maybe String)
+masked mask label =
+    let
+        (Spec spec) =
+            makeRefusing (\locale -> Locale.pick locale { nb = "Ufullstendig eller ugyldig", en = "Incomplete or invalid" })
+                label
+                Nothing
+                RMasked
+                (\raw ->
+                    case raw of
+                        RMasked value ->
+                            Just value
+
+                        RUnreadable ->
+                            Just Nothing
+
+                        _ ->
+                            Nothing
+                )
+                (\_ value -> Ok value)
+
+        limits =
+            spec.limits
+    in
+    Spec { spec | limits = { limits | mask = Just mask } }
+
+
 {-| The conditions of a rule, edited in a rule builder.
 
     Fm.conditions "Conditions" priceFields |> Fm.required
@@ -823,11 +968,28 @@ collect results =
 
 noLimits : Limits
 noLimits =
-    { min = Nothing, max = Nothing, decimals = Nothing }
+    { min = Nothing
+    , max = Nothing
+    , decimals = Nothing
+    , earliest = Nothing
+    , latest = Nothing
+    , lowest = Nothing
+    , highest = Nothing
+    , currency = Nothing
+    , mask = Nothing
+    }
 
 
 make : String -> control -> (control -> Raw) -> (Raw -> Maybe control) -> (Locale -> control -> Result String output) -> Spec control output
-make label empty toRaw fromRaw finish =
+make =
+    makeRefusing (\locale -> Locale.pick locale { nb = "Må være et tall", en = "Must be a number" })
+
+
+{-| A kind whose control can hold text that is no value: `refusal` is the
+problem while it does (`RUnreadable`).
+-}
+makeRefusing : (Locale -> String) -> String -> control -> (control -> Raw) -> (Raw -> Maybe control) -> (Locale -> control -> Result String output) -> Spec control output
+makeRefusing refusal label empty toRaw fromRaw finish =
     Spec
         { label = label
         , hint = Nothing
@@ -849,7 +1011,7 @@ make label empty toRaw fromRaw finish =
                 in
                 case raw of
                     RUnreadable ->
-                        refuse (Locale.pick locale { nb = "Må være et tall", en = "Must be a number" })
+                        refuse (refusal locale)
 
                     RFiles _ True ->
                         refuse (Locale.pick locale { nb = "Fjern filen som ble avvist", en = "Remove the refused file" })
@@ -988,12 +1150,17 @@ oneWith message (Spec spec) =
         }
 
 
-{-| A rule over the whole list of a list-valued field, for what is wrong with the
-items _together_: at most one contact is the primary, two emails are the same.
-It runs when every item is valid on its own, and a problem is the field's own
-(a group of rows shows it by its add button and in the summary), so it counts on
-its step like any other rule. The message is a function of the locale, like
-`withMessage`.
+{-| A rule on the value the field produces, for what the kind and the other rules
+cannot say: a quantity in whole boxes of 6, a box that must be ticked, at most one
+contact that is the primary. It runs when the field's own read succeeded (so after
+`required`, a refused text and the limits), and a problem is the field's own: it
+shows at the field and counts on its step like any other rule. On a group of rows
+it sees the list of the rows' values and its problem shows by the add button. The
+message is a function of the locale, like `withMessage`.
+
+    Spec.toggle "I accept the terms of delivery"
+        |> Spec.rule identity
+            (\lang -> Locale.pick lang { nb = "Du må godta vilkårene", en = "Accept the terms to go on" })
 
     Spec.rows { label = "Contacts", item = "Contact" } contact
         |> Spec.rule
@@ -1001,16 +1168,16 @@ its step like any other rule. The message is a function of the locale, like
             (\lang -> Locale.pick lang { nb = "Bare én kan være hovedkontakt", en = "Only one contact can be the primary" })
 
 -}
-rule : (List a -> Bool) -> (Locale -> String) -> Spec c (List a) -> Spec c (List a)
+rule : (o -> Bool) -> (Locale -> String) -> Spec c o -> Spec c o
 rule holds message (Spec spec) =
     Spec
         { spec
             | read =
                 \key locale data ->
                     case spec.read key locale data of
-                        Ok list ->
-                            if holds list then
-                                Ok list
+                        Ok output ->
+                            if holds output then
+                                Ok output
 
                             else
                                 Err [ { field = key, target = key, label = spec.label, message = message locale } ]
@@ -1070,70 +1237,264 @@ addCheck verdict (Spec spec) =
 
 {-| A number from `low` to `high`, both included. The control shows the limits
 and keeps a number outside them as typed (it shows the problem, it does not move
-the number).
+the number). The message writes the numbers as the locale does (`1,5` in
+Norwegian).
 -}
 range : Float -> Float -> Spec (Maybe Float) o -> Spec (Maybe Float) o
-range low high (Spec spec) =
+range low high spec =
+    addCheck
+        (\locale value ->
+            case value of
+                Just n ->
+                    if n < low || n > high then
+                        Just
+                            (Locale.pick locale
+                                { nb = "Må være mellom " ++ formatNumber locale low ++ " og " ++ formatNumber locale high
+                                , en = "Must be between " ++ formatNumber locale low ++ " and " ++ formatNumber locale high
+                                }
+                            )
+
+                    else
+                        Nothing
+
+                Nothing ->
+                    Nothing
+        )
+        spec
+        |> keeping (\data -> { data | limits = setNumberLimits low high data.limits })
+
+
+setNumberLimits : Float -> Float -> Limits -> Limits
+setNumberLimits low high limits =
+    { limits | min = Just low, max = Just high }
+
+
+{-| A number as people write it in the locale, with the decimals it has.
+-}
+formatNumber : Locale -> Float -> String
+formatNumber locale value =
     let
-        limits =
-            spec.limits
+        places =
+            case String.split "." (String.fromFloat value) of
+                [ _, fraction ] ->
+                    Basics.min 6 (String.length fraction)
 
-        (Spec checked) =
-            addCheck
-                (\locale value ->
-                    case value of
-                        Just n ->
-                            if n < low || n > high then
-                                Just
-                                    (Locale.pick locale
-                                        { nb = "Må være mellom " ++ String.fromFloat low ++ " og " ++ String.fromFloat high
-                                        , en = "Must be between " ++ String.fromFloat low ++ " and " ++ String.fromFloat high
-                                        }
-                                    )
-
-                            else
-                                Nothing
-
-                        Nothing ->
-                            Nothing
-                )
-                (Spec spec)
+                _ ->
+                    0
     in
-    Spec { checked | limits = { limits | min = Just low, max = Just high } }
+    Format.decimal locale places value
 
 
 {-| A whole number: no decimals, shown and checked.
 -}
 whole : Spec (Maybe Float) o -> Spec (Maybe Float) o
-whole (Spec spec) =
-    let
-        limits =
-            spec.limits
+whole spec =
+    addCheck
+        (\locale value ->
+            case value of
+                Just n ->
+                    if n /= toFloat (round n) then
+                        Just (Locale.pick locale { nb = "Må være et helt tall", en = "Must be a whole number" })
 
-        (Spec checked) =
-            addCheck
-                (\locale value ->
-                    case value of
-                        Just n ->
-                            if n /= toFloat (round n) then
-                                Just (Locale.pick locale { nb = "Må være et helt tall", en = "Must be a whole number" })
+                    else
+                        Nothing
 
-                            else
-                                Nothing
+                Nothing ->
+                    Nothing
+        )
+        spec
+        |> keeping (\data -> { data | limits = setDecimals data.limits })
 
-                        Nothing ->
-                            Nothing
-                )
-                (Spec spec)
-    in
-    Spec { checked | limits = { limits | decimals = Just 0 } }
+
+setDecimals : Limits -> Limits
+setDecimals limits =
+    { limits | decimals = Just 0 }
+
+
+{-| The earliest date the field takes, included. The calendar does not offer
+the days before it, a typed date before it is refused at once, and a date put
+in with `set` (a loaded record) is the problem "The date cannot be before ..."
+until it is changed. A limit that depends on today belongs to the view:
+`DatePicker.min model.today` (the declaration is a constant).
+
+    Spec.date "Delivery date" |> Spec.required |> Spec.minDate firstDeliveryDay
+
+-}
+minDate : Date -> Spec (Maybe Date) o -> Spec (Maybe Date) o
+minDate earliest =
+    keeping (\data -> { data | limits = setEarliest earliest data.limits })
+
+
+setEarliest : Date -> Limits -> Limits
+setEarliest earliest limits =
+    { limits | earliest = Just earliest }
+
+
+{-| The latest date the field takes, included, in the same way as `minDate`.
+-}
+maxDate : Date -> Spec (Maybe Date) o -> Spec (Maybe Date) o
+maxDate latest =
+    keeping (\data -> { data | limits = setLatest latest data.limits })
+
+
+setLatest : Date -> Limits -> Limits
+setLatest latest limits =
+    { limits | latest = Just latest }
+
+
+{-| The lowest amount the field takes, included, in the currency of the field. An
+amount below it is kept as typed and is the problem "Must be at least ...". A
+lowest amount below zero allows negative amounts down to it; without one, an
+amount must not be negative.
+
+    Spec.money Money.nok "Credit limit" |> Spec.minMoney (Money.zero Money.nok)
+
+-}
+minMoney : Money -> Spec (Maybe Money) o -> Spec (Maybe Money) o
+minMoney lowest =
+    keeping (\data -> { data | limits = setLowest lowest data.limits })
+
+
+setLowest : Money -> Limits -> Limits
+setLowest lowest limits =
+    { limits | lowest = Just lowest }
+
+
+{-| The highest amount the field takes, included, in the same way as `minMoney`.
+-}
+maxMoney : Money -> Spec (Maybe Money) o -> Spec (Maybe Money) o
+maxMoney highest =
+    keeping (\data -> { data | limits = setHighest highest data.limits })
+
+
+setHighest : Money -> Limits -> Limits
+setHighest highest limits =
+    { limits | highest = Just highest }
 
 
 {-| A short help text under the field.
 -}
 hint : String -> Spec c o -> Spec c o
-hint help (Spec spec) =
-    Spec { spec | hint = Just help }
+hint help =
+    keeping (\data -> { data | hint = Just help })
+
+
+{-| Changes what the declaration says about the field, in a way that a later
+`withMessage` keeps: the rule before is reworded and the change made again on
+the result (without this, `hint` or `range` followed by `withMessage` would be
+undone by it).
+-}
+keeping : (SpecData c o -> SpecData c o) -> Spec c o -> Spec c o
+keeping change (Spec spec) =
+    let
+        changed =
+            change spec
+    in
+    Spec { changed | reword = Maybe.map (\reword message -> keeping change (reword message)) spec.reword }
+
+
+{-| The problem of a date or an amount outside the limits of its field, or of a
+negative amount where none is allowed. The limits are data in the declaration,
+so one check serves every kind that has them.
+-}
+limitProblem : Locale -> Limits -> Raw -> Maybe String
+limitProblem locale limits raw =
+    case raw of
+        RDate (Just day) ->
+            case ( limits.earliest, limits.latest ) of
+                ( Just earliest, _ ) ->
+                    if Date.compare day earliest == LT then
+                        Just
+                            (Locale.pick locale
+                                { nb = "Datoen kan ikke være før " ++ Format.date locale earliest
+                                , en = "The date cannot be before " ++ Format.date locale earliest
+                                }
+                            )
+
+                    else
+                        latestProblem locale limits.latest day
+
+                ( Nothing, latest ) ->
+                    latestProblem locale latest day
+
+        RMoney (Just amount) ->
+            moneyProblem locale limits amount
+
+        _ ->
+            Nothing
+
+
+latestProblem : Locale -> Maybe Date -> Date -> Maybe String
+latestProblem locale latest day =
+    case latest of
+        Just bound ->
+            if Date.compare day bound == GT then
+                Just
+                    (Locale.pick locale
+                        { nb = "Datoen kan ikke være etter " ++ Format.date locale bound
+                        , en = "The date cannot be after " ++ Format.date locale bound
+                        }
+                    )
+
+            else
+                Nothing
+
+        Nothing ->
+            Nothing
+
+
+moneyProblem : Locale -> Limits -> Money -> Maybe String
+moneyProblem locale limits amount =
+    let
+        sameCurrency bound =
+            if Money.currencyOf bound == Money.currencyOf amount then
+                Just bound
+
+            else
+                Nothing
+
+        low =
+            Maybe.andThen sameCurrency limits.lowest
+
+        high =
+            Maybe.andThen sameCurrency limits.highest
+
+        negativeAllowed =
+            Maybe.map Money.isNegative limits.lowest |> Maybe.withDefault False
+
+        below =
+            Maybe.map (\bound -> Money.compare amount bound == LT) low |> Maybe.withDefault False
+
+        above =
+            Maybe.map (\bound -> Money.compare amount bound == GT) high |> Maybe.withDefault False
+
+        shown bound =
+            Money.toAmountString locale bound ++ "\u{00A0}" ++ Money.currencyCode (Money.currencyOf bound)
+    in
+    if Money.isNegative amount && not negativeAllowed then
+        Just (Locale.pick locale { nb = "Beløpet kan ikke være negativt", en = "Must not be negative" })
+
+    else if below || above then
+        case ( low, high ) of
+            ( Just lowBound, Just highBound ) ->
+                Just
+                    (Locale.pick locale
+                        { nb = "Må være mellom " ++ Money.toAmountString locale lowBound ++ " og " ++ shown highBound
+                        , en = "Must be between " ++ Money.toAmountString locale lowBound ++ " and " ++ shown highBound
+                        }
+                    )
+
+            ( Just lowBound, Nothing ) ->
+                Just (Locale.pick locale { nb = "Må være minst " ++ shown lowBound, en = "Must be at least " ++ shown lowBound })
+
+            ( Nothing, Just highBound ) ->
+                Just (Locale.pick locale { nb = "Må være maksimalt " ++ shown highBound, en = "Must be at most " ++ shown highBound })
+
+            ( Nothing, Nothing ) ->
+                Nothing
+
+    else
+        Nothing
 
 
 {-| Replaces the message of the rule that was added last, in every language: a
@@ -1192,6 +1553,21 @@ newSlot def =
         RRows _ ->
             SRows { order = [], next = 1 }
 
+        RDate _ ->
+            SDate (DatePicker.init def.key)
+
+        RPeriod _ ->
+            SPeriod (DateRangePicker.init def.key)
+
+        RMoney _ ->
+            SMoney
+                (MoneyInput.init def.key (Maybe.withDefault Money.nok def.limits.currency)
+                    |> MoneyInput.setLimits (moneyLimits def.limits)
+                )
+
+        RMasked _ ->
+            SMasked (MaskedInput.init def.key (Maybe.withDefault MaskedInput.phone def.limits.mask))
+
 
 {-| The slots of a list of fields, with the empty rows a group starts with.
 -}
@@ -1220,6 +1596,31 @@ numberLimits limits =
     List.filterMap identity
         [ Maybe.map NumberInput.min limits.min
         , Maybe.map NumberInput.max limits.max
+        ]
+
+
+dateLimits : Limits -> List DatePicker.Attribute
+dateLimits limits =
+    List.filterMap identity
+        [ Maybe.map DatePicker.min limits.earliest
+        , Maybe.map DatePicker.max limits.latest
+        ]
+
+
+{-| The limits of an amount as the field's own attributes, so that the field
+says what the form says: a negative amount is allowed when the lowest amount is
+below zero.
+-}
+moneyLimits : Limits -> List (MoneyInput.Attribute msg)
+moneyLimits limits =
+    List.filterMap identity
+        [ Maybe.map MoneyInput.min limits.lowest
+        , Maybe.map MoneyInput.max limits.highest
+        , if Maybe.map Money.isNegative limits.lowest |> Maybe.withDefault False then
+            Just MoneyInput.allowNegative
+
+          else
+            Nothing
         ]
 
 
@@ -1271,6 +1672,35 @@ rawOf slot =
         SRows group ->
             RRows group.order
 
+        SDate state ->
+            if DatePicker.isInvalid state then
+                RUnreadable
+
+            else
+                RDate (DatePicker.date state)
+
+        SPeriod state ->
+            if DateRangePicker.isInvalid state then
+                RUnreadable
+
+            else
+                RPeriod (DateRangePicker.range state)
+
+        SMoney state ->
+            -- every sign allowed and no limits: `isValid` then only asks whether the text is an amount
+            if MoneyInput.isValid (MoneyInput.setLimits [ MoneyInput.allowNegative ] state) then
+                RMoney (MoneyInput.value state)
+
+            else
+                RUnreadable
+
+        SMasked state ->
+            if MaskedInput.isValid state then
+                RMasked (MaskedInput.value state)
+
+            else
+                RUnreadable
+
 
 putRaw : Raw -> Slot -> Slot
 putRaw raw slot =
@@ -1301,6 +1731,18 @@ putRaw raw slot =
 
         ( RBool value, SToggle _ ) ->
             SToggle value
+
+        ( RDate value, SDate state ) ->
+            SDate (DatePicker.setDate value state)
+
+        ( RPeriod value, SPeriod state ) ->
+            SPeriod (DateRangePicker.setRange value state)
+
+        ( RMoney value, SMoney state ) ->
+            SMoney (MoneyInput.setValue value state)
+
+        ( RMasked value, SMasked state ) ->
+            SMasked (MaskedInput.setValue value state)
 
         _ ->
             slot
@@ -1667,6 +2109,66 @@ update declared msg ((State data) as current) =
                 _ ->
                     ( current, Cmd.none )
 
+        DateMsg key inner ->
+            case Dict.get key data.slots of
+                Just ((SDate before) as old) ->
+                    let
+                        ( after, cmd ) =
+                            DatePicker.update inner before
+                    in
+                    ( moved key old (SDate after) current, Cmd.map (DateMsg key) cmd )
+
+                _ ->
+                    ( current, Cmd.none )
+
+        PeriodMsg key inner ->
+            case Dict.get key data.slots of
+                Just ((SPeriod before) as old) ->
+                    let
+                        ( after, cmd ) =
+                            DateRangePicker.update inner before
+                    in
+                    ( moved key old (SPeriod after) current, Cmd.map (PeriodMsg key) cmd )
+
+                _ ->
+                    ( current, Cmd.none )
+
+        MoneyMsg key inner ->
+            case Dict.get key data.slots of
+                Just ((SMoney before) as old) ->
+                    let
+                        ( after, cmd ) =
+                            MoneyInput.update inner before
+                    in
+                    ( moved key old (SMoney after) current |> touchIf (MoneyInput.isTouched after) key
+                    , Cmd.map (MoneyMsg key) cmd
+                    )
+
+                _ ->
+                    ( current, Cmd.none )
+
+        MaskedMsg key inner ->
+            case Dict.get key data.slots of
+                Just ((SMasked before) as old) ->
+                    let
+                        ( after, cmd ) =
+                            MaskedInput.update inner before
+                    in
+                    ( moved key old (SMasked after) current |> touchIf (MaskedInput.isTouched after) key
+                    , Cmd.map (MaskedMsg key) cmd
+                    )
+
+                _ ->
+                    ( current, Cmd.none )
+
+        Picked key value ->
+            case Dict.get key data.slots of
+                Just ((SSelect before) as old) ->
+                    ( moved key old (SSelect (Select.setValue value before)) current, Cmd.none )
+
+                _ ->
+                    ( current, Cmd.none )
+
         AddRow key ->
             addRowTo declared key current
 
@@ -1700,14 +2202,31 @@ moved key before after (State data) =
         State next
 
 
-{-| A rule builder is never "left": half a condition is how a rule is made, so
-its problems show once the step has been tried, as the problems of something
-the form does not draw itself do.
+{-| Which edits show the field's problems at once. A choice, a switch, a picked
+date, a tag or a file is a whole answer, so its problem shows when it is given.
+A text, a number, an amount and an identifier are typed a character at a time:
+"a" is not an email address yet, so their problems wait until the user leaves
+the field (`Left`, or the control's own `isTouched`), and from then on they
+follow every keystroke. A rule builder is never "left": half a condition is how
+a rule is made, so its problems show once the step has been tried, as the
+problems of something the form does not draw itself do.
 -}
 touchedBy : Slot -> String -> Set String -> Set String
 touchedBy slot key touched =
     case slot of
         SRule _ ->
+            touched
+
+        SText _ ->
+            touched
+
+        SNumber _ ->
+            touched
+
+        SMoney _ ->
+            touched
+
+        SMasked _ ->
             touched
 
         _ ->
@@ -1885,6 +2404,15 @@ diagnose locale (Form form) data defs =
                                         { field = f.field, target = f.target, label = f.label, message = f.message, step = 0, origin = FromRule }
                             )
 
+        bounded =
+            defs
+                |> List.filterMap
+                    (\def ->
+                        lookup def.key data
+                            |> Maybe.andThen (limitProblem locale def.limits)
+                            |> Maybe.map (\message -> { field = def.key, target = entryOf def, label = def.label, message = message, step = def.step, origin = FromRule })
+                    )
+
         server =
             defs
                 |> List.filterMap
@@ -1900,7 +2428,7 @@ diagnose locale (Form form) data defs =
                         { field = o.field, target = o.field, label = o.label, message = o.message, step = Maybe.withDefault 0 o.step, origin = FromOutside }
                     )
     in
-    client ++ server ++ fromOutside
+    client ++ bounded ++ server ++ fromOutside
 
 
 {-| Where the focus goes for a problem: the target the rule named, or the way
@@ -2801,6 +3329,167 @@ switch ((View view) as bound) field attributes =
 
         _ ->
             mismatch bound field "a switch"
+
+
+{-| A checkbox for a `toggle` field, for a choice that is saved with the form
+("I accept the terms of delivery"). The label, the hint, the problem and the
+value are the form's; `Spec.rule identity` makes ticking it a must.
+-}
+checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
+checkbox ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, SToggle value ) ->
+            Checkbox.view
+                (attributes
+                    ++ List.filterMap identity
+                        [ Maybe.map Checkbox.hint def.hint
+                        , Maybe.map Checkbox.error (problemOf bound def)
+                        ]
+                    ++ [ Checkbox.id def.key
+                       , Checkbox.label def.label
+                       , Checkbox.checked value
+                       , Checkbox.onCheck (\on -> view.toMsg (Toggled def.key on))
+                       ]
+                )
+
+        _ ->
+            mismatch bound field "a toggle"
+
+
+{-| Radio buttons for a `choice` field, for two to five options that people
+should see all at once. The options are the same `Select.Option` values a
+`select` takes (`Select.option`, `Select.withDescription`,
+`Select.disabledOption`), so a choice can move between the two controls without
+a change to its options. The label is the legend of the group.
+-}
+radio : View msg -> Field (Maybe id) -> List (Select.Option id) -> List (Radio.Attribute msg) -> Html msg
+radio ((View view) as bound) ((Field field) as handle) options attributes =
+    case fieldDef bound handle of
+        Just ( def, SSelect state ) ->
+            Radio.view
+                (attributes
+                    ++ declaredAttributes def Radio.hint Radio.required
+                    ++ [ Radio.id def.key
+                       , Radio.label def.label
+                       , Radio.errorMaybe (problemOf bound def)
+                       , Radio.options (List.map (radioOption field.toRaw) options)
+                       , Radio.selected (Select.value state)
+                       , Radio.onSelect (\key -> view.toMsg (Picked def.key key))
+                       ]
+                )
+
+        _ ->
+            mismatch bound handle "a choice"
+
+
+radioOption : (Maybe id -> Raw) -> Select.Option id -> Radio.Option
+radioOption toRaw choice_ =
+    Radio.option (keyOf toRaw (Just choice_.value)) choice_.label
+        |> (case choice_.description of
+                Just text_ ->
+                    Radio.withDescription text_
+
+                Nothing ->
+                    identity
+           )
+        |> (if choice_.disabled then
+                Radio.disabledOption
+
+            else
+                identity
+           )
+
+
+{-| A date picker for a `date` field. The limits of `Spec.minDate` and
+`Spec.maxDate` are given to the calendar for you; `today` (for the marker, the
+"Today" button and short forms such as `+3`) and a limit that depends on today
+are the application's attributes (`DatePicker.today model.today`,
+`DatePicker.min model.today`).
+-}
+datePicker : View msg -> Field (Maybe Date) -> List DatePicker.Attribute -> Html msg
+datePicker ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, SDate state ) ->
+            DatePicker.view (\inner -> view.toMsg (DateMsg def.key inner))
+                (attributes
+                    ++ declaredAttributes def DatePicker.hint DatePicker.required
+                    ++ [ DatePicker.locale view.locale
+                       , DatePicker.label def.label
+                       , DatePicker.errorMaybe (problemOf bound def)
+                       ]
+                    ++ dateLimits def.limits
+                )
+                state
+
+        _ ->
+            mismatch bound field "a date"
+
+
+{-| A date range picker for a `dateRange` field. The earliest and latest day, the
+longest period and the presets are the application's attributes
+(`DateRangePicker.min`, `DateRangePicker.maxRangeDays`, `DateRangePicker.today`);
+a period the picker refuses is a problem of the form until it is fixed.
+-}
+dateRangePicker : View msg -> Field (Maybe ( Date, Date )) -> List DateRangePicker.Attribute -> Html msg
+dateRangePicker ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, SPeriod state ) ->
+            DateRangePicker.view (\inner -> view.toMsg (PeriodMsg def.key inner))
+                (attributes
+                    ++ declaredAttributes def DateRangePicker.hint DateRangePicker.required
+                    ++ [ DateRangePicker.locale view.locale
+                       , DateRangePicker.label def.label
+                       , DateRangePicker.errorMaybe (problemOf bound def)
+                       ]
+                )
+                state
+
+        _ ->
+            mismatch bound field "a period"
+
+
+{-| An amount field for a `money` field, in the currency of the declaration.
+The limits of `Spec.minMoney` and `Spec.maxMoney` (and with them whether a
+negative amount is allowed) are given to the field for you.
+-}
+moneyInput : View msg -> Field (Maybe Money) -> List (MoneyInput.Attribute msg) -> Html msg
+moneyInput ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, SMoney state ) ->
+            MoneyInput.view (\inner -> view.toMsg (MoneyMsg def.key inner))
+                (attributes
+                    ++ declaredAttributes def MoneyInput.hint MoneyInput.required
+                    ++ [ MoneyInput.locale view.locale
+                       , MoneyInput.label def.label
+                       , MoneyInput.errorMaybe (problemOf bound def)
+                       ]
+                    ++ moneyLimits def.limits
+                )
+                state
+
+        _ ->
+            mismatch bound field "an amount"
+
+
+{-| A masked field for a `masked` field: the identifier is written in its groups
+as it is typed, and its check digit is checked.
+-}
+maskedInput : View msg -> Field (Maybe String) -> List (MaskedInput.Attribute msg) -> Html msg
+maskedInput ((View view) as bound) field attributes =
+    case fieldDef bound field of
+        Just ( def, SMasked state ) ->
+            MaskedInput.view (\inner -> view.toMsg (MaskedMsg def.key inner))
+                (attributes
+                    ++ declaredAttributes def MaskedInput.hint MaskedInput.required
+                    ++ [ MaskedInput.locale view.locale
+                       , MaskedInput.label def.label
+                       , MaskedInput.errorMaybe (problemOf bound def)
+                       ]
+                )
+                state
+
+        _ ->
+            mismatch bound field "an identifier"
 
 
 {-| The button that adds a row to a group, with the group's problem under it

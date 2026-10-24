@@ -4,7 +4,7 @@ module Klar.Form exposing
     , init, set, get, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
     , problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, goToProblem
     , currentStep, attempted, advance, back, goTo
-    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
+    , bind, textInput, textArea, numberInput, select, multiSelect, radio, switch, checkbox, datePicker, dateRangePicker, moneyInput, maskedInput, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
     )
 
 {-| A form as one value: the text and choices of every field, which fields the
@@ -225,18 +225,26 @@ at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks a
 
 # Drawing the form
 
-@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
+@docs bind, textInput, textArea, numberInput, select, multiSelect, radio, switch, checkbox, datePicker, dateRangePicker, moneyInput, maskedInput, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
 
 -}
 
 import File exposing (File)
 import Html exposing (Html)
 import Klar.Button as Button
+import Klar.Checkbox as Checkbox
+import Klar.Date exposing (Date)
+import Klar.DatePicker as DatePicker
+import Klar.DateRangePicker as DateRangePicker
 import Klar.FileDrop as FileDrop
 import Klar.Form.Core as Core
 import Klar.Locale exposing (Locale)
+import Klar.MaskedInput as MaskedInput
+import Klar.Money exposing (Money)
+import Klar.MoneyInput as MoneyInput
 import Klar.MultiSelect as MultiSelect
 import Klar.NumberInput as NumberInput
+import Klar.Radio as Radio
 import Klar.Remote exposing (Remote)
 import Klar.Rule as Rule
 import Klar.RuleBuilder as RuleBuilder
@@ -280,8 +288,9 @@ type alias Msg =
 
 {-| A handle to one field. The type says what the value looks like while it is
 edited: `String` for a text, `Maybe id` for a choice, `List id` for several,
-`Maybe Float` for a number, `Bool` for a switch, `List String` for tags, a list of
-files for files and a `Rule` for conditions. Get the handles from `fields form`; there is no other
+`Maybe Float` for a number, `Bool` for a switch or a checkbox, `Maybe Date` for a date,
+`Maybe ( Date, Date )` for a period, `Maybe Money` for an amount, `Maybe String` for an
+identifier, `List String` for tags, a list of files for files and a `Rule` for conditions. Get the handles from `fields form`; there is no other
 way to make one.
 -}
 type alias Field control =
@@ -801,6 +810,86 @@ attention.
 ruleBuilder : View msg -> Field Rule.Rule -> List (Rule.Field ()) -> List (RuleBuilder.Attribute () msg) -> Html msg
 ruleBuilder =
     Core.ruleBuilder
+
+
+{-| A checkbox for a `toggle` field, for a yes or no that is saved with the form
+("I accept the terms of delivery"). The label, the hint, the problem and the
+value are the form's. `Spec.rule identity` makes ticking it a must.
+
+    Form.checkbox v fields.acceptsTerms []
+
+-}
+checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
+checkbox =
+    Core.checkbox
+
+
+{-| Radio buttons for a `choice` field, for two to five options that people
+should see all at once. The options are the same `Select.Option` values that
+`select` takes (`Select.option`, `Select.withDescription`, `Select.disabledOption`),
+so a choice moves between the two controls without a change to its options. The
+label of the field is the legend of the group; `Radio.horizontal` lays the
+options out in a row.
+
+    Form.radio v
+        fields.customerKind
+        [ Select.option Company "Company"
+        , Select.option Person "Private person"
+        ]
+        [ Radio.horizontal ]
+
+-}
+radio : View msg -> Field (Maybe id) -> List (Select.Option id) -> List (Radio.Attribute msg) -> Html msg
+radio =
+    Core.radio
+
+
+{-| A date picker for a `date` field. The limits of `Spec.minDate` and
+`Spec.maxDate` are given to the calendar for you. `today` (the marker, the
+"Today" button and short forms such as `+3`) and a limit that depends on today
+are the application's attributes.
+
+    Form.datePicker v fields.deliveryDate [ DatePicker.today model.today, DatePicker.min model.today ]
+
+-}
+datePicker : View msg -> Field (Maybe Date) -> List DatePicker.Attribute -> Html msg
+datePicker =
+    Core.datePicker
+
+
+{-| A date range picker for a `dateRange` field. The earliest and latest day,
+the longest period and the presets are the application's attributes
+(`DateRangePicker.min`, `DateRangePicker.maxRangeDays`, `DateRangePicker.today`);
+a period the picker refuses is a problem of the form until it is fixed.
+-}
+dateRangePicker : View msg -> Field (Maybe ( Date, Date )) -> List DateRangePicker.Attribute -> Html msg
+dateRangePicker =
+    Core.dateRangePicker
+
+
+{-| An amount field for a `money` field, in the currency of the declaration.
+The limits of `Spec.minMoney` and `Spec.maxMoney` (and with them whether a
+negative amount is allowed) are given to the field for you, so the field and
+the form say the same.
+
+    Form.moneyInput v fields.creditLimit [ MoneyInput.alignRight ]
+
+-}
+moneyInput : View msg -> Field (Maybe Money) -> List (MoneyInput.Attribute msg) -> Html msg
+moneyInput =
+    Core.moneyInput
+
+
+{-| A masked field for a `masked` field: the identifier is written in its groups
+as it is typed (`974 760 673`), and its check digit is checked. The field says
+what is wrong ("Too short: 7 of 9 digits") once the user leaves it.
+
+    Form.maskedInput v fields.organisationNumber []
+
+-}
+maskedInput : View msg -> Field (Maybe String) -> List (MaskedInput.Attribute msg) -> Html msg
+maskedInput =
+    Core.maskedInput
 
 
 {-| The button that adds a row to a group, with the group's problem under it
