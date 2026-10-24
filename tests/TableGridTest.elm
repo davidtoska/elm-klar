@@ -33,6 +33,97 @@ suite =
         , currentRowTests
         , moneyTests
         , searchEscapeTests
+        , filterValueTests
+        ]
+
+
+
+-- STABLE VALUES IN SELECT FILTERS
+
+
+filterValueTests : Test
+filterValueTests =
+    let
+        status =
+            Table.columnId "status"
+
+        coded =
+            [ Table.columns
+                [ Table.text (Table.columnId "number") "Order" .number []
+                , Table.text status "Status" .status [ Table.filterSelect, Table.filterValue (.status >> String.toLower) ]
+                ]
+            ]
+
+        withLabels =
+            [ Table.columns
+                [ Table.text (Table.columnId "number") "Order" .number []
+                , Table.text status
+                    "Status"
+                    .status
+                    [ Table.filterValue (.status >> String.toLower)
+                    , Table.filterOptions [ { value = "open", label = "Åpen" }, { value = "shipped", label = "Sendt" } ]
+                    ]
+                ]
+            ]
+
+        opened attributes =
+            Orders.press attributes [ Selector.id "orders-trigger-filter-status" ] Event.click start
+
+        option attributes index state =
+            render attributes state
+                |> Query.fromHtml
+                |> Query.find [ Selector.id ("orders-filter-status-option-" ++ String.fromInt index) ]
+    in
+    describe "Table.filterValue and filterOptions"
+        [ test "the popover shows the text of the rows" <|
+            \_ ->
+                opened coded
+                    |> Result.map (\s -> render coded s |> Query.fromHtml |> Query.find [ Selector.id "orders-popup-filter-status" ])
+                    |> Result.map (Query.has [ Selector.text "Shipped", Selector.text "Open", Selector.text "Cancelled" ])
+                    |> Result.withDefault (Expect.fail "no popover")
+        , test "and the filter keeps the code" <|
+            \_ ->
+                opened coded
+                    |> Result.andThen
+                        (\s ->
+                            option coded 2 s
+                                |> Event.simulate (Event.check True)
+                                |> Event.toResult
+                                |> Result.map (\msg -> Orders.applyMsg msg s)
+                        )
+                    |> Result.map Table.filters
+                    |> Expect.equal (Ok [ ( status, OneOf [ "shipped" ] ) ])
+        , test "a filter of codes keeps the rows with that code" <|
+            \_ ->
+                render coded (Table.setFilter status (Just (OneOf [ "cancelled" ])) start)
+                    |> expectRows [ "ORD-2005" ]
+        , test "a filter of labels no longer matches a coded column" <|
+            \_ ->
+                render coded (Table.setFilter status (Just (OneOf [ "Cancelled" ])) start)
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text "No matches" ]
+        , test "filterOptions shows its labels" <|
+            \_ ->
+                opened withLabels
+                    |> Result.map (\s -> render withLabels s |> Query.fromHtml |> Query.find [ Selector.id "orders-popup-filter-status" ] |> Query.has [ Selector.text "Åpen", Selector.text "Sendt" ])
+                    |> Result.withDefault (Expect.fail "no popover")
+        , test "and keeps its values" <|
+            \_ ->
+                opened withLabels
+                    |> Result.andThen
+                        (\s ->
+                            option withLabels 1 s
+                                |> Event.simulate (Event.check True)
+                                |> Event.toResult
+                                |> Result.map (\msg -> Orders.applyMsg msg s)
+                        )
+                    |> Result.map Table.filters
+                    |> Expect.equal (Ok [ ( status, OneOf [ "shipped" ] ) ])
+        , test "the chip of an active filter shows the label" <|
+            \_ ->
+                Orders.press withLabels [ Selector.id "orders-trigger-filters" ] Event.click (Table.setFilter status (Just (OneOf [ "shipped" ])) start)
+                    |> Result.map (\s -> render withLabels s |> Query.fromHtml |> Query.find [ Selector.class "klar-table__chips" ] |> Query.has [ Selector.text "Status: Sendt" ])
+                    |> Result.withDefault (Expect.fail "no summary")
         ]
 
 

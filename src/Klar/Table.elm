@@ -16,7 +16,7 @@ module Klar.Table exposing
     , ColumnAttribute, width, minWidth, alignRight, alignCenter, pinned, hiddenByDefault, alwaysVisible, wrap, noTooltip, cell, hint
     , sortText, sortNumber, sortMaybeNumber, sortDate, sortWith, unsortable
     , notSearchable, includeInSearch, exportAs, notExported
-    , filterText, filterSelect, filterOptions, filterRange
+    , filterText, filterSelect, filterOptions, filterValue, filterRange
     , footer, footerSum, footerAverage
     )
 
@@ -468,7 +468,7 @@ rows" at the top).
 
 # Column filters
 
-@docs filterText, filterSelect, filterOptions, filterRange
+@docs filterText, filterSelect, filterOptions, filterValue, filterRange
 
 
 # Column footers
@@ -537,8 +537,9 @@ type Direction
 
   - `Contains text` - the column text contains `text` as one piece, ignoring case
     and accents (the search box, in contrast, looks for each word separately)
-  - `OneOf values` - the column text is exactly one of `values`, case included
-    (see `bool` for yes / no columns)
+  - `OneOf values` - the value the column keeps for the row is exactly one of
+    `values`, case included: its `filterValue` (a stable code) when it has one,
+    otherwise its text (`"true"` or `"false"` for a `bool` column)
   - `Between from to` - the column number is within the bounds (inclusive); a
     `Nothing` bound is open. A row without a number does not match, and on a
     column that has no numbers at all every row matches.
@@ -1883,6 +1884,66 @@ localChoice loc col value =
         value
 
 
+{-| The value a select filter keeps for a row: its `filterValue`, or the text of
+the column (`"true"` or `"false"` for a yes / no column).
+-}
+choiceOf : Locale -> ColumnConfig row msg -> row -> String
+choiceOf loc col row =
+    case col.filterValue of
+        Just toValue ->
+            toValue row
+
+        Nothing ->
+            canonicalChoice col (col.value loc row)
+
+
+{-| How a select filter shows the values it keeps: the label of `filterOptions`,
+"Yes" and "No" for a yes / no column, and for a column with a `filterValue` the
+text of a row with that value. A value that nothing names is shown as it is.
+-}
+choiceLabels : Locale -> ColumnConfig row msg -> List row -> String -> String
+choiceLabels loc col someRows =
+    let
+        given =
+            Maybe.withDefault [] col.filterOptions
+                |> List.map (\option -> ( option.value, option.label ))
+                |> Dict.fromList
+
+        found =
+            case col.filterValue of
+                Just toValue ->
+                    List.foldl
+                        (\row dict ->
+                            let
+                                value =
+                                    toValue row
+                            in
+                            if Dict.member value dict then
+                                dict
+
+                            else
+                                Dict.insert value (col.value loc row) dict
+                        )
+                        Dict.empty
+                        someRows
+
+                Nothing ->
+                    Dict.empty
+    in
+    \value ->
+        case Dict.get value given of
+            Just label_ ->
+                label_
+
+            Nothing ->
+                case Dict.get value found of
+                    Just label_ ->
+                        label_
+
+                    Nothing ->
+                        localChoice loc col value
+
+
 {-| Does a row pass a column filter?
 -}
 filterTest : Locale -> ColumnConfig row msg -> Filter -> (row -> Bool)
@@ -1900,7 +1961,7 @@ filterTest loc col f =
                 allowed =
                     Set.fromList (List.map (canonicalChoice col) values)
             in
-            \row -> Set.member (canonicalChoice col (col.value loc row)) allowed
+            \row -> Set.member (choiceOf loc col row) allowed
 
         Between low high ->
             case col.number of
@@ -2040,7 +2101,8 @@ type alias ColumnConfig row msg =
     , searchable : Bool
     , exported : Bool
     , filter : Maybe FilterKind
-    , filterOptions : Maybe (List String)
+    , filterOptions : Maybe (List { value : String, label : String })
+    , filterValue : Maybe (row -> String)
     , footer : Maybe (Footer row)
     , hint : Maybe String
     , controls : Bool
@@ -2100,6 +2162,7 @@ baseColumn colId title value =
     , exported = True
     , filter = Nothing
     , filterOptions = Nothing
+    , filterValue = Nothing
     , footer = Nothing
     , hint = Nothing
     , controls = False
@@ -2678,17 +2741,41 @@ filterSelect =
 
 
 {-| The values offered by `filterSelect`, in this order, instead of the ones found
-in the rows (client mode still counts the rows of each). They must equal the
-column's text for the rows they should match, and a chosen value that is not in
-the list stays in it. It also turns the select filter on, so `filterSelect` is
-not needed next to it.
+in the rows (client mode still counts the rows of each), each with the label the
+user sees. The `value` is what the filter keeps and what a `Query` carries: the
+column's `filterValue` of the rows it should match, or the column's text when the
+column has none. A chosen value that is not in the list stays in it. It also
+turns the select filter on, so `filterSelect` is not needed next to it. In server
+mode, give the options: the table only sees one page.
 
-    Table.text (Table.columnId "status") "Status" .statusLabel [ Table.filterOptions [ "Open", "Shipped", "Cancelled" ] ]
+    Table.badge (Table.columnId "status")
+        "Status"
+        statusBadge
+        [ Table.filterValue (.status >> statusCode)
+        , Table.filterOptions (List.map (\s -> { value = statusCode s, label = statusLabel s }) allStatuses)
+        ]
 
 -}
-filterOptions : List String -> ColumnAttribute row msg
-filterOptions values =
-    ColumnAttribute (\config -> { config | filter = Just SelectFilter, filterOptions = Just values })
+filterOptions : List { value : String, label : String } -> ColumnAttribute row msg
+filterOptions options =
+    ColumnAttribute (\config -> { config | filter = Just SelectFilter, filterOptions = Just options })
+
+
+{-| The stable value that a select filter keeps for a row, instead of the text the
+column shows: a code such as `"shipped"` for a row shown as "Shipped" in English
+and "Sendt" in Norwegian. The filter, a saved view and the `Query` you send to a
+backend then hold codes, which stay right when the language or a label changes and
+tell two values with the same label apart. The filter popover still shows the
+labels (the column's text, or the labels of `filterOptions`). Without it a select
+filter keeps the column's text, and a yes / no column keeps `"true"` and
+`"false"`.
+
+    Table.filterValue (.status >> statusCode)
+
+-}
+filterValue : (row -> String) -> ColumnAttribute row msg
+filterValue toValue =
+    ColumnAttribute (\config -> { config | filterValue = Just toValue })
 
 
 {-| Adds a from / to number filter to the column; either bound can be left
@@ -4550,8 +4637,16 @@ describeDraft ctx col draft =
 
         ChoiceDraft values ->
             let
+                labelOf =
+                    case col.filterValue of
+                        Just _ ->
+                            choiceLabels ctx.loc col (loadedRows ctx)
+
+                        Nothing ->
+                            choiceLabels ctx.loc col []
+
                 list =
-                    values |> Set.toList |> List.map (localChoice ctx.loc col)
+                    values |> Set.toList |> List.map (canonicalChoice col >> labelOf)
 
                 shown =
                     List.take 3 list
@@ -4982,13 +5077,18 @@ viewBulkBar ctx =
                 [ note (t.allOnPage (List.length ctx.pageKeys))
                 , Button.view
                     [ Button.link
-                    , Button.onClick
-                        (if clientMode then
-                            ctx.toMsg (MatchingSelected (selectableKeys ctx))
+                    , if clientMode then
+                        -- the keys of every matching row are found when the button is
+                        -- clicked, not on every render while it is shown
+                        Button.htmlAttrs
+                            [ Events.on "click"
+                                (Decode.succeed ()
+                                    |> Decode.map (\_ -> ctx.toMsg (MatchingSelected (selectableKeys ctx)))
+                                )
+                            ]
 
-                         else
-                            ctx.toMsg AllMatchingPicked
-                        )
+                      else
+                        Button.onClick (ctx.toMsg AllMatchingPicked)
                     ]
                     (t.selectAllMatching selectableTotal)
                 ]
@@ -5126,7 +5226,9 @@ viewPopup ctx popup options content =
         -- middle of the click, which resets checkboxes before their change
         -- event fires.
         , Events.on "click" (outsideClick popupId (ctx.toMsg PopupClosed))
-        , Internal.onKeysPassive [ ( "Escape", ctx.toMsg PopupClosed ) ]
+
+        -- Escape closes the popup and is used up, so that a dialog around the table stays open
+        , Internal.onKeys [ ( "Escape", ctx.toMsg PopupClosed ) ]
         ]
         [ Html.div
             [ Internal.cls
@@ -6099,38 +6201,43 @@ viewFilterContent ctx col =
             []
 
 
-{-| The values a select filter offers: the column's `filterOptions`, or the
-distinct values in the rows (client mode), plus anything already chosen.
+{-| The rows of the table as they came (all rows in client mode, the page in
+server mode), or none while they load.
 -}
-filterValues : Ctx row msg -> ColumnConfig row msg -> List String
-filterValues ctx col =
+loadedRows : Ctx row msg -> List row
+loadedRows ctx =
+    case ctx.config.rows of
+        Remote.Loaded rowSource ->
+            sourceList rowSource
+
+        _ ->
+            []
+
+
+{-| The values a select filter offers (what it keeps, see `choiceOf`): the
+column's `filterOptions`, or the distinct values in the rows, in the order of
+their labels, plus anything already chosen.
+-}
+filterValues : Ctx row msg -> ColumnConfig row msg -> (String -> String) -> List String
+filterValues ctx col labelOf =
     let
         chosen =
-            choicesOf col.id ctx.model.inputs
+            choicesOf col.id ctx.model.inputs |> Set.map (canonicalChoice col)
 
         base =
             case col.filterOptions of
                 Just options ->
-                    options
+                    List.map .value options
 
                 Nothing ->
-                    let
-                        source =
-                            case ctx.config.rows of
-                                Remote.Loaded rowSource ->
-                                    sourceList rowSource
-
-                                _ ->
-                                    []
-                    in
-                    source
-                        |> List.map (col.value ctx.loc)
-                        |> List.filter (\value -> not (String.isEmpty (String.trim value)))
+                    loadedRows ctx
+                        |> List.filter (\row -> not (String.isEmpty (String.trim (col.value ctx.loc row))))
+                        |> List.map (choiceOf ctx.loc col)
                         |> Set.fromList
                         |> Set.toList
-                        |> List.sortBy (Sorting.collationKey ctx.loc)
+                        |> List.sortBy (labelOf >> Sorting.collationKey ctx.loc)
     in
-    base ++ List.filter (\value -> not (List.member value base)) (List.map (localChoice ctx.loc col) (Set.toList chosen))
+    base ++ List.filter (\value -> not (List.member value base)) (Set.toList chosen)
 
 
 viewChoiceFilter : Ctx row msg -> ColumnConfig row msg -> List (Html msg)
@@ -6139,22 +6246,25 @@ viewChoiceFilter ctx col =
         t =
             ctx.t
 
+        labelOf =
+            choiceLabels ctx.loc col (loadedRows ctx)
+
         values =
-            filterValues ctx col
+            filterValues ctx col labelOf
 
         chosen =
             choicesOf col.id ctx.model.inputs
                 |> Set.map (canonicalChoice col)
 
         isChosen value =
-            Set.member (canonicalChoice col value) chosen
+            Set.member value chosen
 
         showSearch =
             List.length values > 8
 
         shown =
             if showSearch && String.trim ctx.model.optionQuery /= "" then
-                List.filter (Search.matches ctx.model.optionQuery) values
+                List.filter (labelOf >> Search.matches ctx.model.optionQuery) values
 
             else
                 values
@@ -6167,7 +6277,7 @@ viewChoiceFilter ctx col =
                         |> keepMatching ctx.config ctx.model ctx.allColumns ctx.visible (Just col.id)
                         |> List.foldl
                             (\row dict ->
-                                Dict.update (col.value ctx.loc row) (\c -> Just (Maybe.withDefault 0 c + 1)) dict
+                                Dict.update (choiceOf ctx.loc col row) (\c -> Just (Maybe.withDefault 0 c + 1)) dict
                             )
                             Dict.empty
                         |> Just
@@ -6194,7 +6304,7 @@ viewChoiceFilter ctx col =
             [ Button.view
                 [ Button.link
                 , Button.disabled (List.all isChosen shown)
-                , Button.onClick (ctx.toMsg (FilterChoicesSet col.id (Set.toList chosen ++ List.map (canonicalChoice col) shown)))
+                , Button.onClick (ctx.toMsg (FilterChoicesSet col.id (Set.toList chosen ++ shown)))
                 ]
                 t.selectAll
             , Button.view
@@ -6214,9 +6324,9 @@ viewChoiceFilter ctx col =
                         Html.div [ Internal.cls [ "klar-table__option" ] ]
                             [ Checkbox.view
                                 [ Checkbox.id (filterInputId ctx.model.id col.id ("option-" ++ String.fromInt index))
-                                , Checkbox.label value
+                                , Checkbox.label (labelOf value)
                                 , Checkbox.checked (isChosen value)
-                                , Checkbox.onCheck (\checked -> ctx.toMsg (FilterChoiceToggled col.id (canonicalChoice col value) checked))
+                                , Checkbox.onCheck (\checked -> ctx.toMsg (FilterChoiceToggled col.id value checked))
                                 ]
                             , Internal.viewMaybe
                                 (\dict ->

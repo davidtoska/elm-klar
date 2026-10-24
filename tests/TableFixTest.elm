@@ -862,7 +862,7 @@ choiceListTests =
                 |> Result.map (page attributes)
 
         filterOptionsOf values =
-            Table.columns [ Table.text (Table.columnId "city") "City" .city [ Table.filterOptions values ] ]
+            Table.columns [ Table.text (Table.columnId "city") "City" .city [ Table.filterOptions (List.map (\v -> { value = v, label = v }) values) ] ]
     in
     describe "the values of filterSelect"
         [ test "client mode: the distinct values of all rows in alphabetical order, with the rows each would add" <|

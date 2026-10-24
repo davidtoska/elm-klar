@@ -237,6 +237,33 @@ takeEffects =
 {-| What the table asked for, as the server wants it. The status filter holds
 status labels.
 -}
+
+
+{-| The code of a status that the status filter of the table keeps: it stays the
+same whatever the label says.
+-}
+statusCode : OrderStatus -> String
+statusCode status =
+    case status of
+        Draft ->
+            "draft"
+
+        Confirmed ->
+            "confirmed"
+
+        Picking ->
+            "picking"
+
+        Shipped ->
+            "shipped"
+
+        Delivered ->
+            "delivered"
+
+        Cancelled ->
+            "cancelled"
+
+
 toOrderQuery : Table.Query -> OrderQuery
 toOrderQuery query =
     { search = query.search
@@ -246,8 +273,8 @@ toOrderQuery query =
             |> List.concatMap
                 (\( _, filter ) ->
                     case filter of
-                        Table.OneOf labels ->
-                            List.filter (\status -> List.member (Types.orderStatusLabel status) labels) Types.allOrderStatuses
+                        Table.OneOf codes ->
+                            List.filter (\status -> List.member (statusCode status) codes) Types.allOrderStatuses
 
                         _ ->
                             []
@@ -1306,9 +1333,11 @@ columns context lookups =
         (\order -> ( Labels.statusTone order.status, Types.orderStatusLabel order.status ))
         [ Table.width 120
 
-        -- The table only sees one page, so it cannot know the values in the
-        -- column: it is told them.
-        , Table.filterOptions (List.map Types.orderStatusLabel Types.allOrderStatuses)
+        -- The filter keeps a code per status, so the query carries codes and
+        -- not labels. The table only sees one page, so it cannot know the
+        -- values in the column: it is told them, with their labels.
+        , Table.filterValue (.status >> statusCode)
+        , Table.filterOptions (List.map (\status -> { value = statusCode status, label = Types.orderStatusLabel status }) Types.allOrderStatuses)
         ]
     , Table.status (Table.columnId "priority")
         "Priority"

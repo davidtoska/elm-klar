@@ -978,7 +978,7 @@ filterPopupTests =
                 \_ ->
                     let
                         withOptions =
-                            [ Table.columns [ Table.text (Table.columnId "status") "Status" .status [ Table.filterOptions [ "Open", "Shipped", "Cancelled", "Returned" ] ] ] ]
+                            [ Table.columns [ Table.text (Table.columnId "status") "Status" .status [ Table.filterOptions (List.map (\v -> { value = v, label = v }) [ "Open", "Shipped", "Cancelled", "Returned" ]) ] ] ]
                     in
                     press withOptions (byId "orders-trigger-filter-status") Event.click start
                         |> expectOk

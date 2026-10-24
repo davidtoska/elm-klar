@@ -1205,14 +1205,21 @@ priorityEntry o =
     ( Labels.priorityTone o.priority, priorityLabel o.priority )
 
 
-statusLabels : List String
+statusLabels : List { value : String, label : String }
 statusLabels =
-    List.map orderStatusLabel allOrderStatuses
+    List.map (orderStatusLabel >> sameValue) allOrderStatuses
 
 
-priorityLabels : List String
+priorityLabels : List { value : String, label : String }
 priorityLabels =
-    List.map priorityLabel allPriorities
+    List.map (priorityLabel >> sameValue) allPriorities
+
+
+{-| A filter option that keeps the text it shows.
+-}
+sameValue : String -> { value : String, label : String }
+sameValue text =
+    { value = text, label = text }
 
 
 {-| How far an order has come on its way from draft to delivered (0 to 4).
@@ -1345,9 +1352,9 @@ serverColumns : List (Table.Column Order Msg)
 serverColumns =
     [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.width 112, Table.filterText ]
     , Table.text columnIds.customer "Customer" .customer [ Table.minWidth 190, Table.filterText ]
-    , Table.text columnIds.city "City" .city [ Table.width 132, Table.filterOptions (List.sort Sample.cities) ]
+    , Table.text columnIds.city "City" .city [ Table.width 132, Table.filterOptions (List.map sameValue (List.sort Sample.cities)) ]
     , Table.badge columnIds.status "Status" statusEntry [ Table.width 120, Table.filterOptions statusLabels ]
-    , Table.text columnIds.owner "Owner" ownerName [ Table.minWidth 150, Table.filterOptions Sample.owners ]
+    , Table.text columnIds.owner "Owner" ownerName [ Table.minWidth 150, Table.filterOptions (List.map sameValue Sample.owners) ]
     , Table.date columnIds.due "Due" .due [ Table.width 124 ]
     , Table.float columnIds.total "Total" 2 .total [ Table.width 124, Table.filterRange ]
     ]
