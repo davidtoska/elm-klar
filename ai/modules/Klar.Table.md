@@ -1332,7 +1332,7 @@ attributes are those of
 [Klar.EmptyState](Klar.EmptyState.md), applied after the built-in ones, so yours
 win.
 
-    Table.emptyState [ EmptyState.title "No orders yet", EmptyState.action addButton ]
+    Table.emptyState [ EmptyState.title "No orders yet", EmptyState.actions [ addButton ] ]
 
 ## Toolbar and export
 

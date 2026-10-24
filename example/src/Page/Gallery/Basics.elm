@@ -853,7 +853,7 @@ viewStates locale model =
             (viewProductSearch locale model)
         , Doc.example
             { title = "Compact empty state"
-            , description = Just "Less space and a smaller icon, for tables and small panels."
+            , description = Just "Less space and a smaller icon, for tables and small panels. Two actions: the first is the main one. Without a title the state says “Nothing to show”."
             , code = Just compactEmptyCode
             }
             (Card.view []
@@ -862,19 +862,28 @@ viewStates locale model =
                     , EmptyState.icon Icon.inbox
                     , EmptyState.title "No orders yet"
                     , EmptyState.description "Orders you create appear here."
-                    , EmptyState.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders" ]
+                    , EmptyState.actions
+                        [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders"
+                        , Button.view [ Button.href "#/orders" ] "Import orders"
+                        ]
                     ]
                 ]
             )
         , Doc.example
             { title = "Error states"
-            , description = Just ("Every Remote.Kind has its own icon and default text. Try again is shown only when it can help." ++ retryNote model.retried)
+            , description = Just ("Every Remote.Kind has its own icon and default text. Try again is shown only when it can help; ErrorState.actions gives the other kinds a way forward (Sign in, Back to orders). One click selects the whole code. Nine states on one page are polite (ErrorState.polite), so they do not interrupt a screen reader nine times." ++ retryNote model.retried)
             , code = Just errorCode
             }
             (Layout.grid [ Layout.minColumn 280, Layout.gap 4 ]
                 (List.map
                     (\kind ->
-                        ErrorState.view [ ErrorState.compact, ErrorState.onRetry (KindRetried kind), ErrorState.locale locale ]
+                        ErrorState.view
+                            [ ErrorState.compact
+                            , ErrorState.polite
+                            , ErrorState.onRetry (KindRetried kind)
+                            , ErrorState.actions (wayForward kind)
+                            , ErrorState.locale locale
+                            ]
                             (Remote.problem kind |> Remote.withCode (kindCode kind))
                     )
                     allKinds
@@ -973,6 +982,20 @@ viewProductRow product =
         , Layout.spacer
         , Text.muted (String.join " / " product.category)
         ]
+
+
+{-| A way forward for the kinds that a retry cannot help.
+-}
+wayForward : Remote.Kind -> List (Html Msg)
+wayForward kind =
+    if kind == Remote.unauthorized then
+        [ Button.view [ Button.small, Button.href "#/" ] "Sign in" ]
+
+    else if kind == Remote.notFound || kind == Remote.forbidden then
+        [ Button.view [ Button.small, Button.href "#/orders" ] "Back to orders" ]
+
+    else
+        []
 
 
 allKinds : List Remote.Kind
@@ -1428,21 +1451,19 @@ remoteCode : String
 remoteCode =
     """-- model:   orders : Remote (List Order)
 
-case model.orders of
-    Remote.NotAsked ->
-        Text.muted "Nothing requested yet"
+-- RemoteView draws loading, the failure with Try again, and old (Kept) data
+-- while it refreshes: no case of your own, so Kept data never hides
+Card.view [ Card.flush ]
+    (RemoteView.view [ RemoteView.onRetry Retry, RemoteView.loadingLabel "Loading orders" ]
+        model.orders
+        (\orders ->
+            if List.isEmpty orders then
+                [ EmptyState.view [ EmptyState.title "No orders to show" ] ]
 
-    Remote.Loading ->
-        Spinner.panel [] "Loading orders ..."
-
-    Remote.Failed problem ->
-        ErrorState.view [ ErrorState.onRetry Retry ] problem
-
-    Remote.Loaded [] ->
-        EmptyState.view [ EmptyState.title "No orders to show" ]
-
-    Remote.Loaded orders ->
-        viewOrders orders
+            else
+                [ viewOrders orders ]
+        )
+    )
 
 -- update: a ticket makes the answer to an old request count for nothing
 Retry ->
@@ -1476,8 +1497,14 @@ compactEmptyCode =
     [ EmptyState.compact
     , EmptyState.title "No orders yet"
     , EmptyState.description "Orders you create appear here."
-    , EmptyState.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders" ]
+    , EmptyState.actions
+        [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders"
+        , Button.view [ Button.href "#/import" ] "Import orders"
+        ]
     ]
+
+-- the main content of a section: the title is a heading
+EmptyState.view [ EmptyState.title "No orders yet", EmptyState.headingLevel 2 ]
 """
 
 
@@ -1489,6 +1516,11 @@ errorCode =
 ErrorState.view
     [ ErrorState.compact, ErrorState.onRetry Reload ]
     (Remote.problem Remote.server |> Remote.withCode "HTTP 503")
+
+-- a retry cannot help: give a way forward
+ErrorState.view
+    [ ErrorState.actions [ Button.view [ Button.href "#/orders" ] "Back to orders" ] ]
+    (Remote.problem Remote.notFound)
 """
 
 

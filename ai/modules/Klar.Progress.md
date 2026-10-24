@@ -62,7 +62,14 @@ The value is a percentage from 0 to 100. Use `outOf` when you count steps, as in
 progress element is a `role="progressbar"` with `aria-valuenow` (omitted while
 indeterminate) and a text alternative: the `ariaLabel`, else the `label`, else
 the built-in text "Progress". The unfilled track is a light step of the bar's own
-color, so the state reads across the whole length of the bar.
+color, so the state reads across the whole length of the bar, and it keeps an
+outline in Windows high contrast.
+
+The shown value is rounded down, as a download is: 99.6 shows "99%", and only
+a task that is done shows "100%" (the same holds for `aria-valuenow` and for the
+filled steps of `segments`). Under reduced motion an indeterminate bar runs at
+3.2s a round and a ring turns at 1.6s, the speed of every turning indicator of
+Klar; stripes stand still.
 
 Attributes are applied in order, and the last one wins: `value` replaces an
 earlier `outOf` (with its "3 of 5" text), `outOf` replaces an earlier `value`,
@@ -125,9 +132,11 @@ outOf : Int -> Int -> Attribute
 ```
 
 Sets the value from a count of steps: `outOf 3 5` is 60%. With `showValue`
-the text reads "3 of 5" instead of a percentage. A total of 0 or less gives 0%.
-Also turns `indeterminate` off. It replaces an earlier `value`, and a later
-`value` replaces it.
+the text reads "3 of 5" instead of a percentage. A total of 0 or less gives 0%,
+and more done than the total fills the bar while the text still says what you
+gave it ("7 of 5"), so a wrong count is not hidden. Also turns `indeterminate`
+off. It replaces an earlier `value`, and a later `value` replaces it. For a bar
+of steps, give `segments` the same total.
 
 ### `indeterminate`
 
@@ -228,8 +237,9 @@ segments : Int -> Attribute
 ```
 
 Divides the bar into this many equal steps (at least 2, at most 40) instead
-of one continuous bar. The number of filled steps is the value rounded to a
-whole step. An `indeterminate` bar fills no step and shows a wave of highlights
-over the steps. Bars only.
+of one continuous bar. The number of filled steps is the value rounded down to a
+whole step, so the last step fills only when the task is done. An
+`indeterminate` bar fills no step and shows a wave of highlights over the steps.
+Bars only.
 
     Progress.view [ Progress.outOf 2 4, Progress.segments 4 ]
