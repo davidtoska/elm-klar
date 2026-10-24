@@ -742,7 +742,7 @@ dividers : Html Msg
 dividers =
     Doc.example
         { title = "Dividers and narrow columns"
-        , description = Just "divider is a thin line across the width and dividerLabelled puts a word in it. A container is the centered page column of an application; with alignStart and maxWidth it is a narrow column at the left edge instead."
+        , description = Just "divider is a thin line across the width and dividerLabelled puts a word in it; dividerVertical separates groups in a row, such as the groups of a toolbar. A container is the centered page column of an application; with alignStart and maxWidth it is a narrow column at the left edge instead."
         , code = Just """Layout.grid [ Layout.minColumn 320, Layout.gap 6 ]
     [ Layout.stack [ Layout.gap 3 ]
         [ Text.subheading "Shipping"
@@ -750,6 +750,8 @@ dividers =
         , Layout.divider
         , Text.subheading "Returns"
         , Text.paragraph "Unused items can be returned within 30 days."
+        , Layout.row [ Layout.gap 2 ]
+            [ Button.view [ Button.small ] "Print", Button.view [ Button.small ] "Export", Layout.dividerVertical, Button.view [ Button.small ] "Archive" ]
         ]
     , Layout.container [ Layout.maxWidth 360, Layout.alignStart ]
         [ Layout.stack [ Layout.gap 3 ]
@@ -767,6 +769,8 @@ dividers =
                 , Layout.divider
                 , Text.subheading "Returns"
                 , Text.paragraph "Unused items can be returned within 30 days."
+                , Layout.row [ Layout.gap 2 ]
+                    [ Button.view [ Button.small ] "Print", Button.view [ Button.small ] "Export", Layout.dividerVertical, Button.view [ Button.small ] "Archive" ]
                 ]
             , Layout.container [ Layout.maxWidth 360, Layout.alignStart ]
                 [ Layout.stack [ Layout.gap 3 ]
@@ -948,18 +952,19 @@ cardList : Html Msg
 cardList =
     Doc.example
         { title = "Edge to edge and scrolling"
-        , description = Just "flush removes the padding of the body, so lines between rows reach the edges of the card. Layout.maxHeight limits the height of the stack and scrolls the rest."
-        , code = Just """Card.view [ Card.title "Latest orders", Card.subtitle "Scrolls inside the card", Card.flush ]
-    [ Layout.stack [ Layout.gap 0, Layout.maxHeight 240 ]
+        , description = Just "flush removes the padding of the body, so lines between rows reach the edges of the card. Layout.maxHeight limits the height of the stack and scrolls the rest; the scroll area takes the focus, so it gets a name with ariaLabel. A card with an id is a region named by its title."
+        , code = Just """Card.view [ Card.id "latest-orders", Card.title "Latest orders", Card.subtitle "Scrolls inside the card", Card.flush ]
+    [ Layout.stack [ Layout.gap 0, Layout.maxHeight 240, Layout.ariaLabel "Latest orders" ]
         (List.intersperse Layout.divider (List.map viewOrder orders))
     ]"""
         }
         (card
-            [ Card.title "Latest orders"
+            [ Card.id "foundations-latest-orders"
+            , Card.title "Latest orders"
             , Card.subtitle "Scrolls inside the card"
             , Card.flush
             ]
-            [ Layout.stack [ Layout.gap 0, Layout.maxHeight 240 ]
+            [ Layout.stack [ Layout.gap 0, Layout.maxHeight 240, Layout.ariaLabel "Latest orders" ]
                 (List.intersperse Layout.divider
                     (List.map orderRow (List.take 20 Sample.orders))
                 )
