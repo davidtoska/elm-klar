@@ -51,11 +51,12 @@ Use when: the whole page is one result, such as not found, no access, a server e
 Do not use when: the result sits inside a table, card or panel, use `Klar.EmptyState` or `Klar.ErrorState`.
 
     import Klar.Button as Button
+    import Klar.Link as Link
     import Klar.StatusPage as StatusPage
 
     -- the router found nothing for the address
     StatusPage.view
-        [ StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ]
+        [ StatusPage.actions [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Go to orders" ] ]
         StatusPage.notFound
 
     -- the data of the page failed to load: the page follows the kind of the problem
@@ -74,7 +75,7 @@ Do not use when: the result sits inside a table, card or panel, use `Klar.EmptyS
     StatusPage.view
         [ StatusPage.title "Order 1042 created"
         , StatusPage.description "A confirmation was sent to ada@example.com."
-        , StatusPage.actions [ Button.view [ Button.href "#/orders/1042" ] "Open the order" ]
+        , StatusPage.actions [ Button.view [ Button.href (Link.internal "#/orders/1042") ] "Open the order" ]
         ]
         StatusPage.success
 
@@ -281,8 +282,8 @@ them, the most important first. There are none by default. A page nearly always
 needs one, so that the user is never left in a dead end.
 
     StatusPage.actions
-        [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders"
-        , Button.view [ Button.href "#/" ] "Home"
+        [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Go to orders"
+        , Button.view [ Button.href (Link.internal "#/") ] "Home"
         ]
 
 ### `reference`

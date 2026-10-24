@@ -12,7 +12,7 @@ Types: `Msg`, `State`, `Attribute`
 -- View
 view :
     (Msg -> msg)
-    -> List Attribute
+    -> List (Attribute msg)
     -> { label : String, onClick : msg, items : List (Menu.Item msg) }
     -> State
     -> Html msg
@@ -25,21 +25,23 @@ update : Msg -> State -> ( State, Cmd Msg )
 isOpen : State -> Bool
 open : State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
+mainId : State -> String
+triggerId : State -> String
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-primary : Attribute
-secondary : Attribute
-ghost : Attribute
-danger : Attribute
-small : Attribute
-large : Attribute
-size : Theme.Size -> Attribute
-icon : Icon.Icon -> Attribute
-loading : Bool -> Attribute
-disabled : Bool -> Attribute
-menuLabel : String -> Attribute
-locale : Locale.Locale -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+primary : Attribute msg
+secondary : Attribute msg
+ghost : Attribute msg
+danger : Attribute msg
+small : Attribute msg
+large : Attribute msg
+size : Theme.Size -> Attribute msg
+icon : Icon.Icon -> Attribute msg
+loading : Bool -> Attribute msg
+disabled : Bool -> Attribute msg
+menuLabel : String -> Attribute msg
+locale : Locale.Locale -> Attribute msg
 ```
 
 ## Documentation
@@ -90,25 +92,32 @@ the main button stays the same element when items arrive later (remote data), so
 it keeps the keyboard focus.
 
 **Keyboard.** The two parts are two buttons in the Tab order. Enter and Space on the
-main part send `onClick`; on the arrow they open the menu. `ArrowDown` on either
-part opens the menu, and so does `Alt+ArrowDown` (the key that opens a list in
-most programs). The focus moves into the menu: `ArrowDown` and `ArrowUp` move
-the highlight (a menu opens with nothing highlighted, so the first `ArrowDown`
-highlights the first item), Enter or Space picks it, `Home` and `End` jump to the
-first and last, `Escape` closes the menu and gives focus back to the arrow, and
-`Tab` leaves the menu. Screen readers get a button, and a second button named
-"More options for Save" that has a menu (`aria-haspopup`) and says whether it
-is open (`aria-expanded`).
+main part send `onClick`; on the arrow they open the menu with the first item
+highlighted. `ArrowDown` on either part opens the menu at the first item, and so
+does `Alt+ArrowDown` (the key that opens a list in most programs); `ArrowUp` on
+the arrow opens it at the last item. The focus moves into the menu: `ArrowDown`
+and `ArrowUp` move the highlight, a letter jumps to the next item that starts
+with it, Enter or Space picks it, `Home` and `End` jump to the first and last,
+`Escape` closes the menu and gives focus back to the arrow, and `Tab` leaves the
+menu. Screen readers get a button, and a second button named "More options for
+Save" that has a menu (`aria-haspopup`) and says whether it is open
+(`aria-expanded`); the arrow shows that name as its tooltip.
 
 While the button is `loading` the main part shows a spinner and does nothing, and
-the arrow cannot open the menu (it is `aria-disabled` and keeps the keyboard focus, like
-the main part, so a user who has just picked an item is not thrown out of the
-page); with `disabled` both parts are off and cannot be focused. A menu that is open
-when this happens stays open and working until it is closed (`close`, `Escape`, a
-click outside): the state is never faked. The look (`primary`, `secondary`, `ghost`, `danger`, the sizes) is the
-look of a [Klar.Button](Klar.Button.md), and the same for both parts. Each split
-button needs a `State` and an id of its own. The built-in text ("More options
-for") follows `locale`.
+the arrow cannot open the menu; with `disabled` both parts are dimmed and do
+nothing. In both cases the parts are `aria-disabled` and stay in the tab order, so
+a user who has just picked an item (or pressed the main part) keeps the keyboard
+focus. A menu that is open when this happens stays open and working until it is
+closed (`close`, `Escape`, a click outside): the state is never faked. If the
+items go away while the menu is open, the empty menu stays until it is closed,
+and focus then goes to the main part. The look (`primary`, `secondary`, `ghost`,
+`danger`, the sizes) is the look of a [Klar.Button](Klar.Button.md), and the same for
+both parts. Each split button needs a `State` and an id of its own. The built-in
+text ("More options for") follows `locale`.
+
+A dialog opened from the main part or from an item names its opener, so that
+focus goes back there when it closes: `mainId` for the main part, `triggerId`
+for the arrow.
 
 For two buttons that are separate actions, side by side, use a
 [Klar.ButtonGroup](Klar.ButtonGroup.md); for a menu with no main action
@@ -121,7 +130,7 @@ For two buttons that are separate actions, side by side, use a
 ```elm
 view :
     (Msg -> msg)
-    -> List Attribute
+    -> List (Attribute msg)
     -> { label : String, onClick : msg, items : List (Menu.Item msg) }
     -> State
     -> Html msg
@@ -160,7 +169,8 @@ init : String -> State
 ```
 
 A split button with a closed menu. The `String` is a DOM id that must be
-unique on the page; the ids of the arrow, the menu and its items start with it.
+unique on the page; the ids of the main part (`mainId`), the arrow (`triggerId`),
+the menu and its items start with it.
 
     SplitButton.init "order-save"
 
@@ -188,8 +198,8 @@ Is the menu open?
 open : State -> ( State, Cmd Msg )
 ```
 
-Opens the menu and moves keyboard focus into it, for example from a keyboard
-shortcut.
+Opens the menu with the first item highlighted and moves keyboard focus into
+it, for example from a keyboard shortcut.
 
 ### `close`
 
@@ -200,22 +210,41 @@ close : State -> ( State, Cmd Msg )
 Closes the menu and gives focus back to the arrow. The menu closes by itself
 when the user picks an item, clicks outside it or presses `Escape`.
 
+### `mainId`
+
+```elm
+mainId : State -> String
+```
+
+The DOM id of the main part. Give it to `Modal.open` (or `ConfirmDialog.open`)
+when the main action opens a dialog ("Save..."), so that focus goes back to it
+when the dialog closes.
+
+### `triggerId`
+
+```elm
+triggerId : State -> String
+```
+
+The DOM id of the arrow that opens the menu. Give it to `Modal.open` when an
+item of the menu opens a dialog.
+
 ## Attributes
 
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of a split button. Make them with the functions below and pass a
 list to `view`; later attributes win over earlier ones. What the button does is in
-the arguments of `view`, so the type has no `msg` parameter.
+the arguments of `view`.
 
 ### `primary`
 
 ```elm
-primary : Attribute
+primary : Attribute msg
 ```
 
 The one main action of a page or dialog: solid blue. Use it once per view.
@@ -223,7 +252,7 @@ The one main action of a page or dialog: solid blue. Use it once per view.
 ### `secondary`
 
 ```elm
-secondary : Attribute
+secondary : Attribute msg
 ```
 
 The default look: white with a thin gray border.
@@ -231,7 +260,7 @@ The default look: white with a thin gray border.
 ### `ghost`
 
 ```elm
-ghost : Attribute
+ghost : Attribute msg
 ```
 
 A quiet button with no border until the pointer is over it, for toolbars.
@@ -239,7 +268,7 @@ A quiet button with no border until the pointer is over it, for toolbars.
 ### `danger`
 
 ```elm
-danger : Attribute
+danger : Attribute msg
 ```
 
 A destructive action. On its own (or with `primary`) the button is solid red;
@@ -250,7 +279,7 @@ of a `secondary` button) turns red, exactly as with
 ### `small`
 
 ```elm
-small : Attribute
+small : Attribute msg
 ```
 
 A compact button, 26px high.
@@ -258,7 +287,7 @@ A compact button, 26px high.
 ### `large`
 
 ```elm
-large : Attribute
+large : Attribute msg
 ```
 
 A large button, 40px high.
@@ -266,7 +295,7 @@ A large button, 40px high.
 ### `size`
 
 ```elm
-size : Theme.Size -> Attribute
+size : Theme.Size -> Attribute msg
 ```
 
 Sets the size from a variable. The default is `Medium` (32px). `small` and
@@ -275,7 +304,7 @@ Sets the size from a variable. The default is `Medium` (32px). `small` and
 ### `icon`
 
 ```elm
-icon : Icon.Icon -> Attribute
+icon : Icon.Icon -> Attribute msg
 ```
 
 An icon before the text of the main part.
@@ -283,7 +312,7 @@ An icon before the text of the main part.
 ### `loading`
 
 ```elm
-loading : Bool -> Attribute
+loading : Bool -> Attribute msg
 ```
 
 While `True` the main part shows a spinner instead of its icon, announces
@@ -295,17 +324,19 @@ model, so the button cannot be clicked twice while a request is on its way.
 ### `disabled`
 
 ```elm
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 ```
 
-Disables both parts (the HTML `disabled` attribute). A disabled button cannot
-be focused. A menu that is open stays open until it is closed. The default is
+Turns both parts off: they are dimmed, send nothing and cannot open the menu,
+and screen readers hear that they are unavailable (`aria-disabled`). They stay in
+the tab order, so a split button that is disabled while the user is on it keeps
+the focus. A menu that is open stays open until it is closed. The default is
 `False`.
 
 ### `menuLabel`
 
 ```elm
-menuLabel : String -> Attribute
+menuLabel : String -> Attribute msg
 ```
 
 The accessible name of the arrow, which has no text. The default is "More
@@ -315,7 +346,7 @@ language of `locale`. Set it when the default does not fit, for example "Save op
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text, the accessible name of the arrow. The

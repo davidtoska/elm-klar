@@ -62,12 +62,12 @@ Enter", "G then O", "Command plus question mark". The symbols for Cmd and Option
 on a Mac are read by name.
 
 Use `view` next to a label ("Search Ctrl K"), in the text of a help page
-(`inline`), or in a [Klar.Tooltip](Klar.Tooltip.md). The hint of a
-[Klar.Menu](Klar.Menu.md) item and the shortcut of a tooltip are plain text:
-`toString` writes the same keys as a `String` for them.
+(`inline`), or in a [Klar.Tooltip](Klar.Tooltip.md). A [Klar.Menu](Klar.Menu.md) item
+takes the same `Keys` (`Menu.withShortcut`) and draws them with this module. The
+shortcut of a tooltip is plain text: `toString` writes the same keys as a
+`String` for it.
 
-    Menu.item "Duplicate" Duplicate
-        |> Menu.withHint (Kbd.toString [ Kbd.platform model.platform ] duplicateKeys)
+    Tooltip.attrs "Duplicate" |> Tooltip.withShortcut (Kbd.toString [ Kbd.platform model.platform ] duplicateKeys)
 
 This module only shows keys. The shortcut itself is made and listened to with
 [Klar.Shortcut](Klar.Shortcut.md), and [Klar.ShortcutHelp](Klar.ShortcutHelp.md) lists
@@ -113,8 +113,8 @@ is written; an empty text draws nothing.
 toString : List Attribute -> Shortcut.Keys -> String
 ```
 
-The same keys as plain text, for the places that take a `String`: the hint of
-a menu item, the shortcut of a tooltip, a label. A PC writes the caps with a plus
+The same keys as plain text, for the places that take a `String`: the
+shortcut of a tooltip, a label. A PC writes the caps with a plus
 between them (`Ctrl+Shift+K`), a Mac with a space (`⇧ ⌘ K`), and the steps of a
 sequence are joined with "then" (`G then O`). The text can be given to
 [`Tooltip.shortcut`](Klar.Tooltip.md#shortcut), which reads both spellings.
