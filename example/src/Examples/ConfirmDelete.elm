@@ -251,7 +251,7 @@ viewItems model =
                 [ Table.text (Table.columnId "name") "Item" (\item -> item.name) [ Table.filterText ]
                 , Table.text (Table.columnId "warehouse") "Warehouse" (\item -> item.warehouse) []
                 ]
-            , Table.rows (Loaded model.items)
+            , Table.remote (Loaded model.items)
             , Table.rowId itemIds (\item -> item.id)
             , Table.selectable
             , Table.bulkActions

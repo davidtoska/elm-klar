@@ -590,14 +590,14 @@ unpairedSurrogateTests =
           test "a table sorted by a column with such a value" <|
             \_ ->
                 render
-                    [ Table.rows (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
+                    [ Table.remote (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
                     (Table.setSort [ ( Table.columnId "customer", Table.Ascending ) ] (Table.init "orders"))
                     |> expectRows [ "ORD-2", "ORD-1" ]
         , -- And through the search of a table (Table.fold used Url.percentEncode too).
           test "a table searched for a word, with such a value in a row" <|
             \_ ->
                 render
-                    [ Table.rows (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
+                    [ Table.remote (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
                     (Table.setSearch "acme" (Table.init "orders"))
                     |> expectRows [ "ORD-2" ]
         , -- And the CSV text of the export, which is written when an export option is clicked.

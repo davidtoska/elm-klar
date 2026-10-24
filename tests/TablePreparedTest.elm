@@ -48,17 +48,17 @@ suite =
                         [ \attributes -> expectFooter [ "54", "235.31" ] attributes (Table.init "orders")
                         , \attributes -> expectFooter [ "54", "235.31" ] attributes (Table.init "orders")
                         ]
-                        [ Table.rows (Loaded curated) ]
+                        [ Table.remote (Loaded curated) ]
             , test "is the same for prepared rows" <|
                 \_ ->
                     expectFooter [ "54", "235.31" ]
-                        [ Table.preparedRows (Loaded (Table.prepareRows Locale.default columns (Array.fromList curated))) ]
+                        [ Table.remotePrepared (Loaded (Table.prepareRows Locale.default columns (Array.fromList curated))) ]
                         (Table.init "orders")
             , test "sums only the matching rows once the search leaves some out" <|
                 \_ ->
                     -- Oslo: items 3 + 7 + 20, totals 120.5, 1250 and 0
                     expectFooter [ "30", "456.83" ]
-                        [ Table.preparedRows (Loaded (Table.prepareRows Locale.default columns (Array.fromList curated))) ]
+                        [ Table.remotePrepared (Loaded (Table.prepareRows Locale.default columns (Array.fromList curated))) ]
                         (Table.init "orders" |> Table.setSearch "oslo")
             ]
         ]
@@ -89,12 +89,12 @@ rowsUnderTest =
 
 plain : Locale -> List (Table.Attribute String Order Msg)
 plain locale =
-    [ Table.rows (Loaded rowsUnderTest), Table.locale locale, Table.pageSizes [ 5, 10 ] ]
+    [ Table.remote (Loaded rowsUnderTest), Table.locale locale, Table.pageSizes [ 5, 10 ] ]
 
 
 prepared : Locale -> Locale -> List (Table.Column Order Msg) -> List (Table.Attribute String Order Msg)
 prepared viewLocale preparedLocale forColumns =
-    [ Table.preparedRows (Loaded (Table.prepareRows preparedLocale forColumns (Array.fromList rowsUnderTest)))
+    [ Table.remotePrepared (Loaded (Table.prepareRows preparedLocale forColumns (Array.fromList rowsUnderTest)))
     , Table.locale viewLocale
     , Table.pageSizes [ 5, 10 ]
     ]

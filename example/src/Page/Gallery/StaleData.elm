@@ -437,7 +437,7 @@ tableExample : Settings -> Locale -> Model -> Html Msg
 tableExample settings locale model =
     card "Table"
         (Table.view TableMsg
-            [ Table.label "Orders"
+            [ Table.ariaLabel "Orders"
             , Table.locale locale
             , Table.settings settings
             , Table.columns
@@ -445,7 +445,7 @@ tableExample settings locale model =
                 , Table.text (Table.columnId "customer") "Customer" .customer []
                 , Table.float (Table.columnId "total") "Total" 2 .total []
                 ]
-            , Table.rows (Remote.map .orders model.data)
+            , Table.remote (Remote.map .orders model.data)
             , Table.rowId Ids.string .id
             , Table.onRetry Refresh
             , Table.onRefresh Refresh

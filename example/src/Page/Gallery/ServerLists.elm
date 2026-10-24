@@ -435,7 +435,7 @@ inbox locale model =
                 , Table.float (Table.columnId "total") "Total" 2 .total []
                 ]
             , Table.rowId Ids.string .id
-            , Table.label "Orders"
+            , Table.ariaLabel "Orders"
             , Table.locale locale
             , Table.settings (Settings.withZone model.zone Settings.default)
             , Table.searchable

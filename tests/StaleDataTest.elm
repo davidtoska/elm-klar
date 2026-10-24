@@ -175,7 +175,7 @@ components : Test
 components =
     let
         orders data extra =
-            Orders.render (Table.rows data :: Table.onRetry Orders.Retried :: extra) (Table.init "orders")
+            Orders.render (Table.remote data :: Table.onRetry Orders.Retried :: extra) (Table.init "orders")
                 |> Query.fromHtml
 
         oldOrders =

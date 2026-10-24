@@ -663,7 +663,7 @@ viewTable : (Msg row -> msg) -> List (Table.Attribute id row msg) -> State id ro
 viewTable toMsg attributes (State inner) =
     Table.view (TableMsg >> toMsg)
         ([ Table.server { total = inner.total }
-         , Table.rows inner.rows
+         , Table.remote inner.rows
          , Table.onRetry (toMsg Refresh)
          , Table.onRefresh (toMsg Refresh)
          , Table.activeExternalFilters (Rule.conditionCount (FilterBar.rule inner.filterBar))

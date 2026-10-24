@@ -316,7 +316,7 @@ update msg model =
                         | orders = Remote.map (List.map (cancelIf (\o -> o.id == order.id))) c.orders
 
                         -- a disabled row keeps its selection and its open details until told otherwise
-                        , table = c.table |> Table.setSelected orderRows [ order.id ] False |> Table.setExpanded orderRows order.id False
+                        , table = c.table |> Table.deselect orderRows [ order.id ] |> Table.collapse orderRows order.id
                         , lastEvent = "Order " ++ orderIdText order.id ++ " is cancelled. The row is now disabled."
                     }
                 )
@@ -330,7 +330,7 @@ update msg model =
                 (\c ->
                     { c
                         | orders = Remote.map (List.filter (\o -> o.id /= order.id)) c.orders
-                        , table = c.table |> Table.setSelected orderRows [ order.id ] False |> Table.setExpanded orderRows order.id False
+                        , table = c.table |> Table.deselect orderRows [ order.id ] |> Table.collapse orderRows order.id
                         , lastEvent = "Order " ++ orderIdText order.id ++ " is deleted."
                     }
                 )
@@ -358,7 +358,7 @@ update msg model =
                     { c
                         | orders = Remote.map (List.map (cancelIf (\o -> Set.member (orderIdText o.id) ids))) c.orders
                         , table =
-                            List.foldl (\o table -> Table.setExpanded orderRows o.id False table) (Table.clearSelection c.table) cancellable
+                            List.foldl (\o table -> Table.collapse orderRows o.id table) (Table.clearSelection c.table) cancellable
                         , lastEvent =
                             countText (List.length cancellable) "order" "orders"
                                 ++ " cancelled"
@@ -1599,8 +1599,8 @@ applyView saved =
 
         ReviewOrders ->
             fresh
-                |> Table.setExpanded orderRows (orderId "ORD-10001") True
-                |> Table.setSelected orderRows [ orderId "ORD-10002", orderId "ORD-10003" ] True
+                |> Table.expand orderRows (orderId "ORD-10001")
+                |> Table.select orderRows [ orderId "ORD-10002", orderId "ORD-10003" ]
 
 
 densityText : Theme.Density -> String
@@ -1740,10 +1740,10 @@ clientSection locale client =
                     ]
                 , Table.view ClientTable
                     ([ Table.columns clientColumns
-                     , Table.rows (whileRefreshing client.refreshing client.orders)
+                     , Table.remote (whileRefreshing client.refreshing client.orders)
                      , Table.rowId orderRows .id
                      , Table.rowLabel orderLabel
-                     , Table.label "Orders"
+                     , Table.ariaLabel "Orders"
                      , Table.locale locale
                      , Table.searchable
                      , Table.searchDebounce 120
@@ -1795,7 +1795,7 @@ clientCode =
         , Table.float (columnIds.total) "Total" 2 .total [ Table.filterRange, Table.footerSum ]
         , Table.text (columnIds.warehouse) "Warehouse" (.warehouse >> Api.Types.warehouseIdText) [ Table.hiddenByDefault ]
         ]
-    , Table.rows model.orders -- Remote (List Order), kept in the model; Remote.refresh dims the rows
+    , Table.remote model.orders -- Remote (List Order), kept in the model; Remote.refresh dims the rows
     , Table.rowId orderRows .id
     , Table.rowLabel (.id >> orderIdText)
     , Table.searchable
@@ -1868,10 +1868,10 @@ serverSection locale server =
                 , Table.view ServerTable
                     [ Table.columns serverColumns
                     , Table.server { total = server.total }
-                    , Table.rows (whileRefreshing server.refreshing server.rows)
+                    , Table.remote (whileRefreshing server.refreshing server.rows)
                     , Table.rowId orderRows .id
                     , Table.rowLabel orderLabel
-                    , Table.label "Orders from the server"
+                    , Table.ariaLabel "Orders from the server"
                     , Table.locale locale
                     , Table.searchable
                     , Table.multiSort
@@ -1919,7 +1919,7 @@ TableMsg m ->
 Table.view TableMsg
     [ Table.columns columns -- give filterOptions in server mode
     , Table.server { total = model.total }
-    , Table.rows model.page -- Remote (List Order): only this page; Remote.refresh keeps the old rows, dimmed
+    , Table.remote model.page -- Remote (List Order): only this page; Remote.refresh keeps the old rows, dimmed
     , Table.onRetry Retry
     , Table.searchable
     ]
@@ -1946,10 +1946,10 @@ columnsSection locale columns =
             (Layout.stack [ Layout.gap 3 ]
                 [ Table.view KindsTable
                     [ Table.columns (kindColumns locale)
-                    , Table.rows someOrders
+                    , Table.remote someOrders
                     , Table.rowId orderRows .id
                     , Table.rowLabel (.id >> orderIdText)
-                    , Table.label "Order columns"
+                    , Table.ariaLabel "Order columns"
                     , Table.locale locale
                     , Table.exportCsv "orders-kinds.csv"
                     , Table.pageSizes [ 10, 25, 50 ]
@@ -1966,10 +1966,10 @@ columnsSection locale columns =
             (Layout.stack [ Layout.gap 4 ]
                 [ Table.view SortingTable
                     [ Table.columns (sortingColumns locale)
-                    , Table.rows someOrders
+                    , Table.remote someOrders
                     , Table.rowId orderRows .id
                     , Table.rowLabel (.id >> orderIdText)
-                    , Table.label "Order sorting and export"
+                    , Table.ariaLabel "Order sorting and export"
                     , Table.locale locale
                     , Table.searchable
                     , Table.searchPlaceholder "Search orders, owners, notes ..."
@@ -2024,7 +2024,7 @@ kindsCode =
             [ Table.width 130, Table.sortNumber progressSteps, Table.exportAs progressText ]
         , Table.actions (columnIds.actions) "Actions" orderButtons []
         ]
-    , Table.rows model.orders
+    , Table.remote model.orders
     , Table.exportCsv "orders.csv"
     ]
     model.table
@@ -2054,7 +2054,7 @@ sortingCode =
         , Table.text (columnIds.note) "Note" .note
             [ Table.wrap, Table.unsortable, Table.notExported ]
         ]
-    , Table.rows model.orders
+    , Table.remote model.orders
     , Table.searchable
     , Table.searchPlaceholder "Search orders, owners, notes ..."
     , Table.exportCsv "orders.csv"
@@ -2094,10 +2094,10 @@ viewsSection locale views =
                     ]
                 , Table.view ViewsTable
                     [ Table.columns clientColumns
-                    , Table.rows allOrders
+                    , Table.remote allOrders
                     , Table.rowId orderRows .id
                     , Table.rowLabel orderLabel
-                    , Table.label "Orders with saved views"
+                    , Table.ariaLabel "Orders with saved views"
                     , Table.locale locale
                     , Table.searchable
                     , Table.selectable
@@ -2140,8 +2140,8 @@ openAndUrgent =
 reviewOrders : Table.State OrderId
 reviewOrders =
     Table.init "orders"
-        |> Table.setExpanded orderRows (orderId "ORD-10001") True
-        |> Table.setSelected orderRows [ (orderId "ORD-10002"), (orderId "ORD-10003") ] True
+        |> Table.expand orderRows (orderId "ORD-10001")
+        |> Table.select orderRows [ (orderId "ORD-10002"), (orderId "ORD-10003") ]
 
 -- change the state the user has now
 Table.clearFilters model.table -- the search and the column filters
@@ -2172,9 +2172,9 @@ simpleSection locale simple =
             }
             (Table.view OwnersTable
                 [ Table.columns ownerColumns
-                , Table.rows ownerRows
+                , Table.remote ownerRows
                 , Table.rowId Ids.string .name
-                , Table.label "Owners"
+                , Table.ariaLabel "Owners"
                 , Table.locale locale
                 , Table.unpaged
                 , Table.zebra
@@ -2189,9 +2189,9 @@ simpleSection locale simple =
             (Layout.stack [ Layout.gap 3 ]
                 [ Table.view PickingTable
                     [ Table.columns ownerColumns
-                    , Table.rows ownerRows
+                    , Table.remote ownerRows
                     , Table.rowId Ids.string .name
-                    , Table.label "Owners with selection"
+                    , Table.ariaLabel "Owners with selection"
                     , Table.locale locale
                     , Table.unpaged
                     , Table.bulkActions [ Button.view [ Button.small, Button.icon Icon.send, Button.onClick PickingNotified ] "Send summary" ]
@@ -2211,7 +2211,7 @@ ownersCode =
         , Table.int (columnIds.orders) "Orders" .orders [ Table.footerSum ]
         , Table.float (columnIds.averageTotal) "Average total" 2 .averageTotal []
         ]
-    , Table.rows model.rows
+    , Table.remote model.rows
     , Table.rowId Ids.string .name
     , Table.unpaged
     , Table.zebra
@@ -2223,7 +2223,7 @@ pickingCode : String
 pickingCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.rows model.owners
+    , Table.remote model.owners
     , Table.rowId Ids.string .name
     , Table.unpaged
     , Table.bulkActions [ Button.view [ Button.small, Button.onClick SendSummary ] "Send summary" ]
@@ -2250,15 +2250,15 @@ statesSection locale states =
         "No data and no matches are different states: with no matches the user gets “Clear search and filters”. The header is always there, the skeleton rows are as tall as real rows, and a failure is shown inside the table with “Try again” when that can help."
         [ Doc.example
             { title = "No data"
-            , description = Just "Table.rows (Remote.Loaded []) with the application's own empty state."
+            , description = Just "Table.remote (Remote.Loaded []) with the application's own empty state."
             , code = Just emptyCode
             }
             (Layout.stack [ Layout.gap 3 ]
                 [ Table.view EmptyTable
                     [ Table.columns smallColumns
-                    , Table.rows noOrders
+                    , Table.remote noOrders
                     , Table.rowId orderRows .id
-                    , Table.label "No orders"
+                    , Table.ariaLabel "No orders"
                     , Table.locale locale
                     , Table.searchable
                     , Table.emptyState
@@ -2278,9 +2278,9 @@ statesSection locale states =
             }
             (Table.view NoMatchTable
                 [ Table.columns smallColumns
-                , Table.rows allOrders
+                , Table.remote allOrders
                 , Table.rowId orderRows .id
-                , Table.label "Orders without matches"
+                , Table.ariaLabel "Orders without matches"
                 , Table.locale locale
                 , Table.searchable
                 , Table.maxHeight 360
@@ -2294,9 +2294,9 @@ statesSection locale states =
             }
             (Table.view LoadingTable
                 [ Table.columns smallColumns
-                , Table.rows Remote.Loading
+                , Table.remote Remote.Loading
                 , Table.rowId orderRows .id
-                , Table.label "Orders that are loading"
+                , Table.ariaLabel "Orders that are loading"
                 , Table.locale locale
                 , Table.searchable
                 , Table.selectable
@@ -2328,9 +2328,9 @@ statesSection locale states =
                     ]
                 , Table.view FailedTable
                     [ Table.columns smallColumns
-                    , Table.rows lifecycle.rows
+                    , Table.remote lifecycle.rows
                     , Table.rowId orderRows .id
-                    , Table.label "Orders that failed to load"
+                    , Table.ariaLabel "Orders that failed to load"
                     , Table.locale locale
                     , Table.onRetry FailedRetry
                     , Table.onRefresh FailedRetry
@@ -2346,7 +2346,7 @@ emptyCode : String
 emptyCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.rows (Remote.Loaded [])
+    , Table.remote (Remote.Loaded [])
     , Table.emptyState
         [ EmptyState.title "No orders yet"
         , EmptyState.description "Orders you create show up here."
@@ -2368,7 +2368,7 @@ loadingCode : String
 loadingCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.rows Remote.Loading
+    , Table.remote Remote.Loading
     ]
     model.table"""
 
@@ -2377,7 +2377,7 @@ failedCode : String
 failedCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.rows (Remote.Failed problem) -- Remote.problem Remote.network
+    , Table.remote (Remote.Failed problem) -- Remote.problem Remote.network
     , Table.onRetry Retry -- the button only shows for problems worth retrying
     , Table.onRefresh Retry
     ]
@@ -2400,10 +2400,10 @@ narrowSection locale table =
             (Layout.container [ Layout.maxWidth 640, Layout.alignStart ]
                 [ Table.view NarrowTable
                     [ Table.columns narrowColumns
-                    , Table.rows narrowOrders
+                    , Table.remote narrowOrders
                     , Table.rowId orderRows .id
                     , Table.rowLabel orderLabel
-                    , Table.label "Orders in a narrow container"
+                    , Table.ariaLabel "Orders in a narrow container"
                     , Table.locale locale
                     , Table.searchable
                     , Table.densityToggle
@@ -2427,7 +2427,7 @@ narrowCode =
         , Table.date (columnIds.due) "Due" .due [ Table.width 120 ]
         -- ... more columns, each with a width
         ]
-    , Table.rows model.orders
+    , Table.remote model.orders
     , Table.densityToggle
     , Table.maxHeight 320
     , Table.pageSizes [ 25, 50, 100 ]
@@ -2453,9 +2453,9 @@ norwegianSection table =
             }
             (Table.view NorwegianTable
                 [ Table.columns norwegianColumns
-                , Table.rows allOrders
+                , Table.remote allOrders
                 , Table.rowId orderRows .id
-                , Table.label "Orders in Norwegian"
+                , Table.ariaLabel "Orders in Norwegian"
                 , Table.locale Locale.nb
                 , Table.searchable
                 , Table.exportCsv "orders-nb.csv"
@@ -2470,7 +2470,7 @@ norwegianCode : String
 norwegianCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.rows model.orders
+    , Table.remote model.orders
     , Table.locale Locale.nb -- text, formats, sort order and CSV separator
     , Table.exportCsv "orders.csv"
     ]

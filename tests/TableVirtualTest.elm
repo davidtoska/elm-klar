@@ -31,7 +31,7 @@ start =
 
 longTable : List (Table.Attribute String Order Msg)
 longTable =
-    [ Table.rows (Loaded (generated 1000)), Table.virtual, Table.selectable ]
+    [ Table.remote (Loaded (generated 1000)), Table.virtual, Table.selectable ]
 
 
 view : List (Table.Attribute String Order Msg) -> Table.State String -> Query.Single Msg
@@ -123,7 +123,7 @@ drawing =
                     (drawn (view tall (Table.setDensity Theme.Compact start)) |> Tuple.second)
         , test "an empty table shows the empty state and no rows" <|
             \_ ->
-                view [ Table.rows (Loaded []), Table.virtual ] start
+                view [ Table.remote (Loaded []), Table.virtual ] start
                     |> Query.has [ Selector.text "No data" ]
         ]
 
@@ -252,7 +252,7 @@ serverMode : Test
 serverMode =
     let
         server =
-            [ Table.rows (Loaded (generated 200)), Table.server { total = 5000 }, Table.virtual ]
+            [ Table.remote (Loaded (generated 200)), Table.server { total = 5000 }, Table.virtual ]
     in
     describe "in server mode"
         [ test "the pagination stays, and only the rows in view of the page are drawn" <|

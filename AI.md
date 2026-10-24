@@ -24,7 +24,7 @@ own source and its showcase, not guidance.
   Attributes are opaque. Their order matters only when the same attribute is given twice: the last one wins (state flags such as `loading`, `failed` and `remote` add up instead).
 - **The `String` you give to `init` is the DOM id**, unique on the page. Keep them as named values in one place.
 - **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`; `Kept` is old data during or after a refresh, see the traps). Give it to
-  `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
+  `Table.remote`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
   with retry and the empty state. Klar never sends a request; you turn the result into a `Remote` with `Remote.fromResult`.
 - **Your ids are your own types**, written as text once per type as a `Klar.Ids` (`Ids.make { toKey, fromKey }`; `Ids.list` for a closed set such as your pages; `Ids.string`, `Ids.int`) and given to every component that holds them: `Table.rowId`, `Tree.leaf`, `Picking.leaf`, `Sortable.view`, `SideNav.item`, `Spec.choice`, `Rule.choiceFieldOf`.
   A table column is a `Table.columnId "total"`, named once.
@@ -209,7 +209,7 @@ viewPage model =
                         , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
                         , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
                         ]
-                    , Table.rows model.orders
+                    , Table.remote model.orders
                     , Table.rowId Ids.string .id
                     , Table.onRetry Reload
                     ]
@@ -281,7 +281,7 @@ pageFromUrl url =
 
 Each is checked against the current source; the ones the library has fixed are gone.
 
-- **Give a component its data once.** `Chart.remote`, `Stat.remote`, `Table.rows` take a `Remote`, including its old data; do not add `loading` or `failed` next to them.
+- **Give a component its data once.** `Chart.remote`, `Stat.remote`, `Table.remote` take a `Remote`, including its old data; do not add `loading` or `failed` next to them.
 - **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs, or after it failed). A `case` of your own needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a refresh with `Remote.refresh`, finish it with `Remote.refreshWith old result now`; never write a failed refresh over good data.
 - **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
 - **Focus returns to an opener only if it has an id** (`Button.id`, a `SideNav` link, a field). Without one it goes to the last element that had an id, which may be elsewhere (`LeaveGuard` "Stay" too).

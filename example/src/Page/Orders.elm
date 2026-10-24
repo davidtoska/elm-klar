@@ -739,7 +739,7 @@ update context msg backend model =
 
                 -- A deleted order cannot stay selected.
                 table =
-                    Table.setSelected orderRows [ id ] False model.table
+                    Table.deselect orderRows [ id ] model.table
 
                 ( fetched, backend1, fetchCmd ) =
                     fetch backend { model | confirm = confirm, pending = Nothing, table = table }
@@ -834,7 +834,7 @@ finishCancelling context batch backend model =
                 table =
                     model.table
                         |> Table.clearSelection
-                        |> Table.setSelected orderRows (List.map Tuple.first failed) True
+                        |> Table.select orderRows (List.map Tuple.first failed)
 
                 ( fetched, backend1, fetchCmd ) =
                     fetch backend { model | confirm = confirm, pending = Nothing, table = table }
@@ -1219,11 +1219,11 @@ view context model =
                 ]
             , viewLookupsProblem context model
             , Table.view TableMsg
-                [ Table.label "Orders"
+                [ Table.ariaLabel "Orders"
                 , Table.locale context.locale
                 , Table.settings context.settings
                 , Table.columns (columns context lookups)
-                , Table.rows model.rows
+                , Table.remote model.rows
                 , Table.server { total = model.total }
                 , Table.rowId orderRows .id
                 , Table.rowLabel (rowLabel context)
