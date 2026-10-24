@@ -26,6 +26,7 @@ import Test exposing (Test, describe, fuzz, fuzz2, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
+import Time
 
 
 ids : Ids Int
@@ -104,7 +105,19 @@ button name state =
 
 typeIn : String -> String -> State -> State
 typeIn list text state =
-    fireOn [] [ Selector.id ("products-" ++ list ++ "-filter") ] (Event.input text) state
+    fireOn [] [ Selector.id (filterBox list) ] (Event.input text) state
+
+
+{-| The id of the filter box of a list: the filter of "Available" has the id of the
+field.
+-}
+filterBox : String -> String
+filterBox list =
+    if list == "available" then
+        "products"
+
+    else
+        "products-" ++ list ++ "-filter"
 
 
 {-| How many options a list has: the options of the list are the ones whose id
@@ -513,19 +526,52 @@ renderTests =
                     (Drive.has [ attr "role" "group", attr "aria-describedby" "products-hint products-error" ]
                         (html [ Transfer.hint "At most 20.", Transfer.error "Choose some", Transfer.required ] field)
                     )
-        , test "a disabled field has nothing to click, a read-only one has no keys" <|
+        , test "a disabled field has nothing to click, a read-only one has no keys that change it" <|
             \_ ->
                 let
                     marked =
                         clickRow "a" 0 field
+
+                    readOnly =
+                        html [ Transfer.readOnly True ]
                 in
                 Expect.all
                     [ \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-a-0" ] Event.click (html [ Transfer.disabled True ] field))
-                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-a-0" ] Event.click (html [ Transfer.readOnly True ] field))
-                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-available" ] (Drive.key "Enter") (html [ Transfer.readOnly True ] marked))
+                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-a-0" ] Event.click (readOnly field))
+                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-available" ] (Drive.key "Enter") (readOnly marked))
+                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-available" ] (Drive.key " ") (readOnly marked))
+                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-available" ] (Drive.keyWith { ctrl = True, shift = False } "a") (readOnly marked))
                     , \_ -> Expect.equal True (Drive.has [ Selector.id "products", Selector.disabled True ] (html [ Transfer.disabled True ] field))
+                    , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-available" ] (Drive.key "ArrowDown") (html [ Transfer.disabled True ] field))
                     ]
                     ()
+        , test "a read-only field can still be read with the keyboard: the arrows, Home and End move the highlight" <|
+            \_ ->
+                let
+                    readOnly =
+                        html [ Transfer.readOnly True ]
+
+                    send name state =
+                        feed (Drive.fire [ Selector.id "products-available" ] (Drive.key name) (readOnly state)) state
+
+                    at state =
+                        List.range 0 4
+                            |> List.filter (\n -> Drive.has [ Selector.id "products-available", attr "aria-activedescendant" ("products-a-" ++ String.fromInt n) ] (readOnly state))
+                            |> List.head
+                in
+                Expect.all
+                    [ \_ -> Expect.equal [ Just 1, Just 4, Just 0 ] [ at (send "ArrowDown" field), at (send "End" field), at (field |> send "End" |> send "Home") ]
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-available", attr "aria-readonly" "true" ] (readOnly field))
+                    , \_ -> Expect.equal [] (Transfer.values (field |> send "Enter" |> send " "))
+                    ]
+                    ()
+        , test "the id of the field is the filter box of Available, so Klar.focus and an error summary land in the field" <|
+            \_ ->
+                Expect.equal [ True, True, True ]
+                    (List.map
+                        (\items -> Drive.has [ Selector.id "products", Selector.tag "input" ] (Transfer.view TR [ Transfer.label "Products", Transfer.remote ids items ] field))
+                        [ Loading, Failed (Remote.problem Remote.network), Loaded products ]
+                    )
         , test "only the rows that can be seen are drawn: 20 000 items" <|
             \_ ->
                 let
@@ -737,6 +783,18 @@ keyTests =
                     |> fireOn [] [ Selector.id "products-available" ] (Drive.keyWith { ctrl = True, shift = True } "ArrowRight")
                     |> Transfer.values
                     |> Expect.equal [ 1, 2, 3, 5 ]
+        , test "on a Mac Cmd does what Ctrl does: Cmd+A marks all, Cmd+ArrowRight moves them" <|
+            \_ ->
+                let
+                    there =
+                        field
+                            |> fireOn [] [ Selector.id "products-available" ] (Drive.metaKey { shift = False } "a")
+                            |> fireOn [] [ Selector.id "products-available" ] (Drive.metaKey { shift = False } "ArrowRight")
+
+                    everything =
+                        field |> fireOn [] [ Selector.id "products-available" ] (Drive.metaKey { shift = True } "ArrowRight")
+                in
+                Expect.equal ( [ 1, 2, 3, 5 ], [ 1, 2, 3, 5 ] ) ( Transfer.values there, Transfer.values everything )
         , test "Home, End, ArrowUp and ArrowDown move the highlight and skip a disabled item" <|
             \_ ->
                 let
@@ -950,6 +1008,53 @@ sourceTests =
                     [ \_ -> Expect.equal (Just Retried) (Drive.fire [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] Event.click (v Remote.network))
                     , \_ -> Expect.equal True (Drive.has [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] (v Remote.network))
                     , \_ -> Expect.equal False (Drive.has [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] (v Remote.forbidden))
+                    ]
+                    ()
+        , test "a click on Try again sends focus to the filter box of Available, which stays when the button goes" <|
+            \_ ->
+                let
+                    failed =
+                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids (Failed (Remote.problem Remote.network)), Transfer.onRetry Retried ] field
+
+                    state =
+                        [ Selector.class "klar-select__state", Selector.containing [ Selector.tag "button" ] ]
+
+                    -- Tab on the button sends the message that does nothing
+                    clicked =
+                        Drive.fire state Event.click failed
+                in
+                Expect.all
+                    [ \_ -> Expect.notEqual Nothing clicked
+                    , \_ -> Expect.notEqual (Drive.fire state (Drive.key "Tab") failed) clicked
+                    ]
+                    ()
+        , test "items that are refreshed stay and can be moved, with Available dimmed and busy" <|
+            \_ ->
+                let
+                    items =
+                        Remote.refresh (Loaded products)
+
+                    h =
+                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids items ] field
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-refreshing", attr "aria-busy" "true", Selector.containing [ Selector.id "products-available" ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-a-0", Selector.containing [ Selector.text "Coffee" ] ] h)
+                    ]
+                    ()
+        , test "items that are old after a failed refresh say so above the list, with a retry, and the list stays" <|
+            \_ ->
+                let
+                    items =
+                        Remote.refreshWith (Loaded products) (Err (Remote.problem Remote.server)) (Time.millisToPosix 0)
+
+                    h =
+                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids items, Transfer.onRetry Retried ] field
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-stale", Selector.containing [ Selector.text "Old data" ] ] h)
+                    , \_ -> Expect.equal (Just Retried) (Drive.fire [ Selector.class "klar-stale", Selector.tag "button" ] Event.click h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-available", attr "role" "listbox" ] h)
                     ]
                     ()
         , test "when the items arrive the chosen ids are looked up and the unknown mark goes away" <|
