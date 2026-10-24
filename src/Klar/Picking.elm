@@ -1,17 +1,18 @@
 module Klar.Picking exposing
-    ( Node, leaf, branch, lazy, withDescription, withIcon, withKeywords, disabled
+    ( Node, leaf, branch, lazy, fromFlat, withDescription, withIcon, withKeywords, disabled
     , key, id, label, description, icon, keywords, isDisabled, children
     )
 
-{-| The vocabulary that [Klar.TreeSelect](Klar-TreeSelect),
-[Klar.Cascader](Klar-Cascader) and [Klar.Transfer](Klar-Transfer) share: how your
-own id type (a `RegionId`, a `ProductId`, plain text ...) is written as a key,
-and the nodes of a hierarchy to choose from. The components give your ids back
-as they are, so you never write the way back from a key to an id.
+{-| The nodes of a hierarchy that [Klar.TreeSelect](Klar-TreeSelect) and
+[Klar.Cascader](Klar-Cascader) choose from, with ids of your own type (a
+`RegionId`, a `ProductId`, plain text ...) that a [Klar.Ids](Klar-Ids) writes as
+keys. The components give your ids back as they are, so you never write the way
+back from a key to an id.
 
-Use when: you build the nodes for `Klar.TreeSelect`, `Klar.Cascader` or `Klar.Transfer`, or need one way to write your ids as keys.
-Do not use when: you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes).
+Use when: you build the nodes for `Klar.TreeSelect` or `Klar.Cascader`, from nested data or from flat rows that name their parent (`fromFlat`).
+Do not use when: you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes), or the items have no hierarchy (as the options of `Klar.Select`, `Klar.MultiSelect` and `Klar.Transfer`).
 
+    import Klar.Ids as Ids exposing (Ids)
     import Klar.Picking as Picking
     import Klar.Remote as Remote exposing (Remote(..))
 
@@ -31,6 +32,12 @@ Do not use when: you show a hierarchy on the page itself with open and closed br
             , Picking.lazy regionIds bergen "Bergen" (Remote.map (List.map zoneNode) bergenZones)
             ]
         ]
+
+    -- the nodes go to the field
+    TreeSelect.view RegionMsg [ TreeSelect.label "Region", TreeSelect.nodes (regions model.bergenZones) ] model.region
+
+A backend that sends the hierarchy as flat rows with a parent id needs no code of
+your own: `Picking.fromFlat` builds the nodes.
 
 Nodes are plain data that you build from your own data on every render; the
 components only remember what the user did (which nodes are open, which are
@@ -58,7 +65,7 @@ exactly that); an application rarely needs them.
 
 # Nodes
 
-@docs Node, leaf, branch, lazy, withDescription, withIcon, withKeywords, disabled
+@docs Node, leaf, branch, lazy, fromFlat, withDescription, withIcon, withKeywords, disabled
 
 
 # Reading a node
@@ -67,9 +74,11 @@ exactly that); an application rarely needs them.
 
 -}
 
+import Dict exposing (Dict)
 import Klar.Icon exposing (Icon)
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Remote as Remote exposing (Remote)
+import Set exposing (Set)
 
 
 
@@ -154,6 +163,138 @@ busy, and when the last refresh failed a row under the branch says "Old data fro
 lazy : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
 lazy =
     make
+
+
+{-| The nodes of a hierarchy that comes as flat rows, each naming its parent: the
+way most backends send one (`{ id, parentId, name }`). Give the ids, how to read
+the id, the parent (`Nothing` at the top) and the label of a row, and `decorate`
+for what more a node gets (`\_ node -> node` for nothing).
+
+    Picking.fromFlat warehouseIds
+        { id = .id
+        , parent = .parentId
+        , label = .name
+        , decorate = \row node -> Picking.withDescription row.code node
+        }
+        rows
+
+Siblings keep the order of the rows; a row with children is a `branch` and one
+without a `leaf`. Nothing is dropped quietly: a row whose parent is not among the
+rows is put at the top level, and so is a row in a loop of parents (a row that is
+its own parent or ancestor), with the loop cut where it closes. Rows with the same
+id are the same node to the components (the first one wins, see above). The rows
+are grouped once, so a hierarchy of many thousands of rows is quick.
+
+-}
+fromFlat :
+    Ids id
+    -> { id : row -> id, parent : row -> Maybe id, label : row -> String, decorate : row -> Node id -> Node id }
+    -> List row
+    -> List (Node id)
+fromFlat ids config rows =
+    let
+        keyOf row =
+            Ids.toKey ids (config.id row)
+
+        known =
+            Set.fromList (List.map keyOf rows)
+
+        parentKey row =
+            case config.parent row of
+                Just parent ->
+                    let
+                        k =
+                            Ids.toKey ids parent
+                    in
+                    if Set.member k known then
+                        Just k
+
+                    else
+                        Nothing
+
+                Nothing ->
+                    Nothing
+
+        -- the children of each parent, in the order of the rows
+        byParent =
+            List.foldr
+                (\row dict ->
+                    case parentKey row of
+                        Just p ->
+                            Dict.update p (\kids -> Just (row :: Maybe.withDefault [] kids)) dict
+
+                        Nothing ->
+                            dict
+                )
+                Dict.empty
+                rows
+
+        ( fromTop, visited ) =
+            buildAll ids config byParent (List.filter (\row -> parentKey row == Nothing) rows) Set.empty
+
+        -- rows in a loop of parents are never reached from the top: they are put there
+        ( fromLoops, _ ) =
+            buildAll ids config byParent (List.filter (\row -> not (Set.member (keyOf row) visited)) rows) visited
+    in
+    fromTop ++ fromLoops
+
+
+buildAll :
+    Ids id
+    -> { id : row -> id, parent : row -> Maybe id, label : row -> String, decorate : row -> Node id -> Node id }
+    -> Dict String (List row)
+    -> List row
+    -> Set String
+    -> ( List (Node id), Set String )
+buildAll ids config byParent rows visited =
+    let
+        ( reversed, final ) =
+            List.foldl
+                (\row ( built, seen ) ->
+                    case buildOne ids config byParent row seen of
+                        Just ( node, after ) ->
+                            ( node :: built, after )
+
+                        Nothing ->
+                            ( built, seen )
+                )
+                ( [], visited )
+                rows
+    in
+    ( List.reverse reversed, final )
+
+
+buildOne :
+    Ids id
+    -> { id : row -> id, parent : row -> Maybe id, label : row -> String, decorate : row -> Node id -> Node id }
+    -> Dict String (List row)
+    -> row
+    -> Set String
+    -> Maybe ( Node id, Set String )
+buildOne ids config byParent row visited =
+    let
+        rowId =
+            config.id row
+
+        k =
+            Ids.toKey ids rowId
+    in
+    if Set.member k visited then
+        Nothing
+
+    else
+        let
+            ( kids, after ) =
+                buildAll ids config byParent (Dict.get k byParent |> Maybe.withDefault []) (Set.insert k visited)
+
+            node =
+                if List.isEmpty kids then
+                    leaf ids rowId (config.label row)
+
+                else
+                    branch ids rowId (config.label row) kids
+        in
+        Just ( config.decorate row node, after )
 
 
 {-| A short secondary text, shown dimmed after the label and searched too: a

@@ -190,31 +190,38 @@ regionNodes fetched list =
         list
 
 
-{-| Five thousand nodes: fifty categories of a hundred products each.
+{-| Five thousand products in fifty categories, as a backend sends them: flat rows
+that name their parent.
 -}
-catalogue : List (Node String)
-catalogue =
+catalogueRows : List { id : String, parent : Maybe String, name : String }
+catalogueRows =
     List.range 1 50
-        |> List.map
+        |> List.concatMap
             (\c ->
                 let
                     category =
                         "Category " ++ String.padLeft 2 '0' (String.fromInt c)
                 in
-                Picking.branch Ids.string
-                    category
-                    category
-                    (List.range 1 100
-                        |> List.map
-                            (\p ->
-                                let
-                                    name =
-                                        "Product " ++ String.fromInt c ++ "-" ++ String.padLeft 3 '0' (String.fromInt p)
-                                in
-                                Picking.leaf Ids.string name name
-                            )
-                    )
+                { id = category, parent = Nothing, name = category }
+                    :: (List.range 1 100
+                            |> List.map
+                                (\p ->
+                                    let
+                                        name =
+                                            "Product " ++ String.fromInt c ++ "-" ++ String.padLeft 3 '0' (String.fromInt p)
+                                    in
+                                    { id = name, parent = Just category, name = name }
+                                )
+                       )
             )
+
+
+{-| The nodes, built once from the rows (a constant, so the field compares them in
+no time).
+-}
+catalogue : List (Node String)
+catalogue =
+    Picking.fromFlat Ids.string { id = .id, parent = .parent, label = .name, decorate = \_ node -> node } catalogueRows
 
 
 products : List (Select.Option ProductNo)
@@ -568,8 +575,14 @@ TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
                 )
             , Doc.example
                 { title = "Five thousand nodes"
-                , description = Just "Only the rows on screen are drawn, and the filter does not freeze: try “product 37”. Check a category and one id is the value."
-                , code = Just "TreeSelect.view CatalogueMsg [ TreeSelect.label \"Products\", TreeSelect.nodes catalogue ] model.catalogue"
+                , description = Just "Only the rows on screen are drawn, and the filter does not freeze: try “product 37”. Check a category and one id is the value. The nodes are built from flat rows that name their parent, as a backend sends them."
+                , code =
+                    Just """catalogue =
+    Picking.fromFlat Ids.string
+        { id = .id, parent = .parent, label = .name, decorate = \\_ node -> node }
+        rows
+
+TreeSelect.view CatalogueMsg [ TreeSelect.label "Products", TreeSelect.nodes catalogue ] model.catalogue"""
                 }
                 (Layout.stack [ Layout.gap 3 ]
                     [ TreeSelect.view CatalogueMsg

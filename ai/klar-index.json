@@ -2069,9 +2069,9 @@
       "name": "Klar.Picking",
       "import": "import Klar.Picking as Picking",
       "group": "Choosing",
-      "purpose": "The vocabulary that Klar.TreeSelect, Klar.Cascader and Klar.Transfer share.",
-      "whenToUse": "you build the nodes for `Klar.TreeSelect`, `Klar.Cascader` or `Klar.Transfer`, or need one way to write your ids as keys.",
-      "whenNot": "you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes).",
+      "purpose": "The nodes of a hierarchy that Klar.TreeSelect and Klar.Cascader choose from, with ids of your own type (a `RegionId`, a `ProductId`, plain text ...) that a Klar.Ids writes as keys.",
+      "whenToUse": "you build the nodes for `Klar.TreeSelect` or `Klar.Cascader`, from nested data or from flat rows that name their parent (`fromFlat`).",
+      "whenNot": "you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes), or the items have no hierarchy (as the options of `Klar.Select`, `Klar.MultiSelect` and `Klar.Transfer`).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -2081,26 +2081,25 @@
         "leaf",
         "branch",
         "lazy",
+        "fromFlat",
         "withDescription",
         "withIcon",
         "withKeywords",
-        "disabled",
-        "key"
+        "disabled"
       ],
       "related": [
-        "Klar.Cascader",
         "Klar.Ids",
-        "Klar.Transfer",
+        "Klar.Cascader",
         "Klar.TreeSelect"
       ],
       "keywords": [
         "picking",
         "choosing",
-        "vocabulary",
+        "nodes",
+        "hierarchy",
         "treeselect",
         "cascader",
-        "transfer",
-        "share"
+        "choose"
       ],
       "reference": "ai/modules/Klar.Picking.md"
     },

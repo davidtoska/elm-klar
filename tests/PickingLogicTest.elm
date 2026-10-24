@@ -39,6 +39,7 @@ suite =
     describe "Picking: ids, nodes, index, filter, rows, cover"
         [ idTests
         , nodeTests
+        , flatTests
         , indexTests
         , filterTests
         , rowTests
@@ -108,6 +109,116 @@ nodeTests =
 
 
 -- INDEX
+
+
+type alias FlatRow =
+    { id : String, parent : Maybe String, name : String }
+
+
+flat : List FlatRow -> List (Picking.Node String)
+flat =
+    Picking.fromFlat Ids.string { id = .id, parent = .parent, label = .name, decorate = \_ node -> node }
+
+
+{-| The tree as text: "a(b,c(d))".
+-}
+shape : List (Picking.Node String) -> String
+shape nodes =
+    nodes
+        |> List.map
+            (\node ->
+                case Picking.children node of
+                    Remote.Loaded [] ->
+                        Picking.key node
+
+                    Remote.Loaded kids ->
+                        Picking.key node ++ "(" ++ shape kids ++ ")"
+
+                    _ ->
+                        Picking.key node ++ "?"
+            )
+        |> String.join ","
+
+
+allKeys : List (Picking.Node String) -> List String
+allKeys nodes =
+    List.concatMap
+        (\node ->
+            Picking.key node
+                :: (case Picking.children node of
+                        Remote.Loaded kids ->
+                            allKeys kids
+
+                        _ ->
+                            []
+                   )
+        )
+        nodes
+
+
+flatTests : Test
+flatTests =
+    describe "fromFlat"
+        [ test "builds the hierarchy from rows that name their parent, siblings in the order of the rows" <|
+            \_ ->
+                flat
+                    [ { id = "oslo", parent = Just "norway", name = "Oslo" }
+                    , { id = "europe", parent = Nothing, name = "Europe" }
+                    , { id = "norway", parent = Just "europe", name = "Norway" }
+                    , { id = "asia", parent = Nothing, name = "Asia" }
+                    , { id = "bergen", parent = Just "norway", name = "Bergen" }
+                    ]
+                    |> shape
+                    |> Expect.equal "europe(norway(oslo,bergen)),asia"
+        , test "a row whose parent is not among the rows is put at the top level" <|
+            \_ ->
+                flat [ { id = "a", parent = Just "gone", name = "A" }, { id = "b", parent = Nothing, name = "B" } ]
+                    |> shape
+                    |> Expect.equal "a,b"
+        , test "rows in a loop of parents are put at the top, with the loop cut" <|
+            \_ ->
+                Expect.equal ( "a(b(c))", "s" )
+                    ( shape (flat [ { id = "a", parent = Just "b", name = "A" }, { id = "b", parent = Just "a", name = "B" }, { id = "c", parent = Just "b", name = "C" } ])
+                    , shape (flat [ { id = "s", parent = Just "s", name = "S" } ])
+                    )
+        , test "decorate gives each node what more it needs, and the labels are kept" <|
+            \_ ->
+                let
+                    nodes =
+                        Picking.fromFlat Ids.string
+                            { id = .id, parent = .parent, label = .name, decorate = \row node -> Picking.withDescription (String.toUpper row.id) node }
+                            [ { id = "a", parent = Nothing, name = "A" } ]
+                in
+                Expect.equal [ ( "A", Just "A" ) ] (List.map (\n -> ( Picking.label n, Picking.description n )) nodes)
+        , fuzz (Fuzz.list (Fuzz.maybe (Fuzz.intRange 0 30))) "every row is in the tree exactly once, whatever the parents" <|
+            \parents ->
+                let
+                    rows =
+                        List.indexedMap (\i parent -> { id = String.fromInt i, parent = Maybe.map String.fromInt parent, name = "" }) parents
+                in
+                allKeys (flat rows)
+                    |> List.sort
+                    |> Expect.equal (List.sort (List.map .id rows))
+        , test "twenty thousand rows in three levels" <|
+            \_ ->
+                let
+                    rows =
+                        List.range 0 19999
+                            |> List.map
+                                (\i ->
+                                    { id = String.fromInt i
+                                    , parent =
+                                        if i < 20 then
+                                            Nothing
+
+                                        else
+                                            Just (String.fromInt (i // 20 - 1))
+                                    , name = ""
+                                    }
+                                )
+                in
+                Expect.equal 20000 (Index.size (Index.build (flat rows)))
+        ]
 
 
 indexTests : Test
