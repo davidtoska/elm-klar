@@ -76,8 +76,9 @@ an input method composition (Japanese, Chinese, Korean ...) are left to it.
 Accessibility: the field is a button with `role="combobox"` whose hidden text
 lists the chosen values for screen readers ("3 selected: Books, Games, Toys"),
 and the open list is a `listbox` with `aria-multiselectable`. The status line is
-announced politely. The built-in texts follow `locale` and are English by
-default (see [Klar.Locale](Klar-Locale)).
+announced politely, and so is a value removed from the closed field with the ×
+of its chip, Backspace or the clear button ("Books removed"). The built-in texts
+follow `locale` and are English by default (see [Klar.Locale](Klar-Locale)).
 
 
 # State
@@ -157,7 +158,16 @@ type State id
         , selected : List (Selected id)
         , list : VirtualList.State
         , cache : Maybe (Popup.Cache id)
+        , said : Maybe Said
         }
+
+
+{-| What the field last told a screen reader about a change made from the closed
+field (in the open list, the status line under the list says it).
+-}
+type Said
+    = RemovedValue (Maybe String)
+    | RemovedAll
 
 
 {-| A chosen value, with its option when the component has seen it (so the
@@ -189,6 +199,7 @@ init id =
         , selected = []
         , list = VirtualList.init (listboxId id)
         , cache = Nothing
+        , said = Nothing
         }
 
 
@@ -415,7 +426,7 @@ type Msg id
     | Navigate VirtualList.Geometry Int
     | Toggle (Option id)
     | CreateValue (Option id)
-    | Remove id
+    | Remove (Option id)
     | RemoveLast
     | SelectAllMatched (Popup.Env id) (Maybe Int)
     | ClearAll
@@ -457,6 +468,7 @@ update msg ((State state) as current) =
                         , highlighted = Nothing
                         , list = VirtualList.reset state.list
                         , cache = Just (Popup.refresh state.cache env text)
+                        , said = Nothing
                     }
                     |> settle env
                     |> Tuple.mapSecond (\wait -> Cmd.batch [ Internal.focus (searchId state.id) NoOp, wait ])
@@ -563,8 +575,8 @@ update msg ((State state) as current) =
         CreateValue opt ->
             ( add [ opt ] current, Cmd.none )
 
-        Remove v ->
-            ( remove v current
+        Remove opt ->
+            ( remove opt.value current |> say (RemovedValue (Just opt.label))
             , if state.open then
                 Cmd.none
 
@@ -575,7 +587,7 @@ update msg ((State state) as current) =
         RemoveLast ->
             case List.reverse state.selected of
                 lastOne :: _ ->
-                    ( remove lastOne.value current, Cmd.none )
+                    ( remove lastOne.value current |> say (RemovedValue (Maybe.map .label lastOne.option)), Cmd.none )
 
                 [] ->
                     ( current, Cmd.none )
@@ -601,7 +613,7 @@ update msg ((State state) as current) =
             ( append fresh current, Internal.focus (searchId state.id) NoOp )
 
         ClearAll ->
-            ( clear current
+            ( clear current |> say RemovedAll
             , if state.open then
                 Internal.focus (searchId state.id) NoOp
 
@@ -658,6 +670,18 @@ append fresh (State state) =
         { state
             | selected = state.selected ++ List.map (\opt -> { value = opt.value, option = Just opt }) (dedupeBy .value fresh)
         }
+
+
+{-| Tells a screen reader about a change made from the closed field. The open list
+has its own status line, which says it already.
+-}
+say : Said -> State id -> State id
+say said (State state) =
+    if state.open then
+        State { state | said = Nothing }
+
+    else
+        State { state | said = Just said }
 
 
 remove : id -> State id -> State id
@@ -1347,7 +1371,7 @@ viewControl toMsg config field t env (State state) =
                             ([ Tag.size tagSize, Tag.locale config.locale ]
                                 ++ chipMark opt
                                 ++ (if interactive then
-                                        [ Tag.onRemove (toMsg (Remove opt.value)) ]
+                                        [ Tag.onRemove (toMsg (Remove opt)) ]
 
                                     else
                                         []
@@ -1464,6 +1488,28 @@ viewControl toMsg config field t env (State state) =
 
           else
             Popup.viewChevron
+
+        -- always on the page, so that a change is announced when it happens
+        , Html.span
+            [ Internal.cls [ "klar-sr-only" ]
+            , Attr.attribute "role" "status"
+            , Attr.attribute "aria-live" "polite"
+            ]
+            [ Html.text
+                (case state.said of
+                    Just (RemovedValue (Just name)) ->
+                        t.removed name
+
+                    Just (RemovedValue Nothing) ->
+                        t.removedValue
+
+                    Just RemovedAll ->
+                        t.removedAll
+
+                    Nothing ->
+                        ""
+                )
+            ]
         ]
 
 

@@ -527,6 +527,28 @@ selectAllTests =
                 clickSelectAll [ MultiSelect.options few, MultiSelect.maxSelected 2 ] (openMulti |> MultiSelect.setValues [ "c3" ])
                     |> Result.map MultiSelect.values
                     |> Expect.equal (Ok [ "c3", "c1" ])
+        , test "removing a chip from the closed field is announced" <|
+            \_ ->
+                let
+                    closed =
+                        MultiSelect.init "countries" |> MultiSelect.setOptions (List.take 2 countries)
+                in
+                multiView [ MultiSelect.options few ] closed
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.class "klar-tag__remove" ]
+                    |> Query.first
+                    |> Event.simulate Event.click
+                    |> Event.toResult
+                    |> Result.map
+                        (\msg ->
+                            multiView [ MultiSelect.options few ] (multiAfter [ msg ] closed)
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.class "klar-select__control" ]
+                                |> Query.children [ Selector.attribute (Attr.attribute "role" "status") ]
+                                |> Query.first
+                                |> Query.has [ Selector.text "Country 1 removed" ]
+                        )
+                    |> Result.withDefault (Expect.fail "the remove button sent nothing")
         , test "a long list with everything chosen: the click adds nothing twice" <|
             \_ ->
                 let

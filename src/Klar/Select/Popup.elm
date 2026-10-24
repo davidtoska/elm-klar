@@ -117,6 +117,9 @@ type alias Texts =
     , clearAll : String
     , more : Int -> String
     , moreLabel : Int -> String
+    , removed : String -> String
+    , removedValue : String
+    , removedAll : String
     , noSuggestions : String
     , suggestions : Int -> String
     }
@@ -161,6 +164,9 @@ texts locale =
             , clearAll = "Fjern alle"
             , more = \n -> "+" ++ num n
             , moreLabel = \n -> num n ++ " til er valgt"
+            , removed = \name -> name ++ " fjernet"
+            , removedValue = "Verdi fjernet"
+            , removedAll = "Alle verdier fjernet"
             , noSuggestions = "Ingen forslag"
             , suggestions = \n -> num n ++ " forslag"
             }
@@ -204,6 +210,9 @@ texts locale =
             , clearAll = "Clear all"
             , more = \n -> "+" ++ num n
             , moreLabel = \n -> num n ++ " more selected"
+            , removed = \name -> name ++ " removed"
+            , removedValue = "Value removed"
+            , removedAll = "All values removed"
             , noSuggestions = "No suggestions"
             , suggestions =
                 \n ->

@@ -131,8 +131,9 @@ an input method composition (Japanese, Chinese, Korean ...) are left to it.
 Accessibility: the field is a button with `role="combobox"` whose hidden text
 lists the chosen values for screen readers ("3 selected: Books, Games, Toys"),
 and the open list is a `listbox` with `aria-multiselectable`. The status line is
-announced politely. The built-in texts follow `locale` and are English by
-default (see [Klar.Locale](Klar.Locale.md)).
+announced politely, and so is a value removed from the closed field with the ×
+of its chip, Backspace or the clear button ("Books removed"). The built-in texts
+follow `locale` and are English by default (see [Klar.Locale](Klar.Locale.md)).
 
 ## State
 
