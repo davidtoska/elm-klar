@@ -486,7 +486,7 @@ type alias Config msg =
     , onFocus : Maybe msg
     , onBlur : Maybe msg
     , layout : Layout
-    , preview : List Markdown.Attribute
+    , preview : List (Markdown.Attribute msg)
     , syntaxHelp : Bool
     , locale : Locale
     }
@@ -663,7 +663,7 @@ pause.
     MarkdownEditor.preview [ Markdown.imagesFrom hosts ]
 
 -}
-preview : List Markdown.Attribute -> Attribute msg
+preview : List (Markdown.Attribute msg) -> Attribute msg
 preview attributes =
     Attribute (\config -> { config | preview = attributes })
 
@@ -1241,7 +1241,7 @@ that `aria-describedby` points at, the text area itself), and its headings are t
 levels down, so that a `#` typed into a form is not an `h1` of the page. The
 attributes of the application come later and so win.
 -}
-previewOf : Locale -> String -> List Markdown.Attribute -> Markdown.Document -> Html msg
+previewOf : Locale -> String -> List (Markdown.Attribute msg) -> Markdown.Document -> Html msg
 previewOf lang prefix attributes document =
     Markdown.viewDocument (Markdown.idPrefix prefix :: Markdown.locale lang :: Markdown.headingOffset previewHeadingOffset :: attributes) document
 

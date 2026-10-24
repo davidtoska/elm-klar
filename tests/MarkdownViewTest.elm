@@ -5,11 +5,14 @@ attributes of the view.
 -}
 
 import Expect
+import Html
 import Html.Attributes as Attr
+import Html.Events as Events
 import Json.Encode as Encode
 import Klar.Locale as Locale
 import Klar.Markdown as Markdown
 import Test exposing (Test, describe, test)
+import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
 
@@ -25,15 +28,94 @@ suite =
         , linkTests
         , textTests
         , documentTests
+        , customTests
         ]
 
 
-query : List Markdown.Attribute -> String -> Query.Single msg
+type Clicked
+    = Cited String
+
+
+citations : { href : String, external : Bool, title : String, content : List (Html.Html Clicked) } -> Maybe (Html.Html Clicked)
+citations link =
+    if String.startsWith "#cite-" link.href then
+        Just (Html.button [ Attr.class "cite", Events.onClick (Cited (String.dropLeft 6 link.href)) ] link.content)
+
+    else
+        Nothing
+
+
+customTests : Test
+customTests =
+    describe "links and code of the application"
+        [ test "a link the application draws is its Html, with its message" <|
+            \_ ->
+                query [ Markdown.customLink citations ] "As shown [1](#cite-1)."
+                    |> Query.find [ Selector.class "cite" ]
+                    |> Expect.all
+                        [ Query.has [ Selector.text "1" ]
+                        , Event.simulate Event.click >> Event.expect (Cited "1")
+                        ]
+        , test "a link the application leaves is drawn as usual" <|
+            \_ ->
+                query [ Markdown.customLink citations ] "[docs](https://example.com)"
+                    |> Query.find [ Selector.tag "a" ]
+                    |> Query.has [ Selector.class "klar-md__link--external", Selector.attribute (Attr.href "https://example.com") ]
+        , test "an address that is not safe never reaches the application" <|
+            \_ ->
+                query [ Markdown.customLink (\_ -> Just (Html.span [ Attr.class "drawn" ] [])) ] "[x](javascript:alert(1)) [y](data:text/html,hi)"
+                    |> Query.hasNot [ Selector.class "drawn" ]
+        , test "the application is told whether a link goes to another site, and gets the address of a heading" <|
+            \_ ->
+                query
+                    [ Markdown.customLink
+                        (\link ->
+                            Just
+                                (Html.span
+                                    [ Attr.class
+                                        (if link.external then
+                                            "away"
+
+                                         else
+                                            "here"
+                                        )
+                                    , Attr.attribute "data-href" link.href
+                                    ]
+                                    link.content
+                                )
+                        )
+                    ]
+                    "[a](https://example.com) [b](#intro)\n\n# Intro"
+                    |> Expect.all
+                        [ Query.has [ Selector.class "away" ]
+                        , Query.find [ Selector.class "here" ] >> Query.has [ Selector.attribute (Attr.attribute "data-href" "#md-intro") ]
+                        ]
+        , test "a block of code the application draws" <|
+            \_ ->
+                query
+                    [ Markdown.customCodeBlock
+                        (\block ->
+                            if block.language == "sql" then
+                                Just (Html.div [ Attr.class "query" ] [ Html.text block.code ])
+
+                            else
+                                Nothing
+                        )
+                    ]
+                    "```sql\nselect 1\n```\n\n```\nplain\n```"
+                    |> Expect.all
+                        [ Query.find [ Selector.class "query" ] >> Query.has [ Selector.text "select 1" ]
+                        , Query.findAll [ Selector.class "klar-md__code" ] >> Query.count (Expect.equal 1)
+                        ]
+        ]
+
+
+query : List (Markdown.Attribute msg) -> String -> Query.Single msg
 query attributes text =
     Query.fromHtml (Markdown.view attributes text)
 
 
-count : String -> List Markdown.Attribute -> String -> Int -> Expect.Expectation
+count : String -> List (Markdown.Attribute msg) -> String -> Int -> Expect.Expectation
 count tag attributes text expected =
     query attributes text
         |> Query.findAll [ Selector.tag tag ]

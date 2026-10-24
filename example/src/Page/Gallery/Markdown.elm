@@ -464,7 +464,7 @@ optionsSection =
               , description = "Fix the layout. Default: it follows the width of the container."
               }
             , { name = "MarkdownEditor.preview"
-              , type_ = "List Markdown.Attribute -> Attribute msg"
+              , type_ = "List (Markdown.Attribute msg) -> Attribute msg"
               , description = "Attributes of the preview, such as images."
               }
             , { name = "MarkdownEditor.setValue"
