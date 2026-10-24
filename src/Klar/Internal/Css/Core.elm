@@ -589,28 +589,35 @@ css =
 .klar-status--warning { --_c: var(--klar-amber-500); }
 .klar-status--danger { --_c: var(--klar-red-500); }
 
-/* ---- Mark: the dot that colors an option or a tag ----------------------
-   A status color (a tone, follows the theme) or a color of the data (--klar-mark, set from
-   a checked color code). It is for the eye only; the label carries the meaning. */
+/* ---- Dot: the color that marks an option or a tag ----------------------
+   A status color (a tone, follows the theme) or a color of the data (--klar-dot, set from
+   a checked color code). It is for the eye only; the label carries the meaning.
+   (`.klar-mark` is the highlighted match of a search, in the base rules.) */
 
-.klar-mark {
+.klar-dot {
   --_c: var(--klar-gray-500);
   display: inline-block;
   flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--klar-mark, var(--_c));
+  background: var(--klar-dot, var(--_c));
+  /* An edge in the text color, so that a data color close to the surface (white on a
+     white card, near black in dark mode) is still a dot. */
   box-shadow: inset 0 0 0 1px var(--klar-tint-border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--klar-text) 24%, transparent);
+  /* Printed as it is: a browser leaves out backgrounds when it prints. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.klar-mark--primary, .klar-mark--info { --_c: var(--klar-blue-500); }
-.klar-mark--success { --_c: var(--klar-green-500); }
-.klar-mark--warning { --_c: var(--klar-amber-500); }
-.klar-mark--danger { --_c: var(--klar-red-500); }
+.klar-dot--primary, .klar-dot--info { --_c: var(--klar-blue-500); }
+.klar-dot--success { --_c: var(--klar-green-500); }
+.klar-dot--warning { --_c: var(--klar-amber-500); }
+.klar-dot--danger { --_c: var(--klar-red-500); }
 
 @media (forced-colors: active) {
-  .klar-mark { forced-color-adjust: none; }
+  .klar-dot { forced-color-adjust: none; }
 }
 
 /* ---- Tag (chip) ------------------------------------------------------ */

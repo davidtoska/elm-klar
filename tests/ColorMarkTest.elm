@@ -6,9 +6,12 @@ select, in the closed field and in a chip.
 
 import Expect
 import Fuzz
+import Html
 import Html.Attributes as Attr
+import Klar
 import Klar.Color as Color
 import Klar.MultiSelect as MultiSelect
+import Klar.Search as Search
 import Klar.Select as Select
 import Klar.Select.Option as Option
 import Klar.Tag as Tag
@@ -47,6 +50,13 @@ hexTests =
                     |> Expect.equal True
         , test "rgb brings a number into the range" <|
             \_ -> Color.rgb -5 300 128 |> Color.toHex |> Expect.equal "#00ff80"
+        , test "a code with an alpha channel is refused, not drawn opaque" <|
+            \_ -> List.map Color.hex [ "#2a946180", "#2a98" ] |> Expect.equal [ Nothing, Nothing ]
+        , test "toRgb gives the channels back" <|
+            \_ ->
+                Color.hex "#2a9461"
+                    |> Maybe.map Color.toRgb
+                    |> Expect.equal (Just { red = 42, green = 148, blue = 97 })
         , fuzz3 (Fuzz.intRange 0 255) (Fuzz.intRange 0 255) (Fuzz.intRange 0 255) "toHex and hex are each other's inverse" <|
             \r g b ->
                 Color.rgb r g b
@@ -103,7 +113,7 @@ plainOption =
 
 dot : Selector.Selector
 dot =
-    Selector.class "klar-mark"
+    Selector.class "klar-dot"
 
 
 renderTests : Test
@@ -112,11 +122,11 @@ renderTests =
         [ test "a chosen option with a color shows it in the closed field, as a checked code" <|
             \_ ->
                 closedSelect redOption
-                    |> Query.has [ Selector.attribute (Attr.attribute "style" "--klar-mark:#d6453a") ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "style" "--klar-dot:#d6453a") ]
         , test "a chosen option with a tone shows the dot of the tone" <|
             \_ ->
                 closedSelect amberOption
-                    |> Query.has [ Selector.class "klar-mark--warning" ]
+                    |> Query.has [ Selector.class "klar-dot--warning" ]
         , test "an option with neither shows no dot" <|
             \_ -> closedSelect plainOption |> Query.hasNot [ dot ]
         , test "the dot is hidden from a screen reader" <|
@@ -142,6 +152,21 @@ renderTests =
                 Tag.view [ Tag.color (Color.rgb 1 2 3) ] "Team"
                     |> Query.fromHtml
                     |> Query.has [ dot ]
+        , test "a search highlight is the mark of the search, never the dot" <|
+            \_ ->
+                Html.div [] (Search.highlight "ord" "Orders")
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.tag "mark", Selector.class "klar-mark" ]
+                        , Query.hasNot [ dot ]
+                        ]
+        , test "the stylesheet has one rule for the mark of a search and one for the dot" <|
+            \_ ->
+                Expect.all
+                    [ \css -> List.length (String.indexes "\n.klar-mark {" css) |> Expect.equal 1
+                    , \css -> List.length (String.indexes "\n.klar-dot {" css) |> Expect.equal 1
+                    ]
+                    Klar.css
         ]
 
 
