@@ -58,8 +58,13 @@ A smaller score is a better match:
   - `1` the text starts with the query
   - `2` a word in the text starts with the query
   - `3` the query is somewhere inside the text
-  - `6` the letters of the query appear in order and close together (a typo-tolerant
-    match, only for words of three letters or more)
+  - `6` the letters of the query appear in order and close together, within about
+    twice their number: letters left out are forgiven ("brgn" finds "Bergen"), a
+    wrong or swapped letter is not. Only for words of three letters or more.
+
+Sort by the score and keep the order of equal scores (`filter` and `rank` do); do not
+rely on the numbers themselves, which a later version may spread out to fit a tier
+between them.
 
 For long lists this is fast because the texts are normalized in one go (`filter` and
 `rank` do that for you). If you search the same texts again and again, prepare them
@@ -132,11 +137,17 @@ Whether the text matches the query at all.
 highlight : String -> String -> List (Html msg)
 ```
 
-Splits `text` into plain parts and highlighted parts (`<mark>` elements) at
-every place a word of the query occurs, to show why a result matched. Matching
-is done on the normalized text, so `"orsted"` highlights "Ørsted".
+Splits `text` into plain parts and highlighted parts (`<mark>` elements), to
+show why a result matched: for each word of the query, the place that `score`
+used. That is the start of the text, else the start of a word ("ber" marks
+"Bergen" in "Åsberg Bergen", not the "berg" inside "Åsberg"), else the first place
+inside the text; for a match of letters in order, each of those letters. Matching
+is done on the normalized text, so `"orsted"` highlights "Ørsted". The parts put
+together are always the whole text.
 
     Search.highlight "ber" "Bergen" -- "Ber" in a <mark>, then "gen"
+
+    Search.highlight "lvlc" "Ada Lovelace" -- the L, v, l and c each in a <mark>
 
 ## Preparing texts and queries
 

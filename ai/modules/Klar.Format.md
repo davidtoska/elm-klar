@@ -126,9 +126,14 @@ Norwegian one a non-breaking space.
 currency : Locale.Locale -> String -> Int -> Float -> String
 ```
 
-An amount of money. The first argument after the locale is what to show for
-the currency, a symbol or a code, as you want it written. English puts it in
-front of the number, Norwegian after it.
+A number shown as an amount of money. The first argument after the locale is what
+to show for the currency, a symbol or a code, as you want it written. English puts it
+in front of the number, Norwegian after it.
+
+Money the application keeps, adds or compares is a [Klar.Money](Klar.Money.md), and it is
+written with `Money.toString` (`"NOK 1,234.50"`) or `Money.toSymbolString`
+(`"$1,234.50"`), which take the decimals from the currency. Use `currency` only for a
+`Float` that is already only for show, such as a value on a chart axis.
 
 An ISO 4217 code that has a well-known symbol is written with the symbol (`"USD"`
 becomes `$`, `"EUR"` `€`, `"NOK"` `kr`; the table is the one `Klar.Money` uses). Any other
@@ -226,6 +231,8 @@ so use it where the year is obvious from the context.
     Format.dateShort Locale.en september21 -- "21 Sep"
 
     Format.dateShort Locale.nb september21 -- "21. sep."
+
+    Format.dateShort Locale.nb may1 -- "1. mai" (a whole word gets no point)
 
 ### `dateLong`
 

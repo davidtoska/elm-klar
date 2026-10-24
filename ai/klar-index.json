@@ -4787,7 +4787,8 @@
         "date"
       ],
       "related": [
-        "Klar.Settings"
+        "Klar.Settings",
+        "Klar.Money"
       ],
       "keywords": [
         "format",
