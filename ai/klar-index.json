@@ -15,6 +15,7 @@
       "stateful": false,
       "quickPath": [
         "stylesheet",
+        "stylesheetFor",
         "focus"
       ],
       "mainFunctions": [
@@ -183,7 +184,12 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "Settings.withLocale",
+        "Settings.locale",
+        "fromCode",
+        "pick"
+      ],
       "mainFunctions": [
         "en",
         "nb",
@@ -223,7 +229,15 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "stack",
+        "row",
+        "grid",
+        "gap",
+        "grow",
+        "fillRest",
+        "spacer"
+      ],
       "mainFunctions": [
         "stack",
         "row",
@@ -261,7 +275,13 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "title",
+        "actions",
+        "footer",
+        "RemoteView.view"
+      ],
       "mainFunctions": [
         "view"
       ],
@@ -292,7 +312,13 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "heading",
+        "paragraph",
+        "paragraphWith",
+        "muted",
+        "truncated"
+      ],
       "mainFunctions": [
         "title",
         "heading",
@@ -330,7 +356,12 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "view",
+        "labelled",
+        "sized",
+        "fromSvg"
+      ],
       "mainFunctions": [
         "view",
         "sized",

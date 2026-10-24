@@ -27,7 +27,7 @@ packages it needs nothing, and it has no ports and no JavaScript.
 
 Use when: you start any application with Klar, to put its stylesheet on the page once.
 Do not use when: you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet and `focus`.
-Quick path: `stylesheet`, `focus`
+Quick path: `stylesheet`, `stylesheetFor`, `focus`
 
 ## Start here
 

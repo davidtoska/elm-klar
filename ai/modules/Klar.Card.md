@@ -37,6 +37,7 @@ footer.
 
 Use when: related content belongs together on a bordered surface with an optional title, actions and footer.
 Do not use when: the content is a whole page region with its own header (as `Klar.PageHeader`) or an overlay (as `Klar.Modal`).
+Quick path: `view`, `title`, `actions`, `footer`, `RemoteView.view`
 
     import Klar.Button as Button
     import Klar.Card as Card

@@ -42,6 +42,7 @@ everywhere.
 
 Use when: the page needs titles, paragraphs, small print or code that look the same everywhere.
 Do not use when: the text is a link (use `Klar.Link`, which is inline by default and goes into `paragraphWith`), an action (use `Klar.Button`) or key caps (use `Klar.Kbd`).
+Quick path: `heading`, `paragraph`, `paragraphWith`, `muted`, `truncated`
 
     import Klar.Kbd as Kbd
     import Klar.Link as Link

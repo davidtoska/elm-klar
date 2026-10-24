@@ -11,6 +11,7 @@ names, validation messages, number separators.
 
 Use when: the text the library writes itself must come in another language than English, or you pick between two of your own texts.
 Do not use when: you need to translate your own labels and messages, which stay in your application.
+Quick path: `Settings.withLocale`, `Settings.locale`, `fromCode`, `pick`
 
     import Klar.Locale as Locale exposing (Locale)
 

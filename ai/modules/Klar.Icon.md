@@ -240,6 +240,7 @@ Line icons. An icon takes the text color of its parent and scales with its
 
 Use when: a button, menu item or message needs a small line icon that follows the text color.
 Do not use when: you need one of the rarer icons, which live in the `Klar.Icon.*` modules, or a picture (use an `img`).
+Quick path: `view`, `labelled`, `sized`, `fromSvg`
 
     import Klar.Icon as Icon
 
