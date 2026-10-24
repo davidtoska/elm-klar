@@ -1335,23 +1335,22 @@ viewCombinator ctx group =
     Html.span [ Internal.cls [ "klar-rules__combinator" ] ]
         [ SegmentedControl.view
             [ SegmentedControl.id (nodeDomId ctx.state.id group.id ++ "-combinator")
-            , SegmentedControl.ariaLabel t.combine
+            , SegmentedControl.label t.combine
+            , SegmentedControl.labelHidden
             , SegmentedControl.size Small
             , SegmentedControl.options
                 [ SegmentedControl.option "all" t.all
                 , SegmentedControl.option "any" t.any
                 ]
             , SegmentedControl.selected
-                (Just
-                    (case group.combinator of
-                        All ->
-                            "all"
+                (case group.combinator of
+                    All ->
+                        "all"
 
-                        Any ->
-                            "any"
-                    )
+                    Any ->
+                        "any"
                 )
-            , SegmentedControl.onSelect
+            , SegmentedControl.onChange
                 (\value ->
                     ctx.toMsg
                         (CombinatorPicked group.id

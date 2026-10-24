@@ -357,6 +357,40 @@ css =
 .klar-radio__label { color: var(--klar-text); }
 .klar-radio__description { font-size: var(--klar-text-sm); color: var(--klar-text-muted); line-height: 1.35; }
 
+/* Read only: the options that are not chosen cannot be chosen, but they are not
+   dimmed like disabled ones. */
+.klar-radio--readonly { cursor: default; }
+.klar-radio--readonly .klar-radio__input { cursor: default; }
+.klar-radio--readonly:hover .klar-radio__dot { border-color: var(--klar-gray-400); }
+.klar-radio--readonly:hover .klar-radio__input:checked + .klar-radio__dot { border-color: var(--klar-primary); }
+
+/* Windows high contrast: the dot, its ring and the focus ring in system colors. */
+@media (forced-colors: active) {
+  .klar-radio {
+    --klar-primary: Highlight;
+    --klar-surface: Canvas;
+    --klar-gray-400: CanvasText;
+    --klar-danger: CanvasText;
+    --klar-focus-color: Highlight;
+  }
+
+  .klar-radio--disabled {
+    --klar-primary: GrayText;
+    --klar-gray-400: GrayText;
+  }
+
+  .klar-radio__dot { forced-color-adjust: none; }
+
+  .klar-radio__input:focus-visible + .klar-radio__dot {
+    box-shadow: none;
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .klar-radio-group--invalid .klar-radio__dot { border-width: 2px; }
+  .klar-checkgroup--invalid .klar-check:not(.klar-check--disabled) .klar-check__box { border-width: 2px; }
+}
+
 /* ---- Switch ---------------------------------------------------------- */
 
 .klar-switch {
@@ -455,6 +489,45 @@ css =
   flex-direction: row-reverse;
   justify-content: space-between;
   width: 100%;
+}
+
+/* Read only: the track itself is the switch (role=switch, aria-checked), so it
+   can be reached and read but nothing can change it. */
+.klar-switch--readonly { cursor: default; }
+.klar-switch--readonly:hover .klar-switch__track { background: var(--klar-gray-300); }
+.klar-switch--readonly.klar-switch--on:hover .klar-switch__track { background: var(--klar-primary); }
+.klar-switch__track:focus-visible { outline: none; box-shadow: var(--klar-focus-ring); }
+
+/* Windows high contrast replaces backgrounds and removes shadows, which would
+   take away the whole switch: track, knob and focus ring in system colors. */
+@media (forced-colors: active) {
+  .klar-switch {
+    --klar-primary: Highlight;
+    --klar-primary-hover: Highlight;
+    --klar-gray-300: Canvas;
+    --klar-gray-400: Canvas;
+    --klar-white: CanvasText;
+  }
+
+  .klar-switch--on { --klar-white: HighlightText; }
+  .klar-switch--disabled { --klar-primary: GrayText; --klar-white: GrayText; }
+  .klar-switch--disabled.klar-switch--on { --klar-white: Canvas; }
+
+  .klar-switch__track {
+    forced-color-adjust: none;
+    box-shadow: inset 0 0 0 1px CanvasText;
+  }
+
+  .klar-switch--on .klar-switch__track { box-shadow: none; }
+  .klar-switch--disabled .klar-switch__track { box-shadow: inset 0 0 0 1px GrayText; }
+  .klar-switch--invalid .klar-switch__track { box-shadow: 0 0 0 2px CanvasText; }
+  .klar-switch__thumb { box-shadow: none; }
+
+  .klar-switch__input:focus-visible + .klar-switch__track,
+  .klar-switch__track:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
 }
 
 /* ---- Slider and range slider ----------------------------------------- */
@@ -688,6 +761,29 @@ css =
 .klar-range__input:disabled::-webkit-slider-thumb { cursor: not-allowed; }
 .klar-range__input:disabled::-moz-range-thumb { cursor: not-allowed; }
 
+/* Windows high contrast: the track is a background (a gradient for one thumb) and
+   the focus ring a shadow, which the system would take away. */
+@media (forced-colors: active) {
+  .klar-slider {
+    --_color: Highlight;
+    --klar-gray-200: GrayText;
+    --klar-gray-400: CanvasText;
+    --klar-surface: Canvas;
+    --klar-focus-ring: 0 0 0 2px Canvas, 0 0 0 4px CanvasText;
+  }
+
+  .klar-slider--disabled { --_color: GrayText; }
+
+  .klar-slider__input,
+  .klar-range__track,
+  .klar-slider__tick { forced-color-adjust: none; }
+
+  .klar-slider__input::-webkit-slider-thumb { box-shadow: none; }
+  .klar-slider__input::-moz-range-thumb { box-shadow: none; }
+  .klar-slider__input:focus-visible::-webkit-slider-thumb { box-shadow: var(--klar-focus-ring); }
+  .klar-slider__input:focus-visible::-moz-range-thumb { box-shadow: var(--klar-focus-ring); }
+}
+
 /* ---- Segmented control ----------------------------------------------- */
 
 .klar-segmented-field {
@@ -794,6 +890,40 @@ css =
 .klar-segmented__item--disabled:hover .klar-segmented__input:checked + .klar-segmented__content { background: var(--klar-surface); color: var(--klar-blue-700); }
 
 .klar-segmented--disabled .klar-segmented__item { cursor: not-allowed; }
+
+/* Read only: the segments that are not chosen cannot be chosen, but they are
+   not dimmed like disabled ones. */
+.klar-segmented__item--readonly,
+.klar-segmented__item--readonly .klar-segmented__input { cursor: default; }
+.klar-segmented__item--readonly:hover .klar-segmented__content { background: transparent; color: var(--klar-text-secondary); }
+.klar-segmented__item--readonly:hover .klar-segmented__input:checked + .klar-segmented__content { background: var(--klar-surface); color: var(--klar-blue-700); }
+
+/* Windows high contrast: the chosen segment is a background and a shadow, which
+   the system would take away, so it is drawn in the system's selection colors. */
+@media (forced-colors: active) {
+  .klar-segmented__input:checked + .klar-segmented__content,
+  .klar-segmented__item--readonly:hover .klar-segmented__input:checked + .klar-segmented__content {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    box-shadow: none;
+  }
+
+  .klar-segmented__item--disabled .klar-segmented__content { color: GrayText; }
+
+  .klar-segmented__item--disabled .klar-segmented__input:checked + .klar-segmented__content,
+  .klar-segmented__item--disabled:hover .klar-segmented__input:checked + .klar-segmented__content {
+    background: GrayText;
+    color: Canvas;
+  }
+
+  .klar-segmented__input:focus-visible + .klar-segmented__content {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+  }
+
+  .klar-segmented--invalid { outline: 1px solid CanvasText; outline-offset: 1px; }
+}
 
 /* ---- Search input ---------------------------------------------------- */
 

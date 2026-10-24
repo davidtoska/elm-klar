@@ -1489,7 +1489,8 @@ viewFrequency : (Msg -> msg) -> Config -> Strings -> Inner -> Html msg
 viewFrequency toMsg config text s =
     SegmentedControl.view
         [ SegmentedControl.id s.id
-        , SegmentedControl.ariaLabel text.frequency
+        , SegmentedControl.label text.frequency
+        , SegmentedControl.labelHidden
         , SegmentedControl.options
             [ SegmentedControl.option (frequencyKey Once) text.once
             , SegmentedControl.option (frequencyKey Daily) text.daily
@@ -1497,8 +1498,8 @@ viewFrequency toMsg config text s =
             , SegmentedControl.option (frequencyKey Monthly) text.monthly
             , SegmentedControl.option (frequencyKey Yearly) text.yearly
             ]
-        , SegmentedControl.selected (Just (frequencyKey s.frequency))
-        , SegmentedControl.onSelect (\key -> toMsg (messageOf FrequencyChosen (frequencyOfKey key)))
+        , SegmentedControl.selected (frequencyKey s.frequency)
+        , SegmentedControl.onChange (\key -> toMsg (messageOf FrequencyChosen (frequencyOfKey key)))
         , SegmentedControl.size config.size
         , SegmentedControl.disabled config.disabled
         ]
@@ -1586,7 +1587,7 @@ viewBy toMsg config text s =
             , Radio.options
                 (List.map (\by -> Radio.option (byKey by) (anchorLabel config.locale s.frequency (anchorFor s.start by))) (choices s))
             , Radio.selected (Just (byKey (shownBy s)))
-            , Radio.onSelect (\key -> toMsg (messageOf ByChosen (byOfKey s key)))
+            , Radio.onChange (\key -> toMsg (messageOf ByChosen (byOfKey s key)))
             , Radio.size config.size
             , Radio.disabled config.disabled
             ]
@@ -1616,7 +1617,7 @@ viewMissing toMsg config question s =
                 , Radio.option (missingKey Spec.Skip) question.skip
                 ]
             , Radio.selected (Just (missingKey s.missing))
-            , Radio.onSelect (\key -> toMsg (messageOf MissingChosen (missingOfKey key)))
+            , Radio.onChange (\key -> toMsg (messageOf MissingChosen (missingOfKey key)))
             , Radio.horizontal
             , Radio.size config.size
             , Radio.disabled config.disabled
@@ -1638,7 +1639,7 @@ viewEnd toMsg config text s =
                 , Radio.option (endKey EndOn) text.onDate
                 ]
             , Radio.selected (Just (endKey s.end))
-            , Radio.onSelect (\key -> toMsg (messageOf EndChosen (endOfKey key)))
+            , Radio.onChange (\key -> toMsg (messageOf EndChosen (endOfKey key)))
             , Radio.horizontal
             , Radio.size config.size
             , Radio.disabled config.disabled

@@ -1,6 +1,6 @@
 module Klar.Slider exposing
     ( view, viewRange, Attribute
-    , min, max, step, value, onInput, range, onRangeInput, minGap
+    , min, max, step, value, onInput, onCommit, range, onRangeInput, onRangeCommit, minGap
     , unit, valueFormat, hideValue, bubble, ticks, marks
     , label, labelHidden, hint, error, errorMaybe, required, optionalText, id
     , disabled, locale
@@ -36,21 +36,35 @@ Do not use when: the number is typed (`Klar.NumberInput`).
 The value is owned by the application, as a `Float` in the model. `onInput`
 (`onRangeInput` for two thumbs) is sent with every change while the thumb is
 dragged, and `value` (`range`) gives the new value back. The filled part of the
-track follows the thumb on its own, without any scripting.
+track follows the thumb on its own, without any scripting. `onCommit`
+(`onRangeCommit`) is sent once when the user lets go of the thumb, and for every
+key press: use it for what should not happen at every pixel of a drag, such as
+fetching a list filtered by the value.
+
+    -- update: show the value while dragging, fetch when the user lets go
+    PriceMoved price ->
+        ( { model | maxPrice = price }, Cmd.none )
+
+    PriceChosen price ->
+        ( { model | maxPrice = price }, fetchProducts price )
 
 The current value is written at the right end of the line above the track,
 level with the label. It is not beside the track, so the tracks of sliders
 stacked in a form are all as long as their field, however wide the text of
 their value is (`15 %`, `20 – 65 pcs`), and a track does not change length while
-the thumb is dragged. The text has as many decimals as `step` has, in the number
-format of the `locale`, followed by the `unit`; `valueFormat` replaces all of
-that. A screen reader reads the written value as well (`aria-valuetext`), for a
-range slider one thumb at a time.
+the thumb is dragged. The text has as many decimals as `step` (or `min`) has, in
+the number format of the `locale`, followed by the `unit`; `valueFormat` replaces
+all of that. A screen reader reads the written value as well (`aria-valuetext`),
+for a range slider one thumb at a time. A value that is not on the grid of
+`step` (counted from `min`) is drawn and written where the browser puts the
+thumb, at the nearest point of the grid; the model keeps the value it has.
 
 Keyboard (the browser's own): arrow keys change the value by one `step`,
 Page Up and Page Down by about ten percent of the range, Home and End jump to
-the ends. The range slider has two focusable thumbs, named "From" and "To"; they
-cannot pass each other (keep them `minGap` apart if you like).
+the ends. The range slider has two focusable thumbs, named after the label with
+"from" and "to" ("Order quantity, from"); they cannot pass each other (keep them
+`minGap` apart if you like), and each is joined to the hint and the error
+message.
 
 Clicking the track of a range slider does nothing (only the thumbs take the
 mouse), so that the two inputs never fight for the click.
@@ -67,7 +81,7 @@ typed rather than dragged, use [Klar.NumberInput](Klar-NumberInput).
 
 # Range and value
 
-@docs min, max, step, value, onInput, range, onRangeInput, minGap
+@docs min, max, step, value, onInput, onCommit, range, onRangeInput, onRangeCommit, minGap
 
 
 # Showing the value
@@ -98,8 +112,9 @@ import Klar.Locale as Locale exposing (Locale)
 
 {-| A setting of a slider. Make them with the functions below and pass a list to
 `view` or `viewRange`; later attributes win over earlier ones. Each of the two
-views ignores the settings that belong to the other (`value` and `onInput` for
-`view`; `range`, `onRangeInput` and `minGap` for `viewRange`).
+views ignores the settings that belong to the other (`value`, `onInput` and
+`onCommit` for `view`; `range`, `onRangeInput`, `onRangeCommit` and `minGap` for
+`viewRange`).
 -}
 type Attribute msg
     = Attribute (Config msg -> Config msg)
@@ -115,7 +130,9 @@ type alias Config msg =
     , upper : Maybe Float
     , minGap : Float
     , onInput : Maybe (Float -> msg)
+    , onCommit : Maybe (Float -> msg)
     , onRangeInput : Maybe (Float -> Float -> msg)
+    , onRangeCommit : Maybe (Float -> Float -> msg)
     , disabled : Bool
     , bubble : Bool
     , showValue : Bool
@@ -139,7 +156,9 @@ configure attributes =
         , upper = Nothing
         , minGap = 0
         , onInput = Nothing
+        , onCommit = Nothing
         , onRangeInput = Nothing
+        , onRangeCommit = Nothing
         , disabled = False
         , bubble = False
         , showValue = True
@@ -253,8 +272,8 @@ max number =
 
 {-| How far one arrow key press moves the thumb. It is also the grid the value
 snaps to, counted from `min`, and it sets the number of decimals that are
-written (a step of 0.25 gives two, at most four). The default is 1; a step of 0
-or less counts as 1.
+written (a step of 0.25 gives two, at most four; a `min` with more decimals gives
+its own). The default is 1; a step of 0 or less counts as 1.
 -}
 step : Float -> Attribute msg
 step amount =
@@ -262,7 +281,8 @@ step amount =
 
 
 {-| The value of a single slider (`view`). The default is 0. A value outside
-`min` and `max` is shown at the nearer end.
+`min` and `max` is shown at the nearer end, and a value off the grid of `step` at
+the nearest point of the grid, as the browser draws the thumb.
 -}
 value : Float -> Attribute msg
 value number =
@@ -280,6 +300,20 @@ give it back with `value`.
 onInput : (Float -> msg) -> Attribute msg
 onInput toMsg =
     Attribute (\config -> { config | onInput = Just toMsg })
+
+
+{-| The message sent when the user has chosen a value with a single slider
+(`view`): once when the thumb is let go after a drag or a click on the track, and
+after every key press. It gets the new value. Use it for work that should not
+happen at every step of a drag, such as a request to the server; `onInput` still
+keeps the shown value up to date.
+
+    Slider.onCommit PriceChosen
+
+-}
+onCommit : (Float -> msg) -> Attribute msg
+onCommit toMsg =
+    Attribute (\config -> { config | onCommit = Just toMsg })
 
 
 {-| The lower and the upper value of a range slider, in that order
@@ -300,6 +334,18 @@ gets the new lower value and the new upper value, already limited to `min` and
 onRangeInput : (Float -> Float -> msg) -> Attribute msg
 onRangeInput toMsg =
     Attribute (\config -> { config | onRangeInput = Just toMsg })
+
+
+{-| Like `onCommit`, for a range slider (`viewRange`): sent once when either thumb
+is let go, and after every key press. It gets the lower and the upper value,
+limited and kept apart like those of `onRangeInput`.
+
+    Slider.onRangeCommit QuantityRangeChosen
+
+-}
+onRangeCommit : (Float -> Float -> msg) -> Attribute msg
+onRangeCommit toMsg =
+    Attribute (\config -> { config | onRangeCommit = Just toMsg })
 
 
 {-| The least distance between the two thumbs of a range slider (`viewRange`).
@@ -385,7 +431,7 @@ disabled value_ =
     Attribute (\config -> { config | disabled = value_ })
 
 
-{-| The language of the built-in text: the "From" and "To" that name the thumbs
+{-| The language of the built-in text: the "from" and "to" that name the thumbs
 of a range slider for screen readers, and the decimal and thousands separators
 of the written value. The default is `Locale.default`, which is English.
 -}
@@ -398,8 +444,8 @@ locale value_ =
 -- VIEW
 
 
-{-| A slider with one thumb, for a number from `min` to `max`. It uses `value`
-and `onInput`, and ignores the settings of a range slider.
+{-| A slider with one thumb, for a number from `min` to `max`. It uses `value`,
+`onInput` and `onCommit`, and ignores the settings of a range slider.
 
     Slider.view
         [ Slider.label "Discount"
@@ -422,8 +468,9 @@ view attributes =
         ( low, high ) =
             bounds config
 
+        -- Where the browser puts the thumb: in the range and on the step grid.
         current =
-            clampTo low high config.value
+            onGrid config (clampTo low high config.value)
 
         spoken =
             formatValue config current
@@ -446,7 +493,8 @@ view attributes =
                                        , Attr.value (String.fromFloat current)
                                        , Attr.disabled config.disabled
                                        , Attr.attribute "aria-valuetext" spoken
-                                       , Internal.attrMaybe (\toMsg -> onFloatInput toMsg) config.onInput
+                                       , Internal.attrMaybe (\toMsg -> onFloat "input" toMsg) config.onInput
+                                       , Internal.attrMaybe (\toMsg -> onFloat "change" toMsg) config.onCommit
                                        ]
                                 )
                                 []
@@ -552,9 +600,11 @@ viewHead config field labelFor valueText =
 
 
 {-| A slider with two thumbs, for a lower and an upper value from `min` to
-`max`. It uses `range`, `onRangeInput` and `minGap`, and ignores `value` and
-`onInput`. The two thumbs are inputs of their own, named "From" and "To" for
-screen readers, inside a group that carries the label, hint and error.
+`max`. It uses `range`, `onRangeInput`, `onRangeCommit` and `minGap`, and ignores
+`value`, `onInput` and `onCommit`. The two thumbs are inputs of their own, named
+after the label with "from" and "to" for screen readers ("Order quantity, from"),
+inside a group named by the label; each thumb is joined to the hint and the error
+message.
 
     Slider.viewRange
         [ Slider.label "Order quantity"
@@ -592,14 +642,44 @@ viewRange attributes =
         upper =
             Basics.max second (lower + gap) |> Basics.min high
 
+        -- Where the browser puts the thumbs: on the step grid.
+        lowerShown =
+            onGrid config lower
+
+        upperShown =
+            onGrid config upper
+
         lowerText =
-            formatValue config lower
+            formatValue config lowerShown
 
         upperText =
-            formatValue config upper
+            formatValue config upperShown
 
         both =
-            rangeText config lower upper
+            rangeText config lowerShown upperShown
+
+        -- What a move of one thumb sends: the other one stays, and they keep
+        -- `minGap` apart.
+        withLower v =
+            ( Basics.min v (upper - gap) |> Basics.max low, upper )
+
+        withUpper v =
+            ( lower, Basics.max v (lower + gap) |> Basics.min high )
+
+        rangeHandlers toPair =
+            [ Internal.attrMaybe (\toMsg -> onFloat "input" (\v -> pairTo toMsg (toPair v))) config.onRangeInput
+            , Internal.attrMaybe (\toMsg -> onFloat "change" (\v -> pairTo toMsg (toPair v))) config.onRangeCommit
+            ]
+
+        -- "Order quantity, from": the thumbs are named after the label, so a
+        -- list of the form controls tells them apart from other sliders.
+        thumbName word =
+            case field.label of
+                Just text ->
+                    text ++ ", " ++ String.toLower word
+
+                Nothing ->
+                    word
 
         midpoint =
             (low + high) / 2
@@ -620,8 +700,9 @@ viewRange attributes =
             field.id ++ "-label"
 
         -- The wrapper has the role `group`, which cannot be invalid or required
-        -- in ARIA: it gets the hint and the error message with aria-describedby,
-        -- and each thumb (a slider) carries aria-invalid.
+        -- in ARIA. Each thumb (a slider) carries aria-invalid and is joined to
+        -- the hint and the error message, so tabbing from one thumb to the other
+        -- reads them too.
         thumbAttributes =
             [ Attr.type_ "range"
             , Attr.min (String.fromFloat low)
@@ -630,22 +711,21 @@ viewRange attributes =
             , Attr.disabled config.disabled
             , invalidAttribute field
             ]
+                ++ Field.describedByAttributes field
     in
     Field.viewGroup field
         (Html.div
-            (Field.describedByAttributes field
-                ++ [ Attr.id groupId
-                   , Internal.cls (fieldClasses config)
-                   , Attr.attribute "role" "group"
-                   , Internal.attrIf (field.label /= Nothing) (Attr.attribute "aria-labelledby" labelId)
-                   ]
-            )
+            [ Attr.id groupId
+            , Internal.cls (fieldClasses config)
+            , Attr.attribute "role" "group"
+            , Internal.attrIf (field.label /= Nothing) (Attr.attribute "aria-labelledby" labelId)
+            ]
             (viewHead config field Nothing both
                 ++ [ Html.div
                         [ Internal.cls (sliderClasses config True)
                         , Internal.styleVars
-                            [ ( "--klar-lo", String.fromFloat (fraction low high lower) )
-                            , ( "--klar-hi", String.fromFloat (fraction low high upper) )
+                            [ ( "--klar-lo", String.fromFloat (fraction low high lowerShown) )
+                            , ( "--klar-hi", String.fromFloat (fraction low high upperShown) )
                             ]
                         ]
                         [ Html.div [ Internal.cls [ "klar-slider__body" ] ]
@@ -663,15 +743,11 @@ viewRange attributes =
                                               else
                                                 ""
                                             ]
-                                       , Attr.attribute "aria-label" lowerLabel
+                                       , Attr.attribute "aria-label" (thumbName lowerLabel)
                                        , Attr.value (String.fromFloat lower)
                                        , Attr.attribute "aria-valuetext" lowerText
-                                       , Internal.attrMaybe
-                                            (\toMsg ->
-                                                onFloatInput (\v -> toMsg (Basics.min v (upper - gap) |> Basics.max low) upper)
-                                            )
-                                            config.onRangeInput
                                        ]
+                                    ++ rangeHandlers withLower
                                 )
                                 []
                              , Html.input
@@ -686,15 +762,11 @@ viewRange attributes =
                                               else
                                                 "klar-range__input--front"
                                             ]
-                                       , Attr.attribute "aria-label" upperLabel
+                                       , Attr.attribute "aria-label" (thumbName upperLabel)
                                        , Attr.value (String.fromFloat upper)
                                        , Attr.attribute "aria-valuetext" upperText
-                                       , Internal.attrMaybe
-                                            (\toMsg ->
-                                                onFloatInput (\v -> toMsg lower (Basics.max v (lower + gap) |> Basics.min high))
-                                            )
-                                            config.onRangeInput
                                        ]
+                                    ++ rangeHandlers withUpper
                                 )
                                 []
                              ]
@@ -836,9 +908,12 @@ viewScale config low high =
            )
 
 
-onFloatInput : (Float -> msg) -> Html.Attribute msg
-onFloatInput toMsg =
-    Events.on "input"
+{-| The value of the input as a number, on the `input` event (every change while
+dragging) or the `change` event (the thumb let go, or a key press).
+-}
+onFloat : String -> (Float -> msg) -> Html.Attribute msg
+onFloat eventName toMsg =
+    Events.on eventName
         (Decode.at [ "target", "value" ] Decode.string
             |> Decode.andThen
                 (\text ->
@@ -856,9 +931,45 @@ onFloatInput toMsg =
 -- HELPERS
 
 
+pairTo : (Float -> Float -> msg) -> ( Float, Float ) -> msg
+pairTo toMsg ( lower, upper ) =
+    toMsg lower upper
+
+
 bounds : Config msg -> ( Float, Float )
 bounds config =
     ( config.min, Basics.max config.min config.max )
+
+
+{-| Where the browser draws a value of a range input: the nearest point of the
+grid of `step` that starts at `min` (the greater one of two that are as near),
+never past the last point of the grid at or below `max`. The value is already in
+the range.
+-}
+onGrid : Config msg -> Float -> Float
+onGrid config number =
+    let
+        ( low, high ) =
+            bounds config
+
+        stepSize =
+            safeStep config.step
+
+        lastStep =
+            toFloat (floor ((high - low) / stepSize + 1.0e-9))
+
+        steps =
+            toFloat (round ((number - low) / stepSize))
+    in
+    low + clampTo 0 lastStep steps * stepSize
+
+
+{-| As many decimals as the step has, or as `min` has when that has more (a
+grid from 0.5 in steps of 1 is 0.5, 1.5 ...), at most four.
+-}
+placesOf : Config msg -> Int
+placesOf config =
+    Basics.max (decimalPlaces (safeStep config.step)) (decimalPlaces config.min)
 
 
 fraction : Float -> Float -> Float -> Float
@@ -891,7 +1002,7 @@ formatValue config number =
             toText number
 
         Nothing ->
-            Format.decimal config.locale (decimalPlaces (safeStep config.step)) number
+            Format.decimal config.locale (placesOf config) number
                 ++ (if config.unit == "" then
                         ""
 
@@ -913,7 +1024,7 @@ rangeText config lower upper =
         Nothing ->
             let
                 places =
-                    decimalPlaces (safeStep config.step)
+                    placesOf config
             in
             Format.decimal config.locale places lower
                 ++ " – "

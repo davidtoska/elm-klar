@@ -1,8 +1,8 @@
 module Klar.Checkbox exposing
     ( view, Attribute
     , checked, indeterminate, onCheck
-    , label, hint, error, ariaLabel
-    , size, disabled, tabIndex, id
+    , label, hint, error, errorMaybe, required, ariaLabel
+    , size, disabled, readOnly, tabIndex, id
     )
 
 {-| A checkbox, with a label or bare.
@@ -45,8 +45,15 @@ The hint and the error message are drawn under the label, or beside the box when
 there is no label (then the checkbox needs `ariaLabel`). Both are joined to the
 checkbox with `aria-describedby`, the error is read out when it appears, and the
 accessible name stays the label alone. A checkbox draws these itself and does not
-use [Klar.Field](Klar-Field), so it has no `errorMaybe`, `required` or
-`labelHidden`.
+use [Klar.Field](Klar-Field); it has the same `hint`, `error`, `errorMaybe` and
+`required` as the fields, and `ariaLabel` instead of `labelHidden`.
+
+A checkbox the user may look at but not change (a saved record, a missing
+permission) is `readOnly`: not dimmed like `disabled`, still reached with Tab and
+read by screen readers, but nothing can change it. A checkbox without `onCheck` is
+only a picture of a state that something around it changes, like the boxes in the
+rows of a multi-select list: it still toggles when clicked, so give a checkbox that
+stands on its own `onCheck` or `readOnly`.
 
 
 # View
@@ -61,12 +68,12 @@ use [Klar.Field](Klar-Field), so it has no `errorMaybe`, `required` or
 
 # Label, hint and error
 
-@docs label, hint, error, ariaLabel
+@docs label, hint, error, errorMaybe, required, ariaLabel
 
 
 # Look and behavior
 
-@docs size, disabled, tabIndex, id
+@docs size, disabled, readOnly, tabIndex, id
 
 -}
 
@@ -92,6 +99,8 @@ type alias Config msg =
     , checked : Bool
     , indeterminate : Bool
     , disabled : Bool
+    , readOnly : Bool
+    , required : Bool
     , onCheck : Maybe (Bool -> msg)
     , id : Maybe String
     , ariaLabel : Maybe String
@@ -109,6 +118,8 @@ configure attributes =
         , checked = False
         , indeterminate = False
         , disabled = False
+        , readOnly = False
+        , required = False
         , onCheck = Nothing
         , id = Nothing
         , ariaLabel = Nothing
@@ -139,12 +150,31 @@ hint text =
 message in red under the label (beside the box when there is no label). The
 message is joined to the checkbox with `aria-describedby`, and screen readers
 read it when it appears. An empty text counts as no error, so there is never a
-red box without a message. There is no `errorMaybe`: add `error` to the list only
-while there is a problem.
+red box without a message.
 -}
 error : String -> Attribute msg
 error text =
     Attribute (\config -> { config | error = Just text })
+
+
+{-| Like `error`, for a message that may not be there: `Nothing` shows no
+error. It goes well with `Validate.errorFor`.
+
+    Checkbox.errorMaybe (Validate.errorFor "order-terms" errors)
+
+-}
+errorMaybe : Maybe String -> Attribute msg
+errorMaybe maybe =
+    Attribute (\config -> { config | error = maybe })
+
+
+{-| Marks the checkbox as required, such as "I accept the terms": a `*` after the
+label (hidden from screen readers) and `aria-required` on the checkbox. It only
+marks the checkbox and checks nothing.
+-}
+required : Attribute msg
+required =
+    Attribute (\config -> { config | required = True })
 
 
 {-| Whether the box is checked. The default is `False`. While the box is
@@ -171,6 +201,19 @@ indeterminate value =
 disabled : Bool -> Attribute msg
 disabled value =
     Attribute (\config -> { config | disabled = value })
+
+
+{-| Shows the value without letting the user change it, for a record the user may
+read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches it,
+so a screen reader can read it ("Newsletter, checkbox, checked, read only"); a
+click or Space changes nothing and nothing is sent to `onCheck`. The box is then
+an element with `role="checkbox"`, `aria-checked` and `aria-readonly` instead of
+a native checkbox, with the same `id`. `disabled` wins over it. The default is
+`False`.
+-}
+readOnly : Bool -> Attribute msg
+readOnly value =
+    Attribute (\config -> { config | readOnly = value })
 
 
 {-| The message sent when the user toggles the box. It gets the new value,
@@ -280,25 +323,35 @@ view attributes =
                 , Maybe.map (\_ -> errorId) shownError
                 ]
 
+        -- Read only: the box itself is the checkbox (a native one cannot be made
+        -- read-only), so nothing can change it and it keeps the focus.
+        isReadOnly =
+            config.readOnly && not config.disabled
+
         -- The hint and the error message sit inside the label element. When there
         -- are some, the label text has an id and names the input on its own
-        -- (aria-labelledby), so they are described but not part of the name.
+        -- (aria-labelledby), so they are described but not part of the name. A
+        -- read-only box is not a form control the label element can name, so it
+        -- always names itself that way.
         nameFromLabelText =
-            config.label /= Nothing && not (List.isEmpty described)
+            config.label /= Nothing && (isReadOnly || not (List.isEmpty described))
 
         ariaAttributes =
-            (if nameFromLabelText then
-                [ Attr.attribute "aria-labelledby" labelId ]
+            [ if nameFromLabelText then
+                Attr.attribute "aria-labelledby" labelId
 
-             else
-                []
-            )
-                ++ (if List.isEmpty described then
-                        []
+              else
+                Internal.noAttr
+            , if List.isEmpty described then
+                Internal.noAttr
 
-                    else
-                        [ Attr.attribute "aria-describedby" (String.join " " described) ]
-                   )
+              else
+                Attr.attribute "aria-describedby" (String.join " " described)
+            , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+            , Internal.attrIf (shownError /= Nothing) (Attr.attribute "aria-invalid" "true")
+            , Internal.attrIf config.required (Attr.attribute "aria-required" "true")
+            , Internal.attrMaybe Attr.id config.id
+            ]
     in
     Html.label
         [ Internal.cls
@@ -306,6 +359,11 @@ view attributes =
             , "klar-check--" ++ Internal.sizeSuffix config.size
             , if config.disabled then
                 "klar-check--disabled"
+
+              else
+                ""
+            , if isReadOnly then
+                "klar-check--readonly"
 
               else
                 ""
@@ -326,22 +384,45 @@ view attributes =
                 "klar-check--bare"
             ]
         ]
-        [ Html.input
-            ([ Internal.cls [ "klar-check__input" ]
-             , Attr.type_ "checkbox"
-             , Attr.checked isChecked
-             , Attr.disabled config.disabled
-             , Internal.attrMaybe Attr.id config.id
-             , Internal.attrMaybe Attr.tabindex config.tabIndex
-             , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
-             , Attr.property "indeterminate" (Encode.bool config.indeterminate)
-             , Internal.attrIf (shownError /= Nothing) (Attr.attribute "aria-invalid" "true")
-             , Internal.attrMaybe Events.onCheck (config.onCheck |> Maybe.map (indeterminateAware config.indeterminate))
-             ]
-                ++ ariaAttributes
-            )
-            []
-        , Html.span [ Internal.cls [ "klar-check__box" ], Attr.attribute "aria-hidden" "true" ] []
+        [ if isReadOnly then
+            Html.span
+                ([ Internal.cls [ "klar-check__box" ]
+                 , Attr.attribute "role" "checkbox"
+                 , Attr.attribute "aria-checked"
+                    (if config.indeterminate then
+                        "mixed"
+
+                     else if config.checked then
+                        "true"
+
+                     else
+                        "false"
+                    )
+                 , Attr.attribute "aria-readonly" "true"
+                 , Attr.tabindex (Maybe.withDefault 0 config.tabIndex)
+                 ]
+                    ++ ariaAttributes
+                )
+                []
+
+          else
+            Html.input
+                ([ Internal.cls [ "klar-check__input" ]
+                 , Attr.type_ "checkbox"
+                 , Attr.checked isChecked
+                 , Attr.disabled config.disabled
+                 , Internal.attrMaybe Attr.tabindex config.tabIndex
+                 , Attr.property "indeterminate" (Encode.bool config.indeterminate)
+                 , Internal.attrMaybe Events.onCheck (config.onCheck |> Maybe.map (indeterminateAware config.indeterminate))
+                 ]
+                    ++ ariaAttributes
+                )
+                []
+        , if isReadOnly then
+            Html.text ""
+
+          else
+            Html.span [ Internal.cls [ "klar-check__box" ], Attr.attribute "aria-hidden" "true" ] []
         , if hasText then
             Html.span [ Internal.cls [ "klar-check__text" ] ]
                 [ Internal.viewMaybe
@@ -353,7 +434,10 @@ view attributes =
                              else
                                 [ Internal.cls [ "klar-check__label" ] ]
                             )
-                            [ Html.text text ]
+                            [ Html.text text
+                            , Internal.viewIf config.required
+                                (Html.span [ Internal.cls [ "klar-field__required" ], Attr.attribute "aria-hidden" "true" ] [ Html.text "*" ])
+                            ]
                     )
                     config.label
                 , Internal.viewMaybe

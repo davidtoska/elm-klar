@@ -2788,14 +2788,14 @@ switch ((View view) as bound) field attributes =
             Switch.view
                 (attributes
                     ++ List.filterMap identity
-                        [ Maybe.map Switch.description def.hint
+                        [ Maybe.map Switch.hint def.hint
                         , Maybe.map Switch.error (problemOf bound def)
                         ]
                     ++ [ Switch.locale view.locale
                        , Switch.id def.key
                        , Switch.label def.label
                        , Switch.checked value
-                       , Switch.onToggle (\on -> view.toMsg (Toggled def.key on))
+                       , Switch.onCheck (\on -> view.toMsg (Toggled def.key on))
                        ]
                 )
 

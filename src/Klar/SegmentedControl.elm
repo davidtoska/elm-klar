@@ -1,43 +1,54 @@
 module Klar.SegmentedControl exposing
     ( view, Attribute
-    , Option, option, withIcon, iconOnly, disabledOption, options
-    , selected, onSelect
-    , label, labelHidden, ariaLabel, hint, error, errorMaybe, required, optionalText, id
-    , size, fullWidth, disabled
+    , Option, option, iconOption, withIcon, disabledOption, options
+    , selected, onChange
+    , label, labelHidden, hint, error, errorMaybe, required, optionalText, id
+    , size, fullWidth, disabled, readOnly
     )
 
 {-| A row of joined options where exactly one is chosen: a switch between
 views ("List" / "Grid"), periods ("Day" / "Week" / "Month") or modes.
 
 Use when: a few short options that switch what the page shows, such as List or Grid, or Day, Week and Month.
-Do not use when: the options need a sentence of explanation (`Klar.Radio`), there are many (`Klar.Select`) or panels of content are switched (`Klar.Tabs`).
+Do not use when: the options need a sentence of explanation (`Klar.Radio`), there are many (`Klar.Select`), none or several may be on (`Klar.ToggleGroup`) or panels of content are switched (`Klar.Tabs`).
 
     import Klar.Icon as Icon
     import Klar.SegmentedControl as SegmentedControl
 
+    -- model:  { layout : Layout }   (ListLayout, GridLayout: your own type)
     SegmentedControl.view
-        [ SegmentedControl.ariaLabel "Layout"
+        [ SegmentedControl.label "Layout"
+        , SegmentedControl.labelHidden
         , SegmentedControl.options
-            [ SegmentedControl.option "list" "List" |> SegmentedControl.withIcon Icon.list
-            , SegmentedControl.option "grid" "Grid" |> SegmentedControl.withIcon Icon.grid
+            [ SegmentedControl.option ListLayout "List" |> SegmentedControl.withIcon Icon.list
+            , SegmentedControl.option GridLayout "Grid" |> SegmentedControl.withIcon Icon.grid
             ]
-        , SegmentedControl.selected (Just model.layout)
-        , SegmentedControl.onSelect LayoutChanged
+        , SegmentedControl.selected model.layout
+        , SegmentedControl.onChange LayoutChanged
         ]
 
-The application owns the choice: `selected` says which option is chosen
-(`Nothing` for none) and `onSelect` gets the value of the option the user
-chooses.
+    -- update
+    LayoutChanged layout ->
+        ( { model | layout = layout }, Cmd.none )
 
-It is a group of radio buttons that looks like joined buttons, so the
-keyboard works the way people expect: Tab enters the group at the chosen
-option, and the arrow keys move to the neighboring option and choose it. Give
-it a visible `label` or an `ariaLabel`, which is the name of the group for
-screen readers.
+**The values are your own** (`ListLayout`, `Week`, an `Int`): an option is made with
+its value, `selected` is the chosen value and `onChange` gets the value of the
+segment the user chooses. They are compared with `==`, so they have to be plain
+data; there is nothing to convert to or from a `String`. The application owns the
+choice and gives it back in `selected`: one value, because one segment is always
+chosen. A control without `onChange` is read-only.
+
+It is a group of radio buttons that looks like joined buttons, so the keyboard
+works the way people expect: Tab enters the group at the chosen segment, and the
+arrow keys move to the next or previous segment and choose it (skipping disabled
+ones and wrapping around at the ends). The `label` names the group for screen
+readers; `labelHidden` keeps it out of sight when the segments speak for
+themselves.
 
 Use it for a few short options that change what the page shows. For options that
 need a sentence of explanation use [Klar.Radio](Klar-Radio), for more than a
-handful [Klar.Select](Klar-Select), and for switching between panels of content
+handful [Klar.Select](Klar-Select), for options that are on or off
+[Klar.ToggleGroup](Klar-ToggleGroup), and for switching between panels of content
 [Klar.Tabs](Klar-Tabs). It takes the attributes that all form controls share
 (`label`, `hint`, `error`, `required` ...; see [Klar.Field](Klar-Field)), and its
 `id` is also the `name` that its radio buttons share.
@@ -50,22 +61,22 @@ handful [Klar.Select](Klar-Select), and for switching between panels of content
 
 # Options
 
-@docs Option, option, withIcon, iconOnly, disabledOption, options
+@docs Option, option, iconOption, withIcon, disabledOption, options
 
 
 # Selection
 
-@docs selected, onSelect
+@docs selected, onChange
 
 
 # Label, hint and error
 
-@docs label, labelHidden, ariaLabel, hint, error, errorMaybe, required, optionalText, id
+@docs label, labelHidden, hint, error, errorMaybe, required, optionalText, id
 
 
-# Look
+# Look and behavior
 
-@docs size, fullWidth, disabled
+@docs size, fullWidth, disabled, readOnly
 
 -}
 
@@ -76,57 +87,64 @@ import Json.Decode as Decode
 import Klar.Field as Field
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Choice as Choice
 import Klar.Theme as Theme exposing (Size(..))
 
 
 {-| A setting of a segmented control. Make them with the functions below and
-pass a list to `view`; later attributes win over earlier ones.
+pass a list to `view`; later attributes win over earlier ones. `value` is the
+type of the values of the segments (your own), `msg` the message of `onChange`.
 -}
-type Attribute msg
-    = Attribute (Config msg -> Config msg)
+type Attribute value msg
+    = Attribute (Config value msg -> Config value msg)
 
 
-{-| One segment of the control: a value and a text, with an optional icon, and
-perhaps disabled. Make one with `option`.
+{-| One segment of the control: a value of your own and a text, with an optional
+icon, and perhaps disabled. Make one with `option` or `iconOption`.
 -}
-type Option
+type Option value
     = Option
-        { value : String
+        { value : value
         , label : String
-        , icon : Maybe Icon
-        , iconOnly : Bool
+        , content : Content
         , disabled : Bool
         }
 
 
-type alias Config msg =
+type Content
+    = TextOnly
+    | TextAndIcon Icon
+    | IconOnly Icon
+
+
+type alias Config value msg =
     { field : Field.Config
-    , ariaLabel : Maybe String
-    , options : List Option
-    , selected : Maybe String
-    , onSelect : Maybe (String -> msg)
+    , options : List (Option value)
+    , selected : Maybe value
+    , onChange : Maybe (value -> msg)
     , size : Size
     , fullWidth : Bool
     , disabled : Bool
+    , readOnly : Bool
     }
 
 
-configure : List (Attribute msg) -> Config msg
+configure : List (Attribute value msg) -> Config value msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
-        , ariaLabel = Nothing
         , options = []
         , selected = Nothing
-        , onSelect = Nothing
+        , onChange = Nothing
         , size = Medium
         , fullWidth = False
         , disabled = False
+        , readOnly = False
         }
         attributes
 
 
-updateField : (Field.Config -> Field.Config) -> Attribute msg
+updateField : (Field.Config -> Field.Config) -> Attribute value msg
 updateField change =
     Attribute (\config -> { config | field = change config.field })
 
@@ -135,37 +153,47 @@ updateField change =
 -- OPTIONS
 
 
-{-| `option "week" "Week"`: the value that `onSelect` gets when the segment is
-chosen, and the text of the segment. The values of a control should differ from
-each other.
+{-| `option Week "Week"`: the value that `onChange` gets when the segment is
+chosen (of your own type), and the text of the segment. The values of a control
+should differ from each other.
 -}
-option : String -> String -> Option
+option : value -> String -> Option value
 option optionValue optionLabel =
-    Option { value = optionValue, label = optionLabel, icon = Nothing, iconOnly = False, disabled = False }
+    Option { value = optionValue, label = optionLabel, content = TextOnly, disabled = False }
 
 
-{-| An icon before the text of the segment. See [Klar.Icon](Klar-Icon), and
-`iconOnly` to drop the text.
+{-| A segment with only an icon. The text is not shown, but it is the accessible
+name and the native tooltip, so it must say what the segment is:
+`iconOption GridLayout Icon.grid "Grid"`.
+-}
+iconOption : value -> Icon -> String -> Option value
+iconOption optionValue icon optionLabel =
+    Option { value = optionValue, label = optionLabel, content = IconOnly icon, disabled = False }
 
-    SegmentedControl.option "list" "List" |> SegmentedControl.withIcon Icon.list
+
+{-| An icon before the text of the segment (see [Klar.Icon](Klar-Icon)). The icon
+is decoration. On a segment made with `iconOption` it replaces the icon.
+
+    SegmentedControl.option ListLayout "List" |> SegmentedControl.withIcon Icon.list
 
 -}
-withIcon : Icon -> Option -> Option
+withIcon : Icon -> Option value -> Option value
 withIcon icon (Option o) =
-    Option { o | icon = Just icon }
+    Option
+        { o
+            | content =
+                case o.content of
+                    IconOnly _ ->
+                        IconOnly icon
 
-
-{-| Show only the icon, which needs `withIcon`. The text stays as the accessible
-name and as the tooltip, so it must still say what the segment is.
--}
-iconOnly : Option -> Option
-iconOnly (Option o) =
-    Option { o | iconOnly = True }
+                    _ ->
+                        TextAndIcon icon
+        }
 
 
 {-| Visible but not selectable: dimmed, and the arrow keys skip it.
 -}
-disabledOption : Option -> Option
+disabledOption : Option value -> Option value
 disabledOption (Option o) =
     Option { o | disabled = True }
 
@@ -175,33 +203,25 @@ disabledOption (Option o) =
 
 
 {-| The label, shown above the control and naming it for screen readers. Give
-the control a `label` or an `ariaLabel`.
+every control one; `labelHidden` keeps it for screen readers only.
 -}
-label : String -> Attribute msg
+label : String -> Attribute value msg
 label text =
     updateField (Field.setLabel text)
 
 
-{-| Keep the label for screen readers only.
+{-| Keep the label for screen readers only, for a control that is clear from its
+segments, such as "Layout" for List and Grid icons. The label is still needed.
 -}
-labelHidden : Attribute msg
+labelHidden : Attribute value msg
 labelHidden =
     updateField Field.setLabelHidden
-
-
-{-| The accessible name when there is no visible label, such as "Layout" for a
-control that is clear from its icons. It becomes the `aria-label` of the group;
-a `label`, when there is one, takes its place.
--}
-ariaLabel : String -> Attribute msg
-ariaLabel text =
-    Attribute (\config -> { config | ariaLabel = Just text })
 
 
 {-| A line of help under the control, joined to it with `aria-describedby` so a
 screen reader reads it with the control.
 -}
-hint : String -> Attribute msg
+hint : String -> Attribute value msg
 hint text =
     updateField (Field.setHint text)
 
@@ -210,7 +230,7 @@ hint text =
 border turns red and the group gets `aria-invalid`. Screen readers read the
 message when it appears.
 -}
-error : String -> Attribute msg
+error : String -> Attribute value msg
 error text =
     updateField (Field.setError (Just text))
 
@@ -221,7 +241,7 @@ error. It goes well with `Validate.errorFor`.
     SegmentedControl.errorMaybe (Validate.errorFor "report-period" errors)
 
 -}
-errorMaybe : Maybe String -> Attribute msg
+errorMaybe : Maybe String -> Attribute value msg
 errorMaybe maybe =
     updateField (Field.setError maybe)
 
@@ -229,7 +249,7 @@ errorMaybe maybe =
 {-| Marks the control as required: a `*` after the label and `aria-required` on
 the group. It only marks the control and checks nothing.
 -}
-required : Attribute msg
+required : Attribute value msg
 required =
     updateField (Field.setRequired True)
 
@@ -238,81 +258,94 @@ required =
 "(optional)". There is no built-in text: without this, an optional control gets
 no mark.
 -}
-optionalText : String -> Attribute msg
+optionalText : String -> Attribute value msg
 optionalText text =
     updateField (Field.setOptionalText text)
 
 
 {-| The DOM id of the group. The chosen segment, or the first one that can be
 chosen when none is, gets this id, so an error summary can move focus to the
-control. It is also the `name` that the segments share, which makes them one
-group for the browser: without an id it is made from the label (or `ariaLabel`)
-and the option values, and two controls with the same label and the same option
-values on one page need an id each.
+control (when no segment can take the focus, the group gets it). It is also the
+`name` that the segments share, which makes them one group for the browser:
+without an id it is made from the label and the texts of the segments, and two
+controls with the same label and the same texts on one page need an id each.
 -}
-id : String -> Attribute msg
+id : String -> Attribute value msg
 id value =
     updateField (Field.setId value)
 
 
 {-| The segments, in the order they are shown.
 -}
-options : List Option -> Attribute msg
+options : List (Option value) -> Attribute value msg
 options value =
     Attribute (\config -> { config | options = value })
 
 
-{-| The value of the chosen option, or `Nothing` when none is chosen, which is
-the default.
+{-| The value of the chosen segment. One segment is always chosen, so it is a
+value, not a `Maybe`; a value that no segment has (or no `selected`) chooses
+nothing, which only makes sense while the options are loading.
 -}
-selected : Maybe String -> Attribute msg
+selected : value -> Attribute value msg
 selected value =
-    Attribute (\config -> { config | selected = value })
+    Attribute (\config -> { config | selected = Just value })
 
 
 {-| The message sent when the user chooses a segment, with the mouse or with the
-arrow keys. It gets the value of that option; store it and give it back with
-`selected`. Without it the control sends nothing.
+arrow keys. It gets the value of that segment; store it and give it back with
+`selected`. Without it the control is read-only (see `readOnly`).
 
-    SegmentedControl.onSelect PeriodChanged
+    SegmentedControl.onChange PeriodChanged
 
 -}
-onSelect : (String -> msg) -> Attribute msg
-onSelect toMsg =
-    Attribute (\config -> { config | onSelect = Just toMsg })
+onChange : (value -> msg) -> Attribute value msg
+onChange toMsg =
+    Attribute (\config -> { config | onChange = Just toMsg })
 
 
 {-| The height and text size of the segments: `Small`, `Medium` or `Large` (see
 [Klar.Theme](Klar-Theme)). The default is `Medium`.
 -}
-size : Size -> Attribute msg
+size : Size -> Attribute value msg
 size value =
     Attribute (\config -> { config | size = value })
 
 
 {-| Stretch over the whole width, every segment equally wide.
 -}
-fullWidth : Attribute msg
+fullWidth : Attribute value msg
 fullWidth =
     Attribute (\config -> { config | fullWidth = True })
 
 
-{-| Disables the whole control. The default is `False`.
+{-| Disables the whole control: dimmed, skipped by Tab, and nothing can be
+chosen. The default is `False`.
 -}
-disabled : Bool -> Attribute msg
+disabled : Bool -> Attribute value msg
 disabled value =
     Attribute (\config -> { config | disabled = value })
+
+
+{-| Shows the choice without letting the user change it, for example while a
+report is being made. Unlike `disabled` it is not dimmed, and Tab still reaches
+the chosen segment, so a screen reader can read it; the group has
+`aria-readonly`, and the other segments cannot be chosen with the mouse or the
+arrow keys. Nothing is sent to `onChange`. The default is `False`.
+-}
+readOnly : Bool -> Attribute value msg
+readOnly value =
+    Attribute (\config -> { config | readOnly = value })
 
 
 
 -- VIEW
 
 
-{-| A row of joined segments with an optional label, hint and error message.
-See the module documentation for the attributes that matter most: `options`,
-`selected` and `onSelect`.
+{-| A row of joined segments with a label (shown or hidden), a hint and an error
+message. See the module documentation for the attributes that matter most:
+`label`, `options`, `selected` and `onChange`.
 -}
-view : List (Attribute msg) -> Html msg
+view : List (Attribute value msg) -> Html msg
 view attributes =
     let
         config =
@@ -321,8 +354,11 @@ view attributes =
         field =
             ensureId config
 
+        isReadOnly =
+            config.readOnly || config.onChange == Nothing
+
         mainIndex =
-            mainOptionIndex config
+            mainOptionIndex config isReadOnly
 
         labelId =
             field.id ++ "-label"
@@ -357,7 +393,15 @@ view attributes =
                     Html.text ""
             , Html.div
                 (Field.controlAttributes field
-                    ++ [ Attr.id (field.id ++ "-group")
+                    ++ [ case mainIndex of
+                            Just _ ->
+                                Attr.id (field.id ++ "-group")
+
+                            Nothing ->
+                                -- No segment can take the focus, so the group
+                                -- does, when the error summary moves it here.
+                                Attr.id field.id
+                       , Internal.attrIf (mainIndex == Nothing) (Attr.tabindex -1)
                        , Internal.cls
                             [ "klar-segmented"
                             , "klar-segmented--" ++ Internal.sizeSuffix config.size
@@ -378,27 +422,21 @@ view attributes =
                                 ""
                             ]
                        , Attr.attribute "role" "radiogroup"
-                       , case ( field.label, config.ariaLabel ) of
-                            ( Just _, _ ) ->
-                                Attr.attribute "aria-labelledby" labelId
-
-                            ( Nothing, Just text ) ->
-                                Attr.attribute "aria-label" text
-
-                            _ ->
-                                Internal.noAttr
+                       , Internal.attrIf (field.label /= Nothing) (Attr.attribute "aria-labelledby" labelId)
+                       , Internal.attrIf (isReadOnly && not config.disabled) (Attr.attribute "aria-readonly" "true")
                        ]
                 )
-                (List.indexedMap (viewOption config field mainIndex) config.options)
+                (List.indexedMap (viewOption config isReadOnly field mainIndex) config.options)
             ]
         )
 
 
-{-| The segment that carries the field's DOM id: the chosen one, or the
-first one that can be chosen.
+{-| The segment that carries the field's DOM id: the chosen one, or the first
+one that can be chosen (in a read-only control only the chosen one can take the
+focus). `Nothing` when no segment can take the focus.
 -}
-mainOptionIndex : Config msg -> Int
-mainOptionIndex config =
+mainOptionIndex : Config value msg -> Bool -> Maybe Int
+mainOptionIndex config isReadOnly =
     let
         indexed =
             List.indexedMap Tuple.pair config.options
@@ -409,30 +447,68 @@ mainOptionIndex config =
         isEnabled ( _, Option o ) =
             not o.disabled
     in
-    case List.filter isChosen indexed of
-        ( index, _ ) :: _ ->
-            index
+    if config.disabled then
+        Nothing
 
-        [] ->
-            case List.filter isEnabled indexed of
-                ( index, _ ) :: _ ->
-                    index
+    else
+        case List.filter (\entry -> isChosen entry && isEnabled entry) indexed of
+            ( index, _ ) :: _ ->
+                Just index
 
-                [] ->
-                    0
+            [] ->
+                if isReadOnly then
+                    Nothing
+
+                else
+                    List.filter isEnabled indexed
+                        |> List.head
+                        |> Maybe.map Tuple.first
 
 
-viewOption : Config msg -> Field.Config -> Int -> Int -> Option -> Html msg
-viewOption config field mainIndex index (Option o) =
+viewOption : Config value msg -> Bool -> Field.Config -> Maybe Int -> Int -> Option value -> Html msg
+viewOption config isReadOnly field mainIndex index (Option o) =
     let
+        isChosen =
+            config.selected == Just o.value
+
         isDisabled =
             config.disabled || o.disabled
+
+        -- In a read-only control the segments that are not chosen cannot be
+        -- chosen: the arrow keys skip them and a click does nothing, and the
+        -- chosen one keeps the focus. They are not dimmed like disabled ones.
+        lockedByReadOnly =
+            isReadOnly && not isChosen && not isDisabled
+
+        iconOnly =
+            case o.content of
+                IconOnly _ ->
+                    True
+
+                _ ->
+                    False
+
+        icon =
+            case o.content of
+                TextOnly ->
+                    Nothing
+
+                TextAndIcon i ->
+                    Just i
+
+                IconOnly i ->
+                    Just i
     in
     Html.label
         [ Internal.cls
             [ "klar-segmented__item"
             , if isDisabled then
                 "klar-segmented__item--disabled"
+
+              else
+                ""
+            , if isReadOnly && not isDisabled then
+                "klar-segmented__item--readonly"
 
               else
                 ""
@@ -443,34 +519,41 @@ viewOption config field mainIndex index (Option o) =
             , Attr.type_ "radio"
             , Attr.name field.id
             , Attr.id
-                (if index == mainIndex then
+                (if Just index == mainIndex then
                     field.id
 
                  else
                     field.id ++ "-" ++ String.fromInt index
                 )
-            , Attr.value o.value
-            , Attr.checked (config.selected == Just o.value)
-            , Attr.disabled isDisabled
-            , Internal.attrMaybe (\toMsg -> Events.on "change" (Decode.succeed (toMsg o.value))) config.onSelect
+
+            -- The value of the segment is the application's own: the DOM gets
+            -- its position, and the message carries the value itself.
+            , Attr.value (String.fromInt index)
+            , Attr.checked isChosen
+            , Attr.disabled (isDisabled || lockedByReadOnly)
+            , if isReadOnly then
+                Internal.noAttr
+
+              else
+                Internal.attrMaybe (\toMsg -> Events.on "change" (Decode.succeed (toMsg o.value))) config.onChange
             ]
             []
         , Html.span
             [ Internal.cls
                 [ "klar-segmented__content"
-                , if o.iconOnly then
+                , if iconOnly then
                     "klar-segmented__content--icon-only"
 
                   else
                     ""
                 ]
-            , Internal.attrIf o.iconOnly (Attr.title o.label)
+            , Internal.attrIf iconOnly (Attr.title o.label)
             ]
-            [ Internal.viewMaybe Icon.view o.icon
+            [ Internal.viewMaybe Icon.view icon
             , Html.span
                 [ Internal.cls
                     [ "klar-segmented__label"
-                    , if o.iconOnly then
+                    , if iconOnly then
                         "klar-sr-only"
 
                       else
@@ -478,7 +561,7 @@ viewOption config field mainIndex index (Option o) =
                     ]
 
                 -- a label cut short with an ellipsis can still be read
-                , Internal.attrIf (not o.iconOnly) (Attr.title o.label)
+                , Internal.attrIf (not iconOnly) (Attr.title o.label)
                 ]
                 [ Html.text o.label ]
             ]
@@ -486,25 +569,14 @@ viewOption config field mainIndex index (Option o) =
 
 
 {-| The group's id, which is also the `name` its radio buttons share. Without
-`id` it is made from the label (or `ariaLabel`) and the values of the options,
-so two controls with the same label but other options are two groups.
+`id` it is made from the label and the texts of the segments, so two controls
+with the same label but other segments are two groups.
 -}
-ensureId : Config msg -> Field.Config
+ensureId : Config value msg -> Field.Config
 ensureId config =
     if config.field.id == "" then
-        let
-            values =
-                List.map (\(Option o) -> o.value) config.options
-        in
         Field.setId
-            ("klar-segmented-"
-                ++ Internal.sanitizeId
-                    (String.toLower
-                        (String.join "-"
-                            (Maybe.withDefault (Maybe.withDefault "control" config.ariaLabel) config.field.label :: values)
-                        )
-                    )
-            )
+            (Choice.groupId "segmented" config.field.label (List.map (\(Option o) -> o.label) config.options))
             config.field
 
     else

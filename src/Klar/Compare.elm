@@ -613,7 +613,7 @@ viewRecords settings t config records =
                         Switch.view
                             [ Switch.label t.onlyDifferences
                             , Switch.checked on
-                            , Switch.onToggle toMsg
+                            , Switch.onCheck toMsg
                             , Switch.size Small
                             , Switch.disabled (recordCount < 2)
                             , Switch.locale settings.locale
