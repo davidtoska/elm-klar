@@ -10,7 +10,7 @@ Types: `Msg`, `State`, `Problem`, `Attribute`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -21,7 +21,8 @@ update : Msg -> State -> ( State, Cmd Msg )
 -- The rule
 type Problem  -- opaque: no constructors are exposed
 value : State -> Maybe Recurrence.Rule
-setRule : Maybe Recurrence.Rule -> State -> State
+setValue : Maybe Recurrence.Rule -> State -> State
+isValid : State -> Bool
 problem : State -> Maybe Problem
 problemText : Locale.Locale -> Problem -> String
 
@@ -30,21 +31,21 @@ start : State -> Date.Date
 setStart : Date.Date -> State -> State
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-label : String -> Attribute
-labelHidden : Attribute
-hint : String -> Attribute
-error : String -> Attribute
-errorMaybe : Maybe String -> Attribute
-required : Attribute
-optionalText : String -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+label : String -> Attribute msg
+labelHidden : Attribute msg
+hint : String -> Attribute msg
+error : String -> Attribute msg
+errorMaybe : Maybe String -> Attribute msg
+required : Attribute msg
+optionalText : String -> Attribute msg
 
 -- Look and behavior
-today : Date.Date -> Attribute
-size : Theme.Size -> Attribute
-locale : Locale.Locale -> Attribute
-disabled : Bool -> Attribute
-readOnly : Bool -> Attribute
+today : Date.Date -> Attribute msg
+size : Theme.Size -> Attribute msg
+locale : Locale.Locale -> Attribute msg
+disabled : Bool -> Attribute msg
+readOnly : Bool -> Attribute msg
 ```
 
 ## Documentation
@@ -90,18 +91,20 @@ See also [Klar.DatePicker](Klar.DatePicker.md) and [Klar.Recurrence](Klar.Recurr
         model.repeat
 
     -- read
-    RecurrencePicker.value model.repeat   -- Maybe Rule
+    RecurrencePicker.value model.repeat     -- Maybe Rule
+    RecurrencePicker.isValid model.repeat   -- False while the form is half filled in
 
 The value is a `Maybe Rule`. `Nothing` means the date does not repeat, and also
 that the form is not complete yet (the number of weeks is empty, "after" has no
-number); `problem` tells these apart, and the field shows the reason under
-itself. The state holds the value and there are no out-messages: compare `value`
-before and after `update` to react to a change.
+number); `isValid` tells these apart (`problem` says why), and the field shows
+the reason under itself. Save only when `isValid` is `True`. The state holds the
+value and there are no out-messages: compare `value` before and after `update`
+to react to a change.
 
 The application gives the start date. The options for a monthly rule follow it
 ("On day 20", "On the third Tuesday", and "On the last Tuesday" when the start
 is the last one), and so does the weekday that is ticked first. Call `setStart`
-when the date changes. A rule loaded from a server is put in with `setRule`.
+when the date changes. A rule loaded from a server is put in with `setValue`.
 
 **The form.** "Repeat" chooses between no repetition, daily, weekly, monthly and
 yearly. The others show what that needs: "Every [2] weeks", the seven weekdays,
@@ -149,7 +152,7 @@ zone are not part of it; your application adds them to each date.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 ```
 
 The field. The first argument wraps the messages of the field in one of
@@ -230,15 +233,22 @@ What is missing from the field. It is opaque, so that more can be added;
 value : State -> Maybe Recurrence.Rule
 ```
 
-The rule the field holds. `Nothing` means that the date does not repeat, or
-that the form is not complete: ask `problem` to tell which (it is `Nothing` too
-when the date does not repeat). The rule is counted from the start date of the
-field.
+The rule the field holds. `Nothing` means that the date does not repeat, and
+also that the form is not complete yet, so check `isValid` before you save:
+`value` alone cannot tell "does not repeat" from "half filled in". The rule is
+counted from the start date of the field.
 
-### `setRule`
+    if RecurrencePicker.isValid model.repeat then
+        save (RecurrencePicker.value model.repeat)
+
+    else
+        -- the field already shows why under itself
+        ( model, Cmd.none )
+
+### `setValue`
 
 ```elm
-setRule : Maybe Recurrence.Rule -> State -> State
+setValue : Maybe Recurrence.Rule -> State -> State
 ```
 
 Shows a rule in the field, or "Does not repeat" for `Nothing`: for a rule
@@ -253,7 +263,18 @@ the choice is listed (once, with the choices that follow the start date) and
 start date has no `value` and the problem `EndBeforeStart` until one of them is
 changed.
 
-    RecurrencePicker.setRule (Just rule) model.repeat
+    RecurrencePicker.setValue (Just rule) model.repeat
+
+### `isValid`
+
+```elm
+isValid : State -> Bool
+```
+
+Whether `value` is what the user means: `True` when the field does not
+repeat or holds a complete rule, `False` while a number is missing or cannot be
+used, the end date is not chosen, or the end date is before the start date (see
+`problem`).
 
 ### `problem`
 
@@ -261,11 +282,11 @@ changed.
 problem : State -> Maybe Problem
 ```
 
-Why `value` is `Nothing` although the field repeats: a number that is
-missing or cannot be used, an end date that is not chosen, or an end date that is
-before the start date. `Nothing` when the field is complete, and when it does not
-repeat at all. Use it to stop a form from being saved; the field itself shows the
-message under its fields, and `problemText` gives it in words.
+Why the field is not valid: a number that is missing or cannot be used, an
+end date that is not chosen, or an end date that is before the start date.
+`Nothing` when the field is complete, and when it does not repeat at all. The
+field itself shows the message under its fields, and `problemText` gives it in
+words (for a summary of the form's problems).
 
 ### `problemText`
 
@@ -296,14 +317,14 @@ setStart : Date.Date -> State -> State
 
 Moves the start date. The choices for a monthly or yearly rule follow it, and
 so does the weekday of a weekly rule while nobody has chosen weekdays. A choice
-the user made stays, and so does a rule that was put in with `setRule`.
+the user made stays, and so does a rule that was put in with `setValue`.
 
 ## Attributes
 
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of the field. Make them with the functions below and pass a list to
@@ -312,7 +333,7 @@ A setting of the field. Make them with the functions below and pass a list to
 ### `label`
 
 ```elm
-label : String -> Attribute
+label : String -> Attribute msg
 ```
 
 The legend of the field: its name, above the choices. Without it the legend
@@ -321,7 +342,7 @@ is the built-in "Repeat", kept for screen readers only.
 ### `labelHidden`
 
 ```elm
-labelHidden : Attribute
+labelHidden : Attribute msg
 ```
 
 Keeps the label for screen readers but does not show it, for a field whose
@@ -330,7 +351,7 @@ purpose is clear from what surrounds it. Needs `label`.
 ### `hint`
 
 ```elm
-hint : String -> Attribute
+hint : String -> Attribute msg
 ```
 
 A line of help under the field. It describes the whole group
@@ -339,7 +360,7 @@ A line of help under the field. It describes the whole group
 ### `error`
 
 ```elm
-error : String -> Attribute
+error : String -> Attribute msg
 ```
 
 An error message of your application, shown under the field and announced to
@@ -349,7 +370,7 @@ screen readers (`role="alert"`). While the field has a problem of its own (see
 ### `errorMaybe`
 
 ```elm
-errorMaybe : Maybe String -> Attribute
+errorMaybe : Maybe String -> Attribute msg
 ```
 
 Like `error`, but takes a `Maybe`: `Nothing` means no error.
@@ -357,7 +378,7 @@ Like `error`, but takes a `Maybe`: `Nothing` means no error.
 ### `required`
 
 ```elm
-required : Attribute
+required : Attribute msg
 ```
 
 Puts a `*` after the label. It only marks the field and checks nothing: "Does
@@ -366,7 +387,7 @@ not repeat" is a valid answer.
 ### `optionalText`
 
 ```elm
-optionalText : String -> Attribute
+optionalText : String -> Attribute msg
 ```
 
 Text shown after the label of a field that is not `required`, such as
@@ -377,7 +398,7 @@ Text shown after the label of a field that is not `required`, such as
 ### `today`
 
 ```elm
-today : Date.Date -> Attribute
+today : Date.Date -> Attribute msg
 ```
 
 Today, from the application (the library never reads the clock). The date
@@ -388,7 +409,7 @@ series.
 ### `size`
 
 ```elm
-size : Theme.Size -> Attribute
+size : Theme.Size -> Attribute msg
 ```
 
 The size of the controls: `Small`, `Medium` or `Large` (see
@@ -397,7 +418,7 @@ The size of the controls: `Small`, `Medium` or `Large` (see
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text, of the sentence and of the dates (see
@@ -406,7 +427,7 @@ The language of the built-in text, of the sentence and of the dates (see
 ### `disabled`
 
 ```elm
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 ```
 
 Disables every control. Takes a `Bool` so that it can come from your model,
@@ -415,7 +436,7 @@ for example while a form is saved. Default: `False`.
 ### `readOnly`
 
 ```elm
-readOnly : Bool -> Attribute
+readOnly : Bool -> Attribute msg
 ```
 
 Shows the label and the sentence only ("Every 2 weeks on Monday and

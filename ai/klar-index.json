@@ -2607,10 +2607,10 @@
         "init",
         "update",
         "value",
-        "setRule",
+        "setValue",
+        "isValid",
         "problem",
-        "problemText",
-        "start"
+        "problemText"
       ],
       "related": [
         "Klar.Recurrence",

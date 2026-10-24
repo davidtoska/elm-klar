@@ -78,7 +78,7 @@ a rule it loaded from a server.
 -}
 setExample : Int -> RecurrencePicker.State -> RecurrencePicker.State
 setExample index picker =
-    RecurrencePicker.setRule (ruleAt index) picker
+    RecurrencePicker.setValue (ruleAt index) picker
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -246,7 +246,7 @@ fieldSection locale model =
         , Doc.example
             { title = "Skipped dates"
             , description = Just "A loaded rule that skips dates shows them as tags with a button each, and Remove all. The field never adds a skipped date, and it keeps one that no longer fits the rule until it is removed: switch the rule to monthly and the dates stay."
-            , code = Just "RecurrencePicker.setRule (Just rule) model.repeat   -- rule made with Recurrence.except [ ... ]"
+            , code = Just "RecurrencePicker.setValue (Just rule) model.repeat   -- rule made with Recurrence.except [ ... ]"
             }
             (RecurrencePicker.view SkippingMsg
                 [ RecurrencePicker.label "Repeat"
@@ -295,7 +295,7 @@ whatTheApplicationSees picker =
                             "Nothing: the date does not repeat"
     in
     Layout.stack [ Layout.gap 1 ]
-        [ Text.caption "What the application reads (RecurrencePicker.value, problem)"
+        [ Text.caption "What the application reads (RecurrencePicker.value, isValid, problem)"
         , mono rule
         ]
 
@@ -325,7 +325,8 @@ RecurrencePicker.view RepeatMsg
 
 -- read
 RecurrencePicker.value model.repeat     -- Maybe Rule
-RecurrencePicker.problem model.repeat   -- Maybe Problem: why it is Nothing"""
+RecurrencePicker.isValid model.repeat   -- save only when True: Nothing can also mean half filled in
+RecurrencePicker.problem model.repeat   -- Maybe Problem: why it is not valid"""
 
 
 
