@@ -7,7 +7,7 @@ module Klar.Table exposing
     , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
     , Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
-    , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
+    , selectable, bulkActions, rowActions, onRowClick, currentRow, expandedRow, rowTone, rowDisabled
     , onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
     , pageSizes, rangeText, unpaged, virtual, zebra, maxHeight, fillHeight
@@ -390,7 +390,7 @@ a saved view.
 
 # Selection and rows
 
-@docs selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
+@docs selectable, bulkActions, rowActions, onRowClick, currentRow, expandedRow, rowTone, rowDisabled
 
 
 # Loading and empty states
@@ -450,6 +450,7 @@ rows" at the top).
 import Array exposing (Array)
 import Browser.Dom as Dom
 import Dict exposing (Dict)
+import File.Download as Download
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
@@ -1179,11 +1180,13 @@ type Msg
     | Scrolled Float
     | RetryClicked
     | FirstPageClicked
+    | ExportClicked String String
 
 
 {-| Applies a message from the table to its state. The `Cmd` moves keyboard
-focus (into a popup, back to its button) and runs the timer behind the search
-debounce, so map it back with your own constructor: `Cmd.map TableMsg cmd`.
+focus (into a popup, back to its button), runs the timer behind the search
+debounce and saves the file of the CSV export, so map it back with your own
+constructor: `Cmd.map TableMsg cmd`.
 -}
 update : Msg -> State id -> ( State id, Cmd Msg )
 update msg (State model) =
@@ -1447,6 +1450,19 @@ step msg model =
             -- the same for "Go to the first page" in the empty page: rows replace it
             ( { model | page = 1, activeRow = 0, scroll = 0, rowMenu = Nothing }, Internal.focus (scrollDomId model.id) NoOp )
 
+        ExportClicked filename csv ->
+            -- a byte order mark first, so that Excel reads æ, ø and å as UTF-8
+            ( { model | popup = NoPopup }
+            , Cmd.batch
+                [ Download.string filename "text/csv;charset=utf-8" ("\u{FEFF}" ++ csv)
+                , if model.popup == NoPopup then
+                    Cmd.none
+
+                  else
+                    Internal.focus (triggerDomId model.id model.popup) NoOp
+                ]
+            )
+
 
 {-| Where focus goes after a filter was removed. The control that removed it
 is often gone or disabled now (a chip, "Reset", the reset button next to
@@ -1458,8 +1474,19 @@ the next filter.
 afterClear : Maybe String -> Model -> Model -> ( Model, Cmd Msg )
 afterClear removed before after =
     let
+        -- Every target takes focus when it is there: the search box, "N filters
+        -- active", the filter button in the header of a column whose filter was
+        -- removed, and last the scroll area, which can take focus whenever the
+        -- table has a filter button. A row is not on the list: it cannot take
+        -- focus unless the rows are interactive, and focus would fall to the page.
+        clearedColumns =
+            Maybe.withDefault [] (Maybe.map List.singleton removed)
+                ++ List.map Tuple.first (activeDrafts before)
+
         outside =
-            [ after.id ++ "-search", triggerDomId after.id FiltersPopup, rowDomId after.id 0 ]
+            [ after.id ++ "-search", triggerDomId after.id FiltersPopup ]
+                ++ List.map (\colId -> triggerDomId after.id (FilterPopup colId)) clearedColumns
+                ++ [ scrollDomId after.id ]
 
         lastChip =
             activeDrafts before |> List.reverse |> List.head |> Maybe.map Tuple.first
@@ -2581,6 +2608,7 @@ type alias Config row msg =
     , expandedRow : Maybe (row -> Html msg)
     , rowTone : Maybe (row -> Maybe Tone)
     , rowDisabled : Maybe (row -> Bool)
+    , currentRow : Maybe (row -> Bool)
     , toolbarActions : List (Html msg)
     , onRefresh : Maybe msg
     , refreshing : Bool
@@ -2626,6 +2654,7 @@ configure attributes =
         , expandedRow = Nothing
         , rowTone = Nothing
         , rowDisabled = Nothing
+        , currentRow = Nothing
         , toolbarActions = []
         , onRefresh = Nothing
         , refreshing = False
@@ -3014,10 +3043,31 @@ rowActions toItems =
 {-| The message to send for a row, when the user clicks it (outside its own
 controls) or presses Enter on it. The function gets the row. A row that is
 `rowDisabled` does not send it.
+
+A row that opens a [Klar.Drawer](Klar-Drawer) or a dialog opens it with
+`Drawer.open ""`: the row has the focus (a click and Enter both give it), and the
+drawer gives it back to the row when it closes. Mark the row whose details are
+open with `currentRow`.
+
+    Table.onRowClick (\order -> OpenOrder order.id)
+
 -}
 onRowClick : (row -> msg) -> Attribute id row msg
 onRowClick toMsg =
     Attribute (\config -> { config | onRowClick = Just toMsg })
+
+
+{-| Marks the row whose details are shown elsewhere, such as the order open in a
+drawer next to the table: it gets a bar at its start and a darker background, and
+screen readers hear it as the current row (`aria-current`). Return `True` for at
+most one row; without this attribute no row is marked.
+
+    Table.currentRow (\order -> Just order.id == model.openOrder)
+
+-}
+currentRow : (row -> Bool) -> Attribute id row msg
+currentRow isCurrent =
+    Attribute (\config -> { config | currentRow = Just isCurrent })
 
 
 {-| Lets rows expand to show more under them: adds an arrow button at the start
@@ -3088,13 +3138,19 @@ file name, used as given (`"orders.csv"`).
 
 The menu offers all matching rows (client mode), the selected rows and the
 current page, the last two with a suffix in the file name (`orders-selected.csv`,
-`orders-page-2.csv`). In server mode only the current page is known, so the
-selected rows are offered only while every selected row is on the page; when some
-are selected on other pages the menu says how many and offers the page only. Build
-that file from your backend (the ids are in `selectedIds`). Hidden
-columns and `notExported` columns are left out, and so are `custom` and
-`actions` columns unless they have `exportAs`. Text that a spreadsheet could run
-as a formula is made safe. See `csvSeparator` for the field separator.
+`orders-page-2.csv`). In server mode only the current page is known (all of it,
+also in a `virtual` table that draws part of it), so the selected rows are
+offered only while every selected row is on the page; when some are selected on
+other pages the menu says how many and offers the page only. Build that file from
+your backend (read `selection`, which can be `AllMatching`). Hidden columns and
+`notExported` columns are left out, and so are `custom` and `actions` columns
+unless they have `exportAs`. Text that a spreadsheet could run as a formula is
+made safe. See `csvSeparator` for the field separator.
+
+The file is written when the user picks a choice, not while the menu is drawn, and
+`update` saves it with `File.Download.string` (a UTF-8 file with a byte order mark,
+so that Excel reads æ, ø and å). There is no size limit, so 50 000 rows are one
+file: map the `Cmd` of `update` back, as always.
 
 -}
 exportCsv : String -> Attribute id row msg
@@ -4197,7 +4253,12 @@ viewSearch : Ctx row msg -> Html msg
 viewSearch ctx =
     Html.div
         [ Internal.cls [ "klar-table__search" ]
-        , Internal.onKeysPassive [ ( "Escape", ctx.toMsg (SearchChanged "" 0) ) ]
+
+        -- Escape clears the text and is used up (its default is prevented, so a
+        -- dialog or drawer around the table leaves it alone); in an empty box it
+        -- is left to the dialog, which then closes.
+        , Internal.attrIf (ctx.model.searchInput /= "")
+            (Internal.onKeys [ ( "Escape", ctx.toMsg (SearchChanged "" 0) ) ])
         ]
         [ TextInput.view
             [ TextInput.id (ctx.model.id ++ "-search")
@@ -4523,26 +4584,23 @@ viewExportMenu ctx popup filename =
         ]
 
 
-{-| The download links. Only built while the menu is open, so the CSV text is
-never computed on an ordinary render.
+{-| The download buttons. The CSV text of a choice is written only when its
+button is clicked (in the click decoder), never on a render, and the file is
+saved from `update` with `File.Download.string`, which has no size limit (a
+`data:` link stops at the length of a URL, a few megabytes).
 -}
 exportOptions : Ctx row msg -> Popup -> String -> List (Html msg)
 exportOptions ctx popup filename =
     let
-        loc =
-            ctx.loc
-
         separator =
-            Maybe.withDefault (Locale.pick loc { nb = ';', en = ',' }) ctx.config.csvSeparator
+            csvSeparatorOf ctx
 
         exported =
             List.filter .exported ctx.visible
 
-        csvOf someRows =
-            Csv.encode separator
-                (List.map .title exported
-                    :: List.map (\row -> List.map (\col -> exportValue loc col row) exported) someRows
-                )
+        -- the whole page in server mode, also when `virtual` draws only part of it
+        pageRows =
+            ctx.data.pageAll
 
         selectedRows =
             case ( ctx.config.rows, ctx.config.server ) of
@@ -4554,27 +4612,30 @@ exportOptions ctx popup filename =
                         |> sortRows ctx.config ctx.model ctx.allColumns
 
                 _ ->
-                    ctx.data.pageRows
+                    pageRows
                         |> List.indexedMap Tuple.pair
                         |> List.filter (\( index, row ) -> isPicked ctx.model.selection (ctx.keyOf (ctx.data.offset + index) row))
                         |> List.map Tuple.second
 
-        option index title suffix someRows =
-            Html.a
+        option index title suffix choice =
+            Html.button
                 [ Internal.cls [ "klar-table__export-option" ]
+                , Attr.type_ "button"
                 , Attr.id (popupDomId ctx.model.id popup ++ "-option-" ++ String.fromInt index)
-                , Attr.href (Csv.dataUrl (csvOf someRows))
-                , Attr.download (withSuffix suffix filename)
-                , Events.onClick (ctx.toMsg PopupClosed)
+                , Events.on "click"
+                    (Decode.succeed ()
+                        |> Decode.map
+                            (\_ -> ctx.toMsg (ExportClicked (withSuffix suffix filename) (csvText separator exported ctx.loc (choice.rows ()))))
+                    )
                 ]
                 [ Icon.view Icon.download
                 , Html.span [ Internal.cls [ "klar-table__export-label" ] ] [ Html.text title ]
-                , Html.span [ Internal.cls [ "klar-table__export-count", "klar-tabular" ] ] [ Html.text (ctx.t.rowCount (List.length someRows)) ]
+                , Html.span [ Internal.cls [ "klar-table__export-count", "klar-tabular" ] ] [ Html.text (ctx.t.rowCount choice.count) ]
                 ]
 
         allChoice =
             if ctx.config.server == Nothing then
-                Just ( ctx.t.exportAll, "", ctx.data.matchingRows () )
+                Just ( ctx.t.exportAll, "", { count = ctx.data.total, rows = ctx.data.matchingRows } )
 
             else
                 Nothing
@@ -4591,36 +4652,39 @@ exportOptions ctx popup filename =
 
         selectedChoice =
             if ctx.hasSelect && not (List.isEmpty selectedRows) && offPage == 0 then
-                Just ( ctx.t.exportSelected, ctx.t.fileSelected, selectedRows )
+                Just ( ctx.t.exportSelected, ctx.t.fileSelected, { count = List.length selectedRows, rows = \_ -> selectedRows } )
 
             else
                 Nothing
 
         pageChoice =
+            { count = List.length pageRows, rows = \_ -> pageRows }
+
+        pageOption =
             if ctx.config.paged && ctx.data.pageCount > 1 then
-                Just ( ctx.t.exportPage, ctx.t.filePage ctx.data.page, ctx.data.pageRows )
+                Just ( ctx.t.exportPage, ctx.t.filePage ctx.data.page, pageChoice )
 
             else
                 Nothing
 
         choices =
             (if popup == BulkExportPopup then
-                [ selectedChoice, allChoice, pageChoice ]
+                [ selectedChoice, allChoice, pageOption ]
 
              else
-                [ allChoice, selectedChoice, pageChoice ]
+                [ allChoice, selectedChoice, pageOption ]
             )
                 |> List.filterMap identity
                 |> (\list ->
                         if List.isEmpty list then
-                            [ ( ctx.t.exportPage, "", ctx.data.pageRows ) ]
+                            [ ( ctx.t.exportPage, "", pageChoice ) ]
 
                         else
                             list
                    )
     in
     [ Html.div [ Internal.cls [ "klar-table__popover-body", "klar-table__popover-body--flush" ] ]
-        (List.indexedMap (\index ( title, suffix, someRows ) -> option index title suffix someRows) choices)
+        (List.indexedMap (\index ( title, suffix, choice ) -> option index title suffix choice) choices)
     , Internal.viewIf (ctx.hasSelect && offPage > 0)
         (Html.p [ Internal.cls [ "klar-table__popover-note" ] ]
             [ Html.text (ctx.t.selectionOffPage offPage (selectionTotal ctx)) ]
@@ -4628,6 +4692,25 @@ exportOptions ctx popup filename =
     , Html.p [ Internal.cls [ "klar-table__popover-note", "klar-table__popover-note--foot" ] ]
         [ Html.text (ctx.t.exportNote (List.length exported) separator) ]
     ]
+
+
+{-| The field separator of the export: `csvSeparator`, or a comma in English and a
+semicolon in Norwegian.
+-}
+csvSeparatorOf : Ctx row msg -> Char
+csvSeparatorOf ctx =
+    Maybe.withDefault (Locale.pick ctx.loc { nb = ';', en = ',' }) ctx.config.csvSeparator
+
+
+{-| The CSV text of some rows: a line of titles, then a line per row with the
+exported values of these columns.
+-}
+csvText : Char -> List (ColumnConfig row msg) -> Locale -> List row -> String
+csvText separator exported loc someRows =
+    Csv.encode separator
+        (List.map .title exported
+            :: List.map (\row -> List.map (\col -> exportValue loc col row) exported) someRows
+        )
 
 
 {-| "orders.csv" + "-selected" = "orders-selected.csv" (the suffix is "-valgte" in
@@ -6311,6 +6394,14 @@ viewRow ctx index row key expanded =
         selected =
             ctx.hasSelect && isPicked model.selection key
 
+        current =
+            case config.currentRow of
+                Just isCurrent ->
+                    isCurrent row
+
+                Nothing ->
+                    False
+
         tone =
             config.rowTone |> Maybe.andThen (\toTone -> toTone row)
 
@@ -6547,6 +6638,11 @@ viewRow ctx index row key expanded =
 
                           else
                             ""
+                        , if current then
+                            "klar-table__row--current"
+
+                          else
+                            ""
                         , case tone of
                             Just value ->
                                 "klar-table__row--tone klar-table__row--" ++ Internal.toneSuffix value
@@ -6566,6 +6662,7 @@ viewRow ctx index row key expanded =
                             )
                         )
                   , Internal.attrIf disabled (Attr.attribute "aria-disabled" "true")
+                  , Internal.attrIf current (Attr.attribute "aria-current" "true")
                   ]
                 , if ctx.interactiveRows then
                     [ Attr.tabindex

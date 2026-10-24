@@ -779,8 +779,20 @@ exportTests =
         option index attributes expectations state =
             element attributes (byId ("orders-popup-export-option-" ++ String.fromInt index)) expectations state
 
-        link csv name =
-            [ Selector.attribute (Attr.href (Csv.dataUrl csv)), Selector.attribute (Attr.download name) ]
+        -- What a click on an option saves: the file name and the CSV text. The
+        -- message is opaque, so the test reads them from its text.
+        clickOn index attributes state =
+            Orders.send attributes (byId ("orders-popup-export-option-" ++ String.fromInt index)) Event.click state
+                |> Result.map Debug.toString
+
+        saves index attributes csv name state =
+            clickOn index attributes state
+                |> Expect.equal (Ok ("TableMsg (ExportClicked " ++ Debug.toString name ++ " " ++ Debug.toString csv ++ ")"))
+
+        savesAs index attributes name state =
+            clickOn index attributes state
+                |> Result.map (String.startsWith ("TableMsg (ExportClicked " ++ Debug.toString name ++ " "))
+                |> Expect.equal (Ok True)
 
         twoColumns =
             [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "city") "City" .city [ Table.notExported ] ] ]
@@ -793,33 +805,33 @@ exportTests =
         , test "all matching rows are the first choice" <|
             \_ -> open exporting start |> expectOk (\s -> option 0 exporting [ Selector.text "All matching", Selector.text "8 rows" ] s)
         , test "the link downloads the file under the name given" <|
-            \_ -> open exporting start |> expectOk (\s -> option 0 exporting (link (english allCodes) "orders.csv") s)
+            \_ -> open exporting start |> expectOk (\s -> saves 0 exporting (english allCodes) "orders.csv" s)
         , test "the rows are in the order of the table, not of the data" <|
             \_ ->
                 open exporting (sorted [ ( Table.columnId "total", Table.Ascending ) ])
-                    |> expectOk (\s -> option 0 exporting (link (english [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ]) "orders.csv") s)
+                    |> expectOk (\s -> saves 0 exporting (english [ 2007, 2003, 2002, 2005, 2008, 2001, 2006, 2004 ]) "orders.csv" s)
         , test "only the rows that match the search" <|
             \_ ->
                 open exporting (Table.setSearch "acme" start)
-                    |> expectOk (\s -> option 0 exporting (link (english [ 2001, 2007 ]) "orders.csv") s)
+                    |> expectOk (\s -> saves 0 exporting (english [ 2001, 2007 ]) "orders.csv" s)
         , test "in Norwegian the separator is a semicolon and numbers have a decimal comma" <|
             \_ ->
                 let
                     norwegian =
                         [ Table.exportCsv "orders.csv", Table.locale Locale.nb ]
                 in
-                open norwegian start |> expectOk (\s -> option 0 norwegian (link (csvOf ';' allCodes exportedInNorwegian) "orders.csv") s)
+                open norwegian start |> expectOk (\s -> saves 0 norwegian (csvOf ';' allCodes exportedInNorwegian) "orders.csv" s)
         , test "csvSeparator chooses another" <|
             \_ ->
                 let
                     attributes =
                         [ Table.exportCsv "orders.csv", Table.csvSeparator '\t' ]
                 in
-                open attributes start |> expectOk (\s -> option 0 attributes (link (csvOf '\t' allCodes exported) "orders.csv") s)
+                open attributes start |> expectOk (\s -> saves 0 attributes (csvOf '\t' allCodes exported) "orders.csv" s)
         , test "a column that is not exported is left out" <|
             \_ ->
                 open (Table.exportCsv "orders.csv" :: twoColumns) start
-                    |> expectOk (\s -> option 0 (Table.exportCsv "orders.csv" :: twoColumns) (link (Csv.encode ',' (List.map (\code -> [ code ]) ("Order" :: numbers allCodes))) "orders.csv") s)
+                    |> expectOk (\s -> saves 0 (Table.exportCsv "orders.csv" :: twoColumns) (Csv.encode ',' (List.map (\code -> [ code ]) ("Order" :: numbers allCodes))) "orders.csv" s)
         , test "a column that is hidden is left out" <|
             \_ ->
                 let
@@ -827,7 +839,7 @@ exportTests =
                         Table.exportCsv "orders.csv" :: [ Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "city") "City" .city [] ] ]
                 in
                 open attributes (Table.setColumnVisible (Table.columnId "city") False start)
-                    |> expectOk (\s -> option 0 attributes (link (Csv.encode ',' (List.map (\code -> [ code ]) ("Order" :: numbers allCodes))) "orders.csv") s)
+                    |> expectOk (\s -> saves 0 attributes (Csv.encode ',' (List.map (\code -> [ code ]) ("Order" :: numbers allCodes))) "orders.csv" s)
         , test "a custom column is exported when it says what to export" <|
             \_ ->
                 let
@@ -842,9 +854,10 @@ exportTests =
                 open attributes start
                     |> expectOk
                         (\s ->
-                            option 0
+                            saves 0
                                 attributes
-                                (link (Csv.encode ',' ([ "Order", "Size" ] :: List.map (\code -> [ code, "size of " ++ code ]) (numbers allCodes))) "orders.csv")
+                                (Csv.encode ',' ([ "Order", "Size" ] :: List.map (\code -> [ code, "size of " ++ code ]) (numbers allCodes)))
+                                "orders.csv"
                                 s
                         )
         , test "text that a spreadsheet would run as a formula is made safe" <|
@@ -857,13 +870,13 @@ exportTests =
                         [ Table.exportCsv "orders.csv", Table.rows (Loaded hostile), Table.columns [ Table.text (Table.columnId "number") "Order" .number [], Table.text (Table.columnId "customer") "Customer" .customer [] ] ]
                 in
                 open attributes start
-                    |> expectOk (\s -> option 0 attributes (link "Order,Customer\u{000D}\nORD-1,\"'=HYPERLINK(\"\"http://example.com\"\")\"" "orders.csv") s)
+                    |> expectOk (\s -> saves 0 attributes "Order,Customer\u{000D}\nORD-1,\"'=HYPERLINK(\"\"http://example.com\"\")\"" "orders.csv" s)
         , test "the note tells the number of columns and the separator" <|
             \_ -> open exporting start |> expectOk (\s -> element exporting [ Selector.class "klar-table__popover-note" ] [ Selector.text "8 columns · UTF-8 · comma" ] s)
         , test "with more than one page the current page can be exported too" <|
             \_ ->
                 open exporting (Table.setPageSize 3 start |> Table.setPage 2)
-                    |> expectOk (\s -> option 1 exporting (link (english [ 2004, 2005, 2006 ]) "orders-page-2.csv") s)
+                    |> expectOk (\s -> saves 1 exporting (english [ 2004, 2005, 2006 ]) "orders-page-2.csv" s)
         , test "but not when everything fits on one page" <|
             \_ -> open exporting start |> expectOk (noElement exporting (byId "orders-popup-export-option-1"))
         , test "selected rows are a choice of their own" <|
@@ -873,7 +886,7 @@ exportTests =
                         Table.selectable :: exporting
                 in
                 open attributes (Table.setSelected Ids.strings [ "ORD-2002", "ORD-2005" ] True start)
-                    |> expectOk (\s -> option 1 attributes (link (english [ 2002, 2005 ]) "orders-selected.csv") s)
+                    |> expectOk (\s -> saves 1 attributes (english [ 2002, 2005 ]) "orders-selected.csv" s)
         , test "in the bar of selected rows the selected rows come first" <|
             \_ ->
                 let
@@ -889,7 +902,7 @@ exportTests =
                         [ Table.exportCsv "orders", Table.selectable ]
                 in
                 open attributes (Table.setSelected Ids.strings [ "ORD-2002" ] True start)
-                    |> expectOk (\s -> option 1 attributes [ Selector.attribute (Attr.download "orders-selected") ] s)
+                    |> expectOk (\s -> savesAs 1 attributes "orders-selected" s)
         , test "a file name with several dots gets the suffix before the last one" <|
             \_ ->
                 let
@@ -897,7 +910,7 @@ exportTests =
                         [ Table.exportCsv "orders.2026.csv", Table.selectable ]
                 in
                 open attributes (Table.setSelected Ids.strings [ "ORD-2002" ] True start)
-                    |> expectOk (\s -> option 1 attributes [ Selector.attribute (Attr.download "orders.2026-selected.csv") ] s)
+                    |> expectOk (\s -> savesAs 1 attributes "orders.2026-selected.csv" s)
         , test "in server mode the table offers only the page it has" <|
             \_ ->
                 let
@@ -906,6 +919,29 @@ exportTests =
                 in
                 open attributes start
                     |> expectOk (\s -> option 0 attributes [ Selector.text "This page", Selector.text "25 rows" ] s)
+        , test "in server mode with virtual rows the page is every row of the page, not only the rows drawn" <|
+            \_ ->
+                let
+                    attributes =
+                        Table.server { total = 500 } :: Table.virtual :: Table.rows (Loaded (generated 200)) :: exporting
+                in
+                open attributes (Table.setPageSize 200 start)
+                    |> expectOk (\s -> option 0 attributes [ Selector.text "This page", Selector.text "200 rows" ] s)
+        , test "and the selected rows of the page are found when they are not drawn" <|
+            \_ ->
+                let
+                    attributes =
+                        Table.server { total = 500 } :: Table.virtual :: Table.selectable :: Table.rows (Loaded (generated 200)) :: exporting
+                in
+                open attributes (Table.setPageSize 200 start |> Table.setSelected Ids.strings [ "ORD-3001", "ORD-3190" ] True)
+                    |> expectOk (\s -> option 0 attributes [ Selector.text "Selected rows", Selector.text "2 rows" ] s)
+        , test "an option is a button, and a click on it closes the menu" <|
+            \_ ->
+                open exporting start
+                    |> Result.andThen (press exporting (byId "orders-popup-export-option-0") Event.click)
+                    |> expectOk (noElement exporting (byId "orders-popup-export"))
+        , test "the options are buttons, not links with the file in the address" <|
+            \_ -> open exporting start |> expectOk (\s -> element exporting (byId "orders-popup-export-option-0") [ Selector.tag "button", Selector.attribute (Attr.type_ "button") ] s)
         , test "in server mode selected rows on other pages are not exported without a sign" <|
             \_ ->
                 let
