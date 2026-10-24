@@ -4,6 +4,7 @@ import Expect
 import Klar
 import Klar.Internal.Css.Tokens as Tokens
 import Klar.Internal.Palette as Palette exposing (Color, Spec)
+import Klar.Locale as Locale
 import Klar.Settings as Settings
 import Klar.Theme as Theme exposing (Mode(..))
 import Test exposing (Test, describe, test)
@@ -32,9 +33,30 @@ vocabularyTests =
                 Expect.all
                     [ \_ -> List.length Theme.all |> Expect.equal 10
                     , \_ -> List.map Theme.key Theme.all |> unique |> Expect.equal True
-                    , \_ -> List.map Theme.name Theme.all |> unique |> Expect.equal True
+                    , \_ -> List.map (Theme.name Locale.en) Theme.all |> unique |> Expect.equal True
+                    , \_ -> List.map (Theme.name Locale.nb) Theme.all |> unique |> Expect.equal True
                     ]
                     ()
+        , test "a theme has a name in each language" <|
+            \_ ->
+                Expect.equal [ "Graphite", "Grafitt", "Klar", "Klar" ]
+                    [ Theme.name Locale.en Theme.graphite
+                    , Theme.name Locale.nb Theme.graphite
+                    , Theme.name Locale.en Theme.klar
+                    , Theme.name Locale.nb Theme.klar
+                    ]
+        , test "a mode key reads back the mode it came from, and the keys are the documented ones" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> List.map Theme.modeKey Theme.modes |> Expect.equal [ "light", "dark", "system" ]
+                    , \_ -> List.map (Theme.modeKey >> Theme.modeFromKey) Theme.modes |> Expect.equal (List.map Just Theme.modes)
+                    , \_ -> Theme.modeFromKey "dusk" |> Expect.equal Nothing
+                    ]
+                    ()
+        , test "a mode has a name in each language" <|
+            \_ ->
+                Expect.equal [ [ "Light", "Dark", "System" ], [ "Lys", "Mørk", "System" ] ]
+                    (List.map (\l -> List.map (Theme.modeName l) Theme.modes) [ Locale.en, Locale.nb ])
         , test "a key reads back the theme it came from" <|
             \_ ->
                 Theme.all

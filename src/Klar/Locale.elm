@@ -27,9 +27,10 @@ version without breaking your code. Text of your application never goes through
 the library: your own labels, column titles and messages come from your
 application, and `pick` is just a convenient way to choose between two of them.
 
-Switch the language of a whole page by keeping a `Locale` in your model and
-passing it to every component; `Klar.AppShell` also sets the `lang` attribute of
-the page content from it, which screen readers use to choose the voice.
+Switch the language of a whole page by keeping it in the [Klar.Settings](Klar-Settings)
+of your model (`Settings.withLocale`) and passing `Settings.locale model.settings` to
+every component; `AppShell.locale` also sets the `lang` attribute of the page content
+from it, which screen readers use to choose the voice.
 
 
 # Choosing a language

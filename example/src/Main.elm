@@ -367,7 +367,7 @@ update msg model =
             ( { model | settings = Settings.withTheme (Theme.fromKey key |> Maybe.withDefault Theme.klar) model.settings }, Cmd.none )
 
         SetColorMode key ->
-            ( { model | settings = Settings.withMode (colorModeFromKey key) model.settings }, Cmd.none )
+            ( { model | settings = Settings.withMode (Theme.modeFromKey key |> Maybe.withDefault Theme.Light) model.settings }, Cmd.none )
 
         SetZone choice ->
             ( applyZone { model | zoneChoice = choice }, Cmd.none )
@@ -1240,35 +1240,9 @@ viewPalette model =
 -- DEVELOPER TOOLS
 
 
-themeOption : Theme.Theme -> Radio.Option
-themeOption theme =
-    Radio.option (Theme.key theme) (Theme.name theme)
-
-
-colorModeKey : Theme.Mode -> String
-colorModeKey mode =
-    case mode of
-        Theme.Light ->
-            "light"
-
-        Theme.Dark ->
-            "dark"
-
-        Theme.System ->
-            "system"
-
-
-colorModeFromKey : String -> Theme.Mode
-colorModeFromKey key =
-    case key of
-        "dark" ->
-            Theme.Dark
-
-        "system" ->
-            Theme.System
-
-        _ ->
-            Theme.Light
+themeOption : Locale -> Theme.Theme -> Radio.Option
+themeOption locale theme =
+    Radio.option (Theme.key theme) (Theme.name locale theme)
 
 
 viewTools : Model -> Overlay Msg
@@ -1293,7 +1267,7 @@ viewTools model =
                 [ Radio.label "Theme"
                 , Radio.hint "One of the ten themes of Klar.Theme. An internal application picks one and leaves it."
                 , Radio.horizontal
-                , Radio.options (List.map themeOption Theme.all)
+                , Radio.options (List.map (themeOption model.locale) Theme.all)
                 , Radio.selected (Just (Theme.key (Settings.theme model.settings)))
                 , Radio.onSelect SetTheme
                 , Radio.id "tools-theme"
@@ -1302,11 +1276,8 @@ viewTools model =
                 [ SegmentedControl.label "Mode"
                 , SegmentedControl.hint "System follows the operating system."
                 , SegmentedControl.options
-                    [ SegmentedControl.option "light" "Light"
-                    , SegmentedControl.option "dark" "Dark"
-                    , SegmentedControl.option "system" "System"
-                    ]
-                , SegmentedControl.selected (Just (colorModeKey (Settings.mode model.settings)))
+                    (List.map (\mode -> SegmentedControl.option (Theme.modeKey mode) (Theme.modeName model.locale mode)) Theme.modes)
+                , SegmentedControl.selected (Just (Theme.modeKey (Settings.mode model.settings)))
                 , SegmentedControl.onSelect SetColorMode
                 , SegmentedControl.id "tools-color-mode"
                 ]

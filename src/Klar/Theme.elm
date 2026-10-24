@@ -2,6 +2,7 @@ module Klar.Theme exposing
     ( Theme, Mode(..)
     , klar, ocean, teal, indigo, violet, plum, slate, graphite, sand, contrast
     , all, name, key, fromKey, style
+    , modes, modeName, modeKey, modeFromKey
     , Tone(..), Size(..), Density(..)
     )
 
@@ -34,7 +35,7 @@ grays) and `contrast` (high contrast, for people who need it). None of them is
 green, amber or red, so an accent is never mistaken for success, a warning or an
 error. Each has a light and a dark mode; the mode is `Light`, `Dark` or `System`
 (follow the operating system). The choice lives in `Klar.Settings` and is drawn by
-`Klar.stylesheetFor`:
+`Klar.stylesheetFor` (the plain `Klar.stylesheet` draws only `klar` in `Light`):
 
     import Klar
     import Klar.Settings as Settings
@@ -48,6 +49,11 @@ error. Each has a light and a dark mode; the mode is `Light`, `Dark` or `System`
     view model =
         Html.div [] [ Klar.stylesheetFor model.settings, page ]
 
+A choice the person makes is stored with `key` and `modeKey` and read back with
+`fromKey` and `modeFromKey`; `name` and `modeName` are the texts of a picker:
+
+    Radio.options (List.map (\theme -> Radio.option (Theme.key theme) (Theme.name model.locale theme)) Theme.all)
+
 A page that draws `Klar.css` itself instead of using `Klar.stylesheet` puts `Theme.style`
 after it. The colors of a theme are computed in Elm
 and drawn as custom properties on `:root`, so there is one theme for the whole page.
@@ -55,6 +61,11 @@ and drawn as custom properties on `:root`, so there is one theme for the whole p
 @docs Theme, Mode
 @docs klar, ocean, teal, indigo, violet, plum, slate, graphite, sand, contrast
 @docs all, name, key, fromKey, style
+
+
+# Light and dark
+
+@docs modes, modeName, modeKey, modeFromKey
 
 
 # The tokens
@@ -102,6 +113,7 @@ of `Klar.css`.
 
 import Html exposing (Html)
 import Klar.Internal.Palette as Palette
+import Klar.Locale as Locale exposing (Locale)
 
 
 
@@ -206,7 +218,7 @@ pick wanted =
 
 {-| All ten, in the order to offer them in a list.
 
-    List.map Theme.name Theme.all -- [ "Klar", "Ocean", "Teal", ... ]
+    List.map (Theme.name Locale.en) Theme.all -- [ "Klar", "Ocean", "Teal", ... ]
 
 -}
 all : List Theme
@@ -214,11 +226,46 @@ all =
     List.map Theme Palette.specs
 
 
-{-| The name to show a person: "Ocean".
+{-| The name to show a person, in the language of the locale: "Ocean" in
+English, "Hav" in Norwegian. To store a choice, use `key`.
+
+    Theme.name Locale.nb Theme.graphite -- "Grafitt"
+
 -}
-name : Theme -> String
-name (Theme spec) =
-    spec.name
+name : Locale -> Theme -> String
+name locale (Theme spec) =
+    Locale.pick locale (names spec)
+
+
+names : Palette.Spec -> { nb : String, en : String }
+names spec =
+    { en = spec.name
+    , nb =
+        case spec.key of
+            "ocean" ->
+                "Hav"
+
+            "teal" ->
+                "Blågrønn"
+
+            "violet" ->
+                "Fiolett"
+
+            "plum" ->
+                "Plomme"
+
+            "slate" ->
+                "Skifer"
+
+            "graphite" ->
+                "Grafitt"
+
+            "contrast" ->
+                "Kontrast"
+
+            _ ->
+                spec.name
+    }
 
 
 {-| A short stable text for a theme (`"ocean"`), to store a choice with
@@ -236,6 +283,62 @@ fromKey : String -> Maybe Theme
 fromKey wanted =
     all
         |> List.filter (\theme -> key theme == wanted)
+        |> List.head
+
+
+{-| The three modes, in the order to offer them: `Light`, `Dark`, `System`.
+-}
+modes : List Mode
+modes =
+    [ Light, Dark, System ]
+
+
+{-| The name of a mode to show a person: "Light", "Dark" or "System" in English,
+"Lys", "Mørk" or "System" in Norwegian.
+
+    SegmentedControl.options
+        (List.map (\m -> SegmentedControl.option (Theme.modeKey m) (Theme.modeName model.locale m)) Theme.modes)
+
+-}
+modeName : Locale -> Mode -> String
+modeName locale mode =
+    case mode of
+        Light ->
+            Locale.pick locale { nb = "Lys", en = "Light" }
+
+        Dark ->
+            Locale.pick locale { nb = "Mørk", en = "Dark" }
+
+        System ->
+            Locale.pick locale { nb = "System", en = "System" }
+
+
+{-| A short stable text for a mode (`"light"`, `"dark"`, `"system"`), to store the
+person's choice with; `modeFromKey` reads it back. The keys never change.
+-}
+modeKey : Mode -> String
+modeKey mode =
+    case mode of
+        Light ->
+            "light"
+
+        Dark ->
+            "dark"
+
+        System ->
+            "system"
+
+
+{-| The mode with that key, if there is one. Use it on a stored choice, and fall
+back to `Light` (or `System`) on `Nothing`.
+
+    Theme.modeFromKey "dark" -- Just Dark
+
+-}
+modeFromKey : String -> Maybe Mode
+modeFromKey wanted =
+    modes
+        |> List.filter (\mode -> modeKey mode == wanted)
         |> List.head
 
 
@@ -285,8 +388,10 @@ type Tone
     | Danger
 
 
-{-| The size of a control: `Small` (26px high), `Medium` (32px, the default) or
-`Large` (40px).
+{-| The size of a control: `Small`, `Medium` (the default) or `Large`. At `Normal`
+density they are 26, 32 and 40 pixels high; the density of the page moves them
+(26, 28 and 36 at `Compact`, 32, 40 and 48 at `Comfortable`), so size things by the
+name, not by the pixels.
 -}
 type Size
     = Small

@@ -28,6 +28,7 @@ suite : Test
 suite =
     describe "Klar.Settings"
         [ zones
+        , languageAndDay
         , density
         , dateShort
         , dayEvents
@@ -83,6 +84,48 @@ zones =
                     ( Format.time (Settings.zone Settings.default) posix
                     , Format.time (Settings.zone oslo) posix
                     )
+        ]
+
+
+languageAndDay : Test
+languageAndDay =
+    let
+        lateEvening =
+            -- 22:05 on 12 March 2024, UTC: already the 13th at UTC+2
+            Time.millisToPosix 1710281100000
+
+        box settings =
+            Settings.scope settings [ Html.text "inside" ]
+                |> Query.fromHtml
+    in
+    describe "the language, the time now and the day today"
+        [ test "the language is English until it is given, then the one given" <|
+            \_ ->
+                Expect.equal [ Locale.en, Locale.nb ]
+                    [ Settings.locale Settings.default
+                    , Settings.locale (Settings.withLocale Locale.nb Settings.default)
+                    ]
+        , test "there is no time now and no day today until the time is given" <|
+            \_ -> Expect.equal ( Nothing, Nothing ) ( Settings.now Settings.default, Settings.today Settings.default )
+        , test "the time now is read back" <|
+            \_ -> Expect.equal (Just posix) (Settings.now (Settings.withNow posix Settings.default))
+        , test "the day today is the day of the time now in the zone, which may be the next one" <|
+            \_ ->
+                Expect.equal [ Just "2024-03-12", Just "2024-03-13" ]
+                    [ Settings.default |> Settings.withNow lateEvening |> Settings.today |> Maybe.map Date.toIso
+                    , Settings.default |> Settings.withNow lateEvening |> Settings.withZone (Time.customZone 120 []) |> Settings.today |> Maybe.map Date.toIso
+                    ]
+        , test "the box of the scope has the lang of a given language, and none before" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> box (Settings.withLocale Locale.nb Settings.default) |> Query.has [ Selector.attribute (Attr.attribute "lang" "nb") ]
+                    , \_ -> box Settings.default |> Query.hasNot [ Selector.attribute (Attr.attribute "lang" "en") ]
+                    ]
+                    ()
+        , test "the language of the settings writes the date and the time" <|
+            \_ ->
+                Expect.equal "12.03.2024 15:05"
+                    (Settings.dateTime (Settings.locale (Settings.withLocale Locale.nb oslo)) oslo posix)
         ]
 
 
