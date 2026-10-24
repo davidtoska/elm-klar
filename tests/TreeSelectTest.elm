@@ -70,12 +70,12 @@ typeText text state =
 
 singleField : State Single
 singleField =
-    TreeSelect.init TreeSelect.single "site"
+    TreeSelect.init "site" TreeSelect.single
 
 
 multipleField : State Multiple
 multipleField =
-    TreeSelect.init TreeSelect.multiple "site"
+    TreeSelect.init "site" TreeSelect.multiple
 
 
 attr : String -> String -> Selector

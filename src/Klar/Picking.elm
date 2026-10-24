@@ -69,7 +69,6 @@ exactly that); an application rarely needs them.
 
 import Klar.Icon exposing (Icon)
 import Klar.Ids as Ids exposing (Ids)
-import Klar.Internal.Freshness as Freshness
 import Klar.Remote as Remote exposing (Remote)
 
 
@@ -100,11 +99,6 @@ type alias Data id =
 
 make : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
 make ids nodeId nodeLabel givenKids =
-    let
-        -- children that are `Kept` are shown as they are; the pickers have no room for a marker
-        kids =
-            Tuple.first (Freshness.settle givenKids)
-    in
     Node
         { key = Ids.toKey ids nodeId
         , id = nodeId
@@ -113,7 +107,7 @@ make ids nodeId nodeLabel givenKids =
         , icon = Nothing
         , keywords = []
         , disabled = False
-        , children = kids
+        , children = givenKids
         }
 
 
@@ -152,7 +146,9 @@ looks like something that can be opened, until its children arrive empty.
 The component tells you which node was opened first (`TreeSelect.loadRequests`,
 `Cascader.loadRequests`); you set its children to `Loading`, fetch them, and put
 the answer in the node the next time you build the tree. Children that are `Kept`
-(refreshed, or old after a failed refresh) are shown as if they were `Loaded`.
+stay on screen and can be chosen: while they are refreshed the branch is marked
+busy, and when the last refresh failed a row under the branch says "Old data from
+14:05" with a "Try again" button (`onRetryChildren`).
 
 -}
 lazy : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
@@ -250,7 +246,7 @@ isDisabled (Node data) =
 
 
 {-| The children of the node as a `Remote`: `Loaded []` for a leaf, the list for
-a branch, and whatever state the backend request is in for a lazy node.
+a branch, and for a lazy node the `Remote` as you gave it (`Kept` included).
 -}
 children : Node id -> Remote (List (Node id))
 children (Node data) =

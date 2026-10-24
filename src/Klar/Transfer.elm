@@ -873,14 +873,9 @@ seek direction from rows =
                 seek direction (from + direction) rows
 
 
-rowHeight : Int
-rowHeight =
-    32
-
-
 geometry : Int -> Int -> VirtualList.Geometry
 geometry rowsVisible count =
-    { rowHeight = rowHeight, height = rowsVisible * rowHeight, count = count, inset = 0 }
+    { rowHeight = View.rowHeight, height = rowsVisible * View.rowHeight, count = count, inset = 0 }
 
 
 cursorTo : Env id -> Side -> Int -> Data id -> ( Data id, Cmd (Msg id) )
@@ -1552,28 +1547,6 @@ viewLegend field =
 -- PANES
 
 
-{-| The rows that a list draws, by the same arithmetic as `VirtualList`, so that
-`aria-activedescendant` only names a row that exists.
--}
-renderedRange : Int -> Int -> VirtualList.State -> ( Int, Int )
-renderedRange count rowsVisible list =
-    let
-        viewport =
-            min (rowsVisible * rowHeight) (count * rowHeight)
-
-        -- the list keeps its scroll position inside its rows, so does this
-        top =
-            clamp 0 (toFloat (max 0 (count * rowHeight - viewport))) (VirtualList.scrollTop list)
-
-        first =
-            floor (top / toFloat rowHeight)
-
-        visible =
-            ceiling (toFloat viewport / toFloat rowHeight) + 1
-    in
-    ( max 0 (first - 6), min count (first + visible + 6) )
-
-
 type alias RowConfig id msg =
     { toMsg : Msg id -> msg
     , config : Config id msg
@@ -1647,7 +1620,7 @@ viewPane toMsg config t env data interactive side =
                 Just i ->
                     let
                         ( from, to ) =
-                            renderedRange shownCount config.visibleRows (pick side data.lists)
+                            View.renderedRange { visibleRows = config.visibleRows, count = shownCount } (pick side data.lists)
                     in
                     if i >= from && i < to then
                         Just (rowDomId data.id side i)
@@ -1712,8 +1685,9 @@ viewPane toMsg config t env data interactive side =
                     -- focus in it survives moving the last item to the other list
                     Html.div []
                         [ VirtualList.view (ListMsg side >> toMsg)
-                            [ VirtualList.rowHeight rowHeight
-                            , VirtualList.height (config.visibleRows * rowHeight)
+                            [ VirtualList.rowHeight View.rowHeight
+                            , VirtualList.overscan View.overscan
+                            , VirtualList.height (config.visibleRows * View.rowHeight)
                             , VirtualList.htmlAttrs
                                 [ Internal.cls [ "klar-select__list", "klar-transfer__list" ]
                                 , Attr.attribute "role" "listbox"

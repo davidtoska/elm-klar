@@ -272,11 +272,11 @@ type Msg
 
 init : ( Model, Cmd Msg )
 init =
-    ( { site = TreeSelect.init TreeSelect.single "location-single"
+    ( { site = TreeSelect.init "location-single" TreeSelect.single
       , sites =
-            TreeSelect.init TreeSelect.multiple "location-multiple"
+            TreeSelect.init "location-multiple" TreeSelect.multiple
                 |> TreeSelect.setValues locationIds [ LocationId "nordics" ]
-      , catalogue = TreeSelect.init TreeSelect.multiple "catalogue"
+      , catalogue = TreeSelect.init "catalogue" TreeSelect.multiple
       , place =
             Cascader.init "location-path"
                 |> Cascader.setValue locationIds [ LocationId "nordics", LocationId "oslo", LocationId "oslo/receiving", LocationId "oslo/receiving/A-01" ]
@@ -285,7 +285,7 @@ init =
             Transfer.init "promotion-products"
                 |> Transfer.setValues productIds [ ProductNo 3, ProductNo 17, ProductNo 1999, ProductNo 9999 ]
       , columns = Transfer.init "export-columns"
-      , downState = TreeSelect.init TreeSelect.single "location-down"
+      , downState = TreeSelect.init "location-down" TreeSelect.single
       , regions = Loading
       , fetched = Dict.empty
       , attempts = Dict.empty
