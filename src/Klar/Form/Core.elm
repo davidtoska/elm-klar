@@ -60,7 +60,24 @@ type Form step fields values
         , defsAt : String -> List Def
         , fieldsAt : String -> fields
         , readAt : String -> Locale -> Data -> Result (List Found) values
+        , conditionsAt : String -> List Condition
+        , liveAt : String -> Locale -> Data -> List Found
         }
+
+
+{-| A condition on a field, declared with `shownWhen` or `requiredWhen`: the
+field it is about and whether it holds for the data now.
+-}
+type alias Condition =
+    { key : String
+    , kind : ConditionKind
+    , holds : Data -> Bool
+    }
+
+
+type ConditionKind
+    = ShownWhen
+    | RequiredWhen
 
 
 type alias StepInfo step =
@@ -232,6 +249,8 @@ type Builder step fields values
         , makers : List (String -> Def)
         , fieldsAt : String -> fields
         , readAt : String -> Locale -> Data -> Result (List Found) values
+        , conditionsAt : String -> List Condition
+        , liveAt : String -> Locale -> Data -> List Found
         }
 
 
@@ -250,6 +269,7 @@ type View msg
         , stepInfo : List { label : String, failed : Bool }
         , current : Int
         , anchor : Maybe String
+        , hidden : Set String
         }
 
 
@@ -318,6 +338,8 @@ type RowsPlan
         { item : String
         , minimum : Int
         , defsAt : String -> List Def
+        , conditionsAt : String -> List Condition
+        , liveAt : String -> Locale -> Data -> List Found
         }
 
 
@@ -363,6 +385,8 @@ define prefix fieldsConstructor valuesConstructor =
         , makers = []
         , fieldsAt = \_ -> fieldsConstructor
         , readAt = \_ _ _ -> Ok valuesConstructor
+        , conditionsAt = \_ -> []
+        , liveAt = \_ _ _ -> []
         }
 
 
@@ -423,6 +447,8 @@ with (Spec spec) (Builder b) =
         , makers = maker :: b.makers
         , fieldsAt = \prefix -> b.fieldsAt prefix (handleAt prefix)
         , readAt = readAt
+        , conditionsAt = b.conditionsAt
+        , liveAt = b.liveAt
         }
 
 
@@ -488,6 +514,99 @@ check verdict (Builder b) =
         }
 
 
+{-| The field is part of the form only while the condition holds: a VAT number
+for a company, a delivery address when "ship elsewhere" is on. While it does not,
+the field is not drawn (its view is empty), its problems are left out, and the
+values get its empty value (`Nothing`, `[]`, `False`), whatever was typed in it.
+What was typed is kept, so it comes back when the condition holds again.
+Declare such a field without `required`, so that its output can be empty, and
+add `requiredWhen` with the same condition to require it while it is shown. Put
+it after the `with` calls, like `check`.
+
+    Fm.define "customer" Fields Values
+        |> Fm.with (Fm.choice kindIds "Customer kind" |> Fm.required)
+        |> Fm.with (Fm.masked MaskedInput.norwegianOrganisationNumber "Organisation number")
+        |> Fm.shownWhen isCompany .organisationNumber
+        |> Fm.requiredWhen isCompany .organisationNumber
+        |> Fm.build
+
+    isCompany : Fields -> Fm.State () -> Bool
+    isCompany handles state =
+        Fm.get handles.kind state == Just Company
+
+-}
+shownWhen : (fields -> State step -> Bool) -> (fields -> Field c) -> Builder step fields values -> Builder step fields values
+shownWhen holds pick =
+    addCondition ShownWhen holds pick
+
+
+{-| The field is required while the condition holds: it gets the `*` of a
+required field, and an empty value is the problem "Required". Its output keeps
+its type (declare it without `required`, so it can be empty when the condition
+does not hold). Put it after the `with` calls; see `shownWhen`.
+-}
+requiredWhen : (fields -> State step -> Bool) -> (fields -> Field c) -> Builder step fields values -> Builder step fields values
+requiredWhen holds pick =
+    addCondition RequiredWhen holds pick
+
+
+addCondition : ConditionKind -> (fields -> State step -> Bool) -> (fields -> Field c) -> Builder step fields values -> Builder step fields values
+addCondition kind holds pick (Builder b) =
+    let
+        conditionAt prefix =
+            let
+                handles =
+                    b.fieldsAt prefix
+
+                (Field field) =
+                    pick handles
+            in
+            { key = field.key, kind = kind, holds = \data -> holds handles (State data) }
+    in
+    Builder { b | conditionsAt = \prefix -> b.conditionsAt prefix ++ [ conditionAt prefix ] }
+
+
+{-| A rule over several fields that runs at once, without waiting for the rest of
+the form: "the end date is after the start date", "the confirmation matches the
+email". It gets the locale, the handles and the state, reads the fields with
+`get` (so it sees `Nothing` for an empty field and says nothing then), and
+returns the problems it finds, each tied to a field with `problem`. A problem
+belongs to the step of its field: it shows there once the field was left or
+edited, and it keeps the user on that step. Use `check` instead for a rule that
+needs the whole record of values. Put it after the `with` calls.
+
+    Fm.define "booking" Fields Values
+        |> Fm.with (Fm.date "From" |> Fm.required)
+        |> Fm.with (Fm.date "To" |> Fm.required)
+        |> Fm.checkFields
+            (\locale f state ->
+                case ( Fm.get f.from state, Fm.get f.to state ) of
+                    ( Just from, Just to ) ->
+                        if Date.compare to from == LT then
+                            [ Fm.problem f.to (Locale.pick locale { nb = "Til kan ikke være før fra", en = "To cannot be before from" }) ]
+
+                        else
+                            []
+
+                    _ ->
+                        []
+            )
+        |> Fm.build
+
+-}
+checkFields : (Locale -> fields -> State step -> List (Problem step)) -> Builder step fields values -> Builder step fields values
+checkFields verdict (Builder b) =
+    Builder
+        { b
+            | liveAt =
+                \prefix locale data ->
+                    b.liveAt prefix locale data
+                        ++ (verdict locale (b.fieldsAt prefix) (State data)
+                                |> List.map (\p -> { field = p.field, target = p.field, label = p.label, message = p.message })
+                           )
+        }
+
+
 {-| Finishes the declaration. The result only has the type
 `Form step Fields Values` when every `with` matched an argument of both records;
 a field missing from one of them is a compile error.
@@ -500,6 +619,8 @@ build (Builder b) =
         , defsAt = \prefix -> List.map (\make_ -> make_ prefix) (List.reverse b.makers)
         , fieldsAt = b.fieldsAt
         , readAt = b.readAt
+        , conditionsAt = b.conditionsAt
+        , liveAt = b.liveAt
         }
 
 
@@ -920,7 +1041,7 @@ rows names (Form sub) =
         , toRaw = \_ -> RRows []
         , fromData = \key data -> Rows (List.map (\id -> sub.fieldsAt (rowPrefix key id)) (rowIds key data))
         , limits = noLimits
-        , rows = Just (RowsPlan { item = names.item, minimum = 0, defsAt = sub.defsAt })
+        , rows = Just (RowsPlan { item = names.item, minimum = 0, defsAt = sub.defsAt, conditionsAt = sub.conditionsAt, liveAt = sub.liveAt })
         , few = \locale n -> Locale.pick locale { nb = "Legg til minst " ++ String.fromInt n, en = "Add at least " ++ String.fromInt n }
         , read =
             \key locale data ->
@@ -1811,6 +1932,85 @@ rawFiles (Field field) (State data) =
             []
 
 
+{-| The search text of a `select` or `multiSelect` field while its list is open,
+and `""` otherwise or for any other kind. With `Select.serverSearch` among the
+attributes, fetch the options when it changes: compare it before and after
+`update`. It follows the box after a pause of 300 ms in the typing, so write no
+debounce of your own.
+
+    FormMsg inner ->
+        let
+            ( state, cmd ) =
+                Fm.update form inner model.form
+        in
+        if Fm.query fields.customer state /= Fm.query fields.customer model.form then
+            ( { model | form = state, customers = Remote.Loading }
+            , Cmd.batch [ Cmd.map FormMsg cmd, searchCustomers (Fm.query fields.customer state) ]
+            )
+
+        else
+            ( { model | form = state }, Cmd.map FormMsg cmd )
+
+-}
+query : Field c -> State step -> String
+query (Field field) (State data) =
+    case Dict.get field.key data.slots of
+        Just (SSelect state) ->
+            Select.query state
+
+        Just (SMulti state) ->
+            MultiSelect.query state
+
+        _ ->
+            ""
+
+
+{-| Puts a value in a `choice` field together with its option, so that the field
+shows the option's label also when the options it is drawn with do not have it:
+a saved customer in a select that searches the server, whose options are only
+the latest hits. For a select with all its options, `set` is enough.
+
+    Fm.setOption fields.customer (Select.option order.customerId order.customerName) state
+
+-}
+setOption : Field (Maybe id) -> Select.Option id -> State step -> State step
+setOption (Field field) choice_ (State data) =
+    State
+        { data
+            | slots =
+                Dict.update field.key
+                    (Maybe.map
+                        (\slot ->
+                            case slot of
+                                SSelect state ->
+                                    SSelect (Select.setOption (Select.mapOption (keyOf field.toRaw << Just) choice_) state)
+
+                                other ->
+                                    other
+                        )
+                    )
+                    data.slots
+        }
+
+
+{-| The DOM id of the element that takes the focus for a field: its control, the
+add button of a group of rows, or the first button of a rule builder. For
+`Modal.openWith` and `Drawer.openWith`, which take the DOM ids to focus when they
+open; to move the focus in an update, `focus` does it for you.
+
+    Drawer.openWith { opener = "edit-customer", focus = [ Fm.domId fields.name ] } model.drawer
+
+-}
+domId : Field c -> String
+domId (Field field) =
+    case field.toRaw field.empty of
+        RRule _ ->
+            RuleBuilder.focusId [] (RuleBuilder.init field.key) 0
+
+        _ ->
+            field.key
+
+
 {-| The handles of the rows a group has now, in order. Draw one card of fields
 for each; the position is for the words ("Contact 2"). A handle is the row's
 own: it stays right when other rows are added or removed, and stops working when
@@ -1859,8 +2059,9 @@ fillRows ((Field field) as handle) fill items (State data) =
                 ids =
                     List.range next (next + List.length items - 1)
 
+                -- the slots of the group's own rows, not of a field whose label starts like the group's
                 under key =
-                    String.startsWith (field.key ++ "-") key
+                    List.any (\id -> String.startsWith (rowPrefix field.key id ++ "-") key) (rowIds field.key data)
 
                 emptied =
                     State
@@ -1903,7 +2104,7 @@ toValues locale ((Form form) as declared) (State data) =
             standing (diagnose locale declared data defs) defs
     in
     if List.isEmpty standing_ then
-        case form.readAt form.prefix locale data of
+        case form.readAt form.prefix locale (readable declared data defs) of
             Ok values ->
                 Ok values
 
@@ -2382,30 +2583,50 @@ expandOne data def =
 
 
 diagnose : Locale -> Form step fields values -> Data -> List Def -> List Diagnosis
-diagnose locale (Form form) data defs =
+diagnose locale ((Form form) as declared) data defs =
     let
         byKey =
             Dict.fromList (List.map (\def -> ( def.key, def )) defs)
 
+        rulesNow =
+            conditionsIn declared data
+
+        hidden =
+            hiddenAmong rulesNow data (form.defsAt form.prefix)
+
+        visible def =
+            not (Set.member def.key hidden)
+
+        reading =
+            withoutHidden hidden defs data
+
+        fromFound f =
+            case Dict.get f.field byKey of
+                Just def ->
+                    { field = f.field, target = reachable def f.target, label = def.label, message = f.message, step = def.step, origin = FromRule }
+
+                Nothing ->
+                    { field = f.field, target = f.target, label = f.label, message = f.message, step = 0, origin = FromRule }
+
         client =
-            case form.readAt form.prefix locale data of
+            case form.readAt form.prefix locale reading of
                 Ok _ ->
                     []
 
                 Err found ->
-                    found
-                        |> List.map
-                            (\f ->
-                                case Dict.get f.field byKey of
-                                    Just def ->
-                                        { field = f.field, target = reachable def f.target, label = def.label, message = f.message, step = def.step, origin = FromRule }
+                    List.map fromFound found
 
-                                    Nothing ->
-                                        { field = f.field, target = f.target, label = f.label, message = f.message, step = 0, origin = FromRule }
-                            )
+        wanted =
+            requiredAmong rulesNow data
+
+        conditional =
+            defs
+                |> List.filter (\def -> visible def && Set.member def.key wanted && isBlankIn data def)
+                |> List.map (\def -> { field = def.key, target = entryOf def, label = def.label, message = requiredText locale, step = def.step, origin = FromRule })
 
         bounded =
             defs
+                |> List.filter visible
                 |> List.filterMap
                     (\def ->
                         lookup def.key data
@@ -2413,8 +2634,14 @@ diagnose locale (Form form) data defs =
                             |> Maybe.map (\message -> { field = def.key, target = entryOf def, label = def.label, message = message, step = def.step, origin = FromRule })
                     )
 
+        live =
+            liveIn declared locale reading
+                |> List.filter (\f -> not (Set.member f.field hidden))
+                |> List.map fromFound
+
         server =
             defs
+                |> List.filter visible
                 |> List.filterMap
                     (\def ->
                         Dict.get def.key data.server
@@ -2428,7 +2655,197 @@ diagnose locale (Form form) data defs =
                         { field = o.field, target = o.field, label = o.label, message = o.message, step = Maybe.withDefault 0 o.step, origin = FromOutside }
                     )
     in
-    client ++ bounded ++ server ++ fromOutside
+    client ++ conditional ++ bounded ++ live ++ server ++ fromOutside
+
+
+requiredText : Locale -> String
+requiredText locale =
+    Locale.pick locale { nb = "Må fylles ut", en = "Required" }
+
+
+{-| Every condition of the form and of the rows of its groups.
+-}
+conditionsIn : Form step fields values -> Data -> List Condition
+conditionsIn (Form form) data =
+    form.conditionsAt form.prefix ++ inRows (\(RowsPlan plan) prefix -> plan.conditionsAt prefix) data (form.defsAt form.prefix)
+
+
+{-| The problems of every `checkFields` of the form and of the rows of its groups.
+-}
+liveIn : Form step fields values -> Locale -> Data -> List Found
+liveIn (Form form) locale data =
+    form.liveAt form.prefix locale data ++ inRows (\(RowsPlan plan) prefix -> plan.liveAt prefix locale data) data (form.defsAt form.prefix)
+
+
+inRows : (RowsPlan -> String -> List a) -> Data -> List Def -> List a
+inRows pick data defs =
+    List.concatMap
+        (\def ->
+            case def.rows of
+                Just ((RowsPlan plan) as group) ->
+                    rowIds def.key data
+                        |> List.concatMap
+                            (\id ->
+                                let
+                                    prefix =
+                                        rowPrefix def.key id
+                                in
+                                pick group prefix ++ inRows pick data (plan.defsAt prefix)
+                            )
+
+                Nothing ->
+                    []
+        )
+        defs
+
+
+{-| The keys of the fields that are not shown now: those whose `shownWhen` does
+not hold, and every field in the rows of a group that is not shown.
+-}
+hiddenAmong : List Condition -> Data -> List Def -> Set String
+hiddenAmong rulesNow data defs =
+    let
+        off =
+            rulesNow
+                |> List.filter (\c -> c.kind == ShownWhen && not (c.holds data))
+                |> List.map .key
+                |> Set.fromList
+    in
+    if Set.isEmpty off then
+        Set.empty
+
+    else
+        hideUnder off False data defs
+
+
+hideUnder : Set String -> Bool -> Data -> List Def -> Set String
+hideUnder off inside data defs =
+    List.foldl
+        (\def acc ->
+            let
+                hiddenNow =
+                    inside || Set.member def.key off
+
+                withSelf =
+                    if hiddenNow then
+                        Set.insert def.key acc
+
+                    else
+                        acc
+            in
+            case def.rows of
+                Just (RowsPlan plan) ->
+                    rowIds def.key data
+                        |> List.foldl (\id all -> Set.union (hideUnder off hiddenNow data (plan.defsAt (rowPrefix def.key id))) all) withSelf
+
+                Nothing ->
+                    withSelf
+        )
+        Set.empty
+        defs
+
+
+requiredAmong : List Condition -> Data -> Set String
+requiredAmong rulesNow data =
+    rulesNow
+        |> List.filter (\c -> c.kind == RequiredWhen && c.holds data)
+        |> List.map .key
+        |> Set.fromList
+
+
+{-| The data as the values are read from it: a field that is not shown is read
+as empty, and a group that is not shown has no rows.
+-}
+withoutHidden : Set String -> List Def -> Data -> Data
+withoutHidden hidden defs data =
+    if Set.isEmpty hidden then
+        data
+
+    else
+        { data
+            | slots =
+                List.foldl
+                    (\def slots ->
+                        if Set.member def.key hidden then
+                            case Dict.get def.key slots of
+                                Just (SRows group) ->
+                                    Dict.insert def.key (SRows { group | order = [] }) slots
+
+                                Just _ ->
+                                    Dict.insert def.key (newSlot def) slots
+
+                                Nothing ->
+                                    slots
+
+                        else
+                            slots
+                    )
+                    data.slots
+                    defs
+        }
+
+
+{-| The data with the hidden fields read as empty, for `toValues`.
+-}
+readable : Form step fields values -> Data -> List Def -> Data
+readable ((Form form) as declared) data defs =
+    withoutHidden (hiddenAmong (conditionsIn declared data) data (form.defsAt form.prefix)) defs data
+
+
+isBlankIn : Data -> Def -> Bool
+isBlankIn data def =
+    case lookup def.key data of
+        Just raw ->
+            isBlank raw
+
+        Nothing ->
+            True
+
+
+isBlank : Raw -> Bool
+isBlank raw =
+    case raw of
+        RText value ->
+            String.trim value == ""
+
+        RKey value ->
+            value == Nothing
+
+        RKeys values ->
+            List.isEmpty values
+
+        RNumber value ->
+            value == Nothing
+
+        RUnreadable ->
+            False
+
+        RBool value ->
+            not value
+
+        RTags values ->
+            List.isEmpty values
+
+        RFiles values _ ->
+            List.isEmpty values
+
+        RRule value ->
+            Rule.isEmpty value
+
+        RRows ids ->
+            List.isEmpty ids
+
+        RDate value ->
+            value == Nothing
+
+        RPeriod value ->
+            value == Nothing
+
+        RMoney value ->
+            value == Nothing
+
+        RMasked value ->
+            value == Nothing
 
 
 {-| Where the focus goes for a problem: the target the rule named, or the way
@@ -2725,8 +3142,8 @@ on screen.
 
 -}
 focus : Field c -> Cmd Msg
-focus (Field field) =
-    focusOn field.key
+focus handle =
+    focusOn (domId handle)
 
 
 {-| Goes to the element a problem is about, for a review list you draw yourself
@@ -2931,8 +3348,11 @@ enter ((Form form) as declared) index data =
         defs =
             expandedDefs declared data
 
+        hidden =
+            hiddenAmong (conditionsIn declared data) data (form.defsAt form.prefix)
+
         onStep =
-            List.filter (\def -> def.step == index) defs
+            List.filter (\def -> def.step == index && not (Set.member def.key hidden)) defs
 
         firstField =
             case List.filter (\def -> not (isGroup def)) onStep |> List.head of
@@ -2983,6 +3403,20 @@ bind locale toMsg ((Form form) as declared) (State data) =
     let
         defs =
             expandedDefs declared data
+
+        rulesNow =
+            conditionsIn declared data
+
+        hidden =
+            hiddenAmong rulesNow data (form.defsAt form.prefix)
+
+        wanted =
+            requiredAmong rulesNow data
+
+        drawn =
+            defs
+                |> List.filter (\def -> not (Set.member def.key hidden))
+                |> List.map (\def -> { def | required = def.required || Set.member def.key wanted })
 
         found =
             diagnose locale declared data defs
@@ -3039,7 +3473,7 @@ bind locale toMsg ((Form form) as declared) (State data) =
         { toMsg = toMsg
         , locale = locale
         , prefix = form.prefix
-        , defs = Dict.fromList (List.map (\def -> ( def.key, def )) defs)
+        , defs = Dict.fromList (List.map (\def -> ( def.key, def )) drawn)
         , slots = data.slots
         , byField = byField
         , listed = listed
@@ -3053,6 +3487,7 @@ bind locale toMsg ((Form form) as declared) (State data) =
 
             else
                 Nothing
+        , hidden = hidden
         }
 
 
@@ -3085,6 +3520,15 @@ problemOf (View view) def =
 
 mismatch : View msg -> Field c -> String -> Html msg
 mismatch (View view) (Field field) wanted =
+    if Set.member field.key view.hidden then
+        Html.text ""
+
+    else
+        mismatchText (View view) (Field field) wanted
+
+
+mismatchText : View msg -> Field c -> String -> Html msg
+mismatchText (View view) (Field field) wanted =
     Html.p
         [ Attr.id field.key
         , Attr.attribute "role" "alert"

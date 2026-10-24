@@ -1,5 +1,5 @@
 module Klar.Form.Spec exposing
-    ( Builder, define, with, step, check, build
+    ( Builder, define, with, step, check, checkFields, shownWhen, requiredWhen, build
     , Spec, text, number, choice, choices, toggle, date, dateRange, money, masked, tags, files, conditions, rows
     , required, atLeast, one, rule, rules, range, whole, minDate, maxDate, minMoney, maxMoney, hint, withMessage
     )
@@ -129,7 +129,7 @@ goes to. When the thing you draw is a list of rules, prefer `rows` with
 
 # Declaring a form
 
-@docs Builder, define, with, step, check, build
+@docs Builder, define, with, step, check, checkFields, shownWhen, requiredWhen, build
 
 
 # Kinds of field
@@ -252,6 +252,76 @@ the values, and returns the problems it finds, each tied to a field with
 check : (fields -> Form.State step -> values -> List (Form.Problem step)) -> Builder step fields values -> Builder step fields values
 check =
     Core.check
+
+
+{-| A rule over several fields that runs at once, without waiting for the rest of
+the form: "the end date is after the start date", "the confirmation matches the
+email". It gets the locale, the handles and the state, reads the fields with
+`Form.get` (so it sees `Nothing` for an empty field, and then says nothing), and
+returns the problems it finds, each tied to a field with `Form.problem`. A
+problem belongs to the step of its field: it shows there once the field was left
+or edited, and it keeps the user on that step. Use `check` instead for a rule
+that needs the whole record of values. Put it after the `with` calls.
+
+    Spec.define "booking" Fields Values
+        |> Spec.with (Spec.date "From" |> Spec.required)
+        |> Spec.with (Spec.date "To" |> Spec.required)
+        |> Spec.checkFields
+            (\locale f state ->
+                case ( Form.get f.from state, Form.get f.to state ) of
+                    ( Just from, Just to ) ->
+                        if Date.compare to from == LT then
+                            [ Form.problem f.to (Locale.pick locale { nb = "Til kan ikke være før fra", en = "To cannot be before from" }) ]
+
+                        else
+                            []
+
+                    _ ->
+                        []
+            )
+        |> Spec.build
+
+-}
+checkFields : (Locale -> fields -> Form.State step -> List (Form.Problem step)) -> Builder step fields values -> Builder step fields values
+checkFields =
+    Core.checkFields
+
+
+{-| The field is part of the form only while the condition holds: a VAT number
+for a company, a delivery address when "ship elsewhere" is on. While it does not,
+the field is not drawn (its view is empty), its problems are left out, and the
+values get its empty value (`Nothing`, `[]`, `False`), whatever was typed in
+it. What was typed is kept, so it comes back when the condition holds again.
+Declare such a field without `required`, so that its output can be empty, and add
+`requiredWhen` with the same condition to require it while it is shown. Put it
+after the `with` calls, like `check`; in the sub-form of `rows` it works row by
+row.
+
+    Spec.define "customer" Fields Values
+        |> Spec.with (Spec.choice kindIds "Customer kind" |> Spec.required)
+        |> Spec.with (Spec.masked MaskedInput.norwegianOrganisationNumber "Organisation number")
+        |> Spec.shownWhen isCompany .organisationNumber
+        |> Spec.requiredWhen isCompany .organisationNumber
+        |> Spec.build
+
+    isCompany : Fields -> Form.State () -> Bool
+    isCompany handles state =
+        Form.get handles.kind state == Just Company
+
+-}
+shownWhen : (fields -> Form.State step -> Bool) -> (fields -> Form.Field c) -> Builder step fields values -> Builder step fields values
+shownWhen =
+    Core.shownWhen
+
+
+{-| The field is required while the condition holds: it gets the `*` of a
+required field, and an empty value is the problem "Required". Its output keeps
+its type, so declare it without `required`. Put it after the `with` calls; see
+`shownWhen` for an example.
+-}
+requiredWhen : (fields -> Form.State step -> Bool) -> (fields -> Form.Field c) -> Builder step fields values -> Builder step fields values
+requiredWhen =
+    Core.requiredWhen
 
 
 {-| Finishes the declaration. The result only has the type

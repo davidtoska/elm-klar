@@ -1,8 +1,8 @@
 module Klar.Form exposing
     ( Form, State, Msg, Field, Rows, Problem, View
     , fields
-    , init, set, get, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
-    , problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, goToProblem
+    , init, set, setOption, get, query, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
+    , problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, domId, goToProblem
     , currentStep, attempted, advance, back, goTo
     , bind, textInput, textArea, numberInput, select, multiSelect, radio, switch, checkbox, datePicker, dateRangePicker, moneyInput, maskedInput, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
     )
@@ -210,12 +210,12 @@ at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks a
 
 # Values and state
 
-@docs init, set, get, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
+@docs init, set, setOption, get, query, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
 
 
 # Problems and focus
 
-@docs problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, goToProblem
+@docs problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, domId, goToProblem
 
 
 # Steps
@@ -382,6 +382,48 @@ an empty multi select, the text as typed.
 get : Field c -> State step -> c
 get =
     Core.get
+
+
+{-| Puts a value in a `choice` field together with its option, so that the field
+shows the option's label also when the options it is drawn with do not have it:
+a saved customer in a select that searches the server, whose options are only
+the latest hits. For a select that has all its options, `set` is enough.
+
+    Form.setOption fields.customer (Select.option order.customerId order.customerName) state
+
+-}
+setOption : Field (Maybe id) -> Select.Option id -> State step -> State step
+setOption =
+    Core.setOption
+
+
+{-| The search text of a `select` or `multiSelect` field while its list is open,
+and `""` otherwise (and for every other kind). For a choice among thousands of
+records, give the select `Select.serverSearch` and fetch the options when the
+text changes: compare it before and after `update`. It follows the box after a
+pause of 300 ms in the typing, so write no debounce of your own, and send the
+text with the request so that a late answer to an old text can be dropped.
+
+    FormMsg inner ->
+        let
+            ( state, cmd ) =
+                Form.update form inner model.form
+        in
+        if Form.query fields.customer state /= Form.query fields.customer model.form then
+            ( { model | form = state, customers = Remote.Loading }
+            , Cmd.batch [ Cmd.map FormMsg cmd, searchCustomers (Form.query fields.customer state) ]
+            )
+
+        else
+            ( { model | form = state }, Cmd.map FormMsg cmd )
+
+    -- in the view
+    Form.select v fields.customer model.customers [ Select.serverSearch ]
+
+-}
+query : Field c -> State step -> String
+query =
+    Core.query
 
 
 {-| The browser's `File` values of the files the user chose in a `files` field
@@ -628,6 +670,20 @@ on screen.
 focus : Field c -> Cmd Msg
 focus =
     Core.focus
+
+
+{-| The DOM id of the element that takes the focus for a field: its control, the
+add button of a group of rows, or the first button of a rule builder. It is for
+the places that take DOM ids, such as `Modal.openWith` and `Drawer.openWith`
+(the first field of a form in a drawer); to move the focus in an update, use
+`focus`.
+
+    Drawer.openWith { opener = "edit-customer", focus = [ Form.domId fields.name ] } model.drawer
+
+-}
+domId : Field c -> String
+domId =
+    Core.domId
 
 
 {-| Goes to the element a problem is about, for a review list you draw yourself
