@@ -234,11 +234,6 @@ takeEffects =
     Effect.take
 
 
-{-| What the table asked for, as the server wants it. The status filter holds
-status labels.
--}
-
-
 {-| The code of a status that the status filter of the table keeps: it stays the
 same whatever the label says.
 -}
@@ -264,6 +259,9 @@ statusCode status =
             "cancelled"
 
 
+{-| What the table asked for, as the server wants it. The status filter holds
+status codes (`statusCode`).
+-}
 toOrderQuery : Table.Query -> OrderQuery
 toOrderQuery query =
     { search = query.search
