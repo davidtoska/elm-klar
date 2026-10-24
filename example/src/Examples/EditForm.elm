@@ -14,6 +14,8 @@ The pattern:
 4.  A save sets `FormLayout.Submitting`; the answer is `Form.markClean` plus a toast, or `Form.rejected` with `Form.problem field message` for each field problem (shown at the field and in the summary until that field is edited), or `FormLayout.Failed problem` for a failure with a retry button.
 5.  The retry button of a failure gets its own message (`Retry`): it runs `Submit` and `FormLayout.focusStatus`, because "Try again" is replaced by "Saving ..." the moment it is pressed and focus would fall to the page. `Form.rejected` (field problems from the server) already moves focus to the summary.
 6.  `Form.summary` draws the list of problems and receives the focus; the application writes no DOM id and no draft record.
+7.  The credit limit is money (`Spec.money`, `Form.moneyInput`): an exact `Klar.Money` with its limits in the declaration, never a `Float`.
+8.  The page draws the loading, failed and loaded customer with `RemoteView.view`, never with a `case` of its own: a refresh keeps the form on the screen.
 
 Try the e-mail `taken@example.com` (field problem) and the name `Crash` (failure).
 
@@ -23,19 +25,18 @@ import Browser
 import Html exposing (Html)
 import Klar
 import Klar.Button as Button
-import Klar.Card as Card
-import Klar.ErrorState as ErrorState
 import Klar.Form as Form
 import Klar.Form.Layout as FormLayout
 import Klar.Form.Spec as Spec
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale
+import Klar.Money as Money exposing (Money)
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.RemoteView as RemoteView
 import Klar.Select as Select
-import Klar.Skeleton as Skeleton
 import Klar.Toast as Toast
 import Klar.Validate as Validate
 import Process
@@ -53,7 +54,7 @@ type CountryId
 type alias Customer =
     { name : String
     , email : String
-    , creditLimit : Maybe Float
+    , creditLimit : Maybe Money
     , country : CountryId
     , active : Bool
     }
@@ -95,7 +96,7 @@ loadCustomer =
                 Ok
                     { name = "Aurora Logistics Ltd"
                     , email = "orders@aurora.example"
-                    , creditLimit = Just 25000
+                    , creditLimit = Money.fromMinor Money.eur 2500000
                     , country = CountryId "no"
                     , active = True
                     }
@@ -117,7 +118,7 @@ sendSave customer =
 type alias Fields =
     { name : Form.Field String
     , email : Form.Field String
-    , creditLimit : Form.Field (Maybe Float)
+    , creditLimit : Form.Field (Maybe Money)
     , country : Form.Field (Maybe CountryId)
     , active : Form.Field Bool
     }
@@ -133,7 +134,12 @@ form =
     Spec.define "customer" Fields Customer
         |> Spec.with (Spec.text "Name" |> Spec.required |> Spec.rules [ Validate.maxLength 80 ])
         |> Spec.with (Spec.text "Email" |> Spec.required |> Spec.rules [ Validate.email ])
-        |> Spec.with (Spec.number "Credit limit" |> Spec.range 0 100000 |> Spec.hint "In euros, 0 to 100 000.")
+        |> Spec.with
+            (Spec.money Money.eur "Credit limit"
+                |> Spec.minMoney (Money.zero Money.eur)
+                |> Spec.maxMoney highestCreditLimit
+                |> Spec.hint "0 to 100 000."
+            )
         |> Spec.with (Spec.choice countryIds "Country" |> Spec.required)
         |> Spec.with (Spec.toggle "Active")
         |> Spec.build
@@ -142,6 +148,11 @@ form =
 f : Fields
 f =
     Form.fields form
+
+
+highestCreditLimit : Money
+highestCreditLimit =
+    Money.fromMinor Money.eur 10000000 |> Maybe.withDefault (Money.zero Money.eur)
 
 
 
@@ -290,7 +301,10 @@ update msg model =
             ( { model | state = Form.revert form model.state }, Cmd.none )
 
         Reload ->
-            ( { model | customer = Loading, status = FormLayout.Idle }, loadCustomer )
+            -- the "Try again" button goes away: put the focus on the region, which stays
+            ( { model | customer = Remote.refresh model.customer, status = FormLayout.Idle }
+            , Cmd.batch [ loadCustomer, Klar.focus "customer" NoOp ]
+            )
 
         NoOp ->
             ( model, Cmd.none )
@@ -328,15 +342,12 @@ viewPage : Model -> Html Msg
 viewPage model =
     Layout.stack []
         [ PageHeader.view [ PageHeader.title "Edit customer" ]
-        , case model.customer of
-            Loaded _ ->
-                viewForm model
-
-            Failed problem ->
-                ErrorState.view [ ErrorState.onRetry Reload ] problem
-
-            _ ->
-                Card.view [] [ Skeleton.lines 5 ]
+        , Layout.stack []
+            (RemoteView.view
+                [ RemoteView.id "customer", RemoteView.onRetry Reload, RemoteView.loadingLabel "Loading the customer" ]
+                model.customer
+                (\_ -> [ viewForm model ])
+            )
         ]
 
 
@@ -357,7 +368,7 @@ viewForm model =
             [ FormLayout.grid 2
                 [ Form.textInput v f.name []
                 , Form.textInput v f.email []
-                , Form.numberInput v f.creditLimit []
+                , Form.moneyInput v f.creditLimit []
                 , Form.select v f.country (Loaded countries) []
                 , Form.switch v f.active []
                 ]
