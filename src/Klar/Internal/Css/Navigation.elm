@@ -684,7 +684,7 @@ css =
   & .klar-side-nav__children .klar-side-nav__link--nested { padding-left: 8px; }
 }
 
-@supports (anchor-name: --klar-a) and (position-anchor: --klar-a) {
+@supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
   .klar-side-nav--collapsed:not(.klar-app-shell__sidebar *) .klar-side-nav__children {
     position: fixed;
     position-anchor: --klar-anchor;
@@ -792,7 +792,7 @@ css =
     & .klar-side-nav__children .klar-side-nav__link--nested { padding-left: 8px; }
   }
 
-  @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) {
+  @supports (anchor-name: --klar-a) and (position-anchor: --klar-a) and (anchor-scope: --klar-a) {
     .klar-app-shell__sidebar .klar-side-nav--collapsed .klar-side-nav__children {
       position: fixed;
       position-anchor: --klar-anchor;
