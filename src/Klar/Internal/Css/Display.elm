@@ -110,7 +110,7 @@ css =
 .klar-avatar--c5 { --_bg: var(--klar-avatar-5-bg); --_fg: var(--klar-avatar-5-fg); }
 .klar-avatar--c6 { --_bg: var(--klar-avatar-6-bg); --_fg: var(--klar-avatar-6-fg); }
 .klar-avatar--c7 { --_bg: var(--klar-avatar-7-bg); --_fg: var(--klar-avatar-7-fg); }
-.klar-avatar--neutral { --_bg: var(--klar-gray-100); --_fg: var(--klar-gray-500); }
+.klar-avatar--neutral { --_bg: var(--klar-gray-100); --_fg: var(--klar-gray-600); }
 
 .klar-avatar__initials,
 .klar-avatar__glyph {

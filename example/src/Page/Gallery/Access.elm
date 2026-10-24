@@ -312,7 +312,7 @@ userName user =
 
 personOf : User -> Avatar.Entry
 personOf user =
-    { name = userName user, image = Nothing }
+    Avatar.entry (userName user)
 
 
 type Verdict

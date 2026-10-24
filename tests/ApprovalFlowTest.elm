@@ -511,14 +511,13 @@ people =
 
 person : Int -> Avatar.Entry
 person id =
-    { name =
-        people
+    Avatar.entry
+        (people
             |> List.filter (\( key, _ ) -> key == id)
             |> List.head
             |> Maybe.map Tuple.second
             |> Maybe.withDefault "Unknown"
-    , image = Nothing
-    }
+        )
 
 
 march12 : Time.Posix
