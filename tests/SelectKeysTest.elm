@@ -27,6 +27,7 @@ import Klar.Autocomplete as Autocomplete
 import Klar.MultiSelect as MultiSelect
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Select as Select
+import Klar.Theme as Theme
 import Klar.VirtualList as VirtualList
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event exposing (Event)
@@ -582,6 +583,35 @@ isDrawnTests =
                     (List.map (\i -> VirtualList.isDrawn geometry i (scrolled 3200)) [ 0, 100, 109 ])
         , test "a row past the end is never drawn" <|
             \_ -> Expect.equal False (VirtualList.isDrawn { geometry | count = 3 } 3 (scrolled 0))
+        , test "reveal centres a row that is out of view and makes it the active row" <|
+            \_ ->
+                let
+                    ( revealed, _ ) =
+                        VirtualList.reveal [] { row = 500, count = 1000 } (VirtualList.init "rows")
+                in
+                -- rows of 44 px (the Normal density), a list of 320 px
+                Expect.equal ( Just 500, 500 * 44 - (320 - 44) / 2 )
+                    ( VirtualList.active revealed, VirtualList.scrollTop revealed )
+        , test "reveal leaves a row in view where it is" <|
+            \_ ->
+                let
+                    ( revealed, _ ) =
+                        VirtualList.reveal [] { row = 2, count = 1000 } (VirtualList.init "rows")
+                in
+                Expect.equal ( Just 2, 0 ) ( VirtualList.active revealed, VirtualList.scrollTop revealed )
+        , test "reveal follows the density of the list" <|
+            \_ ->
+                let
+                    ( revealed, _ ) =
+                        VirtualList.reveal [ VirtualList.density Theme.Compact ] { row = 500, count = 1000 } (VirtualList.init "rows")
+                in
+                Expect.equal (500 * 32 - (320 - 32) / 2) (VirtualList.scrollTop revealed)
+        , test "reveal clamps a row past the end to the last" <|
+            \_ ->
+                VirtualList.reveal [] { row = 5000, count = 10 } (VirtualList.init "rows")
+                    |> Tuple.first
+                    |> VirtualList.active
+                    |> Expect.equal (Just 9)
         ]
 
 

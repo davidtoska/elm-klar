@@ -1,6 +1,6 @@
 module Klar.VirtualList exposing
     ( State, init, Msg, update, list
-    , id, scrollTop, active
+    , id, scrollTop, active, reveal
     , Attribute, density, onSelect, selected, height, htmlAttrs
     , view, viewGrouped, rowHeight, overscan
     , Geometry, ensureVisible, center, scrollTo, reset, viewportHeight, isDrawn
@@ -63,7 +63,9 @@ or Space picks the active row. The active row is marked and scrolled into view.
 Without `onSelect` the list is just a scrolling list, and the keys scroll it.
 
 The state holds the scroll offset and the active row, and reports every scroll
-through the message you give to `list`. Read the active row with `active`.
+through the message you give to `list`. Read the active row with `active`, and
+bring a row into view with `reveal` (for example the `selected` row, 40 000 rows
+down, when the list is shown).
 
 Components that draw their own rows (the options of [Klar.Select](Klar-Select)) use
 the low-level `view` instead, where each row is a `div` of your own that must be
@@ -77,7 +79,7 @@ exactly `rowHeight` pixels high and the component handles the keys itself.
 
 # Reading the state
 
-@docs id, scrollTop, active
+@docs id, scrollTop, active, reveal
 
 
 # Attributes
@@ -93,8 +95,9 @@ the component that owns it handles the keys and calls `ensureVisible` to keep th
 active row on screen, which works out the new offset from the row heights, without
 measuring the page, so that the right rows are drawn in the same frame. A list with a
 `role` should tell assistive technology how many rows there are: give every row
-`aria-posinset` and `aria-setsize`, as the select components do. Add the `role`
-and the other attributes with `htmlAttrs`.
+`aria-posinset` and `aria-setsize`, as the select components do, and point
+`aria-activedescendant` only at a row that `isDrawn`. Add the `role` and the other
+attributes with `htmlAttrs`.
 
 @docs view, viewGrouped, rowHeight, overscan
 
@@ -168,6 +171,59 @@ pressed with the mouse. `Nothing` until the user has moved or pressed. A list wi
 active : State -> Maybe Int
 active (State state) =
     state.active
+
+
+{-| Scrolls a `list` so that row `row` (counting from 0) is in view, to the middle
+of the list when it was out of view, and makes it the active row, so the keys go on
+from there. Give it the attributes and the number of rows you give `list`: the
+height of the rows comes from the same `density`, so there is no height to repeat.
+Use it when a list opens on its `selected` row, or to show a row the application
+found. Like `scrollTo`, it needs the list on the page by the time the command runs.
+
+    ShowOrder index ->
+        let
+            ( list, cmd ) =
+                VirtualList.reveal listAttributes { row = index, count = Array.length model.orders } model.list
+        in
+        ( { model | list = list }, Cmd.map ListMsg cmd )
+
+-}
+reveal : List (Attribute msg) -> { row : Int, count : Int } -> State -> ( State, Cmd Msg )
+reveal attributes target (State state) =
+    if target.count <= 0 then
+        ( State state, Cmd.none )
+
+    else
+        let
+            config =
+                configure attributes
+
+            rowH =
+                listRowHeight config.density
+
+            geometry =
+                { rowHeight = rowH, height = config.height, count = target.count, inset = 0 }
+
+            index =
+                clamp 0 (target.count - 1) target.row
+
+            top =
+                clampTop geometry state.top
+
+            rowTop =
+                toFloat (index * rowH)
+
+            inView =
+                rowTop >= top && rowTop + toFloat rowH <= top + toFloat (viewportHeight geometry)
+
+            withActive =
+                State { state | active = Just index }
+        in
+        if inView then
+            ( withActive, Cmd.none )
+
+        else
+            center geometry index withActive
 
 
 {-| The messages a virtual list sends; it reports every scroll. Wrap it in a

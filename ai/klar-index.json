@@ -2002,8 +2002,8 @@
         "id",
         "scrollTop",
         "active",
-        "view",
-        "viewGrouped"
+        "reveal",
+        "view"
       ],
       "related": [
         "Klar.ListItem",
