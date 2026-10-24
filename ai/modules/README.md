@@ -111,8 +111,8 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Stepper](Klar.Stepper.md): The steps of a wizard or a checkout flow, laid out horizontally or vertically.
 ## Structure
 
-- [Klar.Accordion](Klar.Accordion.md): Sections that open and close: the details of a record, groups of settings, advanced filters.
-- [Klar.Toolbar](Klar.Toolbar.md): A horizontal bar of grouped actions: the strip above a table, the actions of an editor, or the bulk actions that appear when rows are selected.
+- [Klar.Accordion](Klar.Accordion.md): Sections that open and close in place: the details of a record, groups of settings, advanced filters.
+- [Klar.Toolbar](Klar.Toolbar.md): A horizontal bar of grouped controls for a whole view: the strip above a table or a list (new, export, search, view switches) or the actions of an editor.
 - [Klar.DescriptionList](Klar.DescriptionList.md): Label and value pairs for detail views, rendered as a semantic `dl`.
 ## Arranging
 

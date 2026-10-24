@@ -1250,12 +1250,17 @@ css =
   font-weight: var(--klar-weight-bold);
 }
 
-.klar-accordion__body {
+/* The body has no box of its own: a closed body stays in the page as
+   hidden="until-found" (content-visibility: hidden), where a padding would still take
+   room. The padding is on the content inside. */
+.klar-accordion__body { padding: 0; border: 0; }
+
+.klar-accordion__content {
   padding: var(--klar-space-1) var(--klar-space-4) var(--klar-space-4) calc(var(--klar-space-3) + 16px + var(--klar-space-2));
   animation: klar-fade-in var(--klar-dur) var(--klar-ease);
 }
 
-.klar-accordion--flush .klar-accordion__body { padding-left: calc(var(--klar-space-1) + 16px + var(--klar-space-2)); padding-right: var(--klar-space-1); }
+.klar-accordion--flush .klar-accordion__content { padding-left: calc(var(--klar-space-1) + 16px + var(--klar-space-2)); padding-right: var(--klar-space-1); }
 
 .klar-accordion__section--disabled .klar-accordion__header,
 .klar-accordion__section--disabled .klar-accordion__header:hover {
@@ -1307,6 +1312,10 @@ css =
 }
 
 .klar-toolbar--scroll > * { flex: none; }
+
+/* A bar that scrolls clips what sticks out of it, so a plain one keeps room inside for
+   the focus ring of the controls at its edges. */
+.klar-toolbar--plain.klar-toolbar--scroll { padding: 3px; margin: -3px; }
 .klar-toolbar--scroll .klar-toolbar__group { flex-wrap: nowrap; }
 
 /* A group stays together while it fits; in a bar narrower than the group itself

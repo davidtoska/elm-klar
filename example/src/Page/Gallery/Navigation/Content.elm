@@ -22,6 +22,7 @@ import Klar.Card as Card
 import Klar.DescriptionList as DescriptionList
 import Klar.Format as Format
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Menu as Menu
@@ -40,9 +41,9 @@ import Showcase.Doc as Doc
 
 type alias Model =
     { -- accordion
-      accSingle : Accordion.State
-    , accMultiple : Accordion.State
-    , accFlush : Accordion.State
+      accSingle : Accordion.State CustomerSection
+    , accMultiple : Accordion.State String
+    , accFlush : Accordion.State String
 
     -- toolbar
     , toolbarMenu : Menu.State
@@ -56,9 +57,9 @@ type alias Model =
 
 init : Model
 init =
-    { accSingle = Accordion.init "nav-acc-single" |> Accordion.open "contact"
-    , accMultiple = Accordion.init "nav-acc-multiple" |> Accordion.openMany [ "items", "customs" ]
-    , accFlush = Accordion.init "nav-acc-flush" |> Accordion.open "general"
+    { accSingle = Accordion.init "nav-acc-single" |> Accordion.expand Contact
+    , accMultiple = Accordion.init "nav-acc-multiple" |> Accordion.setMultiple True |> Accordion.setExpandedIds [ "items", "customs" ]
+    , accFlush = Accordion.init "nav-acc-flush" |> Accordion.expand "general"
     , toolbarMenu = Menu.init "nav-toolbar-menu"
     , search = ""
     , lastAction = Nothing
@@ -71,11 +72,11 @@ init =
 
 
 type Msg
-    = AccSingleMsg Accordion.Msg
-    | AccMultipleMsg Accordion.Msg
-    | AccFlushMsg Accordion.Msg
-    | OpenAll
-    | CloseAll
+    = AccSingleMsg (Accordion.Msg CustomerSection)
+    | AccMultipleMsg (Accordion.Msg String)
+    | AccFlushMsg (Accordion.Msg String)
+    | ExpandAll
+    | CollapseAll
     | ToolbarMenuMsg Menu.Msg
     | SearchChanged String
     | Action String
@@ -97,11 +98,11 @@ update msg model =
             Accordion.update inner model.accFlush
                 |> Tuple.mapBoth (\state -> { model | accFlush = state }) (Cmd.map AccFlushMsg)
 
-        OpenAll ->
-            ( { model | accMultiple = Accordion.openMany multipleKeys model.accMultiple }, Cmd.none )
+        ExpandAll ->
+            ( { model | accMultiple = Accordion.expandAll multipleSections model.accMultiple }, Cmd.none )
 
-        CloseAll ->
-            ( { model | accMultiple = Accordion.closeAll model.accMultiple }, Cmd.none )
+        CollapseAll ->
+            ( { model | accMultiple = Accordion.collapseAll model.accMultiple }, Cmd.none )
 
         ToolbarMenuMsg inner ->
             Menu.update inner model.toolbarMenu
@@ -121,80 +122,110 @@ update msg model =
 -- ACCORDION
 
 
-multipleKeys : List String
-multipleKeys =
-    [ "items", "customs", "delivery" ]
+{-| The sections of the first example, a type of the application's own.
+-}
+type CustomerSection
+    = Contact
+    | History
+    | ChangeLog
+    | Billing
+
+
+customerSectionIds : Ids CustomerSection
+customerSectionIds =
+    Ids.list
+        (\key ->
+            case key of
+                Contact ->
+                    "contact"
+
+                History ->
+                    "history"
+
+                ChangeLog ->
+                    "change-log"
+
+                Billing ->
+                    "billing"
+        )
+        [ Contact, History, ChangeLog, Billing ]
+
+
+{-| The sections of the second example: plain text keys. The function gives the
+same sections to `view` and to `Accordion.expandAll`.
+-}
+multipleSections : List (Accordion.Section String Msg)
+multipleSections =
+    [ Accordion.section Ids.string
+        "items"
+        "Line items"
+        [ Text.paragraph "40 x Hex bolt M8, 12 x Washer M8." ]
+        |> Accordion.withCount 2
+    , Accordion.section Ids.string
+        "customs"
+        "Customs"
+        [ Text.paragraph "Held at the border: the commercial invoice is missing." ]
+        |> Accordion.withBadge (Badge.view [ Badge.tone Danger, Badge.size Small ] "Held")
+    , Accordion.section Ids.string
+        "delivery"
+        "Delivery"
+        [ Text.paragraph "Collected by the carrier on Monday, expected on Thursday." ]
+        |> Accordion.withBadge (Badge.view [ Badge.tone Success, Badge.size Small ] "On time")
+    ]
 
 
 accordionSection : Locale -> Model -> Html Msg
 accordionSection locale model =
     Doc.section "Accordion"
-        "Sections that open and close. By default opening a section closes the others; multiple lets several stay open. The content of a closed section is not in the page at all. A header is a button with aria-expanded, inside a heading. Keyboard: Enter and Space open and close the section, Arrow Up and Down move between the headers (wrapping around), Home and End to the first and last."
+        "Sections that open and close, keyed by a type of the application's own. By default opening a section closes the others; setMultiple True on the state lets several stay open. The body of a closed section stays in the page, hidden until found: press Ctrl+F and search for \"Rotterdam\" or \"invoice\" with the sections closed, and the browser opens the section (Chrome and Edge). A lazySection is not in the page while it is closed. A header is a button with aria-expanded, inside a heading. Keyboard: Enter and Space open and close the section, Arrow Up and Down move between the headers (wrapping around), Home and End to the first and last."
         [ Doc.example
             { title = "Bordered, one open at a time"
             , description = Just "The default. A disabled section is skipped by the arrow keys. The change log is built only when it is opened (lazySection)."
             , code = Just accordionCode
             }
             (Accordion.view AccSingleMsg
-                [ Accordion.headingLevel 4
-                , Accordion.sections
-                    [ Accordion.section "contact"
-                        "Contact details"
-                        [ DescriptionList.view [ DescriptionList.columns 2, DescriptionList.locale locale ]
-                            [ DescriptionList.text "Email" "purchasing@northwind.example"
-                            , DescriptionList.text "Phone" "+31 20 555 0100"
-                            , DescriptionList.text "Address" "Harbor Road 12, 3011 AA Rotterdam"
-                            , DescriptionList.maybe "Alternate contact" Nothing
-                            ]
-                        ]
-                        |> Accordion.withIcon Icon.mail
-                    , Accordion.section "history"
-                        "History"
-                        [ Text.paragraph "Three events last month." ]
-                        |> Accordion.withIcon Icon.history
-                        |> Accordion.withCount 3
-                    , Accordion.lazySection "log"
-                        "Change log"
-                        (\_ -> [ Text.paragraph "Built only when the section is opened (lazySection)." ])
-                        |> Accordion.withIcon Icon.clock
-                        |> Accordion.withSubtitle "Last 30 days"
-                    , Accordion.section "billing" "Billing" [ Text.paragraph "Not available." ]
-                        |> Accordion.disabledSection
-                        |> Accordion.withIcon Icon.fileText
-                    ]
-                ]
+                [ Accordion.headingLevel 4 ]
                 model.accSingle
+                [ Accordion.section customerSectionIds
+                    Contact
+                    "Contact details"
+                    [ DescriptionList.view [ DescriptionList.columns 2, DescriptionList.locale locale ]
+                        [ DescriptionList.text "Email" "purchasing@northwind.example"
+                        , DescriptionList.text "Phone" "+31 20 555 0100"
+                        , DescriptionList.text "Address" "Harbor Road 12, 3011 AA Rotterdam"
+                        , DescriptionList.maybe "Alternate contact" Nothing
+                        ]
+                    ]
+                    |> Accordion.withIcon Icon.mail
+                , Accordion.section customerSectionIds
+                    History
+                    "History"
+                    [ Text.paragraph "Three events last month." ]
+                    |> Accordion.withIcon Icon.history
+                    |> Accordion.withCount 3
+                , Accordion.lazySection customerSectionIds
+                    ChangeLog
+                    "Change log"
+                    (\_ -> [ Text.paragraph "Built only when the section is opened (lazySection)." ])
+                    |> Accordion.withIcon Icon.clock
+                    |> Accordion.withSubtitle "Last 30 days"
+                , Accordion.section customerSectionIds Billing "Billing" [ Text.paragraph "Not available." ]
+                    |> Accordion.disabledSection
+                    |> Accordion.withIcon Icon.fileText
+                ]
             )
         , Doc.example
             { title = "Several open, with badges"
-            , description = Just "multiple. The count and the status badges sit at the right of the header. The buttons change the state from the application."
+            , description = Just "setMultiple True on the state. The count and the status badges sit at the right of the header. The buttons change the state from the application (expandAll, collapseAll)."
             , code = Just accordionMultipleCode
             }
             (Layout.stack [ Layout.gap 3 ]
                 [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view [ Button.small, Button.onClick OpenAll ] "Open all"
-                    , Button.view [ Button.small, Button.onClick CloseAll ] "Close all"
-                    , Text.caption (String.fromInt (List.length (Accordion.openKeys model.accMultiple)) ++ " of " ++ String.fromInt (List.length multipleKeys) ++ " sections open")
+                    [ Button.view [ Button.small, Button.onClick ExpandAll ] "Expand all"
+                    , Button.view [ Button.small, Button.onClick CollapseAll ] "Collapse all"
+                    , Text.caption (String.fromInt (List.length (Accordion.expandedIds model.accMultiple)) ++ " of " ++ String.fromInt (List.length multipleSections) ++ " sections open")
                     ]
-                , Accordion.view AccMultipleMsg
-                    [ Accordion.headingLevel 4
-                    , Accordion.multiple
-                    , Accordion.sections
-                        [ Accordion.section "items"
-                            "Line items"
-                            [ Text.paragraph "40 x Hex bolt M8, 12 x Washer M8." ]
-                            |> Accordion.withCount 2
-                        , Accordion.section "customs"
-                            "Customs"
-                            [ Text.paragraph "Held at the border: the commercial invoice is missing." ]
-                            |> Accordion.withBadge (Badge.view [ Badge.tone Danger, Badge.size Small ] "Held")
-                        , Accordion.section "delivery"
-                            "Delivery"
-                            [ Text.paragraph "Collected by the carrier on Monday, expected on Thursday." ]
-                            |> Accordion.withBadge (Badge.view [ Badge.tone Success, Badge.size Small ] "On time")
-                        ]
-                    ]
-                    model.accMultiple
+                , Accordion.view AccMultipleMsg [ Accordion.headingLevel 4 ] model.accMultiple multipleSections
                 ]
             )
         , Doc.example
@@ -204,16 +235,12 @@ accordionSection locale model =
             }
             (Card.view [ Card.title "Settings" ]
                 [ Accordion.view AccFlushMsg
-                    [ Accordion.headingLevel 4
-                    , Accordion.flush
-                    , Accordion.small
-                    , Accordion.sections
-                        [ Accordion.section "general" "General" [ Text.paragraph "Language, time zone and date format." ]
-                        , Accordion.section "notifications" "Notifications" [ Text.paragraph "Which events you are told about." ]
-                        , Accordion.section "privacy" "Privacy" [ Text.paragraph "Who can see your data." ]
-                        ]
-                    ]
+                    [ Accordion.headingLevel 4, Accordion.flush, Accordion.small ]
                     model.accFlush
+                    [ Accordion.section Ids.string "general" "General" [ Text.paragraph "Language, time zone and date format." ]
+                    , Accordion.section Ids.string "notifications" "Notifications" [ Text.paragraph "Which events you are told about." ]
+                    , Accordion.section Ids.string "privacy" "Privacy" [ Text.paragraph "Who can see your data." ]
+                    ]
                 ]
             )
         ]
@@ -221,53 +248,50 @@ accordionSection locale model =
 
 accordionCode : String
 accordionCode =
-    """-- model:  accordion : Accordion.State      (Accordion.init "order-sections" |> Accordion.open "contact")
+    """-- type CustomerSection = Contact | History | ChangeLog | Billing
+-- sectionIds = Ids.list sectionToString [ Contact, History, ChangeLog, Billing ]
+-- model:  accordion : Accordion.State CustomerSection      (Accordion.init "customer-sections" |> Accordion.expand Contact)
 -- update: AccordionMsg m -> let ( accordion, cmd ) = Accordion.update m model.accordion in ...
 
 Accordion.view AccordionMsg
-    [ Accordion.headingLevel 4 -- the level of the heading around each header (default 3)
-    , Accordion.sections
-        [ Accordion.section "contact" "Contact details" [ contactView model ]
-            |> Accordion.withIcon Icon.mail
-        , Accordion.section "history" "History" [ historyView model ]
-            |> Accordion.withCount 3
-        , Accordion.lazySection "log" "Change log" (\\_ -> [ logView model ])
-        , Accordion.section "billing" "Billing" [ billingView model ]
-            |> Accordion.disabledSection
-        ]
-    ]
-    model.accordion"""
+    [ Accordion.headingLevel 4 ] -- the level of the heading around each header (default 3)
+    model.accordion
+    [ Accordion.section sectionIds Contact "Contact details" [ contactView model ]
+        |> Accordion.withIcon Icon.mail
+    , Accordion.section sectionIds History "History" [ historyView model ]
+        |> Accordion.withCount 3
+    , Accordion.lazySection sectionIds ChangeLog "Change log" (\\_ -> [ logView model ])
+    , Accordion.section sectionIds Billing "Billing" [ billingView model ]
+        |> Accordion.disabledSection
+    ]"""
 
 
 accordionMultipleCode : String
 accordionMultipleCode =
-    """Accordion.view AccordionMsg
-    [ Accordion.multiple
-    , Accordion.sections
-        [ Accordion.section "items" "Line items" [ itemsView model ]
-            |> Accordion.withCount 2
-        , Accordion.section "customs" "Customs" [ customsView model ]
-            |> Accordion.withBadge (Badge.view [ Badge.tone Danger, Badge.size Small ] "Held")
-        ]
+    """-- init: Accordion.init "shipment-sections" |> Accordion.setMultiple True
+
+Accordion.view AccordionMsg [] model.accordion (shipmentSections model)
+
+shipmentSections model =
+    [ Accordion.section Ids.string "items" "Line items" [ itemsView model ]
+        |> Accordion.withCount 2
+    , Accordion.section Ids.string "customs" "Customs" [ customsView model ]
+        |> Accordion.withBadge (Badge.view [ Badge.tone Danger, Badge.size Small ] "Held")
     ]
-    model.accordion
 
 -- the application can change the state too:
---   Accordion.openMany [ "items", "customs" ] model.accordion
---   Accordion.closeAll model.accordion"""
+--   Accordion.expandAll (shipmentSections model) model.accordion
+--   Accordion.collapseAll model.accordion"""
 
 
 accordionFlushCode : String
 accordionFlushCode =
     """Accordion.view AccordionMsg
-    [ Accordion.flush
-    , Accordion.small
-    , Accordion.sections
-        [ Accordion.section "general" "General" [ generalView model ]
-        , Accordion.section "privacy" "Privacy" [ privacyView model ]
-        ]
-    ]
-    model.accordion"""
+    [ Accordion.flush, Accordion.small ]
+    model.accordion
+    [ Accordion.section Ids.string "general" "General" [ generalView model ]
+    , Accordion.section Ids.string "privacy" "Privacy" [ privacyView model ]
+    ]"""
 
 
 
@@ -277,10 +301,10 @@ accordionFlushCode =
 toolbarSection : Locale -> Model -> Html Msg
 toolbarSection locale model =
     Doc.section "Toolbar"
-        "A horizontal bar of grouped actions, separators and flexible space. It is a group of controls (role=\"group\", labelled with Toolbar.ariaLabel) and wraps onto a new line when there is no room; scroll keeps it on one line and scrolls sideways instead. The size (small, large) sets the height of every control inside, so buttons and fields line up without extra work. Every control is reached with Tab; the arrow keys are not used."
+        "A horizontal bar of grouped controls for the whole view, separators and flexible space. It is a group of controls (role=\"group\", labelled with Toolbar.ariaLabel) and wraps onto a new line when there is no room; scroll keeps it on one line and scrolls sideways instead. The size (size, small, large) sets the height of every control inside, so buttons and fields line up without extra work. Every control is reached with Tab; the arrow keys are not used. Actions for selected items are not a toolbar: BulkBar covers the toolbar while something is selected, and a Table draws its own bar (Table.bulkActions)."
         [ Doc.example
             { title = "Groups, separators and space"
-            , description = Just (Demo.actionText model.lastAction ++ ". Buttons in groups, a separator, a label, flexible space, and then a search field and a menu. The last button of the second group is disabled.")
+            , description = Just (Demo.actionText model.lastAction ++ ". Buttons in groups, a separator, flexible space, a label, and then a search field and a menu. The last button of the second group is disabled.")
             , code = Just toolbarCode
             }
             (Toolbar.view [ Toolbar.ariaLabel "Orders" ]
@@ -289,13 +313,13 @@ toolbarSection locale model =
                     , Button.view [ Button.icon Icon.download, Button.onClick (Action "Export") ] "Export"
                     ]
                 , Toolbar.separator
-                , Toolbar.label "3 selected"
                 , Toolbar.group
-                    [ Button.view [ Button.ghost, Button.icon Icon.archive, Button.onClick (Action "Archive") ] "Archive"
-                    , Button.view [ Button.ghost, Button.icon Icon.trash, Button.onClick (Action "Delete") ] "Delete"
-                    , Button.view [ Button.ghost, Button.icon Icon.tag, Button.disabled True ] "Tag"
+                    [ Button.view [ Button.ghost, Button.icon Icon.filter, Button.onClick (Action "Filter") ] "Filter"
+                    , Button.view [ Button.ghost, Button.icon Icon.columns, Button.onClick (Action "Columns") ] "Columns"
+                    , Button.view [ Button.ghost, Button.icon Icon.layers, Button.disabled True ] "Group by"
                     ]
                 , Toolbar.spacer
+                , Toolbar.label (Format.int locale 1482 ++ " orders")
                 , TextInput.view
                     [ TextInput.search
                     , TextInput.labelHidden
@@ -403,9 +427,9 @@ toolbarCode =
         , Button.view [ Button.icon Icon.download ] "Export"
         ]
     , Toolbar.separator
-    , Toolbar.label "3 selected"
-    , Toolbar.group [ Button.view [ Button.ghost, Button.icon Icon.trash ] "Delete" ]
+    , Toolbar.group [ Button.view [ Button.ghost, Button.icon Icon.filter ] "Filter" ]
     , Toolbar.spacer
+    , Toolbar.label "1,482 orders"
     , TextInput.view
         [ TextInput.search
         , TextInput.labelHidden

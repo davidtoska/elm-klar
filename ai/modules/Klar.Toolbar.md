@@ -1,6 +1,6 @@
 # Klar.Toolbar
 
-A horizontal bar of grouped actions: the strip above a table, the actions of an editor, or the bulk actions that appear when rows are selected.
+A horizontal bar of grouped controls for a whole view: the strip above a table or a list (new, export, search, view switches) or the actions of an editor.
 
 Import: `import Klar.Toolbar as Toolbar` | Group: Structure
 
@@ -22,6 +22,7 @@ spacer : Html msg
 -- Attributes
 type Attribute  -- opaque: no constructors are exposed
 ariaLabel : String -> Attribute
+size : Theme.Size -> Attribute
 small : Attribute
 large : Attribute
 plain : Attribute
@@ -30,11 +31,11 @@ scroll : Attribute
 
 ## Documentation
 
-A horizontal bar of grouped actions: the strip above a table, the actions of
-an editor, or the bulk actions that appear when rows are selected.
+A horizontal bar of grouped controls for a whole view: the strip above a
+table or a list (new, export, search, view switches) or the actions of an editor.
 
-Use when: a row of grouped actions is needed above a table or an editor, or for bulk actions on selected rows.
-Do not use when: you need a single list of actions in a dropdown (use `Klar.Menu`).
+Use when: a row of grouped controls for the whole view is needed above a table, a list or an editor.
+Do not use when: the actions are for the items the user has selected (use `Klar.BulkBar`, which covers this bar while something is selected; a `Klar.Table` draws its own with `Table.bulkActions`), or the actions belong in one dropdown (use `Klar.Menu`).
 
     import Klar.Button as Button
     import Klar.Icon as Icon
@@ -43,14 +44,16 @@ Do not use when: you need a single list of actions in a dropdown (use `Klar.Menu
 
     Toolbar.view [ Toolbar.ariaLabel "Orders" ]
         [ Toolbar.group
-            [ Button.view [ Button.primary, Button.icon Icon.plus ] "New order"
-            , Button.view [ Button.icon Icon.download ] "Export"
+            [ Button.view [ Button.primary, Button.icon Icon.plus, Button.onClick NewOrder ] "New order"
+            , Button.view [ Button.icon Icon.download, Button.onClick Export ] "Export"
             ]
         , Toolbar.separator
-        , Toolbar.label "3 selected"
-        , Toolbar.groupLabelled "Selection"
-            [ Button.view [ Button.ghost, Button.icon Icon.trash ] "Delete" ]
+        , Toolbar.groupLabelled "Layout"
+            [ Button.iconOnly [ Button.ghost, Button.pressed (model.layout == Rows), Button.onClick (LayoutPicked Rows) ] Icon.list "Rows"
+            , Button.iconOnly [ Button.ghost, Button.pressed (model.layout == Cards), Button.onClick (LayoutPicked Cards) ] Icon.grid "Cards"
+            ]
         , Toolbar.spacer
+        , Toolbar.label (String.fromInt model.matching ++ " orders")
         , TextInput.view
             [ TextInput.search
             , TextInput.label "Search orders"
@@ -61,9 +64,11 @@ Do not use when: you need a single list of actions in a dropdown (use `Klar.Menu
         ]
 
 The bar lays out whatever buttons, inputs and menus you give it in a row, and
-keeps no state. It wraps onto a second line when there is no room; `scroll` keeps
-one line and scrolls sideways instead. The size (`small`, `large`) sets the
-height of every control inside the bar, so plain buttons and inputs line up
+keeps no state. When the user selects items of the list below it, hand this bar
+to [Klar.BulkBar](Klar.BulkBar.md): the bar of actions for the selection takes its
+place, in the same box, so nothing below moves. It wraps onto a second line when there is no room; `scroll` keeps
+one line and scrolls sideways instead. The size (`size`, or `small` and `large`)
+sets the height of every control inside the bar, so plain buttons and inputs line up
 without extra work (a control with a size of its own keeps it). A text input
 placed straight into the bar, or into a group, is 240px wide and can shrink to
 140px.
@@ -159,6 +164,20 @@ ariaLabel : String -> Attribute
 The accessible name of the bar (`aria-label`): what the group of controls is
 for, for example "Orders". There is no default; without it the bar has no name.
 
+### `size`
+
+```elm
+size : Theme.Size -> Attribute
+```
+
+The height of the controls inside the bar, from a value (for example the
+size the user picked in the settings): `Small` 26px, `Medium` 32px (the
+default) or `Large` 40px, with the padding to match. Buttons and inputs inside
+the bar follow, unless they have a size of their own. `small` and `large` are
+shorthands.
+
+    Toolbar.size model.toolbarSize
+
 ### `small`
 
 ```elm
@@ -166,7 +185,7 @@ small : Attribute
 ```
 
 A compact bar: 26px controls instead of the usual 32px, and less padding.
-Buttons and inputs inside the bar follow, unless they have a size of their own.
+The same as `size Small`.
 
 ### `large`
 
@@ -174,8 +193,7 @@ Buttons and inputs inside the bar follow, unless they have a size of their own.
 large : Attribute
 ```
 
-A roomy bar: 40px controls and more padding. Buttons and inputs inside the
-bar follow, unless they have a size of their own.
+A roomy bar: 40px controls and more padding. The same as `size Large`.
 
 ### `plain`
 
