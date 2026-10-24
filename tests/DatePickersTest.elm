@@ -40,11 +40,13 @@ suite =
         , closedWhenInactive
         , rangeText
         , timePickerAria
+        , timeRecords
         , ownButtons
         , dateTimeParts
         , dateTimeText
         , dateTimeMoments
         , dateTimeNames
+        , dateTimePopups
         ]
 
 
@@ -436,6 +438,36 @@ timePickerAria =
         ]
 
 
+timeRecords : Test
+timeRecords =
+    describe "a Time record that is not a time of day"
+        [ test "setValue does not take it, and the field says so" <|
+            \_ ->
+                let
+                    state =
+                        TimePicker.init "cutoff" |> TimePicker.setValue (Just { hour = 25, minute = 0 })
+                in
+                allOf
+                    [ Expect.equal ( Nothing, False, "25:00" ) ( TimePicker.value state, TimePicker.isValid state, TimePicker.text state )
+                    , TimePicker.view identity [] state |> Query.fromHtml |> Query.has [ Selector.text "Invalid time" ]
+                    ]
+        , test "min and max are moved to the nearest time of day" <|
+            \_ ->
+                TimePicker.init "cutoff"
+                    |> TimePicker.setText "23:59"
+                    |> TimePicker.setLimits [ TimePicker.min { hour = -3, minute = 0 }, TimePicker.max { hour = 30, minute = 75 } ]
+                    |> TimePicker.value
+                    |> Expect.equal (Just { hour = 23, minute = 59 })
+        , test "the date and time field does not take it either" <|
+            \_ ->
+                let
+                    state =
+                        DateTimePicker.init "pickup" |> DateTimePicker.setValue (Just { date = today, time = { hour = 8, minute = 60 } })
+                in
+                Expect.equal ( Nothing, Just today, False ) ( DateTimePicker.value state, DateTimePicker.date state, DateTimePicker.isValid state )
+        ]
+
+
 ownButtons : Test
 ownButtons =
     describe "every field has a button of its own block"
@@ -600,4 +632,45 @@ dateTimeNames =
                     [ input "pickup-date" [] |> Query.has [ Selector.text "Date" ]
                     , input "pickup-time" [] |> Query.has [ Selector.text "Time" ]
                     ]
+        ]
+
+
+dateTimePopups : Test
+dateTimePopups =
+    describe "the popups of a date and time field"
+        [ test "open opens the calendar of the date part, and close closes it" <|
+            \_ ->
+                let
+                    opened =
+                        DateTimePicker.open [] (DateTimePicker.init "pickup") |> Tuple.first
+
+                    closed =
+                        DateTimePicker.close opened |> Tuple.first
+                in
+                Expect.equal ( True, False ) ( DateTimePicker.isOpen opened, DateTimePicker.isOpen closed )
+        , test "a disabled control stays closed" <|
+            \_ ->
+                DateTimePicker.open [ DateTimePicker.disabled True ] (DateTimePicker.init "pickup")
+                    |> Tuple.first
+                    |> DateTimePicker.isOpen
+                    |> Expect.equal False
+        , test "name gives the inputs <name>-date and <name>-time" <|
+            \_ ->
+                let
+                    html =
+                        DateTimePicker.view identity [ DateTimePicker.name "pickup" ] (DateTimePicker.init "pickup")
+                            |> Query.fromHtml
+                in
+                allOf
+                    [ html |> Query.find [ Selector.id "pickup-date" ] |> Query.has [ Selector.attribute (Attr.name "pickup-date") ]
+                    , html |> Query.find [ Selector.id "pickup-time" ] |> Query.has [ Selector.attribute (Attr.name "pickup-time") ]
+                    ]
+        , test "visibleMonth follows the calendar of the date part" <|
+            \_ ->
+                DateTimePicker.init "pickup"
+                    |> DateTimePicker.setDate (Just today)
+                    |> DateTimePicker.open []
+                    |> Tuple.first
+                    |> DateTimePicker.visibleMonth
+                    |> Expect.equal { year = 2026, month = 10 }
         ]

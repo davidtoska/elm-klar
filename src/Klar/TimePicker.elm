@@ -272,14 +272,39 @@ isOpen (State s) =
 
 {-| Sets the time, or empties the field with `Nothing`. The field shows the time
 as `hh:mm`; text that was being typed is dropped. The time is not checked
-against `min` and `max` until `setLimits` is called.
+against `min` and `max` until `setLimits` is called. A record that is not a
+time of day, such as `{ hour = 25, minute = 0 }`, is not taken: the field shows
+it with "Invalid time", `value` is `Nothing` and `isValid` is `False`.
 
     TimePicker.setValue (Just { hour = 16, minute = 0 }) model.cutoff
 
 -}
 setValue : Maybe Time -> State -> State
 setValue maybeTime (State s) =
-    State { s | time = maybeTime, draft = Nothing, problem = Nothing }
+    case maybeTime of
+        Just given ->
+            if isTimeOfDay given then
+                State { s | time = Just given, draft = Nothing, problem = Nothing }
+
+            else
+                State { s | time = Nothing, draft = Just (Parse.formatTime given), problem = Just Parse.TimeUnparseable }
+
+        Nothing ->
+            State { s | time = Nothing, draft = Nothing, problem = Nothing }
+
+
+{-| An hour from 0 to 23 and a minute from 0 to 59.
+-}
+isTimeOfDay : Time -> Bool
+isTimeOfDay given =
+    given.hour >= 0 && given.hour <= 23 && given.minute >= 0 && given.minute <= 59
+
+
+{-| The nearest time of day: the hour cut to 0 to 23, the minute to 0 to 59.
+-}
+toTimeOfDay : Time -> Time
+toTimeOfDay given =
+    { hour = Basics.clamp 0 23 given.hour, minute = Basics.clamp 0 59 given.minute }
 
 
 {-| Empties the field. The same as `setValue Nothing`.
@@ -939,26 +964,28 @@ locale given =
 
 {-| The earliest time that can be chosen or typed. The list starts at the first
 time of its step at or after it, and a typed time before it shows "The time
-cannot be before" followed by the limit. Default: 00:00.
+cannot be before" followed by the limit. A record outside 00:00 to 23:59 is
+moved to the nearest time of day. Default: 00:00.
 
     TimePicker.min { hour = 8, minute = 0 }
 
 -}
 min : Time -> Attribute msg
 min given =
-    Attribute (\config -> { config | min = Just given })
+    Attribute (\config -> { config | min = Just (toTimeOfDay given) })
 
 
 {-| The latest time that can be chosen or typed. The list stops at the last time
 of its step at or before it, and a typed time after it shows "The time cannot be
-after" followed by the limit. Default: 23:59.
+after" followed by the limit. A record outside 00:00 to 23:59 is moved to the
+nearest time of day. Default: 23:59.
 
     TimePicker.max { hour = 16, minute = 0 }
 
 -}
 max : Time -> Attribute msg
 max given =
-    Attribute (\config -> { config | max = Just given })
+    Attribute (\config -> { config | max = Just (toTimeOfDay given) })
 
 
 {-| Minutes between the times in the list, from 1 to 60 (other numbers are cut to
