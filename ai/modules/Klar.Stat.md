@@ -387,7 +387,7 @@ id : String -> Attribute msg
 The DOM id of the tile. A tile that is not a button can then take focus from a
 command in every state (loading, failed, old data, drawn): the "Try again" link is
 replaced when the request starts again and focus would fall back to the page, so
-call [`RemoteView.focus`](Klar.RemoteView.md#focus) with this id in the same `update`
+call [`Klar.focus`](Klar.md#focus) with this id in the same `update`
 branch. The id must be unique on the page.
 
 ### `locale`

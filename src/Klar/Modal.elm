@@ -761,7 +761,7 @@ viewDialog toMsg config (State state) hasFooter firstTargets around body =
         Html.div
             [ Internal.cls
                 [ "klar-modal"
-                , "klar-modal--" ++ Theme.sizeSuffix config.size
+                , "klar-modal--" ++ Internal.sizeSuffix config.size
                 , if config.fullHeight then
                     "klar-modal--tall"
 

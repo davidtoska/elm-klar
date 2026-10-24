@@ -5,6 +5,7 @@ module Klar.Internal exposing
     , classes
     , cls
     , densityAttr
+    , densitySuffix
     , ensureVisible
     , focus
     , focusFirst
@@ -24,8 +25,10 @@ module Klar.Internal exposing
     , percentEncode
     , px
     , sanitizeId
+    , sizeSuffix
     , stopClick
     , styleVars
+    , toneSuffix
     , viewIf
     , viewMaybe
     )
@@ -44,7 +47,7 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode exposing (Decoder)
 import Klar.Color as Color exposing (Color)
-import Klar.Theme as Theme exposing (Density(..), Tone)
+import Klar.Theme as Theme exposing (Density(..), Size(..), Tone(..))
 import Task
 
 
@@ -287,7 +290,7 @@ markDot tone color =
 
         ( Nothing, Just value ) ->
             Html.span
-                [ cls [ "klar-mark", "klar-mark--" ++ Theme.toneSuffix value ]
+                [ cls [ "klar-mark", "klar-mark--" ++ toneSuffix value ]
                 , Attr.attribute "aria-hidden" "true"
                 ]
                 []
@@ -561,3 +564,66 @@ ensureVisible { listId, index, rowHeight } done =
                     Dom.setViewportOf listId 0 next
             )
         |> Task.attempt (\_ -> done)
+
+
+
+-- CLASS NAME MODIFIERS
+
+
+{-| The modifier of a tone in the class names of the stylesheet.
+
+    toneSuffix Warning -- "warning"
+
+-}
+toneSuffix : Tone -> String
+toneSuffix tone =
+    case tone of
+        Neutral ->
+            "neutral"
+
+        Primary ->
+            "primary"
+
+        Info ->
+            "info"
+
+        Success ->
+            "success"
+
+        Warning ->
+            "warning"
+
+        Danger ->
+            "danger"
+
+
+{-| The modifier of a size in the class names of the stylesheet: `"sm"`, `"md"`
+or `"lg"`.
+-}
+sizeSuffix : Size -> String
+sizeSuffix size =
+    case size of
+        Small ->
+            "sm"
+
+        Medium ->
+            "md"
+
+        Large ->
+            "lg"
+
+
+{-| The modifier of a density in the class names of the stylesheet:
+`"compact"`, `"normal"` or `"comfortable"`.
+-}
+densitySuffix : Density -> String
+densitySuffix density =
+    case density of
+        Compact ->
+            "compact"
+
+        Normal ->
+            "normal"
+
+        Comfortable ->
+            "comfortable"

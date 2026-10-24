@@ -32,6 +32,7 @@ import Klar.Card as Card
 import Klar.DescriptionList as DescriptionList
 import Klar.Format as Format
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.PageHeader as PageHeader
@@ -158,8 +159,8 @@ update context msg backend model =
 
                 -- The tree reports nothing: compare its state before and after.
                 next =
-                    if Tree.selectedId Tree.stringIds tree /= Tree.selectedId Tree.stringIds model.tree then
-                        setCategory (Tree.selectedId Tree.stringIds tree |> Maybe.andThen (\id -> Category.find id model.categories)) moved
+                    if Tree.selectedId Ids.string tree /= Tree.selectedId Ids.string model.tree then
+                        setCategory (Tree.selectedId Ids.string tree |> Maybe.andThen (\id -> Category.find id model.categories)) moved
 
                     else
                         moved
@@ -171,9 +172,9 @@ update context msg backend model =
             , backend
             , -- The button is gone now, so the keyboard goes back to the tree,
               -- where the next category is chosen.
-              case Tree.focused Tree.stringIds model.tree of
+              case Tree.focused Ids.string model.tree of
                 Just id ->
-                    Cmd.map TreeMsg (Tree.focusNode Tree.stringIds model.tree id)
+                    Cmd.map TreeMsg (Tree.focusNode Ids.string model.tree id)
 
                 Nothing ->
                     Cmd.none
@@ -187,7 +188,7 @@ update context msg backend model =
         ReorderSelected ->
             let
                 chosen =
-                    Set.fromList (Table.selectedIds Table.stringIds model.table)
+                    Set.fromList (Table.selectedIds Ids.string model.table)
 
                 ( active, inactive ) =
                     model.products
@@ -225,7 +226,7 @@ loaded context result model =
                             model.tree
 
                         else
-                            Tree.setExpanded Tree.stringIds (List.map (\(Branch category _) -> category.id) categories) model.tree
+                            Tree.setExpanded Ids.string (List.map (\(Branch category _) -> category.id) categories) model.tree
                 }
 
         Err error ->
@@ -257,10 +258,10 @@ setCategory category model =
         , tree =
             case category of
                 Just chosen ->
-                    Tree.select Tree.stringIds chosen.id model.tree
+                    Tree.select Ids.string chosen.id model.tree
 
                 Nothing ->
-                    Tree.setSelected Tree.stringIds [] model.tree
+                    Tree.setSelected Ids.string [] model.tree
         , table = Table.setPage 1 model.table
     }
 
@@ -441,10 +442,10 @@ treeNode : Branch -> Tree.Node String
 treeNode (Branch category below) =
     (case below of
         [] ->
-            Tree.leaf Tree.stringIds category.id category.name
+            Tree.leaf Ids.string category.id category.name
 
         _ ->
-            Tree.branch Tree.stringIds category.id category.name (List.map treeNode below)
+            Tree.branch Ids.string category.id category.name (List.map treeNode below)
     )
         |> Tree.withCount category.count
 
@@ -465,7 +466,7 @@ viewTable locale category products table =
          , Table.locale locale
          , Table.columns (columns locale)
          , Table.rows products
-         , Table.rowId Table.stringIds .sku
+         , Table.rowId Ids.string .sku
          , Table.rowLabel (\product -> product.name ++ " (" ++ product.sku ++ ")")
          , Table.searchable
          , Table.multiSort

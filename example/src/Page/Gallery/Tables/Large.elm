@@ -9,6 +9,7 @@ import Array exposing (Array)
 import Html exposing (Html)
 import Klar.Button as Button
 import Klar.Format as Format
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.ListItem as ListItem
 import Klar.Locale exposing (Locale)
@@ -250,9 +251,9 @@ find text model =
 -- VIEW
 
 
-itemIds : Table.RowIds Int
+itemIds : Ids Int
 itemIds =
-    Table.intIds
+    Ids.int
 
 
 columns : List (Table.Column Item msg)

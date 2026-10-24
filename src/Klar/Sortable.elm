@@ -1,7 +1,6 @@
 module Klar.Sortable exposing
     ( view, Item, item, fixed
     , State, Msg, init, update, lifted
-    , Ids, itemIds, stringIds, intIds
     , reorder, move
     , Attribute, ariaLabel, horizontal, wholeItem, disabled, emptyText, locale
     )
@@ -11,15 +10,16 @@ with the keyboard.
 
 Use when: a short list has an order that matters, such as the steps of a pick sequence or the filters of a saved view.
 Do not use when: the user only chooses which columns of a table to show (use `Table.columnChooser`); a table has no way to reorder its columns.
-Quick path: `itemIds`, `init`, `update`, `view`, `reorder`
+Quick path: `init`, `update`, `view`, `reorder`
 
+    import Klar.Ids as Ids exposing (Ids)
     import Klar.Sortable as Sortable
 
     -- model: steps : List Step, sortable : Sortable.State StepId
     -- init:  Sortable.init "pick-steps"
-    stepIds : Sortable.Ids StepId
+    stepIds : Ids StepId
     stepIds =
-        Sortable.itemIds { toKey = StepId.toString, fromKey = StepId.fromString }
+        Ids.make { toKey = StepId.toString, fromKey = StepId.fromString }
 
     -- update
     SortableMsg m ->
@@ -46,7 +46,7 @@ remembers what the user is doing right now (which item is held and where it woul
 land). When the user lets go, `reorder` puts the item in its new place in your list,
 in the same `update` that handled the message; if you do not call it, nothing has
 moved, and the list springs back to what you draw. Items carry the id type of your
-own (`StepId`), written as text once with `itemIds`, so no `String` ids leak into
+own (`StepId`), written as text once as a [Klar.Ids](Klar-Ids), so no `String` ids leak into
 your code. Draw the items with whatever `Html` you like: the component wraps each in
 a list item with a handle.
 
@@ -117,7 +117,10 @@ means the same; an item that is taken out of the list while it is held is let go
 
 # Ids
 
-@docs Ids, itemIds, stringIds, intIds
+The id type of your items (a `StepId`, plain text ...) is written as a key once, as a
+[Klar.Ids](Klar-Ids), and given to `view`, `reorder` and `lifted`. The state is typed by
+the id (`Sortable.State StepId`). The key becomes part of the DOM ids, so `toKey` must give
+every id its own key; a list that holds the same key twice shows the first item only.
 
 
 # Putting the list in the new order
@@ -137,58 +140,13 @@ import Html.Events as Events
 import Html.Keyed as Keyed
 import Json.Decode as Decode exposing (Decoder)
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Sortable.Machine as Machine exposing (Note(..))
 import Klar.Sortable.Order as Order
 import Klar.Sortable.Session exposing (Device(..), Input(..), Layout, Point, Session)
 import Set exposing (Set)
-
-
-
--- IDS
-
-
-{-| How the id type of your items (a `StepId`, a `FilterId`, plain text ...) is
-written as a key and read back. Declare one value for each kind of list, once, and
-pass it to `view`, `reorder` and `lifted`. The state is typed by the id
-(`Sortable.State StepId`), so a list of steps cannot be asked about filters.
-
-    steps : Sortable.Ids StepId
-    steps =
-        Sortable.itemIds { toKey = StepId.toString, fromKey = StepId.fromString }
-
-The key is what the state keeps, and it becomes part of the DOM ids, so `toKey`
-must give every id its own key. A list that holds the same key twice shows the first
-item only.
-
--}
-type Ids id
-    = Ids
-        { toKey : id -> String
-        , fromKey : String -> Maybe id
-        }
-
-
-{-| Makes the `Ids` of an id type, see there.
--}
-itemIds : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
-itemIds =
-    Ids
-
-
-{-| Ids that are plain text, used as they are.
--}
-stringIds : Ids String
-stringIds =
-    Ids { toKey = identity, fromKey = Just }
-
-
-{-| Ids that are whole numbers.
--}
-intIds : Ids Int
-intIds =
-    Ids { toKey = String.fromInt, fromKey = String.toInt }
 
 
 
@@ -241,13 +199,13 @@ type alias Entry msg =
 
 
 entriesOf : Ids id -> List (Item id msg) -> List (Entry msg)
-entriesOf (Ids ids) items =
+entriesOf ids items =
     items
         |> List.foldl
             (\(Item data) ( seen, kept ) ->
                 let
                     key =
-                        ids.toKey data.id
+                        Ids.toKey ids data.id
                 in
                 if Set.member key seen then
                     ( seen, kept )
@@ -431,11 +389,11 @@ meanwhile it is still named here until the state forgets it (see the limits abov
 though the page no longer shows it as held.
 -}
 lifted : Ids id -> State id -> Maybe id
-lifted (Ids ids) (State s) =
+lifted ids (State s) =
     case s.session of
         Just session ->
             if session.lifted then
-                ids.fromKey session.source
+                Ids.fromKey ids session.source
 
             else
                 Nothing
@@ -493,14 +451,14 @@ among its new neighbours.
 
 -}
 reorder : Ids id -> (a -> id) -> State id -> State id -> List a -> List a
-reorder (Ids ids) toId (State before) (State after) list =
+reorder ids toId (State before) (State after) list =
     if after.drops /= before.drops + 1 then
         list
 
     else
         case after.last of
             Just landing ->
-                Order.place (\element -> ids.toKey (toId element)) landing.key landing.to landing.placed list
+                Order.place (\element -> Ids.toKey ids (toId element)) landing.key landing.to landing.placed list
 
             Nothing ->
                 list
@@ -513,7 +471,7 @@ same move without dragging, for example for "Move up" and "Move down" buttons in
 menu, so that people who cannot drag have another way. A button inside the item goes
 with the item to its new place, and the browser takes the focus from an element that is
 moved in the page: give the button an `id` and send the focus back to it in the same
-`update`, with `Browser.Dom.focus`, or a keyboard user starts again from the top of the
+`update`, with `Klar.focus`, or a keyboard user starts again from the top of the
 page after every press.
 
     Sortable.move { from = 0, to = 2 } [ "a", "b", "c", "d" ] --> [ "b", "c", "a", "d" ]

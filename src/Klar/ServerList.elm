@@ -110,7 +110,7 @@ the request is sent.
             , ServerList.viewFilterBar OrdersMsg [ FilterBar.fields fields ] model.orders
             , ServerList.viewTable OrdersMsg
                 [ Table.columns columns
-                , Table.rowId Table.stringIds .id
+                , Table.rowId Ids.string .id
                 , Table.searchable
                 ]
                 model.orders
@@ -175,6 +175,7 @@ Each returns a `Step` like `update`.
 
 import Html exposing (Html)
 import Klar.FilterBar as FilterBar
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Rule as Rule exposing (Rule)
 import Klar.SavedViews as SavedViews exposing (SavedView)
@@ -637,7 +638,7 @@ type Target id
             ( model, Cmd.none )
 
 -}
-target : Table.RowIds id -> State id row -> Maybe (Target id)
+target : Ids id -> State id row -> Maybe (Target id)
 target ids (State inner) =
     case Table.selection ids inner.table of
         Table.Selected [] ->

@@ -14,12 +14,14 @@ that is taken away from `update` when the retry works.
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar
 import Klar.Alert as Alert
 import Klar.Button as Button
 import Klar.Card as Card
 import Klar.Date as Date exposing (Date)
 import Klar.FilterBar as FilterBar
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Overlay as Overlay
@@ -241,14 +243,14 @@ update msg model =
                 { model | log = ("answer " ++ String.fromInt number ++ " arrived") :: model.log |> List.take 8 }
 
         ExportAll ->
-            ( { model | exportNote = describeTarget (ServerList.target Table.stringIds model.orders) }, Cmd.none )
+            ( { model | exportNote = describeTarget (ServerList.target Ids.string model.orders) }, Cmd.none )
 
         GotZone zone ->
             ( { model | zone = zone }, Cmd.none )
 
         SupplierRetry ->
             ( { model | supplier = Remote.refresh model.supplier }
-            , Cmd.batch [ loadSupplier model, RemoteView.focus "supplier-body" NoOp ]
+            , Cmd.batch [ loadSupplier model, Klar.focus "supplier-body" NoOp ]
             )
 
         SupplierFailingToggled on ->
@@ -432,7 +434,7 @@ inbox locale model =
                 , Table.status (Table.columnId "status") "Status" (\order -> ( statusTone order.status, order.status )) []
                 , Table.float (Table.columnId "total") "Total" 2 .total []
                 ]
-            , Table.rowId Table.stringIds .id
+            , Table.rowId Ids.string .id
             , Table.label "Orders"
             , Table.locale locale
             , Table.settings (Settings.withZone model.zone Settings.default)

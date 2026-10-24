@@ -218,7 +218,7 @@ id : String -> Attribute msg
 ```
 
 The DOM id of the `input` element, for moving focus to it with
-`Browser.Dom.focus`. No id is set by default. The hint and the error message get
+`Klar.focus`. No id is set by default. The hint and the error message get
 the ids `<id>-description` and `<id>-error`, and the label text `<id>-label`
 while there is a hint or an error to leave out of the name. Without an id they
 are made from the label (or the `ariaLabel`), so give checkboxes that share a

@@ -12,6 +12,7 @@ import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Cascader as Cascader
 import Klar.Cascader.Columns as Columns
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.Picking as Picking
 import Klar.Picking.Index as Index
@@ -29,9 +30,9 @@ type Msg
     | RetriedNode String
 
 
-ids : Picking.Ids String
+ids : Ids String
 ids =
-    Picking.stringIds
+    Ids.string
 
 
 type alias State =

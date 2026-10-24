@@ -16,7 +16,7 @@ Table.view TableMsg
         , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
         ]
     , Table.rows model.orders -- a Remote (List Order): loading, failure and empty are drawn for you
-    , Table.rowId orderRows .id -- your own OrderId; see Table.rowIds
+    , Table.rowId orderIds .id -- your own OrderId, written as text once with Klar.Ids
     , Table.searchable
     , Table.selectable
     , Table.onRetry Reload

@@ -13,6 +13,7 @@ import Fuzz
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.Picking as Picking
 import Klar.Remote as Remote exposing (Remote(..))
@@ -27,9 +28,9 @@ import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
 
 
-ids : Picking.Ids Int
+ids : Ids Int
 ids =
-    Picking.intIds
+    Ids.int
 
 
 products : List (Option Int)

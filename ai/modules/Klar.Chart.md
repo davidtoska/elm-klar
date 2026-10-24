@@ -21,14 +21,14 @@ sparkline : List (Attribute msg) -> List Float -> Html msg
 type Series  -- opaque: no constructors are exposed
 series : String -> List Float -> Series
 seriesMaybe : String -> List (Maybe Float) -> Series
-withColor : Int -> Series -> Series
+withSlot : Int -> Series -> Series
 withTone : Theme.Tone -> Series -> Series
 dashed : Series -> Series
 
 -- Segments
 type Segment  -- opaque: no constructors are exposed
 segment : String -> Float -> Segment
-segmentColor : Int -> Segment -> Segment
+segmentSlot : Int -> Segment -> Segment
 segmentTone : Theme.Tone -> Segment -> Segment
 
 -- Attributes
@@ -133,7 +133,7 @@ sparkline is an image labelled with a summary of its numbers; give it an
 on hover. Tooltips enhance, they never gate.
 
 Series get the colors of an eight-color palette in the order you give them, and
-the palette starts over after eight. Use `withColor` to pin a series to a slot,
+the palette starts over after eight. Use `withSlot` to pin a series to a slot,
 so that its color does not change when other series come and go. A series that
 means good or bad should say so with `withTone`: the status colors are reserved
 for that.
@@ -257,7 +257,7 @@ type Series  -- opaque: no constructors are exposed
 ```
 
 A named row of values, one per category: the data of a line or bar chart.
-Make one with `series` or `seriesMaybe`, adjust it with `withColor`, `withTone`
+Make one with `series` or `seriesMaybe`, adjust it with `withSlot`, `withTone`
 and `dashed`, and pass a list of them to `line` or `bar`.
 
 ### `series`
@@ -285,16 +285,17 @@ breaks the line (or leaves out the bar), and the data table shows a dash.
 
     Chart.seriesMaybe "Temperature" [ Just 4, Just 6, Nothing, Just 9 ]
 
-### `withColor`
+### `withSlot`
 
 ```elm
-withColor : Int -> Series -> Series
+withSlot : Int -> Series -> Series
 ```
 
 Gives the series palette slot 1 to 8 instead of the slot that matches its
-position in the list. Use it to keep a color stable when series come and go.
+position in the list. A slot is a place in the chart palette of the theme, not a
+[Klar.Color](Klar.Color.md): a chart has no colors of your own, so it keeps its contrast. Use it to keep a color stable when series come and go.
 
-    Chart.series "Returns" [ 2, 3, 1 ] |> Chart.withColor 4
+    Chart.series "Returns" [ 2, 3, 1 ] |> Chart.withSlot 4
 
 ### `withTone`
 
@@ -325,7 +326,7 @@ type Segment  -- opaque: no constructors are exposed
 ```
 
 One slice of a donut. Make one with `segment`, adjust it with
-`segmentColor` and `segmentTone`, and pass a list of them to `donut`.
+`segmentSlot` and `segmentTone`, and pass a list of them to `donut`.
 
 ### `segment`
 
@@ -340,14 +341,14 @@ value relative to the total of all slices.
 
 Negative and non-numeric values count as 0, and a slice of 0 is left out.
 
-### `segmentColor`
+### `segmentSlot`
 
 ```elm
-segmentColor : Int -> Segment -> Segment
+segmentSlot : Int -> Segment -> Segment
 ```
 
 Gives this slice palette slot 1 to 8 instead of the slot that matches its
-position in the list.
+position in the list (see `withSlot`).
 
 ### `segmentTone`
 
@@ -410,7 +411,7 @@ id : String -> Attribute msg
 The DOM id of the chart, which then sits in an element that can take focus
 in every state (loading, failed, old data, drawn). The "Try again" button is
 replaced when the request starts again and focus would fall back to the page: call
-[`RemoteView.focus`](Klar.RemoteView.md#focus) with this id in the same `update`
+[`Klar.focus`](Klar.md#focus) with this id in the same `update`
 branch. The id must be unique on the page.
 
 ### `size`

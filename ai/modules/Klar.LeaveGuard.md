@@ -76,7 +76,6 @@ The whole application, as it compiles:
     import Klar
     import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
     import Klar.Overlay as Overlay
-    import Klar.RemoteView as RemoteView
     import Url exposing (Url)
 
     type Route
@@ -158,7 +157,7 @@ The whole application, as it compiles:
                         ( { model | guard = guard, route = route }
                         , Cmd.batch
                             [ Cmd.map GuardMsg cmd
-                            , RemoteView.focus "content" NoOp
+                            , Klar.focus "content" NoOp
                             ]
                         )
 

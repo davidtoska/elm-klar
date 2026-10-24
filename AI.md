@@ -26,7 +26,7 @@ application); `USING.md` (project set-up, a backend). Do not read `docs.json`, `
 - **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`; `Kept` is old data during or after a refresh, see the traps). Give it to
   `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
   with retry and the empty state. Klar never sends a request; you turn the result into a `Remote` with `Remote.fromResult`.
-- **Your ids are your own types**, given once: `Table.rowIds { toKey, fromKey }`, `Tree.nodeIds`, `SideNav.keys`, `Klar.Ids`.
+- **Your ids are your own types**, written as text once per type as a `Klar.Ids` (`Ids.make { toKey, fromKey }`; `Ids.list` for a closed set such as your pages; `Ids.string`, `Ids.int`) and given to every component that holds them: `Table.rowId`, `Tree.leaf`, `Picking.leaf`, `Sortable.view`, `SideNav.item`, `Spec.choice`, `Rule.choiceFieldOf`.
   A table column is a `Table.columnId "total"`, named once.
 - **Overlays go in one list**: `Modal`, `Drawer`, `ConfirmDialog`, `CommandPalette`, `ShortcutHelp`, `Toast`, `LeaveGuard` return an
   `Overlay`; give the list to `AppShell.overlays` (or `Overlay.host`). The layer makes the page inert and returns focus.
@@ -60,6 +60,7 @@ import Klar
 import Klar.AppShell as AppShell
 import Klar.Button as Button
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.SideNav as SideNav
@@ -208,7 +209,7 @@ viewPage model =
                         , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
                         ]
                     , Table.rows model.orders
-                    , Table.rowId Table.stringIds .id
+                    , Table.rowId Ids.string .id
                     , Table.onRetry Reload
                     ]
                     model.table
@@ -218,9 +219,9 @@ viewPage model =
             PageHeader.view [ PageHeader.title "Settings" ]
 
 
-pageKeys : SideNav.Keys Page
+pageKeys : Ids Page
 pageKeys =
-    SideNav.keys
+    Ids.list
         (\page ->
             case page of
                 Orders ->
@@ -229,6 +230,7 @@ pageKeys =
                 Settings ->
                     "settings"
         )
+        [ Orders, Settings ]
 
 
 navigation : List (SideNav.Entry Page msg)
@@ -255,10 +257,10 @@ pageFromUrl url =
 3. **Your own id types.** A `type OrderId = OrderId Int`, with `toKey` and `fromKey` given once; DOM ids and column ids are named values.
 4. **Backend data is a `Remote`.** Do not write its cases; give it to the component. Turn your error into `Remote.problem Remote.timeout` (or `network`, `notFound`, `forbidden`, `server` ...).
 5. **Overlays go in the overlay list**, always, also while closed. Give a button that opens one an id (`Button.id`) and pass it to `open`; an overlay that a route, the palette or a key opens takes `open ""`, and the layer finds the element to give focus back to.
-6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. Find the module in the table below. To put focus on an element of your page by its id (after a retry, on a stateless control), use `RemoteView.focus id NoOp`.
+6. **Never write focus, popup, scroll, date or keyboard code.** No `Browser.Dom.focus` for a dialog, no click-outside, no positioning, no `Time` arithmetic. Find the module in the table below. To put focus on an element of your page by its id (after a retry, on a stateless control), use `Klar.focus id NoOp`.
 7. **Dates are `Klar.Date`, money is `Klar.Money`, numbers and dates for people come from `Klar.Format`.** A `Time.Posix` is needed once, for today. A time of day you write yourself is `Settings.time model.settings posix` (it knows the zone, and says "UTC" until it does).
 8. **Forms use `Klar.Form`** (declared with `Klar.Form.Spec`, framed with `Klar.Form.Layout`). Server problems go in with `Form.rejected`, steps with `Form.advance`; do not keep a second copy of field values or of the problems.
-9. **A list on a server is `ServerList`** (`recipes/inbox`): one `State` and one `Msg` for the table, the filter bar and the saved views; `ServerList.update` returns the `request` to send and drops old answers, so you write no comparison, page reset or ticket. Only a server-mode `Table` on its own (no filter bar, no saved views) takes the four steps in the `Klar.Table` doc: compare `Table.query` before and after `update`, `Table.setPage 1` when an outside filter changed, ask with a new ticket, drop an answer whose ticket is not the latest. **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. Debounce only what Klar does not, and drop answers to an older query there: the query of a `CommandPalette.remote` section (a counter, see its doc), a server search in `Select.serverSearch`, `MultiSelect.serverSearch`, `Autocomplete` and a lazy `Tree` (their query changes on every key), and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
+9. **A list on a server is `ServerList`** (`recipes/inbox`): one `State` and one `Msg` for the table, the filter bar and the saved views; `ServerList.update` returns the `request` to send and drops old answers, so you write no comparison, page reset or ticket. Only a server-mode `Table` on its own (no filter bar, no saved views) takes the four steps in the `Klar.Table` doc: compare `Table.query` before and after `update`, `Table.setPage 1` when an outside filter changed, ask with a new ticket, drop an answer whose ticket is not the latest. **Do not debounce** what Klar already waits for: the table waits 350 ms after typing in its search box and filter fields in server mode (`Table.searchDebounce`), the filter bar changes its rule only when the user applies a filter, and a sort click or a page change must ask at once. The server searches of `Select.serverSearch`, `MultiSelect.serverSearch`, `Autocomplete.query` and a lazy `Tree.query` wait 300 ms too: fetch when the query changes and drop an answer whose query is no longer the current one. Debounce only what Klar does not: the query of a `CommandPalette.remote` section (a counter, see its doc) and text you read from a field of your own (use `SearchInput`, which waits 300 ms).
 10. **When Klar lacks something, say so.** Write the best honest version, put a comment `-- KLAR GAP: what is missing` above it, and carry on. Do not copy a component, wrap it in your own CSS or import an internal module.
 
 ## Small things that come up
@@ -266,7 +268,7 @@ pageFromUrl url =
 - **A day count from a data set to a date and back**: `Date.fromEpochDay (baseDay + n)` and `Date.toEpochDay date - baseDay` (day 0 is 1 January 1970); `Date.addDays` and `Date.diffDays` do the rest.
 - **A price rule ("if the category is X and the quantity above Y, take Z off")**: `Rule` and `RuleBuilder` hold only the condition. Inside a `Klar.Form` the list of rules is `Spec.rows` with `Spec.conditions` for the condition (see `ai/modules/Klar.Form.md`). On a page without a form the outcome is yours: one `RuleBuilder.State` per outcome in a list, `{ when : RuleBuilder.State, discountPercent : Float }`, and `Rule.matches today fields (RuleBuilder.rule r.when) row` to ask a row. The example is in `ai/modules/Klar.RuleBuilder.md`.
 - **A failed save with "Try again"**: `FormLayout.onRetry` gets its own message, and that branch runs the save and `FormLayout.focusStatus`; "Try again" is replaced by "Saving ..." and focus would fall to the page. Server problems per field are `Form.rejected`, which also focuses the summary (`recipes/edit-form`).
-- **"Try again" of any region** (`RemoteView`, `Stat`, `Chart`, `Timeline`, `ApprovalFlow` with its own `ApprovalFlow.focus`; `Table` does it itself): give the region an id (`RemoteView.id`, `Stat.id`, `Chart.id`, `Timeline.id`) and, in the update branch of **its own** retry message, `RemoteView.focus id NoOp`. A `Tree` branch: `Tree.focusNode` with the node id. Do it in a message of its own, so a "Reload" button elsewhere keeps its focus.
+- **"Try again" of any region** (`RemoteView`, `Stat`, `Chart`, `Timeline`, `ApprovalFlow` with its own `Klar.focus`; `Table` does it itself): give the region an id (`RemoteView.id`, `Stat.id`, `Chart.id`, `Timeline.id`) and, in the update branch of **its own** retry message, `Klar.focus id NoOp`. A `Tree` branch: `Tree.focusNode` with the node id. Do it in a message of its own, so a "Reload" button elsewhere keeps its focus.
 - **A wizard draws the step fields inside `Form.stepBody v [ ... ]`**, or Elm reuses the focused input of one step for the next and "Required" shows on a field nobody touched.
 - **Words that call a palette item** ("go to order 1001"): `CommandPalette.withCommand "go to order"` on the item and `CommandPalette.argument items palette` for the text to send to the backend.
 - **Keep saved views** with `SavedViews.encode` / `SavedViews.decoder` (and `Table.encodeQuery` / `Table.queryDecoder`); the library stores nothing, you choose where the JSON goes.
@@ -288,7 +290,7 @@ Each is checked against the current source; the ones the library has fixed are g
 - **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
 - **`Card.title` is an `h2`, and so is a `Form.Layout.section` title.** A card inside a section, or under any `h2`, needs `Card.headingLevel 3`.
 - **The page needs an `h1` in every state.** A `RemoteView` or `ErrorState` draws none while it loads or has failed, so keep the `PageHeader` outside it. For the focus after their "Try again" see "Try again of any region" above (a page that is only an `ErrorState` has no body to focus: `AppShell.goToContent model.shell |> Cmd.map ShellMsg`).
-- **`Timeline` day headings are `h3`** (right in a card with an `h2` title): directly under a page `h1` say `Timeline.headingLevel 2`. With `hasMore False` the "Load more" button is gone and focus on it falls to the page: move it with `Timeline.id` and `RemoteView.focus`.
+- **`Timeline` day headings are `h3`** (right in a card with an `h2` title): directly under a page `h1` say `Timeline.headingLevel 2`. With `hasMore False` the "Load more" button is gone and focus on it falls to the page: move it with `Timeline.id` and `Klar.focus`.
 - **A lazy `Tree` searches only the nodes it has**: for the rest watch `Tree.query` and ask the backend (see its doc).
 - **`Time.Posix` is needed once**, for today (`Date.fromPosix`); `Remote.refreshWith` also takes the time of the answer.
 
@@ -321,7 +323,7 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 - Roles by permissions grid: `PermissionMatrix`. Approval steps and decisions: `ApprovalFlow`.
 
 **Forms and inputs**
-- The whole form (fields, dirty, server problems, steps, rows): `Form`; its declaration: `Form.Spec`; its tests: `Form.Check`. The frame (sections, grid, buttons, submit state): `Form.Layout`. The wrapper of one control (label, hint, error): `Field`. Validators: `Validate`. How your id type is written as text, once: `Ids`.
+- The whole form (fields, dirty, server problems, steps, rows): `Form`; its declaration: `Form.Spec`; its tests: `Form.Check`. The frame (sections, grid, buttons, submit state): `Form.Layout`. The wrapper of one control (label, hint, error): `Field`. Validators: `Validate`. How your id type is written as text, once, for every component: `Ids`.
 - Text: `TextInput`, `TextArea`, `PasswordInput`, `SearchInput` (waits for a pause), `TagInput`, `InlineEdit` (click to edit), `MaskedInput` (IBAN, postal code, phone). Number: `NumberInput`, `Slider`. Money: `Money`, `MoneyInput`. Files: `FileDrop`.
 - Choose: `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `SegmentedControl` (one of a few). `Select` (one of many, searchable; `Select.Option` is its option type), `MultiSelect`, `Autocomplete` (suggestions), `TreeSelect`, `Cascader` (a path through levels), `Transfer` (two lists), `Picking` (the node type the last three share).
 

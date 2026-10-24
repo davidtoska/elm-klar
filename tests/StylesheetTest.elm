@@ -5,6 +5,7 @@ import Html.Attributes as Attr
 import Klar
 import Klar.Icon as Icon
 import Klar.Icon.Library as Library
+import Klar.Internal as Internal
 import Klar.Theme as Theme exposing (Density(..), Size(..), Tone(..))
 import Set
 import Test exposing (Test, describe, test)
@@ -152,10 +153,10 @@ suite =
             [ test "tones" <|
                 \_ ->
                     Expect.equal [ "neutral", "primary", "info", "success", "warning", "danger" ]
-                        (List.map Theme.toneSuffix [ Neutral, Primary, Info, Success, Warning, Danger ])
+                        (List.map Internal.toneSuffix [ Neutral, Primary, Info, Success, Warning, Danger ])
             , test "sizes" <|
-                \_ -> Expect.equal [ "sm", "md", "lg" ] (List.map Theme.sizeSuffix [ Small, Medium, Large ])
+                \_ -> Expect.equal [ "sm", "md", "lg" ] (List.map Internal.sizeSuffix [ Small, Medium, Large ])
             , test "densities" <|
-                \_ -> Expect.equal [ "compact", "normal", "comfortable" ] (List.map Theme.densitySuffix [ Compact, Normal, Comfortable ])
+                \_ -> Expect.equal [ "compact", "normal", "comfortable" ] (List.map Internal.densitySuffix [ Compact, Normal, Comfortable ])
             ]
         ]

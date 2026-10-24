@@ -4,14 +4,14 @@ A list the user can put in a new order: by dragging an item by its handle, or wi
 
 Import: `import Klar.Sortable as Sortable` | Group: Arranging
 
-Types: `Ids`, `Msg`, `Item`, `State`, `Attribute`
+Types: `Msg`, `Item`, `State`, `Attribute`
 
 ## Signatures
 
 ```elm
 -- View
 type Item id msg  -- opaque: no constructors are exposed
-view : Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
+view : Ids.Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
 item : id -> String -> Html msg -> Item id msg
 fixed : Item id msg -> Item id msg
 
@@ -20,16 +20,10 @@ type State id  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
 init : String -> State id
 update : Msg -> State id -> ( State id, Cmd Msg )
-lifted : Ids id -> State id -> Maybe id
-
--- Ids
-type Ids id  -- opaque: no constructors are exposed
-itemIds : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
-stringIds : Ids String
-intIds : Ids Int
+lifted : Ids.Ids id -> State id -> Maybe id
 
 -- Putting the list in the new order
-reorder : Ids id -> (a -> id) -> State id -> State id -> List a -> List a
+reorder : Ids.Ids id -> (a -> id) -> State id -> State id -> List a -> List a
 move : { from : Int, to : Int } -> List a -> List a
 
 -- Attributes
@@ -49,15 +43,16 @@ with the keyboard.
 
 Use when: a short list has an order that matters, such as the steps of a pick sequence or the filters of a saved view.
 Do not use when: the user only chooses which columns of a table to show (use `Table.columnChooser`); a table has no way to reorder its columns.
-Quick path: `itemIds`, `init`, `update`, `view`, `reorder`
+Quick path: `init`, `update`, `view`, `reorder`
 
+    import Klar.Ids as Ids exposing (Ids)
     import Klar.Sortable as Sortable
 
     -- model: steps : List Step, sortable : Sortable.State StepId
     -- init:  Sortable.init "pick-steps"
-    stepIds : Sortable.Ids StepId
+    stepIds : Ids StepId
     stepIds =
-        Sortable.itemIds { toKey = StepId.toString, fromKey = StepId.fromString }
+        Ids.make { toKey = StepId.toString, fromKey = StepId.fromString }
 
     -- update
     SortableMsg m ->
@@ -84,7 +79,7 @@ remembers what the user is doing right now (which item is held and where it woul
 land). When the user lets go, `reorder` puts the item in its new place in your list,
 in the same `update` that handled the message; if you do not call it, nothing has
 moved, and the list springs back to what you draw. Items carry the id type of your
-own (`StepId`), written as text once with `itemIds`, so no `String` ids leak into
+own (`StepId`), written as text once as a [Klar.Ids](Klar.Ids.md), so no `String` ids leak into
 your code. Draw the items with whatever `Html` you like: the component wraps each in
 a list item with a handle.
 
@@ -156,7 +151,7 @@ One item of the list. Make it with `item` and, if it must stay in its place,
 ### `view`
 
 ```elm
-view : Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
+view : Ids.Ids id -> (Msg -> msg) -> List Attribute -> State id -> List (Item id msg) -> Html msg
 ```
 
 The list. It takes the `Ids` of your item type, the constructor that wraps the
@@ -246,7 +241,7 @@ map it with `Cmd.map` like any other child. To react to a drop, call `reorder`.
 ### `lifted`
 
 ```elm
-lifted : Ids id -> State id -> Maybe id
+lifted : Ids.Ids id -> State id -> Maybe id
 ```
 
 The id of the item that is held (picked up with the keyboard, or dragged past
@@ -257,55 +252,17 @@ though the page no longer shows it as held.
 
 ## Ids
 
-### `Ids`
-
-```elm
-type Ids id  -- opaque: no constructors are exposed
-```
-
-How the id type of your items (a `StepId`, a `FilterId`, plain text ...) is
-written as a key and read back. Declare one value for each kind of list, once, and
-pass it to `view`, `reorder` and `lifted`. The state is typed by the id
-(`Sortable.State StepId`), so a list of steps cannot be asked about filters.
-
-    steps : Sortable.Ids StepId
-    steps =
-        Sortable.itemIds { toKey = StepId.toString, fromKey = StepId.fromString }
-
-The key is what the state keeps, and it becomes part of the DOM ids, so `toKey`
-must give every id its own key. A list that holds the same key twice shows the first
-item only.
-
-### `itemIds`
-
-```elm
-itemIds : { toKey : id -> String, fromKey : String -> Maybe id } -> Ids id
-```
-
-Makes the `Ids` of an id type, see there.
-
-### `stringIds`
-
-```elm
-stringIds : Ids String
-```
-
-Ids that are plain text, used as they are.
-
-### `intIds`
-
-```elm
-intIds : Ids Int
-```
-
-Ids that are whole numbers.
+The id type of your items (a `StepId`, plain text ...) is written as a key once, as a
+[Klar.Ids](Klar.Ids.md), and given to `view`, `reorder` and `lifted`. The state is typed by
+the id (`Sortable.State StepId`). The key becomes part of the DOM ids, so `toKey` must give
+every id its own key; a list that holds the same key twice shows the first item only.
 
 ## Putting the list in the new order
 
 ### `reorder`
 
 ```elm
-reorder : Ids id -> (a -> id) -> State id -> State id -> List a -> List a
+reorder : Ids.Ids id -> (a -> id) -> State id -> State id -> List a -> List a
 ```
 
 Puts your list in the order the user just chose. Give it the state before and
@@ -342,7 +299,7 @@ same move without dragging, for example for "Move up" and "Move down" buttons in
 menu, so that people who cannot drag have another way. A button inside the item goes
 with the item to its new place, and the browser takes the focus from an element that is
 moved in the page: give the button an `id` and send the focus back to it in the same
-`update`, with `Browser.Dom.focus`, or a keyboard user starts again from the top of the
+`update`, with `Klar.focus`, or a keyboard user starts again from the top of the
 page after every press.
 
     Sortable.move { from = 0, to = 2 } [ "a", "b", "c", "d" ] --> [ "b", "c", "a", "d" ]

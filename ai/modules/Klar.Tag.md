@@ -139,7 +139,7 @@ removeId : String -> Attribute msg
 ```
 
 The DOM id of the remove button, for moving the focus to it from your
-application (`Browser.Dom.focus`), for example to the next tag after one was
+application (`Klar.focus`), for example to the next tag after one was
 removed, so that keyboard users do not lose their place.
 
     viewTag name =
@@ -152,7 +152,7 @@ removed, so that keyboard users do not lose their place.
         ( { model | tags = List.filter (\tag -> tag /= name) model.tags }
         , case tagAfter name model.tags of
             Just next ->
-                Task.attempt (\_ -> NoOp) (Browser.Dom.focus ("remove-" ++ next))
+                Klar.focus ("remove-" ++ next) NoOp
 
             Nothing ->
                 Cmd.none

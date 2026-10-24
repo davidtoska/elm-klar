@@ -10,6 +10,7 @@ import Dict exposing (Dict)
 import Html exposing (Html)
 import Klar.Button as Button
 import Klar.Cascader as Cascader
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Picking as Picking exposing (Node)
@@ -34,9 +35,9 @@ type LocationId
     = LocationId String
 
 
-locationIds : Picking.Ids LocationId
+locationIds : Ids LocationId
 locationIds =
-    Picking.ids (\(LocationId key) -> key)
+    Ids.make { toKey = \(LocationId key) -> key, fromKey = Just << LocationId }
 
 
 locationText : LocationId -> String
@@ -48,9 +49,9 @@ type ProductNo
     = ProductNo Int
 
 
-productIds : Picking.Ids ProductNo
+productIds : Ids ProductNo
 productIds =
-    Picking.ids (\(ProductNo n) -> String.fromInt n)
+    Ids.make { toKey = \(ProductNo n) -> String.fromInt n, fromKey = Maybe.map ProductNo << String.toInt }
 
 
 productText : ProductNo -> String
@@ -199,7 +200,7 @@ catalogue =
                     category =
                         "Category " ++ String.padLeft 2 '0' (String.fromInt c)
                 in
-                Picking.branch Picking.stringIds
+                Picking.branch Ids.string
                     category
                     category
                     (List.range 1 100
@@ -209,7 +210,7 @@ catalogue =
                                     name =
                                         "Product " ++ String.fromInt c ++ "-" ++ String.padLeft 3 '0' (String.fromInt p)
                                 in
-                                Picking.leaf Picking.stringIds name name
+                                Picking.leaf Ids.string name name
                             )
                     )
             )
@@ -668,7 +669,7 @@ Transfer.values model.products -- List ProductNo"""
                 }
                 (Transfer.view OrderedMsg
                     [ Transfer.label "Columns in the export"
-                    , Transfer.options Picking.stringIds exportColumns
+                    , Transfer.options Ids.string exportColumns
                     , Transfer.order Transfer.movedOrder
                     , Transfer.titles { available = "Columns", chosen = "Exported" }
                     , Transfer.visibleRows 6

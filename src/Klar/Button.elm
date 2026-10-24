@@ -405,7 +405,7 @@ render isIconOnly config label =
 
                   else
                     ""
-                , "klar-button--" ++ Theme.sizeSuffix config.size
+                , "klar-button--" ++ Internal.sizeSuffix config.size
                 , if isIconOnly then
                     "klar-button--icon-only"
 

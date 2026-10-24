@@ -11,6 +11,7 @@ import Html.Attributes as Attr
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Sortable as Sortable
@@ -32,9 +33,9 @@ type StepId
     = StepId Int
 
 
-stepIds : Sortable.Ids StepId
+stepIds : Ids StepId
 stepIds =
-    Sortable.itemIds
+    Ids.make
         { toKey = \(StepId n) -> "step-" ++ String.fromInt n
         , fromKey = \key -> String.toInt (String.dropLeft 5 key) |> Maybe.map StepId
         }
@@ -147,7 +148,7 @@ update msg model =
             in
             ( { model
                 | chipList = list
-                , chips = Sortable.reorder Sortable.stringIds identity model.chipList list model.chips
+                , chips = Sortable.reorder Ids.string identity model.chipList list model.chips
               }
             , Cmd.map ChipsMsg cmd
             )
@@ -171,7 +172,7 @@ update msg model =
             in
             ( { model
                 | shipmentList = list
-                , shipments = Sortable.reorder Sortable.stringIds identity model.shipmentList list model.shipments
+                , shipments = Sortable.reorder Ids.string identity model.shipmentList list model.shipments
               }
             , Cmd.map ShipmentsMsg cmd
             )
@@ -236,12 +237,12 @@ pickSequenceExample : Locale -> Model -> Html Msg
 pickSequenceExample locale model =
     Doc.example
         { title = "A pick sequence, with ids of its own type"
-        , description = Just "The application keeps its steps in its own order and draws them in that order. When the user lets go, reorder puts the dropped step in its new place in the same update. The ids are a StepId, written as text once with itemIds; no String ids in the code of the page."
+        , description = Just "The application keeps its steps in its own order and draws them in that order. When the user lets go, reorder puts the dropped step in its new place in the same update. The ids are a StepId, written as text once with Klar.Ids; no String ids in the code of the page."
         , code = Just """type StepId = StepId Int
 
-stepIds : Sortable.Ids StepId
+stepIds : Ids StepId
 stepIds =
-    Sortable.itemIds
+    Ids.make
         { toKey = \\(StepId n) -> "step-" ++ String.fromInt n
         , fromKey = \\key -> String.toInt (String.dropLeft 5 key) |> Maybe.map StepId
         }
@@ -307,7 +308,7 @@ chipsExample locale model =
     Doc.example
         { title = "A chip list"
         , description = Just "Left and Right move an item in a horizontal list. The chips wrap onto more lines; the line shows the gap the item would land in. The ids are plain text here."
-        , code = Just """Sortable.view Sortable.stringIds
+        , code = Just """Sortable.view Ids.string
     ChipsMsg
     [ Sortable.horizontal, Sortable.ariaLabel "Preferred warehouses" ]
     model.chipList
@@ -321,13 +322,13 @@ ChipsMsg inner ->
     in
     ( { model
         | chipList = list
-        , chips = Sortable.reorder Sortable.stringIds identity model.chipList list model.chips
+        , chips = Sortable.reorder Ids.string identity model.chipList list model.chips
       }
     , Cmd.map ChipsMsg cmd
     )"""
         }
         (Layout.stack [ Layout.gap 3 ]
-            [ Sortable.view Sortable.stringIds
+            [ Sortable.view Ids.string
                 ChipsMsg
                 [ Sortable.horizontal, Sortable.ariaLabel "Preferred warehouses", Sortable.locale locale ]
                 model.chipList
@@ -405,7 +406,7 @@ shipmentsExample locale model =
     Doc.example
         { title = "The whole item as the handle, and buttons inside it"
         , description = Just "With wholeItem the mouse can take hold of an item anywhere, except on its buttons and links, so the arrows work as buttons. A finger uses the grip only, so the rest of the item still scrolls the page. The arrows use Sortable.move: another way to reorder for people who cannot drag. A moved item takes its buttons with it, and a button that is moved in the page loses the focus, so the update puts the focus back on it with Browser.Dom.focus."
-        , code = Just """Sortable.view Sortable.stringIds
+        , code = Just """Sortable.view Ids.string
     ShipmentsMsg
     [ Sortable.wholeItem, Sortable.ariaLabel "Shipments" ]
     model.shipmentList
@@ -430,7 +431,7 @@ MoveShipment number delta ->
     )"""
         }
         (Layout.stack [ Layout.gap 3 ]
-            [ Sortable.view Sortable.stringIds
+            [ Sortable.view Ids.string
                 ShipmentsMsg
                 [ Sortable.wholeItem, Sortable.ariaLabel "Shipments", Sortable.locale locale ]
                 model.shipmentList

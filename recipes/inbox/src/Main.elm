@@ -18,6 +18,7 @@ import Klar
 import Klar.Button as Button
 import Klar.Date as Date exposing (Date)
 import Klar.FilterBar as FilterBar
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote
@@ -159,7 +160,7 @@ view model =
             ]
         , ServerList.viewTable OrdersMsg
             [ Table.columns columns
-            , Table.rowId Table.stringIds .id
+            , Table.rowId Ids.string .id
             , Table.searchable
             ]
             model.orders

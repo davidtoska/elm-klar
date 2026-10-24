@@ -86,7 +86,7 @@ a word, and nothing can be changed. For a list of the same rights per person, us
 
 **Roles and permissions are your own types.** A `role` and a `permission` can be
 anything that has a key as text (`roleKey` and `permissionKey` of `matrix`). There is no
-way back from the key to the value (as in `Tree.nodeIds`) because none is needed: the
+way back from the key to the value (as in `Ids.make`) because none is needed: the
 matrix keeps your values in the `Matrix` it is given on every render and hands them back
 in a `Change`, so you never parse an id. Keys name the cells in the page and in the
 state, so a key must be different for every role and every permission. One that has been
@@ -193,6 +193,7 @@ import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness
 import Klar.Locale as Locale exposing (Locale)
@@ -1304,7 +1305,7 @@ view toMsg attributes (State state) theMatrix =
         Html.div
             [ Internal.cls
                 [ "klar-permissions"
-                , "klar-permissions--" ++ Theme.densitySuffix config.density
+                , "klar-permissions--" ++ Internal.densitySuffix config.density
                 , if env.editable then
                     ""
 
@@ -1357,7 +1358,7 @@ viewRemote toMsg attributes state data =
 
         _ ->
             Html.div
-                [ Internal.cls [ "klar-permissions", "klar-permissions--" ++ Theme.densitySuffix config.density, "klar-permissions--skeleton" ]
+                [ Internal.cls [ "klar-permissions", "klar-permissions--" ++ Internal.densitySuffix config.density, "klar-permissions--skeleton" ]
                 , Attr.attribute "aria-busy" "true"
                 ]
                 (Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ] [ Html.text t.loading ]

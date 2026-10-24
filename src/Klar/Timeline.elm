@@ -53,7 +53,7 @@ next to it, shown when you set `onLoadMore`. The button stays in the page while 
 next page loads (it shows a spinner) and turns into "Try again" when that failed,
 so the keyboard focus is not thrown away; when there is nothing more
 (`hasMore False`) it is gone and the status text says "No more events". Give the
-timeline an `id` and move focus there with `RemoteView.focus` in the same update
+timeline an `id` and move focus there with `Klar.focus` in the same update
 that starts a request again or ends the list, as for the retry button of any
 region.
 
@@ -431,7 +431,7 @@ headingLevel level =
 {-| The DOM id of the timeline, which then takes focus from a command in every state
 (loading, failed, loaded). "Try again" and "Load more" are replaced when the request
 starts or the list ends, and focus would fall back to the page; call
-[`RemoteView.focus`](Klar-RemoteView#focus) with this id in the same `update`
+[`Klar.focus`](Klar#focus) with this id in the same `update`
 branch. The id must be unique on the page.
 -}
 id : String -> Attribute msg
@@ -862,7 +862,7 @@ viewEvent config (Event data) =
                     Html.text ""
     in
     Html.li
-        [ Internal.cls [ "klar-timeline__item", "klar-timeline__item--" ++ Theme.toneSuffix data.tone ] ]
+        [ Internal.cls [ "klar-timeline__item", "klar-timeline__item--" ++ Internal.toneSuffix data.tone ] ]
         (if config.compact then
             [ Html.span [ Internal.cls [ "klar-timeline__rail" ], Attr.attribute "aria-hidden" "true" ] [ marker ]
             , Html.div [ Internal.cls [ "klar-timeline__content" ] ]

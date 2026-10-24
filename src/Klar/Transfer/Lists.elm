@@ -26,7 +26,8 @@ Not for application code.
 
 import Array exposing (Array)
 import Dict exposing (Dict)
-import Klar.Picking as Picking exposing (Ids)
+import Klar.Ids as Ids exposing (Ids)
+import Klar.Picking as Picking
 import Klar.Search as Search
 import Klar.Select.Option exposing (Option)
 import Set exposing (Set)
@@ -60,7 +61,7 @@ buildSource ids options =
                 (\option ( items, dict, places ) ->
                     let
                         key =
-                            Picking.toKey ids option.value
+                            Ids.toKey ids option.value
                     in
                     if Dict.member key dict then
                         ( items, dict, places )

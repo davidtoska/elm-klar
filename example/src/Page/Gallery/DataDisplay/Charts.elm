@@ -6,6 +6,7 @@ and their loading, failed and empty states.
 
 import Api.Types as Types exposing (OrderStatus(..))
 import Html exposing (Html)
+import Klar
 import Klar.Chart as Chart
 import Klar.Format as Format
 import Klar.Layout as Layout
@@ -47,7 +48,7 @@ update msg model =
         Retry example ->
             -- "Try again" is replaced by the skeleton: focus goes to the chart (its id).
             ( { model | retrying = example :: model.retrying }
-            , Cmd.batch [ Pretend.later (RetryDone example), RemoteView.focus (chartId example) Focused ]
+            , Cmd.batch [ Pretend.later (RetryDone example), Klar.focus (chartId example) Focused ]
             )
 
         Focused ->
@@ -69,7 +70,7 @@ chartId example =
 view : Locale -> Model -> Html Msg
 view locale model =
     Doc.section "Charts"
-        "The charts are built from HTML and CSS: bars, markers and donut slices are elements, and only the lines and areas are SVG (a mask in the color of the series). They fill the width of their container, text and lines keep a fixed size, and every chart has a hidden data table for screen readers. Hold the pointer over a category to see the values. Colors are handed out to the series in a fixed order; pin a series to a color with withColor to keep it when other series come and go."
+        "The charts are built from HTML and CSS: bars, markers and donut slices are elements, and only the lines and areas are SVG (a mask in the color of the series). They fill the width of their container, text and lines keep a fixed size, and every chart has a hidden data table for screen readers. Hold the pointer over a category to see the values. Colors are handed out to the series in a fixed order; pin a series to a color with withSlot to keep it when other series come and go."
         (lineExamples locale
             ++ barExamples locale
             ++ donutExamples locale
@@ -116,7 +117,7 @@ lineExamples locale =
         , code = Just """Chart.line [ Chart.title "Orders per month", Chart.categories months ]
     [ Chart.series "2025" [ 120, 180, 90, 220 ]
     , Chart.seriesMaybe "2026" [ Just 140, Just 200, Nothing, Nothing ]
-    , Chart.series "Target" [ 280, 280, 280, 280 ] |> Chart.dashed |> Chart.withColor 8
+    , Chart.series "Target" [ 280, 280, 280, 280 ] |> Chart.dashed |> Chart.withSlot 8
     ]"""
         }
         (Chart.line
@@ -128,7 +129,7 @@ lineExamples locale =
             ]
             [ Chart.series "2025" (twelve 240 90 0)
             , Chart.seriesMaybe "2026" (List.map Just (List.take 9 (twelve 260 100 0.4)) ++ [ Nothing, Nothing, Nothing ])
-            , Chart.series "Target" (List.repeat 12 280) |> Chart.dashed |> Chart.withColor 8
+            , Chart.series "Target" (List.repeat 12 280) |> Chart.dashed |> Chart.withSlot 8
             ]
         )
     , Doc.example

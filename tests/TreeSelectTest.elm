@@ -10,6 +10,7 @@ import Fuzz
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.Picking as Picking exposing (Node)
 import Klar.Remote as Remote exposing (Remote(..))
@@ -28,9 +29,9 @@ type Msg
     | RetriedNode String
 
 
-ids : Picking.Ids String
+ids : Ids String
 ids =
-    Picking.stringIds
+    Ids.string
 
 
 html : List (TreeSelect.Attribute String Msg) -> State mode -> Html Msg

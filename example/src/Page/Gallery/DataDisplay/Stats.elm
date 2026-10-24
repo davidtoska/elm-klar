@@ -4,6 +4,7 @@ module Page.Gallery.DataDisplay.Stats exposing (Model, Msg, init, update, view)
 -}
 
 import Html exposing (Html)
+import Klar
 import Klar.Button as Button
 import Klar.Card as Card
 import Klar.Format as Format
@@ -56,7 +57,7 @@ update failing msg model =
             ( { model | shipments = Remote.Loading }
             , Cmd.batch
                 [ Cmd.map Loaded (Pretend.respond failing 1284)
-                , RemoteView.focus "shipments-tile" Focused
+                , Klar.focus "shipments-tile" Focused
                 ]
             )
 

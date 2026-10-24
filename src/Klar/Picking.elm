@@ -1,6 +1,5 @@
 module Klar.Picking exposing
-    ( Ids, ids, stringIds, intIds, toKey
-    , Node, leaf, branch, lazy, withDescription, withIcon, withKeywords, disabled
+    ( Node, leaf, branch, lazy, withDescription, withIcon, withKeywords, disabled
     , key, id, label, description, icon, keywords, isDisabled, children
     )
 
@@ -18,9 +17,9 @@ Do not use when: you show a hierarchy on the page itself with open and closed br
 
 
     -- how a RegionId is written as a key, once for the pickers
-    regionIds : Picking.Ids RegionId
+    regionIds : Ids RegionId
     regionIds =
-        Picking.ids RegionId.toString
+        Ids.make { toKey = RegionId.toString, fromKey = RegionId.fromString }
 
     -- a hierarchy: Europe holds Oslo, and the zones of Bergen come from the backend
     regions : Remote (List Zone) -> List (Picking.Node RegionId)
@@ -42,27 +41,19 @@ it, and a `lazy` node has children that come from the backend, shown as loading,
 failed or loaded. Only the nodes of an open branch are drawn.
 
 Every id must be unique in the whole tree, not only among its siblings, and its
-key (what `ids` was told to make of it) must be different for different ids. A node
+key (what its `Ids` makes of it) must be different for different ids. A node
 whose key was already used by an earlier node is left out of the choice list.
 
-`Picking.ids` takes only the function that writes an id as a key. That differs from
-`Tree.nodeIds` and `Table.rowIds`, which also ask for the way back from a key to an
-id (`fromKey`), and is the same as `SideNav.keys`: the picking components keep the
-ids themselves next to their keys, so nothing is ever read back from a key, and an
-application with an opaque id type does not have to write a parser for it. The
-price is that these components cannot restore a value from keys alone (a saved view
-that stores keys): store your own ids and give them to `TreeSelect.setValues`,
-`Cascader.setValue` or `Transfer.setValues`.
+The ids are a [Klar.Ids](Klar-Ids), the same value the table and the tree of that id
+type take. The picking components keep the ids themselves next to their keys and use
+only `toKey`, so they cannot restore a value from keys alone (a saved view that stores
+keys): store your own ids and give them to `TreeSelect.setValues`, `Cascader.setValue`
+or `Transfer.setValues`.
 
 The functions that read a node (`key`, `id`, `label`, `description`, `icon`,
 `keywords`, `isDisabled`, `children`) are for building your own components on these
 nodes, or one tree from another (the components of this package use them for
 exactly that); an application rarely needs them.
-
-
-# Ids
-
-@docs Ids, ids, stringIds, intIds, toKey
 
 
 # Nodes
@@ -77,64 +68,9 @@ exactly that); an application rarely needs them.
 -}
 
 import Klar.Icon exposing (Icon)
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal.Freshness as Freshness
 import Klar.Remote as Remote exposing (Remote)
-
-
-
--- IDS
-
-
-{-| How the id type of your nodes (a `RegionId`, a `ProductId`, plain text ...) is
-written as a key. Declare one value for each kind of id, once, and pass it to the
-node constructors and to the functions that set ids from your code
-(`TreeSelect.setValues`, `Cascader.setValue`, `Transfer.setValues` ...). The
-components are typed by the id (`TreeSelect.State TreeSelect.Multiple RegionId`),
-so a field for regions cannot be asked about product ids.
-
-    regionIds : Picking.Ids RegionId
-    regionIds =
-        Picking.ids RegionId.toString
-
-The key is what the components use to look an id up quickly, so it must give
-every id its own text. The ids come back as you gave them: nothing is converted
-back from a key.
-
--}
-type Ids id
-    = Ids (id -> String)
-
-
-{-| Makes the `Ids` of an id type from the function that writes an id as a key,
-see there.
--}
-ids : (id -> String) -> Ids id
-ids =
-    Ids
-
-
-{-| Ids that are plain text (a code, a SKU), used as they are.
--}
-stringIds : Ids String
-stringIds =
-    Ids identity
-
-
-{-| Ids that are whole numbers (a database id).
--}
-intIds : Ids Int
-intIds =
-    Ids String.fromInt
-
-
-{-| The key of an id: what `ids` was told to make of it.
-
-    Picking.toKey Picking.intIds 42 --> "42"
-
--}
-toKey : Ids id -> id -> String
-toKey (Ids write) =
-    write
 
 
 
@@ -163,14 +99,14 @@ type alias Data id =
 
 
 make : Ids id -> id -> String -> Remote (List (Node id)) -> Node id
-make (Ids write) nodeId nodeLabel givenKids =
+make ids nodeId nodeLabel givenKids =
     let
         -- children that are `Kept` are shown as they are; the pickers have no room for a marker
         kids =
             Tuple.first (Freshness.settle givenKids)
     in
     Node
-        { key = write nodeId
+        { key = Ids.toKey ids nodeId
         , id = nodeId
         , label = nodeLabel
         , description = Nothing

@@ -221,7 +221,7 @@ Acceptance:
    single tab stop.
 5. The node ids are the application's own type end to end.
 
-Reference modules: `Tree` (`nodeIds`, `lazy`), `Remote`, `Table`. Partly in the dashboard recipe.
+Reference modules: `Tree` (`lazy`, with a `Klar.Ids`), `Remote`, `Table`. Partly in the dashboard recipe.
 
 ## T12. Leave guard
 

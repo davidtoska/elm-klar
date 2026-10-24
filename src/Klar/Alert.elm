@@ -207,7 +207,7 @@ viewWith attributes children =
     Html.div
         [ Internal.cls
             [ "klar-alert"
-            , "klar-alert--" ++ Theme.toneSuffix config.tone
+            , "klar-alert--" ++ Internal.toneSuffix config.tone
             , if config.banner then
                 "klar-alert--banner"
 

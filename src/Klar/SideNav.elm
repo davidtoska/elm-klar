@@ -1,6 +1,5 @@
 module Klar.SideNav exposing
     ( view
-    , Keys, keys, stringKeys
     , Entry, item, group, section, rule, withIcon, withCount, withBadge, disabledItem
     , Attribute, entries, current, collapsed, ariaLabel, onSelect, locale
     , State, init, isExpanded, expandGroup, collapseGroup, reveal, focusLink, focusCurrent, Msg, update
@@ -11,14 +10,15 @@ icons and counts, and groups that open and close.
 
 Use when: the sidebar needs vertical navigation with sections, links, counts and groups that open and close.
 Do not use when: you need tabs inside a page (use `Klar.Tabs`) or the path to the current page (use `Klar.Breadcrumbs`).
-Quick path: `keys`, `item`, `section`, `withIcon`, `entries`; the state, `init`, `update`, `view` and `reveal`, belong to the shell
+Quick path: `item`, `section`, `withIcon`, `entries`; the state, `init`, `update`, `view` and `reveal`, belong to the shell
 
 **In an application, `Klar.AppShell` holds the state and the messages of the side menu**: you write the
-entries (`keys`, `item`, `withIcon`) and give `AppShell.sideNav ShellMsg [ SideNav.entries menu ] model.shell` to the shell's
+entries (`item`, `withIcon`, with the [Klar.Ids](Klar-Ids) of your page type) and give `AppShell.sideNav ShellMsg [ SideNav.entries menu ] model.shell` to the shell's
 `sidebar`. Do not add a `SideNav.State` of your own beside it. The wiring below is for a side menu
 without the shell (a gallery, a drawer of your own).
 
     import Klar.Icon as Icon
+    import Klar.Ids as Ids
     import Klar.SideNav as SideNav
 
     -- model: sideNav : SideNav.State String
@@ -43,14 +43,14 @@ without the shell (a gallery, a drawer of your own).
     menu : List (SideNav.Entry String msg)
     menu =
         [ SideNav.section "Workspace"
-            [ SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
+            [ SideNav.item Ids.string { key = "orders", label = "Orders", href = "#/orders" }
                 |> SideNav.withIcon Icon.clipboardCheck
                 |> SideNav.withCount 12
-            , SideNav.item SideNav.stringKeys { key = "customers", label = "Customers", href = "#/customers" }
+            , SideNav.item Ids.string { key = "customers", label = "Customers", href = "#/customers" }
                 |> SideNav.withIcon Icon.users
-            , SideNav.group SideNav.stringKeys { key = "reports", label = "Reports" }
-                [ SideNav.item SideNav.stringKeys { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" }
-                , SideNav.item SideNav.stringKeys { key = "reports-exports", label = "Exports", href = "#/reports/exports" }
+            , SideNav.group Ids.string { key = "reports", label = "Reports" }
+                [ SideNav.item Ids.string { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" }
+                , SideNav.item Ids.string { key = "reports-exports", label = "Exports", href = "#/reports/exports" }
                 ]
                 |> SideNav.withIcon Icon.barChart
             ]
@@ -89,9 +89,15 @@ links are skipped. The menu is a `nav` landmark, named by `ariaLabel`
 
 Every link and group has a key. It is a value of your own type (a `Page`, a
 `ReportId`), so a misspelled key is a compile error. Say once how it is written
-as text (see `keys`); the menu is then typed by it (`SideNav.State Page`).
+as text, once, as a [Klar.Ids](Klar-Ids); the menu is then typed by it
+(`SideNav.State Page`). The text is used for the DOM ids of the links, so give every key
+its own text.
 
-@docs Keys, keys, stringKeys
+    pageIds : Ids Page
+
+    -- import Klar.Ids as Ids exposing (Ids)
+    pageIds =
+        Ids.make { toKey = pageToString, fromKey = pageFromString }
 
 
 # Entries
@@ -115,46 +121,14 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode
 import Klar.Icon as Icon exposing (Icon)
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 
 
-
--- KEYS
-
-
-{-| How the key type of your menu (`Page`, `ReportId` ...) is written as text.
-Declare one value for the menu, once, and pass it to `item`, `group` and the
-functions that speak keys.
-
-    pageKeys : SideNav.Keys Page
-    pageKeys =
-        SideNav.keys pageToString
-
-The text is used for the DOM ids of the links, so give every key its own text.
-
--}
-type Keys key
-    = Keys (key -> String)
-
-
-{-| Makes the `Keys` of a key type, see there.
--}
-keys : (key -> String) -> Keys key
-keys =
-    Keys
-
-
-{-| Keys that are plain text, used as they are.
--}
-stringKeys : Keys String
-stringKeys =
-    Keys identity
-
-
-textOf : Keys key -> key -> String
-textOf (Keys toText) key =
-    toText key
+textOf : Ids key -> key -> String
+textOf =
+    Ids.toKey
 
 
 
@@ -200,10 +174,10 @@ type alias GroupData key msg =
 be unique in the menu, the `label` is its text, and the `href` is where it goes
 (`#/path` for navigation inside a single page application).
 
-    SideNav.item SideNav.stringKeys { key = "orders", label = "Orders", href = "#/orders" }
+    SideNav.item Ids.string { key = "orders", label = "Orders", href = "#/orders" }
 
 -}
-item : Keys key -> { key : key, label : String, href : String } -> Entry key msg
+item : Ids key -> { key : key, label : String, href : String } -> Entry key msg
 item k options =
     LinkEntry
         { key = textOf k options.key
@@ -221,12 +195,12 @@ item k options =
 identifies the group in the state (`isExpanded`, `expandGroup` and the others) and
 must be unique in the menu. A group is a button, not a link, so it has no `href`.
 
-    SideNav.group SideNav.stringKeys
+    SideNav.group Ids.string
         { key = "reports", label = "Reports" }
-        [ SideNav.item SideNav.stringKeys { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" } ]
+        [ SideNav.item Ids.string { key = "reports-monthly", label = "Monthly report", href = "#/reports/monthly" } ]
 
 -}
-group : Keys key -> { key : key, label : String } -> List (Entry key msg) -> Entry key msg
+group : Ids key -> { key : key, label : String } -> List (Entry key msg) -> Entry key msg
 group k options children =
     GroupEntry
         { key = textOf k options.key
@@ -444,14 +418,14 @@ init id =
 
 {-| Whether the group with this key is open in the state.
 -}
-isExpanded : Keys key -> key -> State key -> Bool
+isExpanded : Ids key -> key -> State key -> Bool
 isExpanded k key (State state) =
     List.member (textOf k key) state.expanded
 
 
 {-| Opens the group with this key. Does nothing when it is already open.
 -}
-expandGroup : Keys key -> key -> State key -> State key
+expandGroup : Ids key -> key -> State key -> State key
 expandGroup k value state =
     expandText (textOf k value) state
 
@@ -467,7 +441,7 @@ expandText key (State state) =
 
 {-| Closes the group with this key. Does nothing when it is already closed.
 -}
-collapseGroup : Keys key -> key -> State key -> State key
+collapseGroup : Ids key -> key -> State key -> State key
 collapseGroup k value state =
     collapseText (textOf k value) state
 
@@ -567,10 +541,10 @@ sidebar opens as a drawer. Does nothing if that link is not in the page (inside 
 closed group, say). The message is sent when it is done, whether the link was
 found or not, so use one that changes nothing.
 
-    SideNav.focusLink SideNav.stringKeys "orders" model.sideNav NoOp
+    SideNav.focusLink Ids.string "orders" model.sideNav NoOp
 
 -}
-focusLink : Keys key -> key -> State key -> msg -> Cmd msg
+focusLink : Ids key -> key -> State key -> msg -> Cmd msg
 focusLink k key (State state) done =
     Internal.focus (linkId state.id (textOf k key)) done
 

@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Accordion as Accordion
 import Klar.AppShell as AppShell
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
 import Klar.PageHeader as PageHeader
 import Klar.SideNav as SideNav
@@ -241,7 +242,7 @@ toolbarTests =
 
 link : String -> SideNav.Entry String msg
 link key =
-    SideNav.item SideNav.stringKeys { key = key, label = key, href = "#/" ++ key }
+    SideNav.item Ids.string { key = key, label = key, href = "#/" ++ key }
 
 
 {-| Two sections with the same caption, and a third that holds one more with that
@@ -309,14 +310,14 @@ sideNavTests =
                 let
                     entries =
                         [ SideNav.section "Top" [ link "home" ]
-                        , SideNav.group SideNav.stringKeys
+                        , SideNav.group Ids.string
                             { key = "reports", label = "Reports" }
                             [ SideNav.section "Same" [ link "monthly" ]
                             , SideNav.section "Same" [ link "yearly" ]
                             ]
                         ]
                 in
-                sideNav entries (SideNav.init "main-nav" |> SideNav.expandGroup SideNav.stringKeys "reports")
+                sideNav entries (SideNav.init "main-nav" |> SideNav.expandGroup Ids.string "reports")
                     |> Query.fromHtml
                     |> Query.findAll [ Selector.tag "h2" ]
                     |> Expect.all

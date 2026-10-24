@@ -437,7 +437,7 @@ Asks the browser to focus the input when it is shown (the HTML `autofocus`
 attribute). Browsers honor it for one element at most, and not once the user has
 started to move the focus around, so it is unreliable for an input that appears
 later, in a dialog for example. To move the focus yourself, use
-`Browser.Dom.focus` with the `id` of the input.
+`Klar.focus` with the `id` of the input.
 
 ### `autocomplete`
 

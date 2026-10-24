@@ -1,6 +1,7 @@
 module TypedIdsTest exposing (suite)
 
 import Expect
+import Klar.Ids as Ids exposing (Ids)
 import Klar.SideNav as SideNav
 import Klar.Tree as Tree
 import Test exposing (Test, describe, test)
@@ -15,17 +16,17 @@ type Page
     | Reports
 
 
-regions : Tree.Ids RegionId
+regions : Ids RegionId
 regions =
-    Tree.nodeIds
+    Ids.make
         { toKey = \(RegionId n) -> "region-" ++ String.fromInt n
         , fromKey = \key -> String.toInt (String.dropLeft 7 key) |> Maybe.map RegionId
         }
 
 
-pages : SideNav.Keys Page
+pages : Ids Page
 pages =
-    SideNav.keys
+    Ids.list
         (\page ->
             case page of
                 Orders ->
@@ -34,12 +35,28 @@ pages =
                 Reports ->
                     "reports"
         )
+        [ Orders, Reports ]
 
 
 suite : Test
 suite =
     describe "ids and keys of the app's own type (Tree, SideNav)"
-        [ test "Tree: open nodes come back in the app's type" <|
+        [ test "Ids.list reads back every value it was given" <|
+            \_ ->
+                [ Orders, Reports ]
+                    |> List.map (Ids.toKey pages >> Ids.fromKey pages)
+                    |> Expect.equal [ Just Orders, Just Reports ]
+        , test "Ids.list gives Nothing for a key of no value" <|
+            \_ ->
+                Expect.equal Nothing (Ids.fromKey pages "invoices")
+        , test "Ids.string and Ids.int go both ways" <|
+            \_ ->
+                Expect.equal ( Just "SO-1", Just 42, Nothing )
+                    ( Ids.fromKey Ids.string (Ids.toKey Ids.string "SO-1")
+                    , Ids.fromKey Ids.int (Ids.toKey Ids.int 42)
+                    , Ids.fromKey Ids.int "x"
+                    )
+        , test "Tree: open nodes come back in the app's type" <|
             \_ ->
                 (Tree.init "regions" |> Tree.setExpanded regions [ RegionId 2, RegionId 10 ])
                     |> Tree.expanded regions

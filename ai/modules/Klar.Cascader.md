@@ -18,7 +18,7 @@ view : (Msg id -> msg) -> List (Attribute id msg) -> State id -> Html msg
 
 -- Value
 value : State id -> Maybe (List id)
-setValue : Picking.Ids id -> List id -> State id -> State id
+setValue : Ids.Ids id -> List id -> State id -> State id
 setPath : List (Picking.Node id) -> State id -> State id
 clear : State id -> State id
 
@@ -240,7 +240,7 @@ set with `setValue` is returned at once, also while the nodes are still loading.
 ### `setValue`
 
 ```elm
-setValue : Picking.Ids id -> List id -> State id -> State id
+setValue : Ids.Ids id -> List id -> State id -> State id
 ```
 
 Chooses a path from your code, for example to show a saved record. The labels

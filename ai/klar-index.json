@@ -8,18 +8,20 @@
       "group": "Start here",
       "purpose": "Klar (Norwegian for \"clear\" and \"ready\") is a toolkit of interface components for data-intensive applications.",
       "whenToUse": "you start any application with Klar, to put its stylesheet on the page once.",
-      "whenNot": "you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet.",
+      "whenNot": "you look for a component, each of which has its own module (`Klar.Button`, `Klar.Table`); this module holds only the stylesheet and `focus`.",
       "state": [],
       "msg": [],
       "ids": [],
       "stateful": false,
       "quickPath": [
-        "stylesheet"
+        "stylesheet",
+        "focus"
       ],
       "mainFunctions": [
         "stylesheet",
         "stylesheetFor",
-        "css"
+        "css",
+        "focus"
       ],
       "related": [
         "Klar.Form",
@@ -1883,8 +1885,8 @@
       "import": "import Klar.Ids as Ids",
       "group": "Choosing",
       "purpose": "How the application's own id type is written as text and read back, once.",
-      "whenToUse": "the application's own id type must be written as text and read back for components that keep text keys.",
-      "whenNot": "the id is already a `String`; no `Ids` is needed.",
+      "whenToUse": "a component keeps your own ids or keys (rows, nodes, items, pages, choices) and needs them as text inside.",
+      "whenNot": "the value is not an id of yours (a label, a search text); plain text and whole-number ids take `Ids.string` and `Ids.int`.",
       "state": [],
       "msg": [],
       "ids": [
@@ -1893,11 +1895,15 @@
       "stateful": false,
       "quickPath": [
         "make",
-        "toKey",
-        "fromKey"
+        "list",
+        "string",
+        "int"
       ],
       "mainFunctions": [
         "make",
+        "list",
+        "string",
+        "int",
         "toKey",
         "fromKey"
       ],
@@ -1990,6 +1996,7 @@
         "text",
         "setText",
         "picked",
+        "query",
         "isOpen"
       ],
       "related": [
@@ -2066,23 +2073,22 @@
       "whenNot": "you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes).",
       "state": [],
       "msg": [],
-      "ids": [
-        "Ids"
-      ],
+      "ids": [],
       "stateful": false,
       "quickPath": [],
       "mainFunctions": [
-        "ids",
-        "stringIds",
-        "intIds",
-        "toKey",
         "leaf",
         "branch",
         "lazy",
-        "withDescription"
+        "withDescription",
+        "withIcon",
+        "withKeywords",
+        "disabled",
+        "key"
       ],
       "related": [
         "Klar.Cascader",
+        "Klar.Ids",
         "Klar.Transfer",
         "Klar.TreeSelect"
       ],
@@ -2633,7 +2639,6 @@
         "Msg"
       ],
       "ids": [
-        "RowIds",
         "ColumnId"
       ],
       "stateful": true,
@@ -2658,20 +2663,20 @@
         "init",
         "update",
         "focus",
-        "rowIds",
-        "stringIds",
-        "intIds",
-        "columnId"
+        "columnId",
+        "columnName",
+        "query",
+        "setQuery"
       ],
       "related": [
+        "Klar.Ids",
         "Klar.Remote",
         "Klar.Theme",
         "Klar.VirtualList",
         "Klar.Badge",
         "Klar.FilterBar",
         "Klar.Locale",
-        "Klar.Date",
-        "Klar.EmptyState"
+        "Klar.Date"
       ],
       "keywords": [
         "table",
@@ -2778,9 +2783,7 @@
       "msg": [
         "Msg"
       ],
-      "ids": [
-        "Ids"
-      ],
+      "ids": [],
       "stateful": true,
       "quickPath": [
         "init",
@@ -2800,6 +2803,7 @@
       ],
       "related": [
         "Klar.Accordion",
+        "Klar.Ids",
         "Klar.Locale",
         "Klar.Table",
         "Klar.Theme"
@@ -3345,10 +3349,10 @@
         "Klar.Overlay",
         "Klar.SideNav",
         "Klar.FileDrop",
+        "Klar.Ids",
         "Klar.LeaveGuard",
         "Klar.Menu",
-        "Klar.Alert",
-        "Klar.Avatar"
+        "Klar.Alert"
       ],
       "keywords": [
         "app shell",
@@ -3377,12 +3381,9 @@
       "msg": [
         "Msg"
       ],
-      "ids": [
-        "Keys"
-      ],
+      "ids": [],
       "stateful": true,
       "quickPath": [
-        "keys",
         "item",
         "section",
         "withIcon",
@@ -3394,16 +3395,17 @@
       ],
       "mainFunctions": [
         "view",
-        "keys",
-        "stringKeys",
         "item",
         "group",
         "section",
         "rule",
-        "withIcon"
+        "withIcon",
+        "withCount",
+        "withBadge"
       ],
       "related": [
-        "Klar.AppShell"
+        "Klar.AppShell",
+        "Klar.Ids"
       ],
       "keywords": [
         "side nav",
@@ -3699,12 +3701,9 @@
       "msg": [
         "Msg"
       ],
-      "ids": [
-        "Ids"
-      ],
+      "ids": [],
       "stateful": true,
       "quickPath": [
-        "itemIds",
         "init",
         "update",
         "view",
@@ -3717,10 +3716,11 @@
         "init",
         "update",
         "lifted",
-        "itemIds",
-        "stringIds"
+        "reorder",
+        "move"
       ],
       "related": [
+        "Klar.Ids",
         "Klar.Locale",
         "Klar.Table",
         "Klar.Tree"
@@ -4223,8 +4223,7 @@
         "Klar.Theme",
         "Klar.DescriptionList",
         "Klar.Locale",
-        "Klar.Remote",
-        "Klar.RemoteView"
+        "Klar.Remote"
       ],
       "keywords": [
         "stat",
@@ -4265,11 +4264,11 @@
       ],
       "related": [
         "Klar.Stat",
+        "Klar.Color",
         "Klar.Icon",
         "Klar.Locale",
         "Klar.Progress",
         "Klar.Remote",
-        "Klar.RemoteView",
         "Klar.Theme"
       ],
       "keywords": [
@@ -4312,7 +4311,6 @@
       "related": [
         "Klar.Locale",
         "Klar.Remote",
-        "Klar.RemoteView",
         "Klar.Theme"
       ],
       "keywords": [
@@ -4713,8 +4711,7 @@
       "stateful": false,
       "quickPath": [],
       "mainFunctions": [
-        "view",
-        "focus"
+        "view"
       ],
       "related": [
         "Klar.EmptyState",

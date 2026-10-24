@@ -366,7 +366,7 @@ row root config title =
                 ""
             , case config.accent of
                 Just tone ->
-                    "klar-list-item--accent klar-list-item--accent-" ++ Theme.toneSuffix tone
+                    "klar-list-item--accent klar-list-item--accent-" ++ Internal.toneSuffix tone
 
                 Nothing ->
                     ""

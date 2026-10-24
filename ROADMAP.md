@@ -124,9 +124,6 @@ resolver build on `Sortable`, `Markdown` and `Diff` and can start now.
 
 Findings that belong to Phase A and A8 and are listed here so they are not lost:
 
-- Three id helpers say the same thing in three shapes: `Tree.nodeIds` and `Table.rowIds`
-  take `{ toKey, fromKey }`, `SideNav.keys` and `Picking.ids` take only `toKey`. One shared
-  shape would be simpler.
 - `Select.Popup` and `Picking.View` hold the same popup code twice. A browser test (a
   `keydown` of `Enter` with `isComposing`, the key that confirms an IME composition)
   showed that `Select` chooses an option on it, while `TreeSelect` and `Cascader` ignore

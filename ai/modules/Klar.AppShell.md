@@ -173,6 +173,7 @@ content of the current page:
     import Klar
     import Klar.AppShell as AppShell
     import Klar.Icon as Icon
+    import Klar.Ids as Ids exposing (Ids)
     import Klar.Menu as Menu
     import Klar.SideNav as SideNav
 
@@ -209,9 +210,9 @@ content of the current page:
             ]
         }
 
-    pageKeys : SideNav.Keys Page
+    pageKeys : Ids Page
     pageKeys =
-        SideNav.keys pageToString
+        Ids.list pageToString [ Orders, Customers, Reports ]
 
     navigation : List (SideNav.Entry Page msg)
     navigation =
@@ -226,7 +227,7 @@ content of the current page:
         ]
 
 `Page` (here `Orders | Customers | Reports`) is also the key type of the menu,
-`pageToString` writes a page as text (see `SideNav.keys`), and `pageFromUrl` and
+`pageToString` writes a page as text and `Ids.list` (from [Klar.Ids](Klar.Ids.md)) reads it back, and `pageFromUrl` and
 `viewPage` stand for your own routing and page views. `elm/url` must be a direct
 dependency of the application, as for every `Browser.application`.
 
@@ -320,7 +321,7 @@ type State page  -- opaque: no constructors are exposed
 What the shell remembers for you: whether the sidebar is collapsed to icons,
 whether the sidebar drawer is open, the state of the side menu (its open groups) and
 the page it shows as current. `page` is the key type of the side menu (see
-`SideNav.keys`), a custom type of your own such as `Orders | Customers | Reports`.
+[Klar.Ids](Klar.Ids.md)), a custom type of your own such as `Orders | Customers | Reports`.
 Keep one in your model, make it with `init`, and give it to `state` and `sideNav`.
 
 ### `Msg`
@@ -470,6 +471,9 @@ to do when a page has been replaced by a command, because the element that had
 focus went with the old page.
 
     Cmd.map ShellMsg (AppShell.goToContent model.shell)
+
+This is the one to use with `AppShell.state`; `focusContent` does the same for a shell
+wired by hand, which has no `State`.
 
 ## View
 

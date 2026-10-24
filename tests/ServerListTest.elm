@@ -14,6 +14,7 @@ import Expect exposing (Expectation)
 import Html exposing (Html)
 import Json.Encode as Encode
 import Klar.FilterBar as FilterBar
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Rule as Rule
 import Klar.SavedViews as SavedViews
@@ -124,7 +125,7 @@ everything state =
                 [ Table.text (Table.columnId "id") "Id" .id []
                 , Table.text (Table.columnId "status") "Status" .status []
                 ]
-            , Table.rowId Table.stringIds .id
+            , Table.rowId Ids.string .id
             ]
             state
         ]
@@ -340,10 +341,10 @@ selectionTests =
     describe "the selection as a target"
         [ test "nothing selected is no target" <|
             \_ ->
-                Expect.equal (ServerList.target Table.stringIds loaded) Nothing
+                Expect.equal (ServerList.target Ids.string loaded) Nothing
         , test "rows picked one by one are a Picked target" <|
             \_ ->
-                ServerList.mapTable (Table.setSelected Table.stringIds [ "a", "b" ] True) loaded
-                    |> ServerList.target Table.stringIds
+                ServerList.mapTable (Table.setSelected Ids.string [ "a", "b" ] True) loaded
+                    |> ServerList.target Ids.string
                     |> Expect.equal (Just (ServerList.Picked [ "a", "b" ]))
         ]

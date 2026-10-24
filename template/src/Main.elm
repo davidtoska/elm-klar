@@ -16,6 +16,7 @@ import Klar.AppShell as AppShell
 import Klar.Button as Button
 import Klar.ConfirmDialog as ConfirmDialog
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
@@ -269,7 +270,7 @@ viewPage model =
                         , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
                         ]
                     , Table.rows model.orders
-                    , Table.rowId Table.stringIds .id
+                    , Table.rowId Ids.string .id
                     , Table.onRetry Reload
                     ]
                     model.table
@@ -303,9 +304,9 @@ pageToString page =
             "settings"
 
 
-pageKeys : SideNav.Keys Page
+pageKeys : Ids Page
 pageKeys =
-    SideNav.keys pageToString
+    Ids.list pageToString [ Orders, Settings ]
 
 
 navigation : List (SideNav.Entry Page msg)

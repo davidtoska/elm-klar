@@ -1140,7 +1140,7 @@ view toMsg attributes (State raw) =
     Html.div
         [ Internal.cls
             [ "klar-calendar"
-            , "klar-calendar--" ++ Theme.sizeSuffix config.size
+            , "klar-calendar--" ++ Internal.sizeSuffix config.size
             , if config.months > 1 then
                 "klar-calendar--multi"
 
@@ -1764,7 +1764,7 @@ viewDay ctx year month day =
                         (List.map
                             (\tone ->
                                 Html.span
-                                    [ Internal.cls [ "klar-calendar__dot", "klar-calendar__dot--" ++ Theme.toneSuffix tone ] ]
+                                    [ Internal.cls [ "klar-calendar__dot", "klar-calendar__dot--" ++ Internal.toneSuffix tone ] ]
                                     []
                             )
                             tones

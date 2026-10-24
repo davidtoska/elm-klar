@@ -25,10 +25,10 @@ multiple : Mode Multiple
 
 -- Value
 value : State Single id -> Maybe id
-setValue : Picking.Ids id -> id -> State Single id -> State Single id
+setValue : Ids.Ids id -> id -> State Single id -> State Single id
 setNode : Picking.Node id -> State Single id -> State Single id
 values : State Multiple id -> List id
-setValues : Picking.Ids id -> List id -> State Multiple id -> State Multiple id
+setValues : Ids.Ids id -> List id -> State Multiple id -> State Multiple id
 setNodes : List (Picking.Node id) -> State Multiple id -> State Multiple id
 leaves : List (Picking.Node id) -> State Multiple id -> List id
 clear : State mode id -> State mode id
@@ -85,9 +85,9 @@ See also [Klar.Select](Klar.Select.md), [Klar.MultiSelect](Klar.MultiSelect.md),
     import Klar.TreeSelect as TreeSelect
 
     -- how a SiteId is written as a key, once
-    siteIds : Picking.Ids SiteId
+    siteIds : Ids SiteId
     siteIds =
-        Picking.ids SiteId.toString
+        Ids.make { toKey = SiteId.toString, fromKey = SiteId.fromString }
 
     -- model: one State per field; the String is a DOM id, unique on the page
     type alias Model =
@@ -314,7 +314,7 @@ loading.
 ### `setValue`
 
 ```elm
-setValue : Picking.Ids id -> id -> State Single id -> State Single id
+setValue : Ids.Ids id -> id -> State Single id -> State Single id
 ```
 
 Chooses a node of a single field from your code, for example to show a saved
@@ -346,7 +346,7 @@ with `setValues` are returned at once, also while the nodes are still loading.
 ### `setValues`
 
 ```elm
-setValues : Picking.Ids id -> List id -> State Multiple id -> State Multiple id
+setValues : Ids.Ids id -> List id -> State Multiple id -> State Multiple id
 ```
 
 Replaces the chosen nodes of a multiple field from your code. Duplicates are

@@ -255,7 +255,8 @@ query : State id -> String
 ```
 
 The text in the search box while the list is open, and `""` when it is
-closed. With `serverSearch`, fetch when it changes.
+closed. With `serverSearch`, fetch when it changes: it then follows the box after a
+pause of 300 ms in the typing, so it does not change on every key.
 
 ### `isOpen`
 
@@ -339,7 +340,9 @@ serverSearch : Attribute id msg
 
 The server does the searching. The component shows the options exactly as
 they come and does not filter them; the application fetches when
-`MultiSelect.query` changes. While the options are `NotAsked` (nothing fetched
+`MultiSelect.query` changes, which waits for a pause of 300 ms in the typing, so
+**write no debounce of your own** (drop an answer whose query is no longer the current
+one). While the options are `NotAsked` (nothing fetched
 yet, or a text too short to search for) the list says "Type to search". Chosen
 values keep their labels as chips even when a later search no longer returns
 them.

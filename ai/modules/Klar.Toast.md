@@ -24,7 +24,6 @@ queued : State msg -> Int
 -- Showing and removing toasts
 push : List (Attribute msg) -> State msg -> ( State msg, Cmd Msg )
 dismiss : String -> State msg -> State msg
-clear : State msg -> State msg
 dismissAll : State msg -> State msg
 
 -- Content
@@ -131,7 +130,7 @@ type State msg  -- opaque: no constructors are exposed
 
 The toasts on screen and the ones waiting in the queue. The type parameter is
 your message type, because a toast can carry an action message. Create it with
-`init`, keep it in your model, and change it with `push`, `clear` and `update`.
+`init`, keep it in your model, and change it with `push`, `dismissAll` and `update`.
 
 ### `Msg`
 
@@ -215,21 +214,13 @@ when a retry succeeded and the failure toast of the first try is stale:
 
     Toast.dismiss "note-save" model.toasts
 
-### `clear`
-
-```elm
-clear : State msg -> State msg
-```
-
-Removes every toast at once, the ones on screen and the ones in the queue.
-
 ### `dismissAll`
 
 ```elm
 dismissAll : State msg -> State msg
 ```
 
-Same as `clear`.
+Removes every toast at once, the ones on screen and the ones in the queue.
 
 ## Content
 

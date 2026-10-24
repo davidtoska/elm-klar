@@ -1,13 +1,14 @@
 module RegionFocusTest exposing (suite)
 
 {-| Benchmark run 1, item 14: `Stat.id`, `Chart.id` and `Timeline.id` give the region an
-element with that id that can take focus in every state, so that `RemoteView.focus` has
+element with that id that can take focus in every state, so that `Klar.focus` has
 a place to put it after "Try again" (the retry button is replaced by the skeleton).
 -}
 
 import Expect
 import Html exposing (Html)
 import Html.Attributes
+import Klar
 import Klar.Chart as Chart
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Stat as Stat

@@ -453,7 +453,7 @@ view attributes =
             [ Html.div
                 [ Internal.cls
                     [ "klar-textarea"
-                    , "klar-textarea--" ++ Theme.sizeSuffix config.size
+                    , "klar-textarea--" ++ Internal.sizeSuffix config.size
                     , case resizeMode of
                         ResizeNone ->
                             "klar-textarea--resize-none"

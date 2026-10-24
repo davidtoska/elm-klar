@@ -16,6 +16,7 @@ import Klar
 import Klar.Button as Button
 import Klar.ConfirmDialog as ConfirmDialog
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Menu as Menu
 import Klar.Overlay as Overlay
 import Klar.PageHeader as PageHeader
@@ -92,9 +93,9 @@ init =
     }
 
 
-itemIds : Table.RowIds ItemId
+itemIds : Ids ItemId
 itemIds =
-    Table.rowIds { toKey = \(ItemId n) -> String.fromInt n, fromKey = \s -> Maybe.map ItemId (String.toInt s) }
+    Ids.make { toKey = \(ItemId n) -> String.fromInt n, fromKey = \s -> Maybe.map ItemId (String.toInt s) }
 
 
 
