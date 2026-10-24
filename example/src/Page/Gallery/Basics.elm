@@ -1456,7 +1456,7 @@ remoteCode =
 Card.view [ Card.flush ]
     (RemoteView.view [ RemoteView.onRetry Retry, RemoteView.loadingLabel "Loading orders" ]
         model.orders
-        (\orders ->
+        (\\orders ->
             if List.isEmpty orders then
                 [ EmptyState.view [ EmptyState.title "No orders to show" ] ]
 
