@@ -98,9 +98,8 @@ the application watches `Select.query` and fetches. The built-in texts ("Select
 
 # Options
 
-Options are plain records, shared with `MultiSelect` and `Autocomplete`. These
-are the helpers of [Klar.Select.Option](Klar-Select-Option) that a select needs,
-so one import is enough.
+Options are plain records, shared with `MultiSelect`, `Autocomplete` and
+`Transfer`: this is the one place to make them, so one import is enough.
 
 @docs Option, option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
 
@@ -150,14 +149,36 @@ import Task
 -- OPTIONS
 
 
-{-| One choice in the list. It is a record with `value` (what the application
-stores), `label` (what the user sees and searches), `description`, `group`,
-`disabled`, `icon` and `keywords`, as described in
-[Klar.Select.Option](Klar-Select-Option). Make options with `option` and the
-`with*` functions, or write the record yourself.
+{-| One choice in the list, the option type of the whole select family
+(`MultiSelect`, `Autocomplete`, `Transfer` and `Rule.choiceFieldOf` take the same
+values). Make options with `option` and the `with*` functions, also in a data module
+or a simulated backend that has no select of its own. Read the fields as you like
+(`.label`, `.value`), but do not write the record by hand: it may gain fields.
+
+  - `value` is what the application stores: its own id type (a `CustomerId`, a code, an `Int`).
+    Values are compared with `==`, so use data, not functions, and keep them unique within one
+    list (two options with the same value both show as chosen)
+  - `label` is what the user sees and searches
+  - `description` is a short secondary text, shown dimmed after the label and searched too
+  - `group` lists the option under a heading, together with the options of the same group
+  - `disabled` shows the option dimmed and keeps it from being chosen
+  - `icon` is drawn before the label
+  - `tone` and `color` mark the option with a small dot before the label, a status color that
+    follows the theme or a color from your data (never both; the last one set wins)
+  - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
+
 -}
 type alias Option id =
-    Option.Option id
+    { value : id
+    , label : String
+    , description : Maybe String
+    , group : Maybe String
+    , disabled : Bool
+    , icon : Maybe Icon
+    , tone : Maybe Tone
+    , color : Maybe Color
+    , keywords : List String
+    }
 
 
 {-| An option with a value (what the application stores) and a label (what the

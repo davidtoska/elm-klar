@@ -21,7 +21,7 @@ choiceFieldOf :
     Ids.Ids id
     -> String
     -> String
-    -> List (Select.Option.Option id)
+    -> List (Select.Option id)
     -> (row -> Maybe id)
     -> Field row
 inGroup : String -> Field row -> Field row
@@ -300,7 +300,7 @@ choiceFieldOf :
     Ids.Ids id
     -> String
     -> String
-    -> List (Select.Option.Option id)
+    -> List (Select.Option id)
     -> (row -> Maybe id)
     -> Field row
 ```

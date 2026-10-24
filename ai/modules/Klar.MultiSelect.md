@@ -19,7 +19,7 @@ view : (Msg id -> msg) -> List (Attribute id msg) -> State id -> Html msg
 -- Values and popup
 values : State id -> List id
 setValues : List id -> State id -> State id
-setOptions : List (Select.Option.Option id) -> State id -> State id
+setOptions : List (Select.Option id) -> State id -> State id
 clear : State id -> State id
 query : State id -> String
 isOpen : State id -> Bool
@@ -28,8 +28,8 @@ close : State id -> ( State id, Cmd (Msg id) )
 
 -- Attributes
 type Attribute id msg  -- opaque: no constructors are exposed
-options : List (Select.Option.Option id) -> Attribute id msg
-remote : Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
+options : List (Select.Option id) -> Attribute id msg
+remote : Remote.Remote (List (Select.Option id)) -> Attribute id msg
 serverSearch : Attribute id msg
 onRetry : msg -> Attribute id msg
 
@@ -73,9 +73,10 @@ Quick path: `init`, `update`, `view`, `values`
     import Klar.MultiSelect as MultiSelect
     import Klar.Select as Select
 
-    -- model: one State per field; the String is a DOM id, unique on the page
+    -- model: one State per field, of your own id type; the String is a DOM id,
+    -- unique on the page
     type alias Model =
-        { categories : MultiSelect.State }
+        { categories : MultiSelect.State CategoryId }
 
     init =
         { categories = MultiSelect.init "categories" }
@@ -97,12 +98,11 @@ Quick path: `init`, `update`, `view`, `values`
         model.categories
 
     -- reading the values, in the order they were chosen
-    MultiSelect.values model.categories --> List String
+    MultiSelect.values model.categories --> List CategoryId
 
 It shares the option model, the search, the keyboard handling and the remote
 states with [Klar.Select](Klar.Select.md): options are `Select.Option` values, made
-with `Select.option` and its `with*` helpers (see
-[Klar.Select.Option](Klar.Select.Option.md)). As there, the state holds the values,
+with `Select.option` and its `with*` helpers. As there, the state holds the values,
 so react to a change by comparing `MultiSelect.values` before and after in your
 `update`.
 
@@ -118,12 +118,15 @@ search is active) and "Clear all", and a status line such as "12 of 40 matches Â
 
 Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
 character open the list, and Backspace removes the last chip; the Ã— of every chip
-is a button. In the open list ArrowUp and ArrowDown, Home and End, and PageUp and
-PageDown move the highlight, Enter checks or unchecks the highlighted option,
-Backspace in an empty search box removes the last chip, Escape closes the list,
-and Tab moves on to "Select all" and "Clear all" and then out of the list.
-Backspace removes a chip only on a fresh key press, so holding it down to delete
-search text never eats the chips.
+is a button. In the open list ArrowUp and ArrowDown, and PageUp and PageDown move
+the highlight; Home and End go to the first and the last option while the search
+box is empty (with text in it they move the caret), and Ctrl+Home and Ctrl+End
+always do. Enter checks or unchecks the highlighted option, Backspace in an empty
+search box removes the last chip, Escape closes the list, and Tab moves on to
+"Try again" of old options (when it is shown), "Select all" and "Clear all", and
+then out of the list. Backspace removes a chip only on a fresh key press, so
+holding it down to delete search text never eats the chips. Keys that belong to
+an input method composition (Japanese, Chinese, Korean ...) are left to it.
 
 Accessibility: the field is a button with `role="combobox"` whose hidden text
 lists the chosen values for screen readers ("3 selected: Books, Games, Toys"),
@@ -221,9 +224,11 @@ setValues : List id -> State id -> State id
 ```
 
 Replaces the chosen values from your code, for example to show a saved
-record. Duplicates are dropped. The labels are looked up in the options when the
-field is shown; use `setOptions` when the options may not contain them (server
-search). A value that the loaded options do not contain is shown as it is. The
+record. Duplicates are dropped (in a list of up to 2000 values; a longer list is
+taken as it is, so give unique values). The labels are looked up in the options
+when the field is shown; use `setOptions` when the options may not contain them
+(server search). A value that the loaded options do not contain is a chip with the
+text `valueText` makes of it, or "Unknown value" without `valueText`. The
 `maxSelected` limit is not applied to values set this way.
 
     MultiSelect.setValues [ "books", "games" ] model.categories
@@ -231,7 +236,7 @@ search). A value that the loaded options do not contain is shown as it is. The
 ### `setOptions`
 
 ```elm
-setOptions : List (Select.Option.Option id) -> State id -> State id
+setOptions : List (Select.Option id) -> State id -> State id
 ```
 
 Replaces the chosen values with these options and stores them, so the chips
@@ -308,7 +313,7 @@ list to `view`; later attributes win over earlier ones.
 ### `options`
 
 ```elm
-options : List (Select.Option.Option id) -> Attribute id msg
+options : List (Select.Option id) -> Attribute id msg
 ```
 
 Local options. The component filters and ranks them itself as the user
@@ -320,7 +325,7 @@ one wins.
 ### `remote`
 
 ```elm
-remote : Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
+remote : Remote.Remote (List (Select.Option id)) -> Attribute id msg
 ```
 
 Options from the backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)).
@@ -354,7 +359,7 @@ them.
                 MultiSelect.update inner model.categories
         in
         if MultiSelect.query categories /= MultiSelect.query model.categories then
-            ( { model | categories = categories, found = Remote.Loading }
+            ( { model | categories = categories, found = Remote.refresh model.found }
             , Cmd.batch [ Cmd.map CategoriesMsg cmd, searchCategories (MultiSelect.query categories) ]
             )
 
@@ -363,6 +368,10 @@ them.
 
     -- in view
     MultiSelect.view CategoriesMsg [ MultiSelect.serverSearch, MultiSelect.remote model.found ] model.categories
+
+`Remote.refresh` keeps the hits of the last search on screen, dimmed and busy,
+until the new ones arrive, so the list does not flash empty on every pause in the
+typing.
 
 ### `onRetry`
 

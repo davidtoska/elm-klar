@@ -57,6 +57,7 @@ center : Geometry -> Int -> State -> ( State, Cmd Msg )
 scrollTo : Float -> State -> ( State, Cmd Msg )
 reset : State -> State
 viewportHeight : { a | rowHeight : Int, height : Int, count : Int } -> Int
+isDrawn : Geometry -> Int -> State -> Bool
 ```
 
 ## Documentation
@@ -446,3 +447,17 @@ The height in pixels that the list takes: the height of all rows, but at most
 `height`. It works on a `Geometry` or any record with these three fields.
 
     VirtualList.viewportHeight { rowHeight = 32, height = 320, count = 3 } --> 96
+
+### `isDrawn`
+
+```elm
+isDrawn : Geometry -> Int -> State -> Bool
+```
+
+Whether row `index` (counting from 0) is on the page now, for any `overscan`:
+`view` and `viewGrouped` draw the rows in view and a few around them, so after the
+user scrolled away with the wheel a row the keyboard was on may be gone. Point
+`aria-activedescendant` at a row only while it is drawn, since an id that is not
+on the page names nothing. Give it the same numbers as `view`.
+
+    VirtualList.isDrawn { rowHeight = 32, height = 320, count = 500, inset = 0 } 42 model.list

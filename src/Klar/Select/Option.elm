@@ -1,43 +1,21 @@
 module Klar.Select.Option exposing
     ( Option
-    , option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption
+    , disabledOption
+    , mapOption
+    , option
+    , withColor
+    , withDescription
+    , withGroup
+    , withIcon
+    , withKeywords
+    , withTone
     )
 
-{-| The option model shared by [Klar.Select](Klar-Select),
-[Klar.MultiSelect](Klar-MultiSelect) and [Klar.Autocomplete](Klar-Autocomplete).
-
-Use when: options for a select are built in a module that has no select of its own, such as a data module or a simulated backend.
-Do not use when: the options are built next to the select itself; `Klar.Select` re-exports the same functions.
-Quick path: `option`, `withDescription`, `withGroup`, `withKeywords`
-
-Most applications do not import this module. `Klar.Select` re-exports `Option`,
-`option` and the `with*` helpers, and the other two components take the same
-`Option` values. Import it when you build options in a module that has no select
-of its own (a data module, a simulated backend).
-
-    import Klar.Select.Option as Option
-
-    suppliers : List (Option.Option String)
-    suppliers =
-        [ Option.option "acme" "Acme Supplies"
-            |> Option.withDescription "Berlin"
-            |> Option.withGroup "Preferred"
-        , Option.option "globex" "Globex"
-            |> Option.withKeywords [ "Globex Corporation" ]
-        , Option.option "initech" "Initech"
-            |> Option.disabledOption
-        ]
-
-The value of an option is of whatever type you choose: a `String`, an `Int`, an id
-type of your own. To search a list of options the way a select does, use
-`Klar.Select.filter`.
-
-
-# Options
-
-@docs Option
-@docs option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption
-
+{-| Internal. The option record of the select family and its builders, shared by
+`Klar.Select`, `Klar.MultiSelect`, `Klar.Autocomplete`, `Klar.Transfer` and
+`Klar.Rule`. Applications make options with `Klar.Select` (`Select.option`, the
+`with*` functions and the type `Select.Option`), which is the same record: one way
+to make an option.
 -}
 
 import Klar.Color exposing (Color)
@@ -45,8 +23,8 @@ import Klar.Icon exposing (Icon)
 import Klar.Theme exposing (Tone)
 
 
-{-| One choice in a list. It is plain data: make it with `option` and the
-`with*` functions, or write the record yourself.
+{-| One choice in a list (the same record as `Klar.Select.Option`). It is plain
+data: make it with `option` and the `with*` functions.
 
   - `value` is what the application stores: its own id type (a `CustomerId`, a code, an `Int`).
     Values are compared with `==`, so use data, not functions, and keep it unique within one list

@@ -18,7 +18,7 @@ view : (Msg id -> msg) -> List (Attribute id msg) -> State id -> Html msg
 
 -- Value and popup
 value : State id -> Maybe id
-setValue : id -> State id -> State id
+setValue : Maybe id -> State id -> State id
 setOption : Option id -> State id -> State id
 clear : State id -> State id
 query : State id -> String
@@ -27,7 +27,17 @@ open : State id -> ( State id, Cmd (Msg id) )
 close : State id -> ( State id, Cmd (Msg id) )
 
 -- Options
-type alias Option id = Select.Option.Option id
+type alias Option id =
+    { value : id
+    , label : String
+    , description : Maybe String
+    , group : Maybe String
+    , disabled : Bool
+    , icon : Maybe Icon.Icon
+    , tone : Maybe Theme.Tone
+    , color : Maybe Color.Color
+    , keywords : List String
+    }
 option : id -> String -> Option id
 withDescription : String -> Option id -> Option id
 withGroup : String -> Option id -> Option id
@@ -126,16 +136,21 @@ thousand options stays responsive.
 
 Keyboard: on the closed field Enter, Space, ArrowDown and ArrowUp open the list,
 a printable character opens it and starts the search, and Backspace or Delete
-clears a `clearable` field. In the open list ArrowUp and ArrowDown, Home and End,
-and PageUp and PageDown move the highlight, Enter chooses (and never submits a
-surrounding form), Escape closes the list and returns to the field, and Tab
-closes it and moves on.
+clears a `clearable` field. In the open list ArrowUp and ArrowDown, and PageUp and
+PageDown move the highlight; Home and End go to the first and the last option
+while the search box is empty (with text in it they move the caret), and Ctrl+Home
+and Ctrl+End always do. Enter chooses (and never submits a surrounding form),
+Escape closes the list and returns to the field, and Tab closes it and moves on
+(to "Try again" first, when old or failed options offer it). Keys that belong to
+an input method composition (Japanese, Chinese, Korean ...) are left to it: the
+Enter that confirms the composed text does not choose an option.
 
 Accessibility: the field is a button with `role="combobox"` and `aria-expanded`.
 The open list is a `listbox` whose options carry `aria-selected`,
-`aria-posinset` and `aria-setsize`, and the search box points at the highlighted
-option with `aria-activedescendant`. The counts under the list ("12 of 40
-matches") are announced politely.
+`aria-posinset` and `aria-setsize` (and the name of their group), and the search
+box points at the highlighted option with `aria-activedescendant` while that
+option is drawn. The counts under the list ("12 of 40 matches") are announced
+politely.
 
 Backend data: `remote` takes a `Remote (List Option)` (see
 [Klar.Remote](Klar.Remote.md)) and shows loading rows, a failure with a retry button
@@ -229,21 +244,25 @@ the options are still loading.
 ### `setValue`
 
 ```elm
-setValue : id -> State id -> State id
+setValue : Maybe id -> State id -> State id
 ```
 
-Chooses a value from your code, for example to show a saved record. The
-label is looked up in the options when the select is shown; use `setOption` when
-the option may not be among them (server search).
+Sets the value from your code, for example to show a saved record:
+`Just` chooses it, `Nothing` empties the field (as `clear` does), so a `Maybe`
+from your model goes in as it is. The label is looked up in the options when the
+select is shown; use `setOption` when the option may not be among them (server
+search).
 
 While the options are still loading (`Loading` or `NotAsked`) and the label is
 not known, the field shows a muted "Loading ..." instead of the value, and "Could
 not be loaded" when they failed: a value is usually an id, and an id is not
 something to read out in a form. Once the options have loaded without it, or
-with `serverSearch`, the field shows the value itself. `value` returns the value
-all the time.
+with `serverSearch`, the field shows the text `valueText` makes of the value, or
+"Unknown value" without `valueText`. `value` returns the value all the time.
 
-    Select.setValue "de" model.country
+    Select.setValue (Just "de") model.country
+
+    Select.setValue order.warehouse model.warehouse
 
 ### `setOption`
 
@@ -311,21 +330,42 @@ if the list was open. Map the command like the one from `update`.
 
 ## Options
 
-Options are plain records, shared with `MultiSelect` and `Autocomplete`. These
-are the helpers of [Klar.Select.Option](Klar.Select.Option.md) that a select needs,
-so one import is enough.
+Options are plain records, shared with `MultiSelect`, `Autocomplete` and
+`Transfer`: this is the one place to make them, so one import is enough.
 
 ### `Option`
 
 ```elm
-type alias Option id = Select.Option.Option id
+type alias Option id =
+    { value : id
+    , label : String
+    , description : Maybe String
+    , group : Maybe String
+    , disabled : Bool
+    , icon : Maybe Icon.Icon
+    , tone : Maybe Theme.Tone
+    , color : Maybe Color.Color
+    , keywords : List String
+    }
 ```
 
-One choice in the list. It is a record with `value` (what the application
-stores), `label` (what the user sees and searches), `description`, `group`,
-`disabled`, `icon` and `keywords`, as described in
-[Klar.Select.Option](Klar.Select.Option.md). Make options with `option` and the
-`with*` functions, or write the record yourself.
+One choice in the list, the option type of the whole select family
+(`MultiSelect`, `Autocomplete`, `Transfer` and `Rule.choiceFieldOf` take the same
+values). Make options with `option` and the `with*` functions, also in a data module
+or a simulated backend that has no select of its own. Read the fields as you like
+(`.label`, `.value`), but do not write the record by hand: it may gain fields.
+
+  - `value` is what the application stores: its own id type (a `CustomerId`, a code, an `Int`).
+    Values are compared with `==`, so use data, not functions, and keep them unique within one
+    list (two options with the same value both show as chosen)
+  - `label` is what the user sees and searches
+  - `description` is a short secondary text, shown dimmed after the label and searched too
+  - `group` lists the option under a heading, together with the options of the same group
+  - `disabled` shows the option dimmed and keeps it from being chosen
+  - `icon` is drawn before the label
+  - `tone` and `color` mark the option with a small dot before the label, a status color that
+    follows the theme or a color from your data (never both; the last one set wins)
+  - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
 
 ### `option`
 
@@ -499,7 +539,7 @@ a text too short to search for) the list says "Type to search".
                 Select.update inner model.country
         in
         if Select.query country /= Select.query model.country then
-            ( { model | country = country, countries = Remote.Loading }
+            ( { model | country = country, countries = Remote.refresh model.countries }
             , Cmd.batch [ Cmd.map CountryMsg cmd, fetchCountries (Select.query country) ]
             )
 
@@ -508,6 +548,10 @@ a text too short to search for) the list says "Type to search".
 
     -- in view
     Select.view CountryMsg [ Select.serverSearch, Select.remote model.countries ] model.country
+
+`Remote.refresh` keeps the hits of the last search on screen, dimmed and busy,
+until the new ones arrive (the first search shows loading rows), so the list does
+not flash empty on every pause in the typing.
 
 ### `onRetry`
 

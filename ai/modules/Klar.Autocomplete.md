@@ -10,46 +10,50 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- State
-type State  -- opaque: no constructors are exposed
-type Msg  -- opaque: no constructors are exposed
-init : String -> State
-update : Msg -> State -> ( State, Cmd Msg )
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
+type State id  -- opaque: no constructors are exposed
+type Msg id  -- opaque: no constructors are exposed
+init : String -> State id
+update : Msg id -> State id -> ( State id, Cmd (Msg id) )
+view : (Msg id -> msg) -> List (Attribute id msg) -> State id -> Html msg
 
--- Value
-text : State -> String
-setText : String -> State -> State
-picked : State -> Maybe String
-query : State -> String
-isOpen : State -> Bool
+-- Value and popup
+text : State id -> String
+setText : String -> State id -> State id
+picked : State id -> Maybe id
+setOption : Select.Option id -> State id -> State id
+clear : State id -> State id
+query : State id -> String
+isOpen : State id -> Bool
+open : State id -> ( State id, Cmd (Msg id) )
+close : State id -> ( State id, Cmd (Msg id) )
 
 -- Attributes
-type Attribute msg  -- opaque: no constructors are exposed
-options : List (Select.Option.Option String) -> Attribute msg
-suggestions : Remote.Remote (List (Select.Option.Option String)) -> Attribute msg
-onRetry : msg -> Attribute msg
-onEnter : msg -> Attribute msg
+type Attribute id msg  -- opaque: no constructors are exposed
+options : List (Select.Option id) -> Attribute id msg
+remote : Remote.Remote (List (Select.Option id)) -> Attribute id msg
+onRetry : msg -> Attribute id msg
+onEnter : msg -> Attribute id msg
 
 -- Field
-label : String -> Attribute msg
-labelHidden : Attribute msg
-hint : String -> Attribute msg
-error : String -> Attribute msg
-errorMaybe : Maybe String -> Attribute msg
-required : Attribute msg
-optionalText : String -> Attribute msg
+label : String -> Attribute id msg
+labelHidden : Attribute id msg
+hint : String -> Attribute id msg
+error : String -> Attribute id msg
+errorMaybe : Maybe String -> Attribute id msg
+required : Attribute id msg
+optionalText : String -> Attribute id msg
 
 -- Behavior and looks
-placeholder : String -> Attribute msg
-minChars : Int -> Attribute msg
-clearable : Attribute msg
-disabled : Bool -> Attribute msg
-readOnly : Bool -> Attribute msg
-size : Theme.Size -> Attribute msg
-visibleRows : Int -> Attribute msg
-prefixIcon : Icon.Icon -> Attribute msg
-locale : Locale.Locale -> Attribute msg
-settings : Settings.Settings -> Attribute msg
+placeholder : String -> Attribute id msg
+minChars : Int -> Attribute id msg
+clearable : Attribute id msg
+disabled : Bool -> Attribute id msg
+readOnly : Bool -> Attribute id msg
+size : Theme.Size -> Attribute id msg
+visibleRows : Int -> Attribute id msg
+prefixIcon : Icon.Icon -> Attribute id msg
+locale : Locale.Locale -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
 ## Documentation
@@ -66,44 +70,52 @@ Quick path: `init`, `update`, `view`, `text`, `picked`
     import Klar.Autocomplete as Autocomplete
     import Klar.Select as Select
 
-    -- model: one State per field; the String is a DOM id, unique on the page
+    -- model: one State per field, of the type of the suggestions' values; the
+    -- String is a DOM id, unique on the page
     type alias Model =
-        { city : Autocomplete.State }
+        { customer : Autocomplete.State CustomerId }
 
     init =
-        { city = Autocomplete.init "city" }
+        { customer = Autocomplete.init "customer" }
 
     -- update
-    CityMsg inner ->
+    CustomerMsg inner ->
         let
-            ( city, cmd ) =
-                Autocomplete.update inner model.city
+            ( customer, cmd ) =
+                Autocomplete.update inner model.customer
         in
-        ( { model | city = city }, Cmd.map CityMsg cmd )
+        ( { model | customer = customer }, Cmd.map CustomerMsg cmd )
 
     -- view
-    Autocomplete.view CityMsg
-        [ Autocomplete.label "City"
-        , Autocomplete.options (List.map (\name -> Select.option name name) cities)
+    Autocomplete.view CustomerMsg
+        [ Autocomplete.label "Customer"
+        , Autocomplete.options (List.map (\c -> Select.option c.id c.name) customers)
         ]
-        model.city
+        model.customer
 
-    Autocomplete.text model.city --> what is in the field
-    Autocomplete.picked model.city --> Just value when the text came from a suggestion
+    Autocomplete.text model.customer --> what is in the field
+    Autocomplete.picked model.customer --> Just the CustomerId when the text is a suggestion
 
 Suggestions are options (`Select.Option`, made with `Select.option` and its
-`with*` helpers, see [Klar.Select.Option](Klar.Select.Option.md)): the label is what
-the field shows when one is picked, and the value is what `picked` returns. They
-are filtered locally (`options`) or come from the application (`suggestions`, a
-`Remote`): then fetch when `Autocomplete.query` changes (it waits for a pause in the typing). The list shows loading
-rows, a failure with a retry button, or "No suggestions".
+`with*` helpers): the label is what the field shows when one is picked, and the
+value, of your own type, is what `picked` returns. They are filtered locally
+(`options`) or come from the application (`remote`, a `Remote`): then fetch when
+`Autocomplete.query` changes (it waits for a pause in the typing). The list shows
+loading rows, a failure with a retry button, or "No suggestions". To show a saved
+record, `setOption` puts its text and its value back.
 
 Keyboard: typing shows the suggestions with none highlighted, so Enter keeps the
 typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the
 first one returns to the typed text), PageDown and PageUp move a page, Enter
 picks the highlighted suggestion, Escape closes the list, and Tab closes it and
-moves on. The field keeps focus while a suggestion is clicked, and the list
-closes when the field loses focus.
+moves on (also when the suggestions failed: Enter retries). Home and End move the
+caret, as in every text field, and the keys of an input method composition
+(Japanese, Chinese, Korean ...) are left to it. The field keeps focus while a
+suggestion is clicked, and the list closes when the field loses focus.
+
+`picked` is the same however the user leaves the field: a text that is exactly
+the label of a suggestion (ignoring case and diacritics) is that suggestion,
+whether the user pressed Enter, Tab or Escape or clicked elsewhere.
 
 Accessibility: the input is a `combobox` with `aria-expanded`, `aria-controls`
 and `aria-activedescendant` over a `listbox` of `option`s. A hidden live region
@@ -115,39 +127,40 @@ follow `locale` and are English by default (see [Klar.Locale](Klar.Locale.md)).
 ### `State`
 
 ```elm
-type State  -- opaque: no constructors are exposed
+type State id  -- opaque: no constructors are exposed
 ```
 
 Everything one autocomplete keeps track of: the text in the field, the value
-of the suggestion it came from (if any), and whether the list is open. Make it
-with `init`, keep it in your model and pass it to `view` and `update`.
+of the suggestion it came from (if any), and whether the list is open. `id` is
+the type of the suggestions' values (a `CustomerId`, or `String`). Make it with
+`init`, keep it in your model and pass it to `view` and `update`.
 
 ### `Msg`
 
 ```elm
-type Msg  -- opaque: no constructors are exposed
+type Msg id  -- opaque: no constructors are exposed
 ```
 
 The messages an autocomplete sends. Wrap it in a constructor of your own
-message type (`CityMsg Autocomplete.Msg`), give that constructor to `view`, and
-pass the messages you get back to `update`.
+message type (`CityMsg (Autocomplete.Msg String)`), give that constructor to
+`view`, and pass the messages you get back to `update`.
 
 ### `init`
 
 ```elm
-init : String -> State
+init : String -> State id
 ```
 
 An empty field. The `String` is the DOM id of the input and must be unique
-on the page: the label points to it, and the id of the list is derived from it
-(`city-listbox`).
+on the page: the label points to it, and the ids of the list are derived from it
+(`city-listbox`, `city-popup`).
 
     Autocomplete.init "city"
 
 ### `update`
 
 ```elm
-update : Msg -> State -> ( State, Cmd Msg )
+update : Msg id -> State id -> ( State id, Cmd (Msg id) )
 ```
 
 Handles a message of the autocomplete and returns the new state with a
@@ -161,13 +174,13 @@ message type with `Cmd.map`.
         in
         ( { model | city = city }, Cmd.map CityMsg cmd )
 
-With `suggestions`, compare `Autocomplete.query` before and after to see when to
-fetch.
+With `remote` suggestions, compare `Autocomplete.query` before and after to see
+when to fetch.
 
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
+view : (Msg id -> msg) -> List (Attribute id msg) -> State id -> Html msg
 ```
 
 The autocomplete. It takes the constructor that wraps the component's `Msg`
@@ -184,49 +197,70 @@ in your own message type, a list of attributes, and the state.
 Always give the field a `label`; `labelHidden` keeps it off the screen but
 available to screen readers.
 
-## Value
+## Value and popup
 
 ### `text`
 
 ```elm
-text : State -> String
+text : State id -> String
 ```
 
 What is in the field: what the user typed, or the label of the suggestion
-they picked. With `suggestions` from a backend, fetch when `query` changes.
+they picked. With `remote` suggestions, fetch when `query` changes.
 
 ### `setText`
 
 ```elm
-setText : String -> State -> State
+setText : String -> State id -> State id
 ```
 
-Replaces the text, for example to show a saved value. It clears `picked` and
-closes the list.
+Replaces the text, for example to show a saved free text. It clears `picked`
+and closes the list; use `setOption` when the text is a suggestion.
 
     Autocomplete.setText "Rotterdam" model.city
 
 ### `picked`
 
 ```elm
-picked : State -> Maybe String
+picked : State id -> Maybe id
 ```
 
 The value of the suggestion the text came from, or `Nothing` when the text is
-free. It is set when a suggestion is picked, or when Enter is pressed on a text
-that is exactly the label of a suggestion (ignoring case and diacritics), and it
-is cleared as soon as the text is edited or replaced with `setText`.
+free. It is set when a suggestion is picked, or when the list closes (Enter, Tab,
+Escape or a click elsewhere) on a text that is exactly the label of a suggestion
+(ignoring case and diacritics), and it is cleared as soon as the text is edited or
+replaced with `setText`.
+
+### `setOption`
+
+```elm
+setOption : Select.Option id -> State id -> State id
+```
+
+Puts a suggestion in the field as if the user had picked it: its label is the
+text, and its value is what `picked` returns. Use it to show a saved record whose
+value you keep, for example the customer of an order being edited.
+
+    Autocomplete.setOption (Select.option order.customerId order.customerName) model.customer
+
+### `clear`
+
+```elm
+clear : State id -> State id
+```
+
+Empties the field: no text, nothing `picked`, and the list closed.
 
 ### `query`
 
 ```elm
-query : State -> String
+query : State id -> String
 ```
 
-The text to fetch `suggestions` for: it follows `text` after a pause of 300 ms in
-the typing (at once when a suggestion is picked, the field is cleared or `setText` is
-called), so **write no debounce of your own**. Fetch when it changes, and drop an
-answer whose text is no longer the current `query`.
+The text to fetch `remote` suggestions for: it follows `text` after a pause of
+300 ms in the typing (at once when a suggestion is picked, the field is cleared or
+`setText` or `setOption` is called), so **write no debounce of your own**. Fetch
+when it changes, and drop an answer whose text is no longer the current `query`.
 
     if Autocomplete.query city /= Autocomplete.query model.city then
         fetchCities (Autocomplete.query city)
@@ -234,11 +268,37 @@ answer whose text is no longer the current `query`.
 ### `isOpen`
 
 ```elm
-isOpen : State -> Bool
+isOpen : State id -> Bool
 ```
 
 Whether the suggestion list is open. It can be `True` while nothing is
 visible, because there are no suggestions to show.
+
+### `open`
+
+```elm
+open : State id -> ( State id, Cmd (Msg id) )
+```
+
+Opens the suggestion list for the text in the field and moves focus into the
+field, for example from a button of your own. Map the command like the one from
+`update`.
+
+    ShowCities ->
+        let
+            ( city, cmd ) =
+                Autocomplete.open model.city
+        in
+        ( { model | city = city }, Cmd.map CityMsg cmd )
+
+### `close`
+
+```elm
+close : State id -> ( State id, Cmd (Msg id) )
+```
+
+Closes the suggestion list and keeps the text. Map the command like the one
+from `update`.
 
 ## Attributes
 
@@ -247,31 +307,31 @@ Pass attributes to `view` in a list; later ones win over earlier ones.
 ### `Attribute`
 
 ```elm
-type Attribute msg  -- opaque: no constructors are exposed
+type Attribute id msg  -- opaque: no constructors are exposed
 ```
 
 A setting of an autocomplete. Make them with the functions below and pass a
-list to `view`; later attributes win over earlier ones.
+list to `view`; later attributes win over earlier ones. `id` is the type of the
+suggestions' values.
 
 ### `options`
 
 ```elm
-options : List (Select.Option.Option String) -> Attribute msg
+options : List (Select.Option id) -> Attribute id msg
 ```
 
 Suggestions that the component filters itself as the user types: best match
 first, ignoring case and diacritics, with several words that must all match, in
-labels, descriptions and keywords (the scoring of [Klar.Search](Klar.Search.md), see
-[Klar.Select.Option](Klar.Select.Option.md)). The list is hidden while nothing
-matches. The default is no suggestions. Use `options` or `suggestions`, not both:
-the later one wins.
+labels, descriptions and keywords (the scoring of [Klar.Search](Klar.Search.md)).
+The list is hidden while nothing matches. The default is no suggestions. Use
+`options` or `remote`, not both: the later one wins.
 
     Autocomplete.options (List.map (\name -> Select.option name name) cities)
 
-### `suggestions`
+### `remote`
 
 ```elm
-suggestions : Remote.Remote (List (Select.Option.Option String)) -> Attribute msg
+remote : Remote.Remote (List (Select.Option id)) -> Attribute id msg
 ```
 
 Suggestions from the application, usually the backend, as a `Remote` (see
@@ -285,26 +345,27 @@ refreshed, and with "Old data from 14:05" at the top of the list when the last
 refresh failed (the list is not a place for a button: the focus stays in the
 field, so use the notice of the page for the retry).
 
-    Autocomplete.suggestions model.citySuggestions
+    Autocomplete.remote model.citySuggestions
 
 ### `onRetry`
 
 ```elm
-onRetry : msg -> Attribute msg
+onRetry : msg -> Attribute id msg
 ```
 
 The message to send when the user presses the "Try again" button of the error
-shown when `suggestions` failed. The button appears only for problems that are
-worth retrying (network trouble, timeouts, server errors); while it is shown,
-Enter in the field sends the message as well. For other problems (no access, not
-found ...) nothing is retried, and Enter keeps the typed text as usual.
+shown when `remote` suggestions failed. The button appears only for problems that
+are worth retrying (network trouble, timeouts, server errors), and it is for the
+mouse: the focus stays in the field, where Enter sends the message as well and Tab
+moves on. For other problems (no access, not found ...) nothing is retried, and
+Enter keeps the typed text as usual.
 
     Autocomplete.onRetry ReloadCities
 
 ### `onEnter`
 
 ```elm
-onEnter : msg -> Attribute msg
+onEnter : msg -> Attribute id msg
 ```
 
 The message to send when the user presses Enter and no suggestion is
@@ -312,7 +373,7 @@ highlighted, so the typed text is kept (to run a search for it, for example). It
 arrives after the component has updated `picked`, so you can read
 `Autocomplete.text` and `Autocomplete.picked` in your handler. Picking a
 suggestion is a state change instead: compare `Autocomplete.picked` before and
-after to react to it.
+after to react to it. A `disabled` or `readOnly` field sends nothing.
 
     Autocomplete.onEnter SearchSubmitted
 
@@ -324,7 +385,7 @@ control.
 ### `label`
 
 ```elm
-label : String -> Attribute msg
+label : String -> Attribute id msg
 ```
 
 The label above the field. It names the input for screen readers.
@@ -332,7 +393,7 @@ The label above the field. It names the input for screen readers.
 ### `labelHidden`
 
 ```elm
-labelHidden : Attribute msg
+labelHidden : Attribute id msg
 ```
 
 Keeps the label for screen readers but does not draw it. Use it when the
@@ -342,7 +403,7 @@ surroundings already name the field, as in a toolbar or a table cell. It needs a
 ### `hint`
 
 ```elm
-hint : String -> Attribute msg
+hint : String -> Attribute id msg
 ```
 
 A short help text under the field. Screen readers read it with the field
@@ -351,7 +412,7 @@ A short help text under the field. Screen readers read it with the field
 ### `error`
 
 ```elm
-error : String -> Attribute msg
+error : String -> Attribute id msg
 ```
 
 Shows an error message under the field and marks the field invalid
@@ -362,7 +423,7 @@ page, and so its keyboard focus, whether or not there is a label or a hint.
 ### `errorMaybe`
 
 ```elm
-errorMaybe : Maybe String -> Attribute msg
+errorMaybe : Maybe String -> Attribute id msg
 ```
 
 Like `error`, but takes a `Maybe`: `Nothing` shows no error. Handy with a
@@ -373,7 +434,7 @@ validation result.
 ### `required`
 
 ```elm
-required : Attribute msg
+required : Attribute id msg
 ```
 
 Marks the field as required: an asterisk after the label and
@@ -383,7 +444,7 @@ problem with `error`.
 ### `optionalText`
 
 ```elm
-optionalText : String -> Attribute msg
+optionalText : String -> Attribute id msg
 ```
 
 A text after the label of a field that is not `required`, such as
@@ -394,15 +455,16 @@ A text after the label of a field that is not `required`, such as
 ### `placeholder`
 
 ```elm
-placeholder : String -> Attribute msg
+placeholder : String -> Attribute id msg
 ```
 
-The text shown in the empty field. There is none by default.
+The text shown in the empty field. There is none by default: the field takes
+free text, so there is nothing general to say.
 
 ### `minChars`
 
 ```elm
-minChars : Int -> Attribute msg
+minChars : Int -> Attribute id msg
 ```
 
 How many characters the user has to type before suggestions appear. The
@@ -412,7 +474,7 @@ whatever the length.
 ### `clearable`
 
 ```elm
-clearable : Attribute msg
+clearable : Attribute id msg
 ```
 
 Shows a small × that empties the field, closes the list and returns focus to
@@ -421,7 +483,7 @@ the field. It is shown only while the field has text.
 ### `disabled`
 
 ```elm
-disabled : Bool -> Attribute msg
+disabled : Bool -> Attribute id msg
 ```
 
 While `True` the field is dimmed and cannot be focused or edited. The text
@@ -431,7 +493,7 @@ default is `False`.
 ### `readOnly`
 
 ```elm
-readOnly : Bool -> Attribute msg
+readOnly : Bool -> Attribute id msg
 ```
 
 While `True` the field shows its text but does not let the user change it,
@@ -441,7 +503,7 @@ and its text selected. The default is `False`.
 ### `size`
 
 ```elm
-size : Theme.Size -> Attribute msg
+size : Theme.Size -> Attribute id msg
 ```
 
 The height of the field: `Small`, `Medium` or `Large` from
@@ -450,7 +512,7 @@ The height of the field: `Small`, `Medium` or `Large` from
 ### `visibleRows`
 
 ```elm
-visibleRows : Int -> Attribute msg
+visibleRows : Int -> Attribute id msg
 ```
 
 How many suggestions show before the list scrolls. The default is 8;
@@ -460,7 +522,7 @@ row each.
 ### `prefixIcon`
 
 ```elm
-prefixIcon : Icon.Icon -> Attribute msg
+prefixIcon : Icon.Icon -> Attribute id msg
 ```
 
 An icon at the start of the field, such as a magnifying glass. There is none
@@ -471,7 +533,7 @@ by default.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute msg
+locale : Locale.Locale -> Attribute id msg
 ```
 
 The language of the built-in text: "No suggestions", "Loading ...", the
@@ -484,7 +546,7 @@ state. The default is `Locale.default`, which is English. See
 ### `settings`
 
 ```elm
-settings : Settings.Settings -> Attribute msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
 The settings of the application (`Klar.Settings`): the time zone of the time in

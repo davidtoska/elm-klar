@@ -111,8 +111,8 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Select exposing (Option)
 import Klar.Select.Match as Match
-import Klar.Select.Option exposing (Option)
 import Klar.Select.Popup as Popup
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Spinner as Spinner

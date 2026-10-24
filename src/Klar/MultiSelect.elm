@@ -47,8 +47,7 @@ Quick path: `init`, `update`, `view`, `values`
 
 It shares the option model, the search, the keyboard handling and the remote
 states with [Klar.Select](Klar-Select): options are `Select.Option` values, made
-with `Select.option` and its `with*` helpers (see
-[Klar.Select.Option](Klar-Select-Option)). As there, the state holds the values,
+with `Select.option` and its `with*` helpers. As there, the state holds the values,
 so react to a change by comparing `MultiSelect.values` before and after in your
 `update`.
 
@@ -129,7 +128,7 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
-import Klar.Select.Option as Option exposing (Option)
+import Klar.Select as Select exposing (Option)
 import Klar.Select.Popup as Popup
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Tag as Tag
@@ -1103,7 +1102,7 @@ resolve config available selection =
             unlisted value =
                 case config.valueText of
                     Just toText ->
-                        Labelled (Option.option value (toText value))
+                        Labelled (Select.option value (toText value))
 
                     Nothing ->
                         Unlisted
@@ -1238,7 +1237,7 @@ createMsg : Config id msg -> String -> Msg id
 createMsg config text =
     case config.creatable of
         Just make ->
-            CreateValue (Option.option (make text) text)
+            CreateValue (Select.option (make text) text)
 
         Nothing ->
             NoOp
