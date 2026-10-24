@@ -73,6 +73,25 @@ css =
   outline-offset: -2px;
 }
 
+/* Windows high contrast drops backgrounds: the picked row gets a frame in the
+   system highlight color, the active row a dashed one. */
+@media (forced-colors: active) {
+  .klar-vlist__item--selected {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .klar-vlist--list:focus-visible .klar-vlist__item--active {
+    outline: 2px dashed CanvasText;
+    outline-offset: -2px;
+  }
+
+  .klar-vlist--list:focus-visible .klar-vlist__item--active.klar-vlist__item--selected {
+    outline-style: solid;
+    outline-color: Highlight;
+  }
+}
+
 /* The pinned section heading is a sticky first child that takes no room:
    it sits on top of the first visible row while the rows scroll under it. */
 .klar-vlist__pinned {
@@ -402,6 +421,30 @@ css =
   color: var(--klar-text-link);
 }
 
+/* Windows high contrast drops backgrounds: the highlighted option (where the
+   arrow keys are) gets a dashed frame, a chosen one a frame in the system
+   highlight color, and one that is both a double frame. */
+@media (forced-colors: active) {
+  .klar-select__option--highlighted {
+    outline: 2px dashed CanvasText;
+    outline-offset: -2px;
+  }
+
+  .klar-select__option--selected {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .klar-select__option--highlighted.klar-select__option--selected {
+    outline: 4px double Highlight;
+    outline-offset: -4px;
+  }
+
+  .klar-select__option--disabled {
+    color: GrayText;
+  }
+}
+
 .klar-select__check {
   display: flex;
   flex: none;
@@ -509,6 +552,18 @@ css =
 
 .klar-select__state .klar-state--compact {
   padding: var(--klar-space-5) var(--klar-space-4);
+}
+
+/* The retry under a failure in a popup whose focus stays in its field. */
+.klar-select__retry {
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--klar-space-4) var(--klar-space-4);
+}
+
+/* The wrapper of the "Old data" notice only carries its keys and clicks. */
+.klar-select__notice {
+  display: contents;
 }
 
 .klar-select__message {

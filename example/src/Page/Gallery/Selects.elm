@@ -187,7 +187,7 @@ type alias Backend =
 type alias Model =
     { selects : Dict String (Select.State String)
     , multis : Dict String (MultiSelect.State String)
-    , autos : Dict String Autocomplete.State
+    , autos : Dict String (Autocomplete.State String)
     , owner : Select.State OwnerId
     , assignees : MultiSelect.State OwnerId
     , createdCategories : List String
@@ -203,7 +203,7 @@ type alias Model =
 type Msg
     = SelectMsg String (Select.Msg String)
     | MultiMsg String (MultiSelect.Msg String)
-    | AutoMsg String Autocomplete.Msg
+    | AutoMsg String (Autocomplete.Msg String)
     | OwnerMsg (Select.Msg OwnerId)
     | AssigneesMsg (MultiSelect.Msg OwnerId)
     | Responded Target Int String
@@ -220,23 +220,23 @@ init =
             Dict.fromList
                 (List.map (\( id, setup ) -> ( id, setup (Select.init id) ))
                     [ ( "sel-basic", identity )
-                    , ( "sel-grouped", Select.setValue "NO" )
-                    , ( "sel-rich", Select.setValue "express" )
+                    , ( "sel-grouped", Select.setValue (Just "NO") )
+                    , ( "sel-rich", Select.setValue (Just "express") )
                     , ( "sel-required", identity )
-                    , ( "sel-invalid", Select.setValue "AD" )
-                    , ( "sel-disabled", Select.setValue "DK" )
-                    , ( "sel-readonly", Select.setValue "SE" )
+                    , ( "sel-invalid", Select.setValue (Just "AD") )
+                    , ( "sel-disabled", Select.setValue (Just "DK") )
+                    , ( "sel-readonly", Select.setValue (Just "SE") )
                     , ( "sel-small", identity )
-                    , ( "sel-medium", Select.setValue "NO" )
-                    , ( "sel-traffic", Select.setValue "amber" )
-                    , ( "sel-teams", Select.setValue "sales" )
+                    , ( "sel-medium", Select.setValue (Just "NO") )
+                    , ( "sel-traffic", Select.setValue (Just "amber") )
+                    , ( "sel-teams", Select.setValue (Just "sales") )
                     , ( "sel-large", identity )
                     , ( "sel-empty", identity )
                     , ( "sel-creatable", identity )
-                    , ( "sel-orders", Select.setValue "ORD-11234" )
+                    , ( "sel-orders", Select.setValue (Just "ORD-11234") )
                     , ( "sel-server", identity )
-                    , ( "sel-loading", Select.setValue "ORD-11234" )
-                    , ( "sel-failed", Select.setValue "ORD-11234" )
+                    , ( "sel-loading", Select.setValue (Just "ORD-11234") )
+                    , ( "sel-failed", Select.setValue (Just "ORD-11234") )
                     , ( "sel-scroll", identity )
                     , ( "sel-bottom", identity )
                     ]
@@ -268,7 +268,7 @@ init =
                     , ( "auto-large", identity )
                     ]
                 )
-      , owner = Select.init "typed-owner" |> Select.setValue (OwnerId 2)
+      , owner = Select.init "typed-owner" |> Select.setValue (Just (OwnerId 2))
       , assignees = MultiSelect.init "typed-assignees" |> MultiSelect.setValues [ OwnerId 1, OwnerId 3 ]
       , createdCategories = []
       , orderSearch = idle
@@ -297,7 +297,7 @@ multiState id model =
     Dict.get id model.multis |> Maybe.withDefault (MultiSelect.init id)
 
 
-autoState : String -> Model -> Autocomplete.State
+autoState : String -> Model -> Autocomplete.State String
 autoState id model =
     Dict.get id model.autos |> Maybe.withDefault (Autocomplete.init id)
 
@@ -564,7 +564,7 @@ multiView id locale model attributes =
     MultiSelect.view (MultiMsg id) (MultiSelect.locale locale :: attributes) (multiState id model)
 
 
-autoView : String -> Locale -> Model -> List (Autocomplete.Attribute Msg) -> Html Msg
+autoView : String -> Locale -> Model -> List (Autocomplete.Attribute String Msg) -> Html Msg
 autoView id locale model attributes =
     Autocomplete.view (AutoMsg id) (Autocomplete.locale locale :: attributes) (autoState id model)
 
@@ -1253,7 +1253,7 @@ autocompletes locale model =
                         locale
                         model
                         [ Autocomplete.label "Customer"
-                        , Autocomplete.suggestions model.customerSearch.results
+                        , Autocomplete.remote model.customerSearch.results
                         , Autocomplete.onRetry (Retry CustomerSearch)
                         , Autocomplete.clearable
                         , Autocomplete.hint "Type at least one letter"
@@ -1445,7 +1445,7 @@ remoteCode =
     [ Select.label "Order"
     , Select.remote model.orders -- Loading: "Loading ...", Failed: "Could not be loaded"
     ]
-    (Select.setValue "ORD-11234" model.order)
+    (Select.setValue (Just "ORD-11234") model.order)
 
 Select.value model.order -- Just "ORD-11234", also while the options load"""
 
@@ -1615,7 +1615,7 @@ autoServerCode : String
 autoServerCode =
     """Autocomplete.view CustomerMsg
     [ Autocomplete.label "Customer"
-    , Autocomplete.suggestions model.found -- Remote (List (Option String))
+    , Autocomplete.remote model.found -- Remote (List (Option String))
     , Autocomplete.onRetry RetrySuggestions
     ]
     model.customer

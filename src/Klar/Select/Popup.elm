@@ -10,8 +10,10 @@ module Klar.Select.Popup exposing
     , Rows
     , Texts
     , act
+    , activeDescendant
     , build
     , cachedRows
+    , composing
     , findByValue
     , first
     , geometry
@@ -22,7 +24,9 @@ module Klar.Select.Popup exposing
     , last
     , listHeight
     , next
+    , noticeRetry
     , onKeydown
+    , onSearchKeys
     , onTriggerKeys
     , onWindowKeys
     , optionId
@@ -44,6 +48,7 @@ module Klar.Select.Popup exposing
     , viewFooter
     , viewLayer
     , viewMessage
+    , viewNotice
     , viewPinned
     , viewRow
     , viewSearch
@@ -64,18 +69,21 @@ import Dict
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Decoder)
+import Klar.Button as Button
 import Klar.Checkbox as Checkbox
 import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote
 import Klar.Search as Search
 import Klar.Select.Match as Match
-import Klar.Select.Option as Option exposing (Option)
+import Klar.Select.Option exposing (Option)
+import Klar.Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.VirtualList as VirtualList
@@ -758,6 +766,25 @@ optionId base index =
     base ++ "-opt-" ++ String.fromInt index
 
 
+{-| The id for `aria-activedescendant`: the highlighted row, but only while that
+row is on the page. The list draws only the rows around the scroll position, so
+after the user scrolled away with the wheel the highlighted row is gone, and an
+id that is not on the page names nothing.
+-}
+activeDescendant : String -> VirtualList.Geometry -> VirtualList.State -> Maybe Int -> Maybe String
+activeDescendant base rowsGeometry list highlighted =
+    case highlighted of
+        Just index ->
+            if VirtualList.isDrawn rowsGeometry index list then
+                Just (optionId base index)
+
+            else
+                Nothing
+
+        Nothing ->
+            Nothing
+
+
 statusText : Texts -> Bool -> String -> Rows id -> String
 statusText t filterLocally query rows =
     if not filterLocally then
@@ -819,7 +846,7 @@ lookup key bindings =
 delete the search text must not go on to remove every chosen value, so
 Backspace bindings only react to a fresh press.
 -}
-isRepeatedBackspace : Internal.KeyEvent -> Decode.Decoder Bool
+isRepeatedBackspace : Internal.KeyEvent -> Decoder Bool
 isRepeatedBackspace event =
     if event.key == "Backspace" then
         Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ]
@@ -828,30 +855,104 @@ isRepeatedBackspace event =
         Decode.succeed False
 
 
+{-| Is the key part of an input method composition (Japanese, Chinese, Korean
+...)? Then Enter commits the composed text and the arrows pick a candidate: they
+are not keys for the list. Browsers say so with `isComposing`, and with the key
+code 229 for the key that ends a composition in some of them. It is the same
+guard as in `Klar.Picking.View`.
+-}
+composing : Decoder Bool
+composing =
+    Decode.map2 (||)
+        (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "keyCode" Decode.int |> Decode.map (\code -> code == 229), Decode.succeed False ])
+
+
+{-| A key press the list may act on: the key, whether it is a held-down
+Backspace, and whether the element it was pressed in has no text.
+-}
+type alias Press =
+    { event : Internal.KeyEvent
+    , repeatedBackspace : Bool
+    , empty : Bool
+    }
+
+
+{-| Every key handler of the select family reads its keys through this decoder.
+It fails while an input method composes, so no binding ever acts on the Enter
+that confirms a composition or on the arrows that choose a candidate.
+-}
+press : Decoder Press
+press =
+    composing
+        |> Decode.andThen
+            (\isComposing ->
+                if isComposing then
+                    Decode.fail "an input method is composing"
+
+                else
+                    Internal.keyEvent
+                        |> Decode.andThen
+                            (\event ->
+                                Decode.map2 (Press event)
+                                    (isRepeatedBackspace event)
+                                    (Decode.oneOf
+                                        [ Decode.at [ "target", "value" ] Decode.string |> Decode.map String.isEmpty
+                                        , Decode.succeed True
+                                        ]
+                                    )
+                            )
+            )
+
+
+pressName : Press -> String
+pressName pressed =
+    if pressed.repeatedBackspace then
+        "Repeat+" ++ keyName pressed.event
+
+    else
+        keyName pressed.event
+
+
 {-| One keydown handler with two kinds of bindings: `handled` keys prevent the
 browser default and stop propagation (so a surrounding dialog does not also
 react to Escape or the arrows), `passive` keys only send the message (Tab).
 -}
 onKeydown : { handled : List ( String, msg ), passive : List ( String, msg ) } -> Html.Attribute msg
 onKeydown bindings =
+    onSearchKeys { handled = bindings.handled, whenEmpty = [], passive = bindings.passive }
+
+
+{-| The keys of a search box: `onKeydown`, plus `whenEmpty` bindings that act
+(and prevent the default) only while the box has no text. Home and End are such
+keys: in an empty box they go to the first and the last row, and in a box with
+text they move the caret, as in every text field.
+-}
+onSearchKeys :
+    { handled : List ( String, msg ), whenEmpty : List ( String, msg ), passive : List ( String, msg ) }
+    -> Html.Attribute msg
+onSearchKeys bindings =
     Events.custom "keydown"
-        (Internal.keyEvent
+        (press
             |> Decode.andThen
-                (\event ->
-                    isRepeatedBackspace event
-                        |> Decode.map (\repeated -> ( event, repeated ))
-                )
-            |> Decode.andThen
-                (\( event, repeated ) ->
+                (\pressed ->
                     let
                         name =
-                            if repeated then
-                                "Repeat+" ++ keyName event
+                            pressName pressed
 
-                            else
-                                keyName event
+                        handled =
+                            case lookup name bindings.handled of
+                                Just msg ->
+                                    Just msg
+
+                                Nothing ->
+                                    if pressed.empty then
+                                        lookup name bindings.whenEmpty
+
+                                    else
+                                        Nothing
                     in
-                    case lookup name bindings.handled of
+                    case handled of
                         Just msg ->
                             Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
 
@@ -872,24 +973,14 @@ character, which opens the list and starts the search with that character.
 onTriggerKeys : List ( String, msg ) -> Maybe (String -> msg) -> Html.Attribute msg
 onTriggerKeys bindings typed =
     Events.custom "keydown"
-        (Internal.keyEvent
+        (press
             |> Decode.andThen
-                (\event ->
-                    isRepeatedBackspace event
-                        |> Decode.map (\repeated -> ( event, repeated ))
-                )
-            |> Decode.andThen
-                (\( event, repeated ) ->
-                    case
-                        lookup
-                            (if repeated then
-                                "Repeat+" ++ keyName event
-
-                             else
-                                keyName event
-                            )
-                            bindings
-                    of
+                (\pressed ->
+                    let
+                        event =
+                            pressed.event
+                    in
+                    case lookup (pressName pressed) bindings of
                         Just msg ->
                             Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
 
@@ -924,15 +1015,16 @@ onWindowKeys :
     -> Html.Attribute msg
 onWindowKeys bindings =
     Events.custom "keydown"
-        (Internal.keyEvent
+        (press
             |> Decode.andThen
-                (\event ->
-                    Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ]
-                        |> Decode.map (\repeated -> ( event, repeated ))
-                )
-            |> Decode.andThen
-                (\( event, repeated ) ->
+                (\pressed ->
                     let
+                        event =
+                            pressed.event
+
+                        repeated =
+                            pressed.repeatedBackspace
+
                         handled msg =
                             Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
                     in
@@ -1150,6 +1242,10 @@ viewItem config index ordinal opt =
                 Html.span [ Internal.cls [ "klar-select__option-description" ] ] (Search.highlight descriptionQuery description)
             )
             opt.description
+
+        -- The heading rows are not part of the listbox (a virtual list cannot
+        -- wrap its options in a role="group"), so each option says its group.
+        , Internal.viewMaybe (\group -> Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (", " ++ group) ]) opt.group
         ]
 
 
@@ -1260,10 +1356,16 @@ focus from the search box, and any click (also Enter on the focused button)
 sends `refocus`, so focus goes back to the search box when the button is
 replaced by loading rows. Tab on the button sends `leave`; without a button
 there is nothing to hold focus here, so Tab is not handled.
+
+With `focusable = False` the button is for the mouse only (`tabindex="-1"`):
+for a popup whose focus never leaves the field it belongs to, where Enter in the
+field retries and Tab leaves the field.
+
 -}
 viewFailure :
     { locale : Locale
     , onRetry : Maybe msg
+    , focusable : Bool
     , refocus : msg
     , leave : msg
     , noop : msg
@@ -1279,16 +1381,88 @@ viewFailure config problem =
         [ Internal.cls [ "klar-select__state" ]
         , Internal.onMouseDownPrevent config.noop
         , Events.onClick config.refocus
-        , Internal.attrIf (isJust retry) (onKeydown { handled = [], passive = [ ( "Tab", config.leave ) ] })
+        , Internal.attrIf (config.focusable && isJust retry) (onKeydown { handled = [], passive = [ ( "Tab", config.leave ) ] })
         ]
-        [ ErrorState.view
-            (List.filterMap identity
-                [ Just ErrorState.compact
-                , Just (ErrorState.locale config.locale)
-                , Maybe.map ErrorState.onRetry retry
-                ]
-            )
-            problem
+        (if config.focusable then
+            [ ErrorState.view
+                (List.filterMap identity
+                    [ Just ErrorState.compact
+                    , Just (ErrorState.locale config.locale)
+                    , Maybe.map ErrorState.onRetry retry
+                    ]
+                )
+                problem
+            ]
+
+         else
+            [ ErrorState.view [ ErrorState.compact, ErrorState.locale config.locale ] problem
+            , Internal.viewMaybe
+                (\msg ->
+                    Html.div [ Internal.cls [ "klar-select__retry" ] ]
+                        [ Button.view
+                            [ Button.small
+                            , Button.icon Icon.refresh
+                            , Button.onClick msg
+                            , Button.htmlAttrs [ Attr.tabindex -1 ]
+                            ]
+                            (Locale.pick config.locale { en = "Try again", nb = "Prøv igjen" })
+                        ]
+                )
+                retry
+            ]
+        )
+
+
+{-| The message that retries the last refresh, when the "Old data" notice above
+the list shows its "Try again" button: the refresh failed with a problem worth
+retrying, and there is an `onRetry`. Like `retryFor`, everything that depends on
+the button asks this.
+-}
+noticeRetry : Freshness -> Maybe msg -> Maybe msg
+noticeRetry freshness onRetry =
+    case freshness of
+        Freshness.Stale value ->
+            retryFor value.problem onRetry
+
+        _ ->
+            Nothing
+
+
+{-| The "Old data from 14:05" notice above the list of an open popup (nothing
+for fresh data). Its "Try again" button is the one element of the popup besides
+the search box that Tab reaches, so: a click on it (also Enter on the focused
+button) sends `refocus`, and focus goes back to the search box before the button
+turns into a spinner or goes away; and Tab on the button sends `leave` when
+nothing after it in the popup takes focus, so the popup closes behind the focus
+that moves on, instead of taking the focus with it.
+-}
+viewNotice :
+    { locale : Locale
+    , settings : Settings
+    , onRetry : Maybe msg
+    , refocus : msg
+    , leave : Maybe msg
+    }
+    -> Freshness
+    -> Html msg
+viewNotice config freshness =
+    let
+        retry =
+            noticeRetry freshness config.onRetry
+    in
+    Html.div
+        [ Internal.cls [ "klar-select__notice" ]
+        , Internal.attrIf (isJust retry) (Events.onClick config.refocus)
+        , case ( retry, config.leave ) of
+            ( Just _, Just leave ) ->
+                onKeydown { handled = [], passive = [ ( "Tab", leave ) ] }
+
+            _ ->
+                Internal.noAttr
+        ]
+        [ Freshness.notice
+            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+            freshness
         ]
 
 

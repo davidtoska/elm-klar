@@ -3,7 +3,7 @@ module Klar.VirtualList exposing
     , id, scrollTop, active
     , Attribute, density, onSelect, selected, height, htmlAttrs
     , view, viewGrouped, rowHeight, overscan
-    , Geometry, ensureVisible, center, scrollTo, reset, viewportHeight
+    , Geometry, ensureVisible, center, scrollTo, reset, viewportHeight, isDrawn
     )
 
 {-| A list of thousands of rows that draws only the rows in view, and is a
@@ -101,7 +101,7 @@ and the other attributes with `htmlAttrs`.
 
 # Scrolling
 
-@docs Geometry, ensureVisible, center, scrollTo, reset, viewportHeight
+@docs Geometry, ensureVisible, center, scrollTo, reset, viewportHeight, isDrawn
 
 -}
 
@@ -320,6 +320,35 @@ center geometry index current =
 viewportHeight : { a | rowHeight : Int, height : Int, count : Int } -> Int
 viewportHeight geometry =
     min geometry.height (geometry.count * max 1 geometry.rowHeight)
+
+
+{-| Whether row `index` (counting from 0) is on the page now, for any `overscan`:
+`view` and `viewGrouped` draw the rows in view and a few around them, so after the
+user scrolled away with the wheel a row the keyboard was on may be gone. Point
+`aria-activedescendant` at a row only while it is drawn, since an id that is not
+on the page names nothing. Give it the same numbers as `view`.
+
+    VirtualList.isDrawn { rowHeight = 32, height = 320, count = 500, inset = 0 } 42 model.list
+
+-}
+isDrawn : Geometry -> Int -> State -> Bool
+isDrawn geometry index (State state) =
+    let
+        rowH =
+            max 1 geometry.rowHeight
+
+        top =
+            clampTop geometry state.top
+
+        -- the same arithmetic as `render`, without the overscan rows, which
+        -- `render` always adds on both sides
+        firstVisible =
+            floor (top / toFloat rowH)
+
+        visible =
+            ceiling (toFloat (viewportHeight geometry) / toFloat rowH) + 1
+    in
+    index >= firstVisible && index < min geometry.count (firstVisible + visible)
 
 
 clampTop : Geometry -> Float -> Float

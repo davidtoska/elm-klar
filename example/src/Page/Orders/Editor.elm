@@ -74,7 +74,7 @@ type alias Editor =
     -- The input the form was opened with. The form has unsaved changes when
     -- `toInput` is no longer equal to it.
     , saved : OrderInput
-    , customer : Autocomplete.State
+    , customer : Autocomplete.State String
     , email : String
     , country : Select.State CountryCode
     , city : String
@@ -177,12 +177,7 @@ fromOrder order =
 
 selectOf : String -> Maybe id -> Select.State id
 selectOf id maybeValue =
-    case maybeValue of
-        Just value ->
-            Select.init id |> Select.setValue value
-
-        Nothing ->
-            Select.init id
+    Select.init id |> Select.setValue maybeValue
 
 
 {-| The values in the form, as the API takes them. What is missing or cannot be
@@ -344,7 +339,7 @@ numberProblem field message accepts state =
 
 
 type Msg
-    = CustomerMsg Autocomplete.Msg
+    = CustomerMsg (Autocomplete.Msg String)
     | EmailChanged String
     | CountryMsg (Select.Msg CountryCode)
     | CityChanged String
