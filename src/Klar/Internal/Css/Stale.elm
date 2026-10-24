@@ -13,6 +13,14 @@ css =
    draws, and the dimming while a refresh is on its way.
    ========================================================================== */
 
+/* The box around the content (Freshness.wrap): the same element in every state, so a
+   refresh never replaces the content. It adds nothing to the layout; the component
+   gives it its own classes. Its first child is the slot of the marker, which is always
+   there (with its live region) and is laid out as if its children were the box's own. */
+.klar-fresh { min-width: 0; }
+
+.klar-fresh__slot { display: contents; }
+
 .klar-stale {
   display: flex;
   flex-wrap: wrap;
@@ -54,9 +62,18 @@ css =
   to { background-position: 140% 0; }
 }
 
-/* Under reduced motion the line stands still (the list in Base). */
+/* Under reduced motion the line stands still (the list in Base). Forced colors drop
+   backgrounds: the line keeps a system color, and the marker its border. */
+@media (forced-colors: active) {
+  .klar-refreshing::after {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
 
-.klar-refreshing > :not(.klar-stale):not(.klar-sr-only) {
+  .klar-stale { border-color: CanvasText; }
+}
+
+.klar-refreshing > :not(.klar-stale):not(.klar-sr-only):not(.klar-fresh__slot) {
   opacity: 0.92;
   transition: opacity var(--klar-dur) var(--klar-ease);
 }
