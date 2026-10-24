@@ -508,7 +508,9 @@ css =
   min-width: 0;
 }
 
-/* Focused by ApprovalFlow.focus after the buttons that had focus are gone. */
+/* Focused by Klar.focus with the ApprovalFlow.id, after the buttons that had focus are gone. */
+.klar-approval:focus { outline: none; }
+
 .klar-approval:focus-visible {
   outline: 2px solid var(--klar-focus-color);
   outline-offset: 2px;
@@ -641,9 +643,13 @@ css =
   gap: 2px var(--klar-space-3);
 }
 
+/* A heading (ApprovalFlow.headingLevel) that reads as the line it is. */
 .klar-approval__title {
+  margin: 0;
   color: var(--klar-text);
+  font-size: inherit;
   font-weight: var(--klar-weight-bold);
+  line-height: inherit;
 }
 
 .klar-approval__step--waiting .klar-approval__title,
@@ -716,6 +722,9 @@ css =
 .klar-approval__person--approved .klar-approval__decision { color: var(--klar-success); }
 .klar-approval__person--rejected .klar-approval__decision { color: var(--klar-danger); }
 
+/* Not asked on this step: not needed any more, not asked yet, or not reached. */
+.klar-approval__person--idle .klar-approval__decision { color: var(--klar-text-muted); }
+
 .klar-approval__when {
   color: var(--klar-text-muted);
   font-size: var(--klar-text-sm);
@@ -746,6 +755,15 @@ css =
   padding: 4px 4px 8px;
   margin: -4px;
   overflow-x: auto;
+  border-radius: var(--klar-radius);
+}
+
+/* The strip is a tab stop of its own, so it can be scrolled with the arrow keys. */
+.klar-approval--horizontal .klar-approval__steps:focus { outline: none; }
+
+.klar-approval--horizontal .klar-approval__steps:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
 }
 
 .klar-approval--horizontal .klar-approval__step {
@@ -791,5 +809,9 @@ css =
   .klar-approval__marker { forced-color-adjust: none; border-color: CanvasText; }
   .klar-approval__step--approved .klar-approval__marker,
   .klar-approval__step--rejected .klar-approval__marker { background: Highlight; color: HighlightText; }
+
+  /* the step being decided: its ring is a box-shadow, which forced colours remove */
+  .klar-approval__step--in-progress .klar-approval__marker { outline: 2px solid Highlight; outline-offset: 1px; }
+  .klar-approval__step--current .klar-approval__body { border-color: Highlight; }
 }
 """

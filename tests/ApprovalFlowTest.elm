@@ -43,6 +43,115 @@ suite =
         , localeTests
         , detailTests
         , remoteTests
+        , auditTests
+        ]
+
+
+{-| What the people of a step say, in the order of the step, as the screen shows it.
+-}
+decisionsOf : Int -> Html Msg -> Query.Multiple Msg
+decisionsOf stepIndex html =
+    html
+        |> Query.fromHtml
+        |> Query.findAll [ stepItem ]
+        |> Query.index stepIndex
+        |> Query.findAll [ Selector.class "klar-approval__decision" ]
+
+
+auditTests : Test
+auditTests =
+    describe "found by the audit"
+        [ test "only the step being decided says Pending: a decided any step says Not needed, a waiting step Not asked yet" <|
+            \_ ->
+                let
+                    html =
+                        viewIt [] (build [ anyOf [ Y, P ], everyoneOf [ P, P ], everyoneOf [ P ] ])
+                in
+                Expect.all
+                    [ \_ -> decisionsOf 0 html |> Query.index 1 |> Query.has [ Selector.text "Not needed" ]
+                    , \_ -> decisionsOf 1 html |> Query.each (Query.has [ Selector.text "Pending" ])
+                    , \_ -> decisionsOf 2 html |> Query.each (Query.has [ Selector.text "Not asked yet" ])
+                    , \_ -> html |> H.has [ Selector.class "klar-approval__person--idle" ]
+                    ]
+                    ()
+        , test "after a rejection the others of the step are not needed, and a skipped step says Not reached" <|
+            \_ ->
+                let
+                    html =
+                        viewIt [] rejectedNote
+                in
+                Expect.all
+                    [ \_ -> decisionsOf 1 html |> Query.index 1 |> Query.has [ Selector.text "Not needed" ]
+                    , \_ -> decisionsOf 2 html |> Query.index 0 |> Query.has [ Selector.text "Not reached" ]
+                    , \_ -> html |> H.none [ Selector.class "klar-approval__person--pending" ]
+                    ]
+                    ()
+        , test "the summary says how far the current all step is, so a first approval changes what is announced" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> viewIt [] (build [ everyoneOf [ P, P ] ]) |> H.has [ H.attr "role" "status", Selector.text "In progress: step 1 of 1 (Step 0), 0 of 2 approved" ]
+                    , \_ -> viewIt [] (build [ everyoneOf [ Y, P ] ]) |> H.has [ H.attr "role" "status", Selector.text "In progress: step 1 of 1 (Step 0), 1 of 2 approved" ]
+                    ]
+                    ()
+        , test "the summary of an any step says how many rejected, so a rejection while others are pending is announced" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> viewIt [] (build [ anyOf [ P, P ] ]) |> Query.fromHtml |> Query.find [ H.attr "role" "status" ] |> Query.hasNot [ Selector.text "rejected" ]
+                    , \_ -> viewIt [] (build [ anyOf [ N, P ] ]) |> H.has [ H.attr "role" "status", Selector.text "In progress: step 1 of 1 (Step 0), 1 of 2 rejected" ]
+                    ]
+                    ()
+        , test "a person listed twice in a step counts once: the first entry is kept" <|
+            \_ ->
+                let
+                    twice =
+                        ApprovalFlow.flow
+                            [ ApprovalFlow.step "Finance"
+                                ApprovalFlow.all
+                                (ApprovalFlow.approver 2 (ApprovalFlow.approved { at = Nothing, comment = Nothing }))
+                                [ ApprovalFlow.approver 2 ApprovalFlow.pending, ApprovalFlow.approver 3 (ApprovalFlow.approved { at = Nothing, comment = Nothing }) ]
+                            ]
+                in
+                Expect.all
+                    [ \_ -> ApprovalFlow.isApproved (ApprovalFlow.status twice) |> Expect.equal True
+                    , \_ -> ApprovalFlow.pendingApprovers twice |> Expect.equal []
+                    , \_ -> viewIt [] twice |> H.count 2 [ Selector.class "klar-approval__person" ]
+                    ]
+                    ()
+        , test "while a decision is on its way the buttons are busy, stay on the page and ignore a click" <|
+            \_ ->
+                let
+                    html =
+                        viewIt (ApprovalFlow.deciding True :: deciderAttributes 2) creditNote
+                in
+                Expect.all
+                    [ \_ -> html |> H.count 2 [ Selector.tag "button", H.attr "aria-busy" "true", H.attr "aria-disabled" "true" ]
+                    , \_ -> viewIt (deciderAttributes 2) creditNote |> H.none [ Selector.tag "button", H.attr "aria-busy" "true" ]
+                    ]
+                    ()
+        , test "the step titles are headings, h3 by default, at the level that is given" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> viewIt [] creditNote |> H.count 3 [ Selector.tag "h3", Selector.class "klar-approval__title" ]
+                    , \_ -> viewIt [ ApprovalFlow.headingLevel 2 ] creditNote |> H.count 3 [ Selector.tag "h2", Selector.class "klar-approval__title" ]
+                    , \_ -> viewIt [ ApprovalFlow.headingLevel 9 ] creditNote |> H.count 3 [ Selector.tag "h6" ]
+                    ]
+                    ()
+        , test "a horizontal strip can be scrolled from the keyboard: the list is a tab stop, and only then" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> viewIt [ ApprovalFlow.horizontal ] creditNote |> H.has [ Selector.tag "ol", Selector.attribute (Attr.tabindex 0) ]
+                    , \_ -> viewIt [] creditNote |> H.none [ Selector.tag "ol", Selector.attribute (Attr.tabindex 0) ]
+                    ]
+                    ()
+        , test "the new words in Norwegian" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> viewIt [ ApprovalFlow.locale Locale.nb ] (build [ anyOf [ Y, P ], everyoneOf [ P ] ]) |> H.has [ Selector.text "Ikke nødvendig" ]
+                    , \_ -> viewIt [ ApprovalFlow.locale Locale.nb ] (build [ everyoneOf [ P ], everyoneOf [ P ] ]) |> H.has [ Selector.text "Ikke spurt ennå" ]
+                    , \_ -> viewIt [ ApprovalFlow.locale Locale.nb ] (build [ anyOf [ N, P ] ]) |> H.has [ Selector.text "1 av 2 avvist" ]
+                    , \_ -> viewIt [ ApprovalFlow.locale Locale.nb ] (build [ everyoneOf [ Y, P ] ]) |> H.has [ Selector.text "Pågår: steg 1 av 1 (Step 0), 1 av 2 godkjent" ]
+                    ]
+                    ()
         ]
 
 
@@ -588,12 +697,13 @@ stepItem =
 listTests : Test
 listTests =
     describe "the list"
-        [ test "the steps are an ordered list inside a named region" <|
+        [ test "the steps are an ordered list inside a named group, not a landmark of its own" <|
             \_ ->
                 viewIt [] creditNote
                     |> Query.fromHtml
                     |> Expect.all
-                        [ Query.has [ Selector.tag "section", H.attr "aria-label" "Approval steps" ]
+                        [ Query.has [ Selector.tag "div", H.attr "role" "group", H.attr "aria-label" "Approval steps" ]
+                        , Query.findAll [ Selector.tag "section" ] >> Query.count (Expect.equal 0)
                         , Query.find [ Selector.tag "ol" ] >> Query.findAll [ Selector.tag "li", stepItem ] >> Query.count (Expect.equal 3)
                         ]
         , test "the lists keep their list semantics when the stylesheet takes the bullets away" <|
@@ -631,11 +741,11 @@ listTests =
                         [ Query.hasNot [ Selector.attribute (Attr.attribute "tabindex" "-1") ]
                         , Query.hasNot [ Selector.id "credit-note-flow" ]
                         ]
-        , test "with an id the flow can be given focus by `focus`, after the buttons that had it are gone, and is no tab stop" <|
+        , test "with an id the flow can be given focus by Klar.focus, after the buttons that had it are gone, and is no tab stop" <|
             \_ ->
                 viewIt [ ApprovalFlow.id "credit-note-flow" ] creditNote
                     |> Query.fromHtml
-                    |> Query.has [ Selector.tag "section", Selector.id "credit-note-flow", Selector.attribute (Attr.tabindex -1) ]
+                    |> Query.has [ H.attr "role" "group", Selector.id "credit-note-flow", Selector.attribute (Attr.tabindex -1) ]
         , test "focus is a command that is sent even when the flow is not on the page" <|
             \_ ->
                 Klar.focus "credit-note-flow" Retry
@@ -977,4 +1087,81 @@ remoteTests =
                     , \_ -> remote (Remote.Loaded (ApprovalFlow.flow [])) |> H.has [ Selector.text "No approval is required" ]
                     ]
                     ()
+        , test "the id is on the flow in every state, which can take focus, so Klar.focus finds it after Try again" <|
+            \_ ->
+                Expect.all
+                    (List.map
+                        (\data ->
+                            \_ ->
+                                ApprovalFlow.viewRemote person [ ApprovalFlow.id "approval", ApprovalFlow.onRetry Retry ] data
+                                    |> Query.fromHtml
+                                    |> Query.has [ Selector.id "approval", Selector.attribute (Attr.tabindex -1), Selector.class "klar-approval" ]
+                        )
+                        [ Remote.NotAsked
+                        , Remote.Loading
+                        , Remote.Failed (Remote.problem Remote.network)
+                        , Remote.Loaded creditNote
+                        , Remote.Loaded (ApprovalFlow.flow [])
+                        , Remote.refresh (Remote.Loaded creditNote)
+                        , oldFlow
+                        ]
+                    )
+                    ()
+        , test "a flow that is being refreshed stays, dimmed and busy, and its decide buttons are busy too" <|
+            \_ ->
+                ApprovalFlow.viewRemote person (deciderAttributes 2) (Remote.refresh (Remote.Loaded creditNote))
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.class "klar-approval", Selector.class "klar-refreshing", H.attr "aria-busy" "true" ]
+                        , Query.has [ Selector.class "klar-approval__steps" ]
+                        , Query.findAll [ Selector.tag "button", H.attr "aria-busy" "true" ] >> Query.count (Expect.equal 2)
+                        , Query.hasNot [ Selector.class "klar-stale" ]
+                        ]
+        , test "old data whose refresh failed says so above the steps, with a retry that sends the message" <|
+            \_ ->
+                let
+                    html =
+                        remote oldFlow
+                in
+                Expect.all
+                    [ \_ -> html |> H.has [ Selector.class "klar-stale", Selector.text "Old data from 00:00" ]
+                    , \_ -> html |> H.has [ Selector.class "klar-approval__steps" ]
+                    , \_ -> html |> H.hasNot [ Selector.class "klar-refreshing" ]
+                    , \_ -> H.sends [ Selector.class "klar-stale", Selector.tag "button" ] ( "click", Encode.object [] ) html |> Expect.equal (Ok Retry)
+                    ]
+                    ()
+        , test "the old data marker is a slot of its own: the summary and the steps are the same elements" <|
+            \_ ->
+                let
+                    childClasses data =
+                        remote data
+                            |> Query.fromHtml
+                            |> Query.children []
+                            |> Query.index 1
+                            |> Query.has [ Selector.class "klar-approval__summary" ]
+                in
+                Expect.all
+                    [ \_ -> childClasses (Remote.Loaded creditNote)
+                    , \_ -> childClasses (Remote.refresh (Remote.Loaded creditNote))
+                    , \_ -> childClasses oldFlow
+                    ]
+                    ()
         ]
+
+
+{-| The credit note, loaded at midnight (UTC), and then a refresh that failed.
+-}
+oldFlow : Remote.Remote (ApprovalFlow.Flow Int)
+oldFlow =
+    let
+        loaded =
+            Remote.refreshWith Remote.Loading (Ok creditNote) (Time.millisToPosix 0)
+    in
+    Remote.refreshWith (Remote.refresh loaded) (Err (Remote.problem Remote.network)) (Time.millisToPosix 60000)
+
+
+{-| The attributes of a viewer who has to decide on the current step of the credit note.
+-}
+deciderAttributes : Int -> List (ApprovalFlow.Attribute Int Msg)
+deciderAttributes who =
+    [ ApprovalFlow.viewer (Just who), ApprovalFlow.onApprove Approve, ApprovalFlow.onReject Reject ]
