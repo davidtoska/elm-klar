@@ -843,7 +843,7 @@ viewChip toMsg chip index tag =
             Locale.pick chip.config.locale { nb = "Fjern ", en = "Remove " } ++ tag
     in
     Html.span
-        [ Internal.cls [ "klar-tag", "klar-tag--neutral", "klar-tag--" ++ Internal.sizeSuffix chip.config.size ]
+        [ Internal.cls [ "klar-tag", "klar-tag--" ++ Internal.sizeSuffix chip.config.size ]
         , Attr.attribute "role" "listitem"
         ]
         [ Html.span [ Internal.cls [ "klar-tag__label" ], Internal.attrIf (String.length tag > 18) (Attr.title tag) ] [ Html.text tag ]
