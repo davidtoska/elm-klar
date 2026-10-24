@@ -10,7 +10,7 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List Attribute -> State -> Json.Decode.Value -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Json.Decode.Value -> Html msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -20,21 +20,24 @@ update : Msg -> State -> ( State, Cmd Msg )
 
 -- Opening and closing
 isExpanded : String -> State -> Bool
+expand : String -> State -> State
+collapse : String -> State -> State
 toggle : String -> State -> State
 expandAll : State -> State
 collapseAll : State -> State
-setExpanded : List String -> State -> State
+setExpandedIds : List String -> State -> State
+path : List String -> String
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-toolbar : Attribute
-rootLabel : String -> Attribute
-ariaLabel : String -> Attribute
-maxHeight : Int -> Attribute
-maxDepth : Int -> Attribute
-maxItems : Int -> Attribute
-maxStringLength : Int -> Attribute
-locale : Locale.Locale -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+toolbar : Attribute msg
+rootLabel : String -> Attribute msg
+ariaLabel : String -> Attribute msg
+maxHeight : Int -> Attribute msg
+maxDepth : Int -> Attribute msg
+maxItems : Int -> Attribute msg
+maxStringLength : Int -> Attribute msg
+locale : Locale.Locale -> Attribute msg
 ```
 
 ## Documentation
@@ -43,7 +46,7 @@ A collapsible tree for looking at JSON: an API response, a stored document,
 a request body.
 
 Use when: the application shows a JSON value, such as an API response or a stored document, that the user needs to explore.
-Do not use when: a short snippet is enough (`codeBlock` of `Klar.Text`).
+Do not use when: a short snippet is enough (`codeBlock` of `Klar.Text`); or the value is still on its way, put the viewer inside `Klar.RemoteView`.
 Quick path: `init`, `update`, `view`
 
     import Json.Decode as Decode
@@ -77,27 +80,38 @@ an object or array with more than `maxItems` entries shows the first rows and a
 "Show 100 more" row. Thin gray lines follow the indentation.
 
 The state remembers which nodes the user opened or closed, as paths like
-`/users/0/address` (the root is the empty path). By default the root and its
-children are open. Every toggle is a real button with `aria-expanded`, so the
-keyboard works with `Tab` and `Enter`. The tree is a nested list of buttons, not
-an ARIA tree, so the arrow keys do not move between nodes.
+`/users/0/address` (the root is the empty path; `path` writes one for you). By
+default the root and its children are open.
 
-There is no copy button: copying takes JavaScript, and the text is selectable.
-For a short snippet that does not need exploring, `codeBlock` of
-[Klar.Text](Klar.Text.md) is simpler.
+The viewer is an ARIA tree (`role="tree"`, `treeitem`, `group`, `aria-expanded`,
+`aria-level`) with one tab stop. The arrow keys move between the rows: Down and Up
+to the next and previous row, Right opens a node (or goes to its first child),
+Left closes it (or goes to its parent), Home and End to the first and the last
+row, and Enter or Space opens and closes a node or shows more rows. The row that
+had the focus keeps it when the value changes, as long as it is still there.
+
+There is no copy button: copying takes JavaScript, and the text of every row,
+keys included, is selectable. For a short snippet that does not need exploring,
+`codeBlock` of [Klar.Text](Klar.Text.md) is simpler.
+
+The value is shown as Elm decodes it: a number goes through a `Float`, so an
+integer beyond 2^53 is rounded and `1.10` is written `1.1`, and the browser puts
+keys that look like integers first. For an inspector that must show the text the
+server sent byte for byte, show that text with `codeBlock` instead.
 
 ## View
 
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Json.Decode.Value -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Json.Decode.Value -> Html msg
 ```
 
 Shows a JSON value as a collapsible tree. The first argument wraps the
-viewer's messages in one of yours. The state remembers what is open; the value
-can change freely between renders. A value that cannot be shown at all gives a
-short message instead ("The value cannot be shown." in English).
+viewer's messages in one of yours. The state remembers what is open and which row
+has the focus; the value can change freely between renders. A value that cannot
+be shown at all gives a short message instead ("The value cannot be shown." in
+English).
 
 ## State
 
@@ -138,9 +152,9 @@ buttons, so it must be unique on the page.
 update : Msg -> State -> ( State, Cmd Msg )
 ```
 
-Handles opening and closing, "expand all", "collapse all" and "show more".
-After "show more" it returns a command that puts the focus back on a button, so
-map the command with `Cmd.map`.
+Handles opening and closing, the arrow keys, "expand all", "collapse all" and
+"show more". Moving with the keys and "show more" return a command that puts the
+focus on a row, so map the command with `Cmd.map`.
 
 ## Opening and closing
 
@@ -152,7 +166,26 @@ isExpanded : String -> State -> Bool
 
 Is the node at this path open? The root is `""`, a child of the root is
 `"/name"` and an array item is `"/items/0"`. In a key, `~` is written `~0` and
-`/` is written `~1`, as in JSON Pointer.
+`/` is written `~1`, as in JSON Pointer; `path` does that for you.
+
+### `expand`
+
+```elm
+expand : String -> State -> State
+```
+
+Opens the node at this path and every node above it, so that it can be seen.
+Nothing else changes.
+
+    JsonViewer.expand (JsonViewer.path [ "items", "3", "error" ]) state
+
+### `collapse`
+
+```elm
+collapse : String -> State -> State
+```
+
+Closes the node at this path. Nothing else changes.
 
 ### `toggle`
 
@@ -181,23 +214,38 @@ collapseAll : State -> State
 Closes every node except the root. This is what the "Collapse all" button of
 the `toolbar` does.
 
-### `setExpanded`
+### `setExpandedIds`
 
 ```elm
-setExpanded : List String -> State -> State
+setExpandedIds : List String -> State -> State
 ```
 
 Opens exactly these nodes and closes all others. Include the root (`""`) if
-it should stay open.
+it should stay open; use `expand` to open a deep node with everything above it.
 
-    JsonViewer.setExpanded [ "", "/items" ] state
+    JsonViewer.setExpandedIds [ "", "/items" ] state
+
+### `path`
+
+```elm
+path : List String -> String
+```
+
+The path of a node, from the keys and array positions that lead to it, with
+`~` and `/` in a key written as JSON Pointer wants them.
+
+    JsonViewer.path [ "items", "3", "error" ] -- "/items/3/error"
+
+    JsonViewer.path [ "a/b" ] -- "/a~1b"
+
+    JsonViewer.path [] -- "", the root
 
 ## Attributes
 
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of the viewer. Make them with the functions below and pass a list
@@ -206,7 +254,7 @@ to `view`; later attributes win over earlier ones.
 ### `toolbar`
 
 ```elm
-toolbar : Attribute
+toolbar : Attribute msg
 ```
 
 Shows "Expand all" and "Collapse all" buttons above the tree. There is no
@@ -215,7 +263,7 @@ toolbar by default.
 ### `rootLabel`
 
 ```elm
-rootLabel : String -> Attribute
+rootLabel : String -> Attribute msg
 ```
 
 A name for the root node, shown as its key: `"response": { ... }`.
@@ -223,30 +271,26 @@ A name for the root node, shown as its key: `"response": { ... }`.
 ### `ariaLabel`
 
 ```elm
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ```
 
-The accessible name of the tree, for example "API response". Give one when
-nothing near the viewer names it. In a viewer with a `maxHeight` the name goes to
-the scroll area as well, which then is a `region`.
+The accessible name of the tree, for example "API response". The default is
+"JSON". Give one when the page has more than one viewer.
 
 ### `maxHeight`
 
 ```elm
-maxHeight : Int -> Attribute
+maxHeight : Int -> Attribute msg
 ```
 
 Scrolls inside the viewer when the tree gets taller than this many pixels.
-By default the viewer grows with its content.
-
-A scrolling viewer can take the keyboard focus (`tabindex="0"`), so that
-keyboard users can scroll it with the arrow keys. With an `ariaLabel` the scroll
-area is also a `region` with that name.
+By default the viewer grows with its content. The keyboard scrolls it by moving
+from row to row: the row with the focus is always scrolled into view.
 
 ### `maxDepth`
 
 ```elm
-maxDepth : Int -> Attribute
+maxDepth : Int -> Attribute msg
 ```
 
 Objects and arrays nested deeper than this are shown as `{ ... }` or
@@ -256,7 +300,7 @@ Objects and arrays nested deeper than this are shown as `{ ... }` or
 ### `maxItems`
 
 ```elm
-maxItems : Int -> Attribute
+maxItems : Int -> Attribute msg
 ```
 
 How many entries of one object or array are shown before a "Show N more"
@@ -265,7 +309,7 @@ row. The default is 100, and the value is kept between 5 and 5000.
 ### `maxStringLength`
 
 ```elm
-maxStringLength : Int -> Attribute
+maxStringLength : Int -> Attribute msg
 ```
 
 Strings longer than this many characters are cut and end in "...". The
@@ -275,7 +319,7 @@ is 140, and the value is kept between 10 and 5000.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the toolbar buttons, the "Show N more"

@@ -17,6 +17,14 @@ gauge : List (Attribute msg) -> Float -> Html msg
 meter : List (Attribute msg) -> Float -> Html msg
 sparkline : List (Attribute msg) -> List Float -> Html msg
 
+-- Charts from a Remote
+lineRemote : List (Attribute msg) -> Remote.Remote (List Series) -> Html msg
+barRemote : List (Attribute msg) -> Remote.Remote (List Series) -> Html msg
+donutRemote : List (Attribute msg) -> Remote.Remote (List Segment) -> Html msg
+gaugeRemote : List (Attribute msg) -> Remote.Remote Float -> Html msg
+meterRemote : List (Attribute msg) -> Remote.Remote Float -> Html msg
+sparklineRemote : List (Attribute msg) -> Remote.Remote (List Float) -> Html msg
+
 -- Series
 type Series  -- opaque: no constructors are exposed
 series : String -> List Float -> Series
@@ -37,7 +45,7 @@ title : String -> Attribute msg
 description : String -> Attribute msg
 ariaLabel : String -> Attribute msg
 id : String -> Attribute msg
-size : Int -> Attribute msg
+width : Int -> Attribute msg
 height : Int -> Attribute msg
 tone : Theme.Tone -> Attribute msg
 locale : Locale.Locale -> Attribute msg
@@ -49,15 +57,19 @@ valueFormat : (Float -> String) -> Attribute msg
 categories : List String -> Attribute msg
 dates : List Date.Date -> Attribute msg
 area : Attribute msg
-points : Bool -> Attribute msg
+pointsOnHover : Attribute msg
 stacked : Attribute msg
 horizontal : Attribute msg
 valueLabels : Attribute msg
-legend : Bool -> Attribute msg
+legend : Attribute msg
+hideLegend : Attribute msg
 yMin : Float -> Attribute msg
 yMax : Float -> Attribute msg
-includeZero : Bool -> Attribute msg
+includeZero : Attribute msg
 maxLabels : Int -> Attribute msg
+
+-- Selecting a category or segment
+onSelect : (Int -> msg) -> Attribute msg
 
 -- Donut, gauge and meter
 centerLabel : String -> Attribute msg
@@ -65,11 +77,8 @@ centerCaption : String -> Attribute msg
 range : Float -> Float -> Attribute msg
 thresholds : List ( Float, Theme.Tone ) -> Attribute msg
 
--- Loading, failure and empty
-loading : Bool -> Attribute msg
-failed : Remote.Problem -> Attribute msg
+-- Failure and empty
 onRetry : msg -> Attribute msg
-remote : Remote.Remote a -> Attribute msg
 emptyText : String -> Attribute msg
 ```
 
@@ -79,7 +88,8 @@ Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart
 or SVG package.
 
 Use when: numbers are shown as a trend, a comparison of categories, parts of a whole or one value against a scale.
-Do not use when: the progress of a task is shown, use `Klar.Progress`.
+Do not use when: the progress of a task is shown, use `Klar.Progress`; or the reader must look up exact values row by row, use `Klar.Table`.
+Quick path: `line` or `bar` with `categories` and a list of `series`; data from the backend goes to `lineRemote` (and its sisters) with `onRetry`.
 
     import Klar.Chart as Chart
     import Klar.Theme exposing (Tone(..))
@@ -102,6 +112,14 @@ Do not use when: the progress of a task is shown, use `Klar.Progress`.
         , Chart.thresholds [ ( 70, Success ), ( 90, Warning ), ( 100, Danger ) ]
         ]
         82
+
+    -- from the backend: model.sales is a Remote (List { month : String, amount : Float })
+    Chart.lineRemote
+        [ Chart.title "Revenue"
+        , Chart.categories (List.map .month (Remote.withDefault [] model.sales))
+        , Chart.onRetry ReloadSales
+        ]
+        (Remote.map (\sales -> [ Chart.series "Revenue" (List.map .amount sales) ]) model.sales)
 
 Here `months` and `warehouses` are lists of strings with one name per value.
 
@@ -128,9 +146,11 @@ A line, bar or donut chart is a `role="img"` with a text alternative ("Line
 chart. Orders per month. 2 series, 4 points"), followed by a visually hidden
 data table of at most 120 rows, so the numbers are never only in the picture. A
 gauge and a meter are a `role="meter"` with their value, minimum and maximum. A
-sparkline is an image labelled with a summary of its numbers; give it an
-`ariaLabel` that says what it shows. Native tooltips (`title`) show the values
-on hover. Tooltips enhance, they never gate.
+sparkline is an image labelled with its `ariaLabel` and a summary of its numbers
+("7 points, low 3, high 12, last 12"). Native tooltips (`title`) show the values
+on hover. Tooltips enhance, they never gate. With `onSelect` every category (and
+every legend item of a donut) is a button: it can be clicked, reached with Tab and
+read aloud, and it shows its values in a tooltip on hover and on keyboard focus.
 
 Series get the colors of an eight-color palette in the order you give them, and
 the palette starts over after eight. Use `withSlot` to pin a series to a slot,
@@ -138,10 +158,13 @@ so that its color does not change when other series come and go. A series that
 means good or bad should say so with `withTone`: the status colors are reserved
 for that.
 
-Charts show loading, failed and empty states themselves (`loading`, `failed`,
-`remote`). The built-in text ("No data to show", the names of the chart kinds
-and so on) is English unless you set `locale`. Numbers on the axes and in the
-tooltips follow the locale too, or your own `valueFormat`.
+Data from the backend goes to the sister of the chart that takes a `Remote`
+(`lineRemote`, `barRemote`, `donutRemote`, `sparklineRemote`, `gaugeRemote`,
+`meterRemote`): it draws the skeleton, the failure with "Try again" (`onRetry`),
+the empty state, the data, a refresh (dimmed) and old data ("Old data from 14:05").
+Shape the data with `Remote.map`. The built-in text ("No data to show", the names
+of the chart kinds and so on) is English unless you set `locale`. Numbers on the
+axes and in the tooltips follow the locale too, or your own `valueFormat`.
 
 ## Charts
 
@@ -158,7 +181,7 @@ A line chart with one or more series: a trend over categories, usually time.
         , Chart.series "2026" [ 14, 20, 15, 25 ]
         ]
 
-The value axis follows the data; add `includeZero True` to start it at zero. A
+The value axis follows the data; add `includeZero` to start it at zero. A
 missing value (see `seriesMaybe`) leaves a gap in the line. The legend shows for
 two or more series, and each category has a tooltip with its values.
 
@@ -176,7 +199,7 @@ category, one bar per series.
         , Chart.series "Returned" [ 3, 5, 2 ]
         ]
 
-The value axis includes zero unless you say `includeZero False`. A value of 0
+The value axis always includes zero, so a bar is read by its length. A value of 0
 draws no bar.
 
 ### `donut`
@@ -194,7 +217,7 @@ eight, the seven largest are kept and the rest are folded into one slice called
 
 The total is written in the middle unless `centerLabel` says otherwise, and the
 legend lists every slice with its value and its share of the total. The legend is
-shown unless you say `legend False`. Slices with a value of 0 are left out.
+shown unless you say `hideLegend`. Slices with a value of 0 are left out.
 
 ### `gauge`
 
@@ -208,8 +231,9 @@ is 0 to 100). The zone the value falls in (see `thresholds`) decides the color.
     Chart.gauge [ Chart.centerCaption "of capacity", Chart.unit "%" ] 82
 
 The value is written in the middle unless `centerLabel` says otherwise. A value
-outside the scale fills the arc completely or not at all but is written as it is,
-and a value that is not a number counts as the lowest value of the scale.
+outside the scale fills the arc completely or not at all but is written as it is.
+A value that is not a number (NaN, infinity) is a missing measurement: the arc
+stays empty, the middle shows a dash and screen readers hear "No value".
 
 ### `meter`
 
@@ -228,7 +252,9 @@ A horizontal meter: the value as a marker on a scale with zones.
 
 The title and the value are written above the track, and the two ends of the
 scale below it. A meter is flat and as wide as its container, so it fits where
-a gauge would take too much room.
+a gauge would take too much room. A value that is not a number is a missing
+measurement: the value is a dash, the track has no marker and screen readers hear
+"No value".
 
 ### `sparkline`
 
@@ -246,7 +272,96 @@ an `ariaLabel` that says what it shows, because a sparkline has no title.
 
 Values that are not numbers are left out. With one value there is only the dot,
 with none a dash. The default height is 28px and the width fills the container
-(see `size`).
+(see `width`).
+
+## Charts from a Remote
+
+### `lineRemote`
+
+```elm
+lineRemote : List (Attribute msg) -> Remote.Remote (List Series) -> Html msg
+```
+
+A line chart from a `Remote`: the skeleton while it loads, the problem with
+"Try again" (`onRetry`) when it failed, the empty state, the chart, and the
+chart dimmed while it is refreshed or with "Old data from 14:05" when the last
+refresh failed. Shape the data with `Remote.map`; the categories come from the
+same `Remote`.
+
+    Chart.lineRemote
+        [ Chart.title "Orders per day"
+        , Chart.dates (List.map .day (Remote.withDefault [] model.orders))
+        , Chart.onRetry ReloadOrders
+        , Chart.settings model.settings
+        ]
+        (Remote.map (\days -> [ Chart.series "Orders" (List.map .count days) ]) model.orders)
+
+The chart keeps the same elements around it in every state with data, so the
+keyboard focus on a category (`onSelect`) survives a refresh. Give it an `id`
+to move focus there with `Klar.focus` when "Try again" goes away.
+
+### `barRemote`
+
+```elm
+barRemote : List (Attribute msg) -> Remote.Remote (List Series) -> Html msg
+```
+
+A bar chart from a `Remote`, with every state of `lineRemote`.
+
+    Chart.barRemote
+        [ Chart.categories (List.map .name (Remote.withDefault [] model.warehouses))
+        , Chart.horizontal
+        , Chart.onRetry ReloadWarehouses
+        ]
+        (Remote.map (\rows -> [ Chart.series "Late orders" (List.map .late rows) ]) model.warehouses)
+
+### `donutRemote`
+
+```elm
+donutRemote : List (Attribute msg) -> Remote.Remote (List Segment) -> Html msg
+```
+
+A donut from a `Remote`, with every state of `lineRemote`.
+
+    Chart.donutRemote [ Chart.centerCaption "orders", Chart.onRetry ReloadStatuses ]
+        (Remote.map (List.map (\s -> Chart.segment s.name s.count)) model.statuses)
+
+### `gaugeRemote`
+
+```elm
+gaugeRemote : List (Attribute msg) -> Remote.Remote Float -> Html msg
+```
+
+A gauge from a `Remote`: the skeleton while it loads, the problem with "Try
+again" when it failed, and the value (dimmed while it is refreshed, with "Old data
+from 14:05" when the last refresh failed).
+
+    Chart.gaugeRemote [ Chart.centerCaption "of capacity", Chart.onRetry Reload ]
+        (Remote.map .utilization model.warehouse)
+
+### `meterRemote`
+
+```elm
+meterRemote : List (Attribute msg) -> Remote.Remote Float -> Html msg
+```
+
+A meter from a `Remote`, with every state of `gaugeRemote`.
+
+    Chart.meterRemote [ Chart.title "Warehouse fill", Chart.onRetry Reload ]
+        (Remote.map .fill model.warehouse)
+
+### `sparklineRemote`
+
+```elm
+sparklineRemote : List (Attribute msg) -> Remote.Remote (List Float) -> Html msg
+```
+
+A sparkline from a `Remote`: a skeleton line while it loads, a dash with the
+problem as its name when it failed (there is no room for "Try again"), and the line,
+dimmed while it is refreshed. Old data says so in its name.
+
+    Chart.sparklineRemote [ Chart.ariaLabel "Orders, last 7 days" ]
+        (Remote.map .lastWeek model.orders)
 
 ## Series
 
@@ -414,16 +529,16 @@ replaced when the request starts again and focus would fall back to the page: ca
 [`Klar.focus`](Klar.md#focus) with this id in the same `update`
 branch. The id must be unique on the page.
 
-### `size`
+### `width`
 
 ```elm
-size : Int -> Attribute msg
+width : Int -> Attribute msg
 ```
 
 The width in pixels of a sparkline, donut or gauge, kept between 24 and 1200.
 Without it they take what the container gives them (sparkline: 100%, donut:
-168px, gauge: 200px). Line charts, bar charts and meters always fill their
-container.
+168px, gauge: 200px), and never more than the container. Line charts, bar charts
+and meters always fill their container.
 
 ### `height`
 
@@ -434,7 +549,7 @@ height : Int -> Attribute msg
 The height of the plot in pixels, kept between 16 and 1200. The defaults are
 220 for line and bar charts, a height that follows the number of categories for
 horizontal bars, and 28 for a sparkline. Donut, gauge and meter have a fixed
-size (see `size`).
+shape (see `width`).
 
 ### `tone`
 
@@ -529,18 +644,19 @@ area : Attribute msg
 ```
 
 Fills the area under the line, for every series of a line chart and for a
-sparkline.
+sparkline. A filled area reads as an amount counted from zero, so the value axis
+of a line chart with `area` includes zero.
 
-### `points`
+### `pointsOnHover`
 
 ```elm
-points : Bool -> Attribute msg
+pointsOnHover : Attribute msg
 ```
 
-Whether the points of a line chart carry a marker. `True` always shows a
-marker on every point; `False` shows it only while the pointer is over a
-category. By default markers are always shown for up to 40 categories, and only on
-hover beyond that. The markers of a `dashed` series are always on hover only.
+Shows the markers of a line chart only while the pointer (or the keyboard
+focus, see `onSelect`) is on a category, for a calm line through many points. By
+default every point has a marker for up to 40 categories, and beyond that markers
+are shown on hover only. The markers of a `dashed` series are always on hover only.
 
 ### `stacked`
 
@@ -574,14 +690,24 @@ a horizontal one.
 ### `legend`
 
 ```elm
-legend : Bool -> Attribute msg
+legend : Attribute msg
 ```
 
-Forces the legend of a line, bar or donut chart on (`True`) or off (`False`).
-By default a line or bar chart shows it for two or more series, and a donut
-always shows it. Without the legend of a donut the slices are only named in the
-tooltips and in the hidden data table, so hide it only when the slices are
-labelled in some other way.
+Shows the legend of a line or bar chart even for a single series. By default a
+line or bar chart shows it for two or more series, and a donut always shows it.
+`legend` and `hideLegend` replace each other.
+
+### `hideLegend`
+
+```elm
+hideLegend : Attribute msg
+```
+
+Leaves out the legend of a line, bar or donut chart, for a chart whose series
+or slices are named in some other way (a title that says it, a table next to it).
+Without the legend of a donut the slices are only named in the tooltips and in
+the hidden data table, and a donut with `onSelect` has no keyboard path to its
+slices: keep the legend there.
 
 ### `yMin`
 
@@ -607,11 +733,13 @@ make an axis is ignored and the axis follows the data.
 ### `includeZero`
 
 ```elm
-includeZero : Bool -> Attribute msg
+includeZero : Attribute msg
 ```
 
-Whether the value axis must include zero. The default is `True` for bar
-charts and `False` for line charts, where the axis follows the data.
+Starts the value axis of a line chart at zero (or ends it there, for values
+below zero). By default the axis of a line chart follows the data, unless the chart
+has an `area`. The axis of a bar chart always includes zero: a bar is read by its
+length.
 
 ### `maxLabels`
 
@@ -620,8 +748,33 @@ maxLabels : Int -> Attribute msg
 ```
 
 At most this many category labels on the axis of a line or bar chart. The
-default is 12; the rest are left out evenly (every second, third ... label is
-shown). The value is kept between 2 and 60.
+rest are left out evenly (every second, third ... label is shown), and the label
+of the last category is always there. The default is 12 for a line chart and a
+vertical bar chart; a horizontal bar chart names every bar that has a row of at
+least 14 pixels. The value is kept between 2 and 60.
+
+## Selecting a category or segment
+
+### `onSelect`
+
+```elm
+onSelect : (Int -> msg) -> Attribute msg
+```
+
+Makes every category of a line or bar chart, and every slice of a donut, a
+button that sends this message with its position in the lists you gave, counted
+from 0: the category of `categories` (or `dates`), or the segment of the list given
+to `donut`. Use it to drill down: "click the bar of warehouse B to see its late
+orders".
+
+    Chart.bar [ Chart.categories warehouses, Chart.onSelect WarehousePicked ]
+        [ Chart.series "Late orders" [ 12, 4, 9 ] ]
+
+Each category is a button in the tab order, named by its values ("Oslo. Late
+orders: 12"), with a visible focus ring and a tooltip that shows its values on
+hover and on keyboard focus. A donut's slices take the click, and its legend items
+are the buttons that the keyboard reaches. The "Other" slice of a donut with more
+than eight slices sends nothing. Without `onSelect` the chart is a picture.
 
 ## Donut, gauge and meter
 
@@ -673,33 +826,7 @@ zone, but a meter leaves the part of its track after the last limit uncolored. T
 zones are sorted by limit. Without thresholds the whole scale has the `tone` of the
 chart.
 
-## Loading, failure and empty
-
-### `loading`
-
-```elm
-loading : Bool -> Attribute msg
-```
-
-Shows a skeleton of about the same height in place of the chart while `True`,
-and screen readers hear "Loading chart" (a sparkline becomes a skeleton line that
-is marked as busy). Pass a field of your model. Default: `False`.
-
-`loading`, `failed` and `remote` only add up: a chart is busy when any of them
-says so, and shows a failure when any of them has one, whatever the order. So
-`Chart.remote model.sales` followed by `Chart.loading False` keeps the loading
-and the failure that `remote` set.
-
-### `failed`
-
-```elm
-failed : Remote.Problem -> Attribute msg
-```
-
-Shows the problem instead of the chart, with a "Try again" button if
-`onRetry` is set and the problem is worth retrying. Make a `Problem` with
-`Klar.Remote.problem`, or use `remote`. A sparkline is too small for a message:
-it shows a dash with the title of the problem as its tooltip.
+## Failure and empty
 
 ### `onRetry`
 
@@ -707,26 +834,11 @@ it shows a dash with the title of the problem as its tooltip.
 onRetry : msg -> Attribute msg
 ```
 
-The message sent by the "Try again" button in the failure state and in the
-marker of old data. The button is only shown when the problem is worth retrying
-(see `Klar.Remote.isRetryable` in [Klar.Remote](Klar.Remote.md)); a sparkline has
-none.
-
-### `remote`
-
-```elm
-remote : Remote.Remote a -> Attribute msg
-```
-
-Takes loading, failure, refreshing and old data from a `Remote`. The data
-itself is passed to the chart as usual. `NotAsked` and `Loading` show the
-skeleton, `Failed` shows the problem and `Loaded` shows the chart. Data that is
-`Kept` stays on the screen: dimmed and busy while it is refreshed, and with the
-marker "Old data from 14:05" and a retry when the last refresh failed.
-
-    Chart.line [ Chart.remote model.sales ] (Remote.withDefault [] model.sales)
-
-Here `model.sales` is a `Remote (List Chart.Series)`.
+The message sent by the "Try again" button of a chart from a `Remote`
+(`lineRemote` and its sisters) that failed, and by the marker of old data. The
+button is only shown when the problem is worth retrying (see
+`Klar.Remote.isRetryable` in [Klar.Remote](Klar.Remote.md)); a sparkline is too small
+for a message and has none.
 
 ### `emptyText`
 

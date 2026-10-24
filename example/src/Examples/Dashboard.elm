@@ -15,14 +15,14 @@ The components draw every state from the `Remote`; the page writes no case for t
 The pattern:
 
 1.  One `Remote` per panel in the model, never one for the page.
-2.  Every component takes its `Remote` (`Stat.remote`, `Chart.remote`, `Timeline.remote`,
-    `Tree.viewRemote`) and an `onRetry` message for that panel only.
+2.  Every component takes its `Remote` once (`Stat.remote`, `Chart.lineRemote`, `Chart.donutRemote`,
+    `Timeline.viewRemote`, `Tree.viewRemote`) and an `onRetry` message for that panel only. The
+    data is shaped with `Remote.map`; a chart's categories come from the same `Remote` with
+    `Remote.withDefault`, so old data counts.
 3.  Changing the period or retrying calls `Remote.refresh` on the panel and sends the request; the answer goes in with `Remote.refreshWith panel result time`. Data that is there stays (dimmed), a failed refresh keeps it as old data ("Old data from 14:05"), and a panel with no data shows its skeleton or failure. `Alert.stale` with `Remote.staleIn` gives one notice for the page. The message carries
     the period it was asked for, and an answer for another period is dropped.
 4.  The zone of "Old data from 14:05" is in the model's `Klar.Settings` (`Time.here` at the start, `Settings.withZone`) and each panel is given it (`Stat.settings`, `Chart.settings`, `Timeline.settings`).
-5.  Use `Chart.remote` alone: `Chart.loading` after it silently cancels it. Read data with `Remote.toMaybe`, not a `case` on `Loaded`, so old data counts.
-
-The Activity panel fails on its first request and the order status panel fails for 90 days, on purpose.
+    The Activity panel fails on its first request and the order status panel fails for 90 days, on purpose.
 
 -}
 
@@ -418,7 +418,7 @@ viewStats model =
         [ Stat.label "Revenue"
         , Stat.settings model.settings
         , Stat.remote model.summary
-            (\s -> [ Stat.compact s.revenue, Stat.change { current = s.revenue, previous = s.previousRevenue } ])
+            (\s -> [ Stat.abbreviated s.revenue, Stat.change { current = s.revenue, previous = s.previousRevenue } ])
         , Stat.onRetry (Retry SummaryPanel)
         ]
     , Stat.view
@@ -433,20 +433,21 @@ viewStats model =
 
 viewSales : Model -> Html Msg
 viewSales model =
-    -- remote and onRetry only: `Chart.loading` after `Chart.remote` would cancel it
-    case Remote.toMaybe model.sales of
-        Just sales ->
-            Chart.line [ Chart.categories sales.labels, Chart.settings model.settings, Chart.remote model.sales, Chart.onRetry (Retry SalesPanel) ]
-                [ Chart.series "This period" sales.thisPeriod, Chart.series "Last period" sales.lastPeriod |> Chart.dashed ]
-
-        _ ->
-            Chart.line [ Chart.settings model.settings, Chart.remote model.sales, Chart.onRetry (Retry SalesPanel) ] []
+    Chart.lineRemote
+        [ Chart.categories (Remote.withDefault [] (Remote.map .labels model.sales))
+        , Chart.settings model.settings
+        , Chart.onRetry (Retry SalesPanel)
+        ]
+        (Remote.map
+            (\sales -> [ Chart.series "This period" sales.thisPeriod, Chart.series "Last period" sales.lastPeriod |> Chart.dashed ])
+            model.sales
+        )
 
 
 viewStatuses : Model -> Html Msg
 viewStatuses model =
-    Chart.donut [ Chart.settings model.settings, Chart.remote model.statuses, Chart.onRetry (Retry StatusesPanel) ]
-        (List.map (\( name, share ) -> Chart.segment name share) (Remote.withDefault [] model.statuses))
+    Chart.donutRemote [ Chart.settings model.settings, Chart.onRetry (Retry StatusesPanel) ]
+        (Remote.map (List.map (\( name, share ) -> Chart.segment name share)) model.statuses)
 
 
 viewRegions : Model -> Html Msg
@@ -468,10 +469,9 @@ toNode (Region id name children) =
 
 viewActivity : Model -> Html Msg
 viewActivity model =
-    Timeline.view
+    Timeline.viewRemote
         [ Timeline.settings model.settings
         , Timeline.now (Time.millisToPosix 1760000100000)
-        , Timeline.remote model.activity
         , Timeline.onRetry (Retry ActivityPanel)
         ]
-        (List.map (\a -> Timeline.event a.id (Time.millisToPosix a.at) a.title) (Remote.withDefault [] model.activity))
+        (Remote.map (List.map (\a -> Timeline.event a.id (Time.millisToPosix a.at) a.title)) model.activity)

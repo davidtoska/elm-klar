@@ -134,7 +134,7 @@ view locale model =
                     ]
                 , Stat.view
                     [ Stat.label "Revenue"
-                    , Stat.compact 4200000
+                    , Stat.abbreviated 4200000
                     , Stat.unit "USD"
                     , Stat.delta -1.3
                     , Stat.caption "Last 30 days"
@@ -152,7 +152,7 @@ view locale model =
     , Stat.remote model.shipments (\\n -> [ Stat.int n, Stat.delta 2.4 ])
     ]
 
-Stat.view [ Stat.label "Loading", Stat.loading True ]
+Stat.view [ Stat.label "Loading", Stat.remote Remote.Loading (\\_ -> []) ]
 
 Stat.view [ Stat.label "Alerts", Stat.int 37, Stat.icon Icon.bell, Stat.onClick OpenAlerts ]
 
@@ -170,7 +170,7 @@ Stat.view [ Stat.label "Backlog", Stat.int 218, Stat.delta 3.1, Stat.deltaText "
                             (\n -> [ Stat.int n, Stat.delta 2.4, Stat.deltaLabel "vs. yesterday" ])
                         , Stat.locale locale
                         ]
-                    , Stat.view [ Stat.label "Loading", Stat.loading True, Stat.locale locale ]
+                    , Stat.view [ Stat.label "Loading", Stat.remote Remote.Loading (\_ -> []), Stat.locale locale ]
                     , Stat.view
                         [ Stat.label "Clickable, with an icon"
                         , Stat.int 37

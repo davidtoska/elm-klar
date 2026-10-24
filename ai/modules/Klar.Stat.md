@@ -19,7 +19,7 @@ label : String -> Attribute msg
 value : String -> Attribute msg
 int : Int -> Attribute msg
 decimal : Int -> Float -> Attribute msg
-compact : Float -> Attribute msg
+abbreviated : Float -> Attribute msg
 money : Money.Money -> Attribute msg
 unit : String -> Attribute msg
 caption : String -> Attribute msg
@@ -46,11 +46,9 @@ id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 settings : Settings.Settings -> Attribute msg
 
--- Loading and failure
-loading : Bool -> Attribute msg
-failed : Remote.Problem -> Attribute msg
-onRetry : msg -> Attribute msg
+-- Data from the backend
 remote : Remote.Remote a -> (a -> List (Attribute msg)) -> Attribute msg
+onRetry : msg -> Attribute msg
 ```
 
 ## Documentation
@@ -60,6 +58,7 @@ note and optionally a trend line.
 
 Use when: a headline number is read at a glance on a dashboard or at the top of a page.
 Do not use when: there are several label and value pairs, use `Klar.DescriptionList`, or one value against a scale, use `gauge` or `meter` from `Klar.Chart`.
+Quick path: `view` with `label` and a number (`int`, `decimal`, `abbreviated`, `money`); data from the backend goes in through `remote` with `onRetry`.
 
     import Klar.Stat as Stat
 
@@ -90,15 +89,10 @@ Do not use when: there are several label and value pairs, use `Klar.DescriptionL
     -- tiles side by side
     Stat.row
         [ Stat.view [ Stat.label "Orders", Stat.int 1284 ]
-        , Stat.view [ Stat.label "Revenue", Stat.compact 4200000, Stat.unit "USD" ]
+        , Stat.view [ Stat.label "Revenue", Stat.abbreviated 4200000, Stat.unit "USD" ]
         ]
 
-Use a tile for a headline number that is read at a glance, on a dashboard or at
-the top of a page. For several label and value pairs use
-[Klar.DescriptionList](Klar.DescriptionList.md); for one value against a scale use
-`gauge` or `meter` from [Klar.Chart](Klar.Chart.md).
-
-Give the number as `int`, `decimal`, `compact` or `money` and the tile writes it with the
+Give the number as `int`, `decimal`, `abbreviated` or `money` and the tile writes it with the
 separators of its `locale` (English by default: `1,284`, `4.2M`), or pass a
 string you have formatted yourself to `value`. A long number is set in a smaller
 type so that it is always written out in full.
@@ -108,8 +102,10 @@ direction and meaning: up is good unless the tile says `lowerIsBetter`. The arro
 and a visually hidden word ("increase" or "decrease") carry the direction, so
 color is never the only signal.
 
-A tile can be loading (a skeleton in place of the number) or failed (a short
-message with a retry link); both keep the label so the layout does not jump.
+A tile from the backend (`remote`) can be loading (a skeleton in place of the
+number) or failed (a short message with a retry link); both keep the label so the
+layout does not jump. A tile with no number at all shows a dash, and screen
+readers hear "No data".
 With `onClick` the whole tile is a button, so it can be reached and activated
 from the keyboard (except while it shows a failure: then it is a plain block, and
 only its retry button is a control).
@@ -169,8 +165,8 @@ value : String -> Attribute msg
 ```
 
 The number as text that you have formatted yourself: `"1,284"`, `"87%"`,
-`"14.5"`. To let the tile format it with its `locale`, use `int`, `decimal` or
-`compact` instead. Without any of them no number is shown.
+`"14.5"`. To let the tile format it with its `locale`, use `int`, `decimal`,
+`abbreviated` or `money` instead. Without any of them the tile shows a dash.
 
 ### `int`
 
@@ -192,10 +188,10 @@ separators of the tile's `locale`: `decimal 1 14.53` is "14.5" in English. The
 number is rounded, not cut. A number that is not finite (NaN or infinity) is
 shown as an en dash.
 
-### `compact`
+### `abbreviated`
 
 ```elm
-compact : Float -> Attribute msg
+abbreviated : Float -> Attribute msg
 ```
 
 A number that shortens itself when it is large: `12900` stays "12,900", but
@@ -249,7 +245,7 @@ delta : Float -> Attribute msg
 ```
 
 The change since last time, as a percentage: `4.2` is shown as "+4.2%" and
-`-8` as "-8%", rounded to one decimal. The sign picks the arrow and, together
+`-8` as "−8%" (with a true minus sign), rounded to one decimal. The sign picks the arrow and, together
 with `lowerIsBetter`, the color. A change smaller than 0.05 counts as unchanged
 and gets a dash. A value that is not a number (NaN or infinity) shows no change.
 
@@ -411,43 +407,7 @@ The settings of the application (`Klar.Settings`): the time zone of the time in
 
     Stat.settings model.settings
 
-## Loading and failure
-
-### `loading`
-
-```elm
-loading : Bool -> Attribute msg
-```
-
-While `True` the tile shows a skeleton in place of the number, the change and
-the trend, and tells screen readers that it is loading. The label stays, so the
-layout does not jump. Pass a field of your model. Default: `False`.
-
-`loading`, `failed` and `remote` only add up: a tile is busy when any of them says
-so, and shows a failure when any of them has one, whatever the order. So
-`Stat.remote model.shipments f` followed by `Stat.loading False` keeps what
-`remote` set.
-
-### `failed`
-
-```elm
-failed : Remote.Problem -> Attribute msg
-```
-
-Shows a failure in place of the number: the title of the problem next to an
-error icon, with its detail as the tooltip. Add `onRetry` for a "Try again" link.
-Make a `Problem` with `Klar.Remote.problem`, or use `remote` to get loading and
-failure from a `Remote`.
-
-### `onRetry`
-
-```elm
-onRetry : msg -> Attribute msg
-```
-
-The message sent by the "Try again" link in the failure state. The link is
-only shown when the problem is worth retrying (see `Klar.Remote.isRetryable` in
-[Klar.Remote](Klar.Remote.md)).
+## Data from the backend
 
 ### `remote`
 
@@ -464,8 +424,20 @@ refresh failed. A tile with that retry is a plain block, like a failed tile.
 
     Stat.view
         [ Stat.label "Shipments"
+        , Stat.onRetry ReloadShipments
         , Stat.remote model.shipments (\s -> [ Stat.int s.count, Stat.delta s.change ])
         ]
 
 Attributes that do not depend on the data, such as `label`, belong next to
-`remote` in the list.
+`remote` in the list. Several tiles can read the same `Remote`, each taking its
+own numbers from it.
+
+### `onRetry`
+
+```elm
+onRetry : msg -> Attribute msg
+```
+
+The message sent by the "Try again" link in the failure state. The link is
+only shown when the problem is worth retrying (see `Klar.Remote.isRetryable` in
+[Klar.Remote](Klar.Remote.md)).

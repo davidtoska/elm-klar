@@ -935,6 +935,101 @@ css =
 .klar-chart-spark--empty { color: var(--klar-text-disabled); }
 .klar-chart-spark--loading > * { width: 100%; }
 
+/* Selectable categories (Chart.onSelect): every slot is a button with a
+   visible focus ring and a tooltip of its values (data-tip) on hover and on
+   keyboard focus, so a keyboard or touch user can read every value. */
+
+.klar-chart__slot--button {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.klar-chart__slot--button:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+  background: var(--klar-chart-hover);
+}
+
+.klar-chart__slots:not(.klar-chart__bars) .klar-chart__slot--button:focus-visible::before { opacity: 1; }
+.klar-chart__slot--button:focus-visible .klar-chart__point--quiet { opacity: 1; }
+
+.klar-chart__slot--button:hover::after,
+.klar-chart__slot--button:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + var(--klar-space-1));
+  left: 50%;
+  z-index: var(--klar-z-tooltip);
+  width: max-content;
+  max-width: 240px;
+  padding: var(--klar-space-1) var(--klar-space-2);
+  border-radius: var(--klar-radius-sm);
+  background: var(--klar-text);
+  color: var(--klar-surface);
+  font-size: var(--klar-text-xs);
+  line-height: 1.4;
+  text-align: start;
+  white-space: pre-line;
+  pointer-events: none;
+  translate: -50% 0;
+}
+
+.klar-chart__plot--horizontal .klar-chart__slot--button:hover::after,
+.klar-chart__plot--horizontal .klar-chart__slot--button:focus-visible::after {
+  bottom: auto;
+  top: 50%;
+  left: 100%;
+  translate: var(--klar-space-1) -50%;
+}
+
+.klar-chart__segment--button { cursor: pointer; }
+
+.klar-chart__legend-entry {
+  display: contents;
+}
+
+.klar-chart__legend-item--button {
+  margin: calc(-1 * var(--klar-space-1));
+  padding: var(--klar-space-1);
+  border: 0;
+  border-radius: var(--klar-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.klar-chart__legend-item--button:hover { background: var(--klar-chart-hover); }
+
+.klar-chart__legend-item--button:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 0;
+}
+
+@media (forced-colors: active) {
+  .klar-chart__slot--button:focus-visible,
+  .klar-chart__legend-item--button:focus-visible {
+    outline: 2px solid Highlight;
+  }
+
+  .klar-chart__slot--button:hover::after,
+  .klar-chart__slot--button:focus-visible::after {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+
 /* ==========================================================================
    Stat (KPI tile)
    Values use the default proportional figures: tabular digits are for
@@ -1030,6 +1125,7 @@ css =
 
 .klar-stat__value--long { font-size: calc(var(--_fs) * 0.8); }
 .klar-stat__value--xlong { font-size: calc(var(--_fs) * 0.64); }
+.klar-stat__value--missing { color: var(--klar-text-disabled); }
 
 .klar-stat__unit {
   flex: none;
@@ -1628,9 +1724,6 @@ css =
   padding: 8px 12px 10px;
 }
 
-/* With a max height the area takes keyboard focus (tabindex 0): the ring goes inside. */
-.klar-json__scroll:focus-visible { outline-offset: -2px; }
-
 .klar-json__tree,
 .klar-json__children {
   margin: 0;
@@ -1653,6 +1746,17 @@ css =
 
 .klar-json__node { display: block; }
 
+/* Every row is a treeitem with one tab stop: the ring goes around the row's own
+   line, never around a whole open node. */
+.klar-json__row:focus-visible,
+.klar-json__node:focus-visible { outline: none; }
+
+.klar-json__row:focus-visible,
+.klar-json__node:focus-visible > .klar-json__toggle {
+  border-radius: var(--klar-radius);
+  box-shadow: inset 0 0 0 2px var(--klar-focus-color);
+}
+
 .klar-json__toggle {
   display: inline-flex;
   align-items: center;
@@ -1670,11 +1774,6 @@ css =
 }
 
 .klar-json__toggle:hover { background: var(--klar-gray-100); }
-
-.klar-json__toggle:focus-visible {
-  outline: 2px solid var(--klar-focus-color);
-  outline-offset: 0;
-}
 
 .klar-json__text {
   min-width: 0;
@@ -1722,6 +1821,14 @@ css =
 }
 
 .klar-json__more:hover { text-decoration: underline; }
+
+@media (forced-colors: active) {
+  .klar-json__row:focus-visible,
+  .klar-json__node:focus-visible > .klar-json__toggle {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
 
 /* ==========================================================================
    Tree

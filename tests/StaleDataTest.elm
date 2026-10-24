@@ -185,7 +185,7 @@ components =
             Stat.view ([ Stat.label "Open orders", Stat.onRetry Retry ] ++ extra)
 
         history extra =
-            Timeline.view ([ Timeline.remote stale ] ++ extra) []
+            Timeline.viewRemote extra (Remote.map (\_ -> []) stale)
     in
     describe "the components"
         [ test "a table keeps its rows and says how old they are" <|
@@ -226,12 +226,12 @@ components =
                     |> Query.has [ ariaBusy, text "4" ]
         , test "a chart with old data keeps drawing it and says so" <|
             \_ ->
-                html (Chart.line [ Chart.title "Sales", Chart.remote stale, Chart.onRetry Retry ] [ Chart.series "2026" [ 1, 2, 3 ] ])
+                html (Chart.lineRemote [ Chart.title "Sales", Chart.onRetry Retry ] (Remote.map (\_ -> [ Chart.series "2026" [ 1, 2, 3 ] ]) stale))
                     |> Query.has [ text "Old data from 14:05", Selector.class "klar-chart" ]
         , test "a sparkline says it in its label" <|
             \_ ->
-                html (Chart.sparkline [ Chart.remote stale ] [ 1, 2, 3 ])
-                    |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Trend: 3 points, 1 - 3, 3. Old data from 14:05 UTC") ]
+                html (Chart.sparklineRemote [] (Remote.map (\_ -> [ 1, 2, 3 ]) stale))
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Trend: 3 points, low 1, high 3, last 3. Old data from 14:05 UTC") ]
         , test "a timeline marks old data" <|
             \_ ->
                 html (history [ Timeline.onRetry Retry ])
@@ -256,9 +256,9 @@ components =
         , test "a problem that retrying cannot fix has no retry button" <|
             \_ ->
                 html
-                    (Timeline.view
-                        [ Timeline.remote (Remote.refreshWith (Loaded 1) (Err (Remote.problem Remote.forbidden)) (at 1)), Timeline.onRetry Retry ]
-                        []
+                    (Timeline.viewRemote
+                        [ Timeline.onRetry Retry ]
+                        (Remote.refreshWith (Loaded []) (Err (Remote.problem Remote.forbidden)) (at 1))
                     )
                     |> Expect.all [ Query.has [ text "Old data" ], Query.hasNot [ Selector.tag "button" ] ]
         ]
@@ -332,29 +332,38 @@ palette =
 
 traps : Test
 traps =
-    describe "attributes that used to cancel each other"
-        [ test "Chart.loading False after Chart.remote keeps the loading state" <|
+    describe "the data is given once, with its state: the Remote"
+        [ test "a line chart from a loading Remote is busy" <|
             \_ ->
-                html (Chart.line [ Chart.remote Loading, Chart.loading False ] [ Chart.series "a" [ 1 ] ])
+                html (Chart.lineRemote [] Loading)
                     |> Query.has [ ariaBusy ]
-        , test "Chart.loading False after Chart.remote keeps the failure" <|
+        , test "a line chart from a failed Remote shows the problem" <|
             \_ ->
-                html (Chart.line [ Chart.remote (Failed failure), Chart.loading False ] [ Chart.series "a" [ 1 ] ])
+                html (Chart.lineRemote [] (Failed failure))
                     |> Query.has [ text "Can't reach the service" ]
-        , test "Chart.remote with data after Chart.loading True does not end the loading" <|
+        , test "a line chart from a loaded Remote draws the data" <|
             \_ ->
-                html (Chart.line [ Chart.loading True, Chart.remote (Loaded 1) ] [ Chart.series "a" [ 1 ] ])
+                html (Chart.lineRemote [ Chart.categories [ "Jan" ] ] (Loaded [ Chart.series "a" [ 1 ] ]))
+                    |> Expect.all [ Query.hasNot [ ariaBusy ], Query.has [ Selector.class "klar-chart--line" ] ]
+        , test "a donut, a gauge and a meter from a loading Remote are busy" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> html (Chart.donutRemote [] Loading) |> Query.has [ ariaBusy ]
+                    , \_ -> html (Chart.gaugeRemote [] Loading) |> Query.has [ ariaBusy ]
+                    , \_ -> html (Chart.meterRemote [] Loading) |> Query.has [ ariaBusy ]
+                    , \_ -> html (Chart.sparklineRemote [] Loading) |> Query.has [ ariaBusy ]
+                    ]
+                    ()
+        , test "a tile from a loading Remote is busy" <|
+            \_ ->
+                html (Stat.view [ Stat.label "x", Stat.remote Loading (\_ -> []) ])
                     |> Query.has [ ariaBusy ]
-        , test "Stat.loading False after Stat.remote keeps the loading state" <|
+        , test "a tile from a failed Remote shows the problem" <|
             \_ ->
-                html (Stat.view [ Stat.label "x", Stat.remote Loading (\_ -> []), Stat.loading False ])
-                    |> Query.has [ ariaBusy ]
-        , test "Stat.loading False after Stat.remote keeps the failure" <|
-            \_ ->
-                html (Stat.view [ Stat.label "x", Stat.remote (Failed failure) (\_ -> []), Stat.loading False ])
+                html (Stat.view [ Stat.label "x", Stat.remote (Failed failure) (\_ -> []) ])
                     |> Query.has [ text "Can't reach the service" ]
-        , test "Timeline.loading False after Timeline.remote keeps the loading state" <|
+        , test "a timeline from a loading Remote is busy" <|
             \_ ->
-                html (Timeline.view [ Timeline.remote Loading, Timeline.loading False ] [])
+                html (Timeline.viewRemote [] Loading)
                     |> Query.has [ ariaBusy ]
         ]

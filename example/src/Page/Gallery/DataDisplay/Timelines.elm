@@ -10,7 +10,7 @@ import Klar
 import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
-import Klar.Remote exposing (Problem)
+import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.RemoteView as RemoteView
 import Klar.Settings exposing (Settings)
 import Klar.Text as Text
@@ -29,8 +29,7 @@ import Time
 
 type alias Model =
     { shown : Int
-    , loadingMore : Bool
-    , moreFailed : Maybe Problem
+    , morePages : Remote Bool
     , retrying : Bool
     }
 
@@ -46,8 +45,7 @@ type Msg
 init : Model
 init =
     { shown = 12
-    , loadingMore = False
-    , moreFailed = Nothing
+    , morePages = Remote.Loaded True
     , retrying = False
     }
 
@@ -56,15 +54,19 @@ update : Bool -> Msg -> Model -> ( Model, Cmd Msg )
 update failing msg model =
     case msg of
         LoadMore ->
-            ( { model | loadingMore = True, moreFailed = Nothing }
+            ( { model | morePages = Remote.refresh model.morePages }
             , Cmd.map MoreLoaded (Pretend.respond failing ())
             )
 
         MoreLoaded (Ok _) ->
-            ( { model | loadingMore = False, shown = model.shown + 8 }, Cmd.none )
+            let
+                shown =
+                    model.shown + 8
+            in
+            ( { model | shown = shown, morePages = Remote.Loaded (shown < List.length orderEvents) }, Cmd.none )
 
         MoreLoaded (Err problem) ->
-            ( { model | loadingMore = False, moreFailed = Just problem }, Cmd.none )
+            ( { model | morePages = Remote.Failed problem }, Cmd.none )
 
         Retry ->
             -- "Try again" is replaced by the skeleton: focus goes to the timeline (its id).
@@ -88,25 +90,16 @@ view settings locale model =
     let
         common =
             [ Timeline.locale locale, Timeline.settings settings, Timeline.now Sample.now ]
-
-        loadMoreFailure =
-            case model.moreFailed of
-                Just problem ->
-                    [ Timeline.moreFailed problem ]
-
-                Nothing ->
-                    []
     in
     Doc.section "Timeline"
         "An order log and audit trail. Events are grouped by day, and the color of the marker says what kind of event it is. Details unfold with the mouse, or with Tab to “Show details” and Enter or Space."
         [ Doc.example
             { title = "Order log with “Load more”"
-            , description = Just "“Load more” fetches eight more events. With “Simulate failures” a short message appears at the bottom, the button turns into “Try again”, and the events that are already loaded stay."
+            , description = Just "“Load more” fetches eight more events; the footer counts them against the total. The request for the next page is a Remote Bool (True: there is more). With “Simulate failures” a short message appears at the bottom, the button turns into “Try again”, and the events that are already loaded stay. After the last page the button stays, dimmed, so the keyboard focus on it is kept."
             , code = Just """Timeline.view
     [ Timeline.now model.now
-    , Timeline.onLoadMore LoadMore
-    , Timeline.loadingMore model.loadingMore
-    , Timeline.hasMore (model.shown < model.total)
+    , Timeline.loadMore LoadMore model.morePages
+    , Timeline.total 40
     ]
     [ Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
         |> Timeline.withAuthor "Maya Patel"
@@ -117,17 +110,23 @@ view settings locale model =
         |> Timeline.withDetails (Text.mono "due: 2026-10-12 -> 2026-10-19")
     ]
 
+-- in update
+LoadMore ->
+    ( { model | morePages = Remote.refresh model.morePages }, fetchPage )
+
+GotPage (Ok page) ->
+    ( { model | morePages = Remote.Loaded page.hasMore, ... }, Cmd.none )
+
 -- a failed page: the events stay, the footer shows the problem
-Timeline.moreFailed problem"""
+GotPage (Err problem) ->
+    ( { model | morePages = Remote.Failed problem }, Cmd.none )"""
             }
             (Timeline.view
                 (common
                     ++ [ Timeline.ariaLabel "Order log"
-                       , Timeline.onLoadMore LoadMore
-                       , Timeline.loadingMore model.loadingMore
-                       , Timeline.hasMore (model.shown < List.length orderEvents)
+                       , Timeline.loadMore LoadMore model.morePages
+                       , Timeline.total (List.length orderEvents)
                        ]
-                    ++ loadMoreFailure
                 )
                 (List.take model.shown orderEvents)
             )
@@ -179,27 +178,27 @@ Timeline.event "e1" confirmedAt "Order ORD-10042 confirmed"
         , Doc.example
             { title = "Loading, empty and failed"
             , description = Just "The failed timeline retries: the backend is down on purpose, so it loads for a moment and fails again."
-            , code = Just """Timeline.view [ Timeline.loading True ] []
+            , code = Just """Timeline.viewRemote [] Remote.Loading
 
 Timeline.view [ Timeline.emptyTitle "No events in this period" ] []
 
-Timeline.view [ Timeline.remote model.history, Timeline.onRetry Reload ] events"""
+Timeline.viewRemote [ Timeline.onRetry Reload, Timeline.id "history" ]
+    (Remote.map (List.map toEvent) model.history)"""
             }
             (Layout.grid [ Layout.minColumn 300, Layout.gap 6 ]
-                [ Timeline.view (Timeline.loading True :: common) []
+                [ Timeline.viewRemote common Remote.Loading
                 , Timeline.view
                     (Timeline.emptyTitle "No events in this period"
                         :: Timeline.emptyDescription "Orders that change will show up here."
                         :: common
                     )
                     []
-                , Timeline.view
-                    (Timeline.remote (Pretend.down locale model.retrying)
-                        :: Timeline.id "history-timeline"
+                , Timeline.viewRemote
+                    (Timeline.id "history-timeline"
                         :: Timeline.onRetry Retry
                         :: common
                     )
-                    []
+                    (Pretend.down locale model.retrying)
                 ]
             )
         ]

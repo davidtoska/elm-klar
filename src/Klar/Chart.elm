@@ -1,18 +1,21 @@
 module Klar.Chart exposing
     ( line, bar, donut, gauge, meter, sparkline
+    , lineRemote, barRemote, donutRemote, gaugeRemote, meterRemote, sparklineRemote
     , Series, series, seriesMaybe, withSlot, withTone, dashed
     , Segment, segment, segmentSlot, segmentTone
-    , Attribute, title, description, ariaLabel, id, size, height, tone, locale, settings, unit, valueFormat
-    , categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
+    , Attribute, title, description, ariaLabel, id, width, height, tone, locale, settings, unit, valueFormat
+    , categories, dates, area, pointsOnHover, stacked, horizontal, valueLabels, legend, hideLegend, yMin, yMax, includeZero, maxLabels
+    , onSelect
     , centerLabel, centerCaption, range, thresholds
-    , loading, failed, onRetry, remote, emptyText
+    , onRetry, emptyText
     )
 
 {-| Line, bar, donut, gauge, meter and sparkline charts, drawn without any chart
 or SVG package.
 
 Use when: numbers are shown as a trend, a comparison of categories, parts of a whole or one value against a scale.
-Do not use when: the progress of a task is shown, use `Klar.Progress`.
+Do not use when: the progress of a task is shown, use `Klar.Progress`; or the reader must look up exact values row by row, use `Klar.Table`.
+Quick path: `line` or `bar` with `categories` and a list of `series`; data from the backend goes to `lineRemote` (and its sisters) with `onRetry`.
 
     import Klar.Chart as Chart
     import Klar.Theme exposing (Tone(..))
@@ -35,6 +38,14 @@ Do not use when: the progress of a task is shown, use `Klar.Progress`.
         , Chart.thresholds [ ( 70, Success ), ( 90, Warning ), ( 100, Danger ) ]
         ]
         82
+
+    -- from the backend: model.sales is a Remote (List { month : String, amount : Float })
+    Chart.lineRemote
+        [ Chart.title "Revenue"
+        , Chart.categories (List.map .month (Remote.withDefault [] model.sales))
+        , Chart.onRetry ReloadSales
+        ]
+        (Remote.map (\sales -> [ Chart.series "Revenue" (List.map .amount sales) ]) model.sales)
 
 Here `months` and `warehouses` are lists of strings with one name per value.
 
@@ -61,9 +72,11 @@ A line, bar or donut chart is a `role="img"` with a text alternative ("Line
 chart. Orders per month. 2 series, 4 points"), followed by a visually hidden
 data table of at most 120 rows, so the numbers are never only in the picture. A
 gauge and a meter are a `role="meter"` with their value, minimum and maximum. A
-sparkline is an image labelled with a summary of its numbers; give it an
-`ariaLabel` that says what it shows. Native tooltips (`title`) show the values
-on hover. Tooltips enhance, they never gate.
+sparkline is an image labelled with its `ariaLabel` and a summary of its numbers
+("7 points, low 3, high 12, last 12"). Native tooltips (`title`) show the values
+on hover. Tooltips enhance, they never gate. With `onSelect` every category (and
+every legend item of a donut) is a button: it can be clicked, reached with Tab and
+read aloud, and it shows its values in a tooltip on hover and on keyboard focus.
 
 Series get the colors of an eight-color palette in the order you give them, and
 the palette starts over after eight. Use `withSlot` to pin a series to a slot,
@@ -71,15 +84,23 @@ so that its color does not change when other series come and go. A series that
 means good or bad should say so with `withTone`: the status colors are reserved
 for that.
 
-Charts show loading, failed and empty states themselves (`loading`, `failed`,
-`remote`). The built-in text ("No data to show", the names of the chart kinds
-and so on) is English unless you set `locale`. Numbers on the axes and in the
-tooltips follow the locale too, or your own `valueFormat`.
+Data from the backend goes to the sister of the chart that takes a `Remote`
+(`lineRemote`, `barRemote`, `donutRemote`, `sparklineRemote`, `gaugeRemote`,
+`meterRemote`): it draws the skeleton, the failure with "Try again" (`onRetry`),
+the empty state, the data, a refresh (dimmed) and old data ("Old data from 14:05").
+Shape the data with `Remote.map`. The built-in text ("No data to show", the names
+of the chart kinds and so on) is English unless you set `locale`. Numbers on the
+axes and in the tooltips follow the locale too, or your own `valueFormat`.
 
 
 # Charts
 
 @docs line, bar, donut, gauge, meter, sparkline
+
+
+# Charts from a Remote
+
+@docs lineRemote, barRemote, donutRemote, gaugeRemote, meterRemote, sparklineRemote
 
 
 # Series
@@ -94,12 +115,17 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Attributes
 
-@docs Attribute, title, description, ariaLabel, id, size, height, tone, locale, settings, unit, valueFormat
+@docs Attribute, title, description, ariaLabel, id, width, height, tone, locale, settings, unit, valueFormat
 
 
 # Line and bar charts
 
-@docs categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
+@docs categories, dates, area, pointsOnHover, stacked, horizontal, valueLabels, legend, hideLegend, yMin, yMax, includeZero, maxLabels
+
+
+# Selecting a category or segment
+
+@docs onSelect
 
 
 # Donut, gauge and meter
@@ -107,15 +133,16 @@ tooltips follow the locale too, or your own `valueFormat`.
 @docs centerLabel, centerCaption, range, thresholds
 
 
-# Loading, failure and empty
+# Failure and empty
 
-@docs loading, failed, onRetry, remote, emptyText
+@docs onRetry, emptyText
 
 -}
 
 import Array exposing (Array)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as Events
 import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
@@ -277,16 +304,16 @@ type alias Config msg =
     , categories : List String
     , dates : List Date
     , height : Maybe Int
-    , size : Maybe Int
+    , width : Maybe Int
     , area : Bool
-    , points : Maybe Bool
+    , pointsOnHover : Bool
     , stacked : Bool
     , horizontal : Bool
     , valueLabels : Bool
     , legend : Maybe Bool
     , yMin : Maybe Float
     , yMax : Maybe Float
-    , includeZero : Maybe Bool
+    , includeZero : Bool
     , valueFormat : Maybe (Float -> String)
     , unit : String
     , locale : Locale
@@ -295,7 +322,9 @@ type alias Config msg =
     , busy : Bool
     , failure : Maybe Problem
     , freshness : Freshness
+    , fromRemote : Bool
     , onRetry : Maybe msg
+    , onSelect : Maybe (Int -> msg)
     , id : Maybe String
     , emptyText : Maybe String
     , centerLabel : Maybe String
@@ -303,7 +332,7 @@ type alias Config msg =
     , thresholds : List ( Float, Tone )
     , rangeMin : Float
     , rangeMax : Float
-    , maxLabels : Int
+    , maxLabels : Maybe Int
     }
 
 
@@ -316,16 +345,16 @@ configure attributes =
         , categories = []
         , dates = []
         , height = Nothing
-        , size = Nothing
+        , width = Nothing
         , area = False
-        , points = Nothing
+        , pointsOnHover = False
         , stacked = False
         , horizontal = False
         , valueLabels = False
         , legend = Nothing
         , yMin = Nothing
         , yMax = Nothing
-        , includeZero = Nothing
+        , includeZero = False
         , valueFormat = Nothing
         , unit = ""
         , locale = Locale.default
@@ -334,7 +363,9 @@ configure attributes =
         , busy = False
         , failure = Nothing
         , freshness = Freshness.Fresh
+        , fromRemote = False
         , onRetry = Nothing
+        , onSelect = Nothing
         , id = Nothing
         , emptyText = Nothing
         , centerLabel = Nothing
@@ -342,7 +373,7 @@ configure attributes =
         , thresholds = []
         , rangeMin = 0
         , rangeMax = 100
-        , maxLabels = 12
+        , maxLabels = Nothing
         }
         attributes
 
@@ -417,7 +448,7 @@ dates days =
 {-| The height of the plot in pixels, kept between 16 and 1200. The defaults are
 220 for line and bar charts, a height that follows the number of categories for
 horizontal bars, and 28 for a sparkline. Donut, gauge and meter have a fixed
-size (see `size`).
+shape (see `width`).
 -}
 height : Int -> Attribute msg
 height pixels =
@@ -426,30 +457,31 @@ height pixels =
 
 {-| The width in pixels of a sparkline, donut or gauge, kept between 24 and 1200.
 Without it they take what the container gives them (sparkline: 100%, donut:
-168px, gauge: 200px). Line charts, bar charts and meters always fill their
-container.
+168px, gauge: 200px), and never more than the container. Line charts, bar charts
+and meters always fill their container.
 -}
-size : Int -> Attribute msg
-size pixels =
-    Attribute (\config -> { config | size = Just (clamp 24 1200 pixels) })
+width : Int -> Attribute msg
+width pixels =
+    Attribute (\config -> { config | width = Just (clamp 24 1200 pixels) })
 
 
 {-| Fills the area under the line, for every series of a line chart and for a
-sparkline.
+sparkline. A filled area reads as an amount counted from zero, so the value axis
+of a line chart with `area` includes zero.
 -}
 area : Attribute msg
 area =
     Attribute (\config -> { config | area = True })
 
 
-{-| Whether the points of a line chart carry a marker. `True` always shows a
-marker on every point; `False` shows it only while the pointer is over a
-category. By default markers are always shown for up to 40 categories, and only on
-hover beyond that. The markers of a `dashed` series are always on hover only.
+{-| Shows the markers of a line chart only while the pointer (or the keyboard
+focus, see `onSelect`) is on a category, for a calm line through many points. By
+default every point has a marker for up to 40 categories, and beyond that markers
+are shown on hover only. The markers of a `dashed` series are always on hover only.
 -}
-points : Bool -> Attribute msg
-points value =
-    Attribute (\config -> { config | points = Just value })
+pointsOnHover : Attribute msg
+pointsOnHover =
+    Attribute (\config -> { config | pointsOnHover = True })
 
 
 {-| Stacks the series of a bar chart on top of each other instead of side by side.
@@ -478,15 +510,24 @@ valueLabels =
     Attribute (\config -> { config | valueLabels = True })
 
 
-{-| Forces the legend of a line, bar or donut chart on (`True`) or off (`False`).
-By default a line or bar chart shows it for two or more series, and a donut
-always shows it. Without the legend of a donut the slices are only named in the
-tooltips and in the hidden data table, so hide it only when the slices are
-labelled in some other way.
+{-| Shows the legend of a line or bar chart even for a single series. By default a
+line or bar chart shows it for two or more series, and a donut always shows it.
+`legend` and `hideLegend` replace each other.
 -}
-legend : Bool -> Attribute msg
-legend value =
-    Attribute (\config -> { config | legend = Just value })
+legend : Attribute msg
+legend =
+    Attribute (\config -> { config | legend = Just True })
+
+
+{-| Leaves out the legend of a line, bar or donut chart, for a chart whose series
+or slices are named in some other way (a title that says it, a table next to it).
+Without the legend of a donut the slices are only named in the tooltips and in
+the hidden data table, and a donut with `onSelect` has no keyboard path to its
+slices: keep the legend there.
+-}
+hideLegend : Attribute msg
+hideLegend =
+    Attribute (\config -> { config | legend = Just False })
 
 
 {-| Fixes the lower end of the value axis (the horizontal axis of a horizontal bar
@@ -508,12 +549,14 @@ yMax value =
     Attribute (\config -> { config | yMax = sanitize value })
 
 
-{-| Whether the value axis must include zero. The default is `True` for bar
-charts and `False` for line charts, where the axis follows the data.
+{-| Starts the value axis of a line chart at zero (or ends it there, for values
+below zero). By default the axis of a line chart follows the data, unless the chart
+has an `area`. The axis of a bar chart always includes zero: a bar is read by its
+length.
 -}
-includeZero : Bool -> Attribute msg
-includeZero value =
-    Attribute (\config -> { config | includeZero = Just value })
+includeZero : Attribute msg
+includeZero =
+    Attribute (\config -> { config | includeZero = True })
 
 
 {-| How a value is written on the axis, in the tooltips, the value labels and the
@@ -570,72 +613,115 @@ tone value =
     Attribute (\config -> { config | tone = Just value })
 
 
-{-| Shows a skeleton of about the same height in place of the chart while `True`,
-and screen readers hear "Loading chart" (a sparkline becomes a skeleton line that
-is marked as busy). Pass a field of your model. Default: `False`.
-
-`loading`, `failed` and `remote` only add up: a chart is busy when any of them
-says so, and shows a failure when any of them has one, whatever the order. So
-`Chart.remote model.sales` followed by `Chart.loading False` keeps the loading
-and the failure that `remote` set.
-
--}
-loading : Bool -> Attribute msg
-loading value =
-    Attribute (\config -> { config | busy = config.busy || value })
-
-
-{-| Shows the problem instead of the chart, with a "Try again" button if
-`onRetry` is set and the problem is worth retrying. Make a `Problem` with
-`Klar.Remote.problem`, or use `remote`. A sparkline is too small for a message:
-it shows a dash with the title of the problem as its tooltip.
--}
-failed : Problem -> Attribute msg
-failed problem =
-    Attribute (\config -> { config | failure = Just problem })
-
-
-{-| The message sent by the "Try again" button in the failure state and in the
-marker of old data. The button is only shown when the problem is worth retrying
-(see `Klar.Remote.isRetryable` in [Klar.Remote](Klar-Remote)); a sparkline has
-none.
+{-| The message sent by the "Try again" button of a chart from a `Remote`
+(`lineRemote` and its sisters) that failed, and by the marker of old data. The
+button is only shown when the problem is worth retrying (see
+`Klar.Remote.isRetryable` in [Klar.Remote](Klar-Remote)); a sparkline is too small
+for a message and has none.
 -}
 onRetry : msg -> Attribute msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
 
-{-| Takes loading, failure, refreshing and old data from a `Remote`. The data
-itself is passed to the chart as usual. `NotAsked` and `Loading` show the
-skeleton, `Failed` shows the problem and `Loaded` shows the chart. Data that is
-`Kept` stays on the screen: dimmed and busy while it is refreshed, and with the
-marker "Old data from 14:05" and a retry when the last refresh failed.
+{-| Makes every category of a line or bar chart, and every slice of a donut, a
+button that sends this message with its position in the lists you gave, counted
+from 0: the category of `categories` (or `dates`), or the segment of the list given
+to `donut`. Use it to drill down: "click the bar of warehouse B to see its late
+orders".
 
-    Chart.line [ Chart.remote model.sales ] (Remote.withDefault [] model.sales)
+    Chart.bar [ Chart.categories warehouses, Chart.onSelect WarehousePicked ]
+        [ Chart.series "Late orders" [ 12, 4, 9 ] ]
 
-Here `model.sales` is a `Remote (List Chart.Series)`.
+Each category is a button in the tab order, named by its values ("Oslo. Late
+orders: 12"), with a visible focus ring and a tooltip that shows its values on
+hover and on keyboard focus. A donut's slices take the click, and its legend items
+are the buttons that the keyboard reaches. The "Other" slice of a donut with more
+than eight slices sends nothing. Without `onSelect` the chart is a picture.
 
 -}
-remote : Remote a -> Attribute msg
-remote data =
-    Attribute
+onSelect : (Int -> msg) -> Attribute msg
+onSelect toMsg =
+    Attribute (\config -> { config | onSelect = Just toMsg })
+
+
+{-| Whether the categories are buttons. (A function is never compared with `==`.)
+-}
+selectable : Config msg -> Bool
+selectable config =
+    case config.onSelect of
+        Just _ ->
+            True
+
+        Nothing ->
+            False
+
+
+{-| A category button: its click, and its values as the accessible name and the
+tooltip. Without `onSelect` the category is a plain element with a native tooltip.
+-}
+categoryElement : Config msg -> Int -> String -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
+categoryElement config index tip attributes children =
+    case config.onSelect of
+        Just toMsg ->
+            Html.button
+                ([ Attr.type_ "button"
+                 , Internal.cls [ "klar-chart__slot", "klar-chart__slot--button" ]
+                 , Events.onClick (toMsg index)
+                 , Attr.attribute "aria-label" (String.join ". " (String.lines tip))
+                 , Attr.attribute "data-tip" tip
+                 ]
+                    ++ attributes
+                )
+                children
+
+        Nothing ->
+            Html.div (Internal.cls [ "klar-chart__slot" ] :: Attr.title tip :: attributes) children
+
+
+{-| The state of a chart drawn from a `Remote`, and the data to draw when there is
+data (`Kept` data counts).
+-}
+fromRemote : Remote a -> ( Attribute msg, Maybe a )
+fromRemote data =
+    let
+        ( settled, freshness ) =
+            Freshness.settle data
+    in
+    ( Attribute
         (\config ->
-            let
-                ( settled, freshness ) =
-                    Freshness.settle data
-            in
             { config
-                | busy = config.busy || Freshness.waiting settled
+                | busy = Freshness.waiting settled
                 , failure =
                     case settled of
                         Remote.Failed problem ->
                             Just problem
 
                         _ ->
-                            config.failure
+                            Nothing
                 , freshness = freshness
+                , fromRemote = True
             }
         )
+    , case settled of
+        Remote.Loaded payload ->
+            Just payload
+
+        _ ->
+            Nothing
+    )
+
+
+{-| Draws a chart from a `Remote` with the chart function of its kind and the
+value to draw while there is nothing.
+-}
+remoteWith : (List (Attribute msg) -> a -> Html msg) -> a -> List (Attribute msg) -> Remote a -> Html msg
+remoteWith draw nothing attributes data =
+    let
+        ( state, payload ) =
+            fromRemote data
+    in
+    draw (attributes ++ [ state ]) (Maybe.withDefault nothing payload)
 
 
 {-| The text of the empty state, shown when there is nothing to draw: no series,
@@ -709,12 +795,14 @@ thresholds zones =
 
 
 {-| At most this many category labels on the axis of a line or bar chart. The
-default is 12; the rest are left out evenly (every second, third ... label is
-shown). The value is kept between 2 and 60.
+rest are left out evenly (every second, third ... label is shown), and the label
+of the last category is always there. The default is 12 for a line chart and a
+vertical bar chart; a horizontal bar chart names every bar that has a row of at
+least 14 pixels. The value is kept between 2 and 60.
 -}
 maxLabels : Int -> Attribute msg
 maxLabels n =
-    Attribute (\config -> { config | maxLabels = clamp 2 60 n })
+    Attribute (\config -> { config | maxLabels = Just (clamp 2 60 n) })
 
 
 
@@ -740,6 +828,10 @@ type alias Texts =
     , pointCount : Int -> String
     , segmentCount : Int -> String
     , of_ : String
+    , low : String
+    , high : String
+    , last : String
+    , noValue : String
     }
 
 
@@ -770,6 +862,10 @@ texts loc =
     , pointCount = \n -> Format.int loc n ++ " " ++ plural n (pick "punkt" "point") (pick "punkter" "points")
     , segmentCount = \n -> Format.int loc n ++ " " ++ plural n (pick "del" "segment") (pick "deler" "segments")
     , of_ = pick "av" "of"
+    , low = pick "lavest" "low"
+    , high = pick "høyest" "high"
+    , last = pick "siste" "last"
+    , noValue = pick "Ingen verdi" "No value"
     }
 
 
@@ -834,20 +930,22 @@ withStateInside config kind placeholderHeight hasData body =
 
         Ready ->
             if hasData then
-                case config.freshness of
-                    Freshness.Fresh ->
-                        body ()
+                if config.fromRemote then
+                    -- The same elements around the chart whether the data is
+                    -- fresh, refreshing or old, so that focus on a category
+                    -- button survives a refresh.
+                    Html.div
+                        [ Internal.cls [ "klar-chart-fresh", Freshness.className config.freshness ]
+                        , Freshness.busyAttr config.freshness
+                        ]
+                        [ Freshness.notice
+                            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                            config.freshness
+                        , body ()
+                        ]
 
-                    _ ->
-                        Html.div
-                            [ Internal.cls [ "klar-chart-fresh", Freshness.className config.freshness ]
-                            , Freshness.busyAttr config.freshness
-                            ]
-                            [ Freshness.notice
-                                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
-                                config.freshness
-                            , body ()
-                            ]
+                else
+                    body ()
 
             else
                 shell config
@@ -866,7 +964,7 @@ shell : Config msg -> String -> List ( String, String ) -> List (Html msg) -> Ht
 shell config kind extra children =
     Html.figure
         ([ Internal.cls [ "klar-chart", "klar-chart--" ++ kind ]
-         , case config.size of
+         , case config.width of
             Just pixels ->
                 Internal.styleVars [ ( "--klar-chart-w", Internal.px pixels ) ]
 
@@ -1447,11 +1545,11 @@ maskUrl margin shapes =
 {-| A stroked line that keeps its width however much the geometry is stretched.
 -}
 polylineShape : Float -> Bool -> String -> String
-polylineShape width isDashed coordinates =
+polylineShape strokeWidth isDashed coordinates =
     "<polyline points='"
         ++ coordinates
         ++ "' fill='none' stroke='black' stroke-width='"
-        ++ num width
+        ++ num strokeWidth
         ++ "' stroke-linecap='round' stroke-linejoin='round' vector-effect='non-scaling-stroke'"
         ++ (if isDashed then
                 " stroke-dasharray='6 4'"
@@ -1523,41 +1621,59 @@ showLegend config seriesCount =
             seriesCount >= 2
 
 
-type alias LegendItem =
+type alias LegendItem msg =
     { label : String
     , cls : String
     , detail : String
     , dashed : Bool
+    , select : Maybe msg
     }
 
 
-legendView : String -> List LegendItem -> Html msg
+legendView : String -> List (LegendItem msg) -> Html msg
 legendView shape items =
     Html.ul [ Internal.cls [ "klar-chart__legend" ] ]
         (List.map
             (\item ->
-                Html.li [ Internal.cls [ "klar-chart__legend-item" ] ]
-                    [ Html.span
-                        [ Internal.cls
-                            [ "klar-chart__swatch"
-                            , "klar-chart__swatch--" ++ shape
-                            , item.cls
-                            , if item.dashed then
-                                "klar-chart__swatch--dashed"
+                let
+                    content =
+                        [ Html.span
+                            [ Internal.cls
+                                [ "klar-chart__swatch"
+                                , "klar-chart__swatch--" ++ shape
+                                , item.cls
+                                , if item.dashed then
+                                    "klar-chart__swatch--dashed"
 
-                              else
-                                ""
+                                  else
+                                    ""
+                                ]
+                            , Attr.attribute "aria-hidden" "true"
                             ]
-                        , Attr.attribute "aria-hidden" "true"
-                        ]
-                        []
-                    , Html.span [ Internal.cls [ "klar-chart__legend-label" ], Attr.title item.label ] [ Html.text item.label ]
-                    , if item.detail == "" then
-                        Html.text ""
+                            []
+                        , Html.span [ Internal.cls [ "klar-chart__legend-label" ], Attr.title item.label ] [ Html.text item.label ]
+                        , if item.detail == "" then
+                            Html.text ""
 
-                      else
-                        Html.span [ Internal.cls [ "klar-chart__legend-detail", "klar-tabular" ] ] [ Html.text item.detail ]
-                    ]
+                          else
+                            Html.span [ Internal.cls [ "klar-chart__legend-detail", "klar-tabular" ] ] [ Html.text item.detail ]
+                        ]
+                in
+                case item.select of
+                    Just msg ->
+                        -- A selectable slice: the legend item is its button, so
+                        -- the keyboard reaches every slice.
+                        Html.li [ Internal.cls [ "klar-chart__legend-entry" ] ]
+                            [ Html.button
+                                [ Attr.type_ "button"
+                                , Internal.cls [ "klar-chart__legend-item", "klar-chart__legend-item--button" ]
+                                , Events.onClick msg
+                                ]
+                                content
+                            ]
+
+                    Nothing ->
+                        Html.li [ Internal.cls [ "klar-chart__legend-item" ] ] content
             )
             items
         )
@@ -1612,12 +1728,21 @@ dataTable config headers rows =
         ]
 
 
-plotFrame : Int -> Int -> String -> Html msg -> List (Html msg) -> List (Html msg) -> Html msg
-plotFrame heightPx gutterPx label plot yLabels xLabels =
+{-| The plot with its axes. It is a picture (`role="img"`) unless its categories
+are buttons (`onSelect`): then it is a group, so that the buttons are reachable.
+-}
+plotFrame : Config msg -> Int -> Int -> String -> Html msg -> List (Html msg) -> List (Html msg) -> Html msg
+plotFrame config heightPx gutterPx label plot yLabels xLabels =
     Html.div
         [ Internal.cls [ "klar-chart__frame" ]
         , Internal.styleVars [ ( "--klar-chart-h", Internal.px heightPx ), ( "--klar-chart-gutter", Internal.px gutterPx ) ]
-        , Attr.attribute "role" "img"
+        , Attr.attribute "role"
+            (if selectable config then
+                "group"
+
+             else
+                "img"
+            )
         , Attr.attribute "aria-label" label
         ]
         [ Html.div [ Internal.cls [ "klar-chart__y" ], Attr.attribute "aria-hidden" "true" ] yLabels
@@ -1698,7 +1823,7 @@ summaryLine config kindLabel seriesCount pointCount =
         , Chart.series "2026" [ 14, 20, 15, 25 ]
         ]
 
-The value axis follows the data; add `includeZero True` to start it at zero. A
+The value axis follows the data; add `includeZero` to start it at zero. A
 missing value (see `seriesMaybe`) leaves a gap in the line. The legend shows for
 two or more series, and each category has a tooltip with its values.
 
@@ -1726,28 +1851,22 @@ lineBody config prepared =
                 |> List.concatMap (\s -> Array.toList s.values |> List.filterMap identity)
 
         axis =
-            axisFor (verticalTicks (heightOf config 220)) (Maybe.withDefault False config.includeZero) config.yMin config.yMax allValues
+            axisFor (verticalTicks (heightOf config 220)) (config.includeZero || config.area) config.yMin config.yMax allValues
 
         showPoints =
-            case config.points of
-                Just value ->
-                    value
-
-                Nothing ->
-                    prepared.n <= 40
+            not config.pointsOnHover && prepared.n <= 40
 
         n =
             prepared.n
 
         every =
-            max 1 (ceiling (toFloat n / toFloat config.maxLabels))
+            max 1 (ceiling (toFloat n / toFloat (Maybe.withDefault 12 config.maxLabels)))
 
         slotWidth =
             100 / toFloat n
 
         xLabels =
-            List.range 0 (n - 1)
-                |> List.filter (\i -> modBy every i == 0)
+            labelledIndexes n every
                 |> List.map
                     (\i ->
                         xLabel ((toFloat i + 0.5) * slotWidth) (slotWidth * toFloat every) (categoryAt prepared i) (shortAt prepared i)
@@ -1763,7 +1882,8 @@ lineBody config prepared =
         "line"
         []
         [ header config
-        , plotFrame (heightOf config 220)
+        , plotFrame config
+            (heightOf config 220)
             (tickGutter config axis)
             label
             (linePlot config axis prepared showPoints)
@@ -1776,10 +1896,21 @@ lineBody config prepared =
         ]
 
 
+{-| The categories that get a label on the axis when every `every`-th one has
+room: the first, every `every`-th after it, and always the last (usually the most
+recent period); the label just before the last is dropped when the two would be
+closer than `every`.
+-}
+labelledIndexes : Int -> Int -> List Int
+labelledIndexes n every =
+    List.range 0 (n - 1)
+        |> List.filter (\i -> i == n - 1 || (modBy every i == 0 && n - 1 - i >= every))
+
+
 legendIfWanted : Config msg -> String -> Prepared -> Html msg
 legendIfWanted config shape prepared =
     if showLegend config (List.length prepared.series) then
-        legendView shape (List.map (\s -> { label = s.name, cls = s.cls, detail = "", dashed = s.dashed }) prepared.series)
+        legendView shape (List.map (\s -> { label = s.name, cls = s.cls, detail = "", dashed = s.dashed, select = Nothing }) prepared.series)
 
     else
         Html.text ""
@@ -1890,10 +2021,10 @@ linePlot config axis prepared showPoints =
                    )
 
         slot i =
-            Html.div
-                [ Internal.cls [ "klar-chart__slot" ]
-                , Attr.title (slotTip config prepared i)
-                ]
+            categoryElement config
+                i
+                (slotTip config prepared i)
+                []
                 (prepared.series
                     |> List.filterMap
                         (\s ->
@@ -1972,7 +2103,7 @@ category, one bar per series.
         , Chart.series "Returned" [ 3, 5, 2 ]
         ]
 
-The value axis includes zero unless you say `includeZero False`. A value of 0
+The value axis always includes zero, so a bar is read by its length. A value of 0
 draws no bar.
 
 -}
@@ -2096,7 +2227,7 @@ barBody config prepared =
                  else
                     verticalTicks (heightOf config 220)
                 )
-                (Maybe.withDefault True config.includeZero)
+                True
                 config.yMin
                 config.yMax
                 extremes
@@ -2104,15 +2235,27 @@ barBody config prepared =
         slotSize =
             100 / toFloat n
 
+        -- A horizontal chart has a row per bar: every bar is named when its row
+        -- is at least 14px high. A vertical chart thins its labels to 12.
         every =
-            max 1 (ceiling (toFloat n / toFloat config.maxLabels))
+            if config.horizontal then
+                max (max 1 (ceiling (14 * toFloat n / toFloat heightPx)))
+                    (case config.maxLabels of
+                        Just most ->
+                            ceiling (toFloat n / toFloat most)
+
+                        Nothing ->
+                            1
+                    )
+
+            else
+                max 1 (ceiling (toFloat n / toFloat (Maybe.withDefault 12 config.maxLabels)))
 
         label =
             summaryLine config t.bar (List.length prepared.series) n
 
         categoryLabels =
-            List.range 0 (n - 1)
-                |> List.filter (\i -> modBy every i == 0)
+            labelledIndexes n every
                 |> List.map
                     (\i ->
                         if config.horizontal then
@@ -2178,7 +2321,8 @@ barBody config prepared =
         "bar"
         []
         [ header config
-        , plotFrame heightPx
+        , plotFrame config
+            heightPx
             gutter
             label
             (barPlot config axis prepared)
@@ -2377,7 +2521,7 @@ barPlot config axis prepared =
                             bottom =
                                 List.foldl (\p acc -> min acc (min p.from p.to)) 0 pieces
                         in
-                        [ Html.div [ Internal.cls [ "klar-chart__lane" ] ]
+                        [ Html.span [ Internal.cls [ "klar-chart__lane" ] ]
                             (List.map barSpan pieces
                                 ++ (if roomForLabels && not (List.isEmpty pieces) then
                                         [ valueLabel
@@ -2402,7 +2546,7 @@ barPlot config axis prepared =
                                 (\index ->
                                     case List.filter (\p -> p.index == index) pieces |> List.head of
                                         Just piece ->
-                                            Html.div [ Internal.cls [ "klar-chart__lane" ] ]
+                                            Html.span [ Internal.cls [ "klar-chart__lane" ] ]
                                                 (barSpan piece
                                                     :: (if roomForLabels then
                                                             [ valueLabel piece.to piece.value ]
@@ -2413,14 +2557,14 @@ barPlot config axis prepared =
                                                 )
 
                                         Nothing ->
-                                            Html.div [ Internal.cls [ "klar-chart__lane" ] ] []
+                                            Html.span [ Internal.cls [ "klar-chart__lane" ] ] []
                                 )
             in
-            Html.div
-                [ Internal.cls [ "klar-chart__slot" ]
-                , Attr.title (barTip config prepared i)
-                ]
-                [ Html.div [ Internal.cls [ "klar-chart__lanes" ] ] lanes ]
+            categoryElement config
+                i
+                (barTip config prepared i)
+                []
+                [ Html.span [ Internal.cls [ "klar-chart__lanes" ] ] lanes ]
     in
     Html.div
         [ Internal.cls
@@ -2475,7 +2619,7 @@ eight, the seven largest are kept and the rest are folded into one slice called
 
 The total is written in the middle unless `centerLabel` says otherwise, and the
 legend lists every slice with its value and its share of the total. The legend is
-shown unless you say `legend False`. Slices with a value of 0 are left out.
+shown unless you say `hideLegend`. Slices with a value of 0 are left out.
 
 -}
 donut : List (Attribute msg) -> List Segment -> Html msg
@@ -2489,7 +2633,7 @@ donut attributes segments =
 
         positive =
             segments
-                |> List.map (\(Segment s) -> s)
+                |> List.indexedMap (\index (Segment s) -> { label = s.label, value = s.value, color = s.color, tone = s.tone, index = Just index })
                 |> List.filter (\s -> s.value > 0)
 
         folded =
@@ -2502,7 +2646,7 @@ donut attributes segments =
                         List.drop 7 sorted
                 in
                 List.take 7 sorted
-                    ++ [ { label = t.other, value = List.sum (List.map .value rest), color = Just 8, tone = Nothing } ]
+                    ++ [ { label = t.other, value = List.sum (List.map .value rest), color = Just 8, tone = Nothing, index = Nothing } ]
 
             else
                 positive
@@ -2518,6 +2662,9 @@ type alias Slice =
     , value : Float
     , color : Maybe Int
     , tone : Maybe Tone
+
+    -- the position in the list of segments; Nothing for "Other"
+    , index : Maybe Int
     }
 
 
@@ -2588,14 +2735,28 @@ donutBody config slices total =
                                 0
                     in
                     Html.div
-                        [ Internal.cls [ "klar-chart__segment", cls ]
+                        [ Internal.cls
+                            [ "klar-chart__segment"
+                            , cls
+                            , case sliceMsg s of
+                                Just _ ->
+                                    "klar-chart__segment--button"
+
+                                Nothing ->
+                                    ""
+                            ]
                         , Attr.title (sliceTip s)
                         , Internal.styleVars [ ( "clip-path", ringPolygon outer inner (start + trim) (end - trim) ) ]
+                        , Internal.attrMaybe Events.onClick (sliceMsg s)
                         ]
                         []
                 )
                 classes
                 arcs
+
+        -- The message of a slice: its position in the given list ("Other" has none).
+        sliceMsg s =
+            Maybe.map2 (\toMsg index -> toMsg index) config.onSelect s.index
 
         centerText =
             Maybe.withDefault (formatLabel config total) config.centerLabel
@@ -2607,6 +2768,7 @@ donutBody config slices total =
                     , cls = cls
                     , detail = formatValue config s.value ++ "  ·  " ++ shareText s
                     , dashed = False
+                    , select = sliceMsg s
                     }
                 )
                 classes
@@ -2683,8 +2845,9 @@ is 0 to 100). The zone the value falls in (see `thresholds`) decides the color.
     Chart.gauge [ Chart.centerCaption "of capacity", Chart.unit "%" ] 82
 
 The value is written in the middle unless `centerLabel` says otherwise. A value
-outside the scale fills the arc completely or not at all but is written as it is,
-and a value that is not a number counts as the lowest value of the scale.
+outside the scale fills the arc completely or not at all but is written as it is.
+A value that is not a number (NaN, infinity) is a missing measurement: the arc
+stays empty, the middle shows a dash and screen readers hear "No value".
 
 -}
 gauge : List (Attribute msg) -> Float -> Html msg
@@ -2696,8 +2859,11 @@ gauge attributes rawValue =
         t =
             texts config.locale
 
+        measured =
+            sanitize rawValue
+
         value =
-            Maybe.withDefault config.rangeMin (sanitize rawValue)
+            Maybe.withDefault config.rangeMin measured
 
         low =
             min config.rangeMin config.rangeMax
@@ -2728,8 +2894,8 @@ gauge attributes rawValue =
                             []
                     )
 
-        valueText =
-            Maybe.withDefault (formatValue config value) config.centerLabel
+        ( valueText, spokenValue ) =
+            missingOr t measured (\v -> Maybe.withDefault (formatValue config v) config.centerLabel)
 
         label =
             String.join ". "
@@ -2754,13 +2920,22 @@ gauge attributes rawValue =
                     , Attr.attribute "aria-label" label
                     , Attr.attribute "aria-valuemin" (String.fromFloat low)
                     , Attr.attribute "aria-valuemax" (String.fromFloat high)
-                    , Attr.attribute "aria-valuenow" (String.fromFloat value)
-                    , Attr.attribute "aria-valuetext" valueText
+                    , Attr.attribute "aria-valuenow" (String.fromFloat (clamp low high value))
+                    , Attr.attribute "aria-valuetext" spokenValue
                     ]
                     ([ Html.div
                         [ Internal.cls [ "klar-chart__gauge-arc", cls ]
-                        , Internal.styleVars [ ( "--klar-f", String.fromFloat (roundTo 3 (fractionOf value)) ) ]
-                        , Attr.title (formatValue config value)
+                        , Internal.styleVars
+                            [ ( "--klar-f"
+                              , case measured of
+                                    Just _ ->
+                                        String.fromFloat (roundTo 3 (fractionOf value))
+
+                                    Nothing ->
+                                        "0"
+                              )
+                            ]
+                        , Attr.title spokenValue
                         ]
                         []
                      ]
@@ -2777,6 +2952,19 @@ gauge attributes rawValue =
                     )
                 ]
         )
+
+
+{-| The shown and the spoken text of the value of a gauge or meter: an en dash and
+"No value" for a missing measurement.
+-}
+missingOr : Texts -> Maybe Float -> (Float -> String) -> ( String, String )
+missingOr t measured written =
+    case measured of
+        Just v ->
+            ( written v, written v )
+
+        Nothing ->
+            ( "–", t.noValue )
 
 
 firstJust : List (Maybe a) -> Maybe a
@@ -2835,7 +3023,9 @@ toneClassFor _ maybeTone =
 
 The title and the value are written above the track, and the two ends of the
 scale below it. A meter is flat and as wide as its container, so it fits where
-a gauge would take too much room.
+a gauge would take too much room. A value that is not a number is a missing
+measurement: the value is a dash, the track has no marker and screen readers hear
+"No value".
 
 -}
 meter : List (Attribute msg) -> Float -> Html msg
@@ -2847,8 +3037,11 @@ meter attributes rawValue =
         t =
             texts config.locale
 
+        measured =
+            sanitize rawValue
+
         value =
-            Maybe.withDefault config.rangeMin (sanitize rawValue)
+            Maybe.withDefault config.rangeMin measured
 
         low =
             min config.rangeMin config.rangeMax
@@ -2889,8 +3082,8 @@ meter attributes rawValue =
         current =
             zoneToneFor config value |> Maybe.withDefault Primary
 
-        valueText =
-            Maybe.withDefault (formatValue config value) config.centerLabel
+        ( valueText, spokenValue ) =
+            missingOr t measured (\v -> Maybe.withDefault (formatValue config v) config.centerLabel)
 
         name =
             Maybe.withDefault t.meter (firstJust [ config.ariaLabel, config.title ])
@@ -2906,8 +3099,8 @@ meter attributes rawValue =
                 , Attr.attribute "aria-label" name
                 , Attr.attribute "aria-valuemin" (String.fromFloat low)
                 , Attr.attribute "aria-valuemax" (String.fromFloat high)
-                , Attr.attribute "aria-valuenow" (String.fromFloat value)
-                , Attr.attribute "aria-valuetext" valueText
+                , Attr.attribute "aria-valuenow" (String.fromFloat (clamp low high value))
+                , Attr.attribute "aria-valuetext" spokenValue
                 ]
                 [ Html.div [ Internal.cls [ "klar-meter__head" ] ]
                     [ Html.span [ Internal.cls [ "klar-meter__label" ] ] [ Html.text (Maybe.withDefault "" config.title) ]
@@ -2915,12 +3108,18 @@ meter attributes rawValue =
                     ]
                 , Html.div [ Internal.cls [ "klar-meter__track" ], Attr.attribute "aria-hidden" "true" ]
                     (zoneViews
-                        ++ [ Html.span
-                                [ Internal.cls [ "klar-meter__marker", toneClass current ]
-                                , Internal.styleVars [ ( "left", pct (position value) ) ]
-                                ]
-                                []
-                           ]
+                        ++ (case measured of
+                                Just _ ->
+                                    [ Html.span
+                                        [ Internal.cls [ "klar-meter__marker", toneClass current ]
+                                        , Internal.styleVars [ ( "left", pct (position value) ) ]
+                                        ]
+                                        []
+                                    ]
+
+                                Nothing ->
+                                    []
+                           )
                     )
                 , Html.div [ Internal.cls [ "klar-meter__scale", "klar-tabular" ], Attr.attribute "aria-hidden" "true" ]
                     [ Html.span [] [ Html.text (formatLabel config low) ]
@@ -2944,7 +3143,7 @@ an `ariaLabel` that says what it shows, because a sparkline has no title.
 
 Values that are not numbers are left out. With one value there is only the dot,
 with none a dash. The default height is 28px and the width fills the container
-(see `size`).
+(see `width`).
 
 -}
 sparkline : List (Attribute msg) -> List Float -> Html msg
@@ -3026,43 +3225,62 @@ sparkline attributes rawValues =
                         []
                    )
 
+        -- The numbers are always in the name: an `ariaLabel` says what the line
+        -- shows, the summary what it says.
+        numbers =
+            t.pointCount n
+                ++ ", "
+                ++ t.low
+                ++ " "
+                ++ formatValue config low
+                ++ ", "
+                ++ t.high
+                ++ " "
+                ++ formatValue config high
+                ++ ", "
+                ++ t.last
+                ++ " "
+                ++ formatValue config lastValue
+
         summary =
             case config.ariaLabel of
                 Just label ->
-                    label
+                    label ++ ". " ++ numbers
 
                 Nothing ->
-                    t.sparkline
-                        ++ ": "
-                        ++ t.pointCount n
-                        ++ ", "
-                        ++ formatValue config low
-                        ++ " - "
-                        ++ formatValue config high
-                        ++ ", "
-                        ++ formatValue config lastValue
+                    t.sparkline ++ ": " ++ numbers
 
         boxStyle =
             Internal.styleVars
                 (List.filterMap identity
-                    [ Maybe.map (\w -> ( "--klar-chart-w", Internal.px w )) config.size
+                    [ Maybe.map (\w -> ( "--klar-chart-w", Internal.px w )) config.width
                     , Just ( "--klar-chart-sh", Internal.px (heightOf config 28) )
                     ]
                 )
+
+        idAttrs =
+            case config.id of
+                Just domId ->
+                    [ Attr.id domId, Attr.tabindex -1 ]
+
+                Nothing ->
+                    []
     in
     case stateOf config of
         Busy ->
-            Html.span [ Internal.cls [ "klar-chart-spark", "klar-chart-spark--loading" ], boxStyle, Attr.attribute "aria-busy" "true" ]
+            Html.span ([ Internal.cls [ "klar-chart-spark", "klar-chart-spark--loading" ], boxStyle, Attr.attribute "aria-busy" "true" ] ++ idAttrs)
                 [ Skeleton.line 100 ]
 
         Failed problem ->
             Html.span
-                [ Internal.cls [ "klar-chart-spark", "klar-chart-spark--empty" ]
-                , boxStyle
-                , Attr.attribute "role" "img"
-                , Attr.attribute "aria-label" (Remote.title config.locale problem)
-                , Attr.title (Remote.title config.locale problem)
-                ]
+                ([ Internal.cls [ "klar-chart-spark", "klar-chart-spark--empty" ]
+                 , boxStyle
+                 , Attr.attribute "role" "img"
+                 , Attr.attribute "aria-label" (Remote.title config.locale problem)
+                 , Attr.title (Remote.title config.locale problem)
+                 ]
+                    ++ idAttrs
+                )
                 [ Html.span [ Attr.attribute "aria-hidden" "true" ] [ Html.text "–" ] ]
 
         Ready ->
@@ -3072,12 +3290,14 @@ sparkline attributes rawValues =
                         Maybe.withDefault t.noData config.emptyText
                 in
                 Html.span
-                    [ Internal.cls [ "klar-chart-spark", "klar-chart-spark--empty" ]
-                    , boxStyle
-                    , Attr.attribute "role" "img"
-                    , Attr.attribute "aria-label" emptyLabel
-                    , Attr.title emptyLabel
-                    ]
+                    ([ Internal.cls [ "klar-chart-spark", "klar-chart-spark--empty" ]
+                     , boxStyle
+                     , Attr.attribute "role" "img"
+                     , Attr.attribute "aria-label" emptyLabel
+                     , Attr.title emptyLabel
+                     ]
+                        ++ idAttrs
+                    )
                     [ Html.span [ Attr.attribute "aria-hidden" "true" ] [ Html.text "–" ] ]
 
             else
@@ -3091,13 +3311,15 @@ sparkline attributes rawValues =
                                 summary
                 in
                 Html.span
-                    [ Internal.cls [ "klar-chart-spark", Freshness.className config.freshness ]
-                    , boxStyle
-                    , Attr.attribute "role" "img"
-                    , Attr.attribute "aria-label" described
-                    , Attr.title described
-                    , Freshness.busyAttr config.freshness
-                    ]
+                    ([ Internal.cls [ "klar-chart-spark", Freshness.className config.freshness ]
+                     , boxStyle
+                     , Attr.attribute "role" "img"
+                     , Attr.attribute "aria-label" described
+                     , Attr.title described
+                     , Freshness.busyAttr config.freshness
+                     ]
+                        ++ idAttrs
+                    )
                     [ Html.span [ Internal.cls [ "klar-chart-spark__field" ] ]
                         (layers
                             ++ [ Html.span
@@ -3108,3 +3330,94 @@ sparkline attributes rawValues =
                                ]
                         )
                     ]
+
+
+
+-- FROM A REMOTE
+
+
+{-| A line chart from a `Remote`: the skeleton while it loads, the problem with
+"Try again" (`onRetry`) when it failed, the empty state, the chart, and the
+chart dimmed while it is refreshed or with "Old data from 14:05" when the last
+refresh failed. Shape the data with `Remote.map`; the categories come from the
+same `Remote`.
+
+    Chart.lineRemote
+        [ Chart.title "Orders per day"
+        , Chart.dates (List.map .day (Remote.withDefault [] model.orders))
+        , Chart.onRetry ReloadOrders
+        , Chart.settings model.settings
+        ]
+        (Remote.map (\days -> [ Chart.series "Orders" (List.map .count days) ]) model.orders)
+
+The chart keeps the same elements around it in every state with data, so the
+keyboard focus on a category (`onSelect`) survives a refresh. Give it an `id`
+to move focus there with `Klar.focus` when "Try again" goes away.
+
+-}
+lineRemote : List (Attribute msg) -> Remote (List Series) -> Html msg
+lineRemote =
+    remoteWith line []
+
+
+{-| A bar chart from a `Remote`, with every state of `lineRemote`.
+
+    Chart.barRemote
+        [ Chart.categories (List.map .name (Remote.withDefault [] model.warehouses))
+        , Chart.horizontal
+        , Chart.onRetry ReloadWarehouses
+        ]
+        (Remote.map (\rows -> [ Chart.series "Late orders" (List.map .late rows) ]) model.warehouses)
+
+-}
+barRemote : List (Attribute msg) -> Remote (List Series) -> Html msg
+barRemote =
+    remoteWith bar []
+
+
+{-| A donut from a `Remote`, with every state of `lineRemote`.
+
+    Chart.donutRemote [ Chart.centerCaption "orders", Chart.onRetry ReloadStatuses ]
+        (Remote.map (List.map (\s -> Chart.segment s.name s.count)) model.statuses)
+
+-}
+donutRemote : List (Attribute msg) -> Remote (List Segment) -> Html msg
+donutRemote =
+    remoteWith donut []
+
+
+{-| A gauge from a `Remote`: the skeleton while it loads, the problem with "Try
+again" when it failed, and the value (dimmed while it is refreshed, with "Old data
+from 14:05" when the last refresh failed).
+
+    Chart.gaugeRemote [ Chart.centerCaption "of capacity", Chart.onRetry Reload ]
+        (Remote.map .utilization model.warehouse)
+
+-}
+gaugeRemote : List (Attribute msg) -> Remote Float -> Html msg
+gaugeRemote =
+    remoteWith gauge 0
+
+
+{-| A meter from a `Remote`, with every state of `gaugeRemote`.
+
+    Chart.meterRemote [ Chart.title "Warehouse fill", Chart.onRetry Reload ]
+        (Remote.map .fill model.warehouse)
+
+-}
+meterRemote : List (Attribute msg) -> Remote Float -> Html msg
+meterRemote =
+    remoteWith meter 0
+
+
+{-| A sparkline from a `Remote`: a skeleton line while it loads, a dash with the
+problem as its name when it failed (there is no room for "Try again"), and the line,
+dimmed while it is refreshed. Old data says so in its name.
+
+    Chart.sparklineRemote [ Chart.ariaLabel "Orders, last 7 days" ]
+        (Remote.map .lastWeek model.orders)
+
+-}
+sparklineRemote : List (Attribute msg) -> Remote (List Float) -> Html msg
+sparklineRemote =
+    remoteWith sparkline []

@@ -28,6 +28,7 @@ import Showcase.Sample as Sample
 -}
 type alias Model =
     { retrying : List String
+    , picked : Maybe Int
     }
 
 
@@ -35,11 +36,12 @@ type Msg
     = Retry String
     | RetryDone String
     | Focused
+    | Picked Int
 
 
 init : Model
 init =
-    { retrying = [] }
+    { retrying = [], picked = Nothing }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -53,6 +55,9 @@ update msg model =
 
         Focused ->
             ( model, Cmd.none )
+
+        Picked index ->
+            ( { model | picked = Just index }, Cmd.none )
 
         RetryDone example ->
             ( { model | retrying = List.filter (\other -> other /= example) model.retrying }, Cmd.none )
@@ -72,7 +77,7 @@ view locale model =
     Doc.section "Charts"
         "The charts are built from HTML and CSS: bars, markers and donut slices are elements, and only the lines and areas are SVG (a mask in the color of the series). They fill the width of their container, text and lines keep a fixed size, and every chart has a hidden data table for screen readers. Hold the pointer over a category to see the values. Colors are handed out to the series in a fixed order; pin a series to a color with withSlot to keep it when other series come and go."
         (lineExamples locale
-            ++ barExamples locale
+            ++ barExamples locale model
             ++ donutExamples locale
             ++ gaugeExamples locale
             ++ sparklineExamples locale
@@ -138,8 +143,8 @@ lineExamples locale =
         , code = Just """Chart.line
     [ Chart.title "Deliveries per week"
     , Chart.categories weeks
-    , Chart.points False
-    , Chart.includeZero True
+    , Chart.pointsOnHover
+    , Chart.includeZero
     , Chart.maxLabels 6
     ]
     [ Chart.series "On time" onTime |> Chart.withTone Success
@@ -149,8 +154,8 @@ lineExamples locale =
         (Chart.line
             [ Chart.title "Deliveries per week"
             , Chart.categories (List.range 1 26 |> List.map (\week -> "Week " ++ String.fromInt week))
-            , Chart.points False
-            , Chart.includeZero True
+            , Chart.pointsOnHover
+            , Chart.includeZero
             , Chart.maxLabels 6
             , Chart.height 200
             , Chart.locale locale
@@ -238,8 +243,8 @@ warehouseRows =
         Sample.warehouses
 
 
-barExamples : Locale -> List (Html Msg)
-barExamples locale =
+barExamples : Locale -> Model -> List (Html Msg)
+barExamples locale model =
     let
         quarters =
             [ "Q4 2024", "Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Q1 2026", "Q2 2026", "Q3 2026" ]
@@ -264,23 +269,38 @@ barExamples locale =
             Chart.bar ([ Chart.title title, Chart.height 160, Chart.locale locale ] ++ attrs) data
     in
     [ Doc.example
-        { title = "Grouped bar chart"
-        , description = Just "Bars are 24 pixels wide at most, and rounded only at the end away from the axis. Hold the pointer over a warehouse for all three values."
-        , code = Just """Chart.bar [ Chart.title "Orders per warehouse", Chart.categories warehouses ]
+        { title = "Grouped bar chart, with a click on a warehouse"
+        , description = Just "Bars are 24 pixels wide at most, and rounded only at the end away from the axis. With Chart.onSelect every warehouse is a button: click it, or Tab to it (its values show in a tooltip) and press Enter."
+        , code = Just """Chart.bar
+    [ Chart.title "Orders per warehouse"
+    , Chart.categories warehouses
+    , Chart.onSelect WarehousePicked
+    ]
     [ Chart.series "Waiting" [ 120, 140, 110 ]
     , Chart.series "Shipped" [ 90, 85, 100 ]
     , Chart.series "Delivered" [ 250, 270, 240 ]
     ]"""
         }
-        (Chart.bar
-            [ Chart.title "Orders per warehouse"
-            , Chart.categories (List.map .name warehouseRows)
-            , Chart.height 240
-            , Chart.locale locale
-            ]
-            [ Chart.series "Waiting" (List.map (.waiting >> toFloat) warehouseRows)
-            , Chart.series "Shipped" (List.map (.shipped >> toFloat) warehouseRows)
-            , Chart.series "Delivered" (List.map (.delivered >> toFloat) warehouseRows)
+        (Layout.stack [ Layout.gap 2 ]
+            [ Chart.bar
+                [ Chart.title "Orders per warehouse"
+                , Chart.categories (List.map .name warehouseRows)
+                , Chart.height 240
+                , Chart.locale locale
+                , Chart.onSelect Picked
+                ]
+                [ Chart.series "Waiting" (List.map (.waiting >> toFloat) warehouseRows)
+                , Chart.series "Shipped" (List.map (.shipped >> toFloat) warehouseRows)
+                , Chart.series "Delivered" (List.map (.delivered >> toFloat) warehouseRows)
+                ]
+            , Text.caption
+                (case model.picked |> Maybe.andThen (\index -> List.drop index warehouseRows |> List.head) of
+                    Just row ->
+                        "Picked: " ++ row.name
+
+                    Nothing ->
+                        "Pick a warehouse"
+                )
             ]
         )
     , Doc.example
@@ -378,7 +398,7 @@ donutExamples locale =
                     )
 
         small title attrs segments =
-            Chart.donut ([ Chart.title title, Chart.size 132, Chart.locale locale ] ++ attrs) segments
+            Chart.donut ([ Chart.title title, Chart.width 132, Chart.locale locale ] ++ attrs) segments
     in
     [ Doc.example
         { title = "Donut chart"
@@ -432,7 +452,7 @@ gaugeExamples locale =
             [ ( 70, Success ), ( 90, Warning ), ( 100, Danger ) ]
 
         gauge title value attrs =
-            Chart.gauge ([ Chart.title title, Chart.size 190, Chart.locale locale ] ++ attrs) value
+            Chart.gauge ([ Chart.title title, Chart.width 190, Chart.locale locale ] ++ attrs) value
 
         meter title value attrs =
             Chart.meter ([ Chart.title title, Chart.locale locale ] ++ attrs) value
@@ -477,11 +497,17 @@ sparklineExamples locale =
                 [ Text.caption label
                 , Chart.sparkline (Chart.ariaLabel label :: Chart.locale locale :: attrs) values
                 ]
+
+        remoteCell label data =
+            Layout.stack [ Layout.gap 1 ]
+                [ Text.caption label
+                , Chart.sparklineRemote [ Chart.ariaLabel label, Chart.locale locale ] data
+                ]
     in
     [ Doc.example
         { title = "Sparkline"
         , description = Just "A small trend without axes, with a dot on the last value. It takes the width it is given. It has no title, so give it an ariaLabel that says what it shows."
-        , code = Just "Chart.sparkline [ Chart.ariaLabel \"Orders, last 7 days\", Chart.area, Chart.size 120 ] [ 3, 5, 4, 8, 7, 9, 12 ]"
+        , code = Just "Chart.sparkline [ Chart.ariaLabel \"Orders, last 7 days\", Chart.area, Chart.width 120 ] [ 3, 5, 4, 8, 7, 9, 12 ]"
         }
         (Layout.grid [ Layout.minColumn 150, Layout.gap 4 ]
             [ cell "Rising" [ Chart.area ] [ 3, 5, 4, 8, 7, 9, 12, 11, 15 ]
@@ -490,9 +516,9 @@ sparklineExamples locale =
             , cell "Negative values" [ Chart.area, Chart.tone Warning ] [ -5, -9, -2, -14, -8, -3 ]
             , cell "One point" [] [ 42 ]
             , cell "Empty" [] []
-            , cell "Loading" [ Chart.loading True ] [ 1, 2 ]
-            , cell "Failed" [ Chart.failed (Remote.problem Remote.server) ] []
-            , cell "Large, 120 pixels" [ Chart.size 120, Chart.height 44, Chart.area ] (List.range 0 40 |> List.map (wave 50 20 0))
+            , remoteCell "Loading" Remote.Loading
+            , remoteCell "Failed" (Remote.Failed (Remote.problem Remote.server))
+            , cell "Large, 120 pixels" [ Chart.width 120, Chart.height 44, Chart.area ] (List.range 0 40 |> List.map (wave 50 20 0))
             , cell "Large numbers" [] [ 1.0e12, 3.0e12, 2.0e12, 5.0e12 ]
             ]
         )
@@ -508,28 +534,28 @@ stateExamples locale model =
     let
         row example kind =
             Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
-                [ kind [ Chart.loading True ]
+                [ kind [] Remote.Loading
                 , kind
-                    [ Chart.remote (Pretend.down locale (List.member example model.retrying))
-                    , Chart.id (chartId example)
+                    [ Chart.id (chartId example)
                     , Chart.onRetry (Retry example)
                     ]
-                , kind [ Chart.emptyText "No orders in this period" ]
+                    (Pretend.down locale (List.member example model.retrying))
+                , kind [ Chart.emptyText "No orders in this period" ] (Remote.Loaded [])
                 ]
     in
     [ Doc.example
         { title = "Loading, failed and empty"
-        , description = Just "Every chart shows a skeleton of the right height while it loads, a short message with “Try again” when it failed, and an empty state when there is no data. With Chart.remote, loading and failure come straight from a Remote. Here the backend is down on purpose: “Try again” loads for a moment and fails again."
-        , code = Just """Chart.line [ Chart.remote model.visits ] (Remote.withDefault [] model.visits)
+        , description = Just "Every chart from a Remote (lineRemote, barRemote, donutRemote, ...) shows a skeleton of the right height while it loads, a short message with “Try again” when it failed, and an empty state when there is no data. Here the backend is down on purpose: “Try again” loads for a moment and fails again."
+        , code = Just """Chart.lineRemote [ Chart.onRetry Reload ] (Remote.map toSeries model.visits)
 
-Chart.bar [ Chart.failed problem, Chart.onRetry Reload ] []
+Chart.barRemote [ Chart.onRetry Reload, Chart.id "visits" ] (Remote.Failed problem)
 
 Chart.donut [ Chart.emptyText "No data" ] []"""
         }
         (Layout.stack [ Layout.gap 6 ]
-            [ row "line" (\attrs -> Chart.line ([ Chart.title "Line", Chart.height 120, Chart.locale locale ] ++ attrs) [])
-            , row "bar" (\attrs -> Chart.bar ([ Chart.title "Bars", Chart.height 120, Chart.locale locale ] ++ attrs) [])
-            , row "donut" (\attrs -> Chart.donut ([ Chart.title "Donut", Chart.locale locale ] ++ attrs) [])
+            [ row "line" (\attrs data -> Chart.lineRemote ([ Chart.title "Line", Chart.height 120, Chart.locale locale ] ++ attrs) data)
+            , row "bar" (\attrs data -> Chart.barRemote ([ Chart.title "Bars", Chart.height 120, Chart.locale locale ] ++ attrs) data)
+            , row "donut" (\attrs data -> Chart.donutRemote ([ Chart.title "Donut", Chart.locale locale ] ++ attrs) data)
             ]
         )
     ]

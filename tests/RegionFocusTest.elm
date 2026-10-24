@@ -59,7 +59,7 @@ suite =
                     (\( name, data ) ->
                         test name <|
                             \_ ->
-                                Chart.line [ Chart.id "chart", Chart.onRetry Retry, Chart.remote data ] [ Chart.series "a" [ 1, 2 ] ]
+                                Chart.lineRemote [ Chart.id "chart", Chart.onRetry Retry ] (Remote.map (\_ -> [ Chart.series "a" [ 1, 2 ] ]) data)
                                     |> Query.fromHtml
                                     |> Query.has [ Selector.id "chart", Selector.attribute (Html.Attributes.tabindex -1) ]
                     )
@@ -70,14 +70,14 @@ suite =
                     (\( name, data ) ->
                         test name <|
                             \_ ->
-                                Timeline.view [ Timeline.id "log", Timeline.onRetry Retry, Timeline.remote data ] []
+                                Timeline.viewRemote [ Timeline.id "log", Timeline.onRetry Retry ] (Remote.map (\_ -> []) data)
                                     |> Query.fromHtml
                                     |> Query.has [ Selector.id "log", Selector.attribute (Html.Attributes.tabindex -1) ]
                     )
             )
         , test "without an id there is no extra element or tabindex" <|
             \_ ->
-                Chart.line [ Chart.remote (Loaded 1) ] [ Chart.series "a" [ 1, 2 ] ]
+                Chart.lineRemote [] (Loaded [ Chart.series "a" [ 1, 2 ] ])
                     |> Query.fromHtml
                     |> Query.hasNot [ Selector.attribute (Html.Attributes.tabindex -1) ]
         ]
