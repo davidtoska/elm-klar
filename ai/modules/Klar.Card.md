@@ -18,7 +18,7 @@ title : String -> Attribute msg
 headingLevel : Int -> Attribute msg
 subtitle : String -> Attribute msg
 actions : List (Html msg) -> Attribute msg
-footer : Html msg -> Attribute msg
+footer : List (Html msg) -> Attribute msg
 
 -- Look
 flush : Attribute msg
@@ -152,12 +152,14 @@ below the title.
 ### `footer`
 
 ```elm
-footer : Html msg -> Attribute msg
+footer : List (Html msg) -> Attribute msg
 ```
 
-A single element in a tinted strip below the body, such as a summary or a
-row of buttons. To put several elements in the footer, wrap them in a
-`Layout.row`.
+A tinted strip below the body, such as a summary or a few buttons, laid out in a
+row that wraps. It starts at the left; a `Layout.spacer` pushes what comes after it
+to the right end. An empty list is no footer.
+
+    Card.footer [ Text.caption "Updated 3 minutes ago", Layout.spacer, Button.view [ Button.small ] "View all" ]
 
 ## Look
 

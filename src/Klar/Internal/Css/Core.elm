@@ -306,6 +306,10 @@ css =
 .klar-card--flush > .klar-card__body { padding: 0; }
 
 .klar-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--klar-space-2) var(--klar-space-3);
   padding: var(--klar-space-3) var(--klar-space-4);
   border-top: 1px solid var(--klar-border);
   background: var(--klar-surface-subtle);

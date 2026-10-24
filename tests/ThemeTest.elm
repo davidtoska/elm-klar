@@ -125,6 +125,17 @@ styleTests =
                     ()
         , test "light mode never mentions the dark scheme" <|
             \_ -> lacks Theme.violet Light "dark"
+        , test "the mode of the system gives the high contrast colors to a person who asked for more contrast" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> has Theme.ocean System "@media (prefers-contrast:more){:root{"
+                    , \_ -> has Theme.ocean System "@media (prefers-contrast:more) and (prefers-color-scheme:dark){:root{"
+                    , \_ -> has Theme.klar System "@media (prefers-contrast:more){:root{"
+                    , \_ -> lacks Theme.ocean Light "prefers-contrast"
+                    , \_ -> lacks Theme.ocean Dark "prefers-contrast"
+                    , \_ -> lacks Theme.contrast System "prefers-contrast"
+                    ]
+                    ()
         , test "stylesheetFor draws the stylesheet and the theme" <|
             \_ ->
                 Klar.stylesheetFor (Settings.default |> Settings.withTheme Theme.teal)

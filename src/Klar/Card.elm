@@ -95,7 +95,7 @@ type alias Config msg =
     { title : Maybe String
     , subtitle : Maybe String
     , actions : List (Html msg)
-    , footer : Maybe (Html msg)
+    , footer : List (Html msg)
     , flush : Bool
     , sunken : Bool
     , raised : Bool
@@ -112,7 +112,7 @@ configure attributes =
         , headingLevel = 2
         , subtitle = Nothing
         , actions = []
-        , footer = Nothing
+        , footer = []
         , flush = False
         , sunken = False
         , raised = False
@@ -161,13 +161,16 @@ actions value =
     Attribute (\config -> { config | actions = value })
 
 
-{-| A single element in a tinted strip below the body, such as a summary or a
-row of buttons. To put several elements in the footer, wrap them in a
-`Layout.row`.
+{-| A tinted strip below the body, such as a summary or a few buttons, laid out in a
+row that wraps. It starts at the left; a `Layout.spacer` pushes what comes after it
+to the right end. An empty list is no footer.
+
+    Card.footer [ Text.caption "Updated 3 minutes ago", Layout.spacer, Button.view [ Button.small ] "View all" ]
+
 -}
-footer : Html msg -> Attribute msg
+footer : List (Html msg) -> Attribute msg
 footer value =
-    Attribute (\config -> { config | footer = Just value })
+    Attribute (\config -> { config | footer = value })
 
 
 {-| No padding around the body, so that a table, a list or a picture goes edge to
@@ -288,5 +291,6 @@ view attributes children =
                 ]
             )
         , Html.div [ Internal.cls [ "klar-card__body" ] ] children
-        , Internal.viewMaybe (\f -> Html.footer [ Internal.cls [ "klar-card__footer" ] ] [ f ]) config.footer
+        , Internal.viewIf (not (List.isEmpty config.footer))
+            (Html.footer [ Internal.cls [ "klar-card__footer" ] ] config.footer)
         ]

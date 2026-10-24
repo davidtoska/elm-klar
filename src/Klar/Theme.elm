@@ -128,7 +128,9 @@ type Theme
 
 {-| Whether the page is light, dark, or follows the operating system.
 `System` is dark when the person has asked the system for a dark mode, and light
-otherwise. A page without a choice is `Light`.
+otherwise; when the person has also asked the system for more contrast
+(`prefers-contrast: more`), the page takes the colors of the `contrast` theme, light
+or dark. A page without a choice is `Light`.
 -}
 type Mode
     = Light
@@ -355,6 +357,21 @@ style (Theme spec) mode =
         dark =
             Palette.css (Palette.declarations spec True)
 
+        -- A person who asked the system for more contrast gets the high contrast
+        -- palette, in light and in dark, when the application follows the system.
+        moreContrast =
+            if spec.strong then
+                ""
+
+            else
+                case contrast of
+                    Theme strong ->
+                        "@media (prefers-contrast:more){"
+                            ++ Palette.css (Palette.declarations strong False)
+                            ++ "}@media (prefers-contrast:more) and (prefers-color-scheme:dark){"
+                            ++ Palette.css (Palette.declarations strong True)
+                            ++ "}"
+
         text =
             case mode of
                 Light ->
@@ -364,7 +381,7 @@ style (Theme spec) mode =
                     dark
 
                 System ->
-                    light ++ "@media (prefers-color-scheme:dark){" ++ dark ++ "}"
+                    light ++ "@media (prefers-color-scheme:dark){" ++ dark ++ "}" ++ moreContrast
     in
     Html.node "style" [] [ Html.text text ]
 

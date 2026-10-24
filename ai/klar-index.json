@@ -25,13 +25,13 @@
       ],
       "related": [
         "Klar.Form",
+        "Klar.Settings",
         "Klar.Table",
         "Klar.AppShell",
         "Klar.Drawer",
         "Klar.Field",
         "Klar.Form.Layout",
-        "Klar.Form.Spec",
-        "Klar.Locale"
+        "Klar.Form.Spec"
       ],
       "keywords": [
         "klar",

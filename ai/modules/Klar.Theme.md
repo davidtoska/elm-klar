@@ -109,7 +109,9 @@ type Mode = Light | Dark | System
 
 Whether the page is light, dark, or follows the operating system.
 `System` is dark when the person has asked the system for a dark mode, and light
-otherwise. A page without a choice is `Light`.
+otherwise; when the person has also asked the system for more contrast
+(`prefers-contrast: more`), the page takes the colors of the `contrast` theme, light
+or dark. A page without a choice is `Light`.
 
 ### `klar`
 

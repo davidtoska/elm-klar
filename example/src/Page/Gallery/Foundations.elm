@@ -875,7 +875,7 @@ cardHeader =
         [ Button.view [ Button.small ] "Export"
         , Button.iconOnly [ Button.small, Button.ghost ] Icon.moreHorizontal "More actions"
         ]
-    , Card.footer (Text.caption "Updated 3 minutes ago")
+    , Card.footer [ Text.caption "Updated 3 minutes ago" ]
     ]
     [ Text.paragraph "Fragile, handle with care." ]"""
         }
@@ -886,7 +886,7 @@ cardHeader =
                 [ Button.view [ Button.small ] "Export"
                 , Button.iconOnly [ Button.small, Button.ghost ] Icon.moreHorizontal "More actions"
                 ]
-            , Card.footer (Text.caption "Updated 3 minutes ago")
+            , Card.footer [ Text.caption "Updated 3 minutes ago" ]
             ]
             [ Layout.stack [ Layout.gap 2 ]
                 (List.map

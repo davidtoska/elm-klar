@@ -135,7 +135,10 @@ of the submit, for a form you wire by hand.
 
 **Language.** Built-in text (placeholders, labels read by screen readers, month
 names) is English by default and Norwegian Bokmål with `locale Locale.nb`; see
-[Klar.Locale](Klar.Locale.md). Your own text always comes from your application.
+[Klar.Locale](Klar.Locale.md). Keep the language in the [Klar.Settings](Klar.Settings.md) of
+the model, with the time zone, the time now and the theme, and give each component
+`locale (Settings.locale model.settings)`. Your own text always comes from your
+application.
 
 **Honest with input.** Nothing changes what the user typed behind their back. A
 number outside its range stays in the field with an error; only an explicit action
@@ -191,7 +194,8 @@ application chooses a theme or lets the person choose light or dark.
 
     Klar.stylesheetFor model.settings
 
-With the default settings it draws exactly what `stylesheet` does.
+With the default settings it draws exactly what `stylesheet` does. The colors of the
+theme are computed once for a theme and a mode, not on every view.
 
 ### `css`
 
@@ -200,10 +204,13 @@ css : String
 ```
 
 The same rules as text. Use it where the ready-made element does not fit: to
-give the `<style>` element a `nonce` of your own, or to put the rules into a shadow
-root.
+give the `<style>` element a `nonce` of your own. Draw `Theme.style` after it for a
+theme other than the default.
 
     Html.node "style" [ Html.Attributes.attribute "nonce" model.nonce ] [ Html.text Klar.css ]
+
+The rules are written for a whole page (the tokens are on `:root`, the reset on
+`body`), so they do not work inside a shadow root.
 
 ## Focus
 

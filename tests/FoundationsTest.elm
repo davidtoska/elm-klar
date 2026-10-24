@@ -212,6 +212,20 @@ cardTests =
                             |> Query.hasNot [ attr "aria-labelledby" "revenue-title" ]
                     ]
                     ()
+        , test "the footer holds a list, and an empty list is no footer" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        Card.view [ Card.footer [ Html.text "Updated", Html.text "now" ] ] []
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.tag "footer" ]
+                            |> Query.has [ Selector.class "klar-card__footer", Selector.text "Updated", Selector.text "now" ]
+                    , \_ ->
+                        Card.view [ Card.footer [] ] []
+                            |> Query.fromHtml
+                            |> Query.hasNot [ Selector.tag "footer" ]
+                    ]
+                    ()
         , test "the header follows the density: its height comes from the control token" <|
             \_ ->
                 Expect.equal True (String.contains "min-height: calc(var(--klar-control) + var(--klar-space-3));" Klar.css)
