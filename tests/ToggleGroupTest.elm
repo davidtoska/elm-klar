@@ -11,6 +11,7 @@ import Klar.ToggleGroup as ToggleGroup
 import Klar.ToggleGroup.Ids as Ids
 import Klar.ToggleGroup.Selection as Selection
 import Support.ActionsQuery as ActionsQuery
+import Support.Css as Css
 import Test exposing (Test, describe, fuzz, fuzz2, fuzz3, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -314,16 +315,16 @@ renderTests =
                 [ ".klar-toggle-group{flex-wrap: wrap}"
                 , ".klar-toggle-group:not(.klar-toggle-group--full) > .klar-button{flex: 0 0 auto}"
                 ]
-                    |> List.map (\rule -> String.contains rule Klar.css)
+                    |> List.map (\rule -> String.contains rule Css.rules)
                     |> Expect.equal [ True, True ]
         , test "in Windows high contrast a switched on button is marked by a frame, not by a background" <|
             \_ ->
-                Klar.css
+                Css.rules
                     |> String.contains "@media (forced-colors: active){.klar-toggle-group .klar-button[aria-pressed=\"true\"]::after{"
                     |> Expect.equal True
         , test "the buttons of a full width group have little padding, so that seven short day names fit on a phone" <|
             \_ ->
-                Klar.css
+                Css.rules
                     |> String.contains ".klar-toggle-group--full > .klar-button:not(.klar-button--icon-only){padding-inline: var(--klar-space-1)}"
                     |> Expect.equal True
         ]

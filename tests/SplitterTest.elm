@@ -7,6 +7,7 @@ import Json.Encode as Encode
 import Klar
 import Klar.Locale as Locale
 import Klar.Splitter as Splitter
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -232,7 +233,7 @@ structureTests =
             \_ ->
                 let
                     rule selector =
-                        Klar.css
+                        Css.rules
                             |> String.split (selector ++ "{")
                             |> List.drop 1
                             |> List.head

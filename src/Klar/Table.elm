@@ -65,7 +65,7 @@ The view of the whole table is one function:
 **Quick path: a server table.** The rows live on the server; you give the table one page
 of them and the number of matches, and it only records what the user asked for. A server list
 with a filter bar or saved views is [Klar.ServerList](Klar-ServerList), which does every step
-below for you (`recipes/inbox`). A server table on its own needs, in order:
+below for you (`example/src/Examples/Inbox.elm`). A server table on its own needs, in order:
 
   - `Table.server { total = model.total }` and `Table.rows model.page` (a `Remote` of the
     current page only);

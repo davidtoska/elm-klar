@@ -16,6 +16,7 @@ import Klar.Avatar as Avatar
 import Klar.Locale as Locale
 import Klar.Remote as Remote
 import Klar.Settings as Settings
+import Support.Css as Css
 import Support.FlowHtml as H
 import Test exposing (Test, describe, fuzz, fuzz2, test)
 import Test.Html.Query as Query
@@ -642,7 +643,7 @@ listTests =
                     |> Expect.equal True
         , test "the flow gets a visible focus ring when it is focused by program" <|
             \_ ->
-                Klar.css
+                Css.rules
                     |> String.contains ".klar-approval:focus-visible"
                     |> Expect.equal True
         ]

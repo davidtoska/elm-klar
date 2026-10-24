@@ -1,0 +1,423 @@
+module Klar.Internal.Css.Markdown exposing (css)
+
+{-| The rules of `markdown`, part of the stylesheet of the package. Edit the CSS here;
+`Klar.Internal.Css` puts the parts together in order.
+-}
+
+
+css : String
+css =
+    """
+/* ==========================================================================
+   Markdown: the rendered text (Klar.Markdown) and the editor (Klar.MarkdownEditor).
+   Calm and dense: 13px text, small headings, thin lines. A table or a block of code
+   that is wider than the text scrolls inside its own box, never the page.
+   ========================================================================== */
+
+/* ---- The text ------------------------------------------------------------ */
+
+.klar-md {
+  min-width: 0;
+  color: var(--klar-text);
+  font-size: var(--klar-text-md);
+  line-height: var(--klar-leading);
+  overflow-wrap: anywhere;
+}
+
+/* The space between blocks. */
+.klar-md > * + * { margin-top: var(--klar-space-3); }
+.klar-md li > * + *,
+.klar-md blockquote > * + * { margin-top: var(--klar-space-2); }
+
+.klar-md h1,
+.klar-md h2,
+.klar-md h3,
+.klar-md h4,
+.klar-md h5,
+.klar-md h6 {
+  color: var(--klar-text);
+  font-weight: var(--klar-weight-bold);
+  line-height: var(--klar-leading-tight);
+}
+
+.klar-md h1 { font-size: var(--klar-text-2xl); }
+.klar-md h2 { font-size: var(--klar-text-xl); }
+.klar-md h3 { font-size: var(--klar-text-lg); }
+.klar-md h4 { font-size: var(--klar-text-md); }
+.klar-md h5 { font-size: var(--klar-text-md); font-weight: var(--klar-weight-medium); color: var(--klar-text-secondary); }
+.klar-md h6 { font-size: var(--klar-text-sm); font-weight: var(--klar-weight-medium); color: var(--klar-text-muted); }
+
+/* A heading has more room above than below, so that it belongs to what follows. */
+.klar-md > :is(h1, h2, h3, h4, h5, h6) { margin-top: var(--klar-space-5); }
+.klar-md :is(h1, h2, h3, h4, h5, h6):not(:last-child) { margin-bottom: calc(-1 * var(--klar-space-1)); }
+.klar-md > :first-child { margin-top: 0; }
+
+.klar-md strong { font-weight: var(--klar-weight-bold); }
+.klar-md del { color: var(--klar-text-muted); }
+
+/* ---- Lists ---------------------------------------------------------------- */
+
+.klar-md ul,
+.klar-md ol { padding-inline-start: 1.6em; }
+
+.klar-md ul { list-style: disc; }
+.klar-md ul ul { list-style: circle; }
+.klar-md ul ul ul { list-style: square; }
+.klar-md ol { list-style: decimal; }
+
+.klar-md li::marker { color: var(--klar-text-muted); }
+.klar-md li + li { margin-top: 2px; }
+
+/* A list becomes loose (its paragraphs get a `p`) when text arrives after a blank line:
+   the difference is a little room, so a text that grows does not visibly jump. */
+.klar-md li:has(> p) + li,
+.klar-md li + li:has(> p) { margin-top: 4px; }
+.klar-md li > :is(ul, ol) { margin-top: 2px; }
+
+/* A task: the check box sits where the bullet would be. */
+.klar-md__task { list-style: none; }
+
+.klar-md__task-label {
+  position: relative;
+  display: block;
+}
+
+.klar-md__checkbox {
+  position: absolute;
+  inset-inline-start: -1.5em;
+  top: 0.32em;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--klar-primary);
+}
+
+/* A task whose first block is not a paragraph: the check box is in the item. */
+.klar-md__task > .klar-md__checkbox { position: static; margin-inline-end: 6px; vertical-align: middle; }
+
+/* ---- Quote and rule --------------------------------------------------------- */
+
+.klar-md blockquote {
+  padding-inline-start: var(--klar-space-3);
+  border-inline-start: 3px solid var(--klar-border-strong);
+  color: var(--klar-text-secondary);
+}
+
+.klar-md hr {
+  margin: var(--klar-space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--klar-border);
+}
+
+/* ---- Code --------------------------------------------------------------------- */
+
+.klar-md__inline-code {
+  padding: 0 4px;
+  background: var(--klar-surface-sunken);
+  border-radius: var(--klar-radius-sm);
+  font-family: var(--klar-font-mono);
+  font-size: 0.92em;
+}
+
+.klar-md__code {
+  min-width: 0;
+  background: var(--klar-surface-subtle);
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+}
+
+.klar-md__language {
+  display: block;
+  padding: 2px var(--klar-space-3);
+  background: var(--klar-surface-sunken);
+  border-bottom: 1px solid var(--klar-border-subtle);
+  border-radius: var(--klar-radius-lg) var(--klar-radius-lg) 0 0;
+  color: var(--klar-text-muted);
+  font-size: var(--klar-text-xs);
+  user-select: none;
+}
+
+.klar-md__pre {
+  max-height: 28em;
+  margin: 0;
+  padding: var(--klar-space-3);
+  overflow: auto;
+  font-family: var(--klar-font-mono);
+  font-size: var(--klar-text-sm);
+  line-height: 1.5;
+  overflow-wrap: normal;
+  tab-size: 4;
+  white-space: pre;
+}
+
+.klar-md__pre code { font: inherit; }
+
+.klar-md__pre:focus-visible,
+.klar-md__table:focus-visible,
+.klar-mdeditor__pane--preview:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
+}
+
+/* ---- Tables --------------------------------------------------------------------- */
+
+.klar-md__table {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-lg);
+}
+
+.klar-md__table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cells wrap at words, so a table that does not fit scrolls, and does not turn into
+   a column of letters. */
+.klar-md__cell {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--klar-border-subtle);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+
+.klar-md th.klar-md__cell {
+  background: var(--klar-surface-subtle);
+  border-bottom-color: var(--klar-border);
+  font-weight: var(--klar-weight-bold);
+}
+
+.klar-md tbody tr:last-child .klar-md__cell { border-bottom: 0; }
+
+.klar-md__cell--left { text-align: left; }
+.klar-md__cell--center { text-align: center; }
+.klar-md__cell--right { text-align: right; }
+
+/* ---- Links and images ---------------------------------------------------------------- */
+
+.klar-md__link {
+  color: var(--klar-text-link);
+  text-decoration: underline;
+  text-decoration-color: var(--klar-primary-border);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.klar-md__link:hover { text-decoration-color: currentColor; }
+
+.klar-md__external {
+  display: inline-block;
+  margin-inline-start: 1px;
+  opacity: 0.75;
+}
+
+.klar-md__link--external:hover .klar-md__external { opacity: 1; }
+
+.klar-md__external .klar-icon {
+  --klar-icon-size: 0.9em;
+  vertical-align: -0.1em;
+}
+
+.klar-md__image {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--klar-radius);
+}
+
+/* An image that is not loaded: its description, in a dashed box. */
+.klar-md__placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px dashed var(--klar-border-strong);
+  border-radius: var(--klar-radius);
+  color: var(--klar-text-secondary);
+  font-size: var(--klar-text-sm);
+}
+
+a.klar-md__placeholder { color: var(--klar-text-link); text-decoration: none; }
+a.klar-md__placeholder:hover { border-style: solid; }
+
+/* The text was longer than the limit and is cut. */
+.klar-md__notice {
+  padding: var(--klar-space-2) var(--klar-space-3);
+  background: var(--klar-warning-subtle);
+  border: 1px solid var(--klar-warning-border);
+  border-radius: var(--klar-radius);
+  color: var(--klar-amber-700);
+  font-size: var(--klar-text-sm);
+}
+
+/* ==========================================================================
+   The editor
+   The container, not the window, decides: tabs below 40em, side by side above.
+   `--tabs` and `--split` fix the layout.
+   ========================================================================== */
+
+.klar-mdeditor {
+  --_line: 18px;
+  --_pad: 8px;
+  container-type: inline-size;
+  /* a container with `inline-size` has no width of its own: in a place that is as wide as
+     its content (a flex item, an inline block) it would collapse */
+  width: 100%;
+  min-width: 16em;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--klar-surface);
+  border: 1px solid var(--klar-border-strong);
+  border-radius: var(--klar-radius);
+  color: var(--klar-text);
+  transition: border-color var(--klar-dur-fast) var(--klar-ease), box-shadow var(--klar-dur-fast) var(--klar-ease);
+}
+
+.klar-mdeditor:hover { border-color: var(--klar-gray-400); }
+
+.klar-mdeditor:focus-within {
+  border-color: var(--klar-focus-color);
+  box-shadow: var(--klar-focus-ring);
+}
+
+.klar-mdeditor--invalid { border-color: var(--klar-danger); }
+
+.klar-mdeditor--invalid:focus-within {
+  border-color: var(--klar-danger);
+  box-shadow: var(--klar-focus-ring-danger);
+}
+
+.klar-mdeditor--disabled {
+  background: var(--klar-gray-50);
+  color: var(--klar-text-disabled);
+}
+
+.klar-mdeditor--disabled:hover { border-color: var(--klar-border-strong); }
+
+/* The bar: the tabs (narrow) and the toolbar. */
+.klar-mdeditor__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--klar-space-1) var(--klar-space-3);
+  padding: 2px 6px;
+  background: var(--klar-surface-subtle);
+  border-bottom: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius) var(--klar-radius) 0 0;
+}
+
+.klar-mdeditor__tabs { min-width: 0; }
+.klar-mdeditor__toolbar { min-width: 0; }
+
+/* The panes: one at a time (the tab that is shown), both side by side when wide. */
+.klar-mdeditor__panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.klar-mdeditor__pane {
+  min-width: 0;
+  height: calc(var(--klar-mdeditor-rows, 12) * var(--_line) + 2 * var(--_pad));
+}
+
+.klar-mdeditor__pane--preview {
+  display: none;
+  padding: var(--_pad) var(--klar-space-3);
+  overflow: auto;
+}
+
+.klar-mdeditor--showing-preview .klar-mdeditor__pane--preview { display: block; }
+.klar-mdeditor--showing-preview .klar-mdeditor__pane--write { display: none; }
+.klar-mdeditor--showing-preview .klar-mdeditor__toolbar { visibility: hidden; }
+
+.klar-mdeditor__control {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: var(--_pad) var(--klar-space-3);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  color: inherit;
+  font-family: var(--klar-font-mono);
+  font-size: var(--klar-text-sm);
+  line-height: var(--_line);
+  resize: none;
+  tab-size: 4;
+}
+
+.klar-mdeditor__control::placeholder { color: var(--klar-text-muted); opacity: 1; }
+.klar-mdeditor__control:disabled { cursor: not-allowed; }
+
+.klar-mdeditor--stale .klar-mdeditor__pane--preview { opacity: 0.65; }
+
+.klar-mdeditor__empty {
+  margin: 0;
+  color: var(--klar-text-muted);
+}
+
+/* Wide: the text and the preview side by side, no tabs. */
+@container (min-width: 40em) {
+  .klar-mdeditor:not(.klar-mdeditor--tabs) .klar-mdeditor__tabs { display: none; }
+  .klar-mdeditor:not(.klar-mdeditor--tabs) .klar-mdeditor__toolbar { visibility: visible; }
+  .klar-mdeditor:not(.klar-mdeditor--tabs) .klar-mdeditor__panes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .klar-mdeditor:not(.klar-mdeditor--tabs) .klar-mdeditor__pane--write,
+  .klar-mdeditor:not(.klar-mdeditor--tabs) .klar-mdeditor__pane--preview { display: block; }
+
+  .klar-mdeditor:not(.klar-mdeditor--tabs) .klar-mdeditor__pane--preview {
+    background: var(--klar-surface-subtle);
+    border-inline-start: 1px solid var(--klar-border);
+    border-radius: 0 0 var(--klar-radius) 0;
+  }
+}
+
+/* Side by side in any width. */
+.klar-mdeditor--split .klar-mdeditor__tabs { display: none; }
+.klar-mdeditor--split .klar-mdeditor__toolbar { visibility: visible; }
+.klar-mdeditor--split .klar-mdeditor__panes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.klar-mdeditor--split .klar-mdeditor__pane--write,
+.klar-mdeditor--split .klar-mdeditor__pane--preview { display: block; }
+
+.klar-mdeditor--split .klar-mdeditor__pane--preview {
+  background: var(--klar-surface-subtle);
+  border-inline-start: 1px solid var(--klar-border);
+  border-radius: 0 0 var(--klar-radius) 0;
+}
+
+/* The help that opens under the panes. */
+.klar-mdeditor__help {
+  padding: 4px var(--klar-space-3);
+  border-top: 1px solid var(--klar-border);
+  color: var(--klar-text-muted);
+  font-size: var(--klar-text-xs);
+}
+
+.klar-mdeditor__help > summary { cursor: pointer; }
+
+.klar-mdeditor__syntax-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16em, 1fr));
+  gap: 2px var(--klar-space-4);
+  margin: var(--klar-space-2) 0 var(--klar-space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.klar-mdeditor__syntax {
+  display: flex;
+  align-items: baseline;
+  gap: var(--klar-space-2);
+}
+
+.klar-mdeditor__syntax code {
+  flex: none;
+  color: var(--klar-text);
+  font-family: var(--klar-font-mono);
+}
+"""

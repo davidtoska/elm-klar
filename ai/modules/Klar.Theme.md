@@ -78,8 +78,8 @@ error. Each has a light and a dark mode; the mode is `Light`, `Dark` or `System`
     view model =
         Html.div [] [ Klar.stylesheetFor model.settings, page ]
 
-A page that links `klar.css` instead of using `Klar.stylesheet` puts `Theme.style`
-after the link. The colors of a theme are computed in Elm
+A page that draws `Klar.css` itself instead of using `Klar.stylesheet` puts `Theme.style`
+after it. The colors of a theme are computed in Elm
 and drawn as custom properties on `:root`, so there is one theme for the whole page.
 
 ### `Theme`
@@ -260,8 +260,8 @@ The tokens:
 The palette behind them (`--klar-gray-25` to `--klar-gray-900`, `--klar-blue-50`
 to `--klar-blue-900`, which is the accent scale of whatever theme is chosen, and the green, amber and red scales) is also a set of
 tokens. The default look is calm and light: gray, white and blue. The page
-`color-scheme` is `light`, or `dark` in a dark mode. Every token is defined in the `:root` block at the top
-of `css/klar.css` in the source of the package.
+`color-scheme` is `light`, or `dark` in a dark mode. Every token is defined in the `:root` block at the start
+of `Klar.css`.
 
 ## Tones, sizes and density
 

@@ -35,6 +35,7 @@ import Klar.SearchInput as SearchInput
 import Klar.TagInput as TagInput
 import Klar.TextArea as TextArea
 import Klar.TextInput as TextInput
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -1300,7 +1301,7 @@ stylesheetTest =
     describe "the stylesheet"
         [ test "a field around nothing but a text input is as wide as the input alone" <|
             \_ ->
-                Expect.equal True (String.contains ".klar-field:has(> .klar-input:only-child){width: 100%}" Klar.css)
+                Expect.equal True (String.contains ".klar-field:has(> .klar-input:only-child){width: 100%}" Css.rules)
         ]
 
 

@@ -9,8 +9,8 @@ Sizes: S = days, M = 1 to 2 weeks, L = several weeks, XL = a project of its own.
 - **One package.** `davidtoska/elm-klar`, no companion packages. Everything is in one place
   and versioned together.
 - **Not published yet.** Until the first `elm publish` the API may still change freely.
-  This is the cheapest time to get the shape right, so Phase A uses it. The freeze point is
-  a checklist at the end of this file.
+  This is the cheapest time to get the shape right. The freeze point is a checklist at the
+  end of this file.
 - **Maximal in components, minimal in dependencies and in API.** Many components, few
   packages, few functions per component, and the API as type safe as Elm allows.
 - **An application is Klar plus its own code.** It imports Klar and its own modules, and
@@ -19,7 +19,7 @@ Sizes: S = days, M = 1 to 2 weeks, L = several weeks, XL = a project of its own.
   applications; clarity and correctness come first. `elm make --optimize` removes code that
   is not used, so a large package does not make a small application large.
 - **The main user is an AI.** An AI builds the application, a person reviews it. The
-  documentation, the names and the types are made for that reader. See Phase A.
+  documentation, the names and the types are made for that reader (`AI.md`, `ai/`).
 - **Built for people who work with data all day.** The look stays as it is today: calm,
   small-typed, exact.
 
@@ -45,7 +45,7 @@ trust what they see. Eleven principles, and what each one means for a component:
    `String` where a value belongs (ids, colors, dates, sizes, keys, urls), no functions in
    `Msg` or `State`, required things are required arguments and cannot be forgotten,
    options that exclude each other are one type and cannot be given together, and a state
-   that makes no sense cannot be built. See A5.
+   that makes no sense cannot be built.
 6. **Keyboard first, accessible by design.** Roles, `aria-*`, visible focus,
    announcements for asynchronous changes.
 7. **Pure and robust.** No ports, no JavaScript, no `iframe`. Official `elm/*` packages
@@ -62,7 +62,7 @@ trust what they see. Eleven principles, and what each one means for a component:
 11. **Only Elm.** An application that uses Klar imports Klar and its own modules. No CSS
     file, no JavaScript, no class names, no style strings, no setup. Looks come from a
     typed `Theme`, layout from `Klar.Layout`, and a custom component is built from the same
-    typed pieces. See A6.
+    typed pieces.
 
 ### The admission test
 
@@ -73,8 +73,9 @@ A component joins Klar only when it can say yes to all of these:
 - Is it complete with the keyboard, and announced to a screen reader?
 - Is every piece of built-in text in `Klar.Locale` (English and Norwegian Bokmål)?
 - Are the pure parts (parsing, filtering, layout maths) tested?
-- Does it have a showcase page, an entry in the AI index (Phase A) and a recipe?
-- Does it follow the naming table and the API budget (Phase A)?
+- Does it have a showcase page and a module doc an AI can build from (Use when, Do not use
+  when, Quick path)?
+- Does it follow the conventions in `CLAUDE.md`?
 - Does it avoid glue code that every application would repeat?
 - Can it not be put into a state that makes no sense? Can two options that contradict each
   other not be given together? Can a required thing not be forgotten?
@@ -95,51 +96,29 @@ A component joins Klar only when it can say yes to all of these:
   nearly do.
 - A phase is finished before the next one starts, except where it says otherwise.
 
-## Built ahead of the plan (October 2026)
+## Before the first release
 
-A first wave of components was built in parallel with Phase A, on top of the existing
-core and without touching it. Each was reviewed by a second pair of eyes (logic against an
-independent reference, accessibility, safety, API against the rules above) and fixed. None
-has been used in a real application yet, so the last admission question is still open for
-all of them, and the A0 second round should include them.
+Built so far: more than a hundred components, the form model, the overlay layer, the stale
+data state, server lists, one `Klar.Ids` per id type, ten themes with a light and a dark
+mode, the AI documentation (`AI.md`, `ai/`) and six example programs. Left before the freeze:
 
-| Roadmap row | Built as |
+| Item | Size |
 |---|---|
-| B: Sortable | `Klar.Sortable` (pointer and keyboard, announcements; no subscription) |
-| B: Splitter / Resizable panels | `Klar.Splitter` |
-| B: `Link`, Kbd | `Klar.Link` (a typed target that cannot leave the application by accident), `Klar.Kbd` |
-| B: SplitButton, ButtonGroup, ToggleGroup | `Klar.SplitButton`, `Klar.ButtonGroup`, `Klar.ToggleGroup` |
-| B: Bulk action bar, Result pages, Leave-guard | `Klar.BulkBar`, `Klar.StatusPage`, `Klar.LeaveGuard` |
-| C: TreeSelect, Cascader, Transfer | `Klar.TreeSelect`, `Klar.Cascader`, `Klar.Transfer`, with `Klar.Picking` for the shared node |
-| D: Markdown parser and renderer, editor | `Klar.Markdown` (hand written, no new dependency), `Klar.MarkdownEditor` |
-| D: Diff viewer (text, JSON, records) | `Klar.Diff`, and `Klar.Compare` from Phase C. The read-only code block with highlighting is not built |
-| D: Permission matrix, Approval flow, Undo / redo | `Klar.PermissionMatrix`, `Klar.ApprovalFlow`, `Klar.History` |
-| F: Masked input, Currency input | `Klar.MaskedInput`, `Klar.Money` and `Klar.MoneyInput` (exact, in minor units) |
-| F: Recurring rule | `Klar.Recurrence`, `Klar.RecurrencePicker` (calendar dates only; time zones need a tz database that the official packages do not have) |
+| Firefox and Safari, a screen reader, touch and pen, Windows high contrast and a Mac keyboard (only Chromium is tested) | M |
+| Split `Table.elm` (about 7 000 lines) and `Chart.elm` (about 3 100 lines) into internal modules | L |
+| 100 000 rows in `Table`, `Tree` and `Select` as a test in `npm run check` | M |
+| `Autocomplete` values are still `String`, not the application's own type | M |
+| No "old data" marker yet in `Cascader`, `TreeSelect`, `Transfer`, `PermissionMatrix`, `ApprovalFlow` and `Compare`: they show `Kept` data as if it were `Loaded` | M |
+| `Select.Popup` and `Picking.View` hold the same popup code twice, and `Select` chooses an option on the `Enter` that confirms an IME composition | M |
+| `Menu` cannot open with the first item highlighted from the keyboard; `Tag` cannot name its remove button differently | S |
+| The avatar and chart palettes are not tuned per theme | S |
+| axe in `npm run check` on every showcase page | S |
+| A naming pass over every module against the conventions in `CLAUDE.md` | M |
 
-Left for later on purpose, because they sit on the overlay layer of A8 and should be built
-on it: Popconfirm, HoverCard, Tour, the notification centre, `Menubar` and
-`NavigationMenu`. Kanban, the comment thread, the audit log with diffs and the conflict
-resolver build on `Sortable`, `Markdown` and `Diff` and can start now.
-
-Findings that belong to Phase A and A8 and are listed here so they are not lost:
-
-- `Select.Popup` and `Picking.View` hold the same popup code twice. A browser test (a
-  `keydown` of `Enter` with `isComposing`, the key that confirms an IME composition)
-  showed that `Select` chooses an option on it, while `TreeSelect` and `Cascader` ignore
-  keys during a composition: `Select.Popup` needs the same check.
-- `Menu` cannot open with the first item highlighted from the keyboard, and `Tag` cannot name
-  its remove button differently, which the new components work around.
-
-A pass in a real browser (Chrome only, 22 October 2026: real mouse and keys, 375, 640,
-1024 and 1280 px, English and Norwegian, reduced motion, IME composition events) found
-and fixed: a splitter that cut off its last pane on a phone, a bulk bar that moved the
-list when it appeared, an editor that fired the application's `Ctrl K` as well as its own,
-an approval flow that lost the focus when its buttons went away (`ApprovalFlow.id` and
-`focus`), frequency and day buttons cut down to "D.." and "M..", a recurrence demo with two
-fields on one id, and a `LeaveGuard` recipe for the Back button that froze the page. Still
-to be tried by a person: Firefox and Safari, a screen reader, touch and pen, Windows high
-contrast and a Mac keyboard.
+Left for later on purpose, because they build on the overlay layer: Popconfirm, HoverCard,
+Tour, the notification centre, `Menubar` and `NavigationMenu`. Kanban, the comment thread,
+the audit log with diffs and the conflict resolver build on `Sortable`, `Markdown` and
+`Diff`.
 
 ## Technical rules
 
@@ -162,195 +141,6 @@ contrast and a Mac keyboard.
 | Maps, PDF viewer, signature, image crop output | Canvas, `iframe`, JavaScript or a tile server | Not in Klar |
 | Resumable chunked upload | `elm/file` cannot slice a file | One request per file; the application owns retry |
 | Blocking the tab from closing | `beforeunload` | Leave-guard for navigation inside the application |
-
-## Phase A: made for an AI, themed, and in order
-
-Nothing else starts before this. It decides how every later component is shaped. The order
-inside it matters: A0 first, because what it finds changes A1 to A7.
-
-### A0. Use it first
-
-**Status: three rounds done.** The applications were built three times (`apps/`, `apps/round2`,
-`apps/round3`); the evaluations are [apps/EVALUATION.md](apps/EVALUATION.md),
-[apps/ROUND2-EVALUATION.md](apps/ROUND2-EVALUATION.md) and
-[apps/ROUND3-EVALUATION.md](apps/ROUND3-EVALUATION.md). A1 (the AI documentation), A5 (types),
-A6 (no CSS), A7 (debts: overlay layer, performance, stale data, the form model, LeaveGuard)
-and A8 are built and merged, and so is what the round 3 evaluation listed under "Next" (global
-density and time zone in `Klar.Settings`, the server-mode helper `Klar.ServerList`, `RemoteView`
-focus, the last seams of the form model and the rule builder). The benchmark of A3 has had its
-first run; its fixes are merged. The records of the three rounds are in `apps/` (history: the
-sources no longer build, see [apps/README.md](apps/README.md)).
-
-The first step, before any documentation or renaming: build two or three real
-applications with Klar as it is, written by an AI from the documentation. Write down every
-friction: a function that was hard to find, a type that was awkward, code the application
-had to write that Klar should have hidden. That list drives A1 to A7 and decides what to
-change while a breaking change is still free. After a publish nothing can be removed, and
-80 modules that have never been used in a real application should not be frozen.
-
-| Piece | Size |
-|---|---|
-| Two or three real applications (different shapes: list and detail, a dashboard, a form-heavy flow) | L |
-| `FRICTION.md`: one line per problem, with the module and the fix | S |
-| Review the exposed custom types against the rule "opaque if it can grow" | M |
-
-### A1. Documentation for an AI reader
-
-**Status: done, except the expression fragments and the other recipes.** `AI.md` and `llms.txt`,
-`ai/klar-index.json` and `ai/modules/*.md` (generated by `npm run gen:ai-docs`, checked for staleness
-in `npm run check`), six recipes and the application template (compiled by `npm run check:recipes`),
-the paragraph for a consumer's `CLAUDE.md` in USING.md. Every module doc opens with its purpose, a
-`Use when:` and a `Do not use when:` line, and (for a module with a State and Msg) a `Quick path:`
-line; `check:ai-docs` fails when one is missing. `npm run check:doc-examples` compiles the complete
-examples of the module docs and runs with `--strict` in `check` (none fails; the few that need the
-application's own types are listed in `ai/doc-example-report.md`). Not done: compiling the expression fragments
-that make most of the doc examples, and the recipes beyond the six (the "twenty").
-
-| Piece | What it is | Size |
-|---|---|---|
-| `AI.md` and `llms.txt` | One short entry point: the mental model (a `State`, a `view`, an `update`), the ten rules, the standard application architecture, the twenty most common recipes. Under 400 lines | M |
-| `klar-index.json` | Generated from the doc comments and `docs.json`, never edited by hand, so there is one source of truth. For each module: one-line purpose, when to use it, when not, its `State`, `Msg` and ids, the minimal snippet, related modules, keywords. The first file an AI reads | M |
-| Quick path in every module doc | At the top of each module: "Use when / Do not use when / Minimal example / Options". The 90% case in at most six functions; everything else below it | L |
-| Recipes | "A searchable order table with paging on the server", "An edit form with validation and a save that can fail", "A confirmation before delete". Each is a complete, compiled program | L |
-| Application template | A small working application with the standard architecture that an AI copies as its start | M |
-| Snippet for the consumer's `CLAUDE.md` | A paragraph an application drops into its own project instructions: use only exposed modules, read `klar-index.json` first, never write your own popup / focus / date code | S |
-| Verified docs | A script compiles every example in the docs and every recipe in the check. A stale example fails `npm run check`. The index is regenerated by a script and checked for staleness | M |
-
-### A2. A small, consistent API
-
-| Piece | What it is | Size |
-|---|---|---|
-| Naming table | One table in `CONTRIBUTING.md`: `init`, `update`, `view`, `State`, `Msg`, `onX` for events, attributes named after the thing they set. The same name always means the same thing | M |
-| Naming audit | Read every module against the table and fix the differences now, while a breaking change is free | L |
-| API budget | A script lists each module's exposed values and flags modules where the common path is long. The aim is a short way for the usual case (a few functions, the rest as attributes under their own heading), not a hard number | M |
-| Errors that teach | Types named so a compile error explains itself; no `String` where a value belongs; typed `Result` errors with a readable message | M |
-| Defaults that are right | Every option has a default that is the best choice. A component with no options is correct | M |
-
-### A3. An AI benchmark
-
-**Status: run 1 done (22 October 2026).** `bench/` has the twelve tasks, `bench/run.md` (briefing,
-what is recorded, the score and the rule that it may not drop), the A0 baseline,
-`scripts/bench-workspace.mjs`, which builds the folder a fresh session is given, and
-[bench/results/run-1.md](bench/results/run-1.md): seven of twelve tasks pass every acceptance
-line; the defects it found in Klar and its documentation are fixed on `main`.
-
-Twelve fixed tasks (an order list with filters, an edit form, a dashboard, a rule builder,
-...). For each release, a fresh AI with only the documentation builds them. Record: compiles
-on the first try, number of fixes, any use of an unexposed module, any hand-written
-focus / popup / date code. The score is stored in `bench/` and may not drop between
-releases. M to set up, S to run.
-
-### A4. Theming from the outside
-
-**Status: done in a smaller form (October 2026).** Ten themes with a light and a dark mode, chosen
-with `Settings.withTheme` and `Settings.withMode`, drawn by `Klar.stylesheetFor`; computed in Elm
-(`Klar.Internal.Palette`), contrast tested for every generated palette. Decided against: `Theme.make`
-and colors of your own (Klar is for applications inside a company: one of ten themes is enough, and a
-chosen color cannot be promised to keep the contrast), component tokens, and a theme lab. Not
-done: the avatar palette and the chart palette are not tuned per theme, and no theme has been
-looked at in Firefox or Safari. The tokens (`--klar-*`) stay a documented, stable part of the API.
-
-### A5. Types that cannot be misused
-
-The aim is concrete: a wrong program does not compile. For every module, the audit asks
-the same questions and fixes what it finds, while a breaking change is free.
-
-| Technique | Example |
-|---|---|
-| Exclusive options are one type, not several flags | A table is in client mode or server mode: `Table.rows (Client rows)` or `Table.rows (Server remote)`, never both, never neither |
-| Required means required | Things a component cannot work without are arguments or fields of a required record, not optional attributes |
-| A value type, not a `String` | `Theme.Color`, `Klar.Date`, a size in a `Space` type, a key as `Keys`, an id as the application's own type |
-| Impossible states do not exist | A selection that must have one item is a non-empty type; a range cannot end before it starts; a page number cannot be 0 |
-| Failure is a value | A parse that can fail returns `Result` or `Maybe`, never a default that hides the mistake |
-| One name, one place | DOM ids and keys come from one declared type in the application, never from scattered strings |
-| Exhaustive by design | Messages the component sends are a closed set the application can map; no catch-all string events |
-| No hidden order | Setting options in a different order gives the same result |
-
-The result is checked in two ways: a test per module that tries to build a nonsensical
-state and fails to compile (a "must not compile" list kept in `tests/`), and the benchmark in
-A3, where any invented workaround counts against the score.
-
-### A6. No CSS, no JavaScript, no setup
-
-The stylesheet is already delivered as Elm (`Klar.stylesheet`). This step finishes the
-promise so an application never touches styling.
-
-| Piece | What it is | Size |
-|---|---|---|
-| One entry point | The stylesheet and the theme are rendered by one call, so there is a single thing to put in the view and nothing else to import or configure | S |
-| Authoring stays vanilla CSS, inside the package | `css/src/*.css` is built into an Elm module. The application sees only Elm. Moving the sources into Elm values is possible later but gives nothing the application can see, so it is not planned | - |
-| Typed building blocks for custom components | A custom component is built from `Klar.Layout`, `Klar.Text`, `Klar.Card` and typed spacing, size and tone values, so it matches without a class name or a style string. A small `Klar.Custom` module exposes only what is missing | M |
-| A lint for applications | `scripts/check-app.mjs` also flags `Html.Attributes.class`, `style` and `Html.node "style"` outside a folder the application marks as custom components | S |
-| No external assets | No font, icon file, image or CDN link is needed; icons are Elm values | - |
-
-### A7. Debts that outweigh new features
-
-| Item | Size |
-|---|---|
-| Split `Table.elm` (about 7 000 lines) and `Chart.elm` (about 3 100 lines) into internal modules, with the shared column / sort / filter core ready for the table family in Phase C | L |
-| Firefox and Safari pass, not only Chromium | M |
-| Screen reader pass | M |
-| 100 000 rows in Table, Tree and Select as a test in `npm run check` | M |
-| Finish the typed ids that remain: `Autocomplete` (its values are still `String`) | M |
-
-### A8. Fixes from the real applications
-
-From [apps/EVALUATION.md](apps/EVALUATION.md). They come before the rest of Phase A and
-before every later phase: what hurt was the glue between existing components, not a lack of
-new ones.
-
-| Item | Size |
-|---|---|
-| Sure fixes (done, see CHANGELOG): rename the clashing `Success` (`Theme.Tone` against `Remote`), fix every doc example that does not compile (and compile them in `check:docs`), the mounting and `elm/url` recipe, and about twenty small gaps (`Date.toPosix`, `Format.iso8601`, `Stat.change`, `Layout.fillRest`, heading levels, target sizes, ...) | M |
-| **Form model** (done: `Klar.Form`, see below): one `Form.State` that owns every field's value, knows when it is dirty, loads and returns a record, takes server problems per field, and knows steps and their status | XL |
-| **Overlay layer** (done: `Klar.Overlay`, see CHANGELOG): it owns focus, derives `modalOpen`, keeps toasts reachable and out of the way of dialogs, fixes the duplicate landmarks | L |
-| **Data-dense performance** (done, see below): cache the sorted and filtered rows in `Table`, virtual rows, `Search` pre-filtering, one row type for `Table` and `VirtualList`, keyboard model for `VirtualList`; tested at 50 000 rows | L |
-| **Server-mode helper** (done: `Klar.ServerList`, `design/SERVER-LIST.md`): "compare, reset the page, ticket the answer, debounce" in one place, shared by `Table`, `FilterBar`, `SavedViews` and the palette section | L |
-| `Remote`-aware containers and a stale state for refreshes that fail (done: `Klar.RemoteView`, `Remote.Kept`, see below) | M |
-| Typed ids where they are still strings: `Rule` choices over `Select.Option`, `Radio`, validators over any value, DOM ids derived from state | L |
-| Layout and density: a fixed width, fill the rest, `auto-fit`, one density that every component follows (done: `Klar.Settings`), sidebar width | M |
-| axe in `npm run check` on every showcase page | S |
-
-**Status of density and time zone: done** (see `design/SETTINGS.md`). `Klar.Settings` holds both; the shell
-(`AppShell.settings`) makes everything inside follow the density through the stylesheet, and the components
-that write a time take `settings` (the old `zone` attributes are gone); a time without a zone says "UTC".
-Locale is not in it (decision left open in the design note). The rest of the A8 row (a fixed width, `auto-fit`,
-the sidebar width) is not part of this.
-
-**Status of the stale state and the `Remote`-aware containers: done** (see
-`design/STALE-DATA.md` and the CHANGELOG). `Remote` has a fifth state, `Kept`, made by
-`Remote.refresh` and `Remote.refreshWith`; `Table`, `Stat`, `Chart`, `Timeline`, `Tree`, the
-select family, `ListItem.remote` and the command palette draw refreshing and old data with
-no attribute; `Klar.RemoteView` is the body of a card, dialog or drawer; `Alert.stale` is
-the notice of a page; `loading` can no longer cancel `remote`. The Stock application of
-round 2, rewritten on it, lost its `Feed` module, `settle`, `anyStale` and `viewNotices`.
-Not done: a focus that survives a successful retry outside `Table` and the overlays (it needs
-a `Cmd`, see CONTRIBUTING), and a marker in `Cascader`, `TreeSelect`, `Transfer`,
-`PermissionMatrix`, `ApprovalFlow` and `Compare`, which show `Kept` data as if it were `Loaded`.
-
-**Status of data-dense performance: done in the library, to be measured again in the
-second round.** Cause found by profiling in Chrome: every message turned every row into
-text again (the search text, the sort keys, number formatting), and a page change sorted
-the 50 000 rows again. Now `Table.prepareRows` keeps the search texts, the sorted order of
-each sortable column and the footer sums with the rows, `Table.virtual` scrolls instead of
-paging and draws only the rows in view, `VirtualList.list` owns its rows and is a list box
-for the keyboard, and `Search` tests the letters of a typo-tolerant query natively before
-it walks a text. 50 000 rows of 7 columns: search, sort and page each under 100 ms
-including two animation frames (see CHANGELOG.md for the numbers). Not done: S-023 (a
-column hidden below a width) became documentation, and the filtered rows are still found
-again on each view while a search is active (a scan of the search texts, a few
-milliseconds at 50 000 rows).
-
-**Status of the form model: built, seam closed.** `Klar.Form` (using a form), `Klar.Form.Spec`
-(declaring it), `Klar.Form.Check` (tests), `Klar.Form.Layout` (the frame) and `Klar.Ids`:
-text, long text, number, choices, switches, tags, files, steps with a stepper and a review
-list, repeating rows, server problems and problems from outside the model, focus by handle,
-one dirty flag. The onboarding flow of round 2 shrinks from 1 631 to 1 030 code lines and from
-110 `KLAR GAP` lines to 45, all for the price rules (`custom` is not built). See
-[design/FORM-MODEL.md](design/FORM-MODEL.md) section 10.
-
-Second round of A0 after these: rebuild the three applications and compare compile errors,
-iterations, `KLAR GAP` lines and behaviour bugs with the first round.
 
 ## Phase B: interaction
 
@@ -499,8 +289,8 @@ encoding, spreadsheet with formulas on top of `Klar.Grid`.
   CSS logical properties.
 - The accessibility check in `npm run check` (axe on every showcase page).
 - A print stylesheet for reports.
-- Every phase ends with: `npm run check` and `npm run check:compat` green, the AI index
-  regenerated, the benchmark run.
+- Every phase ends with: `npm run check` and `npm run check:compat` green, and the AI
+  documentation regenerated.
 
 ## Left out, on purpose
 
@@ -511,11 +301,9 @@ canvas or `iframe`. Everything else once on the list is now in a phase above.
 
 Before the first `elm publish` (1.0.0 is permanent):
 
-- Phase A is finished: real applications built (A0) and their friction fixed, the AI
-  documentation, the naming audit, the API budget, theming, the type-safety audit (A5),
-  and an application that needs no CSS (A6).
-- The benchmark passes on a clean run.
+- The list "Before the first release" is done.
+- An AI has built a real application from `AI.md` alone, and what it lacked is fixed.
 - Firefox, Safari and a screen reader have been tried.
-- The changelog and `RELEASING.md` have been walked through once.
+- README, AI.md and the changelog have been read once more.
 
 The decision to publish is the owner's.

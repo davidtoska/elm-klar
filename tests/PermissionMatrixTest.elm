@@ -16,6 +16,7 @@ import Klar.PermissionMatrix as PermissionMatrix exposing (Change, Matrix)
 import Klar.Remote as Remote
 import Klar.Theme as Theme
 import Set exposing (Set)
+import Support.Css as Css
 import Support.FlowHtml as H
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
@@ -1183,7 +1184,7 @@ lockedTests =
                         , Selector.containing [ Selector.class "klar-icon--lock" ]
                         ]
         , test "a role column is wide enough for the word Administrator with its lock" <|
-            \_ -> Expect.equal True (String.contains "--_col-w: 132px" Klar.css)
+            \_ -> Expect.equal True (String.contains "--_col-w: 132px" Css.rules)
         , test "the header and every cell of the column refer to the reason, and it is on the page" <|
             \_ ->
                 let

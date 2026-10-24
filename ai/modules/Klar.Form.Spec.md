@@ -106,9 +106,7 @@ fields or rows.
 
 The declaration is the one place where the types are a little long (`Form step
 fields values`, `Builder step fields values`, `Spec control output`), so the
-messages are worth knowing. They were produced on purpose, one mistake at a time,
-and are kept with their full output in
-[design/FORM-MODEL-ERRORS.md](https://github.com/davidtoska/elm-klar/blob/main/design/FORM-MODEL-ERRORS.md).
+messages are worth knowing. They were produced on purpose, one mistake at a time.
 The names below are the ones the compiler prints.
 
 | The compiler says | It means |

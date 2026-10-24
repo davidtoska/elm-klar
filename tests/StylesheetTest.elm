@@ -8,6 +8,7 @@ import Klar.Icon.Library as Library
 import Klar.Internal as Internal
 import Klar.Theme as Theme exposing (Density(..), Size(..), Tone(..))
 import Set
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
@@ -27,7 +28,7 @@ suite =
                     Klar.stylesheet
                         |> Query.fromHtml
                         |> Query.has [ Selector.tag "style" ]
-            , test "holds the same rules as Klar.css" <|
+            , test "holds the same rules as Css.rules" <|
                 \_ ->
                     Klar.stylesheet
                         |> Query.fromHtml
@@ -36,7 +37,7 @@ suite =
                 \_ -> Expect.greaterThan 100000 (String.length Klar.css)
             , test "a link button is a target of at least 24 by 24 px (WCAG 2.2, the Try again of a Tree branch)" <|
                 \_ ->
-                    Klar.css
+                    Css.rules
                         |> String.split ".klar-button--link{"
                         |> List.drop 1
                         |> List.head
@@ -51,7 +52,7 @@ suite =
                     [ "klar-pop-in", "klar-modal-in", "klar-slide-in-right", "klar-slide-in-left", "klar-slide-in-up" ]
                         |> List.map
                             (\name ->
-                                Klar.css
+                                Css.rules
                                     |> String.split ("@keyframes " ++ name ++ "{")
                                     |> List.drop 1
                                     |> List.head
@@ -61,17 +62,17 @@ suite =
                         |> List.filter (\frames -> frames == "missing" || String.contains "opacity" frames)
                         |> Expect.equal []
             , test "has as many opening as closing braces" <|
-                \_ -> Expect.equal (count "{" Klar.css) (count "}" Klar.css)
+                \_ -> Expect.equal (count "{" Css.rules) (count "}" Css.rules)
             , test "defines the tokens" <|
                 \_ ->
                     Expect.equal [ True, True, True ]
-                        (List.map (\token -> String.contains token Klar.css) [ "--klar-primary:", "--klar-space-4:", "--klar-font:" ])
+                        (List.map (\token -> String.contains token Css.rules) [ "--klar-primary:", "--klar-space-4:", "--klar-font:" ])
             , test "styles the components" <|
                 \_ ->
                     Expect.equal [ True, True, True, True ]
-                        (List.map (\selector -> String.contains selector Klar.css) [ ".klar-button", ".klar-table", ".klar-select", ".klar-modal" ])
+                        (List.map (\selector -> String.contains selector Css.rules) [ ".klar-button", ".klar-table", ".klar-select", ".klar-modal" ])
             , test "has no leftovers of the old prefix" <|
-                \_ -> Expect.equal False (String.contains ".ui-" Klar.css || String.contains "--ui-" Klar.css)
+                \_ -> Expect.equal False (String.contains ".ui-" Css.rules || String.contains "--ui-" Css.rules)
             ]
         , describe "icons"
             [ test "every icon of the library has its own name" <|
@@ -88,7 +89,7 @@ suite =
             , test "the library is large" <|
                 \_ -> Expect.greaterThan 450 Library.count
             , test "the stylesheet has no drawings: icons carry their own" <|
-                \_ -> Expect.equal False (String.contains "--klar-icon: url(" Klar.css)
+                \_ -> Expect.equal False (String.contains "--klar-icon: url(" Css.rules)
             , test "an icon carries its drawing as a mask" <|
                 \_ ->
                     Icon.view (Icon.fromSvg "box" "<path d='M3 3h18v18H3z'/>")

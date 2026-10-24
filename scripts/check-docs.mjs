@@ -170,7 +170,7 @@ function knownBad(file) {
   return problems;
 }
 
-const guideFiles = requested.length > 0 ? [] : ['README.md', 'USING.md', 'CONTRIBUTING.md'].map((f) => path.join(root, f));
+const guideFiles = requested.length > 0 ? [] : ['README.md', 'AI.md', 'CLAUDE.md'].map((f) => path.join(root, f));
 const badProblems = [...modules.map(fileOf).filter((f) => fs.existsSync(f)), ...guideFiles].flatMap(knownBad);
 if (badProblems.length > 0) {
   failed = true;

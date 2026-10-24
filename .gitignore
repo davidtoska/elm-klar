@@ -7,6 +7,7 @@ node_modules/
 
 # Showcase application build output
 /example/main.js
+/example/examples/*.js
 /example/docs.json
 
 # Editors and OS
@@ -14,8 +15,3 @@ node_modules/
 .vscode/
 .DS_Store
 Thumbs.db
-
-# A0 applications build output
-/apps/*/main.js
-/apps/round2/*/main.js
-/apps/round3/*/main.js

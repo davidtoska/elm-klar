@@ -3,7 +3,7 @@ module Page.Gallery.StaleData exposing (Model, Msg, init, subscriptions, update,
 {-| Gallery page: old and refreshing data.
 
 One `Remote World` stands for what an application loads (the real one has a
-`Remote` for each request, see `apps/round2/stock`). A switch of states puts it
+`Remote` for each request). A switch of states puts it
 in every state at once (loading, empty, fresh, refreshing, old, retrying,
 failed), so each component can be looked at in each state, and "Refresh" runs
 the real thing: `Remote.refresh` when the request leaves, `Remote.refreshWith`
