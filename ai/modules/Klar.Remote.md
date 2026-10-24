@@ -77,7 +77,7 @@ take a `Remote` and render the loading skeleton, the failure with a retry button
 and the empty state themselves, so a screen is correct in every state without
 you writing the five cases each time.
 
-    Table.rows model.orders
+    Table.remote model.orders
 
 **Refreshing and old data.** After the first load most of what a screen shows is
 data you already have: it is refreshed, or the refresh failed and what is on the

@@ -23,6 +23,7 @@ import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
+import Klar.Money as Money exposing (Money)
 import Klar.Pagination as Pagination
 import Klar.Progress as Progress
 import Klar.Remote as Remote exposing (Remote)
@@ -67,6 +68,7 @@ type alias Client =
     , refreshing : Bool
     , refreshes : Int
     , lastEvent : String
+    , opened : Maybe OrderId
     }
 
 
@@ -226,6 +228,7 @@ init =
             , refreshing = False
             , refreshes = 0
             , lastEvent = "Click a row, use a row menu or select rows."
+            , opened = Nothing
             }
       , server = server
       , columns =
@@ -304,7 +307,11 @@ update msg model =
                 ( model, Cmd.none )
 
         Opened order ->
-            ( clientEvent ("Opened " ++ orderIdText order.id ++ " (" ++ order.customer ++ ").") model, Cmd.none )
+            ( model
+                |> clientEvent ("Opened " ++ orderIdText order.id ++ " (" ++ order.customer ++ ").")
+                |> withClient (\c -> { c | opened = Just order.id })
+            , Cmd.none
+            )
 
         Edit order ->
             ( clientEvent ("Edit " ++ orderIdText order.id ++ ".") model, Cmd.none )
@@ -1358,7 +1365,7 @@ kindColumns locale =
     , Table.date columnIds.created "Created" .created [ Table.width 100 ]
     , Table.maybeDate columnIds.delivered "Delivered" .delivered [ Table.width 112 ]
     , Table.int columnIds.lines "Lines" .lines [ Table.width 96, Table.footerSum ]
-    , Table.float columnIds.total "Total" 2 .total [ Table.width 108, Table.cell (viewTotal locale), Table.footer (totalFooter locale) ]
+    , Table.money columnIds.total "Total" (.total >> dollars) [ Table.width 136, Table.filterRange, Table.footerSum ]
     , Table.custom columnIds.progress "Progress" (viewProgress locale) [ Table.width 112, Table.sortNumber (steps >> toFloat), Table.exportAs progressText ]
     , Table.actions columnIds.actions "Actions" orderButtons []
     ]
@@ -1378,9 +1385,13 @@ viewTotal locale o =
     Text.text (Format.currency locale "$" 2 o.total)
 
 
-totalFooter : Locale -> List Order -> String
-totalFooter locale orders =
-    Format.currency locale "$" 2 (List.sum (List.map .total orders))
+{-| The total of an order of the dummy backend (a Float of dollars) as an exact
+amount, for Table.money.
+-}
+dollars : Float -> Money
+dollars amount =
+    Money.fromMinor Money.usd (round (amount * 100))
+        |> Maybe.withDefault (Money.zero Money.usd)
 
 
 viewProgress : Locale -> Order -> Html Msg
@@ -1755,6 +1766,7 @@ clientSection locale client =
                         ]
                      , Table.rowActions orderActions
                      , Table.onRowClick Opened
+                     , Table.currentRow (\o -> Just o.id == client.opened)
                      , Table.expandedRow (orderDetail locale)
                      , Table.rowTone orderTone
                      , Table.rowDisabled isCancelled
@@ -1803,6 +1815,7 @@ clientCode =
     , Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
     , Table.rowActions orderActions -- Order -> List (Menu.Item Msg)
     , Table.onRowClick Open
+    , Table.currentRow isOpened -- the order open in the drawer
     , Table.expandedRow orderDetail
     , Table.rowTone orderTone -- Order -> Maybe Tone
     , Table.rowDisabled isCancelled
@@ -1940,7 +1953,7 @@ columnsSection locale columns =
         "A column is data: an id, a title and a function that reads a value from the row. The helpers (text, int, float, date, maybeDate, badge, status, bool, custom and actions) set sensible defaults for each kind of value, and attributes refine them: width and alignment, pinning, hiding, tooltips, your own cell, how the column sorts, whether it is searched and exported, its filter and its footer."
         [ Doc.example
             { title = "One helper for each kind of value"
-            , description = Just "Order is text drawn with your own cell and counted in the footer, Priority a status dot, Status a badge, Overdue a yes / no column, Created a date, Delivered a date that may be missing, Lines an integer, Total a decimal number drawn as money, Progress your own content with a sort and an export value (see the CSV file), and the last column holds inline buttons that never trigger a row click and are left out of the CSV file."
+            , description = Just "Order is text drawn with your own cell and counted in the footer, Priority a status dot, Status a badge, Overdue a yes / no column, Created a date, Delivered a date that may be missing, Lines an integer, Total an amount of money (Klar.Money) that sorts, filters by range and adds up exactly in the footer, Progress your own content with a sort and an export value (see the CSV file), and the last column holds inline buttons that never trigger a row click and are left out of the CSV file."
             , code = Just kindsCode
             }
             (Layout.stack [ Layout.gap 3 ]
@@ -2019,7 +2032,7 @@ kindsCode =
         , Table.date (columnIds.created) "Created" .created []
         , Table.maybeDate (columnIds.delivered) "Delivered" .delivered []
         , Table.int (columnIds.lines) "Lines" .lines [ Table.footerSum ]
-        , Table.float (columnIds.total) "Total" 2 .total [ Table.cell viewMoney, Table.footer moneyFooter ]
+        , Table.money (columnIds.total) "Total" .total [ Table.filterRange, Table.footerSum ]
         , Table.custom (columnIds.progress) "Progress" viewProgress
             [ Table.width 130, Table.sortNumber progressSteps, Table.exportAs progressText ]
         , Table.actions (columnIds.actions) "Actions" orderButtons []

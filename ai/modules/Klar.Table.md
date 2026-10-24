@@ -54,14 +54,20 @@ selection : Ids.Ids id -> State id -> Selection id
 selectedIds : Ids.Ids id -> State id -> List id
 selectedCount : Int -> State id -> Int
 isSelected : Ids.Ids id -> id -> State id -> Bool
-setSelected : Ids.Ids id -> List id -> Bool -> State id -> State id
+select : Ids.Ids id -> List id -> State id -> State id
+deselect : Ids.Ids id -> List id -> State id -> State id
+setSelectedIds : Ids.Ids id -> List id -> State id -> State id
 clearSelection : State id -> State id
 dropAllMatching : State id -> State id
 
 -- Expanded rows, columns and density
 expandedIds : Ids.Ids id -> State id -> List id
 isExpanded : Ids.Ids id -> id -> State id -> Bool
-setExpanded : Ids.Ids id -> id -> Bool -> State id -> State id
+expand : Ids.Ids id -> id -> State id -> State id
+collapse : Ids.Ids id -> id -> State id -> State id
+toggle : Ids.Ids id -> id -> State id -> State id
+setExpandedIds : Ids.Ids id -> List id -> State id -> State id
+collapseAll : State id -> State id
 isColumnVisible : ColumnId -> State id -> Maybe Bool
 setColumnVisible : ColumnId -> Bool -> State id -> State id
 density : State id -> Theme.Density
@@ -70,11 +76,11 @@ setDensity : Theme.Density -> State id -> State id
 -- Basic attributes
 type Attribute id row msg  -- opaque: no constructors are exposed
 columns : List (Column row msg) -> Attribute id row msg
-rows : Remote.Remote (List row) -> Attribute id row msg
+remote : Remote.Remote (List row) -> Attribute id row msg
 rowId : Ids.Ids id -> (row -> id) -> Attribute id row msg
 rowLabel : (row -> String) -> Attribute id row msg
 server : { total : Int } -> Attribute id row msg
-label : String -> Attribute id row msg
+ariaLabel : String -> Attribute id row msg
 locale : Locale.Locale -> Attribute id row msg
 settings : Settings.Settings -> Attribute id row msg
 
@@ -92,6 +98,7 @@ selectable : Attribute id row msg
 bulkActions : List (Html msg) -> Attribute id row msg
 rowActions : (row -> List (Menu.Item msg)) -> Attribute id row msg
 onRowClick : (row -> msg) -> Attribute id row msg
+currentRow : (row -> Bool) -> Attribute id row msg
 expandedRow : (row -> Html msg) -> Attribute id row msg
 rowTone : (row -> Maybe Theme.Tone) -> Attribute id row msg
 rowDisabled : (row -> Bool) -> Attribute id row msg
@@ -121,7 +128,7 @@ fillHeight : Attribute id row msg
 type Rows row  -- opaque: no constructors are exposed
 prepareRows : Locale.Locale -> List (Column row msg) -> Array row -> Rows row
 rowsArray : Rows row -> Array row
-preparedRows : Remote.Remote (Rows row) -> Attribute id row msg
+remotePrepared : Remote.Remote (Rows row) -> Attribute id row msg
 
 -- Columns
 type Column row msg  -- opaque: no constructors are exposed
@@ -132,6 +139,12 @@ float :
     -> String
     -> Int
     -> (row -> Float)
+    -> List (ColumnAttribute row msg)
+    -> Column row msg
+money :
+    ColumnId
+    -> String
+    -> (row -> Money.Money)
     -> List (ColumnAttribute row msg)
     -> Column row msg
 date : ColumnId -> String -> (row -> Date.Date) -> List (ColumnAttribute row msg) -> Column row msg
@@ -209,27 +222,31 @@ bulk actions, row actions, expandable rows, CSV export and pagination.
 
 Use when: people have to find, compare and act on many rows of the same kind: orders, customers, shipments.
 Do not use when: you show a short list of things to open (as `Klar.ListItem`) or a long, plain list of equal rows (as `Klar.VirtualList`).
-Quick path: `init`, `update`, `view`, `columns`, `rows`, `rowId`; in server mode also `server`, `query`, `searchable`, `onRowClick`, `selectable`, `bulkActions`, `exportCsv`, `onRetry`
+Quick path: `init`, `update`, `view`, `columns`, `remote`, `rowId`, `ariaLabel`; in server mode also `server`, `query`, `searchable`, `onRowClick`, `selectable`, `bulkActions` (read `selection`), `exportCsv`, `onRetry`
 
 **Quick path: a client table.** All rows are in the browser; the table searches,
 filters, sorts and pages them. In this order:
 
   - `init "orders"` in your `init` (the string is the DOM id), a `Table.State String` in the model;
-  - `update` for a `TableMsg Table.Msg`, mapped back with `Cmd.map TableMsg`;
+  - `update` for a `TableMsg Table.Msg`, mapped back with `Cmd.map TableMsg` (the `Cmd`
+    moves focus and saves the CSV export);
   - `Table.view TableMsg [ ... ] model.table` with the attributes `columns` (made with
-    `Table.text`, `int`, `float`, `date`, each with a `Table.columnId` named once), `rows`
-    (a `Remote (List row)`, which draws the skeleton, the failure and the empty state) and `rowId`
-    (a [Klar.Ids](Klar.Ids.md): `Ids.string`, `Ids.int`, or `Ids.make` for your own id type);
+    `Table.text`, `int`, `float`, `money`, `date`, each with a `Table.columnId` named once),
+    `remote` (a `Remote (List row)`, which draws the skeleton, the failure and the empty
+    state), `rowId` (a [Klar.Ids](Klar.Ids.md): `Ids.string`, `Ids.int`, or `Ids.make` for your
+    own id type) and `ariaLabel` (the name screen readers hear);
   - when you need them: `searchable`, `selectable`, `bulkActions`, `rowActions`, `onRetry`.
 
 The view of the whole table is one function:
 
     import Html exposing (Html)
+    import Klar.Ids as Ids
+    import Klar.Money exposing (Money)
     import Klar.Remote exposing (Remote)
     import Klar.Table as Table
 
     type alias Order =
-        { id : String, customer : String, total : Float }
+        { id : String, customer : String, total : Money }
 
     ordersTable : (Table.Msg -> msg) -> msg -> Remote (List Order) -> Table.State String -> Html msg
     ordersTable toMsg retry orders state =
@@ -237,10 +254,11 @@ The view of the whole table is one function:
             [ Table.columns
                 [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
                 , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
-                , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
+                , Table.money (Table.columnId "total") "Total" .total [ Table.filterRange, Table.footerSum ]
                 ]
-            , Table.rows orders
+            , Table.remote orders
             , Table.rowId Ids.string .id
+            , Table.ariaLabel "Orders"
             , Table.searchable
             , Table.onRetry retry
             ]
@@ -251,27 +269,31 @@ of them and the number of matches, and it only records what the user asked for. 
 with a filter bar or saved views is [Klar.ServerList](Klar.ServerList.md), which does every step
 below for you (`example/src/Examples/Inbox.elm`). A server table on its own needs, in order:
 
-  - `Table.server { total = model.total }` and `Table.rows model.page` (a `Remote` of the
+  - `Table.server { total = model.total }` and `Table.remote model.page` (a `Remote` of the
     current page only);
   - `Table.query` before and after `update`: when it differs, ask the server. The search
     box and the filter fields already wait 350 ms (`searchDebounce`); a sort click and a page change
     arrive at once, so **write no debounce of your own**. Give each request a ticket and drop an
     answer that is not for the latest one;
-  - `searchable` for the search box, `onRowClick` for the row that opens a drawer or a page,
-    `selectable` with `Table.selectedIds` and `bulkActions` for "assign these 12", `exportCsv`
-    for the download;
+  - `searchable` for the search box, `onRowClick` for the row that opens a drawer or a page
+    (`Drawer.open ""`, and `currentRow` to mark it), `selectable` and `bulkActions` for
+    "assign these 12", `exportCsv` for the download;
+  - in the bulk action's branch of your `update`, read `Table.selection`, not `selectedIds`:
+    after "Select all N matching" it is `AllMatching { except }`, every row of the query but
+    the exceptions, and `selectedIds` is `[]`. Send the query and the exceptions to the server;
   - `onRetry` for a failure with no rows to keep, and `Table.setPage 1` whenever the filter that
     you keep outside the table (a `FilterBar` rule) changed.
 
-The view with all of it, and the comparison that decides whether to ask:
+The view with all of it, the comparison that decides whether to ask, and the bulk action:
 
     import Html exposing (Html)
     import Klar.Button as Button
+    import Klar.Ids as Ids
     import Klar.Remote exposing (Remote)
     import Klar.Table as Table
 
     type alias Order =
-        { id : String, customer : String, total : Float }
+        { id : String, customer : String }
 
     inbox : (Table.Msg -> msg) -> { retry : msg, open : Order -> msg, assign : msg } -> Int -> Remote (List Order) -> Table.State String -> Html msg
     inbox toMsg on total page state =
@@ -281,12 +303,13 @@ The view with all of it, and the comparison that decides whether to ask:
                 , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
                 ]
             , Table.server { total = total }
-            , Table.rows page
+            , Table.remote page
             , Table.rowId Ids.string .id
+            , Table.ariaLabel "Orders"
             , Table.searchable
             , Table.onRowClick on.open
             , Table.selectable
-            , Table.bulkActions [ Button.view [ Button.onClick on.assign ] "Assign" ]
+            , Table.bulkActions [ Button.view [ Button.small, Button.onClick on.assign ] "Assign" ]
             , Table.exportCsv "orders.csv"
             , Table.onRetry on.retry
             ]
@@ -301,14 +324,25 @@ The view with all of it, and the comparison that decides whether to ask:
         in
         ( after, cmd, Table.query after /= Table.query before )
 
+    -- what "Assign" acts on: some ids, or every row of the query but some
+    assignTarget : Table.State String -> { query : Table.Query, ids : List String, allBut : Maybe (List String) }
+    assignTarget state =
+        case Table.selection Ids.string state of
+            Table.Selected ids ->
+                { query = Table.query state, ids = ids, allBut = Nothing }
+
+            Table.AllMatching { except } ->
+                { query = Table.query state, ids = [], allBut = Just except }
+
 **Quick path: many rows.** Tens of thousands of rows in client mode: prepare them once,
 when they arrive, with `prepareRows`, keep the `Rows` in the model and give them to
-`preparedRows` instead of `rows`; add `virtual` when people read the table by scrolling.
+`remotePrepared` instead of `remote`; add `virtual` when people read the table by scrolling.
 
 The columns are given twice, once to `prepareRows` and once to the view:
 
     import Array
     import Html exposing (Html)
+    import Klar.Ids as Ids
     import Klar.Locale as Locale
     import Klar.Remote exposing (Remote)
     import Klar.Table as Table
@@ -330,8 +364,9 @@ The columns are given twice, once to `prepareRows` and once to the view:
     bigTable toMsg rows state =
         Table.view toMsg
             [ Table.columns columns
-            , Table.preparedRows rows
+            , Table.remotePrepared rows
             , Table.rowId Ids.string .id
+            , Table.ariaLabel "Orders"
             , Table.searchable
             , Table.virtual
             ]
@@ -388,7 +423,7 @@ the rows are prepared (see "Many rows" below).
             , Table.text (Table.columnId "city") "City" .city [ Table.width 140, Table.filterSelect ]
             , Table.int (Table.columnId "items") "Items" .items [ Table.filterRange, Table.footerSum ]
             ]
-        , Table.rows model.orders
+        , Table.remote model.orders
         , Table.rowId orderIds .id
         , Table.searchable
         , Table.selectable
@@ -418,7 +453,7 @@ that match, and the table only records what the user asks for. Compare
     Table.view TableMsg
         [ Table.columns columns
         , Table.server { total = model.total }
-        , Table.rows model.page -- Remote (List Order): the current page only
+        , Table.remote model.page -- Remote (List Order): the current page only
         , Table.onRetry Retry
         ]
         model.table
@@ -435,7 +470,7 @@ options are not part of the state, `view` gets them on every call. What is not a
 state change (a row click, a row action, a bulk action, refresh, retry) is a
 message of your own.
 
-**Remote data.** `rows` takes a `Remote` ([Klar.Remote](Klar.Remote.md)). The table
+**Remote data.** `remote` takes a `Remote` ([Klar.Remote](Klar.Remote.md)). The table
 draws the loading skeleton, the failure with a retry button and the empty state
 itself; you give it the current value and the message for the retry button
 (`onRetry`).
@@ -471,16 +506,24 @@ does nothing else), Space selects it, ArrowRight and ArrowLeft expand and
 collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
 only takes part in the movement. Controls you put in an `actions` column stay tab
 stops in every row. Filter popovers and menus close with Escape, and Escape in
-the search box clears it. When an action removes the control that had focus (a
+the search box clears it; a dialog or drawer around the table stays open then, and
+only an Escape in the empty box closes it. When an action removes the control that had focus (a
 bulk action that deletes the selected rows takes the bulk bar with it), give the
 table focus again with `focus`.
 
 **Accessibility.** Sortable headers carry `aria-sort`, the table has
 `aria-rowcount`, `aria-colcount` and, while it loads, `aria-busy`, and a polite
 live region announces loading, refreshing, the range shown and the sort order.
-Name the table with `label`; the page controls in its footer are named after it
+When the rows take focus (clickable, selectable, expandable or with a menu) the
+table is a `grid`, or a `treegrid` with `expandedRow`: screen readers leave the
+arrow keys to the rows, the first cell of a row is its row header, a selectable
+grid is `aria-multiselectable` with `aria-selected` on its rows, and an expandable
+row says `aria-expanded` itself. A table that only shows data stays a plain table.
+Name the table with `ariaLabel`; the page controls in its footer are named after it
 too ("Pages of Orders"), so that two tables on a page can be told apart.
 `rowLabel` names a row for screen readers ("Select Ada Lovelace" on its checkbox).
+In Windows high contrast the focused, selected, current and toned rows are drawn
+with system colors.
 
 **Many rows.** Client mode searches, filters and sorts inside `view`: sort keys
 are made once per row, a missing sort or filter costs nothing, and only the
@@ -492,7 +535,7 @@ model instead of the `List`:
     Loaded orders ->
         { model | orders = Loaded (Table.prepareRows locale columns (Array.fromList orders)) }
 
-    Table.preparedRows model.orders
+    Table.remotePrepared model.orders
 
 The table then has, for every row, the text that the search looks in and, for every
 sortable column, the rows in order, and for the columns with a footer sum their numbers.
@@ -536,7 +579,7 @@ wraps the table's own messages, usually the constructor you handle in `update`.
 The attributes describe the table (columns, rows, options) and are given on every
 call; the `State` only holds what the user changed.
 
-    Table.view TableMsg [ Table.columns columns, Table.rows model.orders ] model.table
+    Table.view TableMsg [ Table.columns columns, Table.remote model.orders ] model.table
 
 ## State
 
@@ -579,8 +622,9 @@ update : Msg -> State id -> ( State id, Cmd Msg )
 ```
 
 Applies a message from the table to its state. The `Cmd` moves keyboard
-focus (into a popup, back to its button) and runs the timer behind the search
-debounce, so map it back with your own constructor: `Cmd.map TableMsg cmd`.
+focus (into a popup, back to its button), runs the timer behind the search
+debounce and saves the file of the CSV export, so map it back with your own
+constructor: `Cmd.map TableMsg cmd`.
 
 ### `focus`
 
@@ -907,15 +951,36 @@ isSelected : Ids.Ids id -> id -> State id -> Bool
 Is the row with this id selected? After "Select all N matching" every id
 counts as selected except the exceptions.
 
-### `setSelected`
+### `select`
 
 ```elm
-setSelected : Ids.Ids id -> List id -> Bool -> State id -> State id
+select : Ids.Ids id -> List id -> State id -> State id
 ```
 
-Selects (`True`) or deselects (`False`) the rows with these ids, as the
-checkboxes do. After "Select all N matching" selecting removes ids from the
-exceptions and deselecting adds them.
+Selects the rows with these ids, as their checkboxes do, and keeps the rest of
+the selection. After "Select all N matching" it takes them out of the exceptions.
+
+    Table.select orderIds failedIds model.table
+
+### `deselect`
+
+```elm
+deselect : Ids.Ids id -> List id -> State id -> State id
+```
+
+Deselects the rows with these ids and keeps the rest of the selection, for
+example the rows a bulk action has done its work on. After "Select all N
+matching" it adds them to the exceptions.
+
+### `setSelectedIds`
+
+```elm
+setSelectedIds : Ids.Ids id -> List id -> State id -> State id
+```
+
+Makes the selection exactly these rows, as a whole: to restore a selection, or
+to keep only the rows that are still there. It also ends an "all matching"
+selection.
 
 ### `clearSelection`
 
@@ -956,14 +1021,50 @@ isExpanded : Ids.Ids id -> id -> State id -> Bool
 
 Is the row with this id expanded?
 
-### `setExpanded`
+### `expand`
 
 ```elm
-setExpanded : Ids.Ids id -> id -> Bool -> State id -> State id
+expand : Ids.Ids id -> id -> State id -> State id
 ```
 
-Expands (`True`) or collapses (`False`) the row with this id, for example to
-open the first row when the table appears.
+Expands the row with this id, for example to open the first row when the table
+appears.
+
+    Table.expand orderIds firstOrder.id model.table
+
+### `collapse`
+
+```elm
+collapse : Ids.Ids id -> id -> State id -> State id
+```
+
+Collapses the row with this id.
+
+### `toggle`
+
+```elm
+toggle : Ids.Ids id -> id -> State id -> State id
+```
+
+Expands the row with this id when it is collapsed, and collapses it when it is
+expanded, as its arrow button does.
+
+### `setExpandedIds`
+
+```elm
+setExpandedIds : Ids.Ids id -> List id -> State id -> State id
+```
+
+Makes these rows, and no others, the expanded ones: to restore the rows that
+were open, or to expand every row (`setExpandedIds orderIds (List.map .id orders)`).
+
+### `collapseAll`
+
+```elm
+collapseAll : State id -> State id
+```
+
+Collapses every row.
 
 ### `isColumnVisible`
 
@@ -1015,7 +1116,7 @@ or not `densityToggle` is shown.
 type Attribute id row msg  -- opaque: no constructors are exposed
 ```
 
-A setting of the table as a whole (`columns`, `rows`, `searchable` ...). Make
+A setting of the table as a whole (`columns`, `remote`, `searchable` ...). Make
 them with the functions below and pass a list to `view`; later attributes win
 over earlier ones.
 
@@ -1030,23 +1131,25 @@ The columns of the table, left to right. Make them with `text`, `int`,
 Column ids must be unique and stay the same: sort, filters, hidden columns and
 the `Query` refer to them.
 
-### `rows`
+### `remote`
 
 ```elm
-rows : Remote.Remote (List row) -> Attribute id row msg
+remote : Remote.Remote (List row) -> Attribute id row msg
 ```
 
 The rows, as [Klar.Remote](Klar.Remote.md) data. `Loading` (and `NotAsked`)
 shows skeleton rows under the header, `Failed` shows the error with a retry
 button (see `onRetry`), and `Loaded []` shows the empty state (see
 `emptyState`). In server mode these are the rows of the current page only.
-Without `rows` the table shows the loading skeleton.
+Without `remote` the table shows the loading skeleton.
 
 Rows that are `Kept` stay on the screen. While they are refreshed (the next page
 in server mode, a refresh button: `Remote.refresh`) they are dimmed, with a
 progress line under the header, and screen readers hear "Refreshing ...". When the
 last refresh failed they carry the marker "Old data from 14:05" with a retry
 button (`onRetry`).
+
+    Table.remote model.orders
 
 ### `rowId`
 
@@ -1080,20 +1183,23 @@ the text of the first visible column.
 server : { total : Int } -> Attribute id row msg
 ```
 
-Switches to server mode: `rows` is the current page and `total` the number
+Switches to server mode: `remote` is the current page and `total` the number
 of rows that match the query. The table does not search, filter, sort or slice
 the rows itself; it shows the pagination for `total` and records what the user
 asks for, which you read with `query`. Without this attribute the table is in
 client mode.
 
-### `label`
+### `ariaLabel`
 
 ```elm
-label : String -> Attribute id row msg
+ariaLabel : String -> Attribute id row msg
 ```
 
-The accessible name of the table, such as "Orders". It is also what makes the
-scrolling area a labelled region for screen readers.
+The name of the table that screen readers hear, such as "Orders" (it is not
+shown: a visible title is a heading of your own above the table). It also makes
+the scrolling area a labelled region and names the page controls in the footer
+("Pages of Orders"), so that two tables on a page can be told apart. Give every
+table one.
 
 ### `locale`
 
@@ -1127,8 +1233,9 @@ searchable : Attribute id row msg
 
 Adds a search box to the toolbar. Every word the user types must be found in
 one of the visible, searchable columns (case and accents are ignored), and the
-match is highlighted. Escape clears the box; in server mode the table only
-records the text (see `query`).
+match is highlighted. Escape clears the box (and a dialog around the table stays
+open; an Escape in the empty box goes on to the dialog); in server mode the table
+only records the text (see `query`).
 
 ### `searchPlaceholder`
 
@@ -1223,8 +1330,9 @@ bulkActions : List (Html msg) -> Attribute id row msg
 
 Buttons for the bar that covers the toolbar while rows are selected, next to
 the count, the export menu and a Cancel button that clears the selection. Your
-buttons send plain messages: read `selectedIds` in your update. Use small
-buttons; it also turns on `selectable`.
+buttons send plain messages: read `selection` in your update, which is
+`AllMatching { except }` after "Select all N matching" in server mode (then
+`selectedIds` is `[]`). Use small buttons; it also turns on `selectable`.
 
     Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
 
@@ -1257,6 +1365,26 @@ The message to send for a row, when the user clicks it (outside its own
 controls) or presses Enter on it. The function gets the row. A row that is
 `rowDisabled` does not send it.
 
+A row that opens a [Klar.Drawer](Klar.Drawer.md) or a dialog opens it with
+`Drawer.open ""`: the row has the focus (a click and Enter both give it), and the
+drawer gives it back to the row when it closes. Mark the row whose details are
+open with `currentRow`.
+
+    Table.onRowClick (\order -> OpenOrder order.id)
+
+### `currentRow`
+
+```elm
+currentRow : (row -> Bool) -> Attribute id row msg
+```
+
+Marks the row whose details are shown elsewhere, such as the order open in a
+drawer next to the table: it gets a bar at its start and a darker background, and
+screen readers hear it as the current row (`aria-current`). Return `True` for at
+most one row; without this attribute no row is marked.
+
+    Table.currentRow (\order -> Just order.id == model.openOrder)
+
 ### `expandedRow`
 
 ```elm
@@ -1268,7 +1396,7 @@ of each row and draws `render row` in a full-width cell below an open row.
 ArrowRight and ArrowLeft expand and collapse the focused row, and without
 `onRowClick` a click on the row toggles it too; a `rowDisabled` row does none of
 this. Which rows are open is part of the state (see `expandedIds` and
-`setExpanded`).
+`expand`).
 
 ### `rowTone`
 
@@ -1291,7 +1419,7 @@ disabled, so Tab skips them, and it is left out of "select all". A click, Enter,
 Space, ArrowRight, ArrowLeft, Shift+F10 or the menu key on the row does nothing,
 but the keys that move between rows (ArrowUp, ArrowDown, PageUp, PageDown, Home,
 End) still reach it, so that its text can be read. Selection and expansion that a
-row already has stay until you change them with `setSelected` or `setExpanded`,
+row already has stay until you change them with `deselect` or `collapse`,
 and controls you draw yourself (`actions`, `cell`, `custom`) are yours to
 disable.
 
@@ -1313,7 +1441,7 @@ onRetry : msg -> Attribute id row msg
 ```
 
 The message to send when the user clicks "Try again" in the error state, which
-shows when `rows` is a `Failed`. Without it there is no button, and the button
+shows when `remote` is a `Failed`. Without it there is no button, and the button
 only appears for problems worth retrying (see `Remote.isRetryable` in
 [Klar.Remote](Klar.Remote.md)). Keyboard focus stays in the table while the new rows
 load.
@@ -1357,13 +1485,19 @@ file name, used as given (`"orders.csv"`).
 
 The menu offers all matching rows (client mode), the selected rows and the
 current page, the last two with a suffix in the file name (`orders-selected.csv`,
-`orders-page-2.csv`). In server mode only the current page is known, so the
-selected rows are offered only while every selected row is on the page; when some
-are selected on other pages the menu says how many and offers the page only. Build
-that file from your backend (the ids are in `selectedIds`). Hidden
-columns and `notExported` columns are left out, and so are `custom` and
-`actions` columns unless they have `exportAs`. Text that a spreadsheet could run
-as a formula is made safe. See `csvSeparator` for the field separator.
+`orders-page-2.csv`). In server mode only the current page is known (all of it,
+also in a `virtual` table that draws part of it), so the selected rows are
+offered only while every selected row is on the page; when some are selected on
+other pages the menu says how many and offers the page only. Build that file from
+your backend (read `selection`, which can be `AllMatching`). Hidden columns and
+`notExported` columns are left out, and so are `custom` and `actions` columns
+unless they have `exportAs`. Text that a spreadsheet could run as a formula is
+made safe. See `csvSeparator` for the field separator.
+
+The file is written when the user picks a choice, not while the menu is drawn, and
+`update` saves it with `File.Download.string` (a UTF-8 file with a byte order mark,
+so that Excel reads æ, ø and å). There is no size limit, so 50 000 rows are one
+file: map the `Cmd` of `update` back, as always.
 
 ### `csvSeparator`
 
@@ -1495,14 +1629,14 @@ type Rows row  -- opaque: no constructors are exposed
 Rows that the table has worked on in advance: for each row the text the search
 looks in, and for each sortable column the rows in order. Make them once, when the
 rows arrive or change, and keep them in your model instead of the `Array`; give
-them to the table with `preparedRows`.
+them to the table with `remotePrepared`.
 
     Loaded orders ->
-        { model | orders = Loaded (Table.prepareRows locale columns orders) }
+        { model | orders = Loaded (Table.prepareRows locale columns (Array.fromList orders)) }
 
 They are made for one locale and one list of columns. A table that is given other
 columns or another locale shows the right rows all the same, but works them out
-again on every message, as `rows` does.
+again on every message, as `remote` does.
 
 ### `prepareRows`
 
@@ -1513,8 +1647,9 @@ prepareRows : Locale.Locale -> List (Column row msg) -> Array row -> Rows row
 Prepares the rows for a table with these columns in this locale (the `Locale`
 you give to `locale`). Take the same columns you give to `columns`. Every sortable
 column is sorted once here, so this takes about as long as sorting by each column
-would, a few hundred milliseconds for 50 000 rows, and a table that is given
-the result never has to sort again.
+would, a few hundred milliseconds for 50 000 rows. A table given the result reads
+a sort by one column from it and does not sort again; a sort by several columns
+(`multiSort`) and a `sortWith` column are still sorted on every message.
 
 ### `rowsArray`
 
@@ -1525,15 +1660,18 @@ rowsArray : Rows row -> Array row
 The rows of prepared rows, to give to other parts of the page that want an
 `Array` too, such as [Klar.VirtualList](Klar.VirtualList.md). It costs nothing.
 
-### `preparedRows`
+### `remotePrepared`
 
 ```elm
-preparedRows : Remote.Remote (Rows row) -> Attribute id row msg
+remotePrepared : Remote.Remote (Rows row) -> Attribute id row msg
 ```
 
 The rows of a client-mode table that has thousands of them, as `Rows` made
-once with `prepareRows` (see "Performance" at the top). It does what `rows` does,
-and the search and the sorting no longer format every value again on each message.
+once with `prepareRows` (see "Many rows" at the top), instead of `remote`. It
+does what `remote` does, and the search and a sort by one column no longer format
+every value again on each message.
+
+    Table.remotePrepared model.orders -- Remote (Table.Rows Order)
 
 ## Columns
 
@@ -1591,6 +1729,30 @@ A decimal number with a fixed count of decimals:
 decimals shown (also in filter hints and footers). It is like `int` otherwise,
 but 112 pixels wide, and the CSV export keeps the decimals with the locale's
 decimal separator and no thousands separator, so a spreadsheet reads a number.
+
+### `money`
+
+```elm
+money :
+    ColumnId
+    -> String
+    -> (row -> Money.Money)
+    -> List (ColumnAttribute row msg)
+    -> Column row msg
+```
+
+An amount of money ([Klar.Money](Klar.Money.md)), exact to the minor unit:
+`Table.money (Table.columnId "total") "Total" .total []`. It is shown with its
+currency code in the format of the table's locale (`NOK 1,234.50` in English,
+`1 234,50 NOK` in Norwegian), right-aligned with tabular digits and 136 pixels wide.
+
+It sorts by amount, `filterRange` filters by the amount in whole units of the
+currency (100 is 100 kroner), and the CSV export writes the plain amount with the
+locale's decimal separator (`1234.50`, `1234,50`). `footerSum` and `footerAverage`
+add the amounts exactly, as `Money` and not as `Float`, with one total for each
+currency when the column holds several (`NOK 1,250.00 · EUR 300.00`). The search
+box skips it unless you add `includeInSearch`. Use it instead of `float` for every
+amount of money.
 
 ### `date`
 
