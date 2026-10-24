@@ -65,8 +65,14 @@ and read the parts with `year`, `month` and `day`.
     Date.fromParts 2026 10 20 |> Maybe.map Date.weekday -- Just 2, a Tuesday
 
 All calculations are pure arithmetic on the proleptic Gregorian calendar and
-are exact for every year from 1 on. A `Time.Posix` is only needed once, to get
-today's date with `fromPosix`.
+are exact. A `Date` lies between 1 January of year 1 and 31 December 9999, the
+range of the four-digit years of `toIso`: `fromParts` and `fromIso` give
+`Nothing` outside it, and arithmetic that would leave it (`addDays`,
+`addMonths`, `fromEpochDay`) stops at its first or last day. A `Time.Posix` is
+only needed once, to get today's date with `fromPosix`.
+
+Store and send a date as the text of `toIso`, never as the moment of its
+midnight: a moment shifts the day when it is read in another time zone.
 
 The date components of the library (`Klar.DatePicker`, `Klar.Calendar` ...)
 use this type, and so does `Klar.Format` when it writes dates.
@@ -79,9 +85,9 @@ use this type, and so does `Klar.Format` when it writes dates.
 type Date  -- opaque: no constructors are exposed
 ```
 
-A calendar date: a day that exists, in year 1 or later. The type is opaque,
-so a date can never be 31 February or month 13. Make one with `fromParts` or
-`fromIso`, and read it with `year`, `month` and `day`.
+A calendar date: a day that exists, from year 1 to 9999. The type is
+opaque, so a date can never be 31 February or month 13. Make one with
+`fromParts` or `fromIso`, and read it with `year`, `month` and `day`.
 
 ### `fromParts`
 
@@ -89,8 +95,9 @@ so a date can never be 31 February or month 13. Make one with `fromParts` or
 fromParts : Int -> Int -> Int -> Maybe Date
 ```
 
-Builds a date from a year, a month (1 to 12) and a day, or `Nothing` if
-that day does not exist (like 31 February, or a year before 1).
+Builds a date from a year (1 to 9999), a month (1 to 12) and a day, or
+`Nothing` if that day does not exist (like 31 February) or lies outside the
+years 1 to 9999.
 
     Date.fromParts 2026 2 30 -- Nothing
 
@@ -102,7 +109,7 @@ that day does not exist (like 31 February, or a year before 1).
 year : Date -> Int
 ```
 
-The year of a date, 1 or later.
+The year of a date, from 1 to 9999.
 
     Date.fromIso "2026-10-20" |> Maybe.map Date.year -- Just 2026
 
@@ -146,7 +153,8 @@ digits. Surrounding spaces are ignored. A date that does not exist is
 toIso : Date -> String
 ```
 
-Writes `YYYY-MM-DD`, with the year padded to four digits.
+Writes `YYYY-MM-DD`, with the year padded to four digits, so that `fromIso`
+reads every date back.
 
     Date.fromParts 2026 3 5 |> Maybe.map Date.toIso -- Just "2026-03-05"
 
@@ -160,6 +168,9 @@ The calendar date of a `Time.Posix` in a time zone. Use it once to get
 "today" from the clock of the browser:
 
     Task.map2 Date.fromPosix Time.here Time.now
+
+A moment before year 1 gives 1 January of year 1, and one after 9999 gives
+31 December 9999.
 
 ### `toPosix`
 
@@ -177,6 +188,13 @@ a `Timeline`).
 
 In a time zone that skips midnight (a clock that jumps forward at 00:00) it is the
 first moment of the date that exists.
+
+The moment is only as right as the zone. `Time.here` from `elm/time` gives the
+offset of the browser now, one fixed offset without the rules of summer time, so
+for a date on the other side of a change of the clock the moment is an hour off
+(in Oslo in October, 1 December comes out as 22:00 on 30 November UTC instead of
+23:00). Store and send dates as the text of `toIso`, and use `toPosix` only with
+a zone that has the rules, or for dates with the same offset as today.
 
 ## Comparing and counting
 
@@ -248,7 +266,7 @@ addDays : Int -> Date -> Date
 ```
 
 Moves a date by a number of days, forwards or backwards, across months and
-years.
+years. It stops at 1 January of year 1 and at 31 December 9999.
 
     Date.fromIso "2026-01-01" |> Maybe.map (Date.addDays -1 >> Date.toIso) -- Just "2025-12-31"
 
@@ -259,7 +277,8 @@ addMonths : Int -> Date -> Date
 ```
 
 Adds months, clamping the day to the end of the target month: 31 January
-plus one month is 28 February (29 in a leap year).
+plus one month is 28 February (29 in a leap year). It stops at January of year 1
+and at December 9999.
 
     Date.fromIso "2026-01-31" |> Maybe.map (Date.addMonths 1 >> Date.toIso) -- Just "2026-02-28"
 
@@ -294,7 +313,9 @@ monthGrid : Int -> Int -> Int -> List (List Date)
 The dates for a month calendar: six weeks of seven days, starting on
 `firstDay` (1 = Monday ... 7 = Sunday), padded with days from the neighboring
 months. Six rows are always returned, so a calendar keeps its height from
-month to month.
+month to month. The arguments are the first day of the week, the year and the
+month, in that order; a year outside 1 to 9999 or a month outside 1 to 12 is
+moved to the nearest one, and padding beyond 31 December 9999 repeats that day.
 
     -- weeks starting on Monday, for October 2026
     Date.monthGrid 1 2026 10
@@ -319,6 +340,8 @@ numbers differ, which is how `addDays` and `diffDays` work.
 fromEpochDay : Int -> Date
 ```
 
-The date of a day number: the inverse of `toEpochDay`.
+The date of a day number: the inverse of `toEpochDay`. A number before
+1 January of year 1 (-719162) gives that day, and one after 31 December 9999
+(2932896) gives that day.
 
     Date.fromEpochDay 0 -- 1 January 1970

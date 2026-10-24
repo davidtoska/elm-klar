@@ -201,14 +201,16 @@ toPosix zone local =
         offsetAt millis =
             localMillis zone millis - millis
 
-        first =
-            wall - offsetAt wall
+        -- The offsets on either side of the time (a change of the clock is rarer
+        -- than once a day): in an overlap both give the time, in a gap neither.
+        before =
+            wall - offsetAt (wall - 86400000)
 
-        second =
-            wall - offsetAt first
+        after =
+            wall - offsetAt (wall + 86400000)
 
         existing =
-            List.filter (\millis -> localMillis zone millis == wall) [ first, second ]
+            List.filter (\millis -> localMillis zone millis == wall) [ before, after ]
     in
     Time.millisToPosix
         (case List.minimum existing of
@@ -216,8 +218,8 @@ toPosix zone local =
                 millis
 
             Nothing ->
-                -- In a gap: the offset from before the jump, which moves the time forward.
-                Basics.max first second
+                -- In a gap: the offset from before the jump moves the time forward.
+                before
         )
 
 
