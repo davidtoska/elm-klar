@@ -3,7 +3,7 @@ module Klar.Stat exposing
     , Attribute, label, value, int, decimal, compact, money, unit, caption, icon
     , delta, change, moneyChange, deltaText, deltaLabel, lowerIsBetter, deltaTone
     , trend, trendTone
-    , size, flat, onClick, locale, settings
+    , size, flat, onClick, id, locale, settings
     , loading, failed, onRetry, remote
     )
 
@@ -89,7 +89,7 @@ only its retry button is a control).
 
 # Look and behavior
 
-@docs size, flat, onClick, locale, settings
+@docs size, flat, onClick, id, locale, settings
 
 
 # Loading and failure
@@ -153,6 +153,7 @@ type alias Config msg =
     , flat : Bool
     , onClick : Maybe msg
     , onRetry : Maybe msg
+    , id : Maybe String
     , busy : Bool
     , failure : Maybe Problem
     , freshness : Freshness
@@ -180,6 +181,7 @@ configure attributes =
         , flat = False
         , onClick = Nothing
         , onRetry = Nothing
+        , id = Nothing
         , busy = False
         , failure = Nothing
         , freshness = Freshness.Fresh
@@ -429,6 +431,17 @@ onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
 
+{-| The DOM id of the tile. A tile that is not a button can then take focus from a
+command in every state (loading, failed, old data, drawn): the "Try again" link is
+replaced when the request starts again and focus would fall back to the page, so
+call [`RemoteView.focus`](Klar-RemoteView#focus) with this id in the same `update`
+branch. The id must be unique on the page.
+-}
+id : String -> Attribute msg
+id domId =
+    Attribute (\config -> { config | id = Just domId })
+
+
 {-| While `True` the tile shows a skeleton in place of the number, the change and
 the trend, and tells screen readers that it is loading. The label stays, so the
 layout does not jump. Pass a field of your model. Default: `False`.
@@ -614,11 +627,17 @@ view attributes =
                 [ classNames
                 , Attr.type_ "button"
                 , Events.onClick msg
+                , Internal.attrMaybe Attr.id config.id
                 ]
                 content
 
         Nothing ->
-            Html.div [ classNames ] content
+            Html.div
+                [ classNames
+                , Internal.attrMaybe Attr.id config.id
+                , Internal.attrIf (config.id /= Nothing) (Attr.tabindex -1)
+                ]
+                content
 
 
 skeletonHeight : Size -> Int

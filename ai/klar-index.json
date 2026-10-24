@@ -2715,6 +2715,7 @@
       ],
       "related": [
         "Klar.Locale",
+        "Klar.Format",
         "Klar.Table"
       ],
       "keywords": [
@@ -3344,10 +3345,10 @@
         "Klar.Overlay",
         "Klar.SideNav",
         "Klar.FileDrop",
+        "Klar.LeaveGuard",
         "Klar.Menu",
         "Klar.Alert",
-        "Klar.Avatar",
-        "Klar.LeaveGuard"
+        "Klar.Avatar"
       ],
       "keywords": [
         "app shell",
@@ -4222,7 +4223,8 @@
         "Klar.Theme",
         "Klar.DescriptionList",
         "Klar.Locale",
-        "Klar.Remote"
+        "Klar.Remote",
+        "Klar.RemoteView"
       ],
       "keywords": [
         "stat",
@@ -4267,6 +4269,7 @@
         "Klar.Locale",
         "Klar.Progress",
         "Klar.Remote",
+        "Klar.RemoteView",
         "Klar.Theme"
       ],
       "keywords": [
@@ -4309,6 +4312,7 @@
       "related": [
         "Klar.Locale",
         "Klar.Remote",
+        "Klar.RemoteView",
         "Klar.Theme"
       ],
       "keywords": [

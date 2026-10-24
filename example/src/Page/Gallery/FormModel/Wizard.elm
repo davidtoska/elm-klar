@@ -493,18 +493,22 @@ view locale model =
     Layout.stack [ Layout.gap 4 ]
         [ Form.stepper v [ Stepper.ariaLabel "Customer onboarding" ]
         , FormLayout.view [ FormLayout.id "wizard-form", FormLayout.onSubmit Next, FormLayout.ariaLabel "Customer onboarding", FormLayout.locale locale ]
-            [ case current of
-                Just Account ->
-                    viewAccount v
+            [ -- The body of the step is keyed by the step: the inputs of one step are
+              -- not reused for the next, which would blur the focused one.
+              Form.stepBody v
+                [ case current of
+                    Just Account ->
+                        viewAccount v
 
-                Just Contacts ->
-                    viewContacts v model
+                    Just Contacts ->
+                        viewContacts v model
 
-                Just Delivery ->
-                    viewDelivery v
+                    Just Delivery ->
+                        viewDelivery v
 
-                _ ->
-                    viewReview v model
+                    _ ->
+                        viewReview v model
+                ]
             , FormLayout.unsavedFlag [ FormLayout.locale locale ] (isDirty model)
             , FormLayout.actions
                 [ FormLayout.status [ FormLayout.id "wizard-form", FormLayout.locale locale ] model.status

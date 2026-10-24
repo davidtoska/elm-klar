@@ -479,3 +479,87 @@ number) with 50 000 generated rows of 7 columns, before and after on the same ma
   and Msg, `Quick path:` (at most six functions in call order); `ai/klar-index.json` reads them, and
   `check:ai-docs` fails when a module lacks the first two. The recipes were rewritten on the stale data
   (`Remote.Kept`), the form model (`Klar.Form`) and the repaired `LeaveGuard`.
+
+Fixes from benchmark run 1 (`bench/results/run-1.md`):
+
+- `CommandPalette`: the list of options is a `listbox` that holds only options. A section without
+  items (skeleton, failure, "No results") is drawn after it, outside, and the failure is read by
+  the polite status line instead of a `role="alert"` inside the list (axe `aria-required-children`
+  in every state); the search box only has `aria-controls` when there is a list. An item can declare
+  the words that call it (`withCommand "go to order"`: it stays in the list while the user types
+  "go to order 1001") and `argument items state` returns the query without those words, for the
+  request to the backend. Picking an item now gives focus back to the opener like `Escape` (it
+  closes first and sends the item's message after, so a message that moves focus, such as one that
+  opens a dialog, wins; the page was left with focus on `body`).
+- `Tree`: the "Try again" of a failed branch (and every link-style `Button`) is a target of at least
+  24 by 24 px (it was 19 px high; axe `target-size`, WCAG 2.2). A lazy tree still searches only the
+  nodes it has: the docs now say so in one line and how to search the backend (watch `query`); a
+  typed request value like `loadRequests` was the larger option and would only move the same code
+  into the application.
+- `Timeline`: with `hasMore False` the "Load more" button is gone (it stayed, dimmed; the status line says
+  "No more events"). `headingLevel` sets the level of the day headings (default `h3`, which is right
+  inside a card with an `h2` title; directly under a page `h1` say 2). `id` gives the timeline a DOM id
+  and a focus stop in every state, see the retry focus entry below. The button is no longer the place
+  where focus is kept at the end of the list: that is what `id` and `RemoteView.focus` are for.
+- Retry focus in `Stat`, `Chart`, `Timeline` (and `Tree`, which has `focusNode`): "Try again" is
+  replaced by the skeleton, and the focus fell to `body` in every region, not only in `RemoteView`.
+  `Stat.id`, `Chart.id` and `Timeline.id` give the region an element with that id that takes focus
+  in every state (a `tabindex="-1"` on the tile, the chart's wrapper or the section), and
+  `RemoteView.focus` moves it there in the update branch of the retry. Verified in Chrome for the
+  three in the showcase. Why not automatic: Elm can only move focus from a command, and a `Stat` or
+  `Chart` has no state and no message of its own to receive one, so the focus guard that dialogs
+  use (CSS animation plus `animationstart`) would still need a message from the application; the
+  one-line pattern needs the same and keeps the intent visible. The showcase pages do it.
+- `Table` with a large result (T07): in client mode with 37 000 of 50 000 rows matching, a page
+  change, a sort click or a keystroke cost 110 to 130 ms (headless Chrome, optimized build, including
+  two frames, with two footer sums), now 60 to 75 ms (50 to 55 for a keystroke); without a footer
+  sum 75 to 90 became 60 to 64. Profiling in Chrome showed the cause the builder named: while a
+  search or filter left rows out, every message turned all matching rows into a list of rows,
+  then into numbers, to sum the footers, and walked them again to count a selection. The
+  prepared rows now keep the number of every row for a footer column and the footers sum the
+  matching positions (`Index.totalsOver`), the selection counts positions (`Index.countMatching`),
+  and a search walks the list of search texts in one loop (a sort by a column walks its order
+  once). Not cached between messages: a cache needs the rows in `update`, which the table never
+  sees (see the A8 notes). The claims in the module doc now say what was measured: 40 ms
+  unfiltered, 60 to 75 ms with 37 000 matching rows, up to about 100 ms with a selection on top.
+- `Table.rangeText` and `Pagination.rangeText` word the range in the footer ("1 to 25 of 200",
+  T01) with a function of the first row, the last row and the total; the default "1–25 of 200"
+  is unchanged, and `ServerList.viewTable` takes it as any `Table.Attribute`. A function (not a
+  Locale text) because the order of the words differs from language to language, not only the
+  words.
+- `Form.stepBody` (T05): the fields of the current step drawn by the application go inside it, and
+  each child is keyed by the form, the step and its place, so Elm no longer reuses the focused input
+  of one step for the field at the same place in the next. Without it, `advance` moved focus on, the
+  reused input blurred and showed "Required" on a field nobody had touched; reproduced in Chrome with
+  two steps of three text inputs and gone with `stepBody`. The form already knows the step, so the
+  keyed wrapper is the form's (no key to invent); making the form draw the bodies itself would have
+  meant a `Html msg` per step in `Spec`, which holds no functions. The recipe `multi-step`, the
+  showcase wizard, `Form`'s docs and `AI.md` use it. The test checks the keys (Elm cannot diff in a test).
+- Entrance animations (T02, T09): axe reported `color-contrast` once right after a toast, a
+  drawer, a dialog or the delete confirmation appeared, because the entrance faded the surface in
+  and a checker reads text on a half-transparent background. `klar-modal-in`, `klar-slide-in-*` and
+  `klar-pop-in` now only move (transform); the backdrop, which carries no text, still fades.
+  Reproduced and fixed in Chrome by freezing the animations at 5 % and 50 % and running axe: before,
+  toast 1, confirmation 8, drawer 3 and dialog 25 nodes; after, none. `prefers-reduced-motion`
+  already set the durations to 0. The fades of the accordion body, the table and the bulk bar are
+  unchanged.
+- Keeping saved views (T09): `SavedViews.encode` and `SavedViews.decoder` write and read one
+  `SavedView` as JSON, and `Table.encodeQuery` and `Table.queryDecoder` a `Table.Query`, so an
+  application keeps its views wherever it likes (Klar still stores nothing and has no JavaScript).
+  Both are versioned (`"v": 1`): the decoders take what is missing from an empty query or the
+  usual flags, ignore fields they do not know, leave out a filter they do not know and refuse a
+  newer version, so a text kept for a year still reads. A query that is there but unreadable fails
+  the view instead of being dropped, because the view would then apply to another table than the one
+  that was saved. The builder wrote this by hand (the search and the sort only, no filters,
+  no page size). `SavedViews`' list stays a non-modal `dialog`: it holds text fields and a
+  confirmation, which a menu may not; the docs say why, and axe is clean with the list open, a
+  deletion to confirm, a rename and the save form.
+- Documentation the editing pass missed (run 1): `LeaveGuard`'s second paragraph "The browser's own
+  buttons", which still described the `Nav.forward 1` recipe that the first paragraph says loops forever,
+  is gone, and the module doc now says how the guard and an `AppShell` share the address: the guard answers
+  the clicks (`onUrlRequest` is the application's own), the shell reports the address
+  (`AppShell.onUrlChange ShellMsg`) and the `Url` from `AppShell.update` goes to `LeaveGuard.onUrlChange`. It
+  is the builder's T12 with that one change, tried in Chrome (Back with unsaved input asks, "Stay" restores
+  the address, "Leave" shows the page and focus goes to the content). No new function: the wiring is the
+  four lines of the doc. `AI.md` (333 lines) has the traps that are still true after the fixes of this
+  round and loses the "known gap" of the retry focus; `USING.md` and `ai/` follow.

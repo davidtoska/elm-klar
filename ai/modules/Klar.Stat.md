@@ -42,6 +42,7 @@ trendTone : Theme.Tone -> Attribute msg
 size : Theme.Size -> Attribute msg
 flat : Attribute msg
 onClick : msg -> Attribute msg
+id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 settings : Settings.Settings -> Attribute msg
 
@@ -376,6 +377,18 @@ tile is a plain block.
 A tile that shows a failure is a plain block too, whatever `onClick` says: its
 "Try again" button must not sit inside another button, and there is nothing to
 drill down into. The tile is a button again when the data is back.
+
+### `id`
+
+```elm
+id : String -> Attribute msg
+```
+
+The DOM id of the tile. A tile that is not a button can then take focus from a
+command in every state (loading, failed, old data, drawn): the "Try again" link is
+replaced when the request starts again and focus would fall back to the page, so
+call [`RemoteView.focus`](Klar.RemoteView.md#focus) with this id in the same `update`
+branch. The id must be unique on the page.
 
 ### `locale`
 

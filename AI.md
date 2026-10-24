@@ -38,7 +38,8 @@ the key. The model holds `page : Page` and `shell : AppShell.State Page`; the me
 that learns of a new route (a link, Back, a `pushUrl`): set `page` from it and call `AppShell.setPage` again. Following links,
 `pushUrl`, scroll to the top, the drawer and its focus are done for you. You write no `LinkClicked`, `UrlChanged` or `SideNav.init`. Only
 when a click must be held back (`LeaveGuard`) give `Browser.application` a `onUrlRequest` message of your own and call `Nav.pushUrl` when
-it may go on; everything else stays. `elm.json` needs `elm/url` as a **direct** dependency, and `Elm.Main.init()` takes no `node`.
+it may go on; `onUrlChange` stays the shell's, and the `address` that `AppShell.update` returns goes to `LeaveGuard.onUrlChange pageFromUrl url
+model.guard` (Back and Forward; the wiring is in the `LeaveGuard` doc, tried in Chrome); everything else stays. `elm.json` needs `elm/url` as a **direct** dependency, and `Elm.Main.init()` takes no `node`.
 
 **The three rules that matter most.** (1) Backend data is a `Remote` given to the component, and ids are your own types.
 (2) Every overlay is in the one overlay list, also while closed, and an opener has an id (`Button.id`). (3) You write no CSS, focus,
@@ -264,6 +265,11 @@ pageFromUrl url =
 - **A day count from a data set to a date and back**: `Date.fromEpochDay (baseDay + n)` and `Date.toEpochDay date - baseDay` (day 0 is 1 January 1970); `Date.addDays` and `Date.diffDays` do the rest.
 - **A price rule ("if the category is X and the quantity above Y, take Z off")**: `Rule` and `RuleBuilder` hold only the condition. The outcome is yours: one `RuleBuilder.State` per outcome in a list, `{ when : RuleBuilder.State, discountPercent : Float }`, and `Rule.matches today fields (RuleBuilder.rule r.when) row` to ask a row. The example is in `ai/modules/Klar.RuleBuilder.md`.
 - **A failed save with "Try again"**: `FormLayout.onRetry` gets its own message, and that branch runs the save and `FormLayout.focusStatus`; "Try again" is replaced by "Saving ..." and focus would fall to the page. Server problems per field are `Form.rejected`, which also focuses the summary (`recipes/edit-form`).
+- **"Try again" of any region** (`RemoteView`, `Stat`, `Chart`, `Timeline`, `Table` does it itself): give the region an id (`RemoteView.id`, `Stat.id`, `Chart.id`, `Timeline.id`) and, in the update branch of **its own** retry message, `RemoteView.focus id NoOp`. A `Tree` branch: `Tree.focusNode` with the node id. Do it in a message of its own, so a "Reload" button elsewhere keeps its focus.
+- **A wizard draws the step fields inside `Form.stepBody v [ ... ]`**, or Elm reuses the focused input of one step for the next and "Required" shows on a field nobody touched.
+- **Words that call a palette item** ("go to order 1001"): `CommandPalette.withCommand "go to order"` on the item and `CommandPalette.argument items palette` for the text to send to the backend.
+- **Keep saved views** with `SavedViews.encode` / `SavedViews.decoder` (and `Table.encodeQuery` / `Table.queryDecoder`); the library stores nothing, you choose where the JSON goes.
+- **A footer range worded your way** ("1 to 25 of 200"): `Table.rangeText` (same in `ServerList.viewTable`), `Pagination.rangeText`.
 - **Leaving a page with unsaved work**: `LeaveGuard`, six functions, one complete program at the top of its doc. Call `setDirty` in the branches of the messages that edit a form, never in a wrapper after every message, and reset the form you leave when the user answers "Leave" (`recipes/multi-step`).
 - **A sidebar that is not a `SideNav`**: `AppShell.sidebar` takes any `Html` (a `Tree`, a list of saved views).
 
@@ -281,7 +287,9 @@ Each is checked against the current source; the ones the library has fixed are g
 - **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
 - **Toasts move to the top while a dialog or drawer is open** and can cover the drawer title for a few seconds.
 - **`Card.title` is an `h2`, and so is a `Form.Layout.section` title.** A card inside a section, or under any `h2`, needs `Card.headingLevel 3`.
-- **The page needs an `h1` in every state.** A `RemoteView` or `ErrorState` draws none while it loads or has failed, so keep the `PageHeader` outside it. Their "Try again" also loses keyboard focus (a known gap): follow the retry with `AppShell.goToContent model.shell |> Cmd.map ShellMsg`.
+- **The page needs an `h1` in every state.** A `RemoteView` or `ErrorState` draws none while it loads or has failed, so keep the `PageHeader` outside it. For the focus after their "Try again" see "Try again of any region" above (a page that is only an `ErrorState` has no body to focus: `AppShell.goToContent model.shell |> Cmd.map ShellMsg`).
+- **`Timeline` day headings are `h3`** (right in a card with an `h2` title): directly under a page `h1` say `Timeline.headingLevel 2`. With `hasMore False` the "Load more" button is gone and focus on it falls to the page: move it with `Timeline.id` and `RemoteView.focus`.
+- **A lazy `Tree` searches only the nodes it has**: for the rest watch `Tree.query` and ask the backend (see its doc).
 - **`Time.Posix` is needed once**, for today (`Date.fromPosix`); `Remote.refreshWith` also takes the time of the answer.
 
 ## I need X, use module Y

@@ -104,6 +104,67 @@ suite =
                         , fast rows (indexOf rows) [] (always True) [ Ranked "size" True ] |> Index.allIndices
                         )
             ]
+        , describe "the walk over the search texts (no sort, search words)"
+            [ fuzz2 rowsFuzzer (Fuzz.oneOfValues [ [ "a" ], [ "ad", "lo" ], [ "e", "r" ], [ "zz" ] ]) "keeps the order of the rows and applies the other tests" <|
+                \rows words ->
+                    let
+                        test row =
+                            row.size /= Just 3
+                    in
+                    fast rows (indexOf rows) words test []
+                        |> Index.allIndices
+                        |> Expect.equal (reference rows words test [])
+            , fuzz2 rowsFuzzer (Fuzz.oneOfValues [ [ "a" ], [ "zz" ] ]) "counts what it kept" <|
+                \rows words ->
+                    fast rows (indexOf rows) words (always True) []
+                        |> Index.matchCount
+                        |> Expect.equal (List.length (reference rows words (always True) []))
+            ]
+        , describe "footer sums over the matching rows"
+            [ fuzz2 rowsFuzzer (Fuzz.oneOfValues [ [], [ "a" ], [ "ad", "lo" ], [ "zz" ] ]) "are the sum and count of the numbers of the rows that matched, in any sort" <|
+                \rows words ->
+                    let
+                        index =
+                            indexOf rows
+
+                        numbers =
+                            List.filterMap (.size >> Maybe.map toFloat) rows
+
+                        expected matches =
+                            let
+                                array =
+                                    Array.fromList rows
+
+                                found =
+                                    Index.allIndices matches
+                                        |> List.filterMap (\position -> Array.get position array |> Maybe.andThen .size |> Maybe.map toFloat)
+                            in
+                            Just { sum = List.sum found, count = List.length found }
+
+                        check levels =
+                            let
+                                matches =
+                                    fast rows index words (always True) levels
+                            in
+                            Index.totalsOver "size" matches index
+                                |> Expect.equal (expected matches)
+                    in
+                    Expect.all
+                        [ \_ -> check []
+                        , \_ -> check [ Ranked "size" False ]
+                        , \_ -> check [ Ranked "word" True ]
+                        , \_ -> Expect.equal (Just { sum = List.sum numbers, count = List.length numbers }) (Index.totalsOf "size" index)
+                        ]
+                        ()
+            , test "a column the index keeps no numbers for has none" <|
+                \_ ->
+                    let
+                        rows =
+                            [ Row (Just 1) "a" ]
+                    in
+                    Index.totalsOver "word" (fast rows (indexOf rows) [] (always True) []) (indexOf rows)
+                        |> Expect.equal Nothing
+            ]
         , describe "filtering and sorting"
             [ fuzz2 rowsFuzzer (Fuzz.oneOfValues [ [], [ "a" ], [ "ad", "lo" ], [ "zz" ] ]) "search words and a test, then a ranked sort" <|
                 \rows words ->

@@ -11,6 +11,7 @@ import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
+import Klar.RemoteView as RemoteView
 import Klar.Stat as Stat
 import Klar.Theme exposing (Size(..), Tone(..))
 import Page.Gallery.DataDisplay.Pretend as Pretend
@@ -29,6 +30,8 @@ type alias Model =
 
 type Msg
     = Reload
+    | RetryTile
+    | Focused
     | Loaded (Result Problem Int)
     | Clicked
 
@@ -47,6 +50,18 @@ update failing msg model =
             ( { model | shipments = Remote.Loading }
             , Cmd.map Loaded (Pretend.respond failing 1284)
             )
+
+        RetryTile ->
+            -- "Try again" is replaced by the skeleton: focus goes to the tile (its id).
+            ( { model | shipments = Remote.Loading }
+            , Cmd.batch
+                [ Cmd.map Loaded (Pretend.respond failing 1284)
+                , RemoteView.focus "shipments-tile" Focused
+                ]
+            )
+
+        Focused ->
+            ( model, Cmd.none )
 
         Loaded result ->
             ( { model | shipments = Remote.fromResult result }, Cmd.none )
@@ -131,7 +146,8 @@ view locale model =
             , description = Just "Loading shows a skeleton of the same height. A failure shows a short message and “Try again” without moving the rest. The first tile fetches from the pretend backend: it starts failed, and “Try again” or “Reload the first tile” fetches it. With “Simulate failures” switched on, it fails again."
             , code = Just """Stat.view
     [ Stat.label "Shipments today"
-    , Stat.onRetry Reload
+    , Stat.id "shipments-tile"
+    , Stat.onRetry RetryTile
     , Stat.remote model.shipments (\\n -> [ Stat.int n, Stat.delta 2.4 ])
     ]
 
@@ -147,7 +163,8 @@ Stat.view [ Stat.label "Backlog", Stat.int 218, Stat.delta 3.1, Stat.deltaText "
                 , Layout.grid [ Layout.minColumn 220, Layout.gap 3 ]
                     [ Stat.view
                         [ Stat.label "Shipments today"
-                        , Stat.onRetry Reload
+                        , Stat.id "shipments-tile"
+                        , Stat.onRetry RetryTile
                         , Stat.remote model.shipments
                             (\n -> [ Stat.int n, Stat.delta 2.4, Stat.deltaLabel "vs. yesterday" ])
                         , Stat.locale locale

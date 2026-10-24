@@ -271,41 +271,53 @@ and call it with `LeaveGuard.isDirty guard` whenever that changes.
 `Url`. Make the guard with `init` and use `request`, `update` and `view` as above;
 `onUrlChange` then enters every change, since there is nothing to compare with.
 
-**The browser's own buttons.** A click on a link reaches `onUrlRequest` before the
-address changes, so a `request` there can stop it: when the answer is `Hold`, do not
-push the address. The Back and Forward buttons cannot be stopped. `onUrlChange` is
-called after the address has changed, and a program in Elm cannot read the position
-in the history, so it cannot even tell which of the two was pressed. All it can do is
-the opposite move, `Nav.forward 1` after a Back (`Nav.back 1` after a Forward), which
-puts the address back without adding an entry to the history, and then `request` the
-page the user wanted. That move calls `onUrlChange` twice: at once, with the address
-that is still in the bar (the browser has not moved yet), and again when it has moved,
-with the page you are showing. A handler that asks again on the first call asks
-forever, and the page freezes: set a flag together with `Nav.forward 1`, ignore the
-calls while it is set, and clear it when the address is the page you are showing.
+**Links.** A click on a link reaches `onUrlRequest` before the address changes, so a
+`request` there can stop it: when the answer is `Hold`, do not push the address (and
+`Browser.External` links go to `Nav.load` without asking). A `Nav.pushUrl` of your
+own is asked about the same way.
 
-    UrlChanged url ->
-        if model.undoing then
-            ( { model | undoing = Route.fromUrl url /= model.route }, Cmd.none )
+**With an `AppShell`.** Both want the address, and the rule is: the guard answers the
+clicks, the shell reports the address. `onUrlRequest` is a message of your own (it asks
+the guard before it pushes), `onUrlChange` is the shell's, and the `Url` that
+`AppShell.update` reports goes to `LeaveGuard.onUrlChange` (the shell has then closed
+its drawer and reset the scroll, which does no harm when the page stays):
 
-        else if Route.fromUrl url == model.route then
-            ( model, Cmd.none )
+    Browser.application
+        { onUrlRequest = LinkClicked
+        , onUrlChange = AppShell.onUrlChange ShellMsg
+        , ...
+        }
 
-        else
-            case LeaveGuard.request GoBack model.guard of
-                Proceed _ ->
-                    goTo (Route.fromUrl url) model
+    LinkClicked (Browser.Internal url) ->
+        case LeaveGuard.request (pageFromUrl url) model.guard of
+            Proceed page ->
+                ( model, Nav.pushUrl model.key (pagePath page) )
 
-                Hold guard cmd ->
-                    ( { model | guard = guard, undoing = True }
-                    , Cmd.batch [ Nav.forward model.key 1, Cmd.map GuardMsg cmd ]
-                    )
+            Hold guard cmd ->
+                ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
-If the user chooses "Leave", make the real move (`Nav.back 1` again). Do not put the
-address back with `Nav.pushUrl`: it adds an entry, so that Back, Leave, Back ends on
-the page the user has just left. Let your target type say where the request came from
-(`Go Route` for a link, `GoBack` for the Back button), so that `Leave` knows which move
-to make.
+    ShellMsg m ->
+        let
+            ( shell, cmd, address ) =
+                AppShell.update m model.shell
+        in
+        case Maybe.map (\url -> LeaveGuard.onUrlChange pageFromUrl url model.guard) address of
+            Just ( guard, guardCmd, Just page ) ->
+                enter page { model | shell = shell, guard = guard }
+                    |> addCmd (Cmd.batch [ Cmd.map ShellMsg cmd, Cmd.map GuardMsg guardCmd ])
+
+            Just ( guard, guardCmd, Nothing ) ->
+                ( { model | shell = shell, guard = guard }
+                , Cmd.batch [ Cmd.map ShellMsg cmd, Cmd.map GuardMsg guardCmd ]
+                )
+
+            Nothing ->
+                ( { model | shell = shell }, Cmd.map ShellMsg cmd )
+
+Tried in Chrome with unsaved input: the Back button opens the question with the address
+at the page the user wanted, "Stay" puts the address back, "Leave" shows the page and
+focus goes to the content. An application without a shell uses its own `UrlChanged` as
+in the example above, and `AppShell.setPage` and `AppShell.goToContent` in `enter`.
 
 
 # The guard

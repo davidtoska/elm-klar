@@ -1,6 +1,6 @@
 module Klar.Pagination exposing
     ( view
-    , Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, disabled, id, label, locale
+    , Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, rangeText, disabled, id, label, locale
     , pageCount, range, Item(..), pageItems
     )
 
@@ -59,7 +59,7 @@ page", "Next page" ...) follow `locale` and are English by default (see
 
 # Attributes
 
-@docs Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, disabled, id, label, locale
+@docs Attribute, onPage, onPageSize, pageSizes, compact, jumpToPage, siblings, summary, rangeText, disabled, id, label, locale
 
 
 # Page math
@@ -100,6 +100,7 @@ type alias Config msg =
     , label : Maybe String
     , locale : Locale
     , summary : Maybe (List (Html msg))
+    , rangeText : Maybe (Int -> Int -> Int -> String)
     }
 
 
@@ -117,6 +118,7 @@ configure attributes =
         , label = Nothing
         , locale = Locale.default
         , summary = Nothing
+        , rangeText = Nothing
         }
         attributes
 
@@ -239,6 +241,23 @@ stay.
 summary : List (Html msg) -> Attribute msg
 summary content =
     Attribute (\config -> { config | summary = Just content })
+
+
+{-| Words the range yourself: the first and last item of the page and the total in,
+the text out. The default is "1–25 of 3,000" ("1–25 av 3 000" in Norwegian). It is
+not called when there is nothing to count, and `summary` wins over it.
+
+    Pagination.rangeText
+        (\first last total ->
+            String.fromInt first ++ " to " ++ String.fromInt last ++ " of " ++ String.fromInt total
+        )
+
+Format the numbers with [Klar.Format](Klar-Format).
+
+-}
+rangeText : (Int -> Int -> Int -> String) -> Attribute msg
+rangeText words =
+    Attribute (\config -> { config | rangeText = Just words })
 
 
 
@@ -477,7 +496,19 @@ view attributes model =
 
                 Nothing ->
                     Html.span [ Internal.cls [ "klar-pagination__summary", "klar-tabular" ] ]
-                        [ Html.text (t.range first last total) ]
+                        [ Html.text
+                            (case config.rangeText of
+                                Just words ->
+                                    if total <= 0 then
+                                        t.range first last total
+
+                                    else
+                                        words first last total
+
+                                Nothing ->
+                                    t.range first last total
+                            )
+                        ]
 
         go target =
             case config.onPage of

@@ -4,7 +4,7 @@ module Klar.Form exposing
     , init, set, get, rawFiles, rowFields, fillRows, toValues, isDirty, markClean, revert, update
     , problems, hasProblems, outside, problem, problemInRow, rejected, reveal, focus, goToProblem
     , currentStep, attempted, advance, back, goTo
-    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, summary
+    , bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
     )
 
 {-| A form as one value: the text and choices of every field, which fields the
@@ -169,7 +169,10 @@ shows its own; a problem the server gave shows at once and goes away when its
 field is edited. Rows and fields added later start quiet again.
 
 **Steps.** Declare them with `Spec.step`; the form then owns which step the user
-is on. `advance` is the whole of the Next and Save buttons, `back` of Back and
+is on. Draw the fields of the current step inside `stepBody`: without it Elm reuses the
+focused input of one step for the field at the same place in the next, and the
+focus move that `advance` makes blurs it and shows "Required" on a field nobody
+touched. `advance` is the whole of the Next and Save buttons, `back` of Back and
 `goTo` of "Edit" on a review page, and `stepper` draws the steps with a red mark
 on the ones that have problems showing. A step that is reached by clicking
 forward must pass every step on the way. The last step, when it has no fields, is
@@ -222,7 +225,7 @@ at `RuleBuilder.focusId`), and they are then in the summary, the stepper marks a
 
 # Drawing the form
 
-@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, summary
+@docs bind, textInput, textArea, numberInput, select, multiSelect, switch, tagInput, fileDrop, ruleBuilder, addRow, removeRow, stepper, stepBody, summary
 
 -}
 
@@ -832,6 +835,31 @@ Nothing is drawn for a form without steps. The attributes are the stepper's own
 stepper : View msg -> List (Stepper.Attribute msg) -> Html msg
 stepper =
     Core.stepper
+
+
+{-| The fields of the current step, drawn by the application, in one element. Use it
+for the part of the form that changes with `currentStep`: Elm then makes new inputs for
+the next step instead of reusing the focused input of the old one for the field at
+the same place, which `advance` would blur (and show "Required" on a field nobody has
+touched). Fields that stay on every step go outside it.
+
+    FormLayout.view attributes
+        [ Form.summary v
+        , Form.stepBody v
+            (case Form.currentStep form model.order of
+                Just Customer ->
+                    [ Form.textInput v f.name [], Form.textInput v f.email [] ]
+
+                _ ->
+                    [ Form.textInput v f.address [] ]
+            )
+        , FormLayout.actions [ ... ]
+        ]
+
+-}
+stepBody : View msg -> List (Html msg) -> Html msg
+stepBody =
+    Core.stepBody
 
 
 {-| The list of problems that are showing, with the labels of the declaration,

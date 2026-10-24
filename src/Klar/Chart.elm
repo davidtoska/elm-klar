@@ -2,7 +2,7 @@ module Klar.Chart exposing
     ( line, bar, donut, gauge, meter, sparkline
     , Series, series, seriesMaybe, withColor, withTone, dashed
     , Segment, segment, segmentColor, segmentTone
-    , Attribute, title, description, ariaLabel, size, height, tone, locale, settings, unit, valueFormat
+    , Attribute, title, description, ariaLabel, id, size, height, tone, locale, settings, unit, valueFormat
     , categories, dates, area, points, stacked, horizontal, valueLabels, legend, yMin, yMax, includeZero, maxLabels
     , centerLabel, centerCaption, range, thresholds
     , loading, failed, onRetry, remote, emptyText
@@ -94,7 +94,7 @@ tooltips follow the locale too, or your own `valueFormat`.
 
 # Attributes
 
-@docs Attribute, title, description, ariaLabel, size, height, tone, locale, settings, unit, valueFormat
+@docs Attribute, title, description, ariaLabel, id, size, height, tone, locale, settings, unit, valueFormat
 
 
 # Line and bar charts
@@ -295,6 +295,7 @@ type alias Config msg =
     , failure : Maybe Problem
     , freshness : Freshness
     , onRetry : Maybe msg
+    , id : Maybe String
     , emptyText : Maybe String
     , centerLabel : Maybe String
     , centerCaption : Maybe String
@@ -333,6 +334,7 @@ configure attributes =
         , failure = Nothing
         , freshness = Freshness.Fresh
         , onRetry = Nothing
+        , id = Nothing
         , emptyText = Nothing
         , centerLabel = Nothing
         , centerCaption = Nothing
@@ -342,6 +344,17 @@ configure attributes =
         , maxLabels = 12
         }
         attributes
+
+
+{-| The DOM id of the chart, which then sits in an element that can take focus
+in every state (loading, failed, old data, drawn). The "Try again" button is
+replaced when the request starts again and focus would fall back to the page: call
+[`RemoteView.focus`](Klar-RemoteView#focus) with this id in the same `update`
+branch. The id must be unique on the page.
+-}
+id : String -> Attribute msg
+id value =
+    Attribute (\config -> { config | id = Just value })
 
 
 {-| A visible heading above the chart. It is also the accessible name of the
@@ -779,6 +792,16 @@ stateOf config =
 
 withState : Config msg -> String -> Int -> Bool -> (() -> Html msg) -> Html msg
 withState config kind placeholderHeight hasData body =
+    case config.id of
+        Just domId ->
+            Html.div [ Attr.id domId, Attr.tabindex -1 ] [ withStateInside config kind placeholderHeight hasData body ]
+
+        Nothing ->
+            withStateInside config kind placeholderHeight hasData body
+
+
+withStateInside : Config msg -> String -> Int -> Bool -> (() -> Html msg) -> Html msg
+withStateInside config kind placeholderHeight hasData body =
     let
         t =
             texts config.locale

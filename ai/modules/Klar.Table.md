@@ -38,6 +38,8 @@ type Direction = Ascending | Descending
 type Filter = Contains String | OneOf (List String) | Between (Maybe Float) (Maybe Float)
 query : State id -> Query
 setQuery : Query -> State id -> State id
+encodeQuery : Query -> Json.Encode.Value
+queryDecoder : Json.Decode.Decoder Query
 sort : State id -> List ( ColumnId, Direction )
 setSort : List ( ColumnId, Direction ) -> State id -> State id
 page : State id -> Int
@@ -112,6 +114,7 @@ densityToggle : Attribute id row msg
 
 -- Pagination and layout
 pageSizes : List Int -> Attribute id row msg
+rangeText : (Int -> Int -> Int -> String) -> Attribute id row msg
 unpaged : Attribute id row msg
 virtual : Attribute id row msg
 zebra : Attribute id row msg
@@ -337,9 +340,14 @@ The columns are given twice, once to `prepareRows` and once to the view:
             ]
             state
 
-With 50 000 prepared rows, measured in the optimized build: a sort click or a page change
-takes a few milliseconds, a keystroke in the search box tens of milliseconds (about 40 to 90),
-a jump in `virtual` about 40. Everything stays under 100 ms. The rest of this page is the reference.
+With 50 000 prepared rows of 7 columns and two footer sums, measured in the optimized build in
+headless Chrome, from the event to two animation frames later (about 33 ms of each number is
+those frames): a sort click or a page change about 40 ms, a keystroke 30 to 55 ms. When the
+search keeps 37 000 of the rows, a page change or a sort click is 60 to 75 ms and a keystroke
+about 55 ms, because every message goes through the matching rows once (the sums of the footers
+read numbers kept per row, not the rows); with a selection in a result that large add up to 25 ms.
+Everything stays under 100 ms on a desktop; a phone is several times slower. The rest of this
+page is the reference.
 
 See also [Klar.ListItem](Klar.ListItem.md) and
 [Klar.VirtualList](Klar.VirtualList.md). The page controls in the footer are
@@ -490,10 +498,10 @@ model instead of the `List`:
     Table.preparedRows model.orders
 
 The table then has, for every row, the text that the search looks in and, for every
-sortable column, the rows in order. With 50 000 rows, measured in the optimized build,
-a sort click or a page change takes a few milliseconds (4 to 10), a keystroke in the
-search box tens of milliseconds (40 to 90), and all of them stay under 100 ms; a page
-change does not sort again. Search and sorting need no other rows than
+sortable column, the rows in order, and for the columns with a footer sum their numbers.
+With 50 000 rows (numbers in the head of this page) a sort click, a page change and a
+keystroke stay under 100 ms including two frames, also when the search keeps most of the
+rows; a page change does not sort again, but it does go through the matching rows once. Search and sorting need no other rows than
 these; `rowsArray` gives the `Array` to the other parts of the page that want the
 rows, such as [Klar.VirtualList](Klar.VirtualList.md), so that the page keeps one
 collection. If the rows change (an order is edited), prepare them again.
@@ -763,6 +771,38 @@ one restored from the URL or a saved view. The search box and the filter
 popovers show the new values; a page or page size below 1 becomes 1. Selected
 rows stay selected, but an "all matching" selection (see `Selection`) is dropped
 when the search or the filters change.
+
+### `encodeQuery`
+
+```elm
+encodeQuery : Query -> Json.Encode.Value
+```
+
+A query as JSON, to keep it where the application keeps its things (a saved
+view, the address, a setting): `Encode.encode 0 (Table.encodeQuery q)`. The library
+stores nothing itself. The object has a version, `"v": 1`, and the columns are
+written by their name (`columnName`):
+
+    {"v":1,"search":"acme","sort":[{"column":"total","descending":true}],
+     "filters":[{"column":"status","oneOf":["open","late"]}],"page":1,"pageSize":25}
+
+A filter is written as `contains` (text), `oneOf` (a list of texts) or `between`
+(`[from, to]`, a missing bound is `null`).
+
+### `queryDecoder`
+
+```elm
+queryDecoder : Json.Decode.Decoder Query
+```
+
+Reads what `encodeQuery` wrote. It is made for text that has been kept for a long
+time or written by another version: a field that is missing takes the value of an
+empty query (no search, no sort, no filters, page 1, 25 rows), a field it does not
+know is ignored, a filter it does not know is left out (a restored view is better with
+one filter less than not at all), and a version newer than 1 is refused, because
+reading it as version 1 could be wrong. A page or page size below 1 becomes 1.
+
+    Decode.decodeString Table.queryDecoder text
 
 ### `sort`
 
@@ -1418,6 +1458,23 @@ pageSizes : List Int -> Attribute id row msg
 The choices of the "Rows per page" selector in the footer. The default is
 `[ 10, 25, 50, 100 ]`. The page size itself is part of the state (25 from
 `init`; see `pageSize` and `setPageSize`).
+
+### `rangeText`
+
+```elm
+rangeText : (Int -> Int -> Int -> String) -> Attribute id row msg
+```
+
+Words the range in the footer yourself ("1–25 of 200" is the default): the first
+and last row shown and the number of matching rows in, the text out. Format the
+numbers with [Klar.Format](Klar.Format.md). It is also the range of a `virtual` table
+("1 to 24 of 50,000"); the announcement for screen readers keeps its own words.
+Works the same in `ServerList.viewTable`.
+
+    Table.rangeText
+        (\first last total ->
+            Format.int locale first ++ " to " ++ Format.int locale last ++ " of " ++ Format.int locale total
+        )
 
 ### `unpaged`
 

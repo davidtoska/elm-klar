@@ -1,7 +1,7 @@
 module Klar.Timeline exposing
     ( view
     , Event, event, dayEvent, withDescription, withTone, withIcon, withAuthor, withAuthorImage, withDetails
-    , Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, locale
+    , Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, headingLevel, id, locale
     , onLoadMore, loadingMore, moreFailed, hasMore
     , loading, failed, onRetry, remote, skeletonRows, emptyTitle, emptyDescription
     )
@@ -39,7 +39,8 @@ time, until the application has given it).
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
-share a heading, so give them sorted by time. The headings are `h3` elements.
+share a heading, so give them sorted by time. The headings are `h3` elements: under a
+page title with no heading in between, say `headingLevel 2`.
 Something that happened on a day, with no time of day (a delivery date, a
 deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
 timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
@@ -48,10 +49,13 @@ screen readers), so the title of an event must say what its color means.
 
 Details are folded away in a native `details` element, so they work with the
 keyboard and need no state. The footer loads more: a button and a status text
-next to it, shown when you set `onLoadMore`. The button stays in the page in
-every state (it shows a spinner while the next page loads, turns into "Try
-again" when that failed and dims when there is nothing more), so the keyboard
-focus is never thrown away.
+next to it, shown when you set `onLoadMore`. The button stays in the page while the
+next page loads (it shows a spinner) and turns into "Try again" when that failed,
+so the keyboard focus is not thrown away; when there is nothing more
+(`hasMore False`) it is gone and the status text says "No more events". Give the
+timeline an `id` and move focus there with `RemoteView.focus` in the same update
+that starts a request again or ends the list, as for the retry button of any
+region.
 
 A loading skeleton, an empty state and a failure with retry are built in; use
 `remote` to take them from a `Remote`. The built-in text is English unless you
@@ -70,7 +74,7 @@ set `locale`.
 
 # Look and time
 
-@docs Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, locale
+@docs Attribute, settings, now, compact, ungrouped, ariaLabel, maxHeight, headingLevel, id, locale
 
 
 # Loading more
@@ -146,8 +150,8 @@ sentence case.
 
 -}
 event : String -> Time.Posix -> String -> Event msg
-event id time title =
-    eventWhen id (At time) title
+event key time title =
+    eventWhen key (At time) title
 
 
 {-| An event that happened on a day, with no time of day: a delivery date, a
@@ -159,14 +163,14 @@ day events of a day together with the timed events of that day.
 
 -}
 dayEvent : String -> Date -> String -> Event msg
-dayEvent id day title =
-    eventWhen id (OnDay day) title
+dayEvent key day title =
+    eventWhen key (OnDay day) title
 
 
 eventWhen : String -> When -> String -> Event msg
-eventWhen id when title =
+eventWhen key when title =
     Event
-        { id = id
+        { id = key
         , when = when
         , title = title
         , description = Nothing
@@ -271,6 +275,8 @@ type alias Config msg =
     , emptyDescription : Maybe String
     , skeletonRows : Int
     , maxHeight : Maybe Int
+    , headingLevel : Int
+    , id : Maybe String
     }
 
 
@@ -295,6 +301,8 @@ configure attributes =
         , emptyDescription = Nothing
         , skeletonRows = 4
         , maxHeight = Nothing
+        , headingLevel = 3
+        , id = Nothing
         }
         attributes
 
@@ -410,6 +418,27 @@ remote data =
         )
 
 
+{-| The level, 1 to 6, of the heading of each day (`h3` by default; other numbers
+are moved into that range). The headings must follow the ones of the page: a
+timeline directly under the `h1` of a page takes 2, one in a card with an `h2`
+title keeps 3.
+-}
+headingLevel : Int -> Attribute msg
+headingLevel level =
+    Attribute (\config -> { config | headingLevel = clamp 1 6 level })
+
+
+{-| The DOM id of the timeline, which then takes focus from a command in every state
+(loading, failed, loaded). "Try again" and "Load more" are replaced when the request
+starts or the list ends, and focus would fall back to the page; call
+[`RemoteView.focus`](Klar-RemoteView#focus) with this id in the same `update`
+branch. The id must be unique on the page.
+-}
+id : String -> Attribute msg
+id value =
+    Attribute (\config -> { config | id = Just value })
+
+
 {-| The message sent by the "Try again" button in the failure state. The button
 is only shown when the problem is worth retrying (see `Klar.Remote.isRetryable`
 in [Klar.Remote](Klar-Remote)). A failed next page has its own retry button,
@@ -449,9 +478,8 @@ moreFailed problem =
     Attribute (\config -> { config | moreFailed = Just problem })
 
 
-{-| Say `False` when the last page has been loaded: the button dims (and keeps
-its place in the tab order) and the status text says "No more events" instead of
-how many are shown. Default: `True`.
+{-| Say `False` when the last page has been loaded: the button goes and the status
+text says "No more events" instead of how many are shown. Default: `True`.
 -}
 hasMore : Bool -> Attribute msg
 hasMore value =
@@ -585,7 +613,12 @@ view attributes events =
 
                   else
                     Internal.attrMaybe (Attr.attribute "aria-label") config.label
-                , Internal.attrIf scrollsWithoutButton (Attr.tabindex 0)
+                , Internal.attrMaybe Attr.id config.id
+                , if scrollsWithoutButton then
+                    Attr.tabindex 0
+
+                  else
+                    Internal.attrIf (config.id /= Nothing) (Attr.tabindex -1)
                 , Internal.attrIf scrollsWithoutButton (Attr.attribute "role" "region")
                 , Internal.attrIf (state == Busy) (Attr.attribute "aria-busy" "true")
                 , Freshness.busyAttr config.freshness
@@ -720,7 +753,8 @@ viewDay config ( day, events ) =
                     Nothing
     in
     Html.div [ Internal.cls [ "klar-timeline__day" ] ]
-        [ Html.h3 [ Internal.cls [ "klar-timeline__day-title" ] ]
+        [ Internal.heading config.headingLevel
+            [ Internal.cls [ "klar-timeline__day-title" ] ]
             (case relativeName of
                 Just name ->
                     [ Html.span [ Internal.cls [ "klar-timeline__day-name" ] ] [ Html.text name ]
@@ -941,7 +975,7 @@ viewFooter config count =
                         Button.view [ Button.small, Button.onClick msg ] t.loadMore
 
                     else
-                        Button.view [ Button.small, Button.ariaDisabled True ] t.loadMore
+                        Html.text ""
 
                 note =
                     if config.loadingMore then

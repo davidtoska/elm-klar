@@ -162,8 +162,11 @@ Filter: with `filterBox` the tree has a search field (or call `setQuery`). The
 tree then shows the nodes whose label contains every word typed (case and
 accents are ignored), with every ancestor of a match opened and the matching
 text highlighted. Only nodes that are in your data are searched, so the children
-of a lazy node that has not been loaded are not. Nodes that the user opens or
-closes while a filter is active are forgotten when the text changes.
+of a lazy node that has not been loaded are not: for a lazy tree, watch `query`
+(compare it before and after `update`), ask the backend for the matching nodes
+with their ancestors and put them in your data, or load every branch first.
+Nodes that the user opens or closes while a filter is active are forgotten when
+the text changes.
 
 Lazy loading: a `lazy` node carries a `Remote` of its children. When the user
 opens one that is `NotAsked`, `loadRequests` on the message tells you which node

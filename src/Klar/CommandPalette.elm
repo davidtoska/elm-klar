@@ -2,7 +2,8 @@ module Klar.CommandPalette exposing
     ( view
     , State, init, Msg, update
     , open, close, isOpen, openedFrom, query, setQuery
-    , Item, item, withDescription, withIcon, withShortcut, withKeywords, withId
+    , Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId
+    , argument
     , Section, section, remote, onRetry, emptyText
     , Attribute, sections, recent, placeholder, label, noResults, locale, settings
     )
@@ -59,8 +60,9 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
         ]
         model.palette
 
-Picking an item sends the item's own message and closes the palette. `Escape`
-and a click outside close it without running anything. The palette is a modal
+Picking an item closes the palette, gives focus back to its opener and sends the
+item's own message (a message that moves focus, such as one that opens a drawer,
+wins). `Escape` and a click outside close it without running anything. The palette is a modal
 dialog: `view` returns an [`Overlay`](Klar-Overlay#Overlay), and while it is open
 the page behind it is inert.
 Pressing the shortcut again while the palette is open starts over with an empty
@@ -103,7 +105,19 @@ extra words it is found by. The palette keeps track of the highlighted item by
 identity, so a result that arrives above it does not move the highlight. Give
 items with identical labels a `withId`.
 
-@docs Item, item, withDescription, withIcon, withShortcut, withKeywords, withId
+@docs Item, item, withDescription, withIcon, withShortcut, withKeywords, withCommand, withId
+
+
+## Command words
+
+A palette often has a section that searches the backend next to the commands:
+the user types "go to order 1001" and the section should ask for "1001", not for
+the words of the command. Declare the words on the item with `withCommand` and ask
+`argument` for what follows them. The item stays in the list while its words are
+followed by an argument (without `withCommand` no item matches "go to order
+1001", as "1001" is nowhere in "Go to order").
+
+@docs argument
 
 
 # Sections
@@ -326,7 +340,10 @@ update msg ((State state) as current) =
             close current
 
         Picked ->
-            ( State { state | open = False }, Cmd.none )
+            -- Closes like `Escape`, before the item's own message is handled (see
+            -- `viewEntry`): focus goes back to the opener unless that message
+            -- moves it somewhere else.
+            close current
 
         ClearQuery ->
             ( State { state | query = "", active = Nothing }
@@ -397,6 +414,11 @@ inputId id =
     id ++ "-input"
 
 
+listboxId : String -> String
+listboxId id =
+    id ++ "-listbox"
+
+
 listId : String -> String
 listId id =
     id ++ "-list"
@@ -464,6 +486,7 @@ type Item msg
         , icon : Maybe Icon
         , shortcut : Maybe Shortcut.Keys
         , keywords : List String
+        , commands : List String
         , onSelect : msg
         }
 
@@ -483,6 +506,7 @@ item text msg =
         , icon = Nothing
         , shortcut = Nothing
         , keywords = []
+        , commands = []
         , onSelect = msg
         }
 
@@ -526,6 +550,75 @@ withKeywords words =
     mapItem (\data -> { data | keywords = words })
 
 
+{-| The words that call the item, for an item that takes an argument: "go to
+order" in "go to order 1001". The item matches while the query starts with these
+words (any case, any accents), also after an argument has been typed. Use
+`argument` to get the part of the query after the words. An item can have several
+commands (one for each language, say); the words are not shown.
+
+    CommandPalette.item "Go to order ..." (GoTo Orders)
+        |> CommandPalette.withCommand "go to order"
+
+-}
+withCommand : String -> Item msg -> Item msg
+withCommand words =
+    mapItem (\data -> { data | commands = words :: data.commands })
+
+
+{-| The query without the command words of the items that are called by them, for
+the request to the backend. When the query starts with the `withCommand` words of
+one of the items (the longest wins), the rest of the query is returned, trimmed;
+otherwise the whole query, trimmed. Give it the same items as the view, so a
+function that makes them can be shared.
+
+    CommandPalette.argument [ goToOrder ] palette -- "1001", for "Go to order 1001"
+
+-}
+argument : List (Item msg) -> State -> String
+argument items (State state) =
+    let
+        words =
+            String.trim state.query
+
+        normalized =
+            Search.normalize words
+
+        rests =
+            items
+                |> List.concatMap (\(Item data) -> data.commands)
+                |> List.filterMap (commandRest normalized)
+    in
+    case List.sortBy String.length rests of
+        shortest :: _ ->
+            -- The lengths are of the rest: the shortest rest is the longest command.
+            String.trim (String.right (String.length shortest) words)
+
+        [] ->
+            words
+
+
+{-| What is left of the normalized query after the command, when the query starts
+with the command followed by a space or nothing.
+-}
+commandRest : String -> String -> Maybe String
+commandRest normalizedQuery command =
+    let
+        start =
+            String.trim (Search.normalize command)
+    in
+    if start == "" then
+        Nothing
+
+    else if normalizedQuery == start then
+        Just ""
+
+    else if String.startsWith (start ++ " ") normalizedQuery then
+        Just (String.dropLeft (String.length start) normalizedQuery)
+
+    else
+        Nothing
+
+
 {-| A stable identity, for items with the same label (two customers called "Ada
 Lovelace"). It keeps the highlight on the right item when the results change.
 -}
@@ -534,7 +627,7 @@ withId value =
     mapItem (\data -> { data | id = Just value })
 
 
-mapItem : ({ id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, onSelect : msg } -> { id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, onSelect : msg }) -> Item msg -> Item msg
+mapItem : ({ id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, commands : List String, onSelect : msg } -> { id : Maybe String, label : String, description : Maybe String, icon : Maybe Icon, shortcut : Maybe Shortcut.Keys, keywords : List String, commands : List String, onSelect : msg }) -> Item msg -> Item msg
 mapItem change (Item data) =
     Item (change data)
 
@@ -893,6 +986,9 @@ rankItems words items =
 scoreItem : String -> Item msg -> Maybe Int
 scoreItem words (Item data) =
     let
+        calledBy =
+            List.any (\command -> commandRest (Search.normalize words) command /= Nothing) data.commands
+
         byLabel =
             Search.score words data.label
 
@@ -902,15 +998,19 @@ scoreItem words (Item data) =
         byAll =
             Search.score words everything |> Maybe.map (\points -> points + 4)
     in
-    case ( byLabel, byAll ) of
-        ( Just a, Just b ) ->
-            Just (min a b)
+    if calledBy then
+        Just 0
 
-        ( Just a, Nothing ) ->
-            Just a
+    else
+        case ( byLabel, byAll ) of
+            ( Just a, Just b ) ->
+                Just (min a b)
 
-        ( Nothing, other ) ->
-            other
+            ( Just a, Nothing ) ->
+                Just a
+
+            ( Nothing, other ) ->
+                other
 
 
 {-| Number the entries and compute where each row sits in the scrolling
@@ -1024,7 +1124,10 @@ viewPalette toMsg attributes (State state) =
                 String.trim state.query
 
             ( blocks, entries ) =
-                place state.id (buildBlocks config state.query)
+                place state.id (entriesFirst (buildBlocks config state.query))
+
+            ( entryBlocks, noticeBlocks ) =
+                List.partition (\block -> List.any isEntryRow block.rows) blocks
 
             count =
                 List.length entries
@@ -1045,14 +1148,25 @@ viewPalette toMsg attributes (State state) =
             anyLoading =
                 List.any (\block -> List.any isLoadingRow block.rows) blocks
 
-            hasFailure =
-                List.any (\block -> List.any isFailedRow block.rows) blocks
-
             hasRetry =
                 List.any (\block -> List.any isRetryRow block.rows) blocks
 
             nothingToShow =
                 List.isEmpty blocks
+
+            failureText =
+                blocks
+                    |> List.concatMap .rows
+                    |> List.filterMap
+                        (\row ->
+                            case row of
+                                FailureRow _ title _ ->
+                                    Just title
+
+                                _ ->
+                                    Nothing
+                        )
+                    |> List.head
 
             moveTo delta =
                 case activeEntry of
@@ -1096,6 +1210,20 @@ viewPalette toMsg attributes (State state) =
 
                 else
                     resultCountText config.locale count
+
+            -- The failure is not an alert inside the list (a listbox may only
+            -- hold options): the polite status says it.
+            announced =
+                case ( anyLoading, failureText ) of
+                    ( False, Just title ) ->
+                        if count == 0 then
+                            title
+
+                        else
+                            statusText ++ ". " ++ title
+
+                    _ ->
+                        statusText
         in
         Html.div [ Internal.cls [ "klar-palette" ] ]
             [ Html.div [ Internal.cls [ "klar-modal-lock" ] ] []
@@ -1121,27 +1249,44 @@ viewPalette toMsg attributes (State state) =
                            , ( "Shift+Tab", toMsg Noop )
                            ]
                         ++ (case runMsg of
-                                Just _ ->
-                                    [ ( "Enter", toMsg Picked ) ]
+                                Just msg ->
+                                    [ ( "Enter", msg ) ]
 
                                 Nothing ->
                                     []
                            )
                     )
                 ]
-                [ viewSearch toMsg config language state activeEntry (not nothingToShow || words /= "") runMsg hasRetry
+                [ viewSearch toMsg config language state activeEntry (not (List.isEmpty entryBlocks)) (Maybe.map (\_ -> toMsg Picked) runMsg) hasRetry
                 , Html.div
                     [ Internal.cls [ "klar-palette__results" ]
                     , Attr.id (listId state.id)
-                    , Attr.attribute "role" "listbox"
-                    , Attr.attribute "aria-label" (Maybe.withDefault language.label config.label)
+
+                    -- A scrolling area must be focusable (axe). The pointer never
+                    -- focuses it (the search box keeps focus) and `Tab` is held
+                    -- by the panel, so it is no real stop.
+                    , Attr.tabindex 0
                     , Internal.onMouseDownPrevent (toMsg Noop)
                     ]
                     (if nothingToShow then
                         [ viewNoResults config language words ]
 
                      else
-                        List.map (viewBlock toMsg state language words activeEntry) blocks
+                        -- A listbox holds only options (and their groups): the
+                        -- skeletons, failures and "No results" of the sections
+                        -- without items come after it, outside.
+                        (if List.isEmpty entryBlocks then
+                            Html.text ""
+
+                         else
+                            Html.div
+                                [ Attr.id (listboxId state.id)
+                                , Attr.attribute "role" "listbox"
+                                , Attr.attribute "aria-label" (Maybe.withDefault language.label config.label)
+                                ]
+                                (List.map (viewBlock toMsg state language words activeEntry) entryBlocks)
+                        )
+                            :: List.map (viewBlock toMsg state language words activeEntry) noticeBlocks
                     )
                 , viewFooter language
                 , Html.div
@@ -1150,12 +1295,7 @@ viewPalette toMsg attributes (State state) =
                     , Attr.attribute "aria-live" "polite"
                     ]
                     [ Html.text
-                        (if hasFailure && count == 0 then
-                            ""
-
-                         else
-                            statusText
-                        )
+                        announced
                     ]
                 ]
             ]
@@ -1166,20 +1306,42 @@ selectMsg (Item data) =
     data.onSelect
 
 
-isLoadingRow : PlacedRow msg -> Bool
-isLoadingRow row =
+isEntryRow : PlacedRow msg -> Bool
+isEntryRow row =
     case row of
-        LoadingRow ->
+        EntryRow _ ->
             True
 
         _ ->
             False
 
 
-isFailedRow : PlacedRow msg -> Bool
-isFailedRow row =
+{-| Sections with items first, then the ones that only have a notice, so the
+list of options is one piece and the placement (the scrolling of the highlight)
+follows the order on the page.
+-}
+entriesFirst : List (Block msg) -> List (Block msg)
+entriesFirst blocks =
+    let
+        hasEntry block =
+            List.any
+                (\body ->
+                    case body of
+                        EntryBody _ _ ->
+                            True
+
+                        _ ->
+                            False
+                )
+                block.body
+    in
+    List.filter hasEntry blocks ++ List.filter (not << hasEntry) blocks
+
+
+isLoadingRow : PlacedRow msg -> Bool
+isLoadingRow row =
     case row of
-        FailureRow _ _ _ ->
+        LoadingRow ->
             True
 
         _ ->
@@ -1208,7 +1370,7 @@ viewSearch :
     -> Maybe msg
     -> Bool
     -> Html msg
-viewSearch toMsg config language state activeEntry listShown runMsg hasRetry =
+viewSearch toMsg config language state activeEntry hasList runMsg hasRetry =
     Html.div [ Internal.cls [ "klar-palette__search" ] ]
         [ Html.span [ Internal.cls [ "klar-palette__search-icon" ] ] [ Icon.view Icon.search ]
         , Html.input
@@ -1220,13 +1382,12 @@ viewSearch toMsg config language state activeEntry listShown runMsg hasRetry =
              , Attr.attribute "role" "combobox"
              , Attr.attribute "aria-autocomplete" "list"
              , Attr.attribute "aria-expanded"
-                (if listShown then
+                (if hasList then
                     "true"
 
                  else
                     "false"
                 )
-             , Attr.attribute "aria-controls" (listId state.id)
              , Attr.attribute "autocomplete" "off"
              , Attr.attribute "autocapitalize" "off"
              , Attr.attribute "spellcheck" "false"
@@ -1235,6 +1396,12 @@ viewSearch toMsg config language state activeEntry listShown runMsg hasRetry =
              -- The element that had focus before: where Escape gives it back.
              , Events.on "focusin" (Decode.at [ "relatedTarget", "id" ] Decode.string |> Decode.map (\id -> toMsg (CameFrom id)))
              ]
+                ++ (if hasList then
+                        [ Attr.attribute "aria-controls" (listboxId state.id) ]
+
+                    else
+                        []
+                   )
                 ++ (case activeEntry of
                         Just entry ->
                             [ Attr.attribute "aria-activedescendant" (optionId state.id entry.index) ]
@@ -1306,7 +1473,6 @@ viewRow toMsg state language words activeEntry row =
         FailureRow problem title retry ->
             Html.div
                 [ Internal.cls [ "klar-palette__notice", "klar-palette__notice--error" ]
-                , Attr.attribute "role" "alert"
 
                 -- After "Try again" the button is replaced by the loading rows:
                 -- keep the focus in the palette, where Escape works.
@@ -1368,9 +1534,10 @@ viewEntry : (Msg -> msg) -> { a | id : String } -> String -> Bool -> Placed msg 
 viewEntry toMsg state words isActive placed =
     case placed.item of
         Item data ->
-            -- The click goes first to the inner element (the application's
-            -- message) and then bubbles to the outer one, which closes the
-            -- palette.
+            -- The click goes first to the inner element, which closes the palette
+            -- and gives focus back, and then bubbles to the outer one, which sends
+            -- the application's message: a message that moves focus (it opens a
+            -- drawer) comes last and wins.
             Html.div
                 [ Internal.cls [ "klar-palette__row" ]
                 , Attr.id (optionId state.id placed.index)
@@ -1382,7 +1549,7 @@ viewEntry toMsg state words isActive placed =
                      else
                         "false"
                     )
-                , Events.onClick (toMsg Picked)
+                , Events.onClick data.onSelect
                 ]
                 [ Html.div
                     [ Internal.cls
@@ -1393,7 +1560,7 @@ viewEntry toMsg state words isActive placed =
                           else
                             ""
                         ]
-                    , Events.onClick data.onSelect
+                    , Events.onClick (toMsg Picked)
                     , Events.on "mousemove" (movedDecoder (toMsg (Hover placed.key)))
                     ]
                     [ Html.span [ Internal.cls [ "klar-palette__icon" ] ]

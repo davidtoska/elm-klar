@@ -10,6 +10,7 @@ import Expect
 import Html exposing (Html)
 import Klar.Form as Form
 import Klar.Form.Check as Check
+import Klar.Form.Core as Core
 import Klar.Form.Spec as Spec
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale
@@ -237,10 +238,60 @@ advanced state =
     ( next.state, next.submit )
 
 
+{-| `Form.stepBody`: the children of the body carry the step in their keys. Elm cannot be run
+in these tests, so the keys are what is checked: without them the diff of two steps
+reuses the focused input of the old step for the field at the same place in the new
+one (benchmark run 1, T05).
+-}
+stepBodies : Test
+stepBodies =
+    let
+        keysAt state =
+            Core.stepKeys (bound state) [ Html.text "first field", Html.text "second field" ]
+                |> List.map Tuple.first
+    in
+    describe "stepBody"
+        [ test "the keys of two steps never share a key" <|
+            \_ ->
+                let
+                    onCompany =
+                        keysAt fresh
+
+                    onContacts =
+                        keysAt (Form.goTo form Contacts filled |> Tuple.first)
+                in
+                List.filter (\key -> List.member key onContacts) onCompany
+                    |> Expect.equal []
+        , test "the keys inside one step are different from each other" <|
+            \_ ->
+                keysAt fresh
+                    |> (\keys ->
+                            List.length
+                                (List.foldl
+                                    (\key seen ->
+                                        if List.member key seen then
+                                            seen
+
+                                        else
+                                            key :: seen
+                                    )
+                                    []
+                                    keys
+                                )
+                       )
+                    |> Expect.equal 2
+        , test "the body draws every child" <|
+            \_ ->
+                Form.stepBody (bound fresh) [ Html.text "first field", Html.text "second field" ]
+                    |> showsText "second field"
+        ]
+
+
 suite : Test
 suite =
     describe "Klar.Form.Model: steps and rows"
-        [ rowKeys
+        [ stepBodies
+        , rowKeys
         , rowValues
         , rowDirty
         , crossRow

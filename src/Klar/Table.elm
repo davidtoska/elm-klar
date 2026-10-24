@@ -3,7 +3,7 @@ module Klar.Table exposing
     , State, init, Msg, update, focus
     , RowIds, rowIds, stringIds, intIds
     , ColumnId, columnId, columnName
-    , Query, Direction(..), Filter(..), query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
+    , Query, Direction(..), Filter(..), query, setQuery, encodeQuery, queryDecoder, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
     , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection, dropAllMatching
     , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
     , Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
@@ -11,7 +11,7 @@ module Klar.Table exposing
     , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
     , onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
-    , pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
+    , pageSizes, rangeText, unpaged, virtual, zebra, maxHeight, fillHeight
     , Rows, prepareRows, rowsArray, preparedRows
     , Column, text, int, float, date, maybeDate, badge, status, bool, custom, actions
     , ColumnAttribute, width, minWidth, alignRight, alignCenter, pinned, hiddenByDefault, alwaysVisible, wrap, noTooltip, cell, hint
@@ -153,9 +153,14 @@ The columns are given twice, once to `prepareRows` and once to the view:
             ]
             state
 
-With 50 000 prepared rows, measured in the optimized build: a sort click or a page change
-takes a few milliseconds, a keystroke in the search box tens of milliseconds (about 40 to 90),
-a jump in `virtual` about 40. Everything stays under 100 ms. The rest of this page is the reference.
+With 50 000 prepared rows of 7 columns and two footer sums, measured in the optimized build in
+headless Chrome, from the event to two animation frames later (about 33 ms of each number is
+those frames): a sort click or a page change about 40 ms, a keystroke 30 to 55 ms. When the
+search keeps 37 000 of the rows, a page change or a sort click is 60 to 75 ms and a keystroke
+about 55 ms, because every message goes through the matching rows once (the sums of the footers
+read numbers kept per row, not the rows); with a selection in a result that large add up to 25 ms.
+Everything stays under 100 ms on a desktop; a phone is several times slower. The rest of this
+page is the reference.
 
 See also [Klar.ListItem](Klar-ListItem) and
 [Klar.VirtualList](Klar-VirtualList). The page controls in the footer are
@@ -306,10 +311,10 @@ model instead of the `List`:
     Table.preparedRows model.orders
 
 The table then has, for every row, the text that the search looks in and, for every
-sortable column, the rows in order. With 50 000 rows, measured in the optimized build,
-a sort click or a page change takes a few milliseconds (4 to 10), a keystroke in the
-search box tens of milliseconds (40 to 90), and all of them stay under 100 ms; a page
-change does not sort again. Search and sorting need no other rows than
+sortable column, the rows in order, and for the columns with a footer sum their numbers.
+With 50 000 rows (numbers in the head of this page) a sort click, a page change and a
+keystroke stay under 100 ms including two frames, also when the search keeps most of the
+rows; a page change does not sort again, but it does go through the matching rows once. Search and sorting need no other rows than
 these; `rowsArray` gives the `Array` to the other parts of the page that want the
 rows, such as [Klar.VirtualList](Klar-VirtualList), so that the page keeps one
 collection. If the rows change (an order is edited), prepare them again.
@@ -361,7 +366,7 @@ a saved view.
 
 @docs ColumnId, columnId, columnName
 
-@docs Query, Direction, Filter, query, setQuery, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
+@docs Query, Direction, Filter, query, setQuery, encodeQuery, queryDecoder, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
 
 
 # Selection
@@ -401,7 +406,7 @@ a saved view.
 
 # Pagination and layout
 
-@docs pageSizes, unpaged, virtual, zebra, maxHeight, fillHeight
+@docs pageSizes, rangeText, unpaged, virtual, zebra, maxHeight, fillHeight
 
 
 # Many rows
@@ -451,6 +456,7 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Html.Keyed
 import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Checkbox as Checkbox
@@ -730,6 +736,136 @@ query (State model) =
     , page = model.page
     , pageSize = model.pageSize
     }
+
+
+{-| A query as JSON, to keep it where the application keeps its things (a saved
+view, the address, a setting): `Encode.encode 0 (Table.encodeQuery q)`. The library
+stores nothing itself. The object has a version, `"v": 1`, and the columns are
+written by their name (`columnName`):
+
+    {"v":1,"search":"acme","sort":[{"column":"total","descending":true}],
+     "filters":[{"column":"status","oneOf":["open","late"]}],"page":1,"pageSize":25}
+
+A filter is written as `contains` (text), `oneOf` (a list of texts) or `between`
+(`[from, to]`, a missing bound is `null`).
+
+-}
+encodeQuery : Query -> Encode.Value
+encodeQuery q =
+    Encode.object
+        [ ( "v", Encode.int 1 )
+        , ( "search", Encode.string q.search )
+        , ( "sort"
+          , Encode.list
+                (\( ColumnId id, direction ) ->
+                    Encode.object
+                        [ ( "column", Encode.string id )
+                        , ( "descending", Encode.bool (direction == Descending) )
+                        ]
+                )
+                q.sort
+          )
+        , ( "filters"
+          , Encode.list
+                (\( ColumnId id, filter ) ->
+                    Encode.object
+                        (( "column", Encode.string id )
+                            :: (case filter of
+                                    Contains words ->
+                                        [ ( "contains", Encode.string words ) ]
+
+                                    OneOf choices ->
+                                        [ ( "oneOf", Encode.list Encode.string choices ) ]
+
+                                    Between from to ->
+                                        [ ( "between", Encode.list (Maybe.map Encode.float >> Maybe.withDefault Encode.null) [ from, to ] ) ]
+                               )
+                        )
+                )
+                q.filters
+          )
+        , ( "page", Encode.int q.page )
+        , ( "pageSize", Encode.int q.pageSize )
+        ]
+
+
+{-| Reads what `encodeQuery` wrote. It is made for text that has been kept for a long
+time or written by another version: a field that is missing takes the value of an
+empty query (no search, no sort, no filters, page 1, 25 rows), a field it does not
+know is ignored, a filter it does not know is left out (a restored view is better with
+one filter less than not at all), and a version newer than 1 is refused, because
+reading it as version 1 could be wrong. A page or page size below 1 becomes 1.
+
+    Decode.decodeString Table.queryDecoder text
+
+-}
+queryDecoder : Decoder Query
+queryDecoder =
+    Decode.oneOf [ Decode.field "v" Decode.int, Decode.succeed 1 ]
+        |> Decode.andThen
+            (\version ->
+                if version > 1 then
+                    Decode.fail ("This query was written by a newer version (v" ++ String.fromInt version ++ ")")
+
+                else
+                    Decode.map5 Query
+                        (optionalField "search" Decode.string "")
+                        (optionalField "sort" (Decode.list sortDecoder |> Decode.map (List.filterMap identity)) [])
+                        (optionalField "filters" (Decode.list filterDecoder |> Decode.map (List.filterMap identity)) [])
+                        (optionalField "page" Decode.int 1 |> Decode.map (max 1))
+                        (optionalField "pageSize" Decode.int 25 |> Decode.map (max 1))
+            )
+
+
+optionalField : String -> Decoder a -> a -> Decoder a
+optionalField name decoder fallback =
+    Decode.oneOf [ Decode.field name decoder, Decode.succeed fallback ]
+
+
+sortDecoder : Decoder (Maybe ( ColumnId, Direction ))
+sortDecoder =
+    Decode.oneOf
+        [ Decode.map2
+            (\id descending ->
+                Just
+                    ( ColumnId id
+                    , if descending then
+                        Descending
+
+                      else
+                        Ascending
+                    )
+            )
+            (Decode.field "column" Decode.string)
+            (optionalField "descending" Decode.bool False)
+        , Decode.succeed Nothing
+        ]
+
+
+filterDecoder : Decoder (Maybe ( ColumnId, Filter ))
+filterDecoder =
+    Decode.oneOf
+        [ Decode.field "column" Decode.string
+            |> Decode.andThen
+                (\id ->
+                    Decode.oneOf
+                        [ Decode.field "contains" Decode.string |> Decode.map Contains
+                        , Decode.field "oneOf" (Decode.list Decode.string) |> Decode.map OneOf
+                        , Decode.field "between" (Decode.list (Decode.nullable Decode.float))
+                            |> Decode.andThen
+                                (\bounds ->
+                                    case bounds of
+                                        [ from, to ] ->
+                                            Decode.succeed (Between from to)
+
+                                        _ ->
+                                            Decode.fail "a range has two bounds"
+                                )
+                        ]
+                        |> Decode.map (\filter -> Just ( ColumnId id, filter ))
+                )
+        , Decode.succeed Nothing
+        ]
 
 
 {-| Sets the search, sort, filters, page and page size from a query, for example
@@ -2505,6 +2641,7 @@ type alias Config row msg =
     , columnChooser : Bool
     , densityToggle : Bool
     , pageSizes : List Int
+    , rangeText : Maybe (Int -> Int -> Int -> String)
     , paged : Bool
     , virtual : Bool
     , multiSort : Bool
@@ -2549,6 +2686,7 @@ configure attributes =
         , columnChooser = False
         , densityToggle = False
         , pageSizes = [ 10, 25, 50, 100 ]
+        , rangeText = Nothing
         , paged = True
         , virtual = False
         , multiSort = False
@@ -3051,6 +3189,23 @@ pageSizes value =
     Attribute (\config -> { config | pageSizes = value })
 
 
+{-| Words the range in the footer yourself ("1–25 of 200" is the default): the first
+and last row shown and the number of matching rows in, the text out. Format the
+numbers with [Klar.Format](Klar-Format). It is also the range of a `virtual` table
+("1 to 24 of 50,000"); the announcement for screen readers keeps its own words.
+Works the same in `ServerList.viewTable`.
+
+    Table.rangeText
+        (\first last total ->
+            Format.int locale first ++ " to " ++ Format.int locale last ++ " of " ++ Format.int locale total
+        )
+
+-}
+rangeText : (Int -> Int -> Int -> String) -> Attribute id row msg
+rangeText words =
+    Attribute (\config -> { config | rangeText = Just words })
+
+
 {-| All rows on one page and no pagination footer. Every matching row is turned
 into HTML, so keep it for short tables.
 -}
@@ -3140,6 +3295,10 @@ type alias Data row =
     , first : Int
     , rowCount : Int
     , matchingRows : () -> List row
+
+    -- How many matching rows pass a test that gets the place of the row among the
+    -- matching rows and the row itself: a count that never builds the list of rows.
+    , countMatching : (Int -> row -> Bool) -> Int
     , totals : String -> Maybe Index.Totals
     , total : Int
     , available : Int
@@ -3168,6 +3327,7 @@ process config model allColumns visible =
             , first = 0
             , rowCount = 0
             , matchingRows = \_ -> []
+            , countMatching = \_ -> 0
             , totals = \_ -> Nothing
             , total = Maybe.withDefault 0 config.server
             , available = Maybe.withDefault 0 config.server
@@ -3208,6 +3368,7 @@ process config model allColumns visible =
                     , first = shown.first
                     , rowCount = rowTotal
                     , matchingRows = \_ -> allRows
+                    , countMatching = \test -> List.length (List.filter (\( index, row ) -> test index row) (List.indexedMap Tuple.pair allRows))
                     , totals = \_ -> Nothing
                     , total = total
                     , available = total
@@ -3343,15 +3504,23 @@ processClient config model allColumns visible source =
         else
             List.length pageRows
     , matchingRows = \_ -> rowsOf (Index.allIndices matches)
+    , countMatching =
+        \test ->
+            Index.countMatching
+                (\place position ->
+                    case rowAt position of
+                        Just row ->
+                            test place row
+
+                        Nothing ->
+                            False
+                )
+                matches
     , totals =
         case prepared of
             Just (Rows prep) ->
-                -- the sums over every row are the sums over the matching rows when none is left out
-                if total == Array.length array then
-                    \id -> Index.totalsOf id prep.index
-
-                else
-                    \_ -> Nothing
+                -- read from the numbers kept per position: no row is turned into a number again
+                \id -> Index.totalsOver id matches prep.index
 
             Nothing ->
                 \_ -> Nothing
@@ -4580,7 +4749,7 @@ viewBulkBar ctx =
                         0
 
                     else
-                        Set.size keys - (ctx.data.matchingRows () |> List.filter (\row -> Set.member (toId row) keys) |> List.length)
+                        Set.size keys - ctx.data.countMatching (\_ row -> Set.member (toId row) keys)
 
                 ( Picked keys, Just _, _ ) ->
                     Set.size keys - List.length (List.filter (\key -> Set.member key keys) ctx.pageKeys)
@@ -4713,10 +4882,7 @@ matchingSelectionState ctx =
                         Set.size keys
 
                     else
-                        ctx.data.matchingRows ()
-                            |> List.indexedMap (\index row -> ctx.keyOf index row)
-                            |> List.filter (\key -> Set.member key keys)
-                            |> List.length
+                        ctx.data.countMatching (\index row -> Set.member (ctx.keyOf index row) keys)
 
                 AllPicked except ->
                     max 0 (ctx.data.total - Set.size except)
@@ -6876,7 +7042,9 @@ viewRange ctx =
                 clamp first ctx.data.total (floor ((top + toFloat ctx.geometry.viewport) / toFloat ctx.geometry.rowHeight))
         in
         Html.div [ Internal.cls [ "klar-table__footer" ], Attr.attribute "aria-hidden" "true" ]
-            [ Html.span [ Internal.cls [ "klar-table__footer-range", "klar-tabular" ] ] [ Html.text (ctx.t.summary first last ctx.data.total) ] ]
+            [ Html.span [ Internal.cls [ "klar-table__footer-range", "klar-tabular" ] ]
+                [ Html.text (Maybe.withDefault ctx.t.summary ctx.config.rangeText first last ctx.data.total) ]
+            ]
 
 
 {-| `summary` replaces the range text (a loading message, or nothing).
@@ -6892,6 +7060,7 @@ viewPagination ctx summary =
                 , Just (Pagination.pageSizes ctx.config.pageSizes)
                 , Just Pagination.jumpToPage
                 , Just (Pagination.locale ctx.loc)
+                , Maybe.map Pagination.rangeText ctx.config.rangeText
                 , -- the landmark is named after the table, so that two tables on a page are told apart
                   Maybe.map (\name -> Pagination.label (ctx.t.pagination name)) (Internal.nonEmpty (Maybe.withDefault "" ctx.config.label))
                 , Maybe.map Pagination.summary summary

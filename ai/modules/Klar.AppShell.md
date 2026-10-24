@@ -421,7 +421,10 @@ What to give `Browser.application` as `onUrlRequest`, with your constructor of t
 shell's message: a click on a link is followed (a link inside the application with
 `pushUrl`, an address elsewhere with `load`). Use your own message instead when a click
 must be held back, for example by a [`LeaveGuard`](Klar.LeaveGuard.md), and call
-`Nav.pushUrl` yourself when it may go on.
+`Nav.pushUrl` yourself when it may go on. Keep `onUrlChange` the shell's even then: its
+`update` reports the `Url`, and that `Url` is what you give to `LeaveGuard.onUrlChange`
+(the guard answers the clicks and the Back and Forward buttons, the shell reports the
+address; the whole wiring is in the docs of [`LeaveGuard`](Klar.LeaveGuard.md)).
 
     Browser.application
         { onUrlRequest = AppShell.onUrlRequest ShellMsg

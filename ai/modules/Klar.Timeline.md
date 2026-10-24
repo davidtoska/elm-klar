@@ -31,6 +31,8 @@ compact : Attribute msg
 ungrouped : Attribute msg
 ariaLabel : String -> Attribute msg
 maxHeight : Int -> Attribute msg
+headingLevel : Int -> Attribute msg
+id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 
 -- Loading more
@@ -84,7 +86,8 @@ time, until the application has given it).
 
 Events are shown in the order you give them (newest first is usual), and grouped
 under a heading per calendar day: events that follow each other on the same day
-share a heading, so give them sorted by time. The headings are `h3` elements.
+share a heading, so give them sorted by time. The headings are `h3` elements: under a
+page title with no heading in between, say `headingLevel 2`.
 Something that happened on a day, with no time of day (a delivery date, a
 deadline), is a `dayEvent`: it sits under its day and draws no clock time. Give the
 timeline `now` and the headings say "Today" and "Yesterday". A thin gray line connects the markers of a day; a marker is an icon
@@ -93,10 +96,13 @@ screen readers), so the title of an event must say what its color means.
 
 Details are folded away in a native `details` element, so they work with the
 keyboard and need no state. The footer loads more: a button and a status text
-next to it, shown when you set `onLoadMore`. The button stays in the page in
-every state (it shows a spinner while the next page loads, turns into "Try
-again" when that failed and dims when there is nothing more), so the keyboard
-focus is never thrown away.
+next to it, shown when you set `onLoadMore`. The button stays in the page while the
+next page loads (it shows a spinner) and turns into "Try again" when that failed,
+so the keyboard focus is not thrown away; when there is nothing more
+(`hasMore False`) it is gone and the status text says "No more events". Give the
+timeline an `id` and move focus there with `RemoteView.focus` in the same update
+that starts a request again or ends the list, as for the retry button of any
+region.
 
 A loading skeleton, an empty state and a failure with retry are built in; use
 `remote` to take them from a `Remote`. The built-in text is English unless you
@@ -294,6 +300,29 @@ in the footer is a tab stop inside it; without, the timeline itself takes the
 keyboard focus (`tabindex="0"`) and is a region named by `ariaLabel` ("Events" if
 you gave none), so that the arrow keys scroll it.
 
+### `headingLevel`
+
+```elm
+headingLevel : Int -> Attribute msg
+```
+
+The level, 1 to 6, of the heading of each day (`h3` by default; other numbers
+are moved into that range). The headings must follow the ones of the page: a
+timeline directly under the `h1` of a page takes 2, one in a card with an `h2`
+title keeps 3.
+
+### `id`
+
+```elm
+id : String -> Attribute msg
+```
+
+The DOM id of the timeline, which then takes focus from a command in every state
+(loading, failed, loaded). "Try again" and "Load more" are replaced when the request
+starts or the list ends, and focus would fall back to the page; call
+[`RemoteView.focus`](Klar.RemoteView.md#focus) with this id in the same `update`
+branch. The id must be unique on the page.
+
 ### `locale`
 
 ```elm
@@ -344,9 +373,8 @@ events already loaded stay. Pass it only while the failure applies;
 hasMore : Bool -> Attribute msg
 ```
 
-Say `False` when the last page has been loaded: the button dims (and keeps
-its place in the tab order) and the status text says "No more events" instead of
-how many are shown. Default: `True`.
+Say `False` when the last page has been loaded: the button goes and the status
+text says "No more events" instead of how many are shown. Default: `True`.
 
 ## Loading, failure and empty
 

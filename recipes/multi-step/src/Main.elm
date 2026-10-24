@@ -374,21 +374,24 @@ viewOrder model =
         , Card.view []
             [ FormLayout.view attributes
                 [ Form.summary v
-                , case step of
-                    Just Customer ->
-                        Layout.stack []
-                            [ Form.textInput v f.name []
-                            , Form.textInput v f.email []
-                            ]
+                , -- keyed by the step: the inputs of one step are not reused for the next
+                  Form.stepBody v
+                    [ case step of
+                        Just Customer ->
+                            Layout.stack []
+                                [ Form.textInput v f.name []
+                                , Form.textInput v f.email []
+                                ]
 
-                    Just Delivery ->
-                        Layout.stack []
-                            [ Form.textInput v f.address []
-                            , Form.switch v f.express []
-                            ]
+                        Just Delivery ->
+                            Layout.stack []
+                                [ Form.textInput v f.address []
+                                , Form.switch v f.express []
+                                ]
 
-                    _ ->
-                        viewReview model
+                        _ ->
+                            viewReview model
+                    ]
                 , FormLayout.actions
                     [ Button.view [ Button.id "cancel-order", Button.ghost, Button.href (routeToPath Home) ] "Cancel"
                     , FormLayout.status attributes model.status
