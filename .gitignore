@@ -19,3 +19,8 @@ Thumbs.db
 /apps/*/main.js
 /apps/round2/*/main.js
 /apps/round3/*/main.js
+
+# Calendar application build output and data
+/calendar/main.js
+/calendar/server/data.json
+/calendar/server/data.json.tmp
