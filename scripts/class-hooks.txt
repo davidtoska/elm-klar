@@ -53,4 +53,5 @@ klar-tabs__label
 klar-text
 klar-timepicker__box
 klar-timepicker__control
+klar-tree-autoload
 klar-tree__filter
