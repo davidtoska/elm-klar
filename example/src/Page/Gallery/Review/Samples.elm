@@ -12,6 +12,7 @@ module Page.Gallery.Review.Samples exposing
     , policyAfter
     , policyBefore
     , productIdText
+    , productIds
     , products
     , stockAfter
     , stockBefore
@@ -23,6 +24,7 @@ too large to compare, and three products.
 -}
 
 import Json.Encode as Encode exposing (Value)
+import Klar.Ids as Ids exposing (Ids)
 
 
 
@@ -351,6 +353,13 @@ type ProductId
 productIdText : ProductId -> String
 productIdText (ProductId n) =
     String.fromInt n
+
+
+{-| How a product id is written as a key and read back, once for every component.
+-}
+productIds : Ids ProductId
+productIds =
+    Ids.make { toKey = productIdText, fromKey = String.toInt >> Maybe.map ProductId }
 
 
 type alias Product =

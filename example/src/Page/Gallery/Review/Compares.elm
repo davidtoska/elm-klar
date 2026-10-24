@@ -2,10 +2,12 @@ module Page.Gallery.Review.Compares exposing (Model, Msg, init, update, view)
 
 {-| The compare section of the review page: three products side by side, with buttons
 that put the table in every state it has (data, loading, failure, nothing to compare,
-one record, refreshing) and that change the baseline and the density.
+one record, refreshing, old data after a refresh that failed) and that change the
+baseline and the density.
 -}
 
 import Html exposing (Html)
+import Klar
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Compare as Compare
@@ -20,6 +22,7 @@ import Page.Gallery.Review.Samples as Samples exposing (Product, ProductId)
 import Process
 import Showcase.Doc as Doc
 import Task
+import Time
 
 
 
@@ -31,7 +34,6 @@ type alias Model =
     , onlyDifferences : Bool
     , baseline : Maybe ProductId
     , density : Density
-    , refreshing : Bool
     }
 
 
@@ -40,10 +42,10 @@ type Msg
     | OnlyDifferences Bool
     | SetBaseline ProductId
     | SetDensity Density
-    | Refresh
-    | Refreshed
+    | Refresh Outcome
+    | Refreshed Outcome Time.Posix
     | Retry
-    | Loaded
+    | Focused
 
 
 type Scenario
@@ -54,14 +56,25 @@ type Scenario
     | OnlyOne
 
 
+{-| How the pretend refresh ends.
+-}
+type Outcome
+    = Succeeds
+    | Fails
+
+
 init : Model
 init =
     { products = Remote.Loaded Samples.products
     , onlyDifferences = False
     , baseline = Nothing
     , density = Normal
-    , refreshing = False
     }
+
+
+compareId : String
+compareId =
+    "compare-products"
 
 
 
@@ -72,7 +85,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Show scenario ->
-            ( { model | products = productsFor scenario, refreshing = False }, Cmd.none )
+            ( { model | products = productsFor scenario }, Cmd.none )
 
         OnlyDifferences value ->
             ( { model | onlyDifferences = value }, Cmd.none )
@@ -83,17 +96,33 @@ update msg model =
         SetDensity value ->
             ( { model | density = value }, Cmd.none )
 
-        Refresh ->
-            ( { model | refreshing = True }, later Refreshed )
+        Refresh outcome ->
+            ( { model | products = Remote.refresh model.products }, later (Refreshed outcome) )
 
-        Refreshed ->
-            ( { model | refreshing = False }, Cmd.none )
+        Refreshed outcome now ->
+            ( { model
+                | products =
+                    Remote.refreshWith model.products
+                        (case outcome of
+                            Succeeds ->
+                                Ok Samples.products
+
+                            Fails ->
+                                Err (Remote.problem Remote.network)
+                        )
+                        now
+              }
+            , Cmd.none
+            )
 
         Retry ->
-            ( { model | products = Remote.Loading }, later Loaded )
+            -- "Try again" goes away with the new data: focus waits on the comparison
+            ( { model | products = Remote.refresh model.products }
+            , Cmd.batch [ later (Refreshed Succeeds), Klar.focus compareId Focused ]
+            )
 
-        Loaded ->
-            ( { model | products = Remote.Loaded Samples.products }, Cmd.none )
+        Focused ->
+            ( model, Cmd.none )
 
 
 productsFor : Scenario -> Remote (List Product)
@@ -115,9 +144,11 @@ productsFor scenario =
             Remote.Loaded (List.take 1 Samples.products)
 
 
-later : Msg -> Cmd Msg
-later msg =
-    Process.sleep 1200 |> Task.perform (\_ -> msg)
+later : (Time.Posix -> Msg) -> Cmd Msg
+later toMsg =
+    Process.sleep 1200
+        |> Task.andThen (\_ -> Time.now)
+        |> Task.perform toMsg
 
 
 
@@ -146,18 +177,19 @@ productsExample : Locale -> Model -> Html Msg
 productsExample locale model =
     Doc.example
         { title = "Three products"
-        , description = Just "The buttons put the table in each of its states. \"Refresh\" keeps the table, dimmed, with a progress line. Choose the baseline to compare the others with a different record. The \"Summary\" field marks the words that differ from the baseline."
-        , code = Just """Compare.view
+        , description = Just "The buttons put the table in each of its states. \"Refresh\" keeps the table, dimmed, with a progress line (Remote.refresh). \"Refresh, then fail\" ends with the old data still shown, marked \"Old data from\" its time, with \"Try again\" in the toolbar. Choose the baseline to compare the others with a different record. The \"Summary\" field marks the words that differ from the baseline."
+        , code = Just """Compare.viewRemote
     [ Compare.baseline model.baseline
-    , Compare.onlyDifferences model.onlyDifferences OnlyDifferences
+    , Compare.onlyDifferences model.onlyDifferences
+    , Compare.onOnlyDifferences OnlyDifferences
     , Compare.onRetry Retry
-    , Compare.refreshing model.refreshing
+    , Compare.id "compare-products"
     , Compare.locale locale
+    , Compare.settings model.settings
     ]
-    { label = "Compare products"
-    , records = model.products -- Remote (List Product)
+    { ariaLabel = "Compare products"
+    , ids = productIds
     , id = .id
-    , toKey = ProductId.toString
     , header = \\product -> Html.text product.name
     , fields =
         [ Compare.text "SKU" .sku
@@ -168,7 +200,8 @@ productsExample locale model =
         , Compare.heading "Description"
         , Compare.longText "Summary" .summary
         ]
-    }"""
+    }
+    model.products -- Remote (List Product)"""
         }
         (Layout.stack [ Layout.gap 3 ]
             [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
@@ -176,7 +209,9 @@ productsExample locale model =
                     :: List.map
                         (\( label, scenario ) -> Button.view [ Button.small, Button.onClick (Show scenario) ] label)
                         [ ( "All three", AllThree ), ( "Loading", LoadingNow ), ( "Failure", Failed ), ( "Nothing to compare", NoRecords ), ( "One record", OnlyOne ) ]
-                    ++ [ Button.view [ Button.small, Button.onClick Refresh, Button.loading model.refreshing ] "Refresh" ]
+                    ++ [ Button.view [ Button.small, Button.onClick (Refresh Succeeds), Button.loading (Remote.isRefreshing model.products) ] "Refresh"
+                       , Button.view [ Button.small, Button.onClick (Refresh Fails), Button.loading (Remote.isRefreshing model.products) ] "Refresh, then fail"
+                       ]
                 )
             , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
                 (Text.caption "Baseline:"
@@ -197,11 +232,12 @@ productsExample locale model =
                         )
                         [ ( "Compact", Compact ), ( "Normal", Normal ), ( "Comfortable", Comfortable ) ]
                 )
-            , Compare.view
+            , Compare.viewRemote
                 (List.concat
-                    [ [ Compare.onlyDifferences model.onlyDifferences OnlyDifferences
+                    [ [ Compare.onlyDifferences model.onlyDifferences
+                      , Compare.onOnlyDifferences OnlyDifferences
                       , Compare.onRetry Retry
-                      , Compare.refreshing model.refreshing
+                      , Compare.id compareId
                       , Compare.density model.density
                       , Compare.emptyState [ EmptyState.description "Add at least two products from the product list." ]
                       , Compare.locale locale
@@ -214,13 +250,13 @@ productsExample locale model =
                             []
                     ]
                 )
-                { label = "Compare products"
-                , records = model.products
+                { ariaLabel = "Compare products"
+                , ids = Samples.productIds
                 , id = .id
-                , toKey = Samples.productIdText
                 , header = \product -> Html.text product.name
                 , fields = fields locale
                 }
+                model.products
             ]
         )
 
@@ -229,10 +265,10 @@ isBaseline : Model -> Product -> Bool
 isBaseline model product =
     case model.baseline of
         Just id ->
-            Samples.productIdText id == Samples.productIdText product.id
+            id == product.id
 
         Nothing ->
-            List.head Samples.products |> Maybe.map (\first -> Samples.productIdText first.id == Samples.productIdText product.id) |> Maybe.withDefault False
+            List.head Samples.products |> Maybe.map (\first -> first.id == product.id) |> Maybe.withDefault False
 
 
 fields : Locale -> List (Compare.Field Product Msg)

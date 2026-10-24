@@ -17,8 +17,8 @@ import Klar.Diff.Inline as Inline exposing (Segment(..))
 import Klar.Diff.Keys as Keys
 import Klar.Diff.Myers as Myers
 import Klar.Format as Format
+import Klar.Ids as Ids
 import Klar.Locale as Locale
-import Klar.Remote as Remote
 import Set
 import Test exposing (Test, describe, fuzz, fuzz2, fuzz3, test)
 import Test.Html.Event as Event
@@ -790,13 +790,13 @@ type alias Item =
 compareView : List (Compare.Field Item msg) -> List Item -> Html msg
 compareView fields items =
     Compare.view []
-        { label = "Compare"
-        , records = Remote.Loaded items
+        { ariaLabel = "Compare"
+        , ids = Ids.int
         , id = .id
-        , toKey = String.fromInt
         , header = \item -> Html.text item.name
         , fields = fields
         }
+        items
 
 
 compareTests : Test
@@ -840,13 +840,13 @@ compareTests =
         , test "in Norwegian" <|
             \_ ->
                 Compare.view [ Compare.locale Locale.nb ]
-                    { label = "Sammenlign"
-                    , records = Remote.Loaded items
+                    { ariaLabel = "Sammenlign"
+                    , ids = Ids.int
                     , id = .id
-                    , toKey = String.fromInt
                     , header = \item -> Html.text item.name
                     , fields = []
                     }
+                    items
                     |> Query.fromHtml
                     |> Query.has [ Selector.text "Ingen felt" ]
         , test "records with the same id are all drawn" <|
