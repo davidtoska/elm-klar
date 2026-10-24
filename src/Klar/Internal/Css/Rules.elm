@@ -743,6 +743,14 @@ css =
   font-size: var(--klar-text-sm);
 }
 
+/* Loading the views, or a failure with its retry. */
+.klar-savedviews__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--klar-space-2);
+}
+
 .klar-savedviews__list {
   max-height: 300px;
   overflow-y: auto;

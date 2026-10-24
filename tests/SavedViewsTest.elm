@@ -5,6 +5,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Klar.Remote as Remote
 import Klar.Rule as Rule
 import Klar.SavedViews as SavedViews
 import Klar.Table as Table
@@ -12,6 +13,7 @@ import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
+import Time
 
 
 state : SavedViews.State
@@ -181,10 +183,84 @@ expectOk check result =
             Expect.fail why
 
 
+type Outer
+    = Views SavedViews.Msg
+    | Retry
+
+
+{-| The list opened, drawn with the state of the request for the views.
+-}
+openWith : Remote.Remote (List SavedViews.SavedView) -> SavedViews.State -> Query.Single Outer
+openWith source current =
+    let
+        draw =
+            SavedViews.view Views [ SavedViews.currentRule Rule.emptyGroup, SavedViews.remote source, SavedViews.onRetry Retry ]
+
+        isOpen =
+            draw current
+                |> Query.fromHtml
+                |> Query.find [ Selector.id "views-trigger" ]
+                |> Event.simulate Event.click
+                |> Event.toResult
+                |> Result.map
+                    (\msg ->
+                        case msg of
+                            Views inner ->
+                                Tuple.first (SavedViews.update inner current)
+
+                            Retry ->
+                                current
+                    )
+                |> Result.withDefault current
+    in
+    Query.fromHtml (draw isOpen)
+
+
+remoteTests : Test
+remoteTests =
+    let
+        empty =
+            SavedViews.init "views"
+    in
+    describe "the request for the views"
+        [ test "while the views load the list says so, not that there are none" <|
+            \_ ->
+                openWith Remote.Loading empty
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Loading saved views …" ]
+                        , Query.hasNot [ Selector.text "No saved views yet. Save the current filter to find it again." ]
+                        ]
+        , test "a failure says what went wrong and offers a retry" <|
+            \_ ->
+                openWith (Remote.Failed (Remote.problem Remote.server)) empty
+                    |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
+                    |> Event.simulate Event.click
+                    |> Event.expect Retry
+        , test "while the retry loads, the button stays, busy" <|
+            \_ ->
+                openWith Remote.Loading empty
+                    |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+        , test "views kept after a failed refresh are marked old" <|
+            \_ ->
+                openWith (Remote.refreshWith (Remote.Loaded []) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)) state
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Old data" ]
+                        , Query.findAll [ Selector.class "klar-savedviews__apply" ] >> Query.count (Expect.equal 2)
+                        ]
+        , test "without remote the views count as loaded" <|
+            \_ ->
+                drawn empty
+                    |> Query.fromHtml
+                    |> Query.hasNot [ Selector.text "Loading saved views …" ]
+        ]
+
+
 behaviourTests : Test
 behaviourTests =
     describe "what the user does"
-        [ test "apply and setActive find a name ignoring case and spaces" <|
+        [ remoteTests
+        , test "apply and setActive find a name ignoring case and spaces" <|
             \_ ->
                 Expect.equal
                     ( SavedViews.apply " late " state |> SavedViews.active |> Maybe.map .name

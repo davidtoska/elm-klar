@@ -4,7 +4,7 @@ module Klar.SavedViews exposing
     , SavedView, savedView, withNote, asDefault, asShared, withQuery
     , encode, decoder
     , views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
-    , Attribute, currentRule, currentQuery, label, locale, size, alignEnd
+    , Attribute, currentRule, currentQuery, remote, onRetry, label, locale, size, alignEnd
     )
 
 {-| Named, saved filters ("views"): a dropdown button that lists the saved
@@ -62,6 +62,10 @@ its backend, with `encode` (see "Keeping the views" below), and restores them wi
 `setViews` and `setActive`. Compare `views` before and after `update` to know when to
 save: the list changes when the user saves, renames, deletes or updates a view or
 changes the default.
+
+**Views from a backend** come later than the page: give `view` the `Remote` of that
+request with `remote` (and `onRetry`), so the list says it is loading instead of "No
+saved views yet", and shows a failure with a retry.
 
 `currentRule` is the rule the application shows now. It is what "Save current
 view ..." saves, and the active view is marked "modified" when its rule differs
@@ -166,7 +170,7 @@ address, a cookie that it sets through a port of its own.
 
 # Attributes
 
-@docs Attribute, currentRule, currentQuery, label, locale, size, alignEnd
+@docs Attribute, currentRule, currentQuery, remote, onRetry, label, locale, size, alignEnd
 
 -}
 
@@ -179,9 +183,12 @@ import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
+import Klar.Remote as Remote exposing (Remote)
 import Klar.Rule as Rule exposing (Rule)
 import Klar.RuleBuilder.Support as Support
+import Klar.Settings as Settings
 import Klar.Table as Table
 import Klar.TextInput as TextInput
 import Klar.Theme exposing (Size(..), Tone(..))
@@ -944,20 +951,30 @@ questionDomId id =
 pass a list to `view`; later attributes win over earlier ones.
 -}
 type Attribute msg
-    = Attribute (Config -> Config)
+    = Attribute (Config msg -> Config msg)
 
 
-type alias Config =
+type alias Config msg =
     { current : Maybe Rule
     , currentQuery : Maybe Table.Query
     , locale : Locale
     , label : Maybe String
     , alignEnd : Bool
     , size : Size
+    , source : Source
+    , onRetry : Maybe msg
     }
 
 
-configure : List (Attribute msg) -> Config
+{-| How the request for the views stands, from `remote`.
+-}
+type Source
+    = Waiting
+    | FailedWith Remote.Problem
+    | Ready Freshness
+
+
+configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { current = Nothing
@@ -966,6 +983,8 @@ configure attributes =
         , label = Nothing
         , alignEnd = False
         , size = Medium
+        , source = Ready Freshness.Fresh
+        , onRetry = Nothing
         }
         attributes
 
@@ -978,6 +997,56 @@ views, not save them.
 currentRule : Rule -> Attribute msg
 currentRule rule =
     Attribute (\config -> { config | current = Just rule })
+
+
+{-| Takes loading, failure, refreshing and old data from the `Remote` of the request
+that brings the views; the views themselves are the ones of `setViews`, as always.
+While nothing has come the list says that it is loading (not "No saved views yet"),
+a failure with no views to show says what went wrong with a retry (`onRetry`), and
+views that are `Kept` stay: dimmed and busy while they are refreshed, marked "Old data"
+with a retry when the refresh failed. Without it the views count as loaded.
+
+    SavedViews.view ViewsMsg
+        [ SavedViews.currentRule model.rule
+        , SavedViews.remote model.storedViews
+        , SavedViews.onRetry LoadViews
+        ]
+        model.views
+
+-}
+remote : Remote a -> Attribute msg
+remote data =
+    Attribute
+        (\config ->
+            let
+                ( settled, freshness ) =
+                    Freshness.settle data
+            in
+            { config
+                | source =
+                    case settled of
+                        Remote.NotAsked ->
+                            Waiting
+
+                        Remote.Loading ->
+                            Waiting
+
+                        Remote.Failed problem ->
+                            FailedWith problem
+
+                        _ ->
+                            Ready freshness
+            }
+        )
+
+
+{-| The message of the "Try again" button, shown when loading the views failed (and the
+problem is worth retrying, see `Remote.isRetryable`). While the views load again the
+button stays in its place, busy, so keyboard focus is not lost.
+-}
+onRetry : msg -> Attribute msg
+onRetry msg =
+    Attribute (\config -> { config | onRetry = Just msg })
 
 
 {-| The query of the table next to the filters, `Table.query model.table`. A view
@@ -1028,7 +1097,7 @@ size value =
 
 type alias Ctx msg =
     { toMsg : Msg -> msg
-    , config : Config
+    , config : Config msg
     , state : Inner
     , texts : Texts
     , modified : Bool
@@ -1158,12 +1227,7 @@ viewPopup ctx activeView =
             , Support.onFocusLeave (popupDomId s.id) (ctx.toMsg Left)
             ]
             [ Html.div [ Internal.cls [ "klar-savedviews__heading" ] ] [ Html.text t.title ]
-            , if List.isEmpty s.views then
-                Html.p [ Internal.cls [ "klar-savedviews__empty" ] ] [ Html.text t.noViews ]
-
-              else
-                Html.ul [ Internal.cls [ "klar-savedviews__list" ] ]
-                    (List.indexedMap (viewItem ctx) s.views)
+            , viewViews ctx
             , Html.div [ Internal.cls [ "klar-savedviews__separator" ] ] []
             , viewSaveArea ctx activeView
             , Html.div [ Internal.cls [ "klar-savedviews__separator" ] ] []
@@ -1182,6 +1246,87 @@ viewPopup ctx activeView =
                 }
             ]
         ]
+
+
+{-| The views, or what stands in for them: loading, a failure with a retry, or the
+empty text. The list keeps its element in every state where views are shown, so the
+view that has focus keeps it through a refresh.
+-}
+viewViews : Ctx msg -> Html msg
+viewViews ctx =
+    let
+        t =
+            ctx.texts
+
+        s =
+            ctx.state
+
+        status text button =
+            Html.div [ Internal.cls [ "klar-savedviews__empty", "klar-savedviews__status" ] ]
+                [ Html.span [ Attr.attribute "role" "status" ] [ Html.text text ]
+                , button
+                ]
+    in
+    case ( ctx.config.source, s.views ) of
+        ( Waiting, [] ) ->
+            -- after "Try again" the button stays, busy, so focus stays on it
+            status t.loading
+                (case ctx.config.onRetry of
+                    Just _ ->
+                        Button.view [ Button.small, Button.loading True ] t.retry
+
+                    Nothing ->
+                        Html.text ""
+                )
+
+        ( FailedWith problem, [] ) ->
+            status (Remote.title ctx.config.locale problem)
+                (case ( ctx.config.onRetry, Remote.isRetryable problem ) of
+                    ( Just msg, True ) ->
+                        Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick msg ] t.retry
+
+                    _ ->
+                        Html.text ""
+                )
+
+        ( _, [] ) ->
+            Html.p [ Internal.cls [ "klar-savedviews__empty" ] ] [ Html.text t.noViews ]
+
+        ( source, list ) ->
+            let
+                freshness =
+                    case source of
+                        -- views on the screen, and the request failed or is on its way
+                        Ready value ->
+                            value
+
+                        Waiting ->
+                            Freshness.Refreshing
+
+                        FailedWith problem ->
+                            Freshness.Stale { problem = problem, at = Nothing, refreshing = False }
+            in
+            Html.div []
+                [ Freshness.notice
+                    { locale = ctx.config.locale
+                    , settings = Settings.default
+                    , onRetry = ctx.config.onRetry
+                    , inline = True
+                    }
+                    (case freshness of
+                        -- no clock here: "Old data", without a time in an unknown zone
+                        Freshness.Stale value ->
+                            Freshness.Stale { value | at = Nothing }
+
+                        other ->
+                            other
+                    )
+                , Html.ul
+                    [ Internal.cls [ "klar-savedviews__list", Freshness.className freshness ]
+                    , Freshness.busyAttr freshness
+                    ]
+                    (List.indexedMap (viewItem ctx) list)
+                ]
 
 
 viewItem : Ctx msg -> Int -> SavedView -> Html msg
@@ -1513,6 +1658,8 @@ type alias Texts =
     , cancel : String
     , missing : String
     , taken : String
+    , loading : String
+    , retry : String
     }
 
 
@@ -1544,6 +1691,8 @@ texts lang =
             , cancel = "Avbryt"
             , missing = "Skriv inn et navn."
             , taken = "Det finnes allerede en visning med dette navnet."
+            , loading = "Laster lagrede visninger …"
+            , retry = "Prøv igjen"
             }
         , en =
             { views = "Views"
@@ -1570,5 +1719,7 @@ texts lang =
             , cancel = "Cancel"
             , missing = "Enter a name."
             , taken = "There is already a view with this name."
+            , loading = "Loading saved views …"
+            , retry = "Try again"
             }
         }
