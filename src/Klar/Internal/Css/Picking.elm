@@ -37,7 +37,7 @@ css =
 /* One level of nesting is 16px; the row is a fixed-height row of the select
    list, so the tree can be windowed like any other list. */
 .klar-tree-select__row {
-  padding-left: calc(8px + var(--klar-depth, 0) * 16px);
+  padding-inline-start: calc(8px + var(--klar-depth, 0) * 16px);
 }
 
 .klar-tree-select__toggle {
@@ -113,6 +113,35 @@ css =
   color: var(--klar-red-700);
 }
 
+/* "Old data from 14:05" under a node (TreeSelect) or at the top of a column
+   (Cascader) whose children stay on screen after a refresh of them failed. */
+.klar-tree-select__row--stale,
+.klar-cascader__item--stale {
+  gap: 6px;
+  color: var(--klar-amber-700);
+  cursor: pointer;
+}
+
+.klar-tree-select__stale-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--klar-warning);
+}
+
+/* A node whose children on screen are being refreshed. */
+.klar-tree-select__busy {
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: auto;
+  padding-inline-start: 6px;
+}
+
+/* The marker for old data at the top of the popup (the top level is Kept). */
+.klar-tree-select__popup .klar-stale,
+.klar-cascader__popup .klar-stale {
+  margin: 6px;
+}
+
 /* ---- Cascader --------------------------------------------------------- */
 
 .klar-cascader__popup {
@@ -144,11 +173,11 @@ css =
   flex: 0 0 200px;
   width: 200px;
   min-width: 0;
-  border-right: 1px solid var(--klar-border-subtle);
+  border-inline-end: 1px solid var(--klar-border-subtle);
 }
 
 .klar-cascader__column:last-child {
-  border-right: 0;
+  border-inline-end: 0;
 }
 
 @media (max-width: 480px) {
@@ -159,7 +188,7 @@ css =
 }
 
 .klar-cascader__item {
-  padding-right: 6px;
+  padding-inline-end: 6px;
 }
 
 /* The branch that is open in a column. */
@@ -178,7 +207,7 @@ css =
 .klar-cascader__next {
   display: flex;
   flex: none;
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--klar-gray-500);
 }
 
@@ -275,9 +304,15 @@ css =
   font-size: var(--klar-text-xs);
 }
 
-/* Both lists have the same height, with rows or without. */
+/* Both lists have the same height, with rows or without: the rows the field
+   shows, of the row height the Elm code works with (it sets both). */
 .klar-transfer__body {
-  min-height: calc(var(--klar-transfer-rows, 10) * var(--klar-option-h));
+  min-height: calc(var(--klar-transfer-rows, 10) * var(--klar-transfer-row, var(--klar-option-h)));
+}
+
+/* "Old data from 14:05" above the list of "Available". */
+.klar-transfer__body .klar-stale {
+  margin: 6px;
 }
 
 .klar-transfer__list:focus {
@@ -355,6 +390,13 @@ css =
   .klar-transfer__list:focus .klar-select__option--highlighted {
     outline: 2px dashed CanvasText;
     outline-offset: -2px;
+  }
+
+  .klar-tree-select__row--stale,
+  .klar-cascader__item--stale,
+  .klar-tree-select__stale-icon,
+  .klar-tree-select__status-text--error {
+    color: CanvasText;
   }
 }
 """

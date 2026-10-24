@@ -3,7 +3,7 @@ module Klar.Transfer exposing
     , values, setValues, clear
     , Attribute, options, remote, onRetry, titles, Order, sourceOrder, movedOrder, order
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , valueText, disabled, readOnly, visibleRows, locale
+    , valueText, disabled, readOnly, visibleRows, locale, settings
     )
 
 {-| Two lists side by side, "Available" and "Chosen", and a way to move items
@@ -81,16 +81,19 @@ and the buttons sit between them (the field fills the width of its container, so
 put it in one that has a width). Right-to-left languages are not supported: the
 keys for moving between the lists assume left-to-right text.
 
-Keyboard: Tab goes from the filter box to the list, to the buttons and on. In a
-filter box Enter or ArrowDown moves on to the list (and never submits a form). In a
-list ArrowDown and ArrowUp, Home and End, and PageUp and PageDown move the
-highlight, and Shift with the arrows marks a range from where the last mark was
-made (going back shrinks it). Space marks or unmarks the
-highlighted item and Ctrl+A marks all that are shown. Enter moves the marked items
-to the other list (the highlighted item when none is marked), Ctrl+ArrowRight in
-"Available" and Ctrl+ArrowLeft in "Chosen" do the same, and with Shift they move
-all that are shown. Typing letters jumps to the next item that starts with them
-(an item that is disabled is skipped, as it is by the arrow keys).
+Keyboard: in each list Tab goes from the header check box to the filter box, to the
+list, and on to the buttons and the other list. In a filter box Enter or ArrowDown
+moves on to the list (and never submits a form). In a list ArrowDown and ArrowUp,
+Home and End, and PageUp and PageDown move the highlight, and Shift with the arrows
+marks a range from where the last mark was made (going back shrinks it). Space
+marks or unmarks the highlighted item and Ctrl+A (Cmd+A on a Mac) marks all that are
+shown. Enter moves the marked items to the other list (the highlighted item when
+none is marked), Ctrl+ArrowRight in "Available" and Ctrl+ArrowLeft in "Chosen" (Cmd
+on a Mac) do the same, and with Shift they move all that are shown. Typing letters
+jumps to the next item that starts with them (an item that is disabled is skipped,
+as it is by the arrow keys). In a `readOnly` field the keys that move the highlight
+still work. `Klar.focus` with the id of `init` focuses the filter box of
+"Available".
 
 Accessibility: the field is a `group` with the label; each list is a `listbox` with
 `aria-multiselectable`, with the highlighted row named by `aria-activedescendant`,
@@ -128,7 +131,7 @@ control.
 
 # Behavior and looks
 
-@docs valueText, disabled, readOnly, visibleRows, locale
+@docs valueText, disabled, readOnly, visibleRows, locale, settings
 
 -}
 
@@ -144,7 +147,7 @@ import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
-import Klar.Internal.Freshness as Freshness
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Picking as Picking
 import Klar.Picking.Texts as Texts exposing (Texts)
@@ -152,6 +155,7 @@ import Klar.Picking.View as View
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Search as Search
 import Klar.Select.Option exposing (Option)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Transfer.Lists as Lists exposing (Chosen, PaneRow, Source)
 import Klar.VirtualList as VirtualList
 import Process
@@ -242,9 +246,11 @@ other side =
 
 
 {-| A transfer with nothing chosen. The `String` is the DOM id of the field and
-must be unique on the page: the label points to it, and the ids of the lists, the
-filter boxes and the rows are derived from it (`products-available`,
-`products-chosen`, `products-available-filter` ...).
+must be unique on the page. It is the id of the filter box of "Available", the
+first control that is there in every state, so `Klar.focus "promotion-products"`
+and the links of an error summary land in the field. The ids of the lists, the
+other filter box and the rows are derived from it (`products-available`,
+`products-chosen`, `products-chosen-filter` ...).
 
     Transfer.init "promotion-products"
 
@@ -285,7 +291,12 @@ listId domId side =
 
 filterId : String -> Side -> String
 filterId domId side =
-    listId domId side ++ "-filter"
+    case side of
+        Available ->
+            domId
+
+        ChosenSide ->
+            listId domId side ++ "-filter"
 
 
 rowDomId : String -> Side -> Int -> String
@@ -503,6 +514,7 @@ type Msg id
     | Typed Side (Env id) String
     | ClearTyped Int
     | FocusList Side
+    | FocusFilter Side
     | Warm (Env id)
     | ListMsg Side VirtualList.Msg
     | NoOp
@@ -677,6 +689,9 @@ advance msg data0 =
 
         FocusList side ->
             ( data0, Internal.focus (listId data0.id side) NoOp )
+
+        FocusFilter side ->
+            ( data0, Internal.focus (filterId data0.id side) NoOp )
 
         Warm env ->
             -- the first look at the field (the pointer or the focus comes in)
@@ -1125,6 +1140,8 @@ type Attribute id msg
 type alias Config id msg =
     { field : Field.Config
     , items : Remote (List (Option id))
+    , freshness : Freshness
+    , settings : Settings
     , ids : Maybe (Ids id)
     , titles : Maybe (Both String)
     , order : Lists.Order
@@ -1142,6 +1159,8 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
         , items = Loaded []
+        , freshness = Freshness.Fresh
+        , settings = Settings.default
         , ids = Nothing
         , titles = Nothing
         , order = Lists.SourceOrder
@@ -1172,21 +1191,28 @@ the same key the first one is used.
 -}
 options : Ids id -> List (Option id) -> Attribute id msg
 options ids list =
-    Attribute (\config -> { config | items = Loaded list, ids = Just ids })
+    Attribute (\config -> { config | items = Loaded list, freshness = Freshness.Fresh, ids = Just ids })
 
 
 {-| The items from the backend, as a `Remote` (see [Klar.Remote](Klar-Remote)).
 "Available" shows loading rows while the data is `Loading` or `NotAsked`, a compact
 error with a retry button on `Failed` (see `onRetry`), and the items on `Loaded`.
-"Chosen" keeps showing what is chosen, with "Loading ..." for the labels it does
-not know yet.
+Items that are `Kept` stay on screen and can be moved: "Available" is dimmed and
+busy while they are refreshed, and says "Old data from 14:05" with a retry
+(`onRetry`) above its list when the last refresh failed (the time is written in
+the zone of `settings`). "Chosen" keeps showing what is chosen, with
+"Loading ..." for the labels it does not know yet.
 
     Transfer.remote productIds model.products
 
 -}
 remote : Ids id -> Remote (List (Option id)) -> Attribute id msg
 remote ids data =
-    Attribute (\config -> { config | items = Tuple.first (Freshness.settle data), ids = Just ids })
+    let
+        ( current, freshness ) =
+            Freshness.settle data
+    in
+    Attribute (\config -> { config | items = current, freshness = freshness, ids = Just ids })
 
 
 {-| The message to send when the user presses the "Try again" button of the error
@@ -1325,8 +1351,10 @@ disabled value_ =
     Attribute (\config -> { config | disabled = value_ })
 
 
-{-| While `True` the field shows its lists but does not let the user change them,
-and the lists can still be scrolled and read. Unlike `disabled` it is not dimmed.
+{-| While `True` the field shows its lists but does not let the user change them:
+the lists can still be scrolled and read, also with the keyboard (the arrow keys,
+Home, End, the Page keys and the letters move the highlight; nothing is marked or
+moved), and they say `aria-readonly`. Unlike `disabled` it is not dimmed.
 The two are independent; with both set the field is disabled. The default is
 `False`.
 -}
@@ -1341,6 +1369,18 @@ below 4 or above 30 are brought into that range.
 visibleRows : Int -> Attribute id msg
 visibleRows n =
     Attribute (\config -> { config | visibleRows = clamp 4 30 n })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05" (see `remote`). Without it the time is written in UTC and
+ends in "UTC".
+
+    Transfer.settings model.settings
+
+-}
+settings : Settings -> Attribute id msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text: the titles, the filter boxes, the counts,
@@ -1479,7 +1519,7 @@ view toMsg attributes (State data) =
             [ viewLegend field
             , Html.div
                 [ Internal.cls [ "klar-transfer__box" ]
-                , Internal.styleVars [ ( "--klar-transfer-rows", String.fromInt config.visibleRows ) ]
+                , Internal.styleVars [ ( "--klar-transfer-rows", String.fromInt config.visibleRows ), ( "--klar-transfer-row", String.fromInt View.rowHeight ++ "px" ) ]
                 ]
                 [ Html.div [ Internal.cls [ "klar-transfer__panes" ] ]
                     [ viewPane toMsg config t env current interactive Available
@@ -1639,25 +1679,34 @@ viewPane toMsg config t env data interactive side =
                 ChosenSide ->
                     "ArrowLeft"
 
+        -- the keys that only move the highlight work in a read-only field too
+        navigation =
+            [ ( "ArrowDown", toMsg (Key side env Down) )
+            , ( "ArrowUp", toMsg (Key side env Up) )
+            , ( "PageDown", toMsg (Key side env PageDown) )
+            , ( "PageUp", toMsg (Key side env PageUp) )
+            , ( "Home", toMsg (Key side env First) )
+            , ( "End", toMsg (Key side env Last) )
+            ]
+
+        -- Mod is Ctrl, and Cmd on a Mac
+        changes =
+            [ ( "Shift+ArrowDown", toMsg (Key side env ExtendDown) )
+            , ( "Shift+ArrowUp", toMsg (Key side env ExtendUp) )
+            , ( " ", toMsg (Key side env ToggleMark) )
+            , ( "Mod+a", toMsg (Key side env MarkEverything) )
+            , ( "Mod+A", toMsg (Key side env MarkEverything) )
+            , ( "Enter", toMsg (Key side env Enter) )
+            , ( "Mod+" ++ toward, toMsg (Key side env Transfer) )
+            , ( "Mod+Shift+" ++ toward, toMsg (Key side env TransferAll) )
+            ]
+
         keys =
             if interactive then
-                View.onTriggerKeys
-                    [ ( "ArrowDown", toMsg (Key side env Down) )
-                    , ( "ArrowUp", toMsg (Key side env Up) )
-                    , ( "Shift+ArrowDown", toMsg (Key side env ExtendDown) )
-                    , ( "Shift+ArrowUp", toMsg (Key side env ExtendUp) )
-                    , ( "PageDown", toMsg (Key side env PageDown) )
-                    , ( "PageUp", toMsg (Key side env PageUp) )
-                    , ( "Home", toMsg (Key side env First) )
-                    , ( "End", toMsg (Key side env Last) )
-                    , ( " ", toMsg (Key side env ToggleMark) )
-                    , ( "Ctrl+a", toMsg (Key side env MarkEverything) )
-                    , ( "Ctrl+A", toMsg (Key side env MarkEverything) )
-                    , ( "Enter", toMsg (Key side env Enter) )
-                    , ( "Ctrl+" ++ toward, toMsg (Key side env Transfer) )
-                    , ( "Ctrl+Shift+" ++ toward, toMsg (Key side env TransferAll) )
-                    ]
-                    (Just (\char -> toMsg (Typed side env char)))
+                View.onTriggerKeys (navigation ++ changes) (Just (\char -> toMsg (Typed side env char)))
+
+            else if not config.disabled then
+                View.onTriggerKeys navigation (Just (\char -> toMsg (Typed side env char)))
 
             else
                 Internal.noAttr
@@ -1668,7 +1717,10 @@ viewPane toMsg config t env data interactive side =
                     View.viewFailure
                         { locale = config.locale
                         , onRetry = config.onRetry
-                        , refocus = toMsg NoOp
+
+                        -- the button goes away when the items load again: focus
+                        -- goes to the filter box, which stays
+                        , refocus = toMsg (FocusFilter Available)
                         , leave = toMsg NoOp
                         , noop = toMsg NoOp
                         }
@@ -1682,9 +1734,26 @@ viewPane toMsg config t env data interactive side =
 
                 _ ->
                     -- the list is always there, also with no rows, so that keyboard
-                    -- focus in it survives moving the last item to the other list
-                    Html.div []
-                        [ VirtualList.view (ListMsg side >> toMsg)
+                    -- focus in it survives moving the last item to the other list;
+                    -- and the same elements while the items are fresh, refreshed or
+                    -- old, so that focus survives a refresh too
+                    Html.div
+                        (case side of
+                            Available ->
+                                [ Internal.cls [ Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
+
+                            ChosenSide ->
+                                []
+                        )
+                        [ case side of
+                            Available ->
+                                Freshness.notice
+                                    { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                                    config.freshness
+
+                            ChosenSide ->
+                                Html.text ""
+                        , VirtualList.view (ListMsg side >> toMsg)
                             [ VirtualList.rowHeight View.rowHeight
                             , VirtualList.overscan View.overscan
                             , VirtualList.height (config.visibleRows * View.rowHeight)
@@ -1694,7 +1763,8 @@ viewPane toMsg config t env data interactive side =
                                 , Attr.attribute "aria-multiselectable" "true"
                                 , Attr.attribute "aria-label" title
                                 , Attr.tabindex 0
-                                , Internal.attrIf (not interactive) (Attr.attribute "aria-disabled" "true")
+                                , Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true")
+                                , Internal.attrIf (config.readOnly && not config.disabled) (Attr.attribute "aria-readonly" "true")
                                 , Internal.attrMaybe (Attr.attribute "aria-activedescendant") cursorId
                                 , keys
                                 ]

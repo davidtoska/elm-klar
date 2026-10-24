@@ -475,7 +475,7 @@ renderTests =
                         html [] field
                 in
                 Expect.all
-                    [ \_ -> Expect.equal True (Drive.has [ Selector.id "products-available-filter", attr "aria-label" "Filter “Available”" ] h)
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.id "products", attr "aria-label" "Filter “Available”" ] h)
                     , \_ -> Expect.equal True (Drive.has [ Selector.id "products-chosen-filter", attr "aria-label" "Filter “Chosen”" ] h)
                     , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Select all in “Available”" ] h)
                     , \_ -> Expect.equal True (Drive.has [ Selector.text "0 of 5 selected" ] h)
@@ -523,7 +523,7 @@ renderTests =
                     [ \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-a-0" ] Event.click (html [ Transfer.disabled True ] field))
                     , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-a-0" ] Event.click (html [ Transfer.readOnly True ] field))
                     , \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "products-available" ] (Drive.key "Enter") (html [ Transfer.readOnly True ] marked))
-                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products-available-filter", Selector.disabled True ] (html [ Transfer.disabled True ] field))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "products", Selector.disabled True ] (html [ Transfer.disabled True ] field))
                     ]
                     ()
         , test "only the rows that can be seen are drawn: 20 000 items" <|
@@ -1059,7 +1059,7 @@ reviewTests =
             \_ ->
                 let
                     pressed name =
-                        Drive.fire [ Selector.id "products-available-filter" ] (Drive.key name) (html [] field)
+                        Drive.fire [ Selector.id "products" ] (Drive.key name) (html [] field)
                 in
                 Expect.all
                     [ \_ -> Expect.notEqual Nothing (pressed "Enter")
@@ -1107,7 +1107,7 @@ reviewTests =
                     , \_ ->
                         Expect.equal True
                             (Drive.has [ attr "role" "status", Selector.text "2 vist i «Tilgjengelige»" ]
-                                (html [ Transfer.locale Locale.nb ] (fireOn [ Transfer.locale Locale.nb ] [ Selector.id "products-available-filter" ] (Event.input "co") field))
+                                (html [ Transfer.locale Locale.nb ] (fireOn [ Transfer.locale Locale.nb ] [ Selector.id "products" ] (Event.input "co") field))
                             )
                     ]
                     ()
@@ -1138,5 +1138,5 @@ reviewTests =
                                 ]
                             )
                 in
-                Expect.equal Nothing (Drive.fire [ Selector.id "products-available-filter" ] composing (html [] field))
+                Expect.equal Nothing (Drive.fire [ Selector.id "products" ] composing (html [] field))
         ]
