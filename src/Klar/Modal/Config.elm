@@ -25,7 +25,7 @@ type Attribute msg
     = Attribute (Config msg -> Config msg)
 
 
-{-| The edge of the window a drawer is attached to. A centered dialog has none.
+{-| The edge of the window a drawer is attached to.
 -}
 type Side
     = Right
@@ -46,6 +46,11 @@ type alias Config msg =
     { subtitle : Maybe String
     , size : Size
     , fullHeight : Bool
+
+    -- `edge` is what `Drawer.left` and `Drawer.right` choose; `side` is the edge
+    -- the dialog is drawn along. Only `Drawer.view` sets `side` (from `edge`), so
+    -- `Modal.view` with the attributes of a drawer still draws a centered dialog.
+    , edge : Side
     , side : Maybe Side
     , role : Role
     , static : Bool
@@ -69,6 +74,7 @@ configure attributes =
         { subtitle = Nothing
         , size = Medium
         , fullHeight = False
+        , edge = Right
         , side = Nothing
         , role = Dialog
         , static = False

@@ -50,11 +50,12 @@ application's message and dismisses the toast:
 The state holds the application's messages, hence `State msg`.
 
 A keyboard user needs a quick way to the "Undo" before it goes away: bind a key to
-`focus` with [Klar.Shortcut](Klar-Shortcut) (`F6` or `Alt+T` are the usual ones).
-The timer of a toast stops while focus is in it.
+`focus` with [Klar.Shortcut](Klar-Shortcut). Take a key that the browser leaves
+free, such as `F8`; `F6` belongs to the browser, which moves focus to its address
+bar with it. The timer of a toast stops while focus is in it.
 
     -- shortcuts
-    Shortcut.shortcut (Shortcut.function 6) "General" "Go to the notifications" FocusToasts
+    Shortcut.shortcut (Shortcut.function 8) "General" "Go to the notifications" FocusToasts
 
     -- update
     FocusToasts ->
@@ -74,7 +75,9 @@ neither are the ones that stay. Every toast has a close button, and one with an
 action has a button for it; both can be reached with `Tab`. When the toast that has
 focus goes away (it was closed, its action ran, or the application dismissed it),
 focus moves to the next toast, or back to where it was before it came into the
-stack, never to the top of the page.
+stack (to the start of the page content when that element has no id), never to the
+top of the page. If something else takes focus at that moment (the action opened a
+dialog, or moved focus with `Klar.focus`), focus stays there.
 
 @docs view
 
@@ -155,6 +158,10 @@ type State msg
         -- of the stack brings focus back (to a toast or to `cameFrom`) if it fell
         -- to the page.
         , recover : Maybe Int
+
+        -- The stack is bringing focus back from the body: that entry "from
+        -- nowhere" is its own, and keeps `cameFrom`.
+        , returning : Bool
         }
 
 
@@ -186,7 +193,7 @@ with `setMaxVisible`.
 -}
 init : String -> State msg
 init id =
-    State { id = id, visible = [], waiting = [], nextId = 1, max = 4, cameFrom = "", recover = Nothing }
+    State { id = id, visible = [], waiting = [], nextId = 1, max = 4, cameFrom = "", recover = Nothing, returning = False }
 
 
 {-| How many toasts are shown at once (at least 1; the default is 4). Set it when
@@ -218,7 +225,7 @@ queued (State state) =
 one, else to its close button. Nothing happens when there is no toast. Bind it to a
 key with [Klar.Shortcut](Klar-Shortcut), so that a keyboard user reaches a toast
 before it goes away (its timer stops while focus is in it). When that toast goes
-away, focus returns to where it was.
+away, focus returns to where it was, if that element has an id.
 -}
 focus : State msg -> Cmd Msg
 focus (State state) =
@@ -315,8 +322,10 @@ type Msg
     | Dismiss Int
     | Hover Int Bool
     | Focused Int Bool
-    | Entered String
+    | Entered (Maybe String)
     | Lost
+    | Found
+    | Returned
     | FocusChain (List String)
     | Noop
 
@@ -332,19 +341,46 @@ update msg ((State state) as current) =
             ( current, Internal.focusFirst ids Noop )
 
         Entered from ->
-            ( State { state | cameFrom = from }, Cmd.none )
+            -- Focus came in from outside: from this element (`""` when it has no
+            -- id), or from nowhere, which forgets the old place, unless it is the
+            -- stack itself that brings focus back from the body.
+            ( State
+                { state
+                    | cameFrom =
+                        case from of
+                            Just id ->
+                                id
+
+                            Nothing ->
+                                if state.returning then
+                                    state.cameFrom
+
+                                else
+                                    ""
+                }
+            , Cmd.none
+            )
 
         Lost ->
             -- The toast that had focus went away and focus fell to the page: to the
             -- toast that took its place, the one before it, or where focus came from.
             case state.recover of
                 Just place ->
-                    ( State { state | recover = Nothing }
-                    , Internal.focusFirst (recoverTargets place (State state)) Noop
+                    ( State { state | recover = Nothing, returning = True }
+                    , Internal.focusFirst (recoverTargets place (State state)) Returned
                     )
 
                 Nothing ->
                     ( current, Cmd.none )
+
+        Returned ->
+            ( State { state | returning = False }, Cmd.none )
+
+        Found ->
+            -- Focus went somewhere on its own (the action opened a dialog, the
+            -- application moved it): nothing to bring back, and the guards of the
+            -- dialogs and popovers keep watch again.
+            ( State { state | recover = Nothing }, Cmd.none )
 
         _ ->
             arm (step msg current)
@@ -408,6 +444,12 @@ step msg ((State state) as current) =
             current
 
         Lost ->
+            current
+
+        Found ->
+            current
+
+        Returned ->
             current
 
         FocusChain _ ->
@@ -810,18 +852,7 @@ viewStack toMsg attributes (State state) trap =
                     "klar-toasts--recover"
                 ]
             , Attr.id state.id
-            , Events.on "focusin"
-                (Decode.field "relatedTarget"
-                    (Decode.map2 Tuple.pair (Focus.isInside state.id) (Decode.field "id" Decode.string))
-                    |> Decode.andThen
-                        (\( inside, from ) ->
-                            if inside || from == "" then
-                                Decode.fail "not from outside, or from an element without an id"
-
-                            else
-                                Decode.succeed (toMsg (Entered from))
-                        )
-                )
+            , Events.on "focusin" (Decode.map (\from -> toMsg (Entered from)) (cameFromDecoder state.id))
             ]
             [ -- Keyed, so that a toast that goes away takes its own node with it: the
               -- others keep theirs (with the pointer and the focus on them), and the
@@ -862,8 +893,9 @@ viewStack toMsg attributes (State state) trap =
                 )
 
             -- A toast that had focus went away: if focus fell to the page, this
-            -- brings it back to a toast or to where it came from.
-            , Internal.viewIf (state.recover /= Nothing) (Focus.guard Focus.Idle (toMsg Lost))
+            -- brings it back to a toast or to where it came from; if something else
+            -- took focus in the meantime, it ends the watch.
+            , Internal.viewIf (state.recover /= Nothing) (Focus.settle { lost = toMsg Lost, found = toMsg Found })
             ]
         , case trap of
             Just ids ->
@@ -879,6 +911,37 @@ viewStack toMsg attributes (State state) trap =
             Nothing ->
                 Html.text ""
         ]
+
+
+{-| Where focus came from when it comes into the stack from outside: the id of the
+element it left (`""` when that element has no id), or `Nothing` when it came from
+nowhere (the body). Either way the old place is replaced, so that a toast that goes
+away never sends focus to a place the user left long ago. A move from one toast to
+another is no entry and changes nothing.
+-}
+cameFromDecoder : String -> Decode.Decoder (Maybe String)
+cameFromDecoder stackId =
+    Decode.maybe
+        (Decode.field "relatedTarget"
+            (Decode.nullable
+                (Decode.map2 Tuple.pair
+                    (Focus.isInside stackId)
+                    (Decode.oneOf [ Decode.field "id" Decode.string, Decode.succeed "" ])
+                )
+            )
+        )
+        |> Decode.andThen
+            (\related ->
+                case Maybe.andThen identity related of
+                    Just ( True, _ ) ->
+                        Decode.fail "a move inside the stack"
+
+                    Just ( False, from ) ->
+                        Decode.succeed (Just from)
+
+                    Nothing ->
+                        Decode.succeed Nothing
+            )
 
 
 viewItem : (Msg -> msg) -> Locale -> String -> Item msg -> Html msg

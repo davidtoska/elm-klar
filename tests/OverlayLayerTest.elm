@@ -11,7 +11,10 @@ overlays, and what the dialogs and the toasts do about each other.
     moment it opens;
   - `Escape` is layered: a key that something inside handled, or that ends an IME
     composition, does not close the dialog;
-  - `Shift+Tab` past the first element lands at the end of the footer;
+  - `Shift+Tab` past the first element lands at the end of the footer, or of the
+    body when there is none, and that place shows a focus ring;
+  - only `Drawer.view` puts a dialog along a side, and where focus goes on open is
+    part of the state;
   - the toast stack closes the Tab loop of an open dialog, and the dialog does not
     close it a second time;
   - a dialog's header and footer are no landmarks, so two open dialogs make no
@@ -35,6 +38,7 @@ import Klar.Modal as Modal
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.Remote as Remote
 import Klar.Toast as Toast
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -49,6 +53,7 @@ suite =
         , topTests
         , escapeTests
         , tabTests
+        , sideTests
         , toastTests
         , landmarkTests
         , confirmTests
@@ -379,7 +384,27 @@ tabTests =
                 page [ Modal.view Lower [] (open "lower") "Lower" [ Html.text "body" ] ]
                     |> Query.fromHtml
                     |> Query.find [ Selector.class "klar-modal__body" ]
-                    |> Query.has [ Selector.id "lower-end" ]
+                    |> Query.children []
+                    |> Query.index -1
+                    |> Query.has [ Selector.id "lower-end", Selector.attribute (Html.Attributes.tabindex -1) ]
+        , test "the footer, or the body when there is no footer, shows a focus ring while it has focus" <|
+            \_ ->
+                [ ".klar-modal__footer:has(> .klar-modal__end:focus-visible)"
+                , ".klar-modal__body:has(> .klar-modal__end:focus-visible)"
+                ]
+                    |> List.map
+                        (\selector ->
+                            Css.rules
+                                |> String.split selector
+                                |> List.drop 1
+                                |> List.map (String.split "}" >> List.head >> Maybe.withDefault "")
+                                |> (\rules ->
+                                        { ring = List.any (String.contains "outline: 2px solid var(--klar-focus-color)") rules
+                                        , forcedColors = List.any (String.contains "outline-color: Highlight") rules
+                                        }
+                                   )
+                        )
+                    |> Expect.equal [ { ring = True, forcedColors = True }, { ring = True, forcedColors = True } ]
         , test "the title names the dialog" <|
             \_ ->
                 page [ lowerView (open "lower") ]
@@ -388,6 +413,54 @@ tabTests =
                         [ Query.find [ Selector.id "lower" ] >> Query.has [ Selector.attribute (Html.Attributes.attribute "aria-labelledby" "lower-title") ]
                         , Query.find [ Selector.id "lower-title" ] >> Query.has [ Selector.text "Lower" ]
                         ]
+        ]
+
+
+
+-- THE SIDE OF A PANEL, AND WHERE FOCUS GOES ON OPEN
+
+
+sideTests : Test
+sideTests =
+    describe "the side of a panel and the first focus"
+        [ test "a drawer comes in from the right by default" <|
+            \_ ->
+                page [ Drawer.view Lower [] (open "lower") "Lower" [] ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-modal" ]
+                    |> Query.has [ Selector.classes [ "klar-modal--side", "klar-modal--right" ] ]
+        , test "Drawer.left puts it on the left" <|
+            \_ ->
+                page [ Drawer.view Lower [ Drawer.left ] (open "lower") "Lower" [] ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-modal" ]
+                    |> Query.has [ Selector.classes [ "klar-modal--side", "klar-modal--left" ] ]
+        , test "Modal.view ignores the side of a drawer: it stays a centered dialog" <|
+            \_ ->
+                page [ Modal.view Lower [ Drawer.left ] (open "lower") "Lower" [] ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-modal" ]
+                    |> Expect.all
+                        [ Query.hasNot [ Selector.class "klar-modal--side" ]
+                        , Query.hasNot [ Selector.class "klar-modal--left" ]
+                        ]
+        , test "where focus goes on open is part of the state, and open and close keep it" <|
+            \_ ->
+                let
+                    openAndClose state =
+                        state |> Modal.open "" |> Tuple.first |> Modal.close |> Tuple.first
+                in
+                Modal.init "lower"
+                    |> Modal.setInitialFocus [ "customer" ]
+                    |> openAndClose
+                    |> Expect.all
+                        [ Expect.notEqual (openAndClose (Modal.init "lower"))
+                        , Expect.equal (openAndClose (Modal.setInitialFocus [ "customer" ] (Modal.init "lower")))
+                        ]
+        , test "a drawer has the same, as Drawer.setInitialFocus" <|
+            \_ ->
+                Drawer.setInitialFocus [ "customer" ] (Drawer.init "lower")
+                    |> Expect.equal (Modal.setInitialFocus [ "customer" ] (Modal.init "lower"))
         ]
 
 

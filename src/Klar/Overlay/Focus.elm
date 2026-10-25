@@ -1,7 +1,7 @@
 module Klar.Overlay.Focus exposing
     ( unhandled, escape
     , insidePopup, isInside
-    , guard, Guard(..), lostDecoder
+    , guard, Guard(..), lostDecoder, settle
     )
 
 {-| What the overlays (`Modal`, `Drawer`, `ConfirmDialog`, `Popover`, `Toast`) share
@@ -26,7 +26,7 @@ never acted on.
 
 # Lost focus
 
-@docs guard, Guard, lostDecoder
+@docs guard, Guard, lostDecoder, settle
 
 -}
 
@@ -166,8 +166,10 @@ inside ownerId depth =
   - `Modal`: no overlay holds focus. A modal dialog takes focus back whatever has it,
     since nothing outside it may.
   - `Idle`: no overlay holds focus and nothing else does either (focus fell to the
-    body). A popover or the toast stack only picks up focus that was dropped, never
-    focus that the user or the application moved to the page.
+    body). A popover only picks up focus that was dropped, never focus that the user
+    or the application moved to the page.
+
+The toast stack has a guard of its own kind, `settle`.
 
 -}
 type Guard
@@ -185,7 +187,9 @@ is not taken for one that lost it.
 
 The stylesheet (`Klar.Internal.Css.Overlay`) names the surfaces that hold focus
 (`.klar-modal__dialog`, `.klar-popover__popup`, `.klar-toasts`, the palette), and
-the guard must be a direct child of one of the first three.
+the guard must be a direct child of a dialog or a popover. While a dialog or the
+palette is open, only a popover inside a dialog keeps watch: one left open on the
+page behind must not pull focus out of the dialog.
 
 -}
 guard : Guard -> msg -> Html msg
@@ -202,33 +206,88 @@ guard kind lost =
 -}
 lostDecoder : Guard -> msg -> Decoder msg
 lostDecoder kind lost =
+    focusLost
+        |> Decode.andThen
+            (\_ ->
+                case kind of
+                    Modal ->
+                        Decode.succeed lost
+
+                    Idle ->
+                        onBody
+                            |> Decode.andThen
+                                (\dropped ->
+                                    if dropped then
+                                        Decode.succeed lost
+
+                                    else
+                                        Decode.fail "something on the page has focus"
+                                )
+            )
+
+
+{-| A guard that decides once, a moment after it is drawn (the delay of its
+animation, which runs whatever has focus): `lost` if focus is on the body then,
+`found` if anything else has it (the application moved it, a dialog that just
+opened took it, the user went on). The toast stack draws it while it brings back
+the focus of a toast that went away, and stops drawing it on either message, so it
+never keeps watch for good: while it is drawn, the guards of the dialogs and the
+popovers wait.
+-}
+settle : { lost : msg, found : msg } -> Html msg
+settle messages =
+    Html.span
+        [ Internal.cls [ "klar-modal__guard" ]
+        , Attr.attribute "aria-hidden" "true"
+        , Events.on "animationstart"
+            (focusLost
+                |> Decode.andThen (\_ -> onBody)
+                |> Decode.map
+                    (\dropped ->
+                        if dropped then
+                            messages.lost
+
+                        else
+                            messages.found
+                    )
+            )
+        ]
+        []
+
+
+{-| The animation of a guard, and no other one.
+-}
+focusLost : Decoder ()
+focusLost =
     Decode.field "animationName" Decode.string
         |> Decode.andThen
             (\name ->
-                if name /= "klar-focus-lost" then
-                    Decode.fail "another animation"
+                if name == "klar-focus-lost" then
+                    Decode.succeed ()
 
                 else
-                    case kind of
-                        Modal ->
-                            Decode.succeed lost
+                    Decode.fail "another animation"
+            )
 
-                        Idle ->
-                            Decode.oneOf
-                                [ Decode.at [ "target", "ownerDocument", "activeElement" ]
-                                    (Decode.nullable (Decode.field "tagName" Decode.string))
-                                , Decode.succeed Nothing
-                                ]
-                                |> Decode.andThen
-                                    (\active ->
-                                        case active of
-                                            Nothing ->
-                                                Decode.succeed lost
 
-                                            Just "BODY" ->
-                                                Decode.succeed lost
+{-| Is focus on the body (nothing has it) at the time of the event?
+-}
+onBody : Decoder Bool
+onBody =
+    Decode.oneOf
+        [ Decode.at [ "target", "ownerDocument", "activeElement" ]
+            (Decode.nullable (Decode.field "tagName" Decode.string))
+        , Decode.succeed Nothing
+        ]
+        |> Decode.map
+            (\active ->
+                case active of
+                    Nothing ->
+                        True
 
-                                            Just _ ->
-                                                Decode.fail "something on the page has focus"
-                                    )
+                    Just "BODY" ->
+                        True
+
+                    Just _ ->
+                        False
             )

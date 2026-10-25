@@ -88,11 +88,12 @@ application's message and dismisses the toast:
 The state holds the application's messages, hence `State msg`.
 
 A keyboard user needs a quick way to the "Undo" before it goes away: bind a key to
-`focus` with [Klar.Shortcut](Klar.Shortcut.md) (`F6` or `Alt+T` are the usual ones).
-The timer of a toast stops while focus is in it.
+`focus` with [Klar.Shortcut](Klar.Shortcut.md). Take a key that the browser leaves
+free, such as `F8`; `F6` belongs to the browser, which moves focus to its address
+bar with it. The timer of a toast stops while focus is in it.
 
     -- shortcuts
-    Shortcut.shortcut (Shortcut.function 6) "General" "Go to the notifications" FocusToasts
+    Shortcut.shortcut (Shortcut.function 8) "General" "Go to the notifications" FocusToasts
 
     -- update
     FocusToasts ->
@@ -111,7 +112,9 @@ neither are the ones that stay. Every toast has a close button, and one with an
 action has a button for it; both can be reached with `Tab`. When the toast that has
 focus goes away (it was closed, its action ran, or the application dismissed it),
 focus moves to the next toast, or back to where it was before it came into the
-stack, never to the top of the page.
+stack (to the start of the page content when that element has no id), never to the
+top of the page. If something else takes focus at that moment (the action opened a
+dialog, or moved focus with `Klar.focus`), focus stays there.
 
 ### `view`
 
@@ -216,7 +219,7 @@ Moves focus to the newest toast on screen: to its action ("Undo") if it has
 one, else to its close button. Nothing happens when there is no toast. Bind it to a
 key with [Klar.Shortcut](Klar.Shortcut.md), so that a keyboard user reaches a toast
 before it goes away (its timer stops while focus is in it). When that toast goes
-away, focus returns to where it was.
+away, focus returns to where it was, if that element has an id.
 
 ## Showing and removing toasts
 

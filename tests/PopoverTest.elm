@@ -11,6 +11,7 @@ import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Icon as Icon
 import Klar.Popover as Popover
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -207,5 +208,15 @@ suite =
                         )
                         opened
                         |> Expect.err
+            , test "a panel on the page keeps watch only while no dialog is open, so it cannot pull focus out of one" <|
+                \_ ->
+                    Css.rules
+                        |> String.contains ".klar-toasts--recover,.klar-modal-lock)) .klar-popover__popup:not(:has(.klar-popover__popup)) > .klar-modal__guard{animation: klar-focus-lost 1ms 60ms}"
+                        |> Expect.equal True
+            , test "a panel inside a dialog keeps watch for it" <|
+                \_ ->
+                    Css.rules
+                        |> String.contains ",.klar-modal__dialog .klar-popover__popup:not(:has(.klar-popover__popup))) > .klar-modal__guard"
+                        |> Expect.equal True
             ]
         ]

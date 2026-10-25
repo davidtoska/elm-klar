@@ -283,7 +283,7 @@ init =
       , toasts = Toast.init "gallery-toasts"
       , sizeModal = Modal.init "size-modal"
       , sizeKind = SizeMedium
-      , formModal = Modal.init "form-modal"
+      , formModal = Modal.init "form-modal" |> Modal.setInitialFocus [ "order-customer" ]
       , form = emptyForm
       , submitted = False
       , discard = ConfirmDialog.init "discard-dialog"
@@ -373,7 +373,7 @@ pageShortcuts : List (Shortcut Msg)
 pageShortcuts =
     [ Shortcut.shortcut (Shortcut.char 'n') "Actions" "Create a new order" OpenForm
     , Shortcut.shortcut (Shortcut.shift (Shortcut.char 't')) "Actions" "Show a notification" (PushToast Info)
-    , Shortcut.shortcut (Shortcut.function 6) "Actions" "Go to the newest notification" FocusToasts |> Shortcut.inInputs
+    , Shortcut.shortcut (Shortcut.function 8) "Actions" "Go to the newest notification" FocusToasts |> Shortcut.inInputs
     ]
 
 
@@ -446,7 +446,7 @@ update msg model =
             Modal.update inner model.formModal |> andMap FormMsg (\state -> { model | formModal = state })
 
         OpenForm ->
-            Modal.openWith { opener = "open-form", focus = [ "order-customer" ] } model.formModal
+            Modal.open "open-form" model.formModal
                 |> andMap FormMsg (\state -> { model | formModal = state })
 
         FormRequestClose ->
@@ -1260,7 +1260,7 @@ drawerSection model =
 toastSection : Model -> Html Msg
 toastSection model =
     Doc.section "Toast"
-        "Short notifications in the bottom right corner that stack up and disappear by themselves: info and success after a few seconds, warnings a little later, errors stay until they are closed. The timer stops while the pointer is over a notification or focus is inside it. A notification can carry an action, typically Undo: F6 takes the keyboard to the newest one, and when it goes away focus returns to where it was. At most four are shown, the rest wait in a queue. Screen readers are told without being interrupted; errors are announced at once."
+        "Short notifications in the bottom right corner that stack up and disappear by themselves: info and success after a few seconds, warnings a little later, errors stay until they are closed. The timer stops while the pointer is over a notification or focus is inside it. A notification can carry an action, typically Undo: F8 takes the keyboard to the newest one, and when it goes away focus returns to where it was. At most four are shown, the rest wait in a queue. Screen readers are told without being interrupted; errors are announced at once."
         [ Doc.example
             { title = "All tones"
             , description = Just ("Notifications now: " ++ String.fromInt (Toast.count model.toasts) ++ ", of which " ++ String.fromInt (Toast.queued model.toasts) ++ " in the queue.")
@@ -2135,7 +2135,9 @@ Overlay.host
 
 modalFormCode : String
 modalFormCode =
-    """Modal.view FormMsg
+    """-- model: formDialog : Modal.State
+--        (Modal.init "form-dialog" |> Modal.setInitialFocus [ "order-customer" ])
+Modal.view FormMsg
     [ Modal.subtitle "Fields marked * are required"
     , Modal.static
     , Modal.onRequestClose RequestClose
@@ -2164,7 +2166,7 @@ Shortcut.shortcut (Shortcut.char 'n') "Actions" "Create a new order" OpenForm
 OpenForm ->
     let
         ( dialog, cmd ) =
-            Modal.openWith { opener = "open-form", focus = [ "order-customer" ] } model.formDialog
+            Modal.open "open-form" model.formDialog
     in
     ( { model | formDialog = dialog }, Cmd.map FormMsg cmd )"""
 
@@ -2266,8 +2268,9 @@ toastCode =
 -- once, among the overlays
 Toast.view ToastMsg [] model.toasts
 
--- a key that takes the keyboard to the newest toast (its "Undo"), before it goes
-Shortcut.shortcut (Shortcut.function 6) "General" "Go to the notifications" FocusToasts
+-- a key that takes the keyboard to the newest toast (its "Undo") before it goes
+-- away: F8, which the browser leaves free (F6 moves focus to its address bar)
+Shortcut.shortcut (Shortcut.function 8) "General" "Go to the notifications" FocusToasts
 
 FocusToasts ->
     ( model, Cmd.map ToastMsg (Toast.focus model.toasts) )"""

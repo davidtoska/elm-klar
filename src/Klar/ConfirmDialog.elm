@@ -289,7 +289,7 @@ open : String -> State -> ( State, Cmd Msg )
 open opener (State state) =
     let
         ( modal, cmd ) =
-            Modal.openWith { opener = opener, focus = [ inputId state.id, cancelId state.id ] } state.modal
+            Modal.open opener (Modal.setInitialFocus [ inputId state.id, cancelId state.id ] state.modal)
     in
     ( State { state | modal = modal, phase = Idle, typed = "" }, Cmd.map ModalMsg cmd )
 
