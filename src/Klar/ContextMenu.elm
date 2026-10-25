@@ -258,6 +258,9 @@ openFor id what current =
                             , width = round found.viewport.width
                             , height = round found.viewport.height
                             , restore = id
+
+                            -- opened from code (a "⋯" button, a shortcut): at the first item, as from the keyboard
+                            , keyboard = True
                             }
 
                     Err _ ->
