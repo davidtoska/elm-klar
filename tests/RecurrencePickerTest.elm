@@ -121,9 +121,33 @@ ends =
     radio [ "never", "after", "on" ] (id ++ "-end")
 
 
+{-| A choice of the day, for a start that offers the day, the n-th weekday and
+the last weekday.
+-}
 by : String -> State -> Result String State
 by =
-    radio [ "day", "nth", "last" ] (id ++ "-by")
+    byAmong [ "day", "nth", "last" ]
+
+
+{-| A choice of the day among the choices the start offers, in the order they
+are shown: the day, the n-th weekday, then the last weekday and the last day of
+the month when the start gives them.
+-}
+byAmong : List String -> String -> State -> Result String State
+byAmong order =
+    radio order (id ++ "-by")
+
+
+{-| The choice of the day at a place, counted from 0.
+-}
+byAt : Int -> State -> Result String State
+byAt position =
+    send
+        [ Selector.tag "input"
+        , Selector.attribute (Attr.name (id ++ "-by"))
+        , Selector.attribute (Attr.value (String.fromInt position))
+        ]
+        changed
 
 
 missing : String -> State -> Result String State
@@ -1164,7 +1188,7 @@ choiceTests =
                         Expect.fail message
         , test "the last day of the month, then yearly from 30 April: the day is ticked, with the same rule" <|
             \_ ->
-                case run [ frequency "monthly", by "last-day", frequency "yearly" ] (from 2027 4 30) of
+                case run [ frequency "monthly", byAmong [ "day", "nth", "last-day" ] "last-day", frequency "yearly" ] (from 2027 4 30) of
                     Ok state ->
                         Expect.all
                             [ \_ -> exactlyOneChecked state
@@ -1190,8 +1214,8 @@ from the same state: only the rules the field can build.
 -}
 rulesOfChoices : State -> List Rule
 rulesOfChoices state =
-    [ "day", "nth", "last", "last-day", "own" ]
-        |> List.filterMap (\key -> by key state |> Result.toMaybe |> Maybe.andThen RecurrencePicker.value)
+    List.range 0 4
+        |> List.filterMap (\position -> byAt position state |> Result.toMaybe |> Maybe.andThen RecurrencePicker.value)
 
 
 distinct : List a -> Bool
@@ -1583,7 +1607,7 @@ fixTests =
                     |> Result.withDefault (Expect.fail "the form did not take the steps")
         , test "a start on the last day of a short month offers the last day of the month" <|
             \_ ->
-                run [ frequency "monthly", by "last-day" ] (from 2027 4 30)
+                run [ frequency "monthly", byAmong [ "day", "nth", "last-day" ] "last-day" ] (from 2027 4 30)
                     |> Result.map RecurrencePicker.value
                     |> Expect.equal (Ok (monthlyOn 31))
         , test "which reads 'On the last day of the month', and in Norwegian too" <|
@@ -1600,7 +1624,7 @@ fixTests =
                     |> Result.withDefault (Expect.fail "the form did not take the steps")
         , test "yearly from 28 February it is the last day of February, the 29th in leap years" <|
             \_ ->
-                run [ frequency "yearly", by "last-day" ] (from 2027 2 28)
+                run [ frequency "yearly", byAmong [ "day", "nth", "last", "last-day" ] "last-day" ] (from 2027 2 28)
                     |> Result.map RecurrencePicker.value
                     |> Expect.equal (Ok (Recurrence.rule (Recurrence.yearlyOnDate Feb 29) [] |> Result.toMaybe))
         , test "a start that is not the last day of its month has no such choice" <|

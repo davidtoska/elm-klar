@@ -84,9 +84,9 @@ may never have left the fields.
 Keyboard: `ArrowDown` or `Alt+ArrowDown` in either text field opens the
 calendar. So does `Enter`, unless the user has just typed something that was not
 taken yet: then `Enter` takes the text. The keys inside the calendar are those of
-[Klar.Calendar](Klar-Calendar). Only one quick choice is in the tab order (the
-pressed one, or else the first); the arrow keys, `Home` and `End` move between
-them. `Escape` closes the popup (inside the month and year choosers it goes back
+[Klar.Calendar](Klar-Calendar). The arrow keys, `Home` and `End` move between
+the quick choices, and only one of them is in the tab order: the one they moved
+to, or else the pressed one, or else the first. `Escape` closes the popup (inside the month and year choosers it goes back
 one step first), and `Tab` out of the popup closes it.
 
 The two inputs sit in a `role="group"` named by the label; the name of each input
@@ -188,6 +188,10 @@ type alias Inner =
     , rangeProblem : Maybe Problem
     , open : Bool
     , calendar : Calendar.State
+
+    -- The quick choice the arrow keys moved the focus to in the open popup, by
+    -- index: it is the one tab stop of the group.
+    , presetFocus : Maybe Int
     }
 
 
@@ -211,6 +215,7 @@ init id =
         , rangeProblem = Nothing
         , open = False
         , calendar = Calendar.initRange (id ++ "-popup-cal") |> Calendar.setMonths 2
+        , presetFocus = Nothing
         }
 
 
@@ -488,7 +493,7 @@ type Msg
     | Escaped
     | CalendarMsg Calendar.Msg
     | PickedPreset Date Date
-    | MovedToPreset String
+    | MovedToPreset Int
     | Cleared
     | Noop
 
@@ -573,8 +578,8 @@ update msg (State s) =
         PickedPreset start finish ->
             apply start finish s
 
-        MovedToPreset id ->
-            ( State s, Internal.focus id Noop )
+        MovedToPreset index ->
+            ( State { s | presetFocus = Just index }, Internal.focus (presetId s.id index) Noop )
 
         Cleared ->
             ( State
@@ -752,7 +757,7 @@ openPopup limits readings s =
                 |> Calendar.setRange (Maybe.map2 Tuple.pair committed.from committed.to)
                 |> Calendar.showDate target
     in
-    ( State { committed | open = True, calendar = calendar }
+    ( State { committed | open = True, calendar = calendar, presetFocus = Nothing }
     , Cmd.map CalendarMsg (Calendar.focus calendar)
     )
 
@@ -808,6 +813,13 @@ fromId id =
 toId : String -> String
 toId id =
     id ++ "-to"
+
+
+{-| The DOM id of a quick choice, by its index.
+-}
+presetId : String -> Int -> String
+presetId id index =
+    id ++ "-popup-preset-" ++ String.fromInt index
 
 
 
@@ -1625,25 +1637,30 @@ viewPopup toMsg config words s =
                                 Nothing
                     )
 
-        -- The one quick choice in the tab order: the pressed one, else the first
-        -- that can be used. The arrow keys move between them (`presetKeys`).
+        -- The one quick choice in the tab order: the one the arrow keys moved
+        -- the focus to (`presetKeys`), else the pressed one, else the first that
+        -- can be used.
         tabStop =
-            case List.filter (\( _, resolved ) -> isPressed resolved) (List.indexedMap Tuple.pair resolvedAll) of
-                ( index, _ ) :: _ ->
+            case ( s.presetFocus, List.filter (\( _, resolved ) -> isPressed resolved) (List.indexedMap Tuple.pair resolvedAll) ) of
+                ( Just index, _ ) ->
+                    if List.member index enabled then
+                        Just index
+
+                    else
+                        List.head enabled
+
+                ( Nothing, ( index, _ ) :: _ ) ->
                     Just index
 
-                [] ->
+                ( Nothing, [] ) ->
                     List.head enabled
-
-        presetId index =
-            s.id ++ "-popup-preset-" ++ String.fromInt index
 
         presetKeys =
             Events.custom "keydown"
                 (Decode.map2 Tuple.pair (Decode.field "key" Decode.string) (Decode.at [ "target", "id" ] Decode.string)
                     |> Decode.andThen
                         (\( key, targetId ) ->
-                            case List.head (List.filter (\index -> presetId index == targetId) enabled) of
+                            case List.head (List.filter (\index -> presetId s.id index == targetId) enabled) of
                                 Nothing ->
                                     Decode.fail "not on a quick choice"
 
@@ -1657,7 +1674,7 @@ viewPopup toMsg config words s =
 
                                         go target =
                                             Decode.succeed
-                                                { message = toMsg (MovedToPreset (presetId (Maybe.withDefault index target)))
+                                                { message = toMsg (MovedToPreset (Maybe.withDefault index target))
                                                 , stopPropagation = True
                                                 , preventDefault = True
                                                 }
@@ -1690,7 +1707,7 @@ viewPopup toMsg config words s =
             Button.view
                 ([ Button.small
                  , Button.ghost
-                 , Button.id (presetId index)
+                 , Button.id (presetId s.id index)
                  , Button.disabled (period == Nothing)
                  , Button.pressed (isPressed resolved)
                  , Button.htmlAttrs
