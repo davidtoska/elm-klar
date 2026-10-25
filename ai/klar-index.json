@@ -4831,12 +4831,12 @@
       "mainFunctions": [
         "shortcut",
         "inInputs",
+        "repeats",
         "keysOf",
         "groupOf",
         "labelOf",
         "firesInInputs",
-        "conflicts",
-        "char"
+        "conflicts"
       ],
       "related": [
         "Klar.Kbd",

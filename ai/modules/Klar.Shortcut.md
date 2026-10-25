@@ -13,6 +13,7 @@ Types: `Msg`, `State`, `Shortcut`, `Keys`
 type Shortcut msg  -- opaque: no constructors are exposed
 shortcut : Keys -> String -> String -> msg -> Shortcut msg
 inInputs : Shortcut msg -> Shortcut msg
+repeats : Shortcut msg -> Shortcut msg
 keysOf : Shortcut msg -> Keys
 groupOf : Shortcut msg -> String
 labelOf : Shortcut msg -> String
@@ -140,7 +141,8 @@ handled (an arrow in a menu, `Escape` that closes a dialog, `Enter` in the
 command palette) prevents its default action, and a shortcut ignores a key press
 whose default action was prevented. The `Enter` or `Escape` that ends the
 composition of an input method (Japanese, Chinese, Korean) is never a shortcut
-either. Holding a key down does not repeat a shortcut.
+either. Holding a key down does not repeat a shortcut, unless it is marked
+`repeats` (one that moves through rows, say).
 
 **Keyboards**: a symbol typed with AltGr (on a German keyboard `[` is AltGr and
 
@@ -198,6 +200,19 @@ with or without this.
 
     Shortcut.shortcut Shortcut.escape "Navigation" "Close" CloseMenu
         |> Shortcut.inInputs
+
+### `repeats`
+
+```elm
+repeats : Shortcut msg -> Shortcut msg
+```
+
+Lets the shortcut fire again and again while its key is held down, as the
+arrows do: for a shortcut that moves (to the next row, the next page). Without it
+a held key fires once. A held key never starts or completes a sequence.
+
+    Shortcut.shortcut (Shortcut.char 'j') "Orders" "Next order" NextOrder
+        |> Shortcut.repeats
 
 ### `keysOf`
 
