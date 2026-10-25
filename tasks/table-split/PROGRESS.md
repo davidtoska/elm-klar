@@ -25,9 +25,10 @@ Execution notes for resuming a long run:
   adds focused new tests, runs validate.mjs, commits only on success, and stops on
   failure. verify-original.mjs confirms all 312 original declarations have one
   unchanged internal implementation and checks the dependency graph.
-- Current second pipeline: State, Query, Columns, ColumnLogic, Rows, Config,
-  Window, Update, Processing (exec session 84947). Inspect its result before any
-  further edits. State is complete; later completion hashes are appended below.
+- State, Query and Columns are complete. The second pipeline (84947) stopped on
+  syntax in the new ColumnLogic test; its second validation passed. Resume with
+  Rows, Config, Window, Update and Processing; inspect the active pipeline's
+  result before further edits. Completion hashes are appended below.
 - After that: Popup, Layout, Keyboard, Export, Bulk, HeaderFilters, Header,
   Toolbar, Body, Footer, then rename remaining Core composition to View and clean
   imports. Recheck dependencies before each move; Toolbar depends on HeaderFilters.
@@ -77,3 +78,8 @@ Execution notes for resuming a long run:
 - Next: Columns.
 
 - Columns: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit cffe11d: Columns complete.
+- Next: ColumnLogic.
+- ColumnLogic attempt 1: fixed syntax in the newly added test's let-pattern;
+  no existing test changed. Revalidating the step before continuing.
+- ColumnLogic attempt 2 passed: 11,367 tests, identical docs and all 22 table roots.
