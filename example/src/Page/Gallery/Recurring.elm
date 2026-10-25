@@ -233,7 +233,7 @@ fieldSection locale model =
             )
         , Doc.example
             { title = "Norwegian"
-            , description = Just "A rule that was loaded (an example from the table, put in with setRule) in Norwegian Bokmål, whatever the language switch says."
+            , description = Just "A rule that was loaded (an example from the table, put in with setValue) in Norwegian Bokmål, whatever the language switch says."
             , code = Just "RecurrencePicker.view RepeatMsg\n    [ RecurrencePicker.locale Locale.nb ]\n    model.repeat"
             }
             (RecurrencePicker.view NorwegianMsg
@@ -257,7 +257,7 @@ fieldSection locale model =
             )
         , Doc.example
             { title = "Read-only"
-            , description = Just "Only the label and the sentence, for a page that shows a saved rule. The state is the same as for the field: the first is a rule loaded with setRule, the second a field that does not repeat."
+            , description = Just "Only the label and the sentence, for a page that shows a saved rule. The state is the same as for the field: the first is a rule loaded with setValue, the second a field that does not repeat."
             , code = Just "RecurrencePicker.view RepeatMsg [ RecurrencePicker.readOnly True ] model.repeat"
             }
             (Layout.stack [ Layout.gap 4 ]

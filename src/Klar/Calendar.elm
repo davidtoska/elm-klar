@@ -2,8 +2,8 @@ module Klar.Calendar exposing
     ( view
     , State, init, initRange, Msg, update
     , value, setValue, range, setRange, isChoosing, anchor, clear
-    , visibleRange, visibleMonth, focusedDay, setMonths, showDate, showMonth, focus, back
-    , Attribute, today, min, max, disabledWhen, maxRangeDays
+    , setToday, visibleRange, visibleMonth, focusedDay, setMonths, showDate, showMonth, focus, back
+    , Attribute, min, max, disabledWhen, maxRangeDays
     , weekNumbers, todayButton, size, locale, ariaLabel
     , markers, remote, onRetry, settings, Marker, dot, count
     )
@@ -12,24 +12,31 @@ module Klar.Calendar exposing
 
 Use when: the calendar should always be visible, such as a delivery schedule or a day chooser beside a list of orders.
 Do not use when: you need a form field with a popup (use `Klar.DatePicker` or `Klar.DateRangePicker`).
-Quick path: `init`, `update`, `view`, `value`
+Quick path: `init` with `setToday`, `update`, `view`, `value`
 
 This is the grid behind [Klar.DatePicker](Klar-DatePicker) and
 [Klar.DateRangePicker](Klar-DateRangePicker).
 
     import Klar.Calendar as Calendar
+    import Klar.Date exposing (Date)
     import Klar.Remote as Remote exposing (Remote)
     import Klar.Theme exposing (Tone(..))
+    import Time
 
     -- model
-    { schedule : Calendar.State     -- Calendar.init "schedule" |> Calendar.showDate today
-    , due : Remote (List Order)     -- the orders due in the visible month
+    { schedule : Calendar.State     -- Calendar.init "schedule" |> Calendar.setToday today
+    , due : Remote (List Order)     -- the orders due on the visible days
     }
+
+    -- init: ask for the marks of the days the calendar shows first
+    fetchDue (Calendar.visibleRange schedule)
 
     -- msg
     ScheduleMsg Calendar.Msg
+    GotDue { from : Date, to : Date } (Result Remote.Problem (List Order)) Time.Posix
+    RetryDue
 
-    -- update: load the marks again when the visible month changes
+    -- update: other days are shown, so ask for their marks (a new question: Loading)
     ScheduleMsg m ->
         let
             ( schedule, cmd ) =
@@ -39,17 +46,33 @@ This is the grid behind [Klar.DatePicker](Klar-DatePicker) and
                 Calendar.visibleRange schedule
         in
         if shown /= Calendar.visibleRange model.schedule then
-            ( { model | schedule = schedule, due = Remote.refresh model.due }
-            , Cmd.batch [ Cmd.map ScheduleMsg cmd, fetchDue shown.from shown.to ]
+            ( { model | schedule = schedule, due = Remote.Loading }
+            , Cmd.batch [ Cmd.map ScheduleMsg cmd, fetchDue shown ]
             )
 
         else
             ( { model | schedule = schedule }, Cmd.map ScheduleMsg cmd )
 
+    -- the answer says which days it is for: one for days no longer shown is dropped
+    GotDue window result at ->
+        if window == Calendar.visibleRange model.schedule then
+            ( { model | due = Remote.refreshWith model.due result at }, Cmd.none )
+
+        else
+            ( model, Cmd.none )
+
+    -- the same question again: the marks that are there stay while it is asked
+    RetryDue ->
+        ( { model | due = Remote.refresh model.due }
+        , Cmd.batch
+            [ fetchDue (Calendar.visibleRange model.schedule)
+            , Cmd.map ScheduleMsg (Calendar.focus model.schedule)
+            ]
+        )
+
     -- view
     Calendar.view ScheduleMsg
-        [ Calendar.today model.today
-        , Calendar.weekNumbers
+        [ Calendar.weekNumbers
         , Calendar.remote (Remote.map (List.map dueMark) model.due)
         , Calendar.onRetry RetryDue
         ]
@@ -62,25 +85,23 @@ This is the grid behind [Klar.DatePicker](Klar-DatePicker) and
     -- read
     Calendar.value model.schedule   -- Maybe Date
 
-The state holds the visible months, the keyboard focus and the selection. There
-are no out-messages: read the selection with `value` (or `range`) and compare it
-before and after `update` to react to a choice.
+The state holds today, the visible months, the keyboard focus and the selection.
+There are no out-messages: read the selection with `value` (or `range`) and
+compare it before and after `update` to react to a choice.
 
-The application supplies "today" with `today`; the library never reads the
+The application gives "today" with `setToday`; the library never reads the
 clock. The calendar marks that day and, until the user navigates or something is
-chosen, shows its month. The state cannot know today before the first message,
-so `visibleRange`, `visibleMonth` and `focusedDay` of an untouched calendar
-report January 2000: start it with `showDate today` when you read them (to load
-the first marks, for example). A start outside `min` and `max` is moved to the
-nearest month that has days to choose. Without `min` and `max` the calendar runs
-from 1 January of year 1 to 31 December 9999.
+chosen, shows its month, and `visibleRange` says so from the start. Without
+`setToday` an untouched calendar shows January 2000. A start outside `min` and
+`max` is drawn as the nearest month that has days to choose. Without `min` and
+`max` the calendar runs from 1 January of year 1 to 31 December 9999.
 
 Marks are `dot`s and `count`s. Give a list that is always there with `markers`,
-or marks that come from a backend with `remote`: while they load the grid is
-busy and says "Loading" under the days, a failure says why with a "Try again"
-button (`onRetry`), and marks that are refreshed stay, dimmed. Only the marks of
-the visible months (and the days around them) are drawn, so a long list costs
-little.
+or marks that come from a backend with `remote`: while they load the line under
+the days says "Loading", a failure says why with a "Try again" button
+(`onRetry`), and marks that are refreshed stay, dimmed. The days can be chosen
+in every state. Only the marks of the visible months (and the days around them)
+are drawn, so a long list costs little.
 
 Keyboard, with focus on a day: the arrow keys move by day and week, `Home` and
 `End` go to the start and end of the week (the week starts on the first day of
@@ -118,14 +139,14 @@ preview while the mouse (or the keyboard focus) moves over the second day.
 @docs value, setValue, range, setRange, isChoosing, anchor, clear
 
 
-# The visible months and the focus
+# Today, the visible months and the focus
 
-@docs visibleRange, visibleMonth, focusedDay, setMonths, showDate, showMonth, focus, back
+@docs setToday, visibleRange, visibleMonth, focusedDay, setMonths, showDate, showMonth, focus, back
 
 
-# Limits and today
+# Limits
 
-@docs Attribute, today, min, max, disabledWhen, maxRangeDays
+@docs Attribute, min, max, disabledWhen, maxRangeDays
 
 
 # Look
@@ -162,9 +183,10 @@ type alias State =
 
 {-| A calendar that selects one day. The `String` is the DOM id of the
 calendar and the prefix of the ids of its day and navigation buttons; it must be
-unique on the page. It shows one month; see `setMonths`.
+unique on the page. It shows one month (see `setMonths`); give it today with
+`setToday`.
 
-    Calendar.init "schedule" |> Calendar.showDate model.today
+    Calendar.init "schedule" |> Calendar.setToday model.today
 
 -}
 init : String -> State
@@ -176,7 +198,7 @@ init =
 the period, the second ends it (whichever of the two days is earlier becomes the
 start). The `String` is the DOM id, as for `init`. Read the result with `range`.
 
-    Calendar.initRange "report-period" |> Calendar.setMonths 2
+    Calendar.initRange "report-period" |> Calendar.setToday model.today |> Calendar.setMonths 2
 
 -}
 initRange : String -> State
@@ -273,17 +295,35 @@ clear =
 
 
 
--- THE VISIBLE MONTHS AND THE FOCUS
+-- TODAY, THE VISIBLE MONTHS AND THE FOCUS
+
+
+{-| Tells the calendar what day it is: the library never reads the clock (get
+today with `Time.now` and `Date.fromPosix` from [Klar.Date](Klar-Date), or from
+the flags). The day is marked, an untouched calendar shows its month and starts
+the keyboard focus on it, and `visibleRange` reports that month from the start.
+Needed for `todayButton`. Call it again when the date changes (after midnight);
+it does not move a calendar the user has used. Default: no today, and an
+untouched calendar shows January 2000.
+
+    Calendar.init "schedule" |> Calendar.setToday today
+
+-}
+setToday : Date -> State -> State
+setToday =
+    Core.setToday
 
 
 {-| The days of the visible months, from the first day of the first month to the
-last day of the last one: the period to load marks for. Compare it before and
-after `update` and fetch when it changes (see the module example). The days of
-the neighbouring months that a one-month calendar shows around its weeks are
-not in it; their marks are drawn when you have them.
+last day of the last one: the period to load marks for. Ask for it once the
+calendar has today (`setToday`), then compare it before and after `update` and
+fetch when it changes (see the module example). The days of the neighbouring
+months that a one-month calendar shows around its weeks are not in it; their
+marks are drawn when you have them.
 
-An untouched calendar reports January 2000 although `view` shows the month of
-`today`: start it with `showDate today`.
+The state does not know `min` and `max`: when they leave today out, the view
+starts at the nearest month inside them, and `visibleRange` follows after the
+first message. Start such a calendar on a day inside the limits with `showDate`.
 
 -}
 visibleRange : State -> { from : Date, to : Date }
@@ -291,9 +331,9 @@ visibleRange =
     Core.visibleRange
 
 
-{-| The first visible month (January is 1). An untouched calendar reports the
-placeholder `{ year = 2000, month = 1 }`, as for `visibleRange`; to load marks,
-use `visibleRange`, which also covers the second and third month of
+{-| The first visible month (January is 1): the month of today for an untouched
+calendar (`setToday`), and `{ year = 2000, month = 1 }` without today. To load
+marks use `visibleRange`, which also covers the second and third month of
 `setMonths`.
 -}
 visibleMonth : State -> { year : Int, month : Int }
@@ -301,9 +341,8 @@ visibleMonth =
     Core.visibleMonth
 
 
-{-| The day that holds the keyboard focus, the one a key press moves from.
-Until the calendar has been used or told what to show it is the placeholder
-2000-01-01, not today.
+{-| The day that holds the keyboard focus, the one a key press moves from:
+today for an untouched calendar (`setToday`), and 2000-01-01 without today.
 -}
 focusedDay : State -> Date
 focusedDay =
@@ -381,17 +420,6 @@ type alias Attribute msg =
     Core.Attribute msg
 
 
-{-| Today, supplied by the application (the library never reads the clock; get
-it with `Time.now` and `Date.fromPosix` from [Klar.Date](Klar-Date)). The day
-is marked, and an untouched calendar shows its month, which is January 2000
-without `today`; a month outside `min` and `max` is replaced by the nearest one
-inside them. Needed for `todayButton`.
--}
-today : Date -> Attribute msg
-today =
-    Core.today
-
-
 {-| The earliest day that can be chosen. Earlier days are disabled, keyboard
 movement stops at the limit, and the button for the previous month is disabled
 once no day of that month can be chosen. Default: 1 January of year 1.
@@ -442,7 +470,7 @@ weekNumbers =
 
 {-| Shows a "Today" button below the days that takes the calendar back to the
 month of today and puts the focus on today; it does not choose the day. It needs
-`today`, and is disabled when today is outside `min` and `max` or excluded by
+`setToday`, and is disabled when today is outside `min` and `max` or excluded by
 `disabledWhen`. Default: no button.
 -}
 todayButton : Attribute msg
@@ -499,12 +527,15 @@ markers =
 
 
 {-| Marks from a backend, as a `Remote` (see [Klar.Remote](Klar-Remote)); use it
-instead of `markers`. The days can be chosen in every state. While the marks are
-`NotAsked` or `Loading` the grid is busy (`aria-busy`) and the line under the
-days says "Loading". `Failed` says why there, with a "Try again" button when
-`onRetry` is set and trying again could help. Marks that are `Kept` stay: dimmed
-while they are refreshed, and with "Old data from 14:05" and a retry when the
-last refresh failed. `Loaded []` is a calendar without marks.
+instead of `markers`. The days can be chosen in every state, and the grid around
+them is the same in every state, so the keyboard focus stays where it is. While
+the marks are `NotAsked` or `Loading` the line under the days says "Loading" (a
+polite live region, so a screen reader hears it). `Failed` says why there, with
+a "Try again" button when `onRetry` is set and trying again could help. Marks
+that are `Kept` stay: dimmed while they are refreshed, and with "Old data from
+14:05" and a retry when the last refresh failed. `Loaded []` is a calendar
+without marks. The module example shows the wiring: `Loading` when other days
+are shown, `Remote.refresh` for the same days again.
 
     Calendar.remote (Remote.map (List.map dueMark) model.due)
 
@@ -516,11 +547,14 @@ remote =
 
 {-| The message of the "Try again" button shown when the marks of `remote`
 failed. The button goes away while the marks load again, so give the focus back
-with `focus` in the same `update` branch:
+with `focus` in the same `update` branch, as in the module example:
 
     RetryDue ->
-        ( { model | due = Remote.Loading }
-        , Cmd.batch [ fetchDue shown.from shown.to, Cmd.map ScheduleMsg (Calendar.focus model.schedule) ]
+        ( { model | due = Remote.refresh model.due }
+        , Cmd.batch
+            [ fetchDue (Calendar.visibleRange model.schedule)
+            , Cmd.map ScheduleMsg (Calendar.focus model.schedule)
+            ]
         )
 
 -}
@@ -577,7 +611,7 @@ count =
 yours; the list holds the attributes (limits, marks, look), and the last
 argument is the state from your model.
 
-    Calendar.view ScheduleMsg [ Calendar.today model.today ] model.schedule
+    Calendar.view ScheduleMsg [ Calendar.weekNumbers ] model.schedule
 
 -}
 view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg

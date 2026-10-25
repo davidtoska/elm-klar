@@ -1000,7 +1000,7 @@ checkOf config =
 calendarAttributes : Config -> List (Calendar.Attribute msg)
 calendarAttributes config =
     List.filterMap identity
-        [ Maybe.map Calendar.today config.today
+        [ Maybe.map CalendarCore.today config.today
         , Maybe.map Calendar.min config.min
         , Maybe.map Calendar.max config.max
         , Maybe.map Calendar.maxRangeDays config.maxRangeDays

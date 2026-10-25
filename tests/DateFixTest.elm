@@ -912,14 +912,14 @@ calendarStart =
         [ test "no limits and no today: January 2000, as before" <|
             \_ -> expectShows "January" 2000 (calendarView [] (Calendar.init "c"))
         , test "today and no limits: the month of today, as before" <|
-            \_ -> expectShows "October" 2026 (calendarView [ Calendar.today (date 2026 10 20) ] (Calendar.init "c"))
+            \_ -> expectShows "October" 2026 (calendarView [] (Calendar.init "c" |> Calendar.setToday (date 2026 10 20)))
         , test "today inside the limits: the month of today, as before" <|
             \_ ->
                 expectShows "October"
                     2026
                     (calendarView
-                        [ Calendar.today (date 2026 10 20), Calendar.min (date 2026 1 1), Calendar.max (date 2026 12 31) ]
-                        (Calendar.init "c")
+                        [ Calendar.min (date 2026 1 1), Calendar.max (date 2026 12 31) ]
+                        (Calendar.init "c" |> Calendar.setToday (date 2026 10 20))
                     )
         , test "no today and min after the placeholder: the month of min" <|
             \_ -> expectShows "March" 2026 (calendarView [ Calendar.min (date 2026 3 10) ] (Calendar.init "c"))
@@ -934,12 +934,12 @@ calendarStart =
             \_ ->
                 expectShows "December"
                     2026
-                    (calendarView [ Calendar.today (date 2026 10 20), Calendar.min (date 2026 12 1) ] (Calendar.init "c"))
+                    (calendarView [ Calendar.min (date 2026 12 1) ] (Calendar.init "c" |> Calendar.setToday (date 2026 10 20)))
         , test "today after max: the month of max" <|
             \_ ->
                 expectShows "August"
                     2026
-                    (calendarView [ Calendar.today (date 2026 10 20), Calendar.max (date 2026 8 15) ] (Calendar.init "c"))
+                    (calendarView [ Calendar.max (date 2026 8 15) ] (Calendar.init "c" |> Calendar.setToday (date 2026 10 20)))
         , test "a range calendar starts there too" <|
             \_ ->
                 expectShows "March"

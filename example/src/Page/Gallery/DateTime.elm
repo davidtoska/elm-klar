@@ -77,12 +77,16 @@ type Msg
 
 init : ( Model, Cmd Msg )
 init =
-    ( { overview = Calendar.init "cal-overview" |> Calendar.setValue (Just today)
-      , compact = Calendar.init "cal-small"
-      , period = Calendar.initRange "cal-period" |> Calendar.setMonths 2
-      , norwegian = Calendar.init "cal-norwegian"
-      , orders = Calendar.init "cal-orders" |> Calendar.setMonths 2
-      , schedule = Calendar.init "cal-schedule" |> Calendar.showDate today
+    let
+        schedule =
+            Calendar.init "cal-schedule" |> Calendar.setToday today
+    in
+    ( { overview = Calendar.init "cal-overview" |> Calendar.setToday today |> Calendar.setValue (Just today)
+      , compact = Calendar.init "cal-small" |> Calendar.setToday today
+      , period = Calendar.initRange "cal-period" |> Calendar.setToday today |> Calendar.setMonths 2
+      , norwegian = Calendar.init "cal-norwegian" |> Calendar.setToday today
+      , orders = Calendar.init "cal-orders" |> Calendar.setToday today |> Calendar.setMonths 2
+      , schedule = schedule
       , due = Remote.Loading
       , outage = False
       , dates = registry DatePicker.init demoDates
@@ -90,7 +94,7 @@ init =
       , times = registry TimePicker.init demoTimes
       , dateTimes = registry DateTimePicker.init demoDateTimes
       }
-    , fetchDue False (Calendar.visibleRange (Calendar.init "cal-schedule" |> Calendar.showDate today))
+    , fetchDue False (Calendar.visibleRange schedule)
     )
 
 
@@ -129,7 +133,8 @@ update msg model =
                 shown =
                     Calendar.visibleRange schedule
             in
-            -- the calendar says which days it shows: ask for their marks when that changes
+            -- the calendar says which days it shows: ask for their marks when that
+            -- changes (other days are a new question, so the old marks go: Loading)
             if shown /= Calendar.visibleRange model.schedule then
                 ( { model | schedule = schedule, due = Remote.Loading }
                 , Cmd.batch [ Cmd.map ScheduleMsg cmd, fetchDue model.outage shown ]
@@ -147,7 +152,8 @@ update msg model =
                 ( model, Cmd.none )
 
         DueRetry ->
-            -- the button goes away while the marks load: the focus goes back to the calendar
+            -- the same question again: marks that are there stay while it is asked;
+            -- the button goes away while the marks load, so the focus goes back to the calendar
             ( { model | due = Remote.refresh model.due }
             , Cmd.batch
                 [ fetchDue model.outage (Calendar.visibleRange model.schedule)
@@ -722,7 +728,6 @@ calendars locale model =
                 [ Calendar.view OverviewMsg
                     [ Calendar.locale locale
                     , Calendar.ariaLabel "Dock bookings"
-                    , Calendar.today today
                     , Calendar.todayButton
                     , Calendar.weekNumbers
                     , Calendar.size Large
@@ -741,7 +746,6 @@ calendars locale model =
                 [ Calendar.view CompactMsg
                     [ Calendar.locale locale
                     , Calendar.ariaLabel "Delivery window"
-                    , Calendar.today today
                     , Calendar.min (Date.addDays -10 today)
                     , Calendar.max (Date.addDays 40 today)
                     , Calendar.disabledWhen isWeekend
@@ -760,7 +764,6 @@ calendars locale model =
                 [ Calendar.view PeriodMsg
                     [ Calendar.locale locale
                     , Calendar.ariaLabel "Report period"
-                    , Calendar.today today
                     ]
                     model.period
                 , Text.caption ("Chosen: " ++ describePeriod locale model.period)
@@ -773,7 +776,6 @@ calendars locale model =
             }
             (Calendar.view NorwegianMsg
                 [ Calendar.ariaLabel "Norwegian calendar"
-                , Calendar.today today
                 , Calendar.locale Locale.nb
                 , Calendar.weekNumbers
                 , Calendar.todayButton
@@ -793,7 +795,6 @@ calendars locale model =
             (Calendar.view OrdersMsg
                 [ Calendar.locale locale
                 , Calendar.ariaLabel "Orders by due date"
-                , Calendar.today today
                 , Calendar.markers orderDots
                 ]
                 model.orders
@@ -807,7 +808,6 @@ calendars locale model =
                 [ Calendar.view ScheduleMsg
                     [ Calendar.locale locale
                     , Calendar.ariaLabel "Orders due"
-                    , Calendar.today today
                     , Calendar.remote (Remote.map (dueMarks locale) model.due)
                     , Calendar.onRetry DueRetry
                     ]
@@ -1243,7 +1243,7 @@ placement locale model =
 calendarOverviewCode : String
 calendarOverviewCode =
     """-- model
-{ calendar : Calendar.State }   -- Calendar.init "bookings" |> Calendar.setValue (Just model.today)
+{ calendar : Calendar.State }   -- Calendar.init "bookings" |> Calendar.setToday today |> Calendar.setValue (Just today)
 
 -- msg
 CalendarMsg Calendar.Msg
@@ -1258,8 +1258,7 @@ CalendarMsg inner ->
 
 -- view
 Calendar.view CalendarMsg
-    [ Calendar.today model.today
-    , Calendar.todayButton
+    [ Calendar.todayButton
     , Calendar.weekNumbers
     , Calendar.size Large
     , Calendar.markers
@@ -1275,9 +1274,9 @@ Calendar.value model.calendar   -- Maybe Date"""
 
 calendarSmallCode : String
 calendarSmallCode =
-    """Calendar.view CalendarMsg
-    [ Calendar.today model.today
-    , Calendar.min (Date.addDays -10 model.today)
+    """-- model: Calendar.init "delivery" |> Calendar.setToday today
+Calendar.view CalendarMsg
+    [ Calendar.min (Date.addDays -10 model.today)
     , Calendar.max (Date.addDays 40 model.today)
     , Calendar.disabledWhen isWeekend
     , Calendar.size Small
@@ -1292,10 +1291,10 @@ isWeekend day =
 calendarPeriodCode : String
 calendarPeriodCode =
     """-- model
-{ period : Calendar.State }   -- Calendar.initRange "period" |> Calendar.setMonths 2
+{ period : Calendar.State }   -- Calendar.initRange "period" |> Calendar.setToday today |> Calendar.setMonths 2
 
 -- view
-Calendar.view PeriodMsg [ Calendar.today model.today ] model.period
+Calendar.view PeriodMsg [] model.period
 
 -- read
 Calendar.range model.period    -- Maybe ( Date, Date ): Just after the second click
@@ -1304,9 +1303,9 @@ Calendar.anchor model.period   -- Maybe Date: the first click, while the second 
 
 calendarNorwegianCode : String
 calendarNorwegianCode =
-    """Calendar.view CalendarMsg
-    [ Calendar.today model.today
-    , Calendar.locale Locale.nb
+    """-- model: Calendar.init "deliveries" |> Calendar.setToday today
+Calendar.view CalendarMsg
+    [ Calendar.locale Locale.nb
     , Calendar.weekNumbers
     , Calendar.todayButton
     , Calendar.size Small
@@ -1316,11 +1315,9 @@ calendarNorwegianCode =
 
 calendarOrdersCode : String
 calendarOrdersCode =
-    """-- model: Calendar.init "orders" |> Calendar.setMonths 2
+    """-- model: Calendar.init "orders" |> Calendar.setToday today |> Calendar.setMonths 2
 Calendar.view CalendarMsg
-    [ Calendar.today model.today
-    , Calendar.markers (List.map dueDot model.orders)
-    ]
+    [ Calendar.markers (List.map dueDot model.orders) ]
     model.calendar
 
 dueDot : Order -> Calendar.Marker
@@ -1331,11 +1328,14 @@ dueDot order =
 calendarMonthsCode : String
 calendarMonthsCode =
     """-- model
-{ calendar : Calendar.State   -- Calendar.init "orders" |> Calendar.showDate model.today
-, due : Remote (List Order)   -- the orders due in the visible month
+{ calendar : Calendar.State   -- Calendar.init "orders" |> Calendar.setToday today
+, due : Remote (List Order)   -- the orders due on the visible days
 }
 
--- update
+-- init: ask for the marks of the days the calendar shows first
+fetchDue (Calendar.visibleRange calendar)
+
+-- update: other days are shown, so ask for their marks (a new question: Loading)
 CalendarMsg inner ->
     let
         ( calendar, cmd ) =
@@ -1352,7 +1352,7 @@ CalendarMsg inner ->
     else
         ( { model | calendar = calendar }, Cmd.map CalendarMsg cmd )
 
--- the answer, with the window it was asked for and the time it came
+-- the answer says which days it is for: one for days no longer shown is dropped
 GotDue window result at ->
     if window == Calendar.visibleRange model.calendar then
         ( { model | due = Remote.refreshWith model.due result at }, Cmd.none )
@@ -1360,6 +1360,7 @@ GotDue window result at ->
     else
         ( model, Cmd.none )
 
+-- the same question again: the marks that are there stay while it is asked
 RetryDue ->
     ( { model | due = Remote.refresh model.due }
     , Cmd.batch
@@ -1370,8 +1371,7 @@ RetryDue ->
 
 -- view
 Calendar.view CalendarMsg
-    [ Calendar.today model.today
-    , Calendar.remote (Remote.map (List.map dueMark) model.due)
+    [ Calendar.remote (Remote.map (List.map dueMark) model.due)
     , Calendar.onRetry RetryDue
     ]
     model.calendar"""
