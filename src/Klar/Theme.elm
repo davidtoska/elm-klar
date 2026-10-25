@@ -52,7 +52,7 @@ error. Each has a light and a dark mode; the mode is `Light`, `Dark` or `System`
 A choice the person makes is stored with `key` and `modeKey` and read back with
 `fromKey` and `modeFromKey`; `name` and `modeName` are the texts of a picker:
 
-    Radio.options (List.map (\theme -> Radio.option (Theme.key theme) (Theme.name model.locale theme)) Theme.all)
+    Radio.options (List.map (\theme -> Radio.option (Theme.key theme) (Theme.name (Settings.locale model.settings) theme)) Theme.all)
 
 A page that draws `Klar.css` itself instead of using `Klar.stylesheet` puts `Theme.style`
 after it. The colors of a theme are computed in Elm
@@ -300,7 +300,7 @@ modes =
 "Lys", "Mørk" or "System" in Norwegian.
 
     SegmentedControl.options
-        (List.map (\m -> SegmentedControl.option (Theme.modeKey m) (Theme.modeName model.locale m)) Theme.modes)
+        (List.map (\m -> SegmentedControl.option (Theme.modeKey m) (Theme.modeName (Settings.locale model.settings) m)) Theme.modes)
 
 -}
 modeName : Locale -> Mode -> String

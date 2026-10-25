@@ -791,7 +791,7 @@ viewEvent config (Event data) =
                         [ Internal.cls [ className, "klar-tabular" ]
                         , Attr.attribute "datetime" (isoTime moment)
                         , Attr.title
-                            (Settings.dateTime config.locale config.settings moment
+                            (Settings.dateTime (Settings.withLocale config.locale config.settings) moment
                                 ++ (case config.now of
                                         Just current ->
                                             "  ·  " ++ Format.relative config.locale current moment

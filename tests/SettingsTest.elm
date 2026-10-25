@@ -60,8 +60,8 @@ zones =
             \_ ->
                 Expect.equal
                     [ "2024-03-12 15:05", "12.03.2024 15:05" ]
-                    [ Settings.dateTime Locale.en oslo posix
-                    , Settings.dateTime Locale.nb oslo posix
+                    [ Settings.dateTime oslo posix
+                    , Settings.dateTime (Settings.withLocale Locale.nb oslo) posix
                     ]
         , test "the day is the day of the zone, which may be the next one" <|
             \_ ->
@@ -122,10 +122,40 @@ languageAndDay =
                     , \_ -> box Settings.default |> Query.hasNot [ Selector.attribute (Attr.attribute "lang" "en") ]
                     ]
                     ()
-        , test "the language of the settings writes the date and the time" <|
+        , test "the shell takes the language of the settings for its text and its lang" <|
             \_ ->
-                Expect.equal "12.03.2024 15:05"
-                    (Settings.dateTime (Settings.locale (Settings.withLocale Locale.nb oslo)) oslo posix)
+                AppShell.view [ AppShell.settings (Settings.withLocale Locale.nb Settings.default) ] [ Html.text "page" ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.class "klar-app-shell", Selector.attribute (Attr.attribute "lang" "nb") ]
+                        , Query.find [ Selector.class "klar-app-shell__skip" ] >> Query.has [ Selector.text "Hopp til hovedinnhold" ]
+                        ]
+        , test "a locale given to the shell wins over the settings, before or after them" <|
+            \_ ->
+                let
+                    norwegian =
+                        AppShell.settings (Settings.withLocale Locale.nb Settings.default)
+
+                    lang attributes =
+                        AppShell.view attributes [ Html.text "page" ]
+                            |> Query.fromHtml
+                            |> Query.has [ Selector.class "klar-app-shell", Selector.attribute (Attr.attribute "lang" "en") ]
+                in
+                Expect.all
+                    [ \_ -> lang [ AppShell.locale Locale.en, norwegian ]
+                    , \_ -> lang [ norwegian, AppShell.locale Locale.en ]
+                    , \_ -> lang [ AppShell.settings Settings.default ]
+                    , \_ -> lang []
+                    ]
+                    ()
+        , test "the language of the settings writes the date and the time, in UTC until the zone is known" <|
+            \_ ->
+                Expect.equal
+                    [ "12.03.2024 15:05", "12.03.2024 14:05 UTC", "2024-03-12 14:05 UTC" ]
+                    [ Settings.dateTime (Settings.withLocale Locale.nb oslo) posix
+                    , Settings.dateTime (Settings.withLocale Locale.nb Settings.default) posix
+                    , Settings.dateTime Settings.default posix
+                    ]
         ]
 
 
