@@ -1,16 +1,8 @@
 # Klar for an AI that builds an application
 
-Klar is an Elm package (`davidtoska/elm-klar`, modules `Klar.*`) for precise, data-dense
-applications: tables with 50 000 rows, filters, forms, dialogs, dashboards. You build the
-application, a person reviews it. An application is **Klar plus your own Elm code**: no CSS, no
-JavaScript, no class names, no `style`.
+Klar is an Elm package (`davidtoska/elm-klar`, modules `Klar.*`) for precise, data-dense applications: tables with 50 000 rows, filters, forms, dialogs, dashboards. You build the application, a person reviews it. An application is **Klar plus your own Elm code**: no CSS, no JavaScript, no class names, no `style`.
 
-Read in this order, and stop when you can write the screen: this file; `ai/klar-index.json` (search
-`keywords`, `purpose`, `whenToUse`, `whenNot`, `quickPath`, `related` before you open anything);
-`ai/modules/<Module>.md` (every signature, then the documentation; the long ones start with a Quick
-path); `example/src/Examples/<Name>.elm` (six complete programs: `Inbox`, `EditForm`, `ConfirmDelete`,
-`Dashboard`, `MultiStep`, `CommandPalette`). Do not read `src/` or the rest of `example/`: they are the library's
-own source and its showcase, not guidance.
+Read in this order, and stop when you can write the screen: this file; `ai/klar-index.json` (search `keywords`, `purpose`, `whenToUse`, `whenNot`, `quickPath`, `related` before you open anything); `ai/modules/<Module>.md` (every signature, then the documentation; the long ones start with a Quick path); `example/src/Examples/<Name>.elm` (six complete programs: `Inbox`, `EditForm`, `ConfirmDelete`, `Dashboard`, `MultiStep`, `CommandPalette`). Do not read `src/` or the rest of `example/`: they are the library's own source and its showcase, not guidance.
 
 ## Start here
 
