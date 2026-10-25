@@ -17,8 +17,8 @@ import Klar.Diff.Inline as Inline exposing (Segment(..))
 import Klar.Diff.Keys as Keys
 import Klar.Diff.Myers as Myers
 import Klar.Format as Format
+import Klar.Ids as Ids
 import Klar.Locale as Locale
-import Klar.Remote as Remote
 import Set
 import Test exposing (Test, describe, fuzz, fuzz2, fuzz3, test)
 import Test.Html.Event as Event
@@ -315,17 +315,17 @@ start diff =
     { state = Diff.init "diff", diff = diff }
 
 
-viewOf : List Diff.Attribute -> Model -> Html Diff.Msg
+viewOf : List (Diff.Attribute Diff.Msg) -> Model -> Html Diff.Msg
 viewOf attributes model =
     Diff.view identity attributes model.state model.diff
 
 
-query : List Diff.Attribute -> Model -> Query.Single Diff.Msg
+query : List (Diff.Attribute Diff.Msg) -> Model -> Query.Single Diff.Msg
 query attributes model =
     Query.fromHtml (viewOf attributes model)
 
 
-press : List Diff.Attribute -> List Selector -> Model -> Result String Model
+press : List (Diff.Attribute Diff.Msg) -> List Selector -> Model -> Result String Model
 press attributes selectors model =
     query attributes model
         |> Query.find selectors
@@ -585,10 +585,25 @@ nameTests =
             \_ ->
                 viewOf [ label ] (start linesDiff)
                     |> theOnlyOne (Expect.all [ Query.has [ region, Selector.class "klar-diff__scroll" ], Query.hasNot [ frame ] ])
-        , test "a static view of lines has the name on the region only: it is not announced twice" <|
+        , test "a static view of lines has the name on the box that scrolls only, a group and not a landmark" <|
             \_ ->
                 Diff.viewStatic [ label ] linesDiff
-                    |> theOnlyOne (Query.has [ region, Selector.class "klar-diff__scroll" ])
+                    |> theOnlyOne (Expect.all [ Query.has [ group, Selector.class "klar-diff__scroll" ], Query.hasNot [ region ] ])
+        , test "wrapped lines do not scroll: the name is on the whole and the box is no tab stop" <|
+            \_ ->
+                Diff.viewStatic [ label, Diff.wrapLines ] linesDiff
+                    |> Expect.all
+                        [ theOnlyOne (Query.has [ group, Selector.class "klar-diff" ])
+                        , Query.fromHtml >> Query.find [ Selector.class "klar-diff__scroll" ] >> Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
+                        ]
+        , test "in the viewer wrapped lines stay a tab stop with the name, so n and p can be reached with Tab" <|
+            \_ ->
+                viewOf [ label, Diff.wrapLines ] (start linesDiff)
+                    |> theOnlyOne (Query.has [ region, Selector.class "klar-diff__scroll", Selector.attribute (Attr.tabindex 0) ])
+        , test "wrapped lines with a height scroll up and down, so the box is a tab stop again" <|
+            \_ ->
+                viewOf [ label, Diff.wrapLines, Diff.maxHeight 200 ] (start linesDiff)
+                    |> theOnlyOne (Query.has [ region, Selector.class "klar-diff__scroll", Selector.attribute (Attr.tabindex 0) ])
         , test "a static view of fields is a group with the name" <|
             \_ ->
                 Diff.viewStatic [ label ] fieldsDiff
@@ -790,13 +805,13 @@ type alias Item =
 compareView : List (Compare.Field Item msg) -> List Item -> Html msg
 compareView fields items =
     Compare.view []
-        { label = "Compare"
-        , records = Remote.Loaded items
+        { ariaLabel = "Compare"
+        , ids = Ids.int
         , id = .id
-        , toKey = String.fromInt
         , header = \item -> Html.text item.name
         , fields = fields
         }
+        items
 
 
 compareTests : Test
@@ -840,13 +855,13 @@ compareTests =
         , test "in Norwegian" <|
             \_ ->
                 Compare.view [ Compare.locale Locale.nb ]
-                    { label = "Sammenlign"
-                    , records = Remote.Loaded items
+                    { ariaLabel = "Sammenlign"
+                    , ids = Ids.int
                     , id = .id
-                    , toKey = String.fromInt
                     , header = \item -> Html.text item.name
                     , fields = []
                     }
+                    items
                     |> Query.fromHtml
                     |> Query.has [ Selector.text "Ingen felt" ]
         , test "records with the same id are all drawn" <|

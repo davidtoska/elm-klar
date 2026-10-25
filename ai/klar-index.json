@@ -4148,7 +4148,7 @@
       "group": "Text and change",
       "purpose": "Records side by side, with the differences marked: two or more products, two versions of an order, \"your version\" against \"theirs\".",
       "whenToUse": "two or more records are read side by side and the application wants to see where they differ.",
-      "whenNot": "the change between two versions of one text or record is the point, use `Klar.Diff`.",
+      "whenNot": "the change between two versions of one text or record is the point, use `Klar.Diff`; many records of one kind with sorting and paging, use `Klar.Table`.",
       "state": [],
       "msg": [],
       "ids": [],
@@ -4156,18 +4156,18 @@
       "quickPath": [],
       "mainFunctions": [
         "view",
+        "viewRemote",
         "text",
         "maybe",
         "html",
         "longText",
         "heading",
-        "baseline",
-        "onlyDifferences"
+        "baseline"
       ],
       "related": [
         "Klar.Remote",
-        "Klar.Table",
-        "Klar.Diff"
+        "Klar.Ids",
+        "Klar.Table"
       ],
       "keywords": [
         "compare",

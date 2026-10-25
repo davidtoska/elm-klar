@@ -5,7 +5,7 @@ module Klar.Diff exposing
     , JsonOption, matchBy
     , isEmpty, tooLarge, stats
     , Hunk, hunks, hunkKey, hunkBefore, hunkAfter
-    , State, init, Msg, update, setSplit, isSplit
+    , State, init, Msg, update, setSplit, isSplit, currentHunk, goToHunk
     , Attribute, ariaLabel, context, maxChanges, maxHeight, wrapLines, showUnchangedFields, locale
     )
 
@@ -85,7 +85,7 @@ when there is only one JSON value.
 
 # State
 
-@docs State, init, Msg, update, setSplit, isSplit
+@docs State, init, Msg, update, setSplit, isSplit, currentHunk, goToHunk
 
 
 # Attributes
@@ -619,13 +619,14 @@ linesText changed =
 runs of unchanged lines the user opened, how many changes are shown and which
 change the user went to last. Make one with `init`, keep it in your model and give
 it to `view` and `update`. It holds no functions and no diff, so a new diff can be
-shown with the same state (the opened runs are remembered by where they start).
+shown with the same state (the opened runs are remembered by where they start, and
+the change the user went to by its `hunkKey`).
 -}
 type State
     = State
         { id : String
         , split : Bool
-        , current : Maybe Int
+        , current : Maybe String
         , folds : Dict String Int
         , shown : Int
         }
@@ -659,14 +660,56 @@ isSplit (State state) =
     state.split
 
 
+{-| The change the user went to last (with `n` and `p`, or the buttons "Next" and
+"Previous"), or `Nothing` before the first step. The state remembers the change by its
+`hunkKey`, so when the diff is made again (other options, an edited text) this is the
+same change, or `Nothing` when the new diff does not have it; never another change. Use it to show a panel
+for the change the user is on, such as "Accept" and "Reject" for that hunk, with
+`hunkKey` to remember the decision.
+
+    Diff.currentHunk model.policyDiff model.policyView
+        |> Maybe.map Diff.hunkKey
+
+-}
+currentHunk : Diff -> State -> Maybe Hunk
+currentHunk diff (State state) =
+    state.current
+        |> Maybe.andThen (\key -> List.head (List.filter (\hunk -> hunkKey hunk == key) (hunks diff)))
+
+
+{-| Goes to the change with this `hunkKey`, as if the user had stepped to it: it
+becomes the current change, it is drawn even when it is after the first changes that
+are shown, and the command moves the keyboard focus to it (map it with `Cmd.map`).
+A key that is not in this diff changes nothing. Use it for a list of the changes next
+to the viewer, or to go back to the change the user decided on last.
+
+    ( state, cmd ) =
+        Diff.goToHunk model.policyDiff key model.policyView
+
+-}
+goToHunk : Diff -> String -> State -> ( State, Cmd Msg )
+goToHunk diff key state =
+    case
+        hunks diff
+            |> List.indexedMap Tuple.pair
+            |> List.filter (\( _, hunk ) -> hunkKey hunk == key)
+            |> List.head
+    of
+        Just ( index, _ ) ->
+            update (Go index key) state
+
+        Nothing ->
+            ( state, Cmd.none )
+
+
 {-| The messages of the viewer. Wrap them in a message of your own, give them to
 `update` and use the same wrapper in `view`.
 -}
 type Msg
-    = Go Int
+    = Go Int String
     | Reveal String Int
     | Hide String
-    | ShowMore Int Int
+    | ShowMore Int Int String
     | SetSplit Bool
     | Noop
 
@@ -680,8 +723,8 @@ with `Cmd.map`.
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
-        Go index ->
-            ( State { state | current = Just index, shown = max state.shown (index + 1) }
+        Go index key ->
+            ( State { state | current = Just key, shown = max state.shown (index + 1) }
             , Internal.focus (changeDomId state.id index) Noop
             )
 
@@ -693,15 +736,20 @@ update msg ((State state) as current) =
             ( State { state | folds = Dict.insert key count state.folds }
               -- the focus goes to the first row that appeared: the button that was
               -- pressed is gone, and the button above (the fold that opened, far
-              -- up in a long run) would scroll the page back
-            , Internal.focus
-                (if before == 0 then
-                    foldDomId state.id key
+              -- up in a long run) would scroll the page back. Only every `rowStep`th
+              -- row has an id; a count kept from an earlier diff can stop in between,
+              -- and then the next row with an id, or the fold itself, takes the focus,
+              -- so that it never falls to the page
+            , if before == 0 then
+                Internal.focus (foldDomId state.id key) Noop
 
-                 else
-                    rowDomId state.id key before
-                )
-                Noop
+              else
+                Internal.focusFirst
+                    [ rowDomId state.id key before
+                    , rowDomId state.id key ((before // rowStep + 1) * rowStep)
+                    , foldDomId state.id key
+                    ]
+                    Noop
             )
 
         Hide key ->
@@ -709,10 +757,10 @@ update msg ((State state) as current) =
             , Internal.focus (foldDomId state.id key) Noop
             )
 
-        ShowMore count first ->
+        ShowMore count first key ->
             -- The button that was pressed goes away when everything is shown:
             -- the focus goes to the first change that appeared.
-            ( State { state | shown = count, current = Just first }
+            ( State { state | shown = count, current = Just key }
             , Internal.focus (changeDomId state.id first) Noop
             )
 
@@ -764,7 +812,7 @@ revealedBefore key folds =
 {-| A setting of the viewer. Make them with the functions below and pass a list to
 `view` or `viewStatic`; later attributes win over earlier ones.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -779,7 +827,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { ariaLabel = Nothing
@@ -794,10 +842,12 @@ configure attributes =
 
 
 {-| The accessible name of the diff, such as "Changes to the shipping policy". It
-names the area that scrolls, which screen readers announce as a region. The
-default is "Changes".
+names the box of the changes, which screen readers announce as a region in `view` and
+as a group in `viewStatic`; when that box is no tab stop (see `wrapLines` and
+`maxHeight`), it names the whole diff, as a group.
+The default is "Changes".
 -}
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ariaLabel text =
     Attribute (\config -> { config | ariaLabel = Just text })
 
@@ -806,7 +856,7 @@ ariaLabel text =
 are folded into a row that says how many they are and opens when it is pressed.
 The default is 3, and the value is kept between 0 and 20.
 -}
-context : Int -> Attribute
+context : Int -> Attribute msg
 context count =
     Attribute (\config -> { config | context = clamp 0 20 count })
 
@@ -818,7 +868,7 @@ lines is cut as well, after 500 lines, with a button that shows 500 more. `viewS
 has no buttons, so it draws at most 1,000 changes and 500 lines of a block, and says
 how many it left out.
 -}
-maxChanges : Int -> Attribute
+maxChanges : Int -> Attribute msg
 maxChanges count =
     Attribute (\config -> { config | maxChanges = clamp 10 5000 count })
 
@@ -827,15 +877,17 @@ maxChanges count =
 default the viewer grows with its content. A diff of lines scrolls sideways inside
 its own box in any case, never the page.
 -}
-maxHeight : Int -> Attribute
+maxHeight : Int -> Attribute msg
 maxHeight pixels =
     Attribute (\config -> { config | maxHeight = Just pixels })
 
 
 {-| Wraps long lines of a text diff instead of scrolling sideways. Good for
-prose, such as a policy; code is easier to read when it keeps its lines.
+prose, such as a policy; code is easier to read when it keeps its lines. In `view`
+the box of the lines stays a tab stop, for `n` and `p`; in `viewStatic`, with nothing
+to scroll sideways, it is a tab stop only when it has a `maxHeight`.
 -}
-wrapLines : Attribute
+wrapLines : Attribute msg
 wrapLines =
     Attribute (\config -> { config | wrap = True })
 
@@ -844,7 +896,7 @@ wrapLines =
 `fields`. By default only the fields that changed are shown. It has no effect on
 other diffs.
 -}
-showUnchangedFields : Attribute
+showUnchangedFields : Attribute msg
 showUnchangedFields =
     Attribute (\config -> { config | unchangedFields = True })
 
@@ -852,7 +904,7 @@ showUnchangedFields =
 {-| The language of the built-in text: the toolbar, the rows that fold unchanged
 lines, the counts and the notes. The default is `Locale.default`, which is English.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -996,6 +1048,8 @@ type alias Ctx msg =
     , config : Config
     , t : Texts
     , changeCount : Int
+    , changeKeys : Array String
+    , current : Maybe Int
     , interactive : Bool
     }
 
@@ -1013,11 +1067,12 @@ with many changes draws the first ones and says "Showing 200 of 1,340 changes" w
 buttons to show more (see `maxChanges`). One block of more than 500 changed lines is
 cut as well: "Showing 500 of 20,000 changed lines", with a button for 500 more.
 
-**Keyboard.** The box that scrolls is a tab stop with a name (`ariaLabel`), so the
-arrow keys, Page Down and Home scroll it (a list of JSON or field changes is a tab stop
-only with `maxHeight`; without it the whole viewer has the name). The buttons "Previous
-change" and "Next change" move the focus to a change, and the box scrolls to it; while the
-focus is in the box, `n` and `p` do the same without leaving it. The rows that fold
+**Keyboard.** The box of a text diff is a tab stop with a name (`ariaLabel`), also
+with `wrapLines`, so the arrow keys, Page Down and Home scroll it and `n` and `p` can be
+reached with Tab (a list of JSON or field changes is a tab stop only with `maxHeight`;
+without it the whole viewer has the name). The buttons "Previous change" and "Next
+change" move the focus to a change, and the box scrolls to it; while the focus is in the
+box, `n` and `p` do the same without leaving it. The rows that fold
 unchanged lines are buttons; when one opens more lines the focus goes to the first line
 that appeared, so that the page does not jump.
 
@@ -1036,7 +1091,7 @@ The viewer needs an id from `init` for the focus. For a list of many diffs, wher
 a state for each would be a nuisance, use `viewStatic`.
 
 -}
-view : (Msg -> msg) -> List Attribute -> State -> Diff -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Diff -> Html msg
 view toMsg attributes state diff =
     render (Just toMsg) (configure attributes) state diff
 
@@ -1049,11 +1104,14 @@ folded, into rows that say how many they are but do not open.
 
     Diff.viewStatic [ Diff.locale model.locale ] entry.diff
 
-A diff of lines scrolls sideways inside a box that is a tab stop; the others do not
-need one and are plain lists.
+A diff of lines scrolls sideways inside a box that is a tab stop and a group named by
+`ariaLabel`, not a landmark, so that an audit log of fifty entries does not add fifty
+regions to the page (give each entry its own `ariaLabel`). With `wrapLines` nothing
+scrolls sideways and the box is no tab stop. The others do not need one and are plain
+lists.
 
 -}
-viewStatic : List Attribute -> Diff -> Html msg
+viewStatic : List (Attribute msg) -> Diff -> Html msg
 viewStatic attributes diff =
     render Nothing (configure attributes) (init "") diff
 
@@ -1064,17 +1122,32 @@ render toMsg config state ((Diff diff) as whole) =
         t =
             texts config.locale
 
+        changeKeys =
+            Array.fromList (List.map hunkKey (hunks whole))
+
+        (State s) =
+            state
+
         ctx =
             { toMsg = toMsg
             , state = state
             , config = config
             , t = t
-            , changeCount = List.length (hunks whole)
+            , changeCount = Array.length changeKeys
+            , changeKeys = changeKeys
+
+            -- the change the user went to, found again by its key in this diff
+            , current =
+                s.current
+                    |> Maybe.andThen
+                        (\key ->
+                            Array.toIndexedList changeKeys
+                                |> List.filter (\( _, k ) -> k == key)
+                                |> List.head
+                                |> Maybe.map Tuple.first
+                        )
             , interactive = interactive
             }
-
-        (State s) =
-            state
 
         label =
             Maybe.withDefault t.defaultLabel config.ariaLabel
@@ -1126,7 +1199,7 @@ render toMsg config state ((Diff diff) as whole) =
                     False
 
                 LinesContent _ ->
-                    not (isEmpty whole)
+                    not (isEmpty whole) && linesScroll interactive config
 
                 EntriesContent _ _ ->
                     interactive
@@ -1171,6 +1244,29 @@ render toMsg config state ((Diff diff) as whole) =
                 ]
 
 
+{-| Whether the table of lines is a tab stop: when it can scroll (sideways unless the
+lines are wrapped, up and down with a `maxHeight`), and always in the viewer, where
+`n` and `p` are pressed in it.
+-}
+linesScroll : Bool -> Config -> Bool
+linesScroll interactive config =
+    interactive || not config.wrap || config.maxHeight /= Nothing
+
+
+{-| The key of the change with this index in the diff that is shown.
+-}
+keyAt : Ctx msg -> Int -> String
+keyAt ctx index =
+    Maybe.withDefault "" (Array.get index ctx.changeKeys)
+
+
+{-| The message that goes to the change with this index of the diff that is shown.
+-}
+goTo : Ctx msg -> Int -> Msg
+goTo ctx index =
+    Go index (keyAt ctx index)
+
+
 isLines : Content -> Bool
 isLines content =
     case content of
@@ -1211,15 +1307,7 @@ viewToolbar ctx ((Diff diff) as whole) =
                             ]
 
                 current =
-                    state.current
-                        |> Maybe.andThen
-                            (\index ->
-                                if index < ctx.changeCount then
-                                    Just index
-
-                                else
-                                    Nothing
-                            )
+                    ctx.current
 
                 previous =
                     case current of
@@ -1257,7 +1345,7 @@ viewToolbar ctx ((Diff diff) as whole) =
                         , Button.disabled (target == Nothing)
                         , case target of
                             Just index ->
-                                Button.onClick (toMsg (Go index))
+                                Button.onClick (toMsg (goTo ctx index))
 
                             Nothing ->
                                 Button.htmlAttrs []
@@ -1406,10 +1494,11 @@ viewSummary ctx summary =
 
 
 {-| The box that scrolls: sideways for long lines, and up and down when there is a
-`maxHeight`. It is a tab stop with a name when it can scroll (a table of lines
-always can, a list of changes only with a `maxHeight`), so the arrow keys scroll it.
-In the viewer `n` and `p` go to the next and the previous change while the focus is
-inside, whether it is a tab stop or not.
+`maxHeight`. It is a tab stop with a name when it can scroll (a table of lines that
+are not wrapped, wrapped lines with a `maxHeight`, a list of changes with a
+`maxHeight`), so the arrow keys scroll it. In the viewer the table of lines is always
+a tab stop, so that `n` and `p` can be reached with Tab; they go to the next and the
+previous change while the focus is anywhere inside.
 -}
 scrollArea : Ctx msg -> String -> Bool -> List (Html msg) -> Html msg
 scrollArea ctx label tabStop content =
@@ -1418,15 +1507,7 @@ scrollArea ctx label tabStop content =
             ctx.state
 
         current =
-            state.current
-                |> Maybe.andThen
-                    (\index ->
-                        if index < ctx.changeCount then
-                            Just index
-
-                        else
-                            Nothing
-                    )
+            ctx.current
 
         keys =
             case ctx.toMsg of
@@ -1435,21 +1516,21 @@ scrollArea ctx label tabStop content =
                         [ case current of
                             Just index ->
                                 if index + 1 < ctx.changeCount then
-                                    Just ( "n", toMsg (Go (index + 1)) )
+                                    Just ( "n", toMsg (goTo ctx (index + 1)) )
 
                                 else
                                     Nothing
 
                             Nothing ->
                                 if ctx.changeCount > 0 then
-                                    Just ( "n", toMsg (Go 0) )
+                                    Just ( "n", toMsg (goTo ctx 0) )
 
                                 else
                                     Nothing
                         , case current of
                             Just index ->
                                 if index > 0 then
-                                    Just ( "p", toMsg (Go (index - 1)) )
+                                    Just ( "p", toMsg (goTo ctx (index - 1)) )
 
                                 else
                                     Nothing
@@ -1472,7 +1553,16 @@ scrollArea ctx label tabStop content =
          ]
             ++ (if tabStop then
                     [ Attr.tabindex 0
-                    , Attr.attribute "role" "region"
+
+                    -- the viewer is a landmark of the page; a static diff is one of many in
+                    -- a list (an audit log), and fifty landmarks would flood the list of them
+                    , Attr.attribute "role"
+                        (if ctx.interactive then
+                            "region"
+
+                         else
+                            "group"
+                        )
                     , Attr.attribute "aria-label" label
                     ]
                         ++ (if ctx.interactive then
@@ -1554,7 +1644,7 @@ viewLines ctx label compared =
     in
     scrollArea ctx
         label
-        True
+        (linesScroll ctx.interactive ctx.config)
         [ Keyed.node "table"
             [ Internal.cls
                 [ "klar-diff__table"
@@ -1709,7 +1799,7 @@ viewBlock ctx split compared block =
                     ctx.state
 
                 isCurrent =
-                    state.current == Just hunk.index
+                    ctx.current == Just hunk.index
 
                 key =
                     hunkRowsKey hunk
@@ -1833,9 +1923,18 @@ contextRows ctx split compared opened oldStart newStart from count =
                         compared.newMissingNewline && newNumber == Array.length compared.new
                 in
                 if split then
+                    let
+                        -- with ignoreWhitespace or ignoreCase an unchanged line can still be
+                        -- written differently: the old column shows the old text
+                        oldText =
+                            Array.get (oldNumber - 1) compared.old |> Maybe.withDefault text
+
+                        oldMissing =
+                            compared.oldMissingNewline && oldNumber == Array.length compared.old
+                    in
                     Html.tr (Internal.cls [ "klar-diff__row" ] :: openedRowAttributes ctx opened offset)
-                        (sideCells ctx ContextRow (Just oldNumber) [ { text = text, changed = False } ] missing Nothing False
-                            ++ sideCells ctx ContextRow (Just newNumber) [ { text = text, changed = False } ] missing Nothing True
+                        (sideCells ctx ContextRow (Just oldNumber) [ { text = oldText, changed = False } ] oldMissing Nothing False
+                            ++ sideCells ctx ContextRow (Just newNumber) [ { text = text, changed = False } ] missing Nothing (oldText == text && oldMissing == missing)
                         )
 
                 else
@@ -2043,9 +2142,12 @@ codeCell extra ctx kind parts missingNewline =
         ]
 
 
+{-| The side of a row that has no line: three empty cells. They stay in the table for
+screen readers, so every row has the six columns of the heading.
+-}
 fillerCells : List (Html msg)
 fillerCells =
-    List.repeat 3 (Html.td [ Internal.cls [ "klar-diff__filler" ], ariaHidden ] [])
+    List.repeat 3 (Html.td [ Internal.cls [ "klar-diff__filler" ] ] [])
 
 
 {-| The text of a line: what changed inside it is an `ins` or a `del`, and the white
@@ -2235,18 +2337,26 @@ readers, so the line is read once.
 -}
 sideCells : Ctx msg -> RowKind -> Maybe Int -> List Part -> Bool -> Maybe ( String, String ) -> Bool -> List (Html msg)
 sideCells ctx kind number parts missingNewline focus duplicate =
-    let
-        extra =
-            if duplicate then
-                [ ariaHidden ]
+    if duplicate then
+        -- the same text as the other side: a screen reader hears it once, and the cells
+        -- stay in the table so that every row has the columns of the heading
+        [ numberCell [] kind number
+        , markCell [] ctx kind focus
+        , Html.td [ Internal.cls [ "klar-diff__code", kindClass kind ] ]
+            [ Html.span [ Internal.cls [ "klar-diff__text" ], ariaHidden ] (viewParts kind parts)
+            , if missingNewline then
+                Html.span [ Internal.cls [ "klar-diff__noeol" ], ariaHidden ] [ Html.text ctx.t.missingNewline ]
 
-            else
-                []
-    in
-    [ numberCell extra kind number
-    , markCell extra ctx kind focus
-    , codeCell extra ctx kind parts missingNewline
-    ]
+              else
+                Html.text ""
+            ]
+        ]
+
+    else
+        [ numberCell [] kind number
+        , markCell [] ctx kind focus
+        , codeCell [] ctx kind parts missingNewline
+        ]
 
 
 
@@ -2358,7 +2468,7 @@ viewEntry ctx source index entry =
                     ( "", "unchanged", [ srOnly (t.unchangedWord ++ ": "), value Nothing entry.after ] )
 
         current =
-            index /= Nothing && index == state.current
+            index /= Nothing && index == ctx.current
 
         focusAttributes =
             case ( index, ctx.interactive ) of
@@ -2500,14 +2610,14 @@ viewFooter ctx =
                     , Button.view
                         [ Button.small
                         , Button.ghost
-                        , Button.onClick (toMsg (ShowMore (visible + step) visible))
+                        , Button.onClick (toMsg (ShowMore (visible + step) visible (keyAt ctx visible)))
                         ]
                         (t.showMore step)
                     , if total - visible <= 1000 && total - visible > step then
                         Button.view
                             [ Button.small
                             , Button.ghost
-                            , Button.onClick (toMsg (ShowMore total visible))
+                            , Button.onClick (toMsg (ShowMore total visible (keyAt ctx visible)))
                             ]
                             (t.showAll total)
 

@@ -8,6 +8,8 @@ time; text that tries to do harm; and the Markdown editor with its preview.
 import Browser.Dom as Dom
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as Events
+import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Checkbox as Checkbox
 import Klar.Format as Format
@@ -38,6 +40,7 @@ type alias Model =
     , narrow : MarkdownEditor.State
     , errored : MarkdownEditor.State
     , locked : MarkdownEditor.State
+    , cited : Maybe String
     }
 
 
@@ -55,6 +58,7 @@ type Msg
     | ClearEditors
     | ScrollTo String
     | Scrolled
+    | Cite String
 
 
 init : ( Model, Cmd Msg )
@@ -68,6 +72,7 @@ init =
       , narrow = MarkdownEditor.init "md-narrow" |> MarkdownEditor.setValue Sample.note
       , errored = MarkdownEditor.init "md-error"
       , locked = MarkdownEditor.init "md-locked" |> MarkdownEditor.setValue Sample.note
+      , cited = Nothing
       }
     , Cmd.none
     )
@@ -152,6 +157,9 @@ update msg model =
         Scrolled ->
             ( model, Cmd.none )
 
+        Cite source ->
+            ( { model | cited = Just source }, Cmd.none )
+
 
 {-| Scrolls the box with the document so that the heading is at its top.
 -}
@@ -218,7 +226,7 @@ documentSection locale model =
                 (String.repeat (Markdown.headingLevel heading - 1) "\u{2003}" ++ Markdown.headingText heading)
     in
     Doc.section "A document"
-        "Headings, paragraphs, emphasis, links, quotes, lists (loose, nested, numbered, tasks), code, tables and images. The parser is part of the library, not the browser: HTML is shown as text, links are checked, and images are links until the page says otherwise. The table of contents is made from Markdown.headings and moves the box to the heading by its id."
+        "Headings, paragraphs, emphasis, links, quotes, lists (loose, nested, numbered, tasks), code, tables and images. The parser is part of the library, not the browser: HTML is shown as text, links are checked, and images are links until the page says otherwise. The table of contents is made from Markdown.headings and moves the box to the heading by its id. A link in the text to one of its headings ([the notes](#notes)) gets the prefix, #doc-notes; this showcase is a Browser.application, where such a click is a UrlRequest, so the page draws these links with Markdown.customLink and moves the box itself."
         [ Doc.example
             { title = "Every feature, and a table of contents"
             , description = Just "Wide tables and code scroll inside their own box, and a box that can scroll takes the Tab key. Each paragraph chooses its direction."
@@ -228,8 +236,16 @@ documentSection locale model =
 in
 Layout.row [ Layout.gap 4 ]
     [ Layout.stack [] (List.map tocEntry (Markdown.headings [ Markdown.idPrefix "doc-" ] document))
-    , Markdown.viewDocument [ Markdown.idPrefix "doc-" ] document
-    ]"""
+    , Markdown.viewDocument [ Markdown.idPrefix "doc-", Markdown.customLink headingLink ] document
+    ]
+
+-- in a Browser.application a link is a UrlRequest: the page moves the box itself
+headingLink link =
+    if String.startsWith "#doc-" link.href then
+        Just (Html.a [ Attr.href link.href, Events.preventDefaultOn "click" (Decode.succeed ( ScrollTo (String.dropLeft 1 link.href), True )) ] link.content)
+
+    else
+        Nothing"""
             }
             (Layout.row [ Layout.gap 6, Layout.alignStart ]
                 [ Layout.stack [ Layout.gap 1, Layout.alignStart ] (List.map entry headings)
@@ -241,7 +257,37 @@ Layout.row [ Layout.gap 4 ]
                     , Attr.style "overflow" "auto"
                     , Attr.style "padding-right" "12px"
                     ]
-                    [ Markdown.viewDocument [ Markdown.locale locale, Markdown.idPrefix idPrefix ] model.document ]
+                    [ Markdown.viewDocument [ Markdown.locale locale, Markdown.idPrefix idPrefix, Markdown.customLink headingLink ] model.document ]
+                ]
+            )
+        , Doc.example
+            { title = "Links of your own: citations"
+            , description = Just "Markdown.customLink draws the links that the page wants to draw itself, after the checks of the module, and gives Nothing for the others. Here [1](#cite-1) becomes a button that shows its source. Character references such as &nbsp;, &mdash;, &amp; and &copy; are the characters they stand for, never markup."
+            , code = Just """Markdown.view [ Markdown.customLink citation ] answer
+
+citation link =
+    if String.startsWith "#cite-" link.href then
+        Just (Button.view [ Button.link, Button.small, Button.onClick (Cite (String.dropLeft 6 link.href)) ] (String.dropLeft 6 link.href))
+
+    else
+        Nothing"""
+            }
+            (Layout.stack [ Layout.gap 2 ]
+                [ Markdown.view [ Markdown.locale locale, Markdown.customLink citation ] Sample.cited
+                , Text.caption
+                    (case model.cited of
+                        Just "1" ->
+                            "Source 1: the price list of spring 2026."
+
+                        Just "2" ->
+                            "Source 2: the delivery plan for the Oslo warehouse."
+
+                        Just other ->
+                            "Source " ++ other
+
+                        Nothing ->
+                            "Press a number to see its source."
+                    )
                 ]
             )
         , Doc.example
@@ -251,6 +297,42 @@ Layout.row [ Layout.gap 4 ]
             }
             (Markdown.view [ Markdown.headingOffset 2 ] "# Title\n\n## Section\n\n#### Detail, written as level four")
         ]
+
+
+{-| A link of the document to one of its own headings (`[the notes](#notes)`, which is
+`#doc-notes` on the page). The showcase is a `Browser.application`: a click on a link
+is a `UrlRequest`, and `Main` leaves fragments that are not routes alone, so the link
+moves the box with the document to the heading itself.
+-}
+headingLink : { href : String, external : Bool, title : String, content : List (Html Msg) } -> Maybe (Html Msg)
+headingLink link =
+    if String.startsWith ("#" ++ idPrefix) link.href then
+        Just
+            (Html.a
+                [ Attr.href link.href
+                , Attr.class "klar-md__link"
+                , Events.preventDefaultOn "click" (Decode.succeed ( ScrollTo (String.dropLeft 1 link.href), True ))
+                ]
+                link.content
+            )
+
+    else
+        Nothing
+
+
+{-| The citations of an answer, `[1](#cite-1)`, as buttons that show their source.
+-}
+citation : { href : String, external : Bool, title : String, content : List (Html Msg) } -> Maybe (Html Msg)
+citation link =
+    if String.startsWith "#cite-" link.href then
+        let
+            source =
+                String.dropLeft 6 link.href
+        in
+        Just (Button.view [ Button.link, Button.small, Button.onClick (Cite source) ] source)
+
+    else
+        Nothing
 
 
 streamingSection : Locale -> Model -> Html Msg
@@ -464,7 +546,7 @@ optionsSection =
               , description = "Fix the layout. Default: it follows the width of the container."
               }
             , { name = "MarkdownEditor.preview"
-              , type_ = "List Markdown.Attribute -> Attribute msg"
+              , type_ = "List (Markdown.Attribute msg) -> Attribute msg"
               , description = "Attributes of the preview, such as images."
               }
             , { name = "MarkdownEditor.setValue"

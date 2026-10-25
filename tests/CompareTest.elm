@@ -5,18 +5,22 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Compare as Compare
 import Klar.EmptyState as EmptyState
+import Klar.Ids as Ids
 import Klar.Locale as Locale
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Settings as Settings
 import Klar.Theme exposing (Density(..))
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
+import Time
 
 
 type Msg
     = Retry
     | OnlyDifferences Bool
+    | Chosen Int
 
 
 type alias Product =
@@ -85,14 +89,14 @@ fields =
 
 compare : List (Compare.Attribute Int Msg) -> Remote (List Product) -> Html Msg
 compare attributes records =
-    Compare.view attributes
-        { label = "Compare products"
-        , records = records
+    Compare.viewRemote attributes
+        { ariaLabel = "Compare products"
+        , ids = Ids.int
         , id = .id
-        , toKey = String.fromInt
         , header = \product -> Html.span [ Attr.class "product-name" ] [ Html.text product.name ]
         , fields = fields
         }
+        records
 
 
 shown : List (Compare.Attribute Int Msg) -> List Product -> Query.Single Msg
@@ -164,20 +168,97 @@ statesTests =
                 compare [] (Failed (Remote.problem Remote.server))
                     |> Query.fromHtml
                     |> Query.hasNot [ Selector.tag "button" ]
-        , test "refreshing keeps the table, dims it and says so" <|
+        , test "data that is being refreshed keeps the table, dims it and says so" <|
             \_ ->
-                shown [ Compare.refreshing True ] products
+                compare [] (Remote.refresh (Loaded products))
+                    |> Query.fromHtml
                     |> Expect.all
                         [ Query.has [ byClass "klar-compare--refreshing" ]
                         , Query.has [ byClass "klar-compare__progress" ]
                         , Query.has [ Selector.text "Refreshing ..." ]
+                        , Query.has [ Selector.text "W-100" ]
                         , Query.find [ Selector.tag "table" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                        , Query.hasNot [ byClass "klar-stale" ]
                         ]
-        , test "a table that is not refreshing has no progress line" <|
-            \_ -> shown [] products |> Query.hasNot [ byClass "klar-compare__progress" ]
-        , test "refreshing is ignored while loading" <|
-            \_ -> compare [ Compare.refreshing True ] Loading |> Query.fromHtml |> Query.hasNot [ byClass "klar-compare__progress" ]
+        , test "a table that is not refreshing has no progress line and is not busy" <|
+            \_ ->
+                shown [] products
+                    |> Expect.all
+                        [ Query.hasNot [ byClass "klar-compare__progress" ]
+                        , Query.hasNot [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                        ]
+        , test "old data after a failed refresh is marked, with the time and a retry" <|
+            \_ ->
+                compare [ Compare.onRetry Retry ] stale
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.text "W-100" ]
+                        , Query.find [ byClass "klar-compare__toolbar" ] >> Query.has [ byClass "klar-stale", Selector.text "Old data from 14:05 UTC" ]
+                        , Query.hasNot [ byClass "klar-compare--refreshing" ]
+                        , Query.find [ byClass "klar-stale" ]
+                            >> Query.find [ Selector.tag "button" ]
+                            >> Event.simulate Event.click
+                            >> Event.expect Retry
+                        ]
+        , test "old data has no retry without a message" <|
+            \_ -> compare [] stale |> Query.fromHtml |> Query.find [ byClass "klar-stale" ] |> Query.hasNot [ Selector.tag "button" ]
+        , test "old data that is refreshed again is marked and busy" <|
+            \_ ->
+                compare [ Compare.onRetry Retry ] (Remote.refresh stale)
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ byClass "klar-stale" ]
+                        , Query.has [ byClass "klar-compare--refreshing" ]
+                        , Query.has [ Selector.text "Refreshing ..." ]
+                        ]
+        , test "the time of old data is written in the zone of the settings" <|
+            \_ ->
+                compare [ Compare.settings (Settings.withZone (Time.customZone 120 []) Settings.default) ] stale
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.text "Old data from 16:05" ]
+        , test "fresh, refreshing and old data draw the same elements around the table" <|
+            \_ ->
+                -- the toolbar and the frame stay in their places, so focus inside survives a refresh
+                Expect.all
+                    (List.map
+                        (\remote ->
+                            \_ ->
+                                compare [ Compare.onlyDifferences False, Compare.onOnlyDifferences OnlyDifferences ] remote
+                                    |> Query.fromHtml
+                                    |> Query.children []
+                                    |> Expect.all
+                                        [ Query.count (Expect.equal 2)
+                                        , Query.index 0 >> Query.has [ byClass "klar-compare__toolbar" ]
+                                        , Query.index 1 >> Query.has [ byClass "klar-compare__frame" ]
+                                        , Query.index 1 >> Query.children [] >> Query.first >> Query.has [ byClass "klar-compare__scroll" ]
+                                        ]
+                        )
+                        [ Loaded products, Remote.refresh (Loaded products), stale, Remote.refresh stale ]
+                    )
+                    ()
+        , test "an id makes the comparison a place for focus in every state" <|
+            \_ ->
+                Expect.all
+                    (List.map
+                        (\remote ->
+                            \_ ->
+                                compare [ Compare.id "compare-products" ] remote
+                                    |> Query.fromHtml
+                                    |> Query.has [ Selector.id "compare-products", Selector.attribute (Attr.tabindex -1), byClass "klar-compare" ]
+                        )
+                        [ Loading, Failed (Remote.problem Remote.server), Loaded [], Loaded products, stale ]
+                    )
+                    ()
         ]
+
+
+{-| Old data: loaded at 14:05 UTC, then a refresh failed.
+-}
+stale : Remote (List Product)
+stale =
+    Remote.refreshWith (Remote.refreshWith Loading (Ok products) (Time.millisToPosix (14 * 3600000 + 5 * 60000)))
+        (Err (Remote.problem Remote.server))
+        (Time.millisToPosix (15 * 3600000))
 
 
 structureTests : Test
@@ -198,17 +279,47 @@ structureTests =
                         [ Query.count (Expect.equal 2)
                         , Query.first >> Query.has [ Selector.text "Pricing", Selector.attribute (Attr.colspan 4) ]
                         ]
-        , test "the table has a name and the box that scrolls is a named region and a tab stop" <|
+        , test "the box that scrolls is a named region and a tab stop, and the name is said once" <|
             \_ ->
                 shown [] products
                     |> Expect.all
-                        [ Query.find [ Selector.tag "table" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Compare products") ]
-                        , Query.find [ byClass "klar-compare__scroll" ]
+                        [ Query.find [ byClass "klar-compare__scroll" ]
                             >> Query.has
                                 [ Selector.attribute (Attr.attribute "role" "region")
                                 , Selector.attribute (Attr.attribute "aria-label" "Compare products")
                                 , Selector.attribute (Attr.tabindex 0)
                                 ]
+                        , Query.findAll [ Selector.attribute (Attr.attribute "aria-label" "Compare products") ] >> Query.count (Expect.equal 1)
+                        ]
+        , test "view takes the records as they are" <|
+            \_ ->
+                Compare.view []
+                    { ariaLabel = "Compare products"
+                    , ids = Ids.int
+                    , id = .id
+                    , header = \product -> Html.text product.name
+                    , fields = fields
+                    }
+                    products
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.text "4 of 5 fields differ from the baseline" ]
+                        , Query.hasNot [ byClass "klar-compare--refreshing" ]
+                        ]
+        , test "only the differences can be shown without a switch" <|
+            \_ ->
+                shown [ Compare.onlyDifferences True ] products
+                    |> Expect.all
+                        [ Query.hasNot [ Selector.text "Warehouse" ]
+                        , Query.hasNot [ Selector.tag "input" ]
+                        ]
+        , test "the skeleton is hidden from screen readers, which hear that it is loading" <|
+            \_ ->
+                compare [] Loading
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.find [ Selector.tag "table" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-hidden" "true") ]
+                        , Query.find [ Selector.attribute (Attr.attribute "role" "status") ] >> Query.has [ Selector.text "Loading ..." ]
                         ]
         , test "the heading of a record is whatever the application gives" <|
             \_ ->
@@ -344,6 +455,42 @@ baselineTests =
                 shown [ Compare.baseline 99 ] products
                     |> Query.find [ byClass "klar-compare__head--baseline" ]
                     |> Query.has [ Selector.text "Widget" ]
+        , test "the user can choose the baseline in the heading of a record" <|
+            \_ ->
+                shown [ Compare.onBaseline Chosen ] products
+                    |> Query.findAll [ Selector.tag "button", Selector.containing [ Selector.text "Set as baseline" ] ]
+                    |> Expect.all
+                        [ Query.count (Expect.equal 2)
+                        , Query.index 1 >> Event.simulate Event.click >> Event.expect (Chosen 3)
+                        ]
+        , test "every button is named with the title of its record, so a screen reader tells them apart" <|
+            \_ ->
+                shown [ Compare.onBaseline Chosen, Compare.id "cmp" ] products
+                    |> Expect.all
+                        [ Query.find [ Selector.id "cmp-pick-2" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" "cmp-pick-2 cmp-title-2") ]
+                        , Query.find [ Selector.id "cmp-title-2" ] >> Query.has [ Selector.text "Gadget" ]
+                        , Query.find [ Selector.id "cmp-pick-3" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" "cmp-pick-3 cmp-title-3") ]
+                        , Query.find [ Selector.id "cmp-title-3" ] >> Query.has [ Selector.text "Gizmo" ]
+                        , Query.find [ Selector.id "cmp-pick-1" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-labelledby" "cmp-pick-1 cmp-title-1"), Selector.text "Baseline" ]
+                        ]
+        , test "the baseline has the button in the same place, saying so, and it cannot be pressed" <|
+            \_ ->
+                shown [ Compare.onBaseline Chosen, Compare.baseline 2 ] products
+                    |> Query.find [ byClass "klar-compare__head--baseline" ]
+                    |> Query.find [ Selector.tag "button" ]
+                    |> Expect.all
+                        [ Query.has [ Selector.text "Baseline", Selector.attribute (Attr.attribute "aria-disabled" "true") ]
+                        , Event.simulate Event.click >> Event.toResult >> Expect.err
+                        ]
+        , test "without the attribute the baseline is a tag and there are no buttons" <|
+            \_ ->
+                shown [] products
+                    |> Expect.all
+                        [ Query.hasNot [ Selector.tag "button" ]
+                        , Query.has [ byClass "klar-compare__tag" ]
+                        ]
+        , test "a single record has nothing to choose" <|
+            \_ -> shown [ Compare.onBaseline Chosen ] [ widget ] |> Query.hasNot [ Selector.tag "button" ]
         , test "a single record is not called the baseline" <|
             \_ -> shown [] [ widget ] |> Query.hasNot [ byClass "klar-compare__head--baseline" ]
         ]
@@ -358,35 +505,35 @@ onlyDifferencesTests =
             \_ ->
                 Expect.all
                     [ \_ ->
-                        shown [ Compare.onlyDifferences False OnlyDifferences ] products
+                        shown [ Compare.onlyDifferences False, Compare.onOnlyDifferences OnlyDifferences ] products
                             |> Query.find [ Selector.tag "input" ]
                             |> Query.has [ Selector.attribute (Attr.attribute "role" "switch"), Selector.checked False ]
                     , \_ ->
-                        shown [ Compare.onlyDifferences True OnlyDifferences ] products
+                        shown [ Compare.onlyDifferences True, Compare.onOnlyDifferences OnlyDifferences ] products
                             |> Query.find [ Selector.tag "input" ]
                             |> Query.has [ Selector.checked True ]
                     ]
                     ()
         , test "the switch has its label" <|
             \_ ->
-                shown [ Compare.onlyDifferences False OnlyDifferences ] products
+                shown [ Compare.onlyDifferences False, Compare.onOnlyDifferences OnlyDifferences ] products
                     |> Query.has [ Selector.text "Show only differences" ]
         , test "flipping the switch sends the new value" <|
             \_ ->
-                shown [ Compare.onlyDifferences False OnlyDifferences ] products
+                shown [ Compare.onlyDifferences False, Compare.onOnlyDifferences OnlyDifferences ] products
                     |> Query.find [ Selector.tag "input" ]
                     |> Event.simulate (Event.check True)
                     |> Event.expect (OnlyDifferences True)
         , test "when it is off the rows that are equal are dimmed and still there" <|
             \_ ->
-                shown [ Compare.onlyDifferences False OnlyDifferences ] products
+                shown [ Compare.onlyDifferences False, Compare.onOnlyDifferences OnlyDifferences ] products
                     |> Expect.all
                         [ Query.has [ Selector.text "Warehouse" ]
                         , Query.has [ byClass "klar-compare__row--equal" ]
                         ]
         , test "when it is on the rows that are equal are left out" <|
             \_ ->
-                shown [ Compare.onlyDifferences True OnlyDifferences ] products
+                shown [ Compare.onlyDifferences True, Compare.onOnlyDifferences OnlyDifferences ] products
                     |> Expect.all
                         [ Query.hasNot [ Selector.text "Warehouse" ]
                         , Query.has [ Selector.text "SKU" ]
@@ -394,27 +541,27 @@ onlyDifferencesTests =
                         ]
         , test "the counts follow the switch" <|
             \_ ->
-                shown [ Compare.onlyDifferences True OnlyDifferences ] products
+                shown [ Compare.onlyDifferences True, Compare.onOnlyDifferences OnlyDifferences ] products
                     |> Query.has [ Selector.text "Showing 4 of 5 fields" ]
         , test "a heading with no row left is left out too" <|
             \_ ->
                 -- all three have the same price: the heading "Pricing" has nothing under it
                 -- once the discount is the same too
-                shown [ Compare.onlyDifferences True OnlyDifferences ] [ widget, { widget | id = 2 }, { widget | id = 3 } ]
+                shown [ Compare.onlyDifferences True, Compare.onOnlyDifferences OnlyDifferences ] [ widget, { widget | id = 2 }, { widget | id = 3 } ]
                     |> Expect.all
                         [ Query.hasNot [ Selector.text "Pricing" ]
                         , Query.has [ Selector.text "No differences" ]
                         ]
         , test "a heading with a row left stays" <|
             \_ ->
-                shown [ Compare.onlyDifferences True OnlyDifferences ] products
+                shown [ Compare.onlyDifferences True, Compare.onOnlyDifferences OnlyDifferences ] products
                     |> Expect.all
                         [ Query.has [ Selector.text "Pricing" ]
                         , Query.has [ Selector.text "Description" ]
                         ]
         , test "with a single record the switch is dimmed and everything is shown" <|
             \_ ->
-                shown [ Compare.onlyDifferences True OnlyDifferences ] [ widget ]
+                shown [ Compare.onlyDifferences True, Compare.onOnlyDifferences OnlyDifferences ] [ widget ]
                     |> Expect.all
                         [ Query.find [ Selector.tag "input" ] >> Query.has [ Selector.disabled True ]
                         , Query.has [ Selector.text "Warehouse" ]
@@ -544,7 +691,7 @@ localeTests =
     describe "the language"
         [ test "Norwegian" <|
             \_ ->
-                shown [ Compare.locale Locale.nb, Compare.onlyDifferences False OnlyDifferences ] products
+                shown [ Compare.locale Locale.nb, Compare.onlyDifferences False, Compare.onOnlyDifferences OnlyDifferences ] products
                     |> Expect.all
                         [ Query.has [ Selector.text "Felt" ]
                         , Query.has [ Selector.text "Referanse" ]

@@ -271,6 +271,68 @@ eventTests =
                 [ "a", "c", "v", "x", "s", "p", "f", "Enter", "Tab" ]
                     |> List.map (\key -> shortcut { key = key, ctrl = True, shift = False } "a b c" 2 3 (start "a b c") |> Result.toMaybe)
                     |> Expect.equal (List.repeat 9 Nothing)
+        , test "on a layout without Latin letters the physical key is the shortcut" <|
+            \_ ->
+                render [] (start "a b c")
+                    |> textarea
+                    |> Event.simulate
+                        (Event.custom "keydown"
+                            (Encode.object
+                                (( "key", Encode.string "и" )
+                                    :: ( "code", Encode.string "KeyB" )
+                                    :: ( "ctrlKey", Encode.bool True )
+                                    :: ( "metaKey", Encode.bool False )
+                                    :: ( "shiftKey", Encode.bool False )
+                                    :: ( "altKey", Encode.bool False )
+                                    :: target "a b c" 2 3
+                                )
+                            )
+                        )
+                    |> Event.toResult
+                    |> Result.map (\msg -> Editor.update msg (start "a b c"))
+                    |> value
+                    |> Expect.equal (Just "a **b** c")
+        , test "a Latin layout follows the letter, not the place of the key" <|
+            \_ ->
+                -- on a French keyboard the letter b is where it is everywhere, but z is where w is on others
+                render [] (start "a b c")
+                    |> textarea
+                    |> Event.simulate
+                        (Event.custom "keydown"
+                            (Encode.object
+                                (( "key", Encode.string "a" )
+                                    :: ( "code", Encode.string "KeyQ" )
+                                    :: ( "ctrlKey", Encode.bool True )
+                                    :: ( "metaKey", Encode.bool False )
+                                    :: ( "shiftKey", Encode.bool False )
+                                    :: ( "altKey", Encode.bool False )
+                                    :: target "a b c" 2 3
+                                )
+                            )
+                        )
+                    |> Event.toResult
+                    |> Result.toMaybe
+                    |> Expect.equal Nothing
+        , test "a key that ends a composition is never a shortcut" <|
+            \_ ->
+                render [] (start "a b c")
+                    |> textarea
+                    |> Event.simulate
+                        (Event.custom "keydown"
+                            (Encode.object
+                                (( "key", Encode.string "b" )
+                                    :: ( "keyCode", Encode.int 229 )
+                                    :: ( "ctrlKey", Encode.bool True )
+                                    :: ( "metaKey", Encode.bool False )
+                                    :: ( "shiftKey", Encode.bool False )
+                                    :: ( "altKey", Encode.bool False )
+                                    :: target "a b c" 2 3
+                                )
+                            )
+                        )
+                    |> Event.toResult
+                    |> Result.toMaybe
+                    |> Expect.equal Nothing
         , test "shift changes the meaning of a letter, so it is not bold" <|
             \_ ->
                 shortcut { key = "b", ctrl = True, shift = True } "a b c" 2 3 (start "a b c")
@@ -440,6 +502,36 @@ previewTests =
                 render [] (start (long ++ "**x**"))
                     |> Query.find [ Selector.attribute (Attr.attribute "aria-label" "Preview") ]
                     |> Query.has [ Selector.tag "strong" ]
+        , test "the headings of the preview are two levels down, so a form has no h1" <|
+            \_ ->
+                render [] (start "# Title\n\n## Part")
+                    |> Query.find [ Selector.attribute (Attr.attribute "aria-label" "Preview") ]
+                    |> Expect.all
+                        [ Query.has [ Selector.tag "h3" ]
+                        , Query.has [ Selector.tag "h4" ]
+                        , Query.hasNot [ Selector.tag "h1" ]
+                        ]
+        , test "a heading of the preview looks like the same heading in the result" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        render [] (start "# Title\n\n## Part")
+                            |> Query.find [ Selector.attribute (Attr.attribute "aria-label" "Preview") ]
+                            |> Expect.all
+                                [ Query.find [ Selector.tag "h3" ] >> Query.has [ Selector.class "klar-md__h1" ]
+                                , Query.find [ Selector.tag "h4" ] >> Query.has [ Selector.class "klar-md__h2" ]
+                                ]
+                    , \_ ->
+                        Query.fromHtml (Markdown.view [] "# Title")
+                            |> Query.find [ Selector.tag "h1" ]
+                            |> Query.has [ Selector.class "klar-md__h1" ]
+                    ]
+                    ()
+        , test "the application chooses the offset of the preview" <|
+            \_ ->
+                render [ Editor.preview [ Markdown.headingOffset 0 ] ] (start "# Title")
+                    |> Query.find [ Selector.attribute (Attr.attribute "aria-label" "Preview") ]
+                    |> Query.has [ Selector.tag "h1" ]
         , test "the preview is not announced" <|
             \_ ->
                 render [] (start "text")
@@ -628,10 +720,48 @@ textTests =
                 render [ Editor.maxLength 20 ] state
                     |> Expect.all
                         [ Query.has [ Selector.class "klar-textarea__counter--over" ]
-                        , Query.has [ Selector.text "The text is 10 characters too long." ]
+                        , Query.has [ Selector.text "The text is longer than 20 characters." ]
+                        , Query.has [ Selector.text "30/20" ]
                         , textarea >> Query.has [ Selector.attribute (Attr.attribute "aria-invalid" "true") ]
                         , textarea >> Query.hasNot [ Selector.attribute (Attr.maxlength 20) ]
                         ]
+        , test "the error of the limit has the same words at every key, so it is heard once" <|
+            \_ ->
+                Expect.all
+                    (List.map
+                        (\count ->
+                            \_ ->
+                                render [ Editor.maxLength 20 ] (start (String.repeat count "a"))
+                                    |> Query.find [ Selector.class "klar-field__error" ]
+                                    |> Query.has [ Selector.text "The text is longer than 20 characters." ]
+                        )
+                        [ 21, 25, 26, 400 ]
+                    )
+                    ()
+        , test "the counter is not a live region, and its status speaks only at the limits" <|
+            \_ ->
+                let
+                    status text =
+                        render [ Editor.maxLength 20 ] (start text)
+                            |> Query.find [ Selector.class "klar-textarea__counter" ]
+                            |> Query.find [ Selector.attribute (Attr.attribute "role" "status") ]
+                in
+                Expect.all
+                    [ \_ -> render [ Editor.maxLength 20 ] (start "hello") |> Query.hasNot [ Selector.attribute (Attr.attribute "aria-live" "polite") ]
+                    , \_ -> status "hello" |> Query.hasNot [ Selector.text "limit" ]
+                    , \_ -> status (String.repeat 18 "a") |> Query.has [ Selector.text "The text is close to the limit of 20 characters." ]
+                    , \_ -> status (String.repeat 19 "a") |> Query.has [ Selector.text "The text is close to the limit of 20 characters." ]
+
+                    -- over the limit the error says it, and the status is quiet
+                    , \_ -> status (String.repeat 25 "a") |> Query.hasNot [ Selector.text "characters." ]
+                    ]
+                    ()
+        , test "over the limit with an error of the application, the status says it" <|
+            \_ ->
+                render [ Editor.maxLength 5, Editor.error "Not allowed." ] (start "too long")
+                    |> Query.find [ Selector.class "klar-textarea__counter" ]
+                    |> Query.find [ Selector.attribute (Attr.attribute "role" "status") ]
+                    |> Query.has [ Selector.text "The text is longer than 5 characters." ]
         , test "typing past the limit is allowed" <|
             \_ ->
                 typed (String.repeat 25 "a") 25 (start "")
@@ -643,7 +773,7 @@ textTests =
                 render [ Editor.maxLength 5, Editor.error "Not allowed." ] (start "too long")
                     |> Expect.all
                         [ Query.has [ Selector.text "Not allowed." ]
-                        , Query.hasNot [ Selector.text "The text is 3 characters too long." ]
+                        , Query.find [ Selector.class "klar-field__error" ] >> Query.hasNot [ Selector.text "longer than" ]
                         ]
         , test "a text of exactly the limit is not too long" <|
             \_ ->
@@ -658,7 +788,7 @@ textTests =
                         , Query.has [ Selector.attribute (Attr.attribute "aria-label" "Oppgaveliste") ]
                         , Query.has [ Selector.text "Skriv" ]
                         , Query.has [ Selector.text "Forhåndsvisning" ]
-                        , Query.has [ Selector.text "Teksten er 3 tegn for lang." ]
+                        , Query.has [ Selector.text "Teksten er lengre enn 5 tegn." ]
                         , Query.has [ Selector.text "8 av 5 tegn" ]
                         , Query.has [ Selector.text "Markdown støttes" ]
                         ]

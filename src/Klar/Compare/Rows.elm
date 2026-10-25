@@ -164,26 +164,28 @@ visible onlyDifferences toRow items =
             isHeading item =
                 toRow item == Nothing
 
-            -- a heading stays when the next item is a row that stays
-            withoutEmptyHeadings remaining =
+            -- a heading stays when the next item is a row that stays; walking from the
+            -- end, that is when the item kept just before it is a row (tail recursive,
+            -- so thousands of fields do not grow the stack)
+            withoutEmptyHeadings remaining kept =
                 case remaining of
-                    heading :: next :: rest ->
-                        if isHeading heading && isHeading next then
-                            withoutEmptyHeadings (next :: rest)
+                    item :: rest ->
+                        if isHeading item then
+                            case kept of
+                                next :: _ ->
+                                    if isHeading next then
+                                        withoutEmptyHeadings rest kept
+
+                                    else
+                                        withoutEmptyHeadings rest (item :: kept)
+
+                                [] ->
+                                    withoutEmptyHeadings rest kept
 
                         else
-                            heading :: withoutEmptyHeadings (next :: rest)
-
-                    [ last ] ->
-                        if isHeading last then
-                            []
-
-                        else
-                            [ last ]
+                            withoutEmptyHeadings rest (item :: kept)
 
                     [] ->
-                        []
+                        kept
         in
-        items
-            |> List.filter keep
-            |> withoutEmptyHeadings
+        withoutEmptyHeadings (List.reverse (List.filter keep items)) []

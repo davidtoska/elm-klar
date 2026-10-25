@@ -2,7 +2,7 @@ module Klar.Markdown exposing
     ( view, viewDocument
     , Document, parse, plainText
     , Heading, headings, headingLevel, headingText, headingId
-    , Attribute, locale, headingOffset, idPrefix, images, ImageHost, imageHost, imagesFrom
+    , Attribute, locale, headingOffset, idPrefix, images, ImageHost, imageHost, imagesFrom, customLink, customCodeBlock
     )
 
 {-| Markdown as safe, calm HTML: for the text of a note, a description, a help
@@ -45,11 +45,15 @@ module safe for text you did not write:
 bullet and numbered lists (nested, tight or loose, a numbered list keeps the
 number it starts at), task lists (`- [ ]` and `- [x]` become disabled check
 boxes that screen readers announce), fenced code (```` ``` ```` and `~~~`, the language
-is kept as a label) and indented code, thematic breaks, tables with alignment,
-emphasis, strong text, `~~strikethrough~~`, code spans, links with titles,
+is kept as a label) and indented code, thematic breaks, tables with alignment
+(`:---` is left and `---:` right, as in GFM, also in a text that reads right to left;
+a column without one starts where the text starts), emphasis, strong text, `~~strikethrough~~`, code spans, links with titles,
 `<autolinks>`, plain `https://` addresses, images, backslash escapes and hard
-line breaks. Not understood, on purpose: HTML and `&entities;` (they are text),
-setext headings (`Title` over `=====`) and reference links, because both change
+line breaks. Character references become the characters they stand for: numbers
+(`&#8217;`, `&#x1F600;`) and the common names (`&amp;`, `&nbsp;`, `&mdash;`, `&aelig;`
+...), which is what text copied from a web page or a mail holds; a character is never
+markup, so `&lt;b&gt;` shows `<b>`, and a name that is not known stays as it was
+written. Not understood, on purpose: HTML (it is text), setext headings (`Title` over `=====`) and reference links, because both change
 what came before them and would make a half-written text jump around. A single
 `~` is text, so "about ~5 minutes" is not struck through.
 
@@ -70,9 +74,32 @@ closed; when a blank line follows it, it is finished, and an unclosed `**` is te
 `intro-1`) and preceded by `md-` (`md-intro`), for a table of contents (see
 `headings`). The prefix keeps text that someone else wrote from making an element
 with an id of the page, such as `main` or `app`, or one that a form field points at;
-`idPrefix` chooses another. A link to `"#" ++ id` changes the fragment of the address,
-which a single page application that routes by the fragment takes for a route:
-scroll to the heading with `Browser.Dom` instead. `headingOffset` moves the
+`idPrefix` chooses another. A link in the text to one of its own headings, as a table of
+contents in the text writes it (`[Pricing](#pricing)`), gets the prefix
+(`#md-pricing`), so it names the heading. In a `Browser.element` the browser then goes
+to the heading. In a `Browser.application` every click on a link is a `UrlRequest`, and
+the link goes nowhere unless `update` handles it: for a fragment that starts with the
+prefix, scroll to the heading instead of changing the address (in a box that
+scrolls, move the box with `Browser.Dom.setViewportOf`):
+
+    UrlRequested (Browser.Internal url) ->
+        case url.fragment of
+            Just fragment ->
+                if String.startsWith "md-" fragment then
+                    ( model
+                    , Browser.Dom.getElement fragment
+                        |> Task.andThen (\heading -> Browser.Dom.setViewport 0 heading.element.y)
+                        |> Task.attempt (\_ -> NoOp)
+                    )
+
+                else
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+            Nothing ->
+                ( model, Nav.pushUrl model.key (Url.toString url) )
+
+To draw such a link as something else, such as a button that sends a message of the
+page, use `customLink`: its `href` already has the prefix. `headingOffset` moves the
 headings down for a document inside a page that has headings of its own: levels
 never go past `h6`, and a heading is never more than one level deeper than the
 one before it, so the outline has no gaps.
@@ -84,7 +111,12 @@ own direction (`dir="auto"`), so a text in Arabic or Hebrew reads right to left.
 The only built-in text is a few labels for screen readers; `locale` sets their
 language.
 
-The module keeps no state and sends no messages. To parse once and show the result
+**Your own links and code.** `customLink` and `customCodeBlock` let the application
+draw some links (citations, links through its router) and some blocks of code (syntax
+highlighting, a diagram, a copy button) itself, after the checks of this module; for
+the others the function gives `Nothing` and they are drawn as usual.
+
+The module keeps no state and sends no messages of its own. To parse once and show the result
 more than once (or to read the headings), use `parse` and `viewDocument`:
 
     let
@@ -117,7 +149,7 @@ text area and this view side by side.
 
 # Attributes
 
-@docs Attribute, locale, headingOffset, idPrefix, images, ImageHost, imageHost, imagesFrom
+@docs Attribute, locale, headingOffset, idPrefix, images, ImageHost, imageHost, imagesFrom, customLink, customCodeBlock
 
 -}
 
@@ -131,6 +163,7 @@ import Klar.Markdown.Inline as Inline exposing (Inline(..))
 import Klar.Markdown.Parse as Parse exposing (Align(..), Block(..))
 import Klar.Markdown.Url as Url
 import Klar.Markdown.Utf16 as Utf16
+import Set exposing (Set)
 
 
 
@@ -192,7 +225,7 @@ the ids in the page. Use it to build a table of contents.
     -- [ "md-orders", "md-open", "md-open-1" ]
 
 -}
-headings : List Attribute -> Document -> List Heading
+headings : List (Attribute msg) -> Document -> List Heading
 headings attributes (Document document) =
     collectHeadings (configure attributes).prefix document.blocks []
         |> List.reverse
@@ -249,11 +282,12 @@ headingId (Heading heading) =
 
 
 {-| A setting of the view. Make them with the functions below and pass a list to
-`view` or `viewDocument`; later attributes win over earlier ones. The view sends no
-messages, so the type has no `msg` parameter.
+`view` or `viewDocument`; later attributes win over earlier ones. The view itself
+sends no messages; `msg` is the message type of the Html that `customLink` and
+`customCodeBlock` draw.
 -}
-type Attribute
-    = Attribute (Config -> Config)
+type Attribute msg
+    = Attribute (Config msg -> Config msg)
 
 
 type ImagePolicy
@@ -262,16 +296,19 @@ type ImagePolicy
     | ImagesFrom (List String)
 
 
-type alias Config =
+type alias Config msg =
     { locale : Locale
     , offset : Int
     , images : ImagePolicy
     , prefix : String
     , inLink : Bool
+    , anchors : Set String
+    , customLink : Maybe ({ href : String, external : Bool, title : String, content : List (Html msg) } -> Maybe (Html msg))
+    , customCodeBlock : Maybe ({ language : String, code : String } -> Maybe (Html msg))
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { locale = Locale.default
@@ -279,6 +316,9 @@ configure attributes =
         , images = NoImages
         , prefix = "md-"
         , inLink = False
+        , anchors = Set.empty
+        , customLink = Nothing
+        , customCodeBlock = Nothing
         }
         attributes
 
@@ -286,18 +326,45 @@ configure attributes =
 {-| The language of the few labels that are not part of the text: "Code", "Table",
 "Image". Default `Locale.default`, which is English.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
 
 {-| Moves every heading down by this many levels (0 to 5), for a document that is
 shown under headings of its own: with `headingOffset 2` a `#` is an `h3`. Levels
-stop at `h6`. Default 0.
+stop at `h6`. Default 0. It changes the outline that screen readers read, not the
+look: a heading is drawn by its level in the text, so a `#` looks the same at every
+offset, and `####` and `######` stay different when both are an `h6`.
 -}
-headingOffset : Int -> Attribute
+headingOffset : Int -> Attribute msg
 headingOffset levels =
     Attribute (\config -> { config | offset = clamp 0 5 levels })
+
+
+{-| The look of a heading, by its level in the text (not by its element, which
+`headingOffset` moves).
+-}
+headingClass : Int -> String
+headingClass level =
+    case level of
+        1 ->
+            "klar-md__h1"
+
+        2 ->
+            "klar-md__h2"
+
+        3 ->
+            "klar-md__h3"
+
+        4 ->
+            "klar-md__h4"
+
+        5 ->
+            "klar-md__h5"
+
+        _ ->
+            "klar-md__h6"
 
 
 {-| Text put in front of the id of every heading. Default `"md-"`, so that text which
@@ -309,7 +376,7 @@ answers that all have a "Summary"), or give it the id of the answer. Give
     Markdown.view [ Markdown.idPrefix "answer-3-" ] answer.text
 
 -}
-idPrefix : String -> Attribute
+idPrefix : String -> Attribute msg
 idPrefix prefix =
     Attribute (\config -> { config | prefix = prefix })
 
@@ -326,7 +393,7 @@ call an address of yours. To trust only the hosts of your own image server, use
 The browser is told to send no referrer and to load the image lazily.
 
 -}
-images : Attribute
+images : Attribute msg
 images =
     Attribute (\config -> { config | images = AnyImage })
 
@@ -366,9 +433,61 @@ A relative path is a request to your own server with the reader's cookies, as fo
 `images`: for text from others, leave relative paths to a host of your own instead.
 
 -}
-imagesFrom : List ImageHost -> Attribute
+imagesFrom : List ImageHost -> Attribute msg
 imagesFrom hosts =
     Attribute (\config -> { config | images = ImagesFrom (List.map (\(ImageHost name) -> name) hosts) })
+
+
+{-| Draws some links of the text yourself. The function gets every link of the text
+(not the link that stands in for an image that is not loaded, see `images`): its address (`href`, after the checks of this module, so `javascript:` and the like
+never reach it, and a link to a heading of the text already has the prefix), whether
+it goes to another site, its title and its words as Html, and gives the Html to show,
+or `Nothing` for the link as it is drawn without the function. Use it for citations
+(`[1](#cite-1)` as a chip that opens a source), a link that goes through the router of
+a `Browser.element`, or a question before another site opens.
+
+    Markdown.view
+        [ Markdown.customLink
+            (\link ->
+                if String.startsWith "#cite-" link.href then
+                    Just (viewCitation (String.dropLeft 6 link.href) link.content)
+
+                else
+                    Nothing
+            )
+        ]
+        answer.text
+
+The words of a link are never a link themselves. Give the function as a top-level
+function, so the view stays cheap to compare.
+
+-}
+customLink : ({ href : String, external : Bool, title : String, content : List (Html msg) } -> Maybe (Html msg)) -> Attribute msg
+customLink draw =
+    Attribute (\config -> { config | customLink = Just draw })
+
+
+{-| Draws some blocks of code yourself. The function gets the language written after
+the fence (`""` when there is none) and the code as it was written, and gives the Html
+to show, or `Nothing` for the block as it is drawn without the function: with a label
+for the language, in a box that scrolls. Use it for syntax highlighting, a diagram
+drawn from the code, or a "Copy" button wired by your application.
+
+    Markdown.customCodeBlock
+        (\block ->
+            if block.language == "sql" then
+                Just (viewQuery block.code)
+
+            else
+                Nothing
+        )
+
+The code is text: show it with `Html.text`, never as markup.
+
+-}
+customCodeBlock : ({ language : String, code : String } -> Maybe (Html msg)) -> Attribute msg
+customCodeBlock draw =
+    Attribute (\config -> { config | customCodeBlock = Just draw })
 
 
 
@@ -382,18 +501,27 @@ use `viewDocument`.
     Markdown.view [] "Orders **shipped today**: see [the list](/orders)."
 
 -}
-view : List Attribute -> String -> Html msg
+view : List (Attribute msg) -> String -> Html msg
 view attributes text =
     viewDocument attributes (parse text)
 
 
 {-| A parsed document as HTML, in a `div` that takes the width it is given.
 -}
-viewDocument : List Attribute -> Document -> Html msg
+viewDocument : List (Attribute msg) -> Document -> Html msg
 viewDocument attributes (Document document) =
     let
-        config =
+        settings =
             configure attributes
+
+        -- the ids of the headings without the prefix, for links inside the text
+        config =
+            { settings
+                | anchors =
+                    collectHeadings "" document.blocks []
+                        |> List.map headingId
+                        |> Set.fromList
+            }
     in
     Html.div [ Internal.cls [ "klar-md" ] ]
         (viewBlocks config False document.blocks
@@ -401,7 +529,7 @@ viewDocument attributes (Document document) =
         )
 
 
-viewNotice : Config -> Maybe { shown : Int, total : Int } -> Html msg
+viewNotice : Config msg -> Maybe { shown : Int, total : Int } -> Html msg
 viewNotice config truncated =
     case truncated of
         Nothing ->
@@ -428,7 +556,7 @@ viewNotice config truncated =
                 ]
 
 
-viewBlocks : Config -> Bool -> List Block -> List (Html msg)
+viewBlocks : Config msg -> Bool -> List Block -> List (Html msg)
 viewBlocks config tight blocks =
     List.concatMap (viewBlock config tight) blocks
 
@@ -436,7 +564,7 @@ viewBlocks config tight blocks =
 {-| One block. `tight` is for the paragraphs that are direct children of an item
 of a tight list: they are not wrapped in a `p`.
 -}
-viewBlock : Config -> Bool -> Block -> List (Html msg)
+viewBlock : Config msg -> Bool -> Block -> List (Html msg)
 viewBlock config tight block =
     case block of
         Paragraph inlines ->
@@ -448,7 +576,7 @@ viewBlock config tight block =
 
         HeadingBlock heading ->
             [ Internal.heading (min 6 (heading.level + config.offset))
-                [ Attr.id (config.prefix ++ heading.id), autoDirection ]
+                [ Attr.id (config.prefix ++ heading.id), Internal.cls [ headingClass heading.level ], autoDirection ]
                 (viewInlines config heading.content)
             ]
 
@@ -456,7 +584,13 @@ viewBlock config tight block =
             [ Html.blockquote [ autoDirection ] (viewBlocks config False blocks) ]
 
         CodeBlock code ->
-            [ viewCode config code ]
+            [ case Maybe.andThen (\draw -> draw code) config.customCodeBlock of
+                Just drawn ->
+                    drawn
+
+                Nothing ->
+                    viewCode config code
+            ]
 
         ListBlock list ->
             [ viewList config list ]
@@ -477,7 +611,7 @@ autoDirection =
 -- LISTS
 
 
-viewList : Config -> { start : Maybe Int, tight : Bool, items : List Parse.Item } -> Html msg
+viewList : Config msg -> { start : Maybe Int, tight : Bool, items : List Parse.Item } -> Html msg
 viewList config list =
     let
         items =
@@ -494,7 +628,7 @@ viewList config list =
             Html.ul [ autoDirection ] items
 
 
-viewItem : Config -> Bool -> Parse.Item -> Html msg
+viewItem : Config msg -> Bool -> Parse.Item -> Html msg
 viewItem config tight item =
     case item.task of
         Nothing ->
@@ -556,7 +690,7 @@ itemLabel blocks =
 -- CODE
 
 
-viewCode : Config -> { language : String, code : String } -> Html msg
+viewCode : Config msg -> { language : String, code : String } -> Html msg
 viewCode config code =
     let
         lines =
@@ -607,11 +741,13 @@ viewCode config code =
 -- TABLES
 
 
-viewTable : Config -> { aligns : List Align, header : List (List Inline), rows : List (List (List Inline)) } -> Html msg
+viewTable : Config msg -> { aligns : List Align, header : List (List Inline), rows : List (List (List Inline)) } -> Html msg
 viewTable config table =
     let
+        -- two short columns already overflow a narrow column: a tab stop too many is
+        -- cheaper than a table that the keyboard cannot scroll
         mayScroll =
-            List.length table.aligns >= 3 || List.any (\content -> String.length (Inline.plainText content) > 20) (List.concat (table.header :: table.rows))
+            List.length table.aligns >= 2 || List.any (\content -> String.length (Inline.plainText content) > 20) (List.concat (table.header :: table.rows))
 
         cell isHeader align content =
             (if isHeader then
@@ -672,12 +808,12 @@ alignClass align =
 -- INLINES
 
 
-viewInlines : Config -> List Inline -> List (Html msg)
+viewInlines : Config msg -> List Inline -> List (Html msg)
 viewInlines config inlines =
     List.concatMap (viewInline config) inlines
 
 
-viewInline : Config -> Inline -> List (Html msg)
+viewInline : Config msg -> Inline -> List (Html msg)
 viewInline config inline =
     case inline of
         Text text ->
@@ -713,7 +849,7 @@ without words (`[](https://example.com)`) shows its address, so that it has a na
 a link that holds only an image without a description is named by its address.
 Inside a link nothing is a link: an image that is not loaded is only its description.
 -}
-viewLink : Config -> { destination : String, title : String } -> List Inline -> List (Html msg)
+viewLink : Config msg -> { destination : String, title : String } -> List Inline -> List (Html msg)
 viewLink config target children =
     case Url.classify target.destination of
         Nothing ->
@@ -738,54 +874,101 @@ viewLink config target children =
 
                 inside =
                     { config | inLink = True }
+
+                href =
+                    linkAddress config kind target.destination
+
+                content =
+                    if hasWords || holdsImage then
+                        viewInlines inside children
+
+                    else
+                        [ Html.text target.destination ]
+
+                drawn =
+                    config.customLink
+                        |> Maybe.andThen
+                            (\draw ->
+                                draw
+                                    { href = href
+                                    , external = kind == Url.External
+                                    , title = target.title
+                                    , content = content
+                                    }
+                            )
             in
-            [ Html.a
-                ([ Attr.href target.destination
-                 , Internal.cls
-                    [ "klar-md__link"
-                    , if kind == Url.External then
-                        "klar-md__link--external"
+            case drawn of
+                Just custom ->
+                    [ custom ]
 
-                      else
-                        ""
-                    ]
-                 ]
-                    ++ (if target.title == "" then
-                            []
+                Nothing ->
+                    viewDefaultLink kind href target.title (not hasWords && holdsImage) target.destination content
 
-                        else
-                            [ Attr.title target.title ]
-                       )
-                    ++ (if kind == Url.External then
-                            [ Attr.rel "noopener noreferrer" ]
 
-                        else
-                            []
-                       )
-                    ++ (if not hasWords && holdsImage then
-                            [ Attr.attribute "aria-label" target.destination ]
+{-| A link as the module draws it: marked and with `rel` when it goes to another site,
+named by its address when it holds only an image without a description.
+-}
+viewDefaultLink : Url.Kind -> String -> String -> Bool -> String -> List (Html msg) -> List (Html msg)
+viewDefaultLink kind href title namedByAddress destination content =
+    let
+        external =
+            kind == Url.External
+    in
+    [ Html.a
+        [ Attr.href href
+        , Internal.cls
+            [ "klar-md__link"
+            , if external then
+                "klar-md__link--external"
 
-                        else
-                            []
-                       )
-                )
-                ((if hasWords || holdsImage then
-                    viewInlines inside children
-
-                  else
-                    [ Html.text target.destination ]
-                 )
-                    ++ (if kind == Url.External then
-                            [ Html.span [ Internal.cls [ "klar-md__external" ] ] [ Icon.view Icon.arrowUpRight ] ]
-
-                        else
-                            []
-                       )
-                )
+              else
+                ""
             ]
+        , Internal.attrIf (title /= "") (Attr.title title)
+        , Internal.attrIf external (Attr.rel "noopener noreferrer")
+        , Internal.attrIf namedByAddress (Attr.attribute "aria-label" destination)
+        ]
+        (content
+            ++ (if external then
+                    [ Html.span [ Internal.cls [ "klar-md__external" ] ] [ Icon.view Icon.arrowUpRight ] ]
+
+                else
+                    []
+               )
+        )
+    ]
 
 
-viewImage : Config -> { source : String, title : String, alt : String } -> Html msg
+{-| The address a link goes to. A link to a heading of the same text (`[Intro](#intro)`,
+as a table of contents in the text writes it) goes to the id the heading has on the
+page, with the prefix: `#md-intro`. The fragment is matched as it is and, failing
+that, as the id that a heading with these words would get (`#Getting-Started` finds
+`getting-started`). Other addresses are left as they are.
+-}
+linkAddress : Config msg -> Url.Kind -> String -> String
+linkAddress config kind destination =
+    if kind == Url.Fragment then
+        let
+            fragment =
+                String.dropLeft 1 destination
+
+            slugged =
+                Parse.slug fragment
+        in
+        if fragment /= "" && Set.member fragment config.anchors then
+            "#" ++ config.prefix ++ fragment
+
+        else if fragment /= "" && Set.member slugged config.anchors then
+            "#" ++ config.prefix ++ slugged
+
+        else
+            destination
+
+    else
+        destination
+
+
+viewImage : Config msg -> { source : String, title : String, alt : String } -> Html msg
 viewImage config image =
     let
         kind =
@@ -839,7 +1022,7 @@ viewImage config image =
 address is one that may be linked and the image is not inside a link already (an
 `a` in an `a` is not valid, and the keyboard would stop twice).
 -}
-viewImagePlaceholder : Config -> Maybe Url.Kind -> { source : String, title : String, alt : String } -> Html msg
+viewImagePlaceholder : Config msg -> Maybe Url.Kind -> { source : String, title : String, alt : String } -> Html msg
 viewImagePlaceholder config kind image =
     let
         description =

@@ -46,6 +46,7 @@ type alias Model =
 
 type Msg
     = PolicyMsg Diff.Msg
+    | GoToPolicyChange String
     | IgnoreSpace Bool
     | Wrap Bool
     | StockMsg Diff.Msg
@@ -136,6 +137,13 @@ update msg model =
             let
                 ( state, cmd ) =
                     Diff.update inner model.policy
+            in
+            ( { model | policy = state }, Cmd.map PolicyMsg cmd )
+
+        GoToPolicyChange key ->
+            let
+                ( state, cmd ) =
+                    Diff.goToHunk model.policyDiff key model.policy
             in
             ( { model | policy = state }, Cmd.map PolicyMsg cmd )
 
@@ -233,7 +241,7 @@ policyExample : Locale -> Model -> Html Msg
 policyExample locale model =
     Doc.example
         { title = "Two versions of a shipping policy"
-        , description = Just "Unified and side by side (the buttons in the toolbar). Long lines wrap, the unchanged lines are folded into a row that opens when it is pressed, and the changed words are marked inside a changed line (a changed number digit by digit). \"Ignore white space\" leaves out the two edits that only touch spaces, and the viewer says so."
+        , description = Just "Unified and side by side (the buttons in the toolbar). Long lines wrap, the unchanged lines are folded into a row that opens when it is pressed, and the changed words are marked inside a changed line (a changed number digit by digit). \"Ignore white space\" leaves out the two edits that only touch spaces, and the viewer says so; side by side, the old column still shows the old text. The buttons under the viewer go to a change by its key (Diff.goToHunk), and the pressed one is the change the user is on (Diff.currentHunk), which is where a panel to accept or reject that change would go."
         , code = Just """-- when the texts are known (in update):
 { model | policyDiff = Diff.lines [ Diff.ignoreWhitespace ] oldText newText }
 
@@ -271,6 +279,19 @@ PolicyMsg inner ->
                 )
                 model.policy
                 model.policyDiff
+            , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+                (Text.caption "Go to:"
+                    :: List.indexedMap
+                        (\index hunk ->
+                            Button.view
+                                [ Button.small
+                                , Button.pressed (Maybe.map Diff.hunkKey (Diff.currentHunk model.policyDiff model.policy) == Just (Diff.hunkKey hunk))
+                                , Button.onClick (GoToPolicyChange (Diff.hunkKey hunk))
+                                ]
+                                ("Change " ++ String.fromInt (index + 1))
+                        )
+                        (Diff.hunks model.policyDiff)
+                )
             ]
         )
 

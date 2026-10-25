@@ -1,27 +1,33 @@
 module Klar.Compare exposing
-    ( view
+    ( view, viewRemote
     , Field, text, maybe, html, longText, heading
-    , Attribute, baseline, onlyDifferences, onRetry, refreshing, density, maxHeight, emptyState, locale
+    , Attribute, baseline, onBaseline, onlyDifferences, onOnlyDifferences, onRetry, id, density, maxHeight, emptyState, locale, settings
     )
 
 {-| Records side by side, with the differences marked: two or more products,
 two versions of an order, "your version" against "theirs".
 
 Use when: two or more records are read side by side and the application wants to see where they differ.
-Do not use when: the change between two versions of one text or record is the point, use `Klar.Diff`.
+Do not use when: the change between two versions of one text or record is the point, use `Klar.Diff`; many records of one kind with sorting and paging, use `Klar.Table`.
 
     import Klar.Compare as Compare
     import Klar.Format as Format
 
-    Compare.view
-        [ Compare.baseline model.current
-        , Compare.onlyDifferences model.onlyDifferences OnlyDifferencesChanged
+    -- model: products : Remote (List Product), onlyDifferences : Bool
+    -- update
+    OnlyDifferencesChanged on ->
+        ( { model | onlyDifferences = on }, Cmd.none )
+
+    -- view
+    Compare.viewRemote
+        [ Compare.onlyDifferences model.onlyDifferences
+        , Compare.onOnlyDifferences OnlyDifferencesChanged
         , Compare.onRetry ReloadProducts
+        , Compare.settings model.settings
         ]
-        { label = "Compare products"
-        , records = model.products -- Remote (List Product)
+        { ariaLabel = "Compare products"
+        , ids = productIds
         , id = .id
-        , toKey = ProductId.toString
         , header = \product -> Html.text product.name
         , fields =
             [ Compare.text "SKU" .sku
@@ -34,15 +40,16 @@ Do not use when: the change between two versions of one text or record is the po
             , Compare.longText "Summary" .summary
             ]
         }
+        model.products
 
 Fields are the rows and the records are the columns. The first record is the
-baseline (or the one you name with `baseline`); every other record is compared
-with it, cell by cell. A cell that differs says so with a sign (`≠`) and with hidden
+baseline (or the one you name with `baseline`, which the user can choose in the
+headings with `onBaseline`); every other record is compared with it, cell by cell. A cell that differs says so with a sign (`≠`) and with hidden
 text ("Differs from baseline") as well as with a color, a cell that is the same says
 "Same as baseline" to a screen reader, and a row where every record is equal is
-dimmed, or left out when the switch "Show only differences" is on (see
-`onlyDifferences`). The headings of groups of fields (`heading`) are left out with
-the rows under them.
+dimmed, or left out while `onlyDifferences` is `True` (the switch "Show only
+differences" of `onOnlyDifferences` flips it). The headings of groups of fields
+(`heading`) are left out with the rows under them.
 
 **What counts as the same.** Every field gives a _text_ for each record, and two
 records are the same in a field when the texts are exactly equal: no trimming and no
@@ -52,38 +59,42 @@ same as another missing value). Functions are never compared, so a field that is
 shown as a badge or as a formatted amount says what to compare with a text of its
 own (`html`).
 
-**States.** The records are a [Klar.Remote](Klar-Remote): `Loading` and `NotAsked`
-draw a skeleton, `Failure` the error with "Try again" (see `onRetry`), and `Success
-[]` an empty state ("Nothing to compare", see `emptyState`). With one record there is
-nothing to compare it with, which the toolbar says. Pass `refreshing True` while new
-data is on its way and the old table is still shown.
+**States.** `view` takes the records you hold; `viewRemote` takes them as a
+[Klar.Remote](Klar-Remote) (shape your data with `Remote.map`). `NotAsked` and
+`Loading` draw a skeleton, `Failed` the problem with "Try again" (see `onRetry`), and
+`Loaded []` the empty state ("Nothing to compare", see `emptyState`). Data that is
+`Kept` stays on the screen: dimmed, busy and announced as "Refreshing ..." while a
+refresh is on its way (`Remote.refresh`), and with "Old data from 14:05" and "Try
+again" in the toolbar when the last refresh failed (the time is written in the zone of
+`settings`). The table is the same element in all of these, so focus inside it stays
+where it is. With one record there is nothing to compare it with, which the toolbar
+says.
 
 The table is a real `table` with `th scope="col"` for the records and `th
 scope="row"` for the fields, inside a box that scrolls sideways and, with
-`maxHeight`, up and down, and is a tab stop. The row labels stay at the left and the
-headings at the top while it scrolls. The component has no state: the switch
-"Show only differences" is yours (a `Bool` in your model).
+`maxHeight`, up and down; that box is a region named by `ariaLabel` and a tab stop.
+The row labels stay at the start and the headings at the top while it scrolls. The
+component has no state: whether only the differences are shown is yours (a `Bool` in
+your model).
 
 **Right to left** pages are supported: the table, the sticky labels and the bar that marks
 a difference follow the direction of the page (the `dir` attribute of the page).
 
-**Cost.** The word marks in a long text (`longText`) are worked out in `view`, in
-all about a third of a second for the whole table; the texts after that are shown without
-marks. Keep the table to a handful of records, and long texts to the fields that need
-them. The other fields cost one comparison of text for each cell.
+**Cost.** The word marks in a long text (`longText`) are worked out once for each pair
+of texts and kept while the texts stay the same (`Html.Lazy`), so a message of the
+application that changes nothing in the comparison does not repeat them. All the long
+texts of the table share a budget of about a third of a second; a pair that does not
+fit in its part is shown without marks. The other fields cost one comparison of text
+for each cell. The number of records is meant for a handful (a hundred columns work,
+but are hard to read).
 
 **No fields.** A comparison with no fields (or only headings) says "No fields", not
 "No differences".
 
-Use [Klar.Table](Klar-Table) for many records of the same kind with sorting and
-paging, and [Klar.Diff](Klar-Diff) for what changed between two versions of one text
-or one record. The number of records is meant for a handful (a hundred columns work,
-but are hard to read).
-
 
 # View
 
-@docs view
+@docs view, viewRemote
 
 
 # Fields
@@ -93,26 +104,30 @@ but are hard to read).
 
 # Attributes
 
-@docs Attribute, baseline, onlyDifferences, onRetry, refreshing, density, maxHeight, emptyState, locale
+@docs Attribute, baseline, onBaseline, onlyDifferences, onOnlyDifferences, onRetry, id, density, maxHeight, emptyState, locale, settings
 
 -}
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as Events
 import Html.Keyed as Keyed
+import Html.Lazy as Lazy
 import Klar.Compare.Rows as Rows exposing (Mark(..), Value(..))
 import Klar.Diff.Inline as Inline
 import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
+import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
-import Klar.Internal.Freshness as Freshness
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Switch as Switch
-import Klar.Theme as Theme exposing (Density(..), Size(..))
+import Klar.Theme exposing (Density(..), Size(..))
 
 
 
@@ -192,8 +207,8 @@ longText label toText =
 
 
 {-| The heading of a group of fields, a full row such as "Pricing" above the
-fields that belong to it. It has no values to compare, and when the switch "Show only
-differences" leaves out every field under it the heading is left out too.
+fields that belong to it. It has no values to compare, and when `onlyDifferences`
+leaves out every field under it the heading is left out too.
 -}
 heading : String -> Field record msg
 heading label =
@@ -205,8 +220,8 @@ heading label =
 
 
 {-| A setting of the comparison. Make them with the functions below and pass a list
-to `view`; later attributes win over earlier ones. `id` is the type of your ids of
-records and `msg` your message type.
+to `view` or `viewRemote`; later attributes win over earlier ones. `id` is the type
+of your ids of records and `msg` your message type.
 -}
 type Attribute id msg
     = Attribute (Config id msg -> Config id msg)
@@ -214,13 +229,16 @@ type Attribute id msg
 
 type alias Config id msg =
     { baseline : Maybe id
-    , onlyDifferences : Maybe ( Bool, Bool -> msg )
+    , onBaseline : Maybe (id -> msg)
+    , onlyDifferences : Bool
+    , onOnlyDifferences : Maybe (Bool -> msg)
     , onRetry : Maybe msg
-    , refreshing : Bool
+    , domId : Maybe String
     , density : Density
     , maxHeight : Maybe Int
     , emptyState : List (EmptyState.Attribute msg)
     , locale : Locale
+    , settings : Settings
     }
 
 
@@ -228,13 +246,16 @@ configure : List (Attribute id msg) -> Config id msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { baseline = Nothing
-        , onlyDifferences = Nothing
+        , onBaseline = Nothing
+        , onlyDifferences = False
+        , onOnlyDifferences = Nothing
         , onRetry = Nothing
-        , refreshing = False
+        , domId = Nothing
         , density = Normal
         , maxHeight = Nothing
         , emptyState = []
         , locale = Locale.default
+        , settings = Settings.default
         }
         attributes
 
@@ -244,48 +265,86 @@ record. When no record has this id (it was taken out of the comparison), the fir
 record is the baseline again, and its column says so.
 -}
 baseline : id -> Attribute id msg
-baseline id =
-    Attribute (\config -> { config | baseline = Just id })
+baseline value =
+    Attribute (\config -> { config | baseline = Just value })
 
 
-{-| Adds the switch "Show only differences" above the table. The `Bool` says
-whether it is on (keep it in your model, `False` at the start) and the function gets
-the new value when the user flips the switch. While it is on, the rows where every
-record is equal, and the headings above only such rows, are left out. Without this
-attribute there is no switch and all rows are drawn. With a single record the switch
-is dimmed, as there is nothing to compare.
+{-| Lets the user choose the baseline: the heading of every record gets a small button
+"Set as baseline", and the function gets the id of the record that was chosen. Keep
+it in your model and give it back with `baseline`. The heading of the baseline says
+"Baseline" in the same place, as a button that cannot be pressed
+(`aria-disabled`), so the focus stays where the user pressed. A screen reader hears
+each button with the title of its record ("Set as baseline Widget"): the ids that tie
+them are made from `id`, or from the `ariaLabel` when there is none, so two
+comparisons on one page need different ones. Without this attribute the baseline is
+the application's choice alone. With a single record there is no button.
 
-    Compare.onlyDifferences model.onlyDifferences OnlyDifferencesChanged
+    Compare.onBaseline BaselineChosen
 
 -}
-onlyDifferences : Bool -> (Bool -> msg) -> Attribute id msg
-onlyDifferences on toMsg =
-    Attribute (\config -> { config | onlyDifferences = Just ( on, toMsg ) })
+onBaseline : (id -> msg) -> Attribute id msg
+onBaseline toMsg =
+    Attribute (\config -> { config | onBaseline = Just toMsg })
 
 
-{-| The message to send when the user presses "Try again" in the error state, which
-shows when `records` is a `Failure`. Without it there is no button, and the button
-only appears for problems worth retrying (see `Remote.isRetryable` in
-[Klar.Remote](Klar-Remote)).
+{-| While `True`, the rows where every record is equal are left out, and so are the
+headings above only such rows. The default is `False`: every row is drawn, and the
+rows that are equal are dimmed. Keep the `Bool` in your model; with a single record
+there is nothing to compare and every row is drawn.
+
+    Compare.onlyDifferences model.onlyDifferences
+
+-}
+onlyDifferences : Bool -> Attribute id msg
+onlyDifferences on =
+    Attribute (\config -> { config | onlyDifferences = on })
+
+
+{-| Adds the switch "Show only differences" to the toolbar above the table. It is on
+while `onlyDifferences` is `True`, and the function gets the new value when the user
+flips it. Without this attribute there is no switch. With a single record the switch
+is dimmed, as there is nothing to compare.
+
+    Compare.onOnlyDifferences OnlyDifferencesChanged
+
+-}
+onOnlyDifferences : (Bool -> msg) -> Attribute id msg
+onOnlyDifferences toMsg =
+    Attribute (\config -> { config | onOnlyDifferences = Just toMsg })
+
+
+{-| The message sent by "Try again": in the failure (`Failed`), and in the marker of
+old data (`Kept` after a refresh that failed). Without it there is no button, and the
+button only appears for problems worth retrying (see `Remote.isRetryable` in
+[Klar.Remote](Klar-Remote)). The button goes away once the new data is there; give
+the comparison an `id` and move focus to it when you start the request, so focus does
+not fall to the page.
 -}
 onRetry : msg -> Attribute id msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
 
-{-| Pass `True` while new data is on its way and you still hold the old records: the
-table stays, dimmed, with a progress line under the headings, and screen readers hear
-"Refreshing ...". It only applies to `Success`; the skeleton is shown while the
-records are loading. The default is `False`.
+{-| The DOM id of the comparison, unique on the page. The comparison is one element
+in every state (loading, failed, empty, data), and with an id it can take focus, so
+that `Klar.focus` has a place to put it when "Try again" goes away:
+
+    Compare.id "compare-products"
+
+    Retry ->
+        ( { model | products = Remote.refresh model.products }
+        , Cmd.batch [ fetchProducts, Klar.focus "compare-products" NoOp ]
+        )
+
 -}
-refreshing : Bool -> Attribute id msg
-refreshing value =
-    Attribute (\config -> { config | refreshing = value })
+id : String -> Attribute id msg
+id value =
+    Attribute (\config -> { config | domId = Just value })
 
 
 {-| How tightly the rows are packed, like the density of [Klar.Table](Klar-Table):
-`Compact`, `Normal` or `Comfortable`. Without it the rows follow the density of
-the application (`Klar.Settings`).
+`Compact`, `Normal` or `Comfortable`. Without it, or with `Normal`, the rows follow
+the density of the application (`Klar.Settings`).
 -}
 density : Density -> Attribute id msg
 density value =
@@ -314,13 +373,24 @@ emptyState attributes =
 
 
 {-| The language of the built-in text: the heading of the column of the fields, the
-words for the baseline and the differences, the switch and the counts. The default is
-`Locale.default`, which is English. Your own labels and values are shown as you give
-them.
+words for the baseline and the differences, the switch, the counts and the marker of
+old data. The default is `Locale.default`, which is English. Your own labels and
+values are shown as you give them.
 -}
 locale : Locale -> Attribute id msg
 locale value =
     Attribute (\config -> { config | locale = value })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05". Without it the time is written in UTC and ends in "UTC".
+
+    Compare.settings model.settings
+
+-}
+settings : Settings -> Attribute id msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 
@@ -330,6 +400,7 @@ locale value =
 type alias Texts =
     { field : String
     , baseline : String
+    , setBaseline : String
     , differs : String
     , same : String
     , notProvided : String
@@ -359,6 +430,7 @@ texts loc =
     in
     { field = pick "Felt" "Field"
     , baseline = pick "Referanse" "Baseline"
+    , setBaseline = pick "Bruk som referanse" "Set as baseline"
     , differs = pick "Avviker fra referansen" "Differs from baseline"
     , same = pick "Lik referansen" "Same as baseline"
     , notProvided = pick "Ikke oppgitt" "Not provided"
@@ -381,83 +453,141 @@ texts loc =
 -- VIEW
 
 
-{-| The comparison. `label` names it for screen readers ("Compare products"), and
-it names the area that scrolls, which is a region and a tab stop. `records` are the
-columns: the `header` of each record is whatever you want in the column heading (a
-name, a status badge), `id` gives the id of a record in your own type and `toKey`
-writes that id as a text (the id is what `baseline` refers to, and it keeps the
-columns apart; two records with the same id are both drawn). `fields` are the rows.
+{-| The comparison of the records you hold. `ariaLabel` names it for screen readers
+("Compare products"): it names the box that scrolls, which is a region and a tab
+stop. The records are the columns: the `header` of each record is whatever you want
+in the column heading (a name, a status badge), `id` gives the id of a record in your
+own type and `ids` how that type is written as a key ([Klar.Ids](Klar-Ids)). The id
+is what `baseline` refers to, and it keeps the columns apart; two records with the
+same id are both drawn. `fields` are the rows. An empty list draws the empty state.
 
 The view sends a message only when a switch or a button you asked for is used
-(`onlyDifferences`, `onRetry`).
+(`onOnlyDifferences`, `onRetry`).
+
+    Compare.view [ Compare.baseline model.current ]
+        { ariaLabel = "Compare versions"
+        , ids = versionIds
+        , id = .id
+        , header = \version -> Html.text version.title
+        , fields = [ Compare.text "Status" .status, Compare.longText "Notes" .notes ]
+        }
+        model.versions
 
 -}
 view :
     List (Attribute id msg)
     ->
-        { label : String
-        , records : Remote (List record)
+        { ariaLabel : String
+        , ids : Ids id
         , id : record -> id
-        , toKey : id -> String
         , header : record -> Html msg
         , fields : List (Field record msg)
         }
+    -> List record
     -> Html msg
-view attributes config =
+view attributes columns records =
+    viewRemote attributes columns (Remote.Loaded records)
+
+
+{-| The same comparison for records that come from the backend, in every state of a
+[Klar.Remote](Klar-Remote): a skeleton while `NotAsked` or `Loading`, the problem
+with "Try again" (`onRetry`) when `Failed`, the empty state for `Loaded []`, and the
+table for `Loaded`. `Kept` data stays in the same table: dimmed and busy while it is
+refreshed, and with the marker "Old data from 14:05" and "Try again" when the last
+refresh failed.
+
+    Compare.viewRemote
+        [ Compare.onRetry ReloadProducts, Compare.settings model.settings ]
+        productColumns
+        (Remote.map .items model.products)
+
+-}
+viewRemote :
+    List (Attribute id msg)
+    ->
+        { ariaLabel : String
+        , ids : Ids id
+        , id : record -> id
+        , header : record -> Html msg
+        , fields : List (Field record msg)
+        }
+    -> Remote (List record)
+    -> Html msg
+viewRemote attributes columns data =
     let
-        settings =
+        config =
             configure attributes
 
         t =
-            texts settings.locale
+            texts config.locale
+
+        ( settled, freshness ) =
+            Freshness.settle data
     in
-    case Tuple.first (Freshness.settle config.records) of
+    case settled of
         Remote.Loaded [] ->
-            frame settings
-                []
-                [ EmptyState.view
+            frame config
+                [ Freshness.className freshness ]
+                [ Freshness.busyAttr freshness ]
+                [ staleNotice config freshness False
+                , EmptyState.view
                     ([ EmptyState.compact
                      , EmptyState.icon Icon.columns
                      , EmptyState.title t.nothingToCompare
                      , EmptyState.description t.nothingToCompareDescription
                      ]
-                        ++ settings.emptyState
+                        ++ config.emptyState
                     )
                 ]
 
         Remote.Loaded records ->
-            viewRecords settings t config records
+            viewRecords config t columns freshness records
 
         Remote.Failed problem ->
-            frame settings
+            frame config
+                []
                 []
                 [ ErrorState.view
                     (List.filterMap identity
                         [ Just ErrorState.compact
-                        , Just (ErrorState.locale settings.locale)
-                        , Maybe.map ErrorState.onRetry settings.onRetry
+                        , Just (ErrorState.locale config.locale)
+                        , Maybe.map ErrorState.onRetry config.onRetry
                         ]
                     )
                     problem
                 ]
 
         _ ->
-            viewLoading settings t config.label
+            viewLoading config t
 
 
-frame : Config id msg -> List String -> List (Html msg) -> Html msg
-frame settings modifiers content =
+{-| The element of the comparison, the same in every state: its classes, and its id
+when the application gave one (with `tabindex="-1"`, so `Klar.focus` can land on it).
+-}
+frame : Config id msg -> List String -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
+frame config modifiers attributes content =
     Html.div
-        [ Internal.cls
-            ([ "klar-compare", "klar-compare--" ++ Internal.densitySuffix settings.density ]
+        ([ Internal.cls
+            ([ "klar-compare", "klar-compare--" ++ Internal.densitySuffix config.density ]
                 ++ modifiers
             )
-        ]
+         , Internal.attrMaybe Attr.id config.domId
+         , Internal.attrIf (config.domId /= Nothing) (Attr.tabindex -1)
+         ]
+            ++ attributes
+        )
         content
 
 
-viewLoading : Config id msg -> Texts -> String -> Html msg
-viewLoading settings t label =
+staleNotice : Config id msg -> Freshness -> Bool -> Html msg
+staleNotice config freshness inline =
+    Freshness.notice
+        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = inline }
+        freshness
+
+
+viewLoading : Config id msg -> Texts -> Html msg
+viewLoading config t =
     let
         skeletonCell width =
             Html.td [ Internal.cls [ "klar-compare__cell" ] ] [ Skeleton.line width ]
@@ -468,21 +598,21 @@ viewLoading settings t label =
                     :: List.map (\j -> skeletonCell (45 + modBy 4 (i * 3 + j * 5) * 12)) [ 0, 1, 2 ]
                 )
     in
-    frame settings
+    frame config
         [ "klar-compare--loading" ]
+        [ Attr.attribute "aria-busy" "true" ]
         [ Html.div [ Internal.cls [ "klar-compare__frame" ] ]
             [ Html.div [ Internal.cls [ "klar-compare__scroll" ] ]
                 [ Html.table
                     [ Internal.cls [ "klar-compare__table" ]
-                    , Attr.attribute "aria-label" label
-                    , Attr.attribute "aria-busy" "true"
+                    , Attr.attribute "aria-hidden" "true"
                     ]
                     [ Html.thead []
                         [ Html.tr []
-                            (Html.th [ Internal.cls [ "klar-compare__corner" ], Attr.scope "col" ] [ Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text t.field ] ]
+                            (Html.th [ Internal.cls [ "klar-compare__corner" ], Attr.scope "col" ] []
                                 :: List.map
                                     (\j ->
-                                        Html.th [ Internal.cls [ "klar-compare__head" ], Attr.scope "col", Attr.attribute "aria-hidden" "true" ]
+                                        Html.th [ Internal.cls [ "klar-compare__head" ], Attr.scope "col" ]
                                             [ Skeleton.line (50 + j * 10) ]
                                     )
                                     [ 0, 1, 2 ]
@@ -506,7 +636,6 @@ type Line record msg
         , show : Show record msg
         , values : List Value
         , row : Rows.Row
-        , words : List (Maybe (List Inline.Segment))
         }
 
 
@@ -520,32 +649,43 @@ lineRow line =
             Just found.row
 
 
+{-| What every cell of the table needs to know besides its own value.
+-}
+type alias Env record =
+    { t : Texts
+    , columns : List ( record, String, Int )
+    , baselineAt : Int
+    , recordCount : Int
+    , budget : Int
+    }
+
+
 viewRecords :
     Config id msg
     -> Texts
     ->
-        { label : String
-        , records : Remote (List record)
+        { ariaLabel : String
+        , ids : Ids id
         , id : record -> id
-        , toKey : id -> String
         , header : record -> Html msg
         , fields : List (Field record msg)
         }
+    -> Freshness
     -> List record
     -> Html msg
-viewRecords settings t config records =
+viewRecords config t columns freshness records =
     let
         recordCount =
             List.length records
 
         plainKeys =
-            List.map (config.id >> config.toKey) records
+            List.map (columns.id >> Ids.toKey columns.ids) records
 
         keys =
             Rows.uniqueKeys plainKeys
 
         baselineAt =
-            Rows.baselineIndex plainKeys (Maybe.map config.toKey settings.baseline)
+            Rows.baselineIndex plainKeys (Maybe.map (Ids.toKey columns.ids) config.baseline)
 
         lines =
             List.map
@@ -564,10 +704,9 @@ viewRecords settings t config records =
                                 , show = found.show
                                 , values = values
                                 , row = Rows.compareRow baselineAt values
-                                , words = List.map (always Nothing) values
                                 }
                 )
-                config.fields
+                columns.fields
 
         fieldRows =
             List.filterMap lineRow lines
@@ -576,25 +715,22 @@ viewRecords settings t config records =
             List.length (List.filter (\row -> not row.allEqual) fieldRows)
 
         only =
-            case settings.onlyDifferences of
-                Just ( on, _ ) ->
-                    on && recordCount >= 2
-
-                Nothing ->
-                    False
+            config.onlyDifferences && recordCount >= 2
 
         shown =
             Rows.visible only lineRow lines
-                |> withWordMarks baselineAt
 
         shownFields =
             List.length (List.filterMap lineRow shown)
 
-        refreshingNow =
-            settings.refreshing
+        busy =
+            Freshness.busy freshness
 
         summary =
-            if List.isEmpty fieldRows then
+            if busy then
+                t.refreshing
+
+            else if List.isEmpty fieldRows then
                 t.noFields
 
             else if recordCount < 2 then
@@ -608,35 +744,37 @@ viewRecords settings t config records =
 
         toolbar =
             Html.div [ Internal.cls [ "klar-compare__toolbar" ] ]
-                [ case settings.onlyDifferences of
-                    Just ( on, toMsg ) ->
+                [ case config.onOnlyDifferences of
+                    Just toMsg ->
                         Switch.view
                             [ Switch.label t.onlyDifferences
-                            , Switch.checked on
+                            , Switch.checked config.onlyDifferences
                             , Switch.onCheck toMsg
                             , Switch.size Small
                             , Switch.disabled (recordCount < 2)
-                            , Switch.locale settings.locale
+                            , Switch.locale config.locale
                             ]
 
                     Nothing ->
                         Html.text ""
+                , staleNotice config freshness True
                 , Html.span
                     [ Internal.cls [ "klar-compare__summary", "klar-tabular" ]
                     , Attr.attribute "role" "status"
                     ]
-                    [ Html.text
-                        (if refreshingNow then
-                            t.refreshing
-
-                         else
-                            summary
-                        )
-                    ]
+                    [ Html.text summary ]
                 ]
 
-        columns =
-            List.map3 (\record key index -> ( record, key, index )) records keys (List.range 0 (recordCount - 1))
+        env =
+            { t = t
+            , columns = List.map3 (\record key index -> ( record, key, index )) records keys (List.range 0 (recordCount - 1))
+            , baselineAt = baselineAt
+            , recordCount = recordCount
+            , budget = wordBudget baselineAt shown
+            }
+
+        namePrefix =
+            Maybe.withDefault ("klar-compare-" ++ Internal.sanitizeId columns.ariaLabel) config.domId
 
         headRow =
             Keyed.node "tr"
@@ -646,11 +784,26 @@ viewRecords settings t config records =
                  )
                     :: List.map
                         (\( record, key, index ) ->
+                            let
+                                isBaseline =
+                                    index == baselineAt && recordCount >= 2
+
+                                picking =
+                                    config.onBaseline /= Nothing && recordCount >= 2
+
+                                -- the button is named by its words and the title of its
+                                -- record, so that a screen reader tells the buttons apart
+                                titleId =
+                                    namePrefix ++ "-title-" ++ Internal.sanitizeId key
+
+                                pickId =
+                                    namePrefix ++ "-pick-" ++ Internal.sanitizeId key
+                            in
                             ( "record " ++ key
                             , Html.th
                                 [ Internal.cls
                                     [ "klar-compare__head"
-                                    , if index == baselineAt && recordCount >= 2 then
+                                    , if isBaseline then
                                         "klar-compare__head--baseline"
 
                                       else
@@ -658,20 +811,50 @@ viewRecords settings t config records =
                                     ]
                                 , Attr.scope "col"
                                 ]
-                                [ Html.div [ Internal.cls [ "klar-compare__title" ] ] [ config.header record ]
-                                , if index == baselineAt && recordCount >= 2 then
-                                    Html.span [ Internal.cls [ "klar-compare__tag" ] ] [ Html.text t.baseline ]
+                                [ Html.div [ Internal.cls [ "klar-compare__title" ], Internal.attrIf picking (Attr.id titleId) ] [ columns.header record ]
+                                , case ( config.onBaseline, recordCount >= 2 ) of
+                                    ( Just toMsg, True ) ->
+                                        -- every record has the button, the baseline's says so and
+                                        -- cannot be pressed: the button that was pressed stays, with
+                                        -- the focus, and becomes the one of the baseline
+                                        Html.button
+                                            [ Internal.cls
+                                                [ "klar-compare__pick"
+                                                , if isBaseline then
+                                                    "klar-compare__pick--baseline"
 
-                                  else
-                                    Html.text ""
+                                                  else
+                                                    ""
+                                                ]
+                                            , Attr.type_ "button"
+                                            , Attr.id pickId
+                                            , Attr.attribute "aria-labelledby" (pickId ++ " " ++ titleId)
+                                            , if isBaseline then
+                                                Attr.attribute "aria-disabled" "true"
+
+                                              else
+                                                Events.onClick (toMsg (columns.id record))
+                                            ]
+                                            [ Html.text
+                                                (if isBaseline then
+                                                    t.baseline
+
+                                                 else
+                                                    t.setBaseline
+                                                )
+                                            ]
+
+                                    _ ->
+                                        if isBaseline then
+                                            Html.span [ Internal.cls [ "klar-compare__tag" ] ] [ Html.text t.baseline ]
+
+                                        else
+                                            Html.text ""
                                 ]
                             )
                         )
-                        columns
+                        env.columns
                 )
-
-        groups =
-            groupByHeading shown
 
         body =
             if List.isEmpty shown || List.isEmpty fieldRows then
@@ -698,52 +881,37 @@ viewRecords settings t config records =
                 ]
 
             else
-                List.map (viewGroup t columns baselineAt recordCount) groups
+                List.map (viewGroup env) (groupByHeading shown)
     in
-    frame settings
-        ((if refreshingNow then
-            [ "klar-compare--refreshing" ]
+    frame config
+        [ if busy then
+            "klar-compare--refreshing"
 
           else
-            []
-         )
-            ++ (if recordCount < 2 then
-                    [ "klar-compare--alone" ]
+            ""
+        , if recordCount < 2 then
+            "klar-compare--alone"
 
-                else
-                    []
-               )
-        )
+          else
+            ""
+        ]
+        []
         [ toolbar
         , Html.div [ Internal.cls [ "klar-compare__frame" ] ]
             [ Html.div
-                ([ Internal.cls [ "klar-compare__scroll" ]
-                 , Attr.tabindex 0
-                 , Attr.attribute "role" "region"
-                 , Attr.attribute "aria-label" config.label
-                 ]
-                    ++ (case settings.maxHeight of
-                            Just pixels ->
-                                [ Internal.styleVars [ ( "max-height", Internal.px pixels ) ] ]
-
-                            Nothing ->
-                                []
-                       )
-                )
+                [ Internal.cls [ "klar-compare__scroll" ]
+                , Attr.tabindex 0
+                , Attr.attribute "role" "region"
+                , Attr.attribute "aria-label" columns.ariaLabel
+                , Internal.attrMaybe (\pixels -> Internal.styleVars [ ( "max-height", Internal.px pixels ) ]) config.maxHeight
+                ]
                 [ Html.table
-                    ([ Internal.cls [ "klar-compare__table" ]
-                     , Attr.attribute "aria-label" config.label
-                     ]
-                        ++ (if refreshingNow then
-                                [ Attr.attribute "aria-busy" "true" ]
-
-                            else
-                                []
-                           )
-                    )
+                    [ Internal.cls [ "klar-compare__table" ]
+                    , Freshness.busyAttr freshness
+                    ]
                     (Html.thead [] [ headRow ] :: body)
                 ]
-            , if refreshingNow then
+            , if busy then
                 Html.div [ Internal.cls [ "klar-compare__progress" ], Attr.attribute "aria-hidden" "true" ] []
 
               else
@@ -776,14 +944,8 @@ groupByHeading lines =
         |> List.reverse
 
 
-viewGroup :
-    Texts
-    -> List ( record, String, Int )
-    -> Int
-    -> Int
-    -> ( Maybe String, List (Line record msg) )
-    -> Html msg
-viewGroup t columns baselineAt recordCount ( heading_, rows ) =
+viewGroup : Env record -> ( Maybe String, List (Line record msg) ) -> Html msg
+viewGroup env ( heading_, rows ) =
     Html.tbody [ Internal.cls [ "klar-compare__group" ] ]
         ((case heading_ of
             Just label ->
@@ -791,7 +953,7 @@ viewGroup t columns baselineAt recordCount ( heading_, rows ) =
                     [ Html.th
                         [ Internal.cls [ "klar-compare__heading" ]
                         , Attr.scope "rowgroup"
-                        , Attr.colspan (recordCount + 1)
+                        , Attr.colspan (env.recordCount + 1)
                         ]
                         [ Html.span [ Internal.cls [ "klar-compare__heading-text" ] ] [ Html.text label ] ]
                     ]
@@ -800,12 +962,12 @@ viewGroup t columns baselineAt recordCount ( heading_, rows ) =
             Nothing ->
                 []
          )
-            ++ List.filterMap (viewLine t columns baselineAt) rows
+            ++ List.filterMap (viewLine env) rows
         )
 
 
-viewLine : Texts -> List ( record, String, Int ) -> Int -> Line record msg -> Maybe (Html msg)
-viewLine t columns baselineAt line =
+viewLine : Env record -> Line record msg -> Maybe (Html msg)
+viewLine env line =
     case line of
         HeadingLine _ ->
             Nothing
@@ -813,17 +975,16 @@ viewLine t columns baselineAt line =
         FieldLine found ->
             let
                 baselineValue =
-                    found.values |> List.drop baselineAt |> List.head |> Maybe.withDefault Missing
+                    found.values |> List.drop env.baselineAt |> List.head |> Maybe.withDefault Missing
 
                 cells =
-                    List.map4
-                        (\( record, key, _ ) value mark words ->
-                            ( "record " ++ key, viewCell t found.show baselineValue record value mark words )
+                    List.map3
+                        (\( record, key, _ ) value mark ->
+                            ( "record " ++ key, viewCell env found.show baselineValue record value mark )
                         )
-                        columns
+                        env.columns
                         found.values
                         found.row.marks
-                        found.words
             in
             Just
                 (Keyed.node "tr"
@@ -844,52 +1005,41 @@ viewLine t columns baselineAt line =
                 )
 
 
-{-| Marks the words of the long texts that differ from the baseline. The work is
-limited for the whole table (`Inline.sharedBudget`): the texts after it is spent are
-shown as they are, without marks.
+{-| The work each pair of long texts may take to mark its words: the shared budget
+(`Inline.sharedBudget`, about a third of a second) cut into equal parts, one for each
+cell of a long text that differs from a baseline that has a value. The part depends
+only on how many such cells are drawn, so it is the same from one view to the next
+and the marks of a cell can be kept (`Html.Lazy`). A pair that does not fit in its
+part is shown without marks.
 -}
-withWordMarks : Int -> List (Line record msg) -> List (Line record msg)
-withWordMarks baselineAt lines =
+wordBudget : Int -> List (Line record msg) -> Int
+wordBudget baselineAt lines =
     let
-        step line ( built, left ) =
+        pairs line =
             case line of
                 FieldLine found ->
                     case ( found.show, found.values |> List.drop baselineAt |> List.head ) of
-                        ( ShowLong, Just (Value reference) ) ->
-                            let
-                                ( words, remaining ) =
-                                    wordsOf reference left found.values found.row.marks
-                            in
-                            ( FieldLine { found | words = words } :: built, remaining )
+                        ( ShowLong, Just (Value _) ) ->
+                            List.map2
+                                (\value mark ->
+                                    case ( mark, value ) of
+                                        ( Differs, Value _ ) ->
+                                            1
+
+                                        _ ->
+                                            0
+                                )
+                                found.values
+                                found.row.marks
+                                |> List.sum
 
                         _ ->
-                            ( line :: built, left )
+                            0
 
                 HeadingLine _ ->
-                    ( line :: built, left )
+                    0
     in
-    List.foldl step ( [], Inline.sharedBudget ) lines
-        |> Tuple.first
-        |> List.reverse
-
-
-wordsOf : String -> Int -> List Value -> List Mark -> ( List (Maybe (List Inline.Segment)), Int )
-wordsOf reference budget values marks =
-    let
-        step ( value, mark ) ( built, left ) =
-            case ( mark, value ) of
-                ( Differs, Value shownText ) ->
-                    let
-                        ( segments, spent ) =
-                            Inline.diffWithin left reference shownText
-                    in
-                    ( Just segments :: built, left - spent )
-
-                _ ->
-                    ( Nothing :: built, left )
-    in
-    List.foldl step ( [], budget ) (List.map2 Tuple.pair values marks)
-        |> Tuple.mapFirst List.reverse
+    Inline.sharedBudget // max 1 (List.sum (List.map pairs lines))
 
 
 markName : Mark -> String
@@ -908,9 +1058,12 @@ markName mark =
             "alone"
 
 
-viewCell : Texts -> Show record msg -> Value -> record -> Value -> Mark -> Maybe (List Inline.Segment) -> Html msg
-viewCell t show baselineValue record value mark words =
+viewCell : Env record -> Show record msg -> Value -> record -> Value -> Mark -> Html msg
+viewCell env show baselineValue record value mark =
     let
+        t =
+            env.t
+
         srOnly sentence =
             Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text sentence ]
 
@@ -927,28 +1080,32 @@ viewCell t show baselineValue record value mark words =
                 _ ->
                     []
 
-        content =
+        plain content =
+            Html.span [ Internal.cls [ "klar-compare__value" ] ] content
+
+        shownValue =
             case value of
                 Missing ->
-                    [ Html.span [ Internal.cls [ "klar-compare__none-mark" ], Attr.attribute "aria-hidden" "true" ] [ Html.text "-" ]
-                    , srOnly t.notProvided
-                    ]
+                    plain
+                        [ Html.span [ Internal.cls [ "klar-compare__none-mark" ], Attr.attribute "aria-hidden" "true" ] [ Html.text "-" ]
+                        , srOnly t.notProvided
+                        ]
 
                 Value shownText ->
                     case show of
                         ShowText ->
-                            [ Html.text shownText ]
+                            plain [ Html.text shownText ]
 
                         ShowHtml toHtml ->
-                            [ toHtml record ]
+                            plain [ toHtml record ]
 
                         ShowLong ->
-                            case words of
-                                Just segments ->
-                                    viewWordDiff segments shownText
+                            case ( mark, baselineValue ) of
+                                ( Differs, Value reference ) ->
+                                    Lazy.lazy3 viewWordMarks env.budget reference shownText
 
-                                Nothing ->
-                                    [ Html.text shownText ]
+                                _ ->
+                                    plain [ Html.text shownText ]
     in
     Html.td
         [ Internal.cls
@@ -962,38 +1119,42 @@ viewCell t show baselineValue record value mark words =
                     ""
             ]
         ]
-        (prefix ++ [ Html.span [ Internal.cls [ "klar-compare__value" ] ] content ])
+        (prefix ++ [ shownValue ])
 
 
 {-| The text of a record with the words that differ from the baseline marked: words
 only the baseline has are struck through, words only this text has are underlined.
-Text that has nothing in common with the baseline is shown as it is.
+Text that has nothing in common with the baseline, or that does not fit in the
+budget, is shown as it is. It takes only texts and a number, so `Html.Lazy` keeps it
+while they stay the same.
 -}
-viewWordDiff : List Inline.Segment -> String -> List (Html msg)
-viewWordDiff segments shownText =
-    case segments of
-        [ Inline.Replace _ _ ] ->
-            [ Html.text shownText ]
+viewWordMarks : Int -> String -> String -> Html msg
+viewWordMarks budget reference shownText =
+    Html.span [ Internal.cls [ "klar-compare__value" ] ]
+        (case Tuple.first (Inline.diffWithin budget reference shownText) of
+            [ Inline.Replace _ _ ] ->
+                [ Html.text shownText ]
 
-        _ ->
-            List.concatMap
-                (\segment ->
-                    case segment of
-                        Inline.Keep kept ->
-                            [ Html.text kept ]
+            segments ->
+                List.concatMap
+                    (\segment ->
+                        case segment of
+                            Inline.Keep kept ->
+                                [ Html.text kept ]
 
-                        Inline.Replace removed added ->
-                            (if removed == "" then
-                                []
+                            Inline.Replace removed added ->
+                                (if removed == "" then
+                                    []
 
-                             else
-                                [ Html.del [ Internal.cls [ "klar-compare__del" ] ] [ Html.text removed ] ]
-                            )
-                                ++ (if added == "" then
-                                        []
+                                 else
+                                    [ Html.del [ Internal.cls [ "klar-compare__del" ] ] [ Html.text removed ] ]
+                                )
+                                    ++ (if added == "" then
+                                            []
 
-                                    else
-                                        [ Html.ins [ Internal.cls [ "klar-compare__ins" ] ] [ Html.text added ] ]
-                                   )
-                )
-                segments
+                                        else
+                                            [ Html.ins [ Internal.cls [ "klar-compare__ins" ] ] [ Html.text added ] ]
+                                       )
+                    )
+                    segments
+        )

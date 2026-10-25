@@ -231,6 +231,14 @@ scan final chars st =
                     in
                     scan final after st1
 
+                '&' ->
+                    case characterReference rest of
+                        Just ( decoded, after ) ->
+                            scan final after (literal decoded st)
+
+                        Nothing ->
+                            scan final rest (literal '&' st)
+
                 '<' ->
                     if inBracket st then
                         scan final rest (literal '<' st)
@@ -259,6 +267,252 @@ scan final chars st =
 literal : Char -> State -> State
 literal c st =
     { st | pending = c :: st.pending, previous = c }
+
+
+
+-- CHARACTER REFERENCES
+
+
+{-| A character reference after a `&`, and the characters after its `;`: a number
+(`&#8217;`, `&#x1F600;`) or one of the common names (`&amp;`, `&nbsp;`, `&mdash;`,
+`&aelig;` ...). It only ever gives a character, which is text: `&lt;b&gt;` is the
+four characters `<b>`, never markup. A number that is not a character (0, half of a
+surrogate pair, past U+10FFFF) gives U+FFFD, as CommonMark says. Anything else is no
+reference and the `&` stays text. It looks at most ten characters ahead.
+-}
+characterReference : List Char -> Maybe ( Char, List Char )
+characterReference chars =
+    case takeReference 9 [] chars of
+        Just ( name, after ) ->
+            decodeReference name |> Maybe.map (\decoded -> ( decoded, after ))
+
+        Nothing ->
+            Nothing
+
+
+takeReference : Int -> List Char -> List Char -> Maybe ( String, List Char )
+takeReference left taken chars =
+    case chars of
+        ';' :: rest ->
+            if List.isEmpty taken then
+                Nothing
+
+            else
+                Just ( String.fromList (List.reverse taken), rest )
+
+        c :: rest ->
+            if left > 0 && (Char.isAlphaNum c || c == '#') then
+                takeReference (left - 1) (c :: taken) rest
+
+            else
+                Nothing
+
+        [] ->
+            Nothing
+
+
+decodeReference : String -> Maybe Char
+decodeReference name =
+    case String.uncons name of
+        Just ( '#', number ) ->
+            case String.uncons number of
+                Just ( x, hex ) ->
+                    if x == 'x' || x == 'X' then
+                        if hex /= "" && String.length hex <= 6 && String.all Char.isHexDigit hex then
+                            Just (scalar (String.foldl (\c n -> n * 16 + hexValue c) 0 hex))
+
+                        else
+                            Nothing
+
+                    else if String.length number <= 7 && String.all Char.isDigit number then
+                        Maybe.map scalar (String.toInt number)
+
+                    else
+                        Nothing
+
+                Nothing ->
+                    Nothing
+
+        _ ->
+            namedReference name
+
+
+hexValue : Char -> Int
+hexValue c =
+    if Char.isDigit c then
+        Char.toCode c - Char.toCode '0'
+
+    else
+        Char.toCode (Char.toLower c) - Char.toCode 'a' + 10
+
+
+scalar : Int -> Char
+scalar code =
+    if code == 0 || (code >= 0xD800 && code <= 0xDFFF) || code > 0x0010FFFF then
+        '�'
+
+    else
+        Char.fromCode code
+
+
+{-| The names that text copied from a web page or a mail usually holds. A name that
+is not here is shown as it was written.
+-}
+namedReference : String -> Maybe Char
+namedReference name =
+    case name of
+        "amp" ->
+            Just '&'
+
+        "lt" ->
+            Just '<'
+
+        "gt" ->
+            Just '>'
+
+        "quot" ->
+            Just '"'
+
+        "apos" ->
+            Just '\''
+
+        "nbsp" ->
+            Just '\u{00A0}'
+
+        "shy" ->
+            Just '\u{00AD}'
+
+        "copy" ->
+            Just '©'
+
+        "reg" ->
+            Just '®'
+
+        "trade" ->
+            Just '™'
+
+        "hellip" ->
+            Just '…'
+
+        "mdash" ->
+            Just '—'
+
+        "ndash" ->
+            Just '–'
+
+        "lsquo" ->
+            Just '‘'
+
+        "rsquo" ->
+            Just '’'
+
+        "ldquo" ->
+            Just '“'
+
+        "rdquo" ->
+            Just '”'
+
+        "laquo" ->
+            Just '«'
+
+        "raquo" ->
+            Just '»'
+
+        "middot" ->
+            Just '·'
+
+        "bull" ->
+            Just '•'
+
+        "deg" ->
+            Just '°'
+
+        "plusmn" ->
+            Just '±'
+
+        "times" ->
+            Just '×'
+
+        "divide" ->
+            Just '÷'
+
+        "minus" ->
+            Just '−'
+
+        "euro" ->
+            Just '€'
+
+        "pound" ->
+            Just '£'
+
+        "yen" ->
+            Just '¥'
+
+        "cent" ->
+            Just '¢'
+
+        "sect" ->
+            Just '§'
+
+        "para" ->
+            Just '¶'
+
+        "aelig" ->
+            Just 'æ'
+
+        "AElig" ->
+            Just 'Æ'
+
+        "oslash" ->
+            Just 'ø'
+
+        "Oslash" ->
+            Just 'Ø'
+
+        "aring" ->
+            Just 'å'
+
+        "Aring" ->
+            Just 'Å'
+
+        "auml" ->
+            Just 'ä'
+
+        "Auml" ->
+            Just 'Ä'
+
+        "ouml" ->
+            Just 'ö'
+
+        "Ouml" ->
+            Just 'Ö'
+
+        "uuml" ->
+            Just 'ü'
+
+        "Uuml" ->
+            Just 'Ü'
+
+        "szlig" ->
+            Just 'ß'
+
+        "eacute" ->
+            Just 'é'
+
+        "Eacute" ->
+            Just 'É'
+
+        "egrave" ->
+            Just 'è'
+
+        "agrave" ->
+            Just 'à'
+
+        "ccedil" ->
+            Just 'ç'
+
+        _ ->
+            Nothing
 
 
 literalString : String -> State -> State

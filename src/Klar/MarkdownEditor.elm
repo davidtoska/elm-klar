@@ -46,7 +46,10 @@ gets tabs. `tabbed` and `sideBySide` fix the layout. The preview is the view of
 HTML is shown as text, links are checked, images are not loaded unless you say so
 with `preview`; the ids of its headings start with the id of the editor and `-md-`, so
 that text written in the editor cannot make an element with the id of the label or
-the hint of the field. The preview follows the text as it is typed; for a text of more than
+the hint of the field, and its headings are two levels down (a `#` is an `h3`), so
+that the outline of the page has no `h1` inside a form (see `preview` to change it);
+a heading still looks like its level in the text, as in `Markdown.view`.
+The preview follows the text as it is typed; for a text of more than
 8,000 characters it waits for a pause of a quarter of a second, so typing never
 waits for it, and says that it is catching up (`aria-busy`). It is not announced to
 screen readers, which would be noise.
@@ -59,7 +62,8 @@ cell) it falls back to a minimum of 16em. Give such a place a width.
 list and task list. They act on the selection, or on the lines it touches, and give
 the selection back: the text that was selected stays selected, so a button pressed
 twice undoes itself. Bold, italic and link also have the keyboard shortcuts
-`Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac). Those, and `Ctrl Z`, `Ctrl Y` and
+`Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac), on every keyboard layout (on one
+that does not write Latin letters the physical key counts). Those, and `Ctrl Z`, `Ctrl Y` and
 `Ctrl Shift Z` while the text is exactly what the last button left (see below), are
 the only keys the text area takes over; every other key is the browser's. A key the
 text area takes over goes no further: when the application has a shortcut of its own on
@@ -87,9 +91,11 @@ follow, and both are about the browser, not about this module:
 
 **The text is the user's.** The editor changes it only for a button or a shortcut,
 and never by itself. `maxLength` does not cut anything off: the counter turns red
-and an error says by how many characters the text is too long, and the browser's
-`maxlength` is not set, because that would cut off a pasted text without a word.
-Check `String.length (MarkdownEditor.value state)` before you save.
+and shows by how much, an error says that the text is longer than the limit, and the
+browser's `maxlength` is not set, because that would cut off a pasted text without a
+word. Check `String.length (MarkdownEditor.value state)` before you save. Screen
+readers hear the limit when the text comes close to it and when it goes over, once
+each time, not at every key.
 
 The accessible name of the text area is its label; the preview is a group named
 "Preview" and takes the Tab key, so that it can be scrolled. All built-in text comes
@@ -481,7 +487,7 @@ type alias Config msg =
     , onFocus : Maybe msg
     , onBlur : Maybe msg
     , layout : Layout
-    , preview : List Markdown.Attribute
+    , preview : List (Markdown.Attribute msg)
     , syntaxHelp : Bool
     , locale : Locale
     }
@@ -587,10 +593,10 @@ placeholder text =
 
 
 {-| Shows a counter such as `120/2000` under the editor at the end of the line with
-the hint. It turns amber when the limit is near and red, with an error that says by
-how many characters, when the text is longer. Nothing is cut off, and the user can
-still type and paste: a limit that silently loses a pasted text is not honest.
-Check the length before you save.
+the hint. It turns amber when the limit is near, and red when the text is longer,
+with the error "The text is longer than 2000 characters." (unless you give an error of
+your own). Nothing is cut off, and the user can still type and paste: a limit that
+silently loses a pasted text is not honest. Check the length before you save.
 -}
 maxLength : Int -> Attribute msg
 maxLength limit =
@@ -647,14 +653,19 @@ sideBySide =
 
 {-| Attributes for the preview, which is a [Klar.Markdown](Klar-Markdown) view:
 `Markdown.images`, `Markdown.imagesFrom`, `Markdown.headingOffset` and the others.
-The `locale` and the `idPrefix` of the preview are the editor's own, and a
-`Markdown.locale` or `Markdown.idPrefix` in this list wins over them. Define the list
-once (a constant) and the preview is not redrawn while the text waits for its pause.
+The `locale` and the `idPrefix` of the preview are the editor's own, and its headings
+are moved down two levels (`Markdown.headingOffset 2`: a `#` is an `h3`), because the
+preview is part of a form on a page that has headings of its own. A `Markdown.locale`,
+`Markdown.idPrefix` or `Markdown.headingOffset` in this list wins over them. The
+offset changes only the elements, not the look (a heading is drawn by its level in the
+text), so the preview looks like the result at any offset. Define
+the list once (a constant) and the preview is not redrawn while the text waits for its
+pause.
 
     MarkdownEditor.preview [ Markdown.imagesFrom hosts ]
 
 -}
-preview : List Markdown.Attribute -> Attribute msg
+preview : List (Markdown.Attribute msg) -> Attribute msg
 preview attributes =
     Attribute (\config -> { config | preview = attributes })
 
@@ -697,6 +708,7 @@ type alias Texts =
     , nothing : String
     , linkText : String
     , tooLong : Int -> String
+    , nearLimit : Int -> String
     , counted : Int -> Int -> String
     }
 
@@ -723,10 +735,15 @@ texts lang =
     , nothing = pick "Ingenting å forhåndsvise ennå." "Nothing to preview yet."
     , linkText = pick "tekst" "text"
     , tooLong =
-        \over ->
+        \limit ->
             pick
-                ("Teksten er " ++ String.fromInt over ++ " tegn for lang.")
-                ("The text is " ++ String.fromInt over ++ " characters too long.")
+                ("Teksten er lengre enn " ++ String.fromInt limit ++ " tegn.")
+                ("The text is longer than " ++ String.fromInt limit ++ " characters.")
+    , nearLimit =
+        \limit ->
+            pick
+                ("Teksten nærmer seg grensen på " ++ String.fromInt limit ++ " tegn.")
+                ("The text is close to the limit of " ++ String.fromInt limit ++ " characters.")
     , counted =
         \length limit ->
             pick
@@ -765,16 +782,22 @@ view toMsg attributes (State state) =
                 Nothing ->
                     0
 
+        builtInError =
+            over > 0 && config.field.error == Nothing
+
         field =
             let
                 base =
                     Field.setId state.id config.field
             in
-            if over > 0 && base.error == Nothing then
-                Field.setError (Just (words.tooLong over)) base
+            case ( builtInError, config.maxLength ) of
+                ( True, Just limit ) ->
+                    -- the words do not change while the text is too long, so the alert
+                    -- is heard once, not at every key; the counter says by how much
+                    Field.setError (Just (words.tooLong limit)) base
 
-            else
-                base
+                _ ->
+                    base
 
         showingPreview =
             Tabs.active state.tabs == "preview"
@@ -843,20 +866,39 @@ view toMsg attributes (State state) =
     in
     case config.maxLength of
         Just limit ->
-            Field.viewWithAside field (viewCounter words length limit) box
+            Field.viewWithAside field (viewCounter words builtInError length limit) box
 
         Nothing ->
             Field.view field box
 
 
-viewCounter : Texts -> Int -> Int -> Html msg
-viewCounter words length limit =
+{-| The counter under the editor. The count changes at every key, so it is not
+announced: a polite status next to it, always there, speaks only when the text
+crosses a boundary (close to the limit, over it when no error of its own says so, and
+back), and its words stay the same in between.
+-}
+viewCounter : Texts -> Bool -> Int -> Int -> Html msg
+viewCounter words errorSaysSo length limit =
     let
         remaining =
             limit - length
 
         near =
             remaining <= max 10 (limit // 10)
+
+        announcement =
+            if remaining < 0 then
+                if errorSaysSo then
+                    ""
+
+                else
+                    words.tooLong limit
+
+            else if near then
+                words.nearLimit limit
+
+            else
+                ""
     in
     Html.span
         [ Internal.cls
@@ -870,10 +912,10 @@ viewCounter words length limit =
               else
                 ""
             ]
-        , Internal.attrIf near (Attr.attribute "aria-live" "polite")
         ]
         [ Html.span [ Attr.attribute "aria-hidden" "true" ] [ Html.text (String.fromInt length ++ "/" ++ String.fromInt limit) ]
         , Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (words.counted length limit) ]
+        , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ] [ Html.text announcement ]
         ]
 
 
@@ -994,15 +1036,20 @@ its own gets the link of the editor while the cursor is in the text.
 shortcutDecoder : (Msg -> msg) -> Edit.Placeholders -> Bool -> Bool -> Decoder ( msg, Bool )
 shortcutDecoder toMsg placeholders canUndo canRedo =
     Decode.map5
-        (\key ctrl meta shift alt -> { key = String.toLower key, modifier = ctrl || meta, shift = shift, alt = alt })
-        (Decode.field "key" Decode.string)
+        (\key ctrl meta shift alt -> { key = key, modifier = ctrl || meta, shift = shift, alt = alt })
+        (Decode.map2 shortcutLetter
+            (Decode.field "key" Decode.string)
+            (Decode.oneOf [ Decode.field "code" Decode.string, Decode.succeed "" ])
+        )
         (Decode.field "ctrlKey" Decode.bool)
         (Decode.field "metaKey" Decode.bool)
         (Decode.field "shiftKey" Decode.bool)
         (Decode.field "altKey" Decode.bool)
         |> Decode.andThen
             (\event ->
-                Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ]
+                Decode.map2 (||)
+                    (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+                    (Decode.oneOf [ Decode.field "keyCode" Decode.int |> Decode.map ((==) 229), Decode.succeed False ])
                     |> Decode.andThen
                         (\composing ->
                             if composing || not event.modifier || event.alt then
@@ -1044,6 +1091,26 @@ shortcutDecoder toMsg placeholders canUndo canRedo =
                                         Decode.fail "not a shortcut"
                         )
             )
+
+
+{-| The letter of a shortcut in lower case. On a keyboard that does not write Latin
+letters (Russian, Greek) Ctrl B gives the key "и", so the physical key (`code`, "KeyB")
+is read instead, and the shortcuts work on every layout.
+-}
+shortcutLetter : String -> String -> String
+shortcutLetter key code =
+    let
+        lower =
+            String.toLower key
+    in
+    if String.length lower == 1 && String.all (\c -> c >= 'a' && c <= 'z') lower then
+        lower
+
+    else if String.startsWith "Key" code && String.length code == 4 then
+        String.toLower (String.dropLeft 3 code)
+
+    else
+        lower
 
 
 formatting : (Msg -> msg) -> Edit.Placeholders -> Action -> Decoder ( msg, Bool )
@@ -1171,12 +1238,20 @@ viewPreview config words state =
 
 {-| The preview: the ids of its headings start with the id of the editor, so that the
 text of the user cannot make an element with the id of a part of the field (the hint
-that `aria-describedby` points at, the text area itself). The attributes of the
-application come later and so win.
+that `aria-describedby` points at, the text area itself), and its headings are two
+levels down, so that a `#` typed into a form is not an `h1` of the page. The
+attributes of the application come later and so win.
 -}
-previewOf : Locale -> String -> List Markdown.Attribute -> Markdown.Document -> Html msg
+previewOf : Locale -> String -> List (Markdown.Attribute msg) -> Markdown.Document -> Html msg
 previewOf lang prefix attributes document =
-    Markdown.viewDocument (Markdown.idPrefix prefix :: Markdown.locale lang :: attributes) document
+    Markdown.viewDocument (Markdown.idPrefix prefix :: Markdown.locale lang :: Markdown.headingOffset previewHeadingOffset :: attributes) document
+
+
+{-| How many levels the headings of the preview are moved down by default.
+-}
+previewHeadingOffset : Int
+previewHeadingOffset =
+    2
 
 
 viewHelp : Locale -> Html msg

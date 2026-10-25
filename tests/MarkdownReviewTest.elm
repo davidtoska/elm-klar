@@ -255,12 +255,13 @@ editorIds =
                         [ Query.findAll [ Selector.id "notes-hint" ] >> Query.count (Expect.equal 1)
                         , Query.findAll [ Selector.id "notes" ] >> Query.count (Expect.equal 1)
                         , Query.find [ Selector.tag "textarea" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-describedby" "notes-hint") ]
-                        , Query.has [ Selector.tag "h2", Selector.id "notes-md-notes-hint" ]
+                        , Query.has [ Selector.tag "h4", Selector.id "notes-md-notes-hint" ]
                         ]
         , test "the preview prefix can be changed by the application" <|
             \_ ->
+                -- the headings of the preview are two levels down: a # is an h3
                 rendered "# Intro" [ Editor.preview [ Markdown.idPrefix "mine-" ] ]
-                    |> Query.has [ Selector.tag "h1", Selector.id "mine-intro" ]
+                    |> Query.has [ Selector.tag "h3", Selector.id "mine-intro" ]
         ]
 
 

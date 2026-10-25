@@ -40,12 +40,13 @@ css =
   line-height: var(--klar-leading-tight);
 }
 
-.klar-md h1 { font-size: var(--klar-text-2xl); }
-.klar-md h2 { font-size: var(--klar-text-xl); }
-.klar-md h3 { font-size: var(--klar-text-lg); }
-.klar-md h4 { font-size: var(--klar-text-md); }
-.klar-md h5 { font-size: var(--klar-text-md); font-weight: var(--klar-weight-medium); color: var(--klar-text-secondary); }
-.klar-md h6 { font-size: var(--klar-text-sm); font-weight: var(--klar-weight-medium); color: var(--klar-text-muted); }
+/* A heading looks like its level in the text: headingOffset moves only the element. */
+.klar-md .klar-md__h1 { font-size: var(--klar-text-2xl); }
+.klar-md .klar-md__h2 { font-size: var(--klar-text-xl); }
+.klar-md .klar-md__h3 { font-size: var(--klar-text-lg); }
+.klar-md .klar-md__h4 { font-size: var(--klar-text-md); }
+.klar-md .klar-md__h5 { font-size: var(--klar-text-md); font-weight: var(--klar-weight-medium); color: var(--klar-text-secondary); }
+.klar-md .klar-md__h6 { font-size: var(--klar-text-sm); font-weight: var(--klar-weight-medium); color: var(--klar-text-muted); }
 
 /* A heading has more room above than below, so that it belongs to what follows. */
 .klar-md > :is(h1, h2, h3, h4, h5, h6) { margin-top: var(--klar-space-5); }
@@ -268,7 +269,6 @@ a.klar-md__placeholder:hover { border-style: solid; }
   min-width: 16em;
   display: flex;
   flex-direction: column;
-  min-width: 0;
   background: var(--klar-surface);
   border: 1px solid var(--klar-border-strong);
   border-radius: var(--klar-radius);
@@ -373,7 +373,7 @@ a.klar-md__placeholder:hover { border-style: solid; }
   .klar-mdeditor:not(.klar-mdeditor--tabs) .klar-mdeditor__pane--preview {
     background: var(--klar-surface-subtle);
     border-inline-start: 1px solid var(--klar-border);
-    border-radius: 0 0 var(--klar-radius) 0;
+    border-end-end-radius: var(--klar-radius);
   }
 }
 
@@ -387,7 +387,15 @@ a.klar-md__placeholder:hover { border-style: solid; }
 .klar-mdeditor--split .klar-mdeditor__pane--preview {
   background: var(--klar-surface-subtle);
   border-inline-start: 1px solid var(--klar-border);
-  border-radius: 0 0 var(--klar-radius) 0;
+  border-end-end-radius: var(--klar-radius);
+}
+
+/* Forced colors (Windows high contrast): the ring and the colors of the frame are gone,
+   so focus and an error are drawn with system colors. */
+@media (forced-colors: active) {
+  .klar-mdeditor:focus-within { outline: 2px solid Highlight; outline-offset: 1px; }
+  .klar-mdeditor--invalid { border-width: 2px; border-style: dashed; }
+  .klar-mdeditor--disabled { border-color: GrayText; color: GrayText; }
 }
 
 /* The help that opens under the panes. */

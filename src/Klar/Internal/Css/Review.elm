@@ -375,7 +375,8 @@ css =
   grid-template-columns: 1.4em minmax(8ch, 24ch) minmax(0, 1fr);
   align-items: baseline;
   gap: 0 var(--klar-space-2);
-  padding: 4px var(--klar-space-3) 4px var(--klar-space-2);
+  padding-block: 4px;
+  padding-inline: var(--klar-space-2) var(--klar-space-3);
   border-bottom: 1px solid var(--klar-border-subtle);
   line-height: var(--klar-leading);
 }
@@ -427,9 +428,13 @@ css =
 }
 
 .klar-diff__arrow {
-  margin: 0 var(--klar-space-2);
+  display: inline-block;
+  margin-inline: var(--klar-space-2);
   color: var(--klar-text-muted);
 }
+
+/* "from → to" reads from the old value to the new one in a page written from right to left too. */
+:dir(rtl) .klar-diff__arrow { transform: scaleX(-1); }
 
 .klar-diff__cut {
   margin-inline-start: var(--klar-space-1);
@@ -599,6 +604,35 @@ css =
   font-size: var(--klar-text-xs);
   font-weight: var(--klar-weight-medium);
   line-height: 16px;
+}
+
+/* The button that makes a record the baseline (onBaseline); the baseline's own looks
+   like the tag and cannot be pressed. */
+.klar-compare__pick {
+  display: inline-block;
+  margin-top: var(--klar-space-1);
+  padding: 0 var(--klar-space-1);
+  background: transparent;
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius-sm);
+  color: var(--klar-text-secondary);
+  font: inherit;
+  font-size: var(--klar-text-xs);
+  font-weight: var(--klar-weight-medium);
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.klar-compare__pick:hover { background: var(--klar-surface-hover); color: var(--klar-text); }
+
+.klar-compare__pick:focus-visible { outline: 2px solid var(--klar-focus-color); outline-offset: 1px; }
+
+.klar-compare__pick--baseline,
+.klar-compare__pick--baseline:hover {
+  background: var(--klar-surface);
+  border-color: var(--klar-primary-border);
+  color: var(--klar-blue-700);
+  cursor: default;
 }
 
 /* ---- Rows: the fields --------------------------------------------------------- */
@@ -790,6 +824,13 @@ css =
   }
 
   .klar-compare__head--baseline { border-bottom: 3px solid Highlight; }
+
+  .klar-compare__pick { border-color: ButtonText; color: ButtonText; }
+
+  .klar-compare__pick--baseline,
+  .klar-compare__pick--baseline:hover { border: 2px solid Highlight; color: CanvasText; }
+
+  .klar-compare__pick:focus-visible { outline-color: Highlight; }
 
   .klar-compare__progress::after { background: Highlight; }
 }

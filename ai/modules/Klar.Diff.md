@@ -10,8 +10,8 @@ Types: `Msg`, `Diff`, `Hunk`, `State`, `Attribute`, `JsonOption`, `TextOption`
 
 ```elm
 -- Showing a diff
-view : (Msg -> msg) -> List Attribute -> State -> Diff -> Html msg
-viewStatic : List Attribute -> Diff -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Diff -> Html msg
+viewStatic : List (Attribute msg) -> Diff -> Html msg
 
 -- Making a diff
 type Diff  -- opaque: no constructors are exposed
@@ -47,16 +47,18 @@ init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 setSplit : Bool -> State -> State
 isSplit : State -> Bool
+currentHunk : Diff -> State -> Maybe Hunk
+goToHunk : Diff -> String -> State -> ( State, Cmd Msg )
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-ariaLabel : String -> Attribute
-context : Int -> Attribute
-maxChanges : Int -> Attribute
-maxHeight : Int -> Attribute
-wrapLines : Attribute
-showUnchangedFields : Attribute
-locale : Locale.Locale -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+ariaLabel : String -> Attribute msg
+context : Int -> Attribute msg
+maxChanges : Int -> Attribute msg
+maxHeight : Int -> Attribute msg
+wrapLines : Attribute msg
+showUnchangedFields : Attribute msg
+locale : Locale.Locale -> Attribute msg
 ```
 
 ## Documentation
@@ -109,7 +111,7 @@ when there is only one JSON value.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Diff -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Diff -> Html msg
 ```
 
 The viewer: a toolbar (the counts, the layout of a text diff, buttons to the
@@ -125,11 +127,12 @@ with many changes draws the first ones and says "Showing 200 of 1,340 changes" w
 buttons to show more (see `maxChanges`). One block of more than 500 changed lines is
 cut as well: "Showing 500 of 20,000 changed lines", with a button for 500 more.
 
-**Keyboard.** The box that scrolls is a tab stop with a name (`ariaLabel`), so the
-arrow keys, Page Down and Home scroll it (a list of JSON or field changes is a tab stop
-only with `maxHeight`; without it the whole viewer has the name). The buttons "Previous
-change" and "Next change" move the focus to a change, and the box scrolls to it; while the
-focus is in the box, `n` and `p` do the same without leaving it. The rows that fold
+**Keyboard.** The box of a text diff is a tab stop with a name (`ariaLabel`), also
+with `wrapLines`, so the arrow keys, Page Down and Home scroll it and `n` and `p` can be
+reached with Tab (a list of JSON or field changes is a tab stop only with `maxHeight`;
+without it the whole viewer has the name). The buttons "Previous change" and "Next
+change" move the focus to a change, and the box scrolls to it; while the focus is in the
+box, `n` and `p` do the same without leaving it. The rows that fold
 unchanged lines are buttons; when one opens more lines the focus goes to the first line
 that appeared, so that the page does not jump.
 
@@ -150,7 +153,7 @@ a state for each would be a nuisance, use `viewStatic`.
 ### `viewStatic`
 
 ```elm
-viewStatic : List Attribute -> Diff -> Html msg
+viewStatic : List (Attribute msg) -> Diff -> Html msg
 ```
 
 The viewer without state, for a diff in a list of many (an audit log, the history
@@ -161,8 +164,11 @@ folded, into rows that say how many they are but do not open.
 
     Diff.viewStatic [ Diff.locale model.locale ] entry.diff
 
-A diff of lines scrolls sideways inside a box that is a tab stop; the others do not
-need one and are plain lists.
+A diff of lines scrolls sideways inside a box that is a tab stop and a group named by
+`ariaLabel`, not a landmark, so that an audit log of fifty entries does not add fifty
+regions to the page (give each entry its own `ariaLabel`). With `wrapLines` nothing
+scrolls sideways and the box is no tab stop. The others do not need one and are plain
+lists.
 
 ## Making a diff
 
@@ -421,7 +427,8 @@ What the viewer remembers: whether the side-by-side layout is chosen, which
 runs of unchanged lines the user opened, how many changes are shown and which
 change the user went to last. Make one with `init`, keep it in your model and give
 it to `view` and `update`. It holds no functions and no diff, so a new diff can be
-shown with the same state (the opened runs are remembered by where they start).
+shown with the same state (the opened runs are remembered by where they start, and
+the change the user went to by its `hunkKey`).
 
 ### `Msg`
 
@@ -474,12 +481,43 @@ isSplit : State -> Bool
 
 Is the side-by-side layout chosen? Read it to remember the choice of the user.
 
+### `currentHunk`
+
+```elm
+currentHunk : Diff -> State -> Maybe Hunk
+```
+
+The change the user went to last (with `n` and `p`, or the buttons "Next" and
+"Previous"), or `Nothing` before the first step. The state remembers the change by its
+`hunkKey`, so when the diff is made again (other options, an edited text) this is the
+same change, or `Nothing` when the new diff does not have it; never another change. Use it to show a panel
+for the change the user is on, such as "Accept" and "Reject" for that hunk, with
+`hunkKey` to remember the decision.
+
+    Diff.currentHunk model.policyDiff model.policyView
+        |> Maybe.map Diff.hunkKey
+
+### `goToHunk`
+
+```elm
+goToHunk : Diff -> String -> State -> ( State, Cmd Msg )
+```
+
+Goes to the change with this `hunkKey`, as if the user had stepped to it: it
+becomes the current change, it is drawn even when it is after the first changes that
+are shown, and the command moves the keyboard focus to it (map it with `Cmd.map`).
+A key that is not in this diff changes nothing. Use it for a list of the changes next
+to the viewer, or to go back to the change the user decided on last.
+
+    ( state, cmd ) =
+        Diff.goToHunk model.policyDiff key model.policyView
+
 ## Attributes
 
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of the viewer. Make them with the functions below and pass a list to
@@ -488,17 +526,19 @@ A setting of the viewer. Make them with the functions below and pass a list to
 ### `ariaLabel`
 
 ```elm
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ```
 
 The accessible name of the diff, such as "Changes to the shipping policy". It
-names the area that scrolls, which screen readers announce as a region. The
-default is "Changes".
+names the box of the changes, which screen readers announce as a region in `view` and
+as a group in `viewStatic`; when that box is no tab stop (see `wrapLines` and
+`maxHeight`), it names the whole diff, as a group.
+The default is "Changes".
 
 ### `context`
 
 ```elm
-context : Int -> Attribute
+context : Int -> Attribute msg
 ```
 
 How many unchanged lines are shown around each change in a text diff; the rest
@@ -508,7 +548,7 @@ The default is 3, and the value is kept between 0 and 20.
 ### `maxChanges`
 
 ```elm
-maxChanges : Int -> Attribute
+maxChanges : Int -> Attribute msg
 ```
 
 How many changes are drawn before a row says "Showing 200 of 1,340 changes" and
@@ -521,7 +561,7 @@ how many it left out.
 ### `maxHeight`
 
 ```elm
-maxHeight : Int -> Attribute
+maxHeight : Int -> Attribute msg
 ```
 
 Scrolls inside the viewer when the diff is taller than this many pixels. By
@@ -531,16 +571,18 @@ its own box in any case, never the page.
 ### `wrapLines`
 
 ```elm
-wrapLines : Attribute
+wrapLines : Attribute msg
 ```
 
 Wraps long lines of a text diff instead of scrolling sideways. Good for
-prose, such as a policy; code is easier to read when it keeps its lines.
+prose, such as a policy; code is easier to read when it keeps its lines. In `view`
+the box of the lines stays a tab stop, for `n` and `p`; in `viewStatic`, with nothing
+to scroll sideways, it is a tab stop only when it has a `maxHeight`.
 
 ### `showUnchangedFields`
 
 ```elm
-showUnchangedFields : Attribute
+showUnchangedFields : Attribute msg
 ```
 
 Shows the fields that did not change as well, muted, in a diff made with
@@ -550,7 +592,7 @@ other diffs.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the toolbar, the rows that fold unchanged

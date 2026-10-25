@@ -43,7 +43,7 @@ onBlur : msg -> Attribute msg
 -- Layout and preview
 tabbed : Attribute msg
 sideBySide : Attribute msg
-preview : List Markdown.Attribute -> Attribute msg
+preview : List (Markdown.Attribute msg) -> Attribute msg
 syntaxHelp : Attribute msg
 locale : Locale.Locale -> Attribute msg
 ```
@@ -90,7 +90,10 @@ gets tabs. `tabbed` and `sideBySide` fix the layout. The preview is the view of
 HTML is shown as text, links are checked, images are not loaded unless you say so
 with `preview`; the ids of its headings start with the id of the editor and `-md-`, so
 that text written in the editor cannot make an element with the id of the label or
-the hint of the field. The preview follows the text as it is typed; for a text of more than
+the hint of the field, and its headings are two levels down (a `#` is an `h3`), so
+that the outline of the page has no `h1` inside a form (see `preview` to change it);
+a heading still looks like its level in the text, as in `Markdown.view`.
+The preview follows the text as it is typed; for a text of more than
 8,000 characters it waits for a pause of a quarter of a second, so typing never
 waits for it, and says that it is catching up (`aria-busy`). It is not announced to
 screen readers, which would be noise.
@@ -103,7 +106,8 @@ cell) it falls back to a minimum of 16em. Give such a place a width.
 list and task list. They act on the selection, or on the lines it touches, and give
 the selection back: the text that was selected stays selected, so a button pressed
 twice undoes itself. Bold, italic and link also have the keyboard shortcuts
-`Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac). Those, and `Ctrl Z`, `Ctrl Y` and
+`Ctrl B`, `Ctrl I` and `Ctrl K` (`Cmd` on a Mac), on every keyboard layout (on one
+that does not write Latin letters the physical key counts). Those, and `Ctrl Z`, `Ctrl Y` and
 `Ctrl Shift Z` while the text is exactly what the last button left (see below), are
 the only keys the text area takes over; every other key is the browser's. A key the
 text area takes over goes no further: when the application has a shortcut of its own on
@@ -131,9 +135,11 @@ follow, and both are about the browser, not about this module:
 
 **The text is the user's.** The editor changes it only for a button or a shortcut,
 and never by itself. `maxLength` does not cut anything off: the counter turns red
-and an error says by how many characters the text is too long, and the browser's
-`maxlength` is not set, because that would cut off a pasted text without a word.
-Check `String.length (MarkdownEditor.value state)` before you save.
+and shows by how much, an error says that the text is longer than the limit, and the
+browser's `maxlength` is not set, because that would cut off a pasted text without a
+word. Check `String.length (MarkdownEditor.value state)` before you save. Screen
+readers hear the limit when the text comes close to it and when it goes over, once
+each time, not at every key.
 
 The accessible name of the text area is its label; the preview is a group named
 "Preview" and takes the Tab key, so that it can be scrolled. All built-in text comes
@@ -331,10 +337,10 @@ maxLength : Int -> Attribute msg
 ```
 
 Shows a counter such as `120/2000` under the editor at the end of the line with
-the hint. It turns amber when the limit is near and red, with an error that says by
-how many characters, when the text is longer. Nothing is cut off, and the user can
-still type and paste: a limit that silently loses a pasted text is not honest.
-Check the length before you save.
+the hint. It turns amber when the limit is near, and red when the text is longer,
+with the error "The text is longer than 2000 characters." (unless you give an error of
+your own). Nothing is cut off, and the user can still type and paste: a limit that
+silently loses a pasted text is not honest. Check the length before you save.
 
 ### `disabled`
 
@@ -395,14 +401,19 @@ Always the text area and the preview side by side, also in a narrow container.
 ### `preview`
 
 ```elm
-preview : List Markdown.Attribute -> Attribute msg
+preview : List (Markdown.Attribute msg) -> Attribute msg
 ```
 
 Attributes for the preview, which is a [Klar.Markdown](Klar.Markdown.md) view:
 `Markdown.images`, `Markdown.imagesFrom`, `Markdown.headingOffset` and the others.
-The `locale` and the `idPrefix` of the preview are the editor's own, and a
-`Markdown.locale` or `Markdown.idPrefix` in this list wins over them. Define the list
-once (a constant) and the preview is not redrawn while the text waits for its pause.
+The `locale` and the `idPrefix` of the preview are the editor's own, and its headings
+are moved down two levels (`Markdown.headingOffset 2`: a `#` is an `h3`), because the
+preview is part of a form on a page that has headings of its own. A `Markdown.locale`,
+`Markdown.idPrefix` or `Markdown.headingOffset` in this list wins over them. The
+offset changes only the elements, not the look (a heading is drawn by its level in the
+text), so the preview looks like the result at any offset. Define
+the list once (a constant) and the preview is not redrawn while the text waits for its
+pause.
 
     MarkdownEditor.preview [ Markdown.imagesFrom hosts ]
 
