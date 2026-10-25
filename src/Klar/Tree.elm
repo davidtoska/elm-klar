@@ -93,7 +93,8 @@ Selection: single by default (a tree that filters something else adds
 `checkboxes` every node has a tri-state checkbox, and a click on a row toggles it:
 checking a parent checks every leaf below it, and a parent with some of them
 checked shows a dash. `checkedIds` returns the checked leaves. A node that is
-`disabled` can be neither selected nor checked.
+`disabled` can be neither selected nor checked, and checking an ancestor passes it
+and everything below it by.
 
 Filter: with `filterBox` the tree has a search field (or call `setQuery`). The
 tree then shows the nodes whose label, description (`withDescription`) or
@@ -425,9 +426,11 @@ withKeywords words (Node data) =
 
 
 {-| A node that is shown but cannot be selected, checked or activated: a click,
-`Space` and `Enter` leave it as it is. It can still be opened and closed, and its
-children are not affected, so in a tree with `checkboxes` the leaves below a
-disabled branch can still be checked one by one.
+`Space` and `Enter` leave it as it is. It can still be opened and closed. Its
+children are not disabled with it: in a tree with `checkboxes` the leaves below a
+disabled branch can still be checked one by one, and its own checkbox shows them.
+Checking an ancestor passes the disabled node and everything below it by, and the
+ancestor's checkbox does not count them.
 -}
 disabled : Node id -> Node id
 disabled (Node data) =
@@ -514,11 +517,12 @@ type alias StateData =
 
 
 {-| A tree state with nothing open, selected or checked. The `String` is the DOM
-id of the tree and must be unique on the page. The element around the filter box
-and the nodes gets this id, in every state of `viewRemote` too, so
-`Klar.focus "warehouse-tree" NoOp` puts the keyboard focus on the node that has the
-tab stop (or on the element itself while nothing is loaded). The nodes get ids that
-start with it, and the filter box gets this id followed by `-filter`.
+id of the tree and must be unique on the page. It goes on an element that lies
+over the filter box and the nodes (it takes no clicks), in every state of
+`viewRemote` too, so `Klar.focus "warehouse-tree" NoOp` puts the keyboard focus on
+the node that has the tab stop (or on that element, which then outlines the tree,
+while nothing is loaded). The nodes get ids that start with it, and the filter box
+gets this id followed by `-filter`.
 
     Tree.init "warehouse-tree"
 
@@ -812,11 +816,14 @@ you set a node back to `NotAsked` to load it again). Usually zero or one id; `*`
 on the keyboard can open several nodes at once.
 
 Call it after every `update`, with the new state. Set the children of those nodes
-to `Loading`, fetch them, and later put `Loaded` or `Failed` in the node. A node
-asks once each time it opens, so a node that stays `NotAsked` is not asked for
-again until it is closed and opened; after a failure the user retries with the
-button that `onRetryChildren` adds. The lazy loading example in the introduction
-above shows the whole flow.
+to `Loading` in that same update, fetch them, and later put `Loaded` or `Failed`
+in the node. An open node asks while its children are `NotAsked`: when it opens,
+and again whenever its row is drawn anew (a hidden panel with the tree is shown
+again), so a node left `NotAsked` can be asked for twice. If the automatic
+request never comes (a stylesheet that switches every animation off), a "Load"
+button appears under the node after a second. After a failure the user retries
+with the button that `onRetryChildren` adds. The lazy loading example in the
+introduction above shows the whole flow.
 
 -}
 loadRequests : Ids id -> State id -> List id
@@ -1249,11 +1256,11 @@ multiSelect =
 {-| A click on the selected node (or `Space`, or `Enter` without `onActivate`) selects
 nothing, so the selection can go back to "no node", the normal state of a tree that
 filters something else ("all locations"). Without it a selected node stays selected
-until another is chosen (or `setSelected` clears it). In a `multiSelect` tree a plain
-click on the only selected node clears it too; `Ctrl`+click toggles as before. The
-node loses `aria-selected="true"` and its highlight, and keeps the focus.
+until another is chosen (or `setSelectedIds` with no ids clears it). In a `multiSelect`
+tree a plain click on the only selected node clears it too; `Ctrl`+click toggles as
+before. The node loses `aria-selected="true"` and its highlight, and keeps the focus.
 
-    Tree.view TreeMsg [ Tree.allowEmptySelection, Tree.ariaLabel "Locations" ] nodes state
+    Tree.view TreeMsg [ Tree.allowEmptySelection, Tree.ariaLabel "Locations" ] model.tree nodes
 
 -}
 allowEmptySelection : Attribute id msg
@@ -1265,10 +1272,12 @@ allowEmptySelection =
 below it; a parent with some of them checked shows a dash. A click anywhere on a
 row toggles its checkbox, and so do `Space` and (without `onActivate`) `Enter`.
 Rows are not highlighted as selected in this mode. Lazy nodes can be checked once
-their children have loaded, and `disabled` nodes are skipped: their own checkbox
-cannot be changed, and checking a parent leaves them as they are. While a filter
-is active a parent still stands for every leaf below it, also the hidden ones.
-Read the result with `checkedIds`.
+their children have loaded. A `disabled` node stops the cascade: its own checkbox
+cannot be changed, checking an ancestor leaves it and everything below it as it
+is, and the ancestor's checkbox does not count them (the leaves below a disabled
+branch can still be checked one by one). While a filter is active a parent still
+stands for every leaf below it, also the hidden ones. Read the result with
+`checkedIds`.
 -}
 checkboxes : Attribute id msg
 checkboxes =
@@ -1401,6 +1410,7 @@ type alias Texts =
     { filterLabel : String
     , filterPlaceholder : String
     , loading : String
+    , load : String
     , retry : String
     , emptyBranch : String
     , noMatches : String
@@ -1419,6 +1429,7 @@ texts loc =
     { filterLabel = pick "Filtrer treet" "Filter the tree"
     , filterPlaceholder = pick "Søk i treet ..." "Search the tree ..."
     , loading = pick "Henter ..." "Loading ..."
+    , load = pick "Last inn" "Load"
     , retry = pick "Prøv igjen" "Try again"
     , emptyBranch = pick "Ingen elementer" "No items"
     , noMatches = pick "Ingen treff" "No matches"
@@ -1555,6 +1566,7 @@ type alias Row id =
     , expandable : Bool
     , open : Bool
     , load : Bool
+    , waiting : Bool
     , forced : Bool
     , disabled : Bool
     }
@@ -1630,8 +1642,17 @@ countNode checkedKeys (Node n) acc =
                         )
                         ( noChecks, acc )
                         children
+
+        -- A disabled node shows what is checked below it, but an ancestor
+        -- neither counts it nor changes it.
+        upward =
+            if n.disabled then
+                noChecks
+
+            else
+                count
     in
-    ( count, Dict.insert n.id count withChildren )
+    ( upward, Dict.insert n.id count withChildren )
 
 
 {-| The leaves under the node with this id in the whole tree: what its checkbox
@@ -1694,6 +1715,7 @@ walk s config filtering forcedIds depth parent nodes =
                         , expandable = expandable
                         , open = open
                         , load = isUnloaded n.children
+                        , waiting = open && (n.children == Lazy Remote.Loading || n.children == Lazy Remote.NotAsked)
                         , forced = forced
                         , disabled = n.disabled
                         }
@@ -1909,6 +1931,21 @@ render toMsg config s data =
                                 Nothing
                             ]
                         )
+
+                    -- A press on the box around the field (the magnifier, the
+                    -- padding, the clear button) puts the focus in the field,
+                    -- as a click on a label would, instead of on the page.
+                    , Events.preventDefaultOn "mousedown"
+                        (Decode.at [ "target", "tagName" ] Decode.string
+                            |> Decode.andThen
+                                (\tag ->
+                                    if tag == "INPUT" then
+                                        Decode.fail "the field takes the press itself"
+
+                                    else
+                                        Decode.succeed ( toMsg (Refocus filterId), True )
+                                )
+                        )
                     ]
                     [ TextInput.view
                         [ TextInput.id filterId
@@ -1928,11 +1965,12 @@ render toMsg config s data =
                 Html.text ""
 
         -- One live region that is always there, so that screen readers hear
-        -- what it says: the loading, and how many nodes the filter finds.
+        -- what it says: the loading (of the tree, or of an open branch), and
+        -- how many nodes the filter finds.
         live =
             Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
                 [ Html.text
-                    (if Freshness.waiting settled then
+                    (if Freshness.waiting settled || List.any .waiting rows then
                         t.loading
 
                      else if not filtering then
@@ -1982,6 +2020,26 @@ render toMsg config s data =
 
                 _ ->
                     viewSkeleton
+
+        -- The element with the id of the tree: `Klar.focus` with that id and
+        -- "Try again" send the focus here, and it hands it on to the node with
+        -- the tab stop (or keeps it while there is none). It lies over the
+        -- tree and takes no clicks (`pointer-events: none`), so a press on a
+        -- part of the tree that is not a control (the magnifier of the filter
+        -- box, a gap) does not pull the focus into the tree.
+        anchor =
+            Html.span
+                [ Internal.cls [ "klar-tree__anchor" ]
+                , Attr.id s.id
+                , Attr.tabindex -1
+                , case tabStop of
+                    Just stop ->
+                        Events.on "focus" (Decode.succeed (toMsg (MoveFocus stop)))
+
+                    Nothing ->
+                        Internal.noAttr
+                ]
+                []
     in
     Html.div
         [ Internal.cls
@@ -1992,30 +2050,9 @@ render toMsg config s data =
               else
                 ""
             ]
-        , Attr.id s.id
-        , Attr.tabindex -1
-
-        -- `Klar.focus` with the id of the tree lands on the node with the tab
-        -- stop. A focus inside (a node, the filter box) does not come here:
-        -- `focus` does not bubble, and the target is checked too.
-        , case tabStop of
-            Just stop ->
-                Events.on "focus"
-                    (Decode.at [ "target", "id" ] Decode.string
-                        |> Decode.andThen
-                            (\target ->
-                                if target == s.id then
-                                    Decode.succeed (toMsg (MoveFocus stop))
-
-                                else
-                                    Decode.fail "a focus inside the tree"
-                            )
-                    )
-
-            Nothing ->
-                Internal.noAttr
         ]
-        [ filterView
+        [ anchor
+        , filterView
         , live
         , notice
         , Html.div
@@ -2495,9 +2532,19 @@ viewChildren env depth parentId parentValue children =
                 content
             )
 
+        -- The live region of the tree says that a branch loads; this text is
+        -- for the eyes.
         loadingText =
-            Html.span [ Internal.cls [ "klar-tree__status-text" ], Attr.attribute "role" "status" ]
+            Html.span [ Internal.cls [ "klar-tree__status-text" ] ]
                 [ Spinner.view [ Spinner.size Small ], Html.text env.t.loading ]
+
+        -- If the automatic request never comes (a stylesheet that switches all
+        -- animations off) the user can still ask. The stylesheet keeps the
+        -- button hidden for its first second, the time the request normally
+        -- takes to turn the row into a loading one.
+        loadButton =
+            Html.span [ Internal.cls [ "klar-tree__load" ] ]
+                [ Button.view [ Button.link, Button.onClick (env.toMsg (RequestChildren parentId)) ] env.t.load ]
 
         emptyRow =
             status "s:status" [ Html.span [ Internal.cls [ "klar-tree__status-text" ] ] [ Html.text env.t.emptyBranch ] ]
@@ -2512,7 +2559,7 @@ viewChildren env depth parentId parentValue children =
         Lazy Remote.NotAsked ->
             -- Open, and nobody has asked for the children yet (the node was
             -- opened by the program): the row asks as soon as it is drawn.
-            group [ status "s:status" [ loadingText, autoRequest env parentId ] ] False []
+            group [ status "s:status" [ loadingText, loadButton, autoRequest env parentId ] ] False []
 
         Lazy (Remote.Failed problem) ->
             group
@@ -2629,20 +2676,21 @@ leafChildren children =
 
 
 {-| The leaves under a node, as far as they are known: what a checkbox on
-the node stands for.
+the node stands for. A disabled node stops the cascade: neither it nor anything
+below it is changed from above.
 -}
 terminalsOf : Node id -> List String
 terminalsOf (Node n) =
-    case leafChildren n.children of
-        Nothing ->
-            if n.disabled then
-                []
+    if n.disabled then
+        []
 
-            else
+    else
+        case leafChildren n.children of
+            Nothing ->
                 [ n.id ]
 
-        Just children ->
-            List.concatMap terminalsOf children
+            Just children ->
+                List.concatMap terminalsOf children
 
 
 
@@ -2798,13 +2846,17 @@ keyBindings env nodeId =
         count =
             Dict.get nodeId env.checks |> Maybe.withDefault noChecks
 
+        -- Worked out once for `Enter` and `Space`, and only with checkboxes.
+        toggleCheck =
+            if env.config.checkboxes && not isDisabled && count.leaves > 0 then
+                held (ToggleCheck (leavesUnder env nodeId) (count.checked /= count.leaves) nodeId)
+
+            else
+                env.toMsg Noop
+
         selectKey mode =
             if env.config.checkboxes then
-                if isDisabled || count.leaves == 0 then
-                    env.toMsg Noop
-
-                else
-                    held (ToggleCheck (leavesUnder env nodeId) (count.checked /= count.leaves) nodeId)
+                toggleCheck
 
             else if isDisabled then
                 env.toMsg Noop
@@ -2913,6 +2965,9 @@ keyBindings env nodeId =
 
                     everything =
                         List.length rows
+
+                    selectAll =
+                        env.toMsg (SelectAll env.selectableIds)
                 in
                 [ ( "Shift+ArrowDown", range 1 )
                 , ( "Shift+ArrowUp", range -1 )
@@ -2920,8 +2975,12 @@ keyBindings env nodeId =
                 , ( "Shift+PageUp", range (negate pageSize) )
                 , ( "Shift+End", range everything )
                 , ( "Shift+Home", range (negate everything) )
-                , ( "Ctrl+a", env.toMsg (SelectAll env.selectableIds) )
-                , ( "Meta+a", env.toMsg (SelectAll env.selectableIds) )
+                , ( "Ctrl+a", selectAll )
+                , ( "Meta+a", selectAll )
+
+                -- With Caps Lock, or with Shift, the key is a capital A.
+                , ( "Ctrl+A", selectAll )
+                , ( "Meta+A", selectAll )
                 ]
 
             else
