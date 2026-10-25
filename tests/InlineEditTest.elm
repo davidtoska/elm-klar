@@ -53,6 +53,18 @@ on attributes selectors event state =
         |> Result.map (\(Edit inner) -> Tuple.first (InlineEdit.update inner state))
 
 
+{-| The command of `update` after an event, which says where the focus goes.
+-}
+command : List (InlineEdit.Attribute Msg) -> List Selector -> ( String, Value ) -> InlineEdit.State -> Result String (Cmd InlineEdit.Msg)
+command attributes selectors event state =
+    InlineEdit.view Edit attributes state
+        |> Query.fromHtml
+        |> Query.find selectors
+        |> Event.simulate event
+        |> Event.toResult
+        |> Result.map (\(Edit inner) -> Tuple.second (InlineEdit.update inner state))
+
+
 display : List Selector
 display =
     [ Selector.class "klar-inline-edit__display" ]
@@ -192,14 +204,16 @@ keyTests =
         , test "a message can be compared: no function travels in it" <|
             \_ ->
                 let
-                    message =
+                    -- two renders make two decoders; a function in the message
+                    -- would make (==) crash
+                    message () =
                         InlineEdit.view Edit required editing
                             |> Query.fromHtml
                             |> Query.find input
                             |> Event.simulate (key [] "Enter")
                             |> Event.toResult
                 in
-                Expect.equal True (message == message)
+                Expect.equal (message ()) (message ())
         , test "edit opens the editor from the application" <|
             \_ ->
                 InlineEdit.edit customer
@@ -219,6 +233,18 @@ blurTests =
                     |> Expect.equal (Ok True)
         , test "switching to another window does not: the input keeps the focus of its page" <|
             \_ -> on [] input (blur "customer") editing |> Expect.err
+        , test "leaving the field does not pull the focus back: Tab and a click elsewhere keep it" <|
+            \_ -> command [] input (blur "") editing |> Expect.equal (Ok Cmd.none)
+        , test "Enter gives the focus back to the text, as the editor goes away under it" <|
+            \_ ->
+                command [] input (key [] "Enter") editing
+                    |> Result.map (\cmd -> cmd /= Cmd.none)
+                    |> Expect.equal (Ok True)
+        , test "leaving an unchanged editor does not pull the focus back either" <|
+            \_ ->
+                steps [ start ] customer
+                    |> Result.andThen (command [] input (Event.custom "blur" (Encode.object [])))
+                    |> Expect.equal (Ok Cmd.none)
         ]
 
 
@@ -348,6 +374,31 @@ correctionTests =
                 steps [ start, typed "Ada B.", enter ] refused
                     |> Result.map summary
                     |> Expect.equal (Ok { editing = False, saving = True, failed = False, value = "Ada Lovelace", pending = Just "Ada B." })
+        , test "leaving the unchanged refused text brings the failure back and sends nothing" <|
+            \_ ->
+                steps [ start, on [] input (blur "") ] refused
+                    |> Result.map summary
+                    |> Expect.equal (Ok { editing = False, saving = False, failed = True, value = "Ada Lovelace", pending = Just "Ada Byron" })
+        , test "Enter on the unchanged text of a validation problem does not send it again" <|
+            \_ ->
+                steps [ start, enter ] refused
+                    |> Result.map summary
+                    |> Expect.equal (Ok { editing = False, saving = False, failed = True, value = "Ada Lovelace", pending = Just "Ada Byron" })
+        , test "Enter on the unchanged text of a network problem sends it again, as Try again does" <|
+            \_ ->
+                steps [ start, enter ] (InlineEdit.failed (Remote.problem Remote.network) saving)
+                    |> Result.map summary
+                    |> Expect.equal (Ok { editing = False, saving = True, failed = False, value = "Ada Lovelace", pending = Just "Ada Byron" })
+        , test "leaving the unchanged text of a network problem sends nothing" <|
+            \_ ->
+                steps [ start, on [] input (blur "") ] (InlineEdit.failed (Remote.problem Remote.network) saving)
+                    |> Result.map InlineEdit.isSaving
+                    |> Expect.equal (Ok False)
+        , test "the failure that comes back can be opened again" <|
+            \_ ->
+                steps [ start, on [] input (blur ""), start ] refused
+                    |> Result.map summary
+                    |> Expect.equal (Ok { editing = True, saving = False, failed = False, value = "Ada Lovelace", pending = Nothing })
         , test "Escape goes back to the old value and forgets the refused text" <|
             \_ ->
                 steps [ start, on [] input (key [] "Escape") ] refused
