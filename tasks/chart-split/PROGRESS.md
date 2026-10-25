@@ -27,3 +27,11 @@
 - No agent delegation. No main-checkout or Table-source edits. No new dependency.
 - Public Series, Segment, Attribute and Data remain opaque unions with the same
   documentation and runtime constructor/payload shapes.
+
+- Commit 1673c89: plan and DOM harness.
+- Public facade validation (94844) passed: 11,373 tests, byte-identical docs and
+  71 identical chart/sparkline roots. Original opaque constructor/payload shapes
+  are preserved without any existing test changes.
+- Next: Types, Numbers, Axis, Colors, Data, Config, Texts, Masks, Preparation,
+  Shared, Line, Bar, Donut, Scalar, Sparkline, RemoteView; then remove empty Core,
+  clean imports, final full validation, size/dependency audit and report.
