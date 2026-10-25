@@ -110,8 +110,11 @@ appears at the end of the bar. A preset whose rule does not fit the fields (a
 misspelled field id, an operator of another kind) is drawn disabled, with the
 problem as its tooltip, so the mistake shows at once.
 
-**Keyboard**: `Tab` moves through the pills, chips and buttons, and `Enter` or
-`Space` on a chip opens its editor. In the editor `Enter` in a text or number
+**Keyboard**: `Tab` moves through the pills and buttons; the chips are one stop.
+Among the chips `ArrowLeft` and `ArrowRight` move, `Home` and `End` go to the
+first and the last, `Enter` or `Space` opens the editor of a chip, and `Delete`
+or `Backspace` removes it (focus goes to its neighbour, and the removal can be
+undone). The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
 field applies, and `Ctrl+Enter` (`Cmd+Enter` on a Mac) applies from any control,
 also from a choice or a date; in a date field `Enter` takes the date that was
 typed. `Escape` closes the editor without applying and gives focus back to the

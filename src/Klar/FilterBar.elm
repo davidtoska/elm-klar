@@ -74,8 +74,11 @@ appears at the end of the bar. A preset whose rule does not fit the fields (a
 misspelled field id, an operator of another kind) is drawn disabled, with the
 problem as its tooltip, so the mistake shows at once.
 
-**Keyboard**: `Tab` moves through the pills, chips and buttons, and `Enter` or
-`Space` on a chip opens its editor. In the editor `Enter` in a text or number
+**Keyboard**: `Tab` moves through the pills and buttons; the chips are one stop.
+Among the chips `ArrowLeft` and `ArrowRight` move, `Home` and `End` go to the
+first and the last, `Enter` or `Space` opens the editor of a chip, and `Delete`
+or `Backspace` removes it (focus goes to its neighbour, and the removal can be
+undone). The remove buttons are for the mouse; they are not tab stops. In the editor `Enter` in a text or number
 field applies, and `Ctrl+Enter` (`Cmd+Enter` on a Mac) applies from any control,
 also from a choice or a date; in a date field `Enter` takes the date that was
 typed. `Escape` closes the editor without applying and gives focus back to the
@@ -146,6 +149,7 @@ type alias Inner =
     , editing : Maybe Editing
     , controls : Editor.Controls
     , undo : Maybe Undo
+    , current : Maybe Int
     }
 
 
@@ -184,6 +188,7 @@ init id =
         , editing = Nothing
         , controls = Editor.emptyControls (draftPrefix id)
         , undo = Nothing
+        , current = Nothing
         }
 
 
@@ -371,6 +376,8 @@ type Msg
     | RemovedInEditor
     | ClearedAll
     | UndoClicked
+    | ChipFocused Int
+    | MovedTo Int
     | NoOp
 
 
@@ -507,6 +514,12 @@ update msg (State s) =
                 , Internal.focus (undoDomId s.id) NoOp
                 )
 
+        ChipFocused id ->
+            ( State { s | current = Just id }, Cmd.none )
+
+        MovedTo id ->
+            ( State { s | current = Just id }, Internal.focus (chipFocusId s id) NoOp )
+
         UndoClicked ->
             case s.undo of
                 Just undo ->
@@ -607,6 +620,19 @@ chipDomId id node =
 popupDomId : String -> String
 popupDomId id =
     id ++ "-popup"
+
+
+{-| The element of a chip that takes the focus: the main button of a condition,
+the remove button of a group (it has nothing else).
+-}
+chipFocusId : Inner -> Int -> String
+chipFocusId s id =
+    case Support.findCondition id s.rule of
+        Just _ ->
+            chipDomId s.id id
+
+        Nothing ->
+            chipDomId s.id id ++ "-remove"
 
 
 undoDomId : String -> String
@@ -967,15 +993,78 @@ viewChip ctx root index child =
             else
                 Html.text ""
 
-        removeButton id name =
+        ids =
+            List.map Rule.idOf root.children
+
+        -- one chip is the tab stop: the one the user was on, else the first
+        currentId =
+            case s.current of
+                Just id ->
+                    if List.member id ids then
+                        id
+
+                    else
+                        List.head ids |> Maybe.withDefault -1
+
+                Nothing ->
+                    List.head ids |> Maybe.withDefault -1
+
+        roving id =
+            let
+                at offset =
+                    List.drop (index + offset) ids |> List.head
+
+                move key target =
+                    Maybe.map (\other -> ( key, ctx.toMsg (MovedTo other) )) target
+            in
+            [ Attr.tabindex
+                (if id == currentId then
+                    0
+
+                 else
+                    -1
+                )
+            , Events.onFocus (ctx.toMsg (ChipFocused id))
+            , Internal.onKeys
+                (List.filterMap identity
+                    [ if index > 0 then
+                        move "ArrowLeft" (at -1)
+
+                      else
+                        Nothing
+                    , move "ArrowRight" (at 1)
+                    , if index > 0 then
+                        move "Home" (List.head ids)
+
+                      else
+                        Nothing
+                    , if index < List.length ids - 1 then
+                        move "End" (List.reverse ids |> List.head)
+
+                      else
+                        Nothing
+                    , Just ( "Delete", ctx.toMsg (ChipRemoved id) )
+                    , Just ( "Backspace", ctx.toMsg (ChipRemoved id) )
+                    ]
+                )
+            ]
+
+        removeButton id name focusable =
             Html.button
-                [ Internal.cls [ "klar-filterbar__chip-remove" ]
-                , Attr.type_ "button"
-                , Attr.id (chipDomId s.id id ++ "-remove")
-                , Attr.attribute "aria-label" (t.removeFilter ++ ": " ++ name)
-                , Attr.title (t.removeFilter ++ ": " ++ name)
-                , Events.onClick (ctx.toMsg (ChipRemoved id))
-                ]
+                ([ Internal.cls [ "klar-filterbar__chip-remove" ]
+                 , Attr.type_ "button"
+                 , Attr.id (chipDomId s.id id ++ "-remove")
+                 , Attr.attribute "aria-label" (t.removeFilter ++ ": " ++ name)
+                 , Attr.title (t.removeFilter ++ ": " ++ name)
+                 , Events.onClick (ctx.toMsg (ChipRemoved id))
+                 ]
+                    ++ (if focusable then
+                            roving id
+
+                        else
+                            [ Attr.tabindex -1 ]
+                       )
+                )
                 [ Icon.sized Icon.ExtraSmall Icon.close ]
     in
     Html.li [ Internal.cls [ "klar-filterbar__item" ] ]
@@ -1013,24 +1102,27 @@ viewChip ctx root index child =
                             ]
                         ]
                         [ Html.button
-                            [ Internal.cls [ "klar-filterbar__chip-main" ]
-                            , Attr.type_ "button"
-                            , Attr.id (chipDomId s.id condition.id)
-                            , Attr.title title
-                            , Attr.attribute "aria-haspopup" "dialog"
-                            , Attr.attribute "aria-expanded"
+                            ([ Internal.cls [ "klar-filterbar__chip-main" ]
+                             , Attr.type_ "button"
+                             , Attr.id (chipDomId s.id condition.id)
+                             , Attr.title title
+                             , Attr.attribute "aria-haspopup" "dialog"
+                             , Attr.attribute "aria-expanded"
                                 (if open then
                                     "true"
 
                                  else
                                     "false"
                                 )
-                            , Internal.attrIf open (Attr.attribute "aria-controls" (popupDomId s.id))
-                            , Events.onClick
+                             , Internal.attrIf open (Attr.attribute "aria-controls" (popupDomId s.id))
+                             , Attr.attribute "aria-keyshortcuts" "Delete"
+                             , Events.onClick
                                 (ctx.toMsg
                                     (ChipOpened condition.id (Editor.focusDomId (draftPrefix s.id) config.fields condition))
                                 )
-                            ]
+                             ]
+                                ++ roving condition.id
+                            )
                             [ Html.span [ Internal.cls [ "klar-filterbar__chip-field" ] ] [ Html.text parts.field ]
                             , if parts.operator /= "" then
                                 Html.span [ Internal.cls [ "klar-filterbar__chip-op" ] ] [ Html.text parts.operator ]
@@ -1048,7 +1140,7 @@ viewChip ctx root index child =
                               else
                                 Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (" (" ++ t.incomplete ++ ")") ]
                             ]
-                        , removeButton condition.id title
+                        , removeButton condition.id title False
                         ]
                     , case s.editing of
                         Just editing ->
@@ -1095,7 +1187,7 @@ viewChip ctx root index child =
                     ]
                     [ Html.span [ Internal.cls [ "klar-filterbar__chip-main", "klar-filterbar__chip-main--static" ], Attr.title described ]
                         [ Html.span [ Internal.cls [ "klar-filterbar__chip-value" ] ] [ Html.text described ] ]
-                    , removeButton group.id described
+                    , removeButton group.id described True
                     ]
         ]
 

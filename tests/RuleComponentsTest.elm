@@ -222,6 +222,27 @@ ctrlEnter =
         )
 
 
+keyDown : String -> ( String, Encode.Value )
+keyDown key =
+    Event.custom "keydown"
+        (Encode.object
+            [ ( "key", Encode.string key )
+            , ( "ctrlKey", Encode.bool False )
+            , ( "metaKey", Encode.bool False )
+            , ( "shiftKey", Encode.bool False )
+            , ( "altKey", Encode.bool False )
+            , ( "isComposing", Encode.bool False )
+            , ( "keyCode", Encode.int 0 )
+            , ( "defaultPrevented", Encode.bool False )
+            ]
+        )
+
+
+threeChips : Rule
+threeChips =
+    Rule.allOf [ Rule.is "status" "paid", Rule.when "quantity" GreaterThan [ "10" ], Rule.anyOf [ Rule.is "status" "open", Rule.when "quantity" LessThan [ "2" ] ] ]
+
+
 paidAndLarge : Rule
 paidAndLarge =
     Rule.allOf [ Rule.is "status" "paid", Rule.when "quantity" GreaterThan [ "10" ] ]
@@ -310,6 +331,36 @@ barTests =
                     |> Result.andThen (press [ Selector.id "bar-popup" ] ctrlEnter)
                     |> Result.map (\s -> ( FilterBar.isOpen s, same paidAndLarge (FilterBar.rule s) ))
                     |> Expect.equal (Ok ( False, True ))
+        , test "the chips are one tab stop: the first, and no remove button" <|
+            \_ ->
+                bar [] (barState threeChips)
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.find [ Selector.id "bar-chip-1" ] >> Query.has [ Selector.attribute (Attr.tabindex 0) ]
+                        , Query.find [ Selector.id "bar-chip-2" ] >> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                        , Query.find [ Selector.id "bar-chip-1-remove" ] >> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                        , Query.find [ Selector.id "bar-chip-3-remove" ] >> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                        ]
+        , test "ArrowRight and End move the tab stop along the chips, to a group chip too" <|
+            \_ ->
+                press [ Selector.id "bar-chip-1" ] (keyDown "ArrowRight") (barState threeChips)
+                    |> Result.andThen (press [ Selector.id "bar-chip-2" ] (keyDown "End"))
+                    |> Result.map (\moved -> bar [] moved |> Query.fromHtml |> Query.find [ Selector.id "bar-chip-3-remove" ] |> Query.has [ Selector.attribute (Attr.tabindex 0) ])
+                    |> Result.withDefault (Expect.fail "the keys were not handled")
+        , test "ArrowLeft on the first chip is left to the browser" <|
+            \_ ->
+                press [ Selector.id "bar-chip-1" ] (keyDown "ArrowLeft") (barState threeChips)
+                    |> Expect.err
+        , test "Delete removes the chip, and it can be undone" <|
+            \_ ->
+                press [ Selector.id "bar-chip-2" ] (keyDown "Delete") (barState threeChips)
+                    |> Result.map
+                        (\removed ->
+                            ( Rule.conditionCount (FilterBar.rule removed)
+                            , press [ Selector.id "bar-undo" ] Event.click removed |> Result.map (FilterBar.rule >> same threeChips)
+                            )
+                        )
+                    |> Expect.equal (Ok ( 3, Ok True ))
         , test "close shuts the editor and hands back a command" <|
             \_ ->
                 press [ Selector.id "bar-chip-1" ] Event.click (barState paidAndLarge)
