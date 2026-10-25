@@ -48,3 +48,7 @@
   Window, Update and Processing (tests that need column/config builders follow them).
 
 - DomIds: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit b852c59: DomIds complete.
+- Next: State, Query, Columns, ColumnLogic, Rows, Config, Window, Update, Processing.
+
+- State: format, full check, byte-identical docs and 22 identical table roots passed.

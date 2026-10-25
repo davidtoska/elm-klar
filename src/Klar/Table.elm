@@ -519,6 +519,7 @@ import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup,
 import Klar.Table.Index as Index exposing (Index)
 import Klar.Table.Selection as Selection
 import Klar.Table.Sort as Sorting
+import Klar.Table.State as State
 import Klar.Table.Texts as Texts exposing (Texts)
 import Klar.Table.Types as Types
 import Klar.Tag as Tag
@@ -580,7 +581,7 @@ what you send to a backend for the column (see `columnName`).
 -}
 columnId : String -> ColumnId
 columnId arg1 =
-    fromCoreColumnId (Core.columnId arg1)
+    fromCoreColumnId (State.columnId arg1)
 
 
 {-| The text a column id was made from, for a backend that sorts or filters by a
@@ -591,7 +592,7 @@ name, or for a URL.
 -}
 columnName : ColumnId -> String
 columnName arg1 =
-    Core.columnName (unwrapColumnId arg1)
+    State.columnName (unwrapColumnId arg1)
 
 
 {-| Everything a backend needs to produce the rows the user asked for: the
@@ -637,7 +638,7 @@ it (`"orders"` gives `"orders-search"` for the search box, for example).
 -}
 init : String -> State id
 init arg1 =
-    fromCoreState (Core.init arg1)
+    fromCoreState (State.init arg1)
 
 
 {-| The current request as plain data: search text, sort, filters, page and page
@@ -647,7 +648,7 @@ the ones in effect, so text still waiting for the debounce is not in it.
 -}
 query : State id -> Query
 query arg1 =
-    fromCoreQuery (Core.query (unwrapState arg1))
+    fromCoreQuery (State.query (unwrapState arg1))
 
 
 {-| A query as JSON, to keep it where the application keeps its things (a saved
@@ -690,7 +691,7 @@ when the search or the filters change.
 -}
 setQuery : Query -> State id -> State id
 setQuery arg1 arg2 =
-    fromCoreState (Core.setQuery (toCoreQuery arg1) (unwrapState arg2))
+    fromCoreState (State.setQuery (toCoreQuery arg1) (unwrapState arg2))
 
 
 {-| The columns the table is sorted by, primary first, as column ids with a
@@ -698,7 +699,7 @@ direction. Empty when nothing is sorted.
 -}
 sort : State id -> List ( ColumnId, Direction )
 sort arg1 =
-    List.map (\( id, direction ) -> ( fromCoreColumnId id, fromCoreDirection direction )) (Core.sort (unwrapState arg1))
+    List.map (\( id, direction ) -> ( fromCoreColumnId id, fromCoreDirection direction )) (State.sort (unwrapState arg1))
 
 
 {-| Sorts by these columns (ids and directions), primary first, and goes back to
@@ -707,7 +708,7 @@ page 1. In client mode, ids that match no column, or a column that is
 -}
 setSort : List ( ColumnId, Direction ) -> State id -> State id
 setSort arg1 arg2 =
-    fromCoreState (Core.setSort (List.map (\( id, direction ) -> ( unwrapColumnId id, toCoreDirection direction )) arg1) (unwrapState arg2))
+    fromCoreState (State.setSort (List.map (\( id, direction ) -> ( unwrapColumnId id, toCoreDirection direction )) arg1) (unwrapState arg2))
 
 
 {-| The page the user asked for, counted from 1. A page past the last one is
@@ -716,14 +717,14 @@ of the last page), but this keeps returning the number that was asked for.
 -}
 page : State id -> Int
 page arg1 =
-    Core.page (unwrapState arg1)
+    State.page (unwrapState arg1)
 
 
 {-| Goes to this page. The first page is 1; smaller numbers count as 1.
 -}
 setPage : Int -> State id -> State id
 setPage arg1 arg2 =
-    fromCoreState (Core.setPage arg1 (unwrapState arg2))
+    fromCoreState (State.setPage arg1 (unwrapState arg2))
 
 
 {-| How many rows are on a page: 25 until the user picks another size in the
@@ -731,7 +732,7 @@ footer (see `pageSizes`) or you call `setPageSize`.
 -}
 pageSize : State id -> Int
 pageSize arg1 =
-    Core.pageSize (unwrapState arg1)
+    State.pageSize (unwrapState arg1)
 
 
 {-| Sets how many rows are on a page (at least 1) and goes back to page 1. A size
@@ -739,7 +740,7 @@ that is not in `pageSizes` is still used and shown in the footer.
 -}
 setPageSize : Int -> State id -> State id
 setPageSize arg1 arg2 =
-    fromCoreState (Core.setPageSize arg1 (unwrapState arg2))
+    fromCoreState (State.setPageSize arg1 (unwrapState arg2))
 
 
 {-| The search text in effect: what the user typed, trimmed, once any
@@ -747,7 +748,7 @@ setPageSize arg1 arg2 =
 -}
 search : State id -> String
 search arg1 =
-    Core.search (unwrapState arg1)
+    State.search (unwrapState arg1)
 
 
 {-| Sets the search text. It shows in the search box, takes effect at once
@@ -756,7 +757,7 @@ matching" selection (see `Selection`).
 -}
 setSearch : String -> State id -> State id
 setSearch arg1 arg2 =
-    fromCoreState (Core.setSearch arg1 (unwrapState arg2))
+    fromCoreState (State.setSearch arg1 (unwrapState arg2))
 
 
 {-| The column filters in effect, as column ids with their filter, ordered by
@@ -764,7 +765,7 @@ column id. Typed text still waiting for the debounce is not included.
 -}
 filters : State id -> List ( ColumnId, Filter )
 filters arg1 =
-    List.map (\( id, filter ) -> ( fromCoreColumnId id, fromCoreFilter filter )) (Core.filters (unwrapState arg1))
+    List.map (\( id, filter ) -> ( fromCoreColumnId id, fromCoreFilter filter )) (State.filters (unwrapState arg1))
 
 
 {-| Sets (`Just`) or removes (`Nothing`) the filter of the column with this id,
@@ -772,7 +773,7 @@ and goes back to page 1. The column's filter popover shows the new value.
 -}
 setFilter : ColumnId -> Maybe Filter -> State id -> State id
 setFilter arg1 arg2 arg3 =
-    fromCoreState (Core.setFilter (unwrapColumnId arg1) (Maybe.map toCoreFilter arg2) (unwrapState arg3))
+    fromCoreState (State.setFilter (unwrapColumnId arg1) (Maybe.map toCoreFilter arg2) (unwrapState arg3))
 
 
 {-| Removes the search and every column filter, and goes back to page 1. Filters
@@ -780,7 +781,7 @@ that live outside the table (see `rowFilter`) are yours to clear.
 -}
 clearFilters : State id -> State id
 clearFilters arg1 =
-    fromCoreState (Core.clearFilters (unwrapState arg1))
+    fromCoreState (State.clearFilters (unwrapState arg1))
 
 
 {-| The row density: `Compact`, `Normal` (the default) or `Comfortable`, from
@@ -790,7 +791,7 @@ application (`Klar.Settings`); a `Compact` or `Comfortable` table keeps its own.
 -}
 density : State id -> Density
 density arg1 =
-    Core.density (unwrapState arg1)
+    State.density (unwrapState arg1)
 
 
 {-| Sets the row density, for example from a saved preference. It works whether
@@ -798,7 +799,7 @@ or not `densityToggle` is shown.
 -}
 setDensity : Density -> State id -> State id
 setDensity arg1 arg2 =
-    fromCoreState (Core.setDensity arg1 (unwrapState arg2))
+    fromCoreState (State.setDensity arg1 (unwrapState arg2))
 
 
 {-| What is selected, as a `Selection`. In client mode `selectedIds` is enough; in
@@ -906,14 +907,14 @@ give the table an `expandedRow`.
 -}
 expandedIds : Ids id -> State id -> List id
 expandedIds arg1 arg2 =
-    Core.expandedIds arg1 (unwrapState arg2)
+    State.expandedIds arg1 (unwrapState arg2)
 
 
 {-| Is the row with this id expanded?
 -}
 isExpanded : Ids id -> id -> State id -> Bool
 isExpanded arg1 arg2 arg3 =
-    Core.isExpanded arg1 arg2 (unwrapState arg3)
+    State.isExpanded arg1 arg2 (unwrapState arg3)
 
 
 {-| Expands the row with this id, for example to open the first row when the table
@@ -924,14 +925,14 @@ appears.
 -}
 expand : Ids id -> id -> State id -> State id
 expand arg1 arg2 arg3 =
-    fromCoreState (Core.expand arg1 arg2 (unwrapState arg3))
+    fromCoreState (State.expand arg1 arg2 (unwrapState arg3))
 
 
 {-| Collapses the row with this id.
 -}
 collapse : Ids id -> id -> State id -> State id
 collapse arg1 arg2 arg3 =
-    fromCoreState (Core.collapse arg1 arg2 (unwrapState arg3))
+    fromCoreState (State.collapse arg1 arg2 (unwrapState arg3))
 
 
 {-| Toggles the details of a row (`expandedRow`), not its selection: expands the
@@ -940,7 +941,7 @@ arrow button does. To toggle a selection use `select` and `deselect`.
 -}
 toggle : Ids id -> id -> State id -> State id
 toggle arg1 arg2 arg3 =
-    fromCoreState (Core.toggle arg1 arg2 (unwrapState arg3))
+    fromCoreState (State.toggle arg1 arg2 (unwrapState arg3))
 
 
 {-| Makes these rows, and no others, the expanded ones: to restore the rows that
@@ -949,14 +950,14 @@ To collapse every row use `collapseAll`.
 -}
 setExpandedIds : Ids id -> List id -> State id -> State id
 setExpandedIds arg1 arg2 arg3 =
-    fromCoreState (Core.setExpandedIds arg1 arg2 (unwrapState arg3))
+    fromCoreState (State.setExpandedIds arg1 arg2 (unwrapState arg3))
 
 
 {-| Collapses every row.
 -}
 collapseAll : State id -> State id
 collapseAll arg1 =
-    fromCoreState (Core.collapseAll (unwrapState arg1))
+    fromCoreState (State.collapseAll (unwrapState arg1))
 
 
 {-| Whether the user chose to show (`Just True`) or hide (`Just False`) the
@@ -966,7 +967,7 @@ you remember the user's column choices.
 -}
 isColumnVisible : ColumnId -> State id -> Maybe Bool
 isColumnVisible arg1 arg2 =
-    Core.isColumnVisible (unwrapColumnId arg1) (unwrapState arg2)
+    State.isColumnVisible (unwrapColumnId arg1) (unwrapState arg2)
 
 
 {-| Records that the column with this id is shown (`True`) or hidden (`False`),
@@ -976,7 +977,7 @@ screen.
 -}
 setColumnVisible : ColumnId -> Bool -> State id -> State id
 setColumnVisible arg1 arg2 arg3 =
-    fromCoreState (Core.setColumnVisible (unwrapColumnId arg1) arg2 (unwrapState arg3))
+    fromCoreState (State.setColumnVisible (unwrapColumnId arg1) arg2 (unwrapState arg3))
 
 
 {-| A message from the table's own controls: sorting, paging, typing in a filter,
