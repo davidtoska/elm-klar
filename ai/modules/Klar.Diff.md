@@ -10,8 +10,8 @@ Types: `Msg`, `Diff`, `Hunk`, `State`, `Attribute`, `JsonOption`, `TextOption`
 
 ```elm
 -- Showing a diff
-view : (Msg -> msg) -> List Attribute -> State -> Diff -> Html msg
-viewStatic : List Attribute -> Diff -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Diff -> Html msg
+viewStatic : List (Attribute msg) -> Diff -> Html msg
 
 -- Making a diff
 type Diff  -- opaque: no constructors are exposed
@@ -47,16 +47,18 @@ init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 setSplit : Bool -> State -> State
 isSplit : State -> Bool
+currentHunk : Diff -> State -> Maybe Hunk
+goToHunk : Diff -> String -> State -> ( State, Cmd Msg )
 
 -- Attributes
-type Attribute  -- opaque: no constructors are exposed
-ariaLabel : String -> Attribute
-context : Int -> Attribute
-maxChanges : Int -> Attribute
-maxHeight : Int -> Attribute
-wrapLines : Attribute
-showUnchangedFields : Attribute
-locale : Locale.Locale -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+ariaLabel : String -> Attribute msg
+context : Int -> Attribute msg
+maxChanges : Int -> Attribute msg
+maxHeight : Int -> Attribute msg
+wrapLines : Attribute msg
+showUnchangedFields : Attribute msg
+locale : Locale.Locale -> Attribute msg
 ```
 
 ## Documentation
@@ -109,7 +111,7 @@ when there is only one JSON value.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Diff -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Diff -> Html msg
 ```
 
 The viewer: a toolbar (the counts, the layout of a text diff, buttons to the
@@ -150,7 +152,7 @@ a state for each would be a nuisance, use `viewStatic`.
 ### `viewStatic`
 
 ```elm
-viewStatic : List Attribute -> Diff -> Html msg
+viewStatic : List (Attribute msg) -> Diff -> Html msg
 ```
 
 The viewer without state, for a diff in a list of many (an audit log, the history
@@ -474,12 +476,41 @@ isSplit : State -> Bool
 
 Is the side-by-side layout chosen? Read it to remember the choice of the user.
 
+### `currentHunk`
+
+```elm
+currentHunk : Diff -> State -> Maybe Hunk
+```
+
+The change the user went to last (with `n` and `p`, or the buttons "Next" and
+"Previous"), in this diff, or `Nothing` before the first step. Use it to show a panel
+for the change the user is on, such as "Accept" and "Reject" for that hunk, with
+`hunkKey` to remember the decision.
+
+    Diff.currentHunk model.policyDiff model.policyView
+        |> Maybe.map Diff.hunkKey
+
+### `goToHunk`
+
+```elm
+goToHunk : Diff -> String -> State -> ( State, Cmd Msg )
+```
+
+Goes to the change with this `hunkKey`, as if the user had stepped to it: it
+becomes the current change, it is drawn even when it is after the first changes that
+are shown, and the command moves the keyboard focus to it (map it with `Cmd.map`).
+A key that is not in this diff changes nothing. Use it for a list of the changes next
+to the viewer, or to go back to the change the user decided on last.
+
+    ( state, cmd ) =
+        Diff.goToHunk model.policyDiff key model.policyView
+
 ## Attributes
 
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of the viewer. Make them with the functions below and pass a list to
@@ -488,7 +519,7 @@ A setting of the viewer. Make them with the functions below and pass a list to
 ### `ariaLabel`
 
 ```elm
-ariaLabel : String -> Attribute
+ariaLabel : String -> Attribute msg
 ```
 
 The accessible name of the diff, such as "Changes to the shipping policy". It
@@ -498,7 +529,7 @@ default is "Changes".
 ### `context`
 
 ```elm
-context : Int -> Attribute
+context : Int -> Attribute msg
 ```
 
 How many unchanged lines are shown around each change in a text diff; the rest
@@ -508,7 +539,7 @@ The default is 3, and the value is kept between 0 and 20.
 ### `maxChanges`
 
 ```elm
-maxChanges : Int -> Attribute
+maxChanges : Int -> Attribute msg
 ```
 
 How many changes are drawn before a row says "Showing 200 of 1,340 changes" and
@@ -521,7 +552,7 @@ how many it left out.
 ### `maxHeight`
 
 ```elm
-maxHeight : Int -> Attribute
+maxHeight : Int -> Attribute msg
 ```
 
 Scrolls inside the viewer when the diff is taller than this many pixels. By
@@ -531,7 +562,7 @@ its own box in any case, never the page.
 ### `wrapLines`
 
 ```elm
-wrapLines : Attribute
+wrapLines : Attribute msg
 ```
 
 Wraps long lines of a text diff instead of scrolling sideways. Good for
@@ -540,7 +571,7 @@ prose, such as a policy; code is easier to read when it keeps its lines.
 ### `showUnchangedFields`
 
 ```elm
-showUnchangedFields : Attribute
+showUnchangedFields : Attribute msg
 ```
 
 Shows the fields that did not change as well, muted, in a diff made with
@@ -550,7 +581,7 @@ other diffs.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the toolbar, the rows that fold unchanged

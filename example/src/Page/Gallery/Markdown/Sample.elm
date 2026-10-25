@@ -1,4 +1,4 @@
-module Page.Gallery.Markdown.Sample exposing (answer, document, note, unsafe)
+module Page.Gallery.Markdown.Sample exposing (answer, cited, document, note, unsafe)
 
 {-| The texts of the Markdown page: a long document with every feature, the answer
 that is revealed a few characters at a time, a text that tries to do harm, and the
@@ -173,3 +173,11 @@ Pack the **chairs** first, then the tables.
 
 See [the schedule](https://example.com/schedule).
 """
+
+
+{-| An answer with citations that the page draws itself, and character references
+from a text that was copied from a web page.
+-}
+cited : String
+cited =
+    "Chairs cost 40&nbsp;NOK each &mdash; tables 120&nbsp;NOK [1](#cite-1). Delivery is on Monday &amp; Tuesday, from the Oslo warehouse [2](#cite-2). &copy; Example&nbsp;AS"

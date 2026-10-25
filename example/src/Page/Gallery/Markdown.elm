@@ -38,6 +38,7 @@ type alias Model =
     , narrow : MarkdownEditor.State
     , errored : MarkdownEditor.State
     , locked : MarkdownEditor.State
+    , cited : Maybe String
     }
 
 
@@ -55,6 +56,7 @@ type Msg
     | ClearEditors
     | ScrollTo String
     | Scrolled
+    | Cite String
 
 
 init : ( Model, Cmd Msg )
@@ -68,6 +70,7 @@ init =
       , narrow = MarkdownEditor.init "md-narrow" |> MarkdownEditor.setValue Sample.note
       , errored = MarkdownEditor.init "md-error"
       , locked = MarkdownEditor.init "md-locked" |> MarkdownEditor.setValue Sample.note
+      , cited = Nothing
       }
     , Cmd.none
     )
@@ -151,6 +154,9 @@ update msg model =
 
         Scrolled ->
             ( model, Cmd.none )
+
+        Cite source ->
+            ( { model | cited = Just source }, Cmd.none )
 
 
 {-| Scrolls the box with the document so that the heading is at its top.
@@ -245,12 +251,57 @@ Layout.row [ Layout.gap 4 ]
                 ]
             )
         , Doc.example
+            { title = "Links of your own: citations"
+            , description = Just "Markdown.customLink draws the links that the page wants to draw itself, after the checks of the module, and gives Nothing for the others. Here [1](#cite-1) becomes a button that shows its source. Character references such as &nbsp;, &mdash;, &amp; and &copy; are the characters they stand for, never markup. A link in the text to one of its headings ([Pricing](#pricing)) goes to the id of that heading, with the prefix."
+            , code = Just """Markdown.view [ Markdown.customLink citation ] answer
+
+citation link =
+    if String.startsWith "#cite-" link.href then
+        Just (Button.view [ Button.link, Button.small, Button.onClick (Cite (String.dropLeft 6 link.href)) ] (String.dropLeft 6 link.href))
+
+    else
+        Nothing"""
+            }
+            (Layout.stack [ Layout.gap 2 ]
+                [ Markdown.view [ Markdown.locale locale, Markdown.customLink citation ] Sample.cited
+                , Text.caption
+                    (case model.cited of
+                        Just "1" ->
+                            "Source 1: the price list of spring 2026."
+
+                        Just "2" ->
+                            "Source 2: the delivery plan for the Oslo warehouse."
+
+                        Just other ->
+                            "Source " ++ other
+
+                        Nothing ->
+                            "Press a number to see its source."
+                    )
+                ]
+            )
+        , Doc.example
             { title = "Headings in a page that has headings"
             , description = Just "With headingOffset 2 a # is an h3. The levels stop at h6 and never skip one."
             , code = Just "Markdown.view [ Markdown.headingOffset 2 ] \"# Title\\n\\n## Section\\n\\n#### Detail\""
             }
             (Markdown.view [ Markdown.headingOffset 2 ] "# Title\n\n## Section\n\n#### Detail, written as level four")
         ]
+
+
+{-| The citations of an answer, `[1](#cite-1)`, as buttons that show their source.
+-}
+citation : { href : String, external : Bool, title : String, content : List (Html Msg) } -> Maybe (Html Msg)
+citation link =
+    if String.startsWith "#cite-" link.href then
+        let
+            source =
+                String.dropLeft 6 link.href
+        in
+        Just (Button.view [ Button.link, Button.small, Button.onClick (Cite source) ] source)
+
+    else
+        Nothing
 
 
 streamingSection : Locale -> Model -> Html Msg
