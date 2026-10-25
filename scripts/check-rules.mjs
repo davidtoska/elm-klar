@@ -7,6 +7,12 @@
 // - Remote data whose freshness is thrown away (`Tuple.first (Freshness.settle ...)`, rule 5):
 //   `Remote.Kept` data is then drawn as fresh, with no dimming while it refreshes and no
 //   marker when the refresh failed. Keep the `Freshness` and draw it (`Freshness.wrap`).
+// - A `Freshness.Fresh` branch of a case (rule 5): fresh data drawn apart from old and
+//   refreshing data usually means other elements around it, so the content is replaced
+//   when a refresh starts or ends and the focus in it drops to `body`. `Freshness.wrap`
+//   draws the same elements in every state.
+// - A `Freshness.notice` that a component draws itself: the box around the content is then
+//   the component's, and must be the same element in every state (or use `Freshness.wrap`).
 //
 //   node scripts/check-rules.mjs            report them (exit 0)
 //   node scripts/check-rules.mjs --strict   fail when there is one
@@ -186,13 +192,18 @@ function walk(dir) {
 }
 
 const dropped = [];
+const freshBranches = [];
+const ownNotices = [];
 for (const file of walk(path.join(root, 'src'))) {
   if (file.endsWith(path.join('Internal', 'Freshness.elm'))) continue;
   const lines = stripComments(fs.readFileSync(file, 'utf8').replace(/\r/g, '')).split('\n');
+  const at = (index) => `${path.relative(root, file)}:${index + 1}`;
   lines.forEach((line, index) => {
     if (/Tuple\.first\s*(\(\s*|<\|\s*)Freshness\.settle\b/.test(line) || /Freshness\.settle\b[^|]*\|>\s*Tuple\.first\b/.test(line)) {
-      dropped.push(`${path.relative(root, file)}:${index + 1}`);
+      dropped.push(at(index));
     }
+    if (/\bFreshness\.Fresh\s*\)?\s*->\s*$/.test(line)) freshBranches.push(at(index));
+    if (/\bFreshness\.notice\b/.test(line)) ownNotices.push(at(index));
   });
 }
 
@@ -208,7 +219,16 @@ else {
   console.log(`${dropped.length} place(s) that throw the freshness of remote data away (draw it with Freshness.wrap):`);
   for (const d of dropped) console.log(`  - ${d}`);
 }
-if (found.length + dropped.length > 0) {
+if (freshBranches.length === 0) console.log('rules: no case draws fresh data apart from old and refreshing data');
+else {
+  console.log(`${freshBranches.length} Freshness.Fresh branch(es) that may draw other elements than old or refreshing data (use Freshness.wrap):`);
+  for (const d of freshBranches) console.log(`  - ${d}`);
+}
+if (ownNotices.length > 0) {
+  console.log(`${ownNotices.length} Freshness.notice call(s) outside Freshness.wrap (the box around the content must be the same element in every state):`);
+  for (const d of ownNotices) console.log(`  - ${d}`);
+}
+if (found.length + dropped.length + freshBranches.length + ownNotices.length > 0) {
   if (strict) process.exit(1);
   console.log('(report only; run with --strict to fail)');
 }

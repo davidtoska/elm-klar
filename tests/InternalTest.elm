@@ -164,6 +164,17 @@ modTests =
                     ( press (keydown "Enter" [ ( "ctrlKey", Encode.bool True ) ]) field
                     , Result.toMaybe (press (keydown "Enter" [ ( "metaKey", Encode.bool True ) ]) field) == Nothing
                     )
+        , test "a letter is named as KeyboardEvent.key gives it: \"Mod+a\" without Shift, \"Mod+A\" with Shift" <|
+            \_ ->
+                let
+                    shifted =
+                        Html.div [ Internal.onKeys [ ( "Mod+A", Closed ) ] ] []
+                in
+                Expect.equal ( True, Ok Closed, Ok Saved )
+                    ( Result.toMaybe (press (keydown "a" [ ( "ctrlKey", Encode.bool True ) ]) shifted) == Nothing
+                    , press (keydown "A" [ ( "ctrlKey", Encode.bool True ), ( "shiftKey", Encode.bool True ) ]) shifted
+                    , press (keydown "a" [ ( "metaKey", Encode.bool True ) ]) field
+                    )
         ]
 
 

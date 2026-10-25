@@ -510,22 +510,6 @@ html:has(.klar-modal-lock) {
   font-size: var(--klar-text-sm);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-toast,
-  .klar-modal__backdrop,
-  .klar-modal__dialog,
-  .klar-palette__backdrop,
-  .klar-palette__panel {
-    animation: none;
-  }
-
-  /* The nudge of a static dialog, with the specificity of its own rules. */
-  .klar-modal.klar-modal .klar-modal__dialog--nudge-a,
-  .klar-modal.klar-modal .klar-modal__dialog--nudge-b {
-    animation: none;
-  }
-}
-
 /* Windows high contrast: the shadows are gone, so the dialogs, drawers and toasts
    keep their edges as borders in the system colors, and the footer that Shift+Tab
    wrapped to keeps its ring. */

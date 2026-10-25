@@ -294,6 +294,15 @@ table {
     animation: none !important;
   }
 
+  /* Overlays come in at once: no fade, slide or scale (and no animation events). */
+  .klar-toast,
+  .klar-modal__backdrop,
+  .klar-modal__dialog,
+  .klar-palette__backdrop,
+  .klar-palette__panel {
+    animation: none !important;
+  }
+
   .klar-spinner,
   .klar-switch--loading .klar-switch__thumb::after,
   .klar-progress-ring__arc {

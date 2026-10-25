@@ -583,13 +583,6 @@ css =
   width: 100%;
 }
 
-/* Reduced motion, the same for every loading indicator of Klar: what turns (the
-   spinner, the indeterminate ring) keeps turning at 1.6s a round, because it says
-   "working"; a bar that runs takes 3.2s; stripes and the shimmer stand still. */
-@media (prefers-reduced-motion: reduce) {
-  .klar-skeleton { animation: none; }
-  .klar-spinner { animation-duration: 1.6s; }
-}
 
 /* High contrast drops the gradient and paints the background as the page: an
    outline keeps the shape of every placeholder. */

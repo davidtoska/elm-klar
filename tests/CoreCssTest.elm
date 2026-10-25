@@ -132,6 +132,21 @@ suite =
                     |> List.filter (\r -> String.contains "prefers-reduced-motion: reduce" r.media && List.member ".klar-modal__dialog--nudge-a" (selectors r))
                     |> List.concatMap .declarations
                     |> Expect.equal [ "animation: none !important" ]
+        , test "reduced motion is one list (Base): no component has a block of its own" <|
+            \_ ->
+                String.lines Css.rules
+                    |> List.filter (\line -> String.startsWith "@media" line && String.contains "prefers-reduced-motion" line)
+                    -- the duration tokens of Tokens, which are 0ms under reduced motion
+                    |> List.filter (\line -> not (String.contains "{:root{" line))
+                    |> List.length
+                    |> Expect.equal 1
+        , test "every rule of the reduced-motion list is !important" <|
+            \_ ->
+                rules
+                    |> List.filter (\r -> String.contains "prefers-reduced-motion: reduce" r.media && r.selector /= ":root")
+                    |> List.concatMap .declarations
+                    |> List.filter (\declaration -> String.trim declaration /= "" && not (String.contains "!important" declaration))
+                    |> Expect.equal []
         , test "the row of a list in a popup is 32px at every density, as Elm's arithmetic assumes" <|
             \_ ->
                 rules

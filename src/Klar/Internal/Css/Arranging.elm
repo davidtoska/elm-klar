@@ -277,9 +277,6 @@ css =
   text-align: center;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-sortable__item { transition: none; }
-}
 
 @media (forced-colors: active) {
   .klar-sortable__item--drop-before::before,
@@ -448,9 +445,6 @@ css =
 
 .klar-splitter--stacked > .klar-splitter__layer { cursor: row-resize; }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-splitter__separator::before { transition: none; }
-}
 
 @media (forced-colors: active) {
   .klar-splitter__separator::before {

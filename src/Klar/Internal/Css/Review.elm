@@ -782,13 +782,6 @@ css =
   to { transform: translateX(calc(400% * var(--_dir, 1))); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .klar-compare__progress::after {
-    width: 100%;
-    opacity: 0.5;
-    animation: none;
-  }
-}
 
 /* The skeleton is drawn in the same table, without the sticky headings. */
 .klar-compare--loading .klar-compare__corner,
