@@ -167,6 +167,43 @@ freshnessTests =
                     , \_ -> Expect.equal True (Drive.has [ Selector.id "place-tree" ] h)
                     ]
                     ()
+        , test "Tab goes on to Try again of old data, a click on it sends focus back to the search box, and Tab on it closes" <|
+            \_ ->
+                let
+                    h =
+                        withTop stale (opened stale)
+
+                    fresh =
+                        withTop (Loaded Trees.cities) (opened (Loaded Trees.cities))
+
+                    failed =
+                        Failed (Remote.problem Remote.server)
+
+                    refocus =
+                        Drive.fire [ Selector.class "klar-select__state" ] Event.click (withTop failed (opened failed))
+
+                    dismiss =
+                        Drive.fire [ Selector.id "place-search" ] (Drive.key "Tab") fresh
+                in
+                Expect.all
+                    [ \_ -> Expect.equal Nothing (Drive.fire [ Selector.id "place-search" ] (Drive.key "Tab") h)
+                    , \_ -> Expect.notEqual Nothing refocus
+                    , \_ -> Expect.equal refocus (Drive.fire [ Selector.class "klar-picking__notice" ] Event.click h)
+                    , \_ -> Expect.notEqual Nothing dismiss
+                    , \_ -> Expect.equal dismiss (Drive.fire [ Selector.class "klar-picking__notice" ] (Drive.key "Tab") h)
+                    ]
+                    ()
+        , test "the marker for old data stays above No matches" <|
+            \_ ->
+                let
+                    h =
+                        withTop stale (opened stale |> typeText "zzzz")
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-stale", Selector.containing [ Selector.text "Old data" ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.text "No matches" ] h)
+                    ]
+                    ()
         , test "the search box offers a listbox while it searches and a tree otherwise" <|
             \_ ->
                 let

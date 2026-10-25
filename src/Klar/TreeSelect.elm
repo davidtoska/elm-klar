@@ -2375,6 +2375,15 @@ viewPopup toMsg config t env data =
                 _ ->
                     Nothing
 
+        -- old data at the top level: its Try again is the next stop after the
+        -- search box, so Tab goes there instead of closing the popup
+        staleRetry =
+            if loaded then
+                View.staleRetry config.freshness config.onRetry
+
+            else
+                Nothing
+
         content =
             case ( data.cache, loaded ) of
                 ( Just cache, True ) ->
@@ -2459,7 +2468,7 @@ viewPopup toMsg config t env data =
                                 []
                            )
                 , passive =
-                    if View.isJust retry then
+                    if View.isJust retry || View.isJust staleRetry then
                         [ View.plain "Shift+Tab" (toMsg Dismiss) ]
 
                     else if data.multiple && not (Dict.isEmpty data.chosen) && loaded then
@@ -2474,26 +2483,44 @@ viewPopup toMsg config t env data =
                 Loaded _ ->
                     case content of
                         Just cache ->
-                            if cache.rows.shown == 0 then
-                                if Index.size cache.index == 0 then
-                                    View.viewEmpty Icon.inbox t.noOptions Nothing
+                            -- the same elements while the tree is fresh, refreshed
+                            -- or old, around the rows and the empty states alike,
+                            -- so that nothing moves under the user and the marker
+                            -- for old data stays when nothing matches
+                            Html.div
+                                [ Internal.cls [ Freshness.className config.freshness ]
+                                , Freshness.busyAttr config.freshness
+                                ]
+                                [ View.viewNotice
+                                    { locale = config.locale
+                                    , settings = config.settings
+                                    , onRetry = config.onRetry
+                                    , refocus = toMsg FocusSearch
+                                    , leave =
+                                        if data.multiple && not (Dict.isEmpty data.chosen) && cache.rows.shown > 0 then
+                                            -- Clear all in the footer is the next stop
+                                            Nothing
 
-                                else
-                                    View.viewEmpty Icon.search t.noMatches (Just (t.noMatchesFor (String.trim data.query)))
+                                        else
+                                            Just (toMsg Dismiss)
+                                    , noop = toMsg NoOp
+                                    }
+                                    config.freshness
+                                , if cache.rows.shown == 0 then
+                                    if Index.size cache.index == 0 then
+                                        View.viewEmpty Icon.inbox t.noOptions Nothing
 
-                            else
-                                -- the same elements while the tree is fresh, refreshed
-                                -- or old, so that nothing moves under the user
-                                Html.div
-                                    [ Internal.cls [ Freshness.className config.freshness ]
-                                    , Freshness.busyAttr config.freshness
-                                    ]
-                                    [ Freshness.notice
-                                        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
-                                        config.freshness
-                                    , viewTree toMsg config t env data cache highlighted inRange
-                                    , viewFooter toMsg config t data cache
-                                    ]
+                                    else
+                                        View.viewEmpty Icon.search t.noMatches (Just (t.noMatchesFor (String.trim data.query)))
+
+                                  else
+                                    viewTree toMsg config t env data cache highlighted inRange
+                                , if cache.rows.shown == 0 then
+                                    Html.text ""
+
+                                  else
+                                    viewFooter toMsg config t data cache
+                                ]
 
                         Nothing ->
                             viewLoading t
@@ -2992,5 +3019,7 @@ viewNodeRow rc index item =
             )
             (Picking.description node)
         , Internal.viewIf (Freshness.busy entry.freshness)
-            (Html.span [ Internal.cls [ "klar-tree-select__busy" ] ] [ Spinner.view [ Spinner.label rc.t.loadingChildren ] ])
+            -- decoration: aria-busy on the row says it, and a live region in
+            -- every busy row of a virtual list would come and go with the scroll
+            (Html.span [ Internal.cls [ "klar-tree-select__busy" ] ] [ Spinner.view [] ])
         ]

@@ -54,7 +54,8 @@ type alias Texts =
     , moveDown : String
     , moveToTop : String
     , moveToBottom : String
-    , movedToPlace : Int -> Int -> String
+    , movedToPlace : String -> Int -> Int -> String
+    , movedManyToPlace : Int -> Int -> Int -> String
     }
 
 
@@ -124,7 +125,8 @@ texts locale =
             , moveDown = "Flytt ned"
             , moveToTop = "Flytt øverst"
             , moveToBottom = "Flytt nederst"
-            , movedToPlace = \place count -> "Flyttet til plass " ++ num place ++ " av " ++ num count
+            , movedToPlace = \what place count -> what ++ " flyttet til plass " ++ num place ++ " av " ++ num count
+            , movedManyToPlace = \moved place count -> num moved ++ " elementer flyttet til plass " ++ num place ++ " av " ++ num count
             }
         , en =
             { placeholder = "Select ..."
@@ -193,6 +195,7 @@ texts locale =
             , moveDown = "Move down"
             , moveToTop = "Move to the top"
             , moveToBottom = "Move to the bottom"
-            , movedToPlace = \place count -> "Moved to place " ++ num place ++ " of " ++ num count
+            , movedToPlace = \what place count -> what ++ " moved to place " ++ num place ++ " of " ++ num count
+            , movedManyToPlace = \moved place count -> num moved ++ " items moved to place " ++ num place ++ " of " ++ num count
             }
         }

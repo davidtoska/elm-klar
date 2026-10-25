@@ -119,7 +119,12 @@ css =
 .klar-cascader__item--stale {
   gap: 6px;
   color: var(--klar-amber-700);
-  cursor: pointer;
+  cursor: default;
+}
+
+/* the wrapper of the marker for old data above the rows: no box of its own */
+.klar-picking__notice {
+  display: contents;
 }
 
 .klar-tree-select__stale-icon {

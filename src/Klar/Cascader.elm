@@ -2121,6 +2121,15 @@ viewPopup toMsg config t env data =
         searching =
             not (String.isEmpty (String.trim data.query))
 
+        -- old data at the top level: its Try again is the next stop after the
+        -- search box, so Tab goes there instead of closing the popup
+        staleRetry =
+            if loaded then
+                View.staleRetry config.freshness config.onRetry
+
+            else
+                Nothing
+
         cache =
             if loaded then
                 data.cache
@@ -2230,7 +2239,7 @@ viewPopup toMsg config t env data =
                     )
                         ++ [ View.plain "Escape" (toMsg Close) ]
                 , passive =
-                    if View.isJust retry || actionKey data config env /= Nothing then
+                    if View.isJust retry || View.isJust staleRetry || actionKey data config env /= Nothing then
                         [ View.plain "Shift+Tab" (toMsg Dismiss) ]
 
                     else
@@ -2238,8 +2247,20 @@ viewPopup toMsg config t env data =
                 }
 
         staleNotice =
-            Freshness.notice
-                { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+            View.viewNotice
+                { locale = config.locale
+                , settings = config.settings
+                , onRetry = config.onRetry
+                , refocus = toMsg FocusSearch
+                , leave =
+                    if not searching && actionKey data config env /= Nothing then
+                        -- the action in the footer is the next stop
+                        Nothing
+
+                    else
+                        Just (toMsg Dismiss)
+                , noop = toMsg NoOp
+                }
                 config.freshness
 
         body =
@@ -2247,32 +2268,33 @@ viewPopup toMsg config t env data =
                 Loaded _ ->
                     case cache of
                         Just c ->
-                            if Index.size c.index == 0 then
-                                View.viewEmpty Icon.inbox t.noOptions Nothing
+                            -- the same elements while the data is fresh, refreshed
+                            -- or old, around the columns, the results and the empty
+                            -- states alike, so that the marker for old data stays
+                            -- when nothing matches
+                            Html.div
+                                [ Internal.cls [ Freshness.className config.freshness ]
+                                , Freshness.busyAttr config.freshness
+                                ]
+                                (staleNotice
+                                    :: (if Index.size c.index == 0 then
+                                            [ View.viewEmpty Icon.inbox t.noOptions Nothing ]
 
-                            else if searching then
-                                if resultCount == 0 then
-                                    View.viewEmpty Icon.search t.noMatches (Just (t.noMatchesFor (String.trim data.query)))
+                                        else if searching then
+                                            if resultCount == 0 then
+                                                [ View.viewEmpty Icon.search t.noMatches (Just (t.noMatchesFor (String.trim data.query))) ]
 
-                                else
-                                    Html.div
-                                        [ Internal.cls [ Freshness.className config.freshness ]
-                                        , Freshness.busyAttr config.freshness
-                                        ]
-                                        [ staleNotice
-                                        , viewResults toMsg config t env data c foundId
-                                        , View.viewFooter (t.results resultCount) []
-                                        ]
+                                            else
+                                                [ viewResults toMsg config t env data c foundId
+                                                , View.viewFooter (t.results resultCount) []
+                                                ]
 
-                            else
-                                Html.div
-                                    [ Internal.cls [ Freshness.className config.freshness ]
-                                    , Freshness.busyAttr config.freshness
-                                    ]
-                                    [ staleNotice
-                                    , viewColumns toMsg config t env data c cursor cursorId
-                                    , viewColumnsFooter toMsg config t env data c
-                                    ]
+                                        else
+                                            [ viewColumns toMsg config t env data c cursor cursorId
+                                            , viewColumnsFooter toMsg config t env data c
+                                            ]
+                                       )
+                                )
 
                         Nothing ->
                             viewLoading t
@@ -2722,7 +2744,9 @@ viewItem rc col index entry posInSet setSize =
             (\description -> Html.span [ Internal.cls [ "klar-select__option-description" ] ] [ Html.text description ])
             (Picking.description node)
         , if Freshness.busy entry.freshness then
-            Html.span [ Internal.cls [ "klar-cascader__next" ] ] [ Spinner.view [ Spinner.label rc.t.loadingChildren ] ]
+            -- decoration: aria-busy on the item says it, and a live region in
+            -- every busy item of a virtual list would come and go with the scroll
+            Html.span [ Internal.cls [ "klar-cascader__next" ] ] [ Spinner.view [] ]
 
           else if hasKids then
             Html.span [ Internal.cls [ "klar-cascader__next" ], Attr.attribute "aria-hidden" "true" ] [ Icon.view Icon.chevronRight ]

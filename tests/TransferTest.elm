@@ -969,7 +969,7 @@ orderTests =
                 Expect.all
                     [ \_ -> Expect.equal [ 3, 1, 2 ] (Transfer.values there)
                     , \_ -> Expect.equal [ 3, 2, 1 ] (Transfer.values up)
-                    , \_ -> Expect.equal True (Drive.has [ attr "role" "status", Selector.containing [ Selector.text "Moved to place 2 of 3" ] ] (html moved up))
+                    , \_ -> Expect.equal True (Drive.has [ attr "role" "status", Selector.containing [ Selector.text "Cocoa moved to place 2 of 3" ] ] (html moved up))
                     , \_ -> Expect.equal True (Drive.has [ Selector.id "products-chosen", attr "aria-activedescendant" "products-c-1" ] (html moved up))
                     ]
                     ()
@@ -988,11 +988,24 @@ orderTests =
 
                     top =
                         fireOn moved [ attr "aria-label" "Move to the top" ] Event.click there
+
+                    unmarked =
+                        field
+                            |> fireOn moved [ Selector.id "products-a-2" ] Event.doubleClick
+                            |> fireOn moved [ Selector.id "products-a-0" ] Event.doubleClick
+
+                    filtered =
+                        fireOn moved [ Selector.id "products-chosen-filter" ] (Event.input "Co") there
+
+                    unavailable state =
+                        Drive.has [ attr "aria-label" "Move to the top", attr "aria-disabled" "true" ] (html moved state)
                 in
                 Expect.all
                     [ \_ -> Expect.equal [ 2, 3, 1 ] (Transfer.values top)
                     , \_ -> Expect.equal True (Drive.has [ attr "aria-label" "Move down" ] (html moved field))
                     , \_ -> Expect.equal False (Drive.has [ attr "aria-label" "Move down" ] (html [] field))
+                    , \_ -> Expect.equal [ True, False, True ] [ unavailable unmarked, unavailable there, unavailable filtered ]
+                    , \_ -> Expect.equal (Transfer.values filtered) (Transfer.values (fireOn moved [ Selector.id "products-chosen" ] (Drive.altKey "ArrowUp") filtered))
                     ]
                     ()
         ]
@@ -1102,10 +1115,20 @@ sourceTests =
                     -- Tab on the button sends the message that does nothing
                     clicked =
                         Drive.fire state Event.click failed
+
+                    -- old data: a click on its Try again sends the same message as
+                    -- the click on the failure, the one that focuses the filter box
+                    old =
+                        Remote.refreshWith (Loaded products) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)
+
+                    stale =
+                        Transfer.view TR [ Transfer.label "Products", Transfer.remote ids old, Transfer.onRetry Retried ] field
                 in
                 Expect.all
                     [ \_ -> Expect.notEqual Nothing clicked
                     , \_ -> Expect.notEqual (Drive.fire state (Drive.key "Tab") failed) clicked
+                    , \_ -> Expect.equal clicked (Drive.fire [ Selector.class "klar-picking__notice" ] Event.click stale)
+                    , \_ -> Expect.equal (Just Retried) (Drive.fire [ Selector.class "klar-stale", Selector.tag "button" ] Event.click stale)
                     ]
                     ()
         , test "items that are refreshed stay and can be moved, with Available dimmed and busy" <|
