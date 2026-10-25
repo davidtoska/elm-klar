@@ -66,6 +66,7 @@ type Checksum
     = NoChecksum
     | OrganisationNumber
     | BankAccount
+    | Gtin
 
 
 {-| What was read from the text: the characters that are the value (without separators,
@@ -565,6 +566,13 @@ checkIssue shape value =
 
         Slots _ BankAccount ->
             if Checksum.mod11 [ 5, 4, 3, 2, 7, 6, 5, 4, 3, 2 ] value then
+                Nothing
+
+            else
+                Just WrongCheckDigit
+
+        Slots _ Gtin ->
+            if Checksum.mod10 value then
                 Nothing
 
             else

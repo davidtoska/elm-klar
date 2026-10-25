@@ -42,6 +42,7 @@ validate : (String -> Maybe String) -> Attribute msg
 maxLength : Int -> Attribute msg
 
 -- Behavior
+multiline : Attribute msg
 disabled : Bool -> Attribute msg
 
 -- Language
@@ -108,7 +109,9 @@ The first `String` given to `init` is the DOM id of the input that is shown whil
 editing, so there is no `id` attribute; the second is the text to show.
 
 **Keyboard.** Enter saves, Escape cancels, leaving the field saves, and the text
-is a button: Tab reaches it and Space or Enter starts editing. The Enter or
+is a button: Tab reaches it and Space or Enter starts editing. A `multiline` text
+is edited in a text area, where Enter starts a new line and Ctrl+Enter (Cmd+Enter on
+a Mac) saves. The Enter or
 Escape that ends an IME composition (Japanese, Chinese, Korean input) only picks
 the characters. Escape is handled here and its default is prevented, so a
 surrounding dialog that respects `defaultPrevented` stays open. Switching to
@@ -395,6 +398,21 @@ Limits the text to this many characters (the HTML `maxlength` of the input).
 There is no counter. Default: no limit.
 
 ## Behavior
+
+### `multiline`
+
+```elm
+multiline : Attribute msg
+```
+
+The text has several lines, such as a note or a description. The editor is a
+text area: Enter starts a new line, Ctrl+Enter (Cmd+Enter on a Mac) saves, Escape
+cancels and leaving the field saves, as in a single line. In reading mode the line
+breaks are kept. Default: a single line.
+
+    InlineEdit.view NoteMsg
+        [ InlineEdit.ariaLabel "Delivery note", InlineEdit.multiline ]
+        model.deliveryNote
 
 ### `disabled`
 

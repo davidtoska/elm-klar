@@ -1,7 +1,7 @@
 module Klar.MaskedInput exposing
     ( view, Attribute
     , State, Msg, init, update
-    , Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, pattern, setMask
+    , Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, ean13, pattern, setMask
     , value, text, problem, setValue, clear, touch, isComplete, isValid, isTouched
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, size, disabled, readOnly, name
@@ -58,7 +58,8 @@ error comes and goes.
 
 **Masks.** A `Mask` is a value, made by a function: `iban`,
 `norwegianOrganisationNumber`, `norwegianBankAccount`, `norwegianPostalCode`,
-`postalCode "SE"`, `phone`, or a pattern of your own with `pattern "@@-####"`. A mask
+`postalCode "SE"`, `phone`, `ean13` (the barcode number of a product), or a pattern
+of your own with `pattern "@@-####"`. A mask
 that can fail to be made (an unknown country, a pattern that makes no sense) gives
 `Maybe`, so the application knows at once, not when the user is in the field. Build
 the masks once, in `init`; `setMask` changes the mask of a field that is on the
@@ -124,7 +125,7 @@ The built-in texts (the errors) follow `locale`.
 
 # Masks
 
-@docs Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, pattern, setMask
+@docs Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, ean13, pattern, setMask
 
 
 # The identifier
@@ -249,6 +250,16 @@ not a phone number database.
 phone : Mask
 phone =
     Mask { shape = Phone, autocomplete = "tel" }
+
+
+{-| The number under the barcode of a product, a GTIN-13 (EAN-13): thirteen digits
+where the last is a check digit (modulus 10), `5901234123457`. A scanner that types
+the number and an Enter works too: the Enter writes it and lets a form go on. The
+value is the thirteen digits.
+-}
+ean13 : Mask
+ean13 =
+    Mask { shape = Slots (List.repeat 13 Digit) Gtin, autocomplete = "off" }
 
 
 {-| A mask of your own from a pattern. Three characters are slots, and every other

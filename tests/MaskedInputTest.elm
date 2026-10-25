@@ -128,6 +128,15 @@ sharedRuleTests =
             \_ ->
                 after [ focusIn plain, typeIn plain "９７４７６０６７３" ] orgnr
                     |> expectValue (Just "974760673")
+        , test "an EAN-13 with the right check digit is a value" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "5901234123457", leave plain ] (MaskedInput.init "gtin" MaskedInput.ean13)
+                    |> expectValue (Just "5901234123457")
+        , test "an EAN-13 with a wrong check digit says so at once" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "5901234123458" ] (MaskedInput.init "gtin" MaskedInput.ean13)
+                    |> Result.map (MaskedInput.problem plain)
+                    |> Expect.equal (Ok (Just "The check digit is wrong"))
         , test "full-width digits are written as ordinary ones in the groups" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "９７４７６０６７３", leave plain ] orgnr

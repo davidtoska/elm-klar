@@ -25,6 +25,7 @@ type alias Model =
     { iban : MaskedInput.State
     , orgnr : MaskedInput.State
     , account : MaskedInput.State
+    , gtin : MaskedInput.State
     , postalNo : MaskedInput.State
     , postalNl : MaskedInput.State
     , postalCountry : String
@@ -43,6 +44,7 @@ type Msg
     = IbanMsg MaskedInput.Msg
     | OrgnrMsg MaskedInput.Msg
     | AccountMsg MaskedInput.Msg
+    | GtinMsg MaskedInput.Msg
     | PostalNoMsg MaskedInput.Msg
     | PostalNlMsg MaskedInput.Msg
     | PostalCountryPicked String
@@ -61,6 +63,7 @@ init =
     ( { iban = MaskedInput.init "structured-iban" MaskedInput.iban
       , orgnr = MaskedInput.init "structured-orgnr" MaskedInput.norwegianOrganisationNumber
       , account = MaskedInput.init "structured-account" MaskedInput.norwegianBankAccount
+      , gtin = MaskedInput.init "structured-gtin" MaskedInput.ean13
       , postalNo = MaskedInput.init "structured-postal-no" MaskedInput.norwegianPostalCode
       , postalNl = MaskedInput.init "structured-postal-nl" (MaskedInput.postalCode "NL" |> Maybe.withDefault MaskedInput.norwegianPostalCode)
       , postalCountry = "NL"
@@ -103,6 +106,9 @@ update msg model =
 
         AccountMsg inner ->
             masked inner model.account (\state -> { model | account = state }) AccountMsg
+
+        GtinMsg inner ->
+            masked inner model.gtin (\state -> { model | gtin = state }) GtinMsg
 
         PostalNoMsg inner ->
             masked inner model.postalNo (\state -> { model | postalNo = state }) PostalNoMsg
@@ -253,6 +259,16 @@ viewIdentifiers locale model =
                     [ MaskedInput.view AccountMsg [ MaskedInput.label "Bank account", MaskedInput.hint "For example 8601.11.17947.", MaskedInput.locale locale ] model.account
                     , readout model.account
                     ]
+                ]
+            )
+        , Doc.example
+            { title = "Product barcode"
+            , description = Just "The GTIN-13 (EAN-13) under the barcode of a product, with its check digit (modulus 10). A scanner that types the number and Enter works too. Try 5901234123457."
+            , code = Just "MaskedInput.init \"article-gtin\" MaskedInput.ean13"
+            }
+            (Layout.stack [ Layout.gap 2 ]
+                [ MaskedInput.view GtinMsg [ MaskedInput.label "EAN-13", MaskedInput.locale locale ] model.gtin
+                , readout model.gtin
                 ]
             )
         ]

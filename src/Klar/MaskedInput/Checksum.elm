@@ -1,13 +1,14 @@
 module Klar.MaskedInput.Checksum exposing
-    ( mod11
+    ( mod10
+    , mod11
     , mod97
     )
 
 {-| The check digits that identifiers carry: they catch a mistyped or transposed
 character, so a wrong number is found before it is sent anywhere.
 
-Both work on text that has been read already: digits only for `mod11`, digits and
-capital letters for `mod97`.
+They work on text that has been read already: digits only for `mod10` and `mod11`,
+digits and capital letters for `mod97`.
 
 -}
 
@@ -51,6 +52,42 @@ mod11 weights digits =
 
             remainder ->
                 check == 11 - remainder
+
+
+{-| The check digit of a GTIN, the number under the barcode of a product (EAN-13,
+modulus 10). The last digit is the check digit. The digits before it are multiplied
+by 3 and 1 in turn, starting with 3 at the one next to the check digit, and added;
+the check digit is what brings the sum up to the next multiple of ten.
+
+    Checksum.mod10 "5901234123457" --> True
+
+`False` for fewer than two digits, and for text that is not made of digits.
+
+-}
+mod10 : String -> Bool
+mod10 digits =
+    if String.length digits < 2 || not (String.all Char.isDigit digits) then
+        False
+
+    else
+        let
+            fromTheRight =
+                digits |> String.toList |> List.map (\c -> Char.toCode c - 48) |> List.reverse
+
+            sum =
+                fromTheRight
+                    |> List.drop 1
+                    |> List.indexedMap
+                        (\index n ->
+                            if modBy 2 index == 0 then
+                                3 * n
+
+                            else
+                                n
+                        )
+                    |> List.sum
+        in
+        List.head fromTheRight == Just (modBy 10 (10 - modBy 10 sum))
 
 
 {-| The check of an IBAN (ISO 7064, modulus 97-10). The first four characters (the

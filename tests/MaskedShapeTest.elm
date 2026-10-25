@@ -21,6 +21,7 @@ suite =
         [ organisationNumberTests
         , bankAccountTests
         , ibanChecksumTests
+        , gtinTests
         , ibanTableTests
         , readingTests
         , writingTests
@@ -1259,3 +1260,26 @@ postalTyped country text =
 
         Nothing ->
             "?"
+
+
+gtinTests : Test
+gtinTests =
+    describe "the GTIN check digit (modulus 10)"
+        [ test "known product numbers are right" <|
+            \_ ->
+                [ "5901234123457", "4006381333931", "7038010069307", "0012345678905" ]
+                    |> List.filter (\gtin -> not (Checksum.mod10 gtin))
+                    |> Expect.equal []
+        , test "every other last digit is wrong" <|
+            \_ ->
+                List.range 0 9
+                    |> List.map (\d -> "590123412345" ++ String.fromInt d)
+                    |> List.filter Checksum.mod10
+                    |> Expect.equal [ "5901234123457" ]
+        , test "two neighbours swapped are found" <|
+            \_ -> Expect.equal False (Checksum.mod10 "5901234213457")
+        , test "text that is not digits is wrong" <|
+            \_ -> Expect.equal False (Checksum.mod10 "59012341234A7")
+        , test "a single digit is not a number with a check digit" <|
+            \_ -> Expect.equal False (Checksum.mod10 "0")
+        ]

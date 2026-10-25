@@ -1710,7 +1710,14 @@
       "msg": [],
       "ids": [],
       "stateful": false,
-      "quickPath": [],
+      "quickPath": [
+        "minorDecoder",
+        "toString",
+        "add",
+        "sum",
+        "percentOf",
+        "encodeMinor"
+      ],
       "mainFunctions": [
         "fromMinor",
         "fromMajorAndMinor",

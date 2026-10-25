@@ -27,6 +27,7 @@ norwegianBankAccount : Mask
 norwegianPostalCode : Mask
 postalCode : String -> Maybe Mask
 phone : Mask
+ean13 : Mask
 pattern : String -> Maybe Mask
 setMask : Mask -> State -> State
 
@@ -113,7 +114,8 @@ error comes and goes.
 
 **Masks.** A `Mask` is a value, made by a function: `iban`,
 `norwegianOrganisationNumber`, `norwegianBankAccount`, `norwegianPostalCode`,
-`postalCode "SE"`, `phone`, or a pattern of your own with `pattern "@@-####"`. A mask
+`postalCode "SE"`, `phone`, `ean13` (the barcode number of a product), or a pattern
+of your own with `pattern "@@-####"`. A mask
 that can fail to be made (an unknown country, a pattern that makes no sense) gives
 `Maybe`, so the application knows at once, not when the user is in the field. Build
 the masks once, in `init`; `setMask` changes the mask of a field that is on the
@@ -322,6 +324,17 @@ number, 7 to 15 digits in all, as in `+47 912 34 567`. A Norwegian number (`+47`
 have exactly eight digits after the code. Spaces, hyphens, points and parentheses may be
 typed and are not part of the value, which is `+4791234567`. This is a help for typing,
 not a phone number database.
+
+### `ean13`
+
+```elm
+ean13 : Mask
+```
+
+The number under the barcode of a product, a GTIN-13 (EAN-13): thirteen digits
+where the last is a check digit (modulus 10), `5901234123457`. A scanner that types
+the number and an Enter works too: the Enter writes it and lets a form go on. The
+value is the thirteen digits.
 
 ### `pattern`
 
