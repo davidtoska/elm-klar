@@ -2228,7 +2228,9 @@
         "update",
         "view",
         "options",
-        "values"
+        "remote",
+        "values",
+        "setValues"
       ],
       "mainFunctions": [
         "init",

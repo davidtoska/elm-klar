@@ -57,7 +57,7 @@ from one to the other.
 
 Use when: the user assigns many things to one thing, such as products to a promotion, users to a group or columns to an export.
 Do not use when: the user picks a few values from a list (as `Klar.MultiSelect`) or values in a hierarchy (as `Klar.TreeSelect`).
-Quick path: `init`, `update`, `view`, `options`, `values`
+Quick path: `init`, `update`, `view`, `options` (or `remote`), `values`, `setValues`
 
 See also [Klar.MultiSelect](Klar.MultiSelect.md) and [Klar.TreeSelect](Klar.TreeSelect.md).
 
@@ -290,7 +290,9 @@ The items to choose from, as options of [Klar.Select](Klar.Select.md), with the
     Transfer.options productIds [ Select.option sku1 "Coffee 1 kg", Select.option sku2 "Tea 500 g" ]
 
 An option that is `disabledOption` can be seen but not moved. When two options have
-the same key the first one is used.
+the same key the first one is used. The lists draw the icon, the label and the
+description of an option; its group, tone and color (which `Klar.Select` draws) are
+not shown, so both lists are flat.
 
 ### `remote`
 
