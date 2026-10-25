@@ -607,6 +607,15 @@ next window (Rule spec) =
 
 {-| Whether the date is an occurrence of the rule counted from `start`. A
 skipped date, a date before the start and a date after the end are not.
+
+For a range of days, such as the month a [Klar.Calendar](Klar-Calendar) shows,
+ask `between` once instead of calling this for every day: a rule that ends
+after a number of times is counted from its start on each call.
+
+    Recurrence.between { start = firstDelivery, from = shown.from, to = shown.to } rule
+        |> .dates
+        |> List.map (\day -> Calendar.dot day Info "Delivery")
+
 -}
 isOccurrence : { start : Date, date : Date } -> Rule -> Bool
 isOccurrence window (Rule spec) =

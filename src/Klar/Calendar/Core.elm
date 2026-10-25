@@ -151,17 +151,11 @@ range (State s) =
             Nothing
 
 
-{-| `True` on a range calendar after the first click, while it waits for the
-second. Use it to show a hint such as "Choose the end date".
--}
 isChoosing : State -> Bool
 isChoosing state =
     anchor state /= Nothing
 
 
-{-| The first day of a period the user is still choosing, that is the day that
-was clicked first. `Nothing` when no period is half-made.
--}
 anchor : State -> Maybe Date
 anchor (State s) =
     case s.selection of
@@ -214,11 +208,6 @@ setValue maybeDay ((State s) as current) =
             current
 
 
-{-| Chooses a period on a calendar made with `initRange` and shows the month of
-its first day; the two days may be given in either order. `Nothing` clears the
-period and any half-made choice. The period is not checked against the limits,
-and a calendar made with `init` ignores the call: use `select`.
--}
 setRange : Maybe ( Date, Date ) -> State -> State
 setRange maybeRange ((State s) as current) =
     case ( s.selection, maybeRange ) of
@@ -245,9 +234,6 @@ setRange maybeRange ((State s) as current) =
             current
 
 
-{-| Forgets the choice, a day or a period (also a half-made one). The visible
-month stays where it is.
--}
 clear : State -> State
 clear (State s) =
     case s.selection of
@@ -258,23 +244,11 @@ clear (State s) =
             State { s | selection = RangeSelection RangeNone, hover = Nothing }
 
 
-{-| Shows the month of a day and makes it the focused day, so key presses start
-from there. Does not change the selection, and does not move the browser focus
-(see `focus`). Leaves a month or year chooser.
--}
 showDate : Date -> State -> State
 showDate day (State s) =
     State { s | year = Date.year day, month = Date.month day, focus = day, positioned = True, panel = DaysPanel, hover = Nothing }
 
 
-{-| Shows a month, given as the year and the month number (January is 1), and
-moves the focused day into it, keeping its day of the month where that exists
-(31 January becomes 28 February). Does not change the selection. Leaves a month
-or year chooser.
-
-    Calendar.showMonth 2026 10 calendar
-
--}
 showMonth : Int -> Int -> State -> State
 showMonth year month (State s) =
     let
@@ -291,14 +265,6 @@ showMonth year month (State s) =
         }
 
 
-{-| Leaves the month and year choosers one step at a time: from the year
-chooser back to the month chooser, from the month chooser back to the days, and
-the browser focus follows. `Nothing` when the calendar already shows days.
-
-A component that puts a calendar in a popup uses it for the Escape key: when it
-returns `Nothing`, Escape closes the popup instead.
-
--}
 back : State -> Maybe ( State, Cmd Msg )
 back (State s) =
     backInner s
@@ -323,11 +289,6 @@ backInner s =
                 )
 
 
-{-| Moves the browser focus into the calendar: to the focused day, or to the
-current cell of a month or year chooser. Use it when the calendar has just
-appeared, for example when the popup that holds it opens. Map the command with
-the constructor of your own message, as for `update`.
--}
 focus : State -> Cmd Msg
 focus (State s) =
     Internal.focus (focusTarget s) Noop
