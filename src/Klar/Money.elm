@@ -495,7 +495,8 @@ like `fraction`.
 
     Money.convert { numerator = 117425, denominator = 10000 } Money.nok euros
 
-`Err` when the denominator is not above zero, or when a number is out of range.
+`Err` when the denominator or the rate is not above zero (a negative rate would
+silently turn the sign of the amount around), or when a number is out of range.
 
 -}
 convert : { numerator : Int, denominator : Int } -> Currency -> Money -> Result Problem Money
@@ -516,6 +517,10 @@ convert rate ((Currency to) as target) (Money (Currency from) minor) =
     in
     if rate.denominator < 1 then
         Err BadFraction
+
+    else if rate.numerator < 1 then
+        -- a rate is never 0 or negative: it would silently turn the amount around
+        Err BadRate
 
     else if Basics.abs numerator > Arithmetic.maxMinor || denominator > Arithmetic.maxMinor then
         Err OutOfRange
@@ -1076,6 +1081,7 @@ type Problem
     | NoShares
     | SharesTooLarge
     | BadFraction
+    | BadRate
 
 
 {-| A problem in words, in the language: "NOK has 2 decimals", "Cannot mix NOK and
@@ -1157,4 +1163,10 @@ problemText locale problem =
             Locale.pick locale
                 { nb = "Nevneren må være over 0"
                 , en = "The denominator must be above 0"
+                }
+
+        BadRate ->
+            Locale.pick locale
+                { nb = "Valutakursen må være over 0"
+                , en = "The exchange rate must be above 0"
                 }

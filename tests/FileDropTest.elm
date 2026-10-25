@@ -285,7 +285,53 @@ disabledTests =
                 on [ FileDrop.disabled True ] zone (drop [ file "a.pdf" 10 "application/pdf" ]) empty
                     |> names
                     |> Expect.equal (Ok [])
+        , test "keeps its file input focusable: aria-disabled, not the disabled attribute that drops the focus" <|
+            \_ ->
+                FileDrop.view Files [ FileDrop.disabled True ] empty
+                    |> Query.fromHtml
+                    |> Query.find fileInput
+                    |> Expect.all
+                        [ Query.has [ Selector.attribute (Attr.attribute "aria-disabled" "true") ]
+                        , Query.hasNot [ Selector.attribute (Attr.disabled True) ]
+                        ]
+        , test "cancels the click that would open the file dialog" <|
+            \_ ->
+                FileDrop.view Files [ FileDrop.disabled True ] empty
+                    |> Query.fromHtml
+                    |> Query.find fileInput
+                    |> Event.simulate Event.click
+                    |> Event.expectPreventDefault
+        , test "cancels Space on the file input, which opens the dialog too" <|
+            \_ ->
+                FileDrop.view Files [ FileDrop.disabled True ] empty
+                    |> Query.fromHtml
+                    |> Query.find fileInput
+                    |> Event.simulate (Event.custom "keydown" (Encode.object [ ( "key", Encode.string " " ) ]))
+                    |> Event.expectPreventDefault
+        , test "leaves Tab alone, so the user can move on" <|
+            \_ ->
+                FileDrop.view Files [ FileDrop.disabled True ] empty
+                    |> Query.fromHtml
+                    |> Query.find fileInput
+                    |> Event.simulate (Event.custom "keydown" (Encode.object [ ( "key", Encode.string "Tab" ) ]))
+                    |> Event.toResult
+                    |> Expect.err
+        , test "a choice that arrives after it was disabled adds nothing" <|
+            \_ ->
+                choose [ FileDrop.disabled True ] [ file "a.pdf" 10 "application/pdf" ] empty
+                    |> Expect.err
+        , test "an enabled file input has no aria-disabled" <|
+            \_ ->
+                FileDrop.view Files [] empty
+                    |> Query.fromHtml
+                    |> Query.find fileInput
+                    |> Query.hasNot [ Selector.attribute (Attr.attribute "aria-disabled" "true") ]
         ]
+
+
+fileInput : List Selector
+fileInput =
+    [ Selector.tag "input", Selector.attribute (Attr.type_ "file") ]
 
 
 pasteTests : Test

@@ -91,7 +91,9 @@ browser moves the caret to the end of the field whenever the value is set, and p
 Elm cannot put it back, so an edit in the middle of the text (a character inserted or
 deleted before the end) is kept exactly as typed, and written in its groups once the
 user goes on typing at the end or leaves the field. Nothing is ever lost or moved; the
-groups are just a little late after such an edit.
+groups are just a little late after such an edit. While an input method composes
+characters (Japanese, Chinese, Korean), the text is kept exactly as typed, so the
+composition is never disturbed; it is written in its groups when the composition ends.
 
 **Not libphonenumber.** The phone mask is a help, not a validator: it requires the
 international form (`+`, the country code, the rest), accepts 7 to 15 digits as the
@@ -419,7 +421,9 @@ text (State state) =
 the attributes, or `Nothing`: "The check digit is wrong", "Too short: 6 of 9 digits".
 It follows the same timing as the field: an unfinished value has no message until the
 field is left (or `touch` is used). Pass the attributes you give to `view`; your own
-`error` is not part of it. For an error summary of your own:
+`error` is not part of it. It is for showing, not for deciding: `Nothing` also means a
+half-typed identifier, so check `isValid` before you save. For an error summary of
+your own:
 
     MaskedInput.problem ibanAttributes (MaskedInput.touch model.iban)
 
@@ -437,7 +441,13 @@ that does not belong, the field shows it as it is, with the message about it.
 While the user is typing in the field (they have typed since they came into it, and
 have not left it or pressed Enter yet), it changes nothing: what they type wins, and
 the application learns the result by comparing `value` before and after `update`. To
-replace their text on purpose, such as for a "Reset" shortcut, `clear` the field first.
+replace their text on purpose, `clear` the field first: for the identifier the server
+wrote back after a save, or a "Reset" shortcut. Do that also after a save that started
+while the user was typing (Ctrl+S): a field that was disabled or removed before they
+left it never heard that they left, and still counts as being typed in.
+
+    MaskedInput.clear model.orgNumber
+        |> MaskedInput.setValue (Just saved.orgNumber)
 
 -}
 setValue : Maybe String -> State -> State
@@ -514,6 +524,7 @@ back.
 -}
 type Msg
     = Typed String Int
+    | Composing String
     | Focused
     | Blurred
     | Entered
@@ -531,6 +542,11 @@ update msg (State state) =
     case msg of
         Typed typed caret ->
             ( State { state | text = Shape.afterTyping shape { typed = typed, caret = caret }, typing = True }, Cmd.none )
+
+        Composing typed ->
+            -- an input method is composing: a value written into the input now
+            -- would break the composition, so the text is kept as it is
+            ( State { state | text = typed, typing = True }, Cmd.none )
 
         Focused ->
             ( State state, Cmd.none )
@@ -801,6 +817,7 @@ view toMsg attributes (State state) =
                        , Attr.readonly config.readOnly
                        , Internal.attrMaybe Attr.name config.name
                        , Events.on "input" (inputDecoder toMsg)
+                       , Events.on "compositionend" (typedDecoder toMsg)
                        , Events.onFocus (toMsg Focused)
                        , Events.onBlur (toMsg Blurred)
                        , Internal.attrIf (not inactive) (Events.preventDefaultOn "keydown" (enterDecoder (toMsg Entered)))
@@ -812,12 +829,29 @@ view toMsg attributes (State state) =
         )
 
 
+{-| What was typed. While an input method composes characters (`isComposing`), the
+text is kept as it is; the end of the composition (`compositionend`, read by
+`typedDecoder`) writes it in its groups.
+-}
+inputDecoder : (Msg -> msg) -> Decode.Decoder msg
+inputDecoder toMsg =
+    Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ]
+        |> Decode.andThen
+            (\composing ->
+                if composing then
+                    Decode.map (\typed -> toMsg (Composing typed)) (Decode.at [ "target", "value" ] Decode.string)
+
+                else
+                    typedDecoder toMsg
+            )
+
+
 {-| The text and, with it, where the caret is after the edit, which tells whether the
 user typed at the end. A browser always has it; an event without it counts as an edit
 at the end.
 -}
-inputDecoder : (Msg -> msg) -> Decode.Decoder msg
-inputDecoder toMsg =
+typedDecoder : (Msg -> msg) -> Decode.Decoder msg
+typedDecoder toMsg =
     Decode.map2 (\typed caret -> toMsg (Typed typed caret))
         (Decode.at [ "target", "value" ] Decode.string)
         (Decode.oneOf [ Decode.at [ "target", "selectionStart" ] Decode.int, Decode.succeed -1 ])
@@ -904,7 +938,7 @@ issueText lang found =
             if details.exact then
                 pick
                     ("For lang: skal ha " ++ number details.want ++ " " ++ unitText details.unit)
-                    ("Too long: it has " ++ number details.want ++ " " ++ unitText details.unit)
+                    ("Too long: it should have " ++ number details.want ++ " " ++ unitText details.unit)
 
             else
                 pick
