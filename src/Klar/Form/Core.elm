@@ -2194,8 +2194,8 @@ rows, the stepper and the lines of the summary, which is why it needs the form.
 
     FormMsg inner ->
         let
-            ( form, cmd ) =
-                Fm.update declaration inner model.form
+            ( state, cmd ) =
+                Fm.update form inner model.form
         in
         ( { model | form = form }, Cmd.map FormMsg cmd )
 

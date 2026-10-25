@@ -887,16 +887,19 @@
         "fields",
         "init",
         "set",
+        "setOption",
         "get",
+        "query",
         "rawFiles",
-        "rowFields",
-        "fillRows",
-        "toValues"
+        "rowFields"
       ],
       "related": [
+        "Klar.Date",
         "Klar.Form.Layout",
         "Klar.Form.Spec",
-        "Klar.InlineEdit"
+        "Klar.InlineEdit",
+        "Klar.Money",
+        "Klar.Rule"
       ],
       "keywords": [
         "form",
@@ -939,13 +942,15 @@
         "with",
         "step",
         "check",
-        "build",
-        "text",
-        "number",
-        "choice"
+        "checkFields",
+        "shownWhen",
+        "requiredWhen",
+        "build"
       ],
       "related": [
+        "Klar.Date",
         "Klar.Form",
+        "Klar.Money",
         "Klar.Rule",
         "Klar.Validate"
       ],
@@ -1040,13 +1045,13 @@
       "quickPath": [],
       "mainFunctions": [
         "view",
-        "viewStable",
         "viewWithAside",
         "viewGroup",
         "empty",
         "setId",
         "setLabel",
-        "setLabelHidden"
+        "setLabelHidden",
+        "setHint"
       ],
       "related": [
         "Klar.Form.Layout",
@@ -1093,7 +1098,8 @@
         "email"
       ],
       "related": [
-        "Klar.Form.Layout"
+        "Klar.Form.Layout",
+        "Klar.MaskedInput"
       ],
       "keywords": [
         "validate",

@@ -24,6 +24,7 @@ import Klar.Select as Select
 import Klar.Text as Text
 import Klar.TextInput as TextInput
 import Klar.Validate as Validate
+import Page.Gallery.FormModel.Terms as Terms
 import Page.Gallery.FormModel.Wizard as Wizard
 import Showcase.Doc as Doc
 
@@ -234,6 +235,7 @@ type alias Model =
     , status : FormLayout.Status
     , saved : Maybe Account
     , wizard : Wizard.Model
+    , terms : Terms.Model
     }
 
 
@@ -243,11 +245,12 @@ type Msg
     | Load
     | Revert
     | WizardMsg Wizard.Msg
+    | TermsMsg Terms.Msg
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { form = Form.init form, status = FormLayout.Idle, saved = Nothing, wizard = Wizard.init }, Cmd.none )
+    ( { form = Form.init form, status = FormLayout.Idle, saved = Nothing, wizard = Wizard.init, terms = Terms.init }, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -256,6 +259,10 @@ update msg model =
         WizardMsg inner ->
             Wizard.update inner model.wizard
                 |> Tuple.mapBoth (\wizard -> { model | wizard = wizard }) (Cmd.map WizardMsg)
+
+        TermsMsg inner ->
+            Terms.update inner model.terms
+                |> Tuple.mapBoth (\terms -> { model | terms = terms }) (Cmd.map TermsMsg)
 
         FormMsg inner ->
             Form.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
@@ -358,6 +365,41 @@ view locale model =
                 }
                 (Html.map WizardMsg (Wizard.view locale model.wizard))
             ]
+        , Doc.section "Dates, money, identifiers and fields that depend on others"
+            "Every value of a business form is a kind of its own, on Klar's own types: a radio choice, an organisation number that is only part of the form for a company (shown and required when Company is chosen, left out of the values otherwise), a credit limit in exact money with its limits, a first delivery date with an earliest day, a contract period, and a checkbox that must be ticked. Choose Company and type an organisation number with a wrong check digit, type 600000 as the credit limit and leave the field, or pick a date before the earliest one."
+            [ Doc.example
+                { title = "A customer's terms"
+                , description = Just "Spec.date, Spec.dateRange, Spec.money, Spec.masked, Form.radio and Form.checkbox; Spec.shownWhen and Spec.requiredWhen for the organisation number."
+                , code = Just termsCode
+                }
+                (Html.map TermsMsg (Terms.view locale model.terms))
+            ]
+        ]
+
+
+termsCode : String
+termsCode =
+    String.join "\n"
+        [ "form : Form.Form () Fields Terms"
+        , "form ="
+        , "    Spec.define \"terms\" Fields Terms"
+        , "        |> Spec.with (Spec.choice kindIds \"Customer kind\" |> Spec.required)"
+        , "        |> Spec.with (Spec.masked MaskedInput.norwegianOrganisationNumber \"Organisation number\")"
+        , "        |> Spec.with (Spec.money Money.nok \"Credit limit\" |> Spec.required |> Spec.minMoney (Money.zero Money.nok) |> Spec.maxMoney highestCreditLimit)"
+        , "        |> Spec.with (Spec.date \"First delivery\" |> Spec.required |> Spec.minDate firstDeliveryDay)"
+        , "        |> Spec.with (Spec.dateRange \"Contract period\")"
+        , "        |> Spec.with (Spec.toggle \"I accept the terms of delivery\" |> Spec.rule identity acceptMessage)"
+        , "        |> Spec.shownWhen isCompany .organisationNumber"
+        , "        |> Spec.requiredWhen isCompany .organisationNumber"
+        , "        |> Spec.build"
+        , ""
+        , "-- the view"
+        , "Form.radio v f.kind kinds [ Radio.horizontal ]"
+        , "Form.maskedInput v f.organisationNumber []"
+        , "Form.moneyInput v f.creditLimit []"
+        , "Form.datePicker v f.firstDelivery []"
+        , "Form.dateRangePicker v f.contract []"
+        , "Form.checkbox v f.accepted []"
         ]
 
 

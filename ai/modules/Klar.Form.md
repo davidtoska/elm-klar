@@ -24,7 +24,9 @@ fields : Form step fields values -> fields
 -- Values and state
 init : Form step fields values -> State step
 set : Field c -> c -> State step -> State step
+setOption : Field (Maybe id) -> Select.Option id -> State step -> State step
 get : Field c -> State step -> c
+query : Field c -> State step -> String
 rawFiles : Field (List FileDrop.FileInfo) -> State step -> List File.File
 rowFields : Field (Rows rowFields) -> State step -> List rowFields
 fillRows :
@@ -58,6 +60,7 @@ problemInRow :
 rejected : List (Problem step) -> Form step fields values -> State step -> ( State step, Cmd Msg )
 reveal : Form step fields values -> State step -> ( State step, Cmd Msg )
 focus : Field c -> Cmd Msg
+domId : Field c -> String
 goToProblem : Form step fields values -> Problem step -> State step -> ( State step, Cmd Msg )
 
 -- Steps
@@ -87,7 +90,22 @@ multiSelect :
     -> Remote.Remote (List (Select.Option id))
     -> List (MultiSelect.Attribute String msg)
     -> Html msg
+radio :
+    View msg
+    -> Field (Maybe id)
+    -> List (Select.Option id)
+    -> List (Radio.Attribute msg)
+    -> Html msg
 switch : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
+checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
+datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
+dateRangePicker :
+    View msg
+    -> Field (Maybe ( Date.Date, Date.Date ))
+    -> List DateRangePicker.Attribute
+    -> Html msg
+moneyInput : View msg -> Field (Maybe Money.Money) -> List (MoneyInput.Attribute msg) -> Html msg
+maskedInput : View msg -> Field (Maybe String) -> List (MaskedInput.Attribute msg) -> Html msg
 tagInput : View msg -> Field (List String) -> List (TagInput.Attribute msg) -> Html msg
 fileDrop : View msg -> Field (List FileDrop.FileInfo) -> List (FileDrop.Attribute msg) -> Html msg
 ruleBuilder :
@@ -204,13 +222,18 @@ control:
                     |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
             Save ->
-                case Form.toValues Locale.default form model.form of
-                    Ok values ->
-                        ( { model | status = FormLayout.Submitting }, send values )
+                if model.status == FormLayout.Submitting then
+                    -- Enter in a field submits too: one request at a time
+                    ( model, Cmd.none )
 
-                    Err _ ->
-                        Form.reveal form model.form
-                            |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
+                else
+                    case Form.toValues Locale.default form model.form of
+                        Ok values ->
+                            ( { model | status = FormLayout.Submitting }, send values )
+
+                        Err _ ->
+                            Form.reveal form model.form
+                                |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
             Replied [] ->
                 ( { model | form = Form.markClean model.form, status = FormLayout.Succeeded "Saved." }, Cmd.none )
@@ -260,10 +283,44 @@ The state also has no function in it, nor has the message, so the model can be
 compared, stored and tested. `Form.isDirty model.form` is the flag for
 `FormLayout.unsavedFlag` and for a leave guard.
 
-**When a problem shows.** A field shows its problem once the user has been in it
-and left, or has edited it; after `reveal`, `rejected` or `advance` every field
-shows its own; a problem the server gave shows at once and goes away when its
-field is edited. Rows and fields added later start quiet again.
+**When a problem shows.** A field that is typed into (a text, a number, an
+amount, an identifier) shows its problem once the user has left it, and from
+then on follows every keystroke: "a" is not an email address yet, and the user is
+not interrupted while typing it. A field that is answered at once (a choice, a
+switch, a checkbox, a picked date, a tag, a file) shows its problem when it is
+given. After `reveal`, `rejected` or `advance` every field shows its own; a
+problem the server gave shows at once and goes away when its field is edited.
+Rows and fields added later start quiet again.
+
+**Kinds and controls.** Every value has its own kind, and the values are Klar's own
+types, so nothing is parsed twice:
+
+| Kind (`Klar.Form.Spec`) | Value | Drawn with |
+|---|---|---|
+| `text` | `String` | `textInput`, `textArea` |
+| `number` | `Float` | `numberInput` |
+| `choice` | your id type | `select`, `radio` |
+| `choices` | a list of your ids | `multiSelect` |
+| `toggle` | `Bool` | `switch`, `checkbox` |
+| `date` | [`Date`](Klar.Date.md) | `datePicker` |
+| `dateRange` | a pair of `Date` | `dateRangePicker` |
+| `money` | [`Money`](Klar.Money.md) | `moneyInput` |
+| `masked` | an identifier without separators | `maskedInput` |
+| `tags` | a list of `String` | `tagInput` |
+| `files` | a list of `FileDrop.FileInfo` | `fileDrop` |
+| `conditions` | a [`Rule`](Klar.Rule.md) | `ruleBuilder` |
+| `rows` | a list of a sub-form's values | `rowFields`, `addRow`, `removeRow` |
+
+**Fields that depend on others.** `Spec.shownWhen` keeps a field out of the form
+(not drawn, no problems, its empty value in the values) while a condition on the
+other fields does not hold, and `Spec.requiredWhen` requires it while one does: a
+VAT number for a company. `Spec.checkFields` is a rule over several fields that
+runs at once ("the end date is after the start date"), on the step of its field;
+`Spec.check` waits for the whole record.
+
+**A choice among thousands.** Give `select` the attribute `Select.serverSearch`,
+fetch the options when `query` changes, and load a saved value with `setOption`,
+so its label shows before the first search.
 
 **Steps.** Declare them with `Spec.step`; the form then owns which step the user
 is on. Draw the fields of the current step inside `stepBody`: without it Elm reuses the
@@ -336,8 +393,9 @@ type alias Field control = Form.Core.Field control
 
 A handle to one field. The type says what the value looks like while it is
 edited: `String` for a text, `Maybe id` for a choice, `List id` for several,
-`Maybe Float` for a number, `Bool` for a switch, `List String` for tags, a list of
-files for files and a `Rule` for conditions. Get the handles from `fields form`; there is no other
+`Maybe Float` for a number, `Bool` for a switch or a checkbox, `Maybe Date` for a date,
+`Maybe ( Date, Date )` for a period, `Maybe Money` for an amount, `Maybe String` for an
+identifier, `List String` for tags, a list of files for files and a `Rule` for conditions. Get the handles from `fields form`; there is no other
 way to make one.
 
 ### `Rows`
@@ -418,6 +476,19 @@ arrived; `get` returns the value at once. The rows of a group are loaded with
         |> Form.set f.country (Just (CountryId "no"))
         |> Form.markClean
 
+### `setOption`
+
+```elm
+setOption : Field (Maybe id) -> Select.Option id -> State step -> State step
+```
+
+Puts a value in a `choice` field together with its option, so that the field
+shows the option's label also when the options it is drawn with do not have it:
+a saved customer in a select that searches the server, whose options are only
+the latest hits. For a select that has all its options, `set` is enough.
+
+    Form.setOption fields.customer (Select.option order.customerId order.customerName) state
+
 ### `get`
 
 ```elm
@@ -426,6 +497,35 @@ get : Field c -> State step -> c
 
 The value of a field as it is edited: `Nothing` for an empty select, `[]` for
 an empty multi select, the text as typed.
+
+### `query`
+
+```elm
+query : Field c -> State step -> String
+```
+
+The search text of a `select` or `multiSelect` field while its list is open,
+and `""` otherwise (and for every other kind). For a choice among thousands of
+records, give the select `Select.serverSearch` and fetch the options when the
+text changes: compare it before and after `update`. It follows the box after a
+pause of 300 ms in the typing, so write no debounce of your own, and send the
+text with the request so that a late answer to an old text can be dropped.
+
+    FormMsg inner ->
+        let
+            ( state, cmd ) =
+                Form.update form inner model.form
+        in
+        if Form.query fields.customer state /= Form.query fields.customer model.form then
+            ( { model | form = state, customers = Remote.Loading }
+            , Cmd.batch [ Cmd.map FormMsg cmd, searchCustomers (Form.query fields.customer state) ]
+            )
+
+        else
+            ( { model | form = state }, Cmd.map FormMsg cmd )
+
+    -- in the view
+    Form.select v fields.customer model.customers [ Select.serverSearch ]
 
 ### `rawFiles`
 
@@ -543,8 +643,8 @@ rows, the stepper and the lines of the summary, which is why it needs the form.
 
     FormMsg inner ->
         let
-            ( form, cmd ) =
-                Form.update declaration inner model.form
+            ( state, cmd ) =
+                Form.update form inner model.form
         in
         ( { model | form = form }, Cmd.map FormMsg cmd )
 
@@ -594,7 +694,7 @@ The list replaces the one given before, so compute it from your model and call
 it at the end of your `update`, for example in the same place that handles the
 messages of the rule builder:
 
-    ( { model | form = Form.outside declaration (ruleProblems model) model.form }, cmd )
+    ( { model | form = Form.outside form (ruleProblems model) model.form }, cmd )
 
 ### `problem`
 
@@ -691,6 +791,20 @@ on screen.
 
     Form.focus f.name |> Cmd.map FormMsg
 
+### `domId`
+
+```elm
+domId : Field c -> String
+```
+
+The DOM id of the element that takes the focus for a field: its control, the
+add button of a group of rows, or the first button of a rule builder. It is for
+the places that take DOM ids, such as `Modal.openWith` and `Drawer.openWith`
+(the first field of a form in a drawer); to move the focus in an update, use
+`focus`.
+
+    Drawer.openWith { opener = "edit-customer", focus = [ Form.domId fields.name ] } model.drawer
+
 ### `goToProblem`
 
 ```elm
@@ -713,7 +827,7 @@ currentStep : Form step fields values -> State step -> Maybe step
 The step the form is on, or `Nothing` in a form that was declared without
 steps.
 
-    case Form.currentStep declaration model.form of
+    case Form.currentStep form model.form of
         Just Company ->
             viewCompany model
 
@@ -754,7 +868,7 @@ the last step has fields, to the first step with a problem); without,
     Submit ->
         let
             next =
-                Form.advance declaration model.form
+                Form.advance form model.form
         in
         ( { model | form = next.state }
         , Cmd.batch [ Cmd.map FormMsg next.cmd, Maybe.map send next.submit |> Maybe.withDefault Cmd.none ]
@@ -848,6 +962,31 @@ multiSelect :
 
 A multi select for a `choices` field.
 
+### `radio`
+
+```elm
+radio :
+    View msg
+    -> Field (Maybe id)
+    -> List (Select.Option id)
+    -> List (Radio.Attribute msg)
+    -> Html msg
+```
+
+Radio buttons for a `choice` field, for two to five options that people
+should see all at once. The options are the same `Select.Option` values that
+`select` takes (`Select.option`, `Select.withDescription`, `Select.disabledOption`),
+so a choice moves between the two controls without a change to its options. The
+label of the field is the legend of the group; `Radio.horizontal` lays the
+options out in a row.
+
+    Form.radio v
+        fields.customerKind
+        [ Select.option Company "Company"
+        , Select.option Person "Private person"
+        ]
+        [ Radio.horizontal ]
+
 ### `switch`
 
 ```elm
@@ -856,6 +995,71 @@ switch : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
 
 A switch for a `toggle` field. The hint of the declaration is its
 description.
+
+### `checkbox`
+
+```elm
+checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
+```
+
+A checkbox for a `toggle` field, for a yes or no that is saved with the form
+("I accept the terms of delivery"). The label, the hint, the problem and the
+value are the form's. `Spec.rule identity` makes ticking it a must.
+
+    Form.checkbox v fields.acceptsTerms []
+
+### `datePicker`
+
+```elm
+datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
+```
+
+A date picker for a `date` field. The limits of `Spec.minDate` and
+`Spec.maxDate` are given to the calendar for you. `today` (the marker, the
+"Today" button and short forms such as `+3`) and a limit that depends on today
+are the application's attributes.
+
+    Form.datePicker v fields.deliveryDate [ DatePicker.today model.today, DatePicker.min model.today ]
+
+### `dateRangePicker`
+
+```elm
+dateRangePicker :
+    View msg
+    -> Field (Maybe ( Date.Date, Date.Date ))
+    -> List DateRangePicker.Attribute
+    -> Html msg
+```
+
+A date range picker for a `dateRange` field. The earliest and latest day,
+the longest period and the presets are the application's attributes
+(`DateRangePicker.min`, `DateRangePicker.maxRangeDays`, `DateRangePicker.today`);
+a period the picker refuses is a problem of the form until it is fixed.
+
+### `moneyInput`
+
+```elm
+moneyInput : View msg -> Field (Maybe Money.Money) -> List (MoneyInput.Attribute msg) -> Html msg
+```
+
+An amount field for a `money` field, in the currency of the declaration.
+The limits of `Spec.minMoney` and `Spec.maxMoney` (and with them whether a
+negative amount is allowed) are given to the field for you, so the field and
+the form say the same.
+
+    Form.moneyInput v fields.creditLimit [ MoneyInput.alignRight ]
+
+### `maskedInput`
+
+```elm
+maskedInput : View msg -> Field (Maybe String) -> List (MaskedInput.Attribute msg) -> Html msg
+```
+
+A masked field for a `masked` field: the identifier is written in its groups
+as it is typed (`974 760 673`), and its check digit is checked. The field says
+what is wrong ("Too short: 7 of 9 digits") once the user leaves it.
+
+    Form.maskedInput v fields.organisationNumber []
 
 ### `tagInput`
 

@@ -21,6 +21,20 @@ check :
     (fields -> Form.State step -> values -> List (Form.Problem step))
     -> Builder step fields values
     -> Builder step fields values
+checkFields :
+    (Locale.Locale -> fields -> Form.State step -> List (Form.Problem step))
+    -> Builder step fields values
+    -> Builder step fields values
+shownWhen :
+    (fields -> Form.State step -> Bool)
+    -> (fields -> Form.Field c)
+    -> Builder step fields values
+    -> Builder step fields values
+requiredWhen :
+    (fields -> Form.State step -> Bool)
+    -> (fields -> Form.Field c)
+    -> Builder step fields values
+    -> Builder step fields values
 build : Builder step fields values -> Form.Form step fields values
 
 -- Kinds of field
@@ -30,6 +44,10 @@ number : String -> Spec (Maybe Float) (Maybe Float)
 choice : Ids.Ids id -> String -> Spec (Maybe id) (Maybe id)
 choices : Ids.Ids id -> String -> Spec (List id) (List id)
 toggle : String -> Spec Bool Bool
+date : String -> Spec (Maybe Date.Date) (Maybe Date.Date)
+dateRange : String -> Spec (Maybe ( Date.Date, Date.Date )) (Maybe ( Date.Date, Date.Date ))
+money : Money.Currency -> String -> Spec (Maybe Money.Money) (Maybe Money.Money)
+masked : MaskedInput.Mask -> String -> Spec (Maybe String) (Maybe String)
 tags : String -> Spec (List String) (List String)
 files : String -> Spec (List FileDrop.FileInfo) (List FileDrop.FileInfo)
 conditions : String -> List (Rule.Field ()) -> Spec Rule.Rule (Maybe Rule.Rule)
@@ -42,10 +60,14 @@ rows :
 required : Spec c (Maybe a) -> Spec c a
 atLeast : Int -> Spec c (List a) -> Spec c (List a)
 one : Spec c (List a) -> Spec c (Maybe a)
-rule : (List a -> Bool) -> (Locale.Locale -> String) -> Spec c (List a) -> Spec c (List a)
+rule : (o -> Bool) -> (Locale.Locale -> String) -> Spec c o -> Spec c o
 rules : List Validate.Validator -> Spec String o -> Spec String o
 range : Float -> Float -> Spec (Maybe Float) o -> Spec (Maybe Float) o
 whole : Spec (Maybe Float) o -> Spec (Maybe Float) o
+minDate : Date.Date -> Spec (Maybe Date.Date) o -> Spec (Maybe Date.Date) o
+maxDate : Date.Date -> Spec (Maybe Date.Date) o -> Spec (Maybe Date.Date) o
+minMoney : Money.Money -> Spec (Maybe Money.Money) o -> Spec (Maybe Money.Money) o
+maxMoney : Money.Money -> Spec (Maybe Money.Money) o -> Spec (Maybe Money.Money) o
 hint : String -> Spec c o -> Spec c o
 withMessage : (Locale.Locale -> String) -> Spec c o -> Spec c o
 ```
@@ -261,6 +283,88 @@ the values, and returns the problems it finds, each tied to a field with
             )
         |> Spec.build
 
+### `checkFields`
+
+```elm
+checkFields :
+    (Locale.Locale -> fields -> Form.State step -> List (Form.Problem step))
+    -> Builder step fields values
+    -> Builder step fields values
+```
+
+A rule over several fields that runs at once, without waiting for the rest of
+the form: "the end date is after the start date", "the confirmation matches the
+email". It gets the locale, the handles and the state, reads the fields with
+`Form.get` (so it sees `Nothing` for an empty field, and then says nothing), and
+returns the problems it finds, each tied to a field with `Form.problem`. A
+problem belongs to the step of its field: it shows there once the field was left
+or edited, and it keeps the user on that step. Use `check` instead for a rule
+that needs the whole record of values. Put it after the `with` calls.
+
+    Spec.define "booking" Fields Values
+        |> Spec.with (Spec.date "From" |> Spec.required)
+        |> Spec.with (Spec.date "To" |> Spec.required)
+        |> Spec.checkFields
+            (\locale f state ->
+                case ( Form.get f.from state, Form.get f.to state ) of
+                    ( Just from, Just to ) ->
+                        if Date.compare to from == LT then
+                            [ Form.problem f.to (Locale.pick locale { nb = "Til kan ikke være før fra", en = "To cannot be before from" }) ]
+
+                        else
+                            []
+
+                    _ ->
+                        []
+            )
+        |> Spec.build
+
+### `shownWhen`
+
+```elm
+shownWhen :
+    (fields -> Form.State step -> Bool)
+    -> (fields -> Form.Field c)
+    -> Builder step fields values
+    -> Builder step fields values
+```
+
+The field is part of the form only while the condition holds: a VAT number
+for a company, a delivery address when "ship elsewhere" is on. While it does not,
+the field is not drawn (its view is empty), its problems are left out, and the
+values get its empty value (`Nothing`, `[]`, `False`), whatever was typed in
+it. What was typed is kept, so it comes back when the condition holds again.
+Declare such a field without `required`, so that its output can be empty, and add
+`requiredWhen` with the same condition to require it while it is shown. Put it
+after the `with` calls, like `check`; in the sub-form of `rows` it works row by
+row.
+
+    Spec.define "customer" Fields Values
+        |> Spec.with (Spec.choice kindIds "Customer kind" |> Spec.required)
+        |> Spec.with (Spec.masked MaskedInput.norwegianOrganisationNumber "Organisation number")
+        |> Spec.shownWhen isCompany .organisationNumber
+        |> Spec.requiredWhen isCompany .organisationNumber
+        |> Spec.build
+
+    isCompany : Fields -> Form.State () -> Bool
+    isCompany handles state =
+        Form.get handles.kind state == Just Company
+
+### `requiredWhen`
+
+```elm
+requiredWhen :
+    (fields -> Form.State step -> Bool)
+    -> (fields -> Form.Field c)
+    -> Builder step fields values
+    -> Builder step fields values
+```
+
+The field is required while the condition holds: it gets the `*` of a
+required field, and an empty value is the problem "Required". Its output keeps
+its type, so declare it without `required`. Put it after the `with` calls; see
+`shownWhen` for an example.
+
 ### `build`
 
 ```elm
@@ -335,6 +439,64 @@ toggle : String -> Spec Bool Bool
 ```
 
 An on/off choice, drawn by `switch`. Off is the empty value.
+
+### `date`
+
+```elm
+date : String -> Spec (Maybe Date.Date) (Maybe Date.Date)
+```
+
+A date, typed or picked in a calendar, drawn by `Form.datePicker`. Empty is
+`Nothing`; add `required`, `minDate` or `maxDate`. Text that is not a date is
+the problem "Invalid date" until it is fixed. The value is a
+[`Date`](Klar.Date.md), never a `String`.
+
+    Spec.date "Delivery date" |> Spec.required |> Spec.minDate firstDeliveryDay
+
+### `dateRange`
+
+```elm
+dateRange : String -> Spec (Maybe ( Date.Date, Date.Date )) (Maybe ( Date.Date, Date.Date ))
+```
+
+A period from one date to another, both included, drawn by
+`Form.dateRangePicker`. Empty is `Nothing`; add `required`. Text that is not a
+date, or a period the picker refuses (an end before the start, longer than
+`DateRangePicker.maxRangeDays`), is the problem "Invalid period" until it is
+fixed. The earliest and latest day are attributes of the picker.
+
+    Spec.dateRange "Campaign period" |> Spec.required
+
+### `money`
+
+```elm
+money : Money.Currency -> String -> Spec (Maybe Money.Money) (Maybe Money.Money)
+```
+
+An amount of money in one currency, drawn by `Form.moneyInput`. The value is
+an exact [`Money`](Klar.Money.md), never a `Float`. Empty is `Nothing`; add
+`required`, `minMoney` or `maxMoney`. Text that is not an amount is the problem
+"Must be an amount", and a negative amount is refused unless `minMoney` is below
+zero (as in `MoneyInput`).
+
+    Spec.money Money.nok "Credit limit"
+        |> Spec.required
+        |> Spec.maxMoney creditCeiling
+
+### `masked`
+
+```elm
+masked : MaskedInput.Mask -> String -> Spec (Maybe String) (Maybe String)
+```
+
+An identifier with a fixed shape and often a check digit (an organisation
+number, an IBAN, a bank account, a postal code, a phone number), drawn by
+`Form.maskedInput`. The value is the identifier without separators, as
+`MaskedInput.value` gives it (`"974760673"`); empty is `Nothing`; add `required`.
+An identifier that is incomplete or has a wrong check digit is the problem
+"Incomplete or invalid" until it is fixed (the field itself says what is wrong).
+
+    Spec.masked MaskedInput.norwegianOrganisationNumber "Organisation number" |> Spec.required
 
 ### `tags`
 
@@ -457,15 +619,26 @@ At most one item: the output is `Maybe a` instead of a list.
 ### `rule`
 
 ```elm
-rule : (List a -> Bool) -> (Locale.Locale -> String) -> Spec c (List a) -> Spec c (List a)
+rule : (o -> Bool) -> (Locale.Locale -> String) -> Spec c o -> Spec c o
 ```
 
-A rule over the whole list of a list-valued field, for what is wrong with the
-items _together_: at most one contact is the primary, two emails are the same.
-It runs when every item is valid on its own, and a problem is the field's own
-(a group of rows shows it by its add button and in the summary), so it counts on
-its step like any other rule. The message is a function of the locale, like
-`withMessage`.
+A rule on the value the field produces, for what the kind and the other rules
+cannot say: a quantity in whole boxes of 6, a box that must be ticked, at most one
+contact that is the primary. It runs when the field's own read succeeded (after
+`required`, a refused text and the other rules), and its problem is the field's
+own: it shows at the field and counts on the field's step, so a rule of step 1
+shows on step 1. On a group of rows it sees the list of the rows' values, and
+its problem shows by the add button. The message is a function of the locale,
+like `withMessage`.
+
+    Spec.toggle "I accept the terms of delivery"
+        |> Spec.rule identity
+            (\lang -> Locale.pick lang { nb = "Du må godta vilkårene", en = "Accept the terms to go on" })
+
+    Spec.number "Quantity"
+        |> Spec.required
+        |> Spec.rule (\n -> modBy 6 (round n) == 0)
+            (\lang -> Locale.pick lang { nb = "Bestill i hele esker à 6", en = "Order in whole boxes of 6" })
 
     Spec.rows { label = "Contacts", item = "Contact" } contact
         |> Spec.rule
@@ -494,7 +667,8 @@ range : Float -> Float -> Spec (Maybe Float) o -> Spec (Maybe Float) o
 
 A number from `low` to `high`, both included. The control shows the limits
 and keeps a number outside them as typed (it shows the problem, it does not move
-the number).
+the number). The message writes the numbers as the locale does ("Må være mellom
+0,5 og 1,5").
 
 ### `whole`
 
@@ -504,13 +678,58 @@ whole : Spec (Maybe Float) o -> Spec (Maybe Float) o
 
 A whole number: no decimals, shown and checked.
 
+### `minDate`
+
+```elm
+minDate : Date.Date -> Spec (Maybe Date.Date) o -> Spec (Maybe Date.Date) o
+```
+
+The earliest date a `date` field takes, included. The calendar does not offer
+the days before it, a typed date before it is refused at once, and a date put in
+with `Form.set` (a loaded record) is the problem "The date cannot be before ..."
+until it is changed. The declaration is a constant, so a limit that depends on
+today is an attribute of the view instead: `DatePicker.min model.today`.
+
+    Spec.date "Delivery date" |> Spec.minDate firstDeliveryDay
+
+### `maxDate`
+
+```elm
+maxDate : Date.Date -> Spec (Maybe Date.Date) o -> Spec (Maybe Date.Date) o
+```
+
+The latest date a `date` field takes, included, in the same way as
+`minDate`.
+
+### `minMoney`
+
+```elm
+minMoney : Money.Money -> Spec (Maybe Money.Money) o -> Spec (Maybe Money.Money) o
+```
+
+The lowest amount a `money` field takes, included, in the currency of the
+field. An amount below it is kept as typed and is the problem "Must be at least
+...". A lowest amount below zero allows negative amounts down to it; without
+one, an amount must not be negative.
+
+    Spec.money Money.nok "Correction" |> Spec.minMoney largestRefund
+
+### `maxMoney`
+
+```elm
+maxMoney : Money.Money -> Spec (Maybe Money.Money) o -> Spec (Maybe Money.Money) o
+```
+
+The highest amount a `money` field takes, included, in the same way as
+`minMoney`.
+
 ### `hint`
 
 ```elm
 hint : String -> Spec c o -> Spec c o
 ```
 
-A short help text under the field.
+A short help text under the field. A later `withMessage` keeps it.
 
 ### `withMessage`
 

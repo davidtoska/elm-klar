@@ -107,13 +107,18 @@ control:
                     |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
             Save ->
-                case Form.toValues Locale.default form model.form of
-                    Ok values ->
-                        ( { model | status = FormLayout.Submitting }, send values )
+                if model.status == FormLayout.Submitting then
+                    -- Enter in a field submits too: one request at a time
+                    ( model, Cmd.none )
 
-                    Err _ ->
-                        Form.reveal form model.form
-                            |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
+                else
+                    case Form.toValues Locale.default form model.form of
+                        Ok values ->
+                            ( { model | status = FormLayout.Submitting }, send values )
+
+                        Err _ ->
+                            Form.reveal form model.form
+                                |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
             Replied [] ->
                 ( { model | form = Form.markClean model.form, status = FormLayout.Succeeded "Saved." }, Cmd.none )
@@ -163,10 +168,44 @@ The state also has no function in it, nor has the message, so the model can be
 compared, stored and tested. `Form.isDirty model.form` is the flag for
 `FormLayout.unsavedFlag` and for a leave guard.
 
-**When a problem shows.** A field shows its problem once the user has been in it
-and left, or has edited it; after `reveal`, `rejected` or `advance` every field
-shows its own; a problem the server gave shows at once and goes away when its
-field is edited. Rows and fields added later start quiet again.
+**When a problem shows.** A field that is typed into (a text, a number, an
+amount, an identifier) shows its problem once the user has left it, and from
+then on follows every keystroke: "a" is not an email address yet, and the user is
+not interrupted while typing it. A field that is answered at once (a choice, a
+switch, a checkbox, a picked date, a tag, a file) shows its problem when it is
+given. After `reveal`, `rejected` or `advance` every field shows its own; a
+problem the server gave shows at once and goes away when its field is edited.
+Rows and fields added later start quiet again.
+
+**Kinds and controls.** Every value has its own kind, and the values are Klar's own
+types, so nothing is parsed twice:
+
+| Kind (`Klar.Form.Spec`) | Value | Drawn with |
+|---|---|---|
+| `text` | `String` | `textInput`, `textArea` |
+| `number` | `Float` | `numberInput` |
+| `choice` | your id type | `select`, `radio` |
+| `choices` | a list of your ids | `multiSelect` |
+| `toggle` | `Bool` | `switch`, `checkbox` |
+| `date` | [`Date`](Klar-Date) | `datePicker` |
+| `dateRange` | a pair of `Date` | `dateRangePicker` |
+| `money` | [`Money`](Klar-Money) | `moneyInput` |
+| `masked` | an identifier without separators | `maskedInput` |
+| `tags` | a list of `String` | `tagInput` |
+| `files` | a list of `FileDrop.FileInfo` | `fileDrop` |
+| `conditions` | a [`Rule`](Klar-Rule) | `ruleBuilder` |
+| `rows` | a list of a sub-form's values | `rowFields`, `addRow`, `removeRow` |
+
+**Fields that depend on others.** `Spec.shownWhen` keeps a field out of the form
+(not drawn, no problems, its empty value in the values) while a condition on the
+other fields does not hold, and `Spec.requiredWhen` requires it while one does: a
+VAT number for a company. `Spec.checkFields` is a rule over several fields that
+runs at once ("the end date is after the start date"), on the step of its field;
+`Spec.check` waits for the whole record.
+
+**A choice among thousands.** Give `select` the attribute `Select.serverSearch`,
+fetch the options when `query` changes, and load a saved value with `setOption`,
+so its label shows before the first search.
 
 **Steps.** Declare them with `Spec.step`; the form then owns which step the user
 is on. Draw the fields of the current step inside `stepBody`: without it Elm reuses the
@@ -524,8 +563,8 @@ rows, the stepper and the lines of the summary, which is why it needs the form.
 
     FormMsg inner ->
         let
-            ( form, cmd ) =
-                Form.update declaration inner model.form
+            ( state, cmd ) =
+                Form.update form inner model.form
         in
         ( { model | form = form }, Cmd.map FormMsg cmd )
 
@@ -576,7 +615,7 @@ The list replaces the one given before, so compute it from your model and call
 it at the end of your `update`, for example in the same place that handles the
 messages of the rule builder:
 
-    ( { model | form = Form.outside declaration (ruleProblems model) model.form }, cmd )
+    ( { model | form = Form.outside form (ruleProblems model) model.form }, cmd )
 
 -}
 outside : Form step fields values -> List (Problem step) -> State step -> State step
@@ -703,7 +742,7 @@ goToProblem =
 {-| The step the form is on, or `Nothing` in a form that was declared without
 steps.
 
-    case Form.currentStep declaration model.form of
+    case Form.currentStep form model.form of
         Just Company ->
             viewCompany model
 
@@ -740,7 +779,7 @@ the last step has fields, to the first step with a problem); without,
     Submit ->
         let
             next =
-                Form.advance declaration model.form
+                Form.advance form model.form
         in
         ( { model | form = next.state }
         , Cmd.batch [ Cmd.map FormMsg next.cmd, Maybe.map send next.submit |> Maybe.withDefault Cmd.none ]
