@@ -145,3 +145,7 @@ Execution notes for resuming a long run:
 - Next: Body.
 
 - Body: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit b6cb4eb: Body complete.
+- Next: Footer.
+
+- Footer: format, full check, byte-identical docs and 22 identical table roots passed.
