@@ -177,15 +177,17 @@ That is the one wiring of the frame, and the only one to write (not a `SideNav.i
   - A link is followed: `pushUrl` for another address of the application, `load` for an
     address elsewhere. A link to the address the user is on (the current page in the side
     menu) enters the page again with `replaceUrl`, so Back never needs one press per click.
-    A link to an element of the page (`#field-id`, not a route like `#/orders`) moves focus
-    to that element and adds nothing to the history: a route in the fragment starts with
-    `/`, and any other fragment never changes the page.
+  - **A route in the fragment starts with `/`** (`#/orders`, `#/orders/10482`). Any other
+    fragment (`#field-id`, `#totals`) is an element of the page: the content scrolls to it,
+    it gets focus when it can take focus, and nothing is added to the history. So write
+    every hash route as `#/...`: a link to `#orders` never changes the page.
   - A new page (another path, or another route before the `?` of a `#/route?query`) closes
-    the drawer, scrolls the content to the top and moves focus to the content, because the
-    element that had it went with the old page. When the user chose the page with Enter on
-    a link of the side menu, focus stays on that link. An address that only changes the
-    query (filters, the sort, a tab kept in the address with `replaceUrl`) keeps the
-    scroll position, the drawer and the focus; it is still reported to you.
+    the drawer and scrolls the content to the top. After a link that the shell followed,
+    focus goes to the content, because the element that had it went with the old page;
+    when the user chose the page with Enter on a link of the side menu, focus stays on
+    that link. An address that only changes the query (filters, the sort, a tab kept in
+    the address with `replaceUrl`) keeps the scroll position, the drawer and the focus; it
+    is still reported to you.
   - The sidebar toggle, the drawer, the skip link and the focus that goes with each (the
     current link when the drawer opens, the menu button when it closes) are done for you.
 
@@ -256,11 +258,13 @@ the content of the current page:
 `PageHeader.title`) and `viewPage` stand for your own routing and page views. `elm/url` must be a direct
 dependency of the application, as for every `Browser.application`.
 
-A command of yours that goes to another page (the palette opened an order, a shortcut)
-needs nothing more: the new address is a new page, so focus goes to the content as for a
-link. A command that replaces the page without a new address loses the element that had
-focus; send it to the content with `AppShell.goToContent`. A shortcut that hides the
-sidebar is `AppShell.toggleSidebar`.
+An address you push yourself (`Nav.pushUrl` from tabs that choose a route, a row that
+opens its order, a step) and the Back and Forward buttons keep focus where it is, because
+the control that has it usually stays: the next arrow key still works in the tabs. When
+the control that pushed goes with the page (a Save button that opens the new order, a
+command of the palette), send focus to the content in the same update with
+`AppShell.goToContent`, as you do for a command that replaces the page without a new
+address. A shortcut that hides the sidebar is `AppShell.toggleSidebar`.
 
 **Links that must ask first.** When a click on a link must be held back (a
 [Klar.LeaveGuard](Klar.LeaveGuard.md) asks about unsaved changes), give `Browser.application`
@@ -387,7 +391,8 @@ the DOM id of the shell, unique on the page; the ids inside it (`-content`, `-si
 `-search`, `-menu`) and the side menu (`-nav`) start with it. The `key` and the `url`
 are the ones `Browser.application` gave to your `init`: the shell pushes the address of
 a link with the key, so you do not write the `LinkClicked` branch, and compares every
-new address with the last one, to tell a new page from a new query.
+new address with the last one, to tell a new page from a new query. Routes in the
+fragment start with `/` (`#/orders`); any other fragment names an element of the page.
 
     AppShell.init { id = "app-shell", key = key, url = url }
 
@@ -414,9 +419,10 @@ Handles every message of the shell and returns the commands it needs: the
 sidebar and the drawer open and close, a drawer that opens sends focus to the current
 link, one that closes gives it back to the menu button, the skip link goes to the
 content, and a link is followed (see the module docs for the rules). A new page closes
-the drawer, scrolls the content to the top and moves focus to the content, unless the
-user chose it with Enter in the side menu; a new query on the same page changes none of
-that.
+the drawer and scrolls the content to the top. Focus goes to the content after a link
+the shell followed (unless the user chose it with Enter in the side menu) and when the
+open drawer closes; an address the application pushed itself and the Back and Forward
+buttons leave focus where it is. A new query on the same page changes none of that.
 
 The third part is the one place where the application learns that the route changed:
 it is the address, once, after the browser has changed it (a link, the Back button, a
@@ -502,8 +508,10 @@ follow : Browser.UrlRequest -> State page -> ( State page, Cmd Msg )
 Follows a click on a link the way the shell does it: another address of the
 application with `pushUrl`, the address the user is on with `replaceUrl` (the page is
 entered again, without another entry in the history), a link to an element of the page
-(`#field-id`) by moving focus to that element, and an address elsewhere with `load`. A
-link chosen in the open drawer closes it.
+(`#field-id`: a fragment that does not start with `/`) by scrolling the content to that
+element and moving focus there, and an address elsewhere with `load`. The new page that
+comes gets focus in its content. A link chosen in the open drawer closes it and sends
+focus to the content.
 
 `AppShell.onUrlRequest` does this for every click. Call it yourself only from an
 `onUrlRequest` of your own that asks first, such as a
@@ -532,8 +540,9 @@ goToContent : State page -> Cmd Msg
 ```
 
 Moves keyboard focus to the content area: the answer to the skip link, and what
-to do when a page has been replaced by a command, because the element that had
-focus went with the old page.
+to do when a command of yours replaced the page or pushed a new address from a control
+that goes with the old page (a Save button, a command of the palette), because the
+element that had focus went with it. Links that the shell follows do this by themselves.
 
     Cmd.map ShellMsg (AppShell.goToContent model.shell)
 

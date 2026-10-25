@@ -301,9 +301,9 @@ count of filters from the filter bar and the button that clears them; give it th
 viewFilterBar : (Msg row -> msg) -> List (FilterBar.Attribute r msg) -> State id row -> Html msg
 ```
 
-The filter bar. It gets the match count (while the answer is fresh: after a failed
-refresh the count would be the one of the rule before) and the "counting" mark (while
-it is on its way); give it `FilterBar.fields` and the rest.
+The filter bar. It gets the match count, in the state of the rows (counting
+while the first answer is on its way, the old count dimmed while a new one is,
+a retry when it failed); give it `FilterBar.fields` and the rest.
 
 ### `viewSavedViews`
 

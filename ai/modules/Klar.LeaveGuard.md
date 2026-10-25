@@ -354,9 +354,12 @@ own is asked about the same way.
 
 **With an `AppShell`.** Both want the address, and the rule is: the guard answers the
 clicks, the shell reports the address. `onUrlRequest` is a message of your own (it asks
-the guard before it pushes), `onUrlChange` is the shell's, and the `Url` that
-`AppShell.update` reports goes to `LeaveGuard.onUrlChange` (the shell has then closed
-its drawer and reset the scroll, which does no harm when the page stays):
+the guard before the link is followed), `onUrlChange` is the shell's, and the `Url` that
+`AppShell.update` reports goes to `LeaveGuard.onUrlChange`. A click that may go on is
+handed to `AppShell.follow`, so it keeps the shell's link rules (the current page is
+replaced, not pushed again; `#field-id` is an element of the page, not a route; focus
+goes to the content of the new page). A Back press that the guard holds has already
+closed the drawer and reset the scroll, which does no harm when the page stays:
 
     Browser.application
         { onUrlRequest = LinkClicked
@@ -366,11 +369,22 @@ its drawer and reset the scroll, which does no harm when the page stays):
 
     LinkClicked (Browser.Internal url) ->
         case LeaveGuard.request (pageFromUrl url) model.guard of
-            Proceed page ->
-                ( model, Nav.pushUrl model.key (pagePath page) )
+            Proceed _ ->
+                followLink (Browser.Internal url) model
 
             Hold guard cmd ->
                 ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+    LinkClicked request ->
+        followLink request model
+
+    followLink : Browser.UrlRequest -> Model -> ( Model, Cmd Msg )
+    followLink request model =
+        let
+            ( shell, cmd ) =
+                AppShell.follow request model.shell
+        in
+        ( { model | shell = shell }, Cmd.map ShellMsg cmd )
 
     ShellMsg m ->
         let

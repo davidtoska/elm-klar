@@ -152,7 +152,7 @@ follow model step =
         [ Cmd.map OrdersMsg step.cmd
         , case step.request of
             Just request ->
-                search model.today request
+                search request
                     |> Task.perform (\result -> OrdersMsg (ServerList.gotPage request result))
 
             Nothing ->
