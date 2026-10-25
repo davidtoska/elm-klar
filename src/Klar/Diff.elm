@@ -839,8 +839,9 @@ configure attributes =
 
 
 {-| The accessible name of the diff, such as "Changes to the shipping policy". It
-names the area that scrolls, which screen readers announce as a region. The
-default is "Changes".
+names the area that scrolls, which screen readers announce as a region in `view` and
+as a group in `viewStatic`; when nothing scrolls, it names the whole diff, as a group.
+The default is "Changes".
 -}
 ariaLabel : String -> Attribute msg
 ariaLabel text =
@@ -878,7 +879,8 @@ maxHeight pixels =
 
 
 {-| Wraps long lines of a text diff instead of scrolling sideways. Good for
-prose, such as a policy; code is easier to read when it keeps its lines.
+prose, such as a policy; code is easier to read when it keeps its lines. With nothing
+to scroll sideways, the box of the lines is a tab stop only when it has a `maxHeight`.
 -}
 wrapLines : Attribute msg
 wrapLines =
@@ -1094,8 +1096,11 @@ folded, into rows that say how many they are but do not open.
 
     Diff.viewStatic [ Diff.locale model.locale ] entry.diff
 
-A diff of lines scrolls sideways inside a box that is a tab stop; the others do not
-need one and are plain lists.
+A diff of lines scrolls sideways inside a box that is a tab stop and a group named by
+`ariaLabel`, not a landmark, so that an audit log of fifty entries does not add fifty
+regions to the page (give each entry its own `ariaLabel`). With `wrapLines` nothing
+scrolls sideways and the box is no tab stop. The others do not need one and are plain
+lists.
 
 -}
 viewStatic : List (Attribute msg) -> Diff -> Html msg
