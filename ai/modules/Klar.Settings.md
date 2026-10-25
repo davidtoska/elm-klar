@@ -253,7 +253,7 @@ The day today: the day of `now` in the zone of the settings, `Nothing` until
 `withNow` was called. Give it to the components that mark today or count from it
 (`DatePicker.today`, `FilterBar.today`, `RuleBuilder.today`), once it is known:
 
-    dueAttributes : Model -> List DatePicker.Attribute
+    dueAttributes : Model -> List (DatePicker.Attribute msg)
     dueAttributes model =
         case Settings.today model.settings of
             Just day ->
