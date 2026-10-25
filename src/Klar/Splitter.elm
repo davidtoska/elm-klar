@@ -402,9 +402,10 @@ setSizes values (State s) =
 
 {-| Folds the pane at this place (counting from 0) away, as `Enter` on its separator
 does: its room goes to the pane after it (the pane before it, for the last pane),
-and the state remembers how much room it had, so that `unfold` gives it back. A pane
-that has no room, or is not there, changes nothing. Fold only a `collapsible` pane:
-another pane is drawn with no room, but not hidden.
+and the state remembers how much room it had and where it went, so that `unfold`
+and `Enter` on either of its separators give it back from there. The pane is drawn
+folded even when it is not `collapsible`, and `Enter` on its separator opens it
+again. A pane that has no room, or is not there, changes nothing.
 
     Splitter.fold 1 model.split
 
@@ -416,8 +417,9 @@ fold index (State s) =
 
 {-| Gives the pane at this place the room it had before `fold`, or `Enter` on its
 separator, took it away; when that is not known (the layout was restored folded) it
-gets a fifth of the room. The room comes from the same neighbour, and the neighbour
-gives no more than it has. A pane that has room changes nothing.
+gets a fifth of the room. The room comes from the neighbour that took it, which
+gives no more than it has, and the view keeps every pane inside its `minSize` and
+`maxSize`, as it does after `setSizes`. A pane that has room changes nothing.
 
     Splitter.unfold 1 model.split
 
@@ -428,8 +430,11 @@ unfold index (State s) =
 
 
 {-| Has the pane at this place no room: is it folded away? Use it to draw the toggle
-that folds and unfolds it ("Hide details" or "Show details"). A place that is not
-there is not folded.
+that folds and unfolds it ("Hide details" or "Show details"). It reads the sizes in
+the state: after `fold` the pane is drawn folded, collapsible or not, but a pane that
+is not `collapsible` and gets 0 from `init` or `setSizes` is drawn at its smallest
+size, so give a 0 only to `collapsible` panes. A place that is not there is not
+folded.
 -}
 isFolded : Int -> State -> Bool
 isFolded index (State s) =
@@ -543,7 +548,7 @@ view toMsg attributes (State s) panes =
                     List.drop index sizeList |> List.head |> Maybe.withDefault 0
 
                 folded =
-                    Machine.isFolded layout sizeList index
+                    Machine.isFolded layout s sizeList index
 
                 pixelStyles =
                     if folded then
@@ -694,8 +699,12 @@ viewSeparatorAt send config t s layout panes sizeList limits index =
         ( lowest, highest ) =
             Layout.range index limits sizeList
 
+        -- a pane the application folded opens again from its separator too
         foldsSomething =
-            canFold index || canFold (index + 1)
+            canFold index
+                || canFold (index + 1)
+                || Machine.isFolded layout s sizeList index
+                || Machine.isFolded layout s sizeList (index + 1)
 
         dragHere =
             case s.drag of
@@ -764,7 +773,7 @@ viewSeparatorAt send config t s layout panes sizeList limits index =
          , Attr.attribute "aria-valuemin" (String.fromInt (round (lowest * 100)))
          , Attr.attribute "aria-valuemax" (String.fromInt (round (highest * 100)))
          , Attr.attribute "aria-valuetext"
-            (if Machine.isFolded layout sizeList index then
+            (if Machine.isFolded layout s sizeList index then
                 t.folded
 
              else

@@ -11,6 +11,7 @@ import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Accordion as Accordion
 import Klar.Ids as Ids exposing (Ids)
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -199,17 +200,29 @@ modeTests =
                         [ Accordion.collapse Beta >> Accordion.expandedIds >> Expect.equal [ Alpha, Gamma ]
                         , Accordion.collapseAll >> Accordion.expandedIds >> Expect.equal []
                         ]
-        , test "expandAll opens every section but the disabled ones, keeping the open ones first" <|
+        , test "expandAll opens the given sections whatever the mode, keeping the open ones first" <|
             \_ ->
                 single
                     |> Accordion.expand Gamma
-                    |> Accordion.expandAll
-                        [ Accordion.section partIds Alpha "Alpha" []
-                        , Accordion.section partIds Beta "Beta" [] |> Accordion.disabledSection
-                        , Accordion.section partIds Gamma "Gamma" []
-                        ]
+                    |> Accordion.expandAll [ Alpha, Beta, Gamma, Alpha ]
                     |> Accordion.expandedIds
-                    |> Expect.equal [ Gamma, Alpha ]
+                    |> Expect.equal [ Gamma, Alpha, Beta ]
+        , test "a closed body is laid out with content-visibility: hidden and not display: none, so find-in-page reaches it" <|
+            \_ ->
+                Css.rules
+                    |> String.contains "@supports (content-visibility: hidden){.klar-accordion__body[hidden=\"until-found\"]{display: block !important;content-visibility: hidden}}"
+                    |> Expect.equal True
+        , test "a disabled section stays closed after expandAll" <|
+            \_ ->
+                Accordion.view identity
+                    []
+                    (single |> Accordion.expandAll [ Alpha, Beta ])
+                    [ Accordion.section partIds Alpha "Alpha" []
+                    , Accordion.section partIds Beta "Beta" [] |> Accordion.disabledSection
+                    ]
+                    |> Query.fromHtml
+                    |> Query.findAll [ Selector.attribute (Attr.attribute "aria-expanded" "true") ]
+                    |> Query.count (Expect.equal 1)
         , test "a click on a header does what toggle does in the default mode" <|
             \_ ->
                 Expect.equal

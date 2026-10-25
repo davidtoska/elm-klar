@@ -14,6 +14,7 @@ import Klar.ListItem as ListItem
 import Klar.Locale as Locale
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Theme exposing (Density(..), Tone(..))
+import Support.Css as Css
 import Test exposing (Test, describe, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -65,11 +66,63 @@ suite =
                                         ]
                     )
             )
-        , test "a refresh marks the list busy" <|
+        , test "a refresh marks the list busy, and not the element that holds the live regions" <|
             \_ ->
                 ListItem.viewRemote [] (Remote.refresh (Loaded rows))
                     |> Query.fromHtml
-                    |> Query.has [ Selector.class "klar-refreshing", Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                    |> Expect.all
+                        [ Query.has [ Selector.class "klar-refreshing" ]
+                        , Query.findAll [ Selector.attribute (Attr.attribute "aria-busy" "true") ] >> Query.count (Expect.equal 1)
+                        , Query.find [ Selector.tag "ul" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                        ]
+        , describe "every state is drawn inside the same element, with the id of listId and a status that is always there"
+            ([ ( "not asked", NotAsked )
+             , ( "loading", Loading )
+             , ( "failed", Failed (Remote.problem Remote.server) )
+             , ( "no rows", Loaded [] )
+             , ( "rows", Loaded rows )
+             , ( "old data", failedRefresh (Loaded rows) )
+             ]
+                |> List.map
+                    (\( name, data ) ->
+                        test name <|
+                            \_ ->
+                                ListItem.viewRemote [ ListItem.listId "orders" ] data
+                                    |> Query.fromHtml
+                                    |> Expect.all
+                                        [ Query.has
+                                            [ Selector.tag "div"
+                                            , Selector.class "klar-list-fresh"
+                                            , Selector.id "orders"
+                                            , Selector.attribute (Attr.tabindex -1)
+                                            ]
+                                        , Query.children [ Selector.attribute (Attr.attribute "role" "status"), Selector.class "klar-sr-only" ]
+                                            >> Query.count (Expect.equal 1)
+                                        ]
+                    )
+            )
+        , test "the status says Loading only while loading" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        ListItem.viewRemote [] Loading
+                            |> Query.fromHtml
+                            |> Query.children [ Selector.class "klar-sr-only" ]
+                            |> Query.first
+                            |> Query.has [ Selector.text "Loading" ]
+                    , \_ ->
+                        ListItem.viewRemote [] (Loaded rows)
+                            |> Query.fromHtml
+                            |> Query.children [ Selector.class "klar-sr-only" ]
+                            |> Query.first
+                            |> Query.hasNot [ Selector.text "Loading" ]
+                    ]
+                    ()
+        , test "without listId the element has no id and takes no focus" <|
+            \_ ->
+                ListItem.viewRemote [] (Loaded rows)
+                    |> Query.fromHtml
+                    |> Query.hasNot [ Selector.attribute (Attr.tabindex -1) ]
         , test "old data shows the marker with a retry" <|
             \_ ->
                 ListItem.viewRemote [ ListItem.onRetry Opened ] (failedRefresh (Loaded rows))
@@ -88,7 +141,18 @@ suite =
             \_ ->
                 ListItem.viewRemote [] (Remote.refresh (Loaded []))
                     |> Query.fromHtml
-                    |> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                    |> Query.findAll [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
+                    |> Query.count (Expect.equal 1)
+        , test "the strip of a selected row wins over its accent" <|
+            \_ ->
+                Css.rules
+                    |> String.contains ".klar-list-item--selected.klar-list-item--accent{--_a: var(--klar-primary)}"
+                    |> Expect.equal True
+        , test "in forced colors the selected row keeps its strip, in Highlight" <|
+            \_ ->
+                Css.rules
+                    |> String.contains ".klar-list-item--selected::before{forced-color-adjust: none;background: Highlight}"
+                    |> Expect.equal True
         , test "the empty state takes the attributes of the application after its own" <|
             \_ ->
                 ListItem.viewRemote [ ListItem.emptyState [ EmptyState.title "No orders", EmptyState.description "None match." ] ] (Loaded [])

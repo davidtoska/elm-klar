@@ -354,10 +354,10 @@ foldTests =
         , test "the layout comes folded from the sizes the application sets" <|
             \_ ->
                 Expect.equal ( True, False )
-                    ( Machine.isFolded sidebar [ 0, 1 ] 0, Machine.isFolded sidebar [ 0.3, 0.7 ] 0 )
-        , test "a pane that cannot fold is never folded, not even at nothing" <|
+                    ( Machine.isFolded sidebar (fresh [ 0, 1 ]) [ 0, 1 ] 0, Machine.isFolded sidebar (fresh [ 0.3, 0.7 ]) [ 0.3, 0.7 ] 0 )
+        , test "a pane that cannot fold is not folded at nothing, unless the application folded it" <|
             \_ ->
-                Expect.equal False (Machine.isFolded two [ 0, 1 ] 0)
+                Expect.equal ( False, True ) ( Machine.isFolded two (fresh [ 0, 1 ]) [ 0, 1 ] 0, Machine.isFolded two (Machine.foldPane 0 (fresh [ 0.4, 0.6 ])) [ 0, 1 ] 0 )
         ]
 
 

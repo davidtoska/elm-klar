@@ -1255,6 +1255,18 @@ css =
    room. The padding is on the content inside. */
 .klar-accordion__body { padding: 0; border: 0; }
 
+/* The base rule `[hidden] { display: none !important }` would also take a closed body out of
+   the layout, and the find-in-page of the browser only searches an until-found body that is
+   laid out with content-visibility: hidden (the browser's own rule for it). This rule is more
+   specific, so it wins; content-visibility keeps the body hidden in a browser that knows it but
+   not until-found, and a browser without content-visibility keeps display: none. */
+@supports (content-visibility: hidden) {
+  .klar-accordion__body[hidden="until-found"] {
+    display: block !important;
+    content-visibility: hidden;
+  }
+}
+
 .klar-accordion__content {
   padding-block: var(--klar-space-1) var(--klar-space-4);
   padding-inline: calc(var(--klar-space-3) + 16px + var(--klar-space-2)) var(--klar-space-4);
@@ -1316,7 +1328,7 @@ css =
 
 /* A bar that scrolls clips what sticks out of it, so a plain one keeps room inside for
    the focus ring of the controls at its edges. */
-.klar-toolbar--plain.klar-toolbar--scroll { padding: 3px; margin: -3px; }
+.klar-toolbar--plain.klar-toolbar--scroll { padding: var(--klar-space-1); margin: calc(-1 * var(--klar-space-1)); }
 .klar-toolbar--scroll .klar-toolbar__group { flex-wrap: nowrap; }
 
 /* A group stays together while it fits; in a bar narrower than the group itself
@@ -1435,7 +1447,7 @@ css =
 :where([data-klar-density="compact"]) .klar-description-list--bordered:where(:not(.klar-description-list--normal, .klar-description-list--comfortable)) .klar-description-list__item { padding: 6px 0; }
 
 .klar-description-list--bordered.klar-description-list--comfortable .klar-description-list__item,
-:where([data-klar-density="comfortable"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--normal)) .klar-description-list__item { padding: 14px 0; }
+:where([data-klar-density="comfortable"]) .klar-description-list--bordered:where(:not(.klar-description-list--compact, .klar-description-list--normal)) .klar-description-list__item { padding: var(--klar-space-4) 0; }
 
 /* ---- Stepper --------------------------------------------------------------- */
 

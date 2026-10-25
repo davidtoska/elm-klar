@@ -27,8 +27,10 @@ that nobody can take apart.
 
 A pane that can be folded away and has no room at all is **folded**. That is all a
 folded pane is: the sizes say it, so a layout that is saved and restored comes back
-folded. Nothing else is kept about it, except how much room it had, so that the key
-that opens it again can give that back.
+folded. Nothing else is kept about it, except how much room it had and the neighbour
+that took it, so that the key that opens it again can give that back from there. A
+pane the application folded with `foldPane` is folded too, collapsible or not, so
+that what `Klar.Splitter.isFolded` says is what is drawn.
 
 -}
 
@@ -87,10 +89,18 @@ type alias Drag =
 type alias State =
     { domId : String
     , sizes : List Float
-    , remembered : Dict Int Float
+    , remembered : Dict Int Folded
     , room : Maybe Float
     , drag : Maybe Drag
     , serial : Int
+    }
+
+
+{-| How much room a folded pane had, and the neighbour that took it.
+-}
+type alias Folded =
+    { size : Float
+    , into : Int
     }
 
 
@@ -137,19 +147,23 @@ foldPane index state =
 
     else
         let
+            into =
+                neighbourOf index state.sizes
+
             ( folded, had ) =
-                Layout.collapse index (neighbourOf index state.sizes) state.sizes
+                Layout.collapse index into state.sizes
         in
         if had <= 0 then
             state
 
         else
-            { state | sizes = folded, remembered = Dict.insert index had state.remembered }
+            { state | sizes = folded, remembered = Dict.insert index { size = had, into = into } state.remembered }
 
 
-{-| Gives a pane that has no room its room back from its neighbour: what it had
-when it was folded, or a fifth when that is not known (the layout was restored
-folded). The neighbour gives no more than it has.
+{-| Gives a pane that has no room its room back from the neighbour that took it:
+what it had when it was folded, or a fifth when that is not known (the layout was
+restored folded). The neighbour gives no more than it has; the view then brings
+the sizes inside the limits of the panes, as it always does.
 -}
 unfoldPane : Int -> State -> State
 unfoldPane index state =
@@ -161,16 +175,38 @@ unfoldPane index state =
             List.map (\_ -> { min = 0, max = 1 }) state.sizes
 
         wanted =
-            Dict.get index state.remembered |> Maybe.withDefault 0.2
+            Dict.get index state.remembered |> Maybe.map .size |> Maybe.withDefault 0.2
 
         opened =
-            Layout.expand index (neighbourOf index state.sizes) wanted free state.sizes
+            Layout.expand index (sourceOf index (neighbourOf index state.sizes) state.sizes state) wanted free state.sizes
     in
     if index < 0 || size > 1.0e-9 || opened == state.sizes then
         state
 
     else
         { state | sizes = opened, remembered = Dict.remove index state.remembered }
+
+
+{-| The pane a folded pane takes its room back from: the neighbour that took it, when
+that is known and still has room, or else `from`.
+-}
+sourceOf : Int -> Int -> List Float -> State -> Int
+sourceOf index from sizes state =
+    case Dict.get index state.remembered of
+        Just folded ->
+            if
+                folded.into
+                    /= index
+                    && (List.drop folded.into sizes |> List.head |> Maybe.withDefault 0)
+                    > 1.0e-9
+            then
+                folded.into
+
+            else
+                from
+
+        Nothing ->
+            from
 
 
 type alias Sample =
@@ -197,11 +233,14 @@ type Msg
 -- WHAT IS DRAWN
 
 
-{-| Is the pane at this place folded away: can it fold, and has it no room?
+{-| Is the pane at this place folded away: has it no room, and can it fold or did
+the application fold it (`foldPane`)?
 -}
-isFolded : Layout -> List Float -> Int -> Bool
-isFolded layout sizes index =
-    (List.drop index layout.collapsible |> List.head |> Maybe.withDefault False)
+isFolded : Layout -> State -> List Float -> Int -> Bool
+isFolded layout state sizes index =
+    ((List.drop index layout.collapsible |> List.head |> Maybe.withDefault False)
+        || Dict.member index state.remembered
+    )
         && (List.drop index sizes |> List.head |> Maybe.withDefault 1)
         <= 1.0e-9
 
@@ -213,7 +252,7 @@ limitsFor : Layout -> State -> List Float -> List Limits
 limitsFor layout state sizes =
     List.indexedMap
         (\index request ->
-            if isFolded layout sizes index then
+            if isFolded layout state sizes index then
                 { min = 0, max = 0 }
 
             else if List.drop index layout.collapsible |> List.head |> Maybe.withDefault False then
@@ -447,15 +486,15 @@ toggle layout separator state =
 
         canFold index =
             (List.drop index layout.collapsible |> List.head |> Maybe.withDefault False)
-                && not (isFolded layout sizes index)
+                && not (isFolded layout state sizes index)
     in
     if separator < 0 || second >= List.length sizes then
         state
 
-    else if isFolded layout sizes first then
+    else if isFolded layout state sizes first then
         open layout first second sizes state
 
-    else if isFolded layout sizes second then
+    else if isFolded layout state sizes second then
         open layout second first sizes state
 
     else if canFold first then
@@ -474,11 +513,12 @@ fold index into sizes state =
         ( folded, size ) =
             Layout.collapse index into sizes
     in
-    { state | sizes = folded, remembered = Dict.insert index size state.remembered }
+    { state | sizes = folded, remembered = Dict.insert index { size = size, into = into } state.remembered }
 
 
-{-| Gives the folded pane its room back from its neighbour: what it had, or when
-that is not known (the layout was restored folded) its smallest size, or a fifth.
+{-| Gives the folded pane its room back from the neighbour that took it (`from` when
+that is not known): what it had, or when that is not known (the layout was restored
+folded) its smallest size, or a fifth.
 -}
 open : Layout -> Int -> Int -> List Float -> State -> State
 open layout index from sizes state =
@@ -491,10 +531,11 @@ open layout index from sizes state =
 
         wanted =
             Dict.get index state.remembered
+                |> Maybe.map .size
                 |> Maybe.withDefault (Basics.max own.min 0.2)
 
         opened =
-            Layout.expand index from wanted limits sizes
+            Layout.expand index (sourceOf index from sizes state) wanted limits sizes
     in
     if opened == sizes then
         state

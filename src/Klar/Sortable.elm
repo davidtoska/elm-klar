@@ -607,7 +607,16 @@ view toMsg attributes (State drawn) items =
             , Attr.attribute "aria-live" "assertive"
             , Attr.attribute "aria-atomic" "true"
             ]
-            [ Html.text (announcement t entries s.note) ]
+            [ Html.text
+                (announcement t entries s.note
+                    ++ (if s.echo then
+                            "\u{00A0}"
+
+                        else
+                            ""
+                       )
+                )
+            ]
         , Html.span [ Attr.id (Machine.helpDomId s.domId), Internal.cls [ "klar-sr-only" ] ]
             [ Html.text (t.help config.horizontal) ]
         , Html.div [ Internal.cls [ "klar-sortable__extras" ] ] (extras entries s.session)

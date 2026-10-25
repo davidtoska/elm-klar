@@ -648,6 +648,41 @@ foldTests =
                     |> rendered
                     |> Query.find [ Selector.id "split-pane-1" ]
                     |> Query.has [ Selector.class "klar-splitter__pane--folded" ]
+        , test "a pane the application folds is drawn folded even when it is not collapsible, so isFolded tells the truth" <|
+            \_ ->
+                { twoPanes | split = Splitter.fold 1 twoPanes.split, panes = [ pane "A", pane "B" |> Splitter.minSize (Splitter.percent 30) ] }
+                    |> Expect.all
+                        [ \model -> Splitter.isFolded 1 model.split |> Expect.equal True
+                        , rendered
+                            >> Query.find [ Selector.id "split-pane-1" ]
+                            >> Query.has [ Selector.class "klar-splitter__pane--folded" ]
+                        ]
+        , test "Enter on the separator opens a pane the application folded, collapsible or not" <|
+            \_ ->
+                { twoPanes | split = Splitter.fold 1 twoPanes.split }
+                    |> send (separator 0) (key "Enter")
+                    |> Result.map percentages
+                    |> Expect.equal (Ok [ 40, 60 ])
+        , test "the middle pane of three opens from the pane that took its room, from either separator" <|
+            \_ ->
+                { threePanes | split = Splitter.fold 1 threePanes.split, panes = [ pane "Navigator", pane "Orders" |> Splitter.collapsible, pane "Details" ] }
+                    |> Expect.all
+                        [ \model -> percentages model |> Expect.equal [ 20, 0, 80 ]
+                        , send (separator 0) (key "Enter") >> Result.map percentages >> Expect.equal (Ok [ 20, 50, 30 ])
+                        , send (separator 1) (key "Enter") >> Result.map percentages >> Expect.equal (Ok [ 20, 50, 30 ])
+                        ]
+        , test "unfold after a restored fold is brought inside the smallest size of the pane when it is drawn" <|
+            \_ ->
+                { twoPanes
+                    | split =
+                        twoPanes.split
+                            |> Splitter.setSizes [ Splitter.percent 100, Splitter.percent 0 ]
+                            |> Splitter.unfold 1
+                    , panes = [ pane "A", pane "B" |> Splitter.collapsible |> Splitter.minSize (Splitter.percent 30) ]
+                }
+                    |> rendered
+                    |> Query.find (separator 0)
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-valuenow" "70") ]
         , test "separatorId is the id of the separator" <|
             \_ ->
                 twoPanes

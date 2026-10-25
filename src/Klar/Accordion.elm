@@ -72,14 +72,15 @@ with `expand`, `collapse`, `toggle`, `expandAll`, `collapseAll` and
 error. `expand`, `toggle` and a click on a header all follow the mode of the
 state, so they never disagree: in the default mode they leave only the opened
 section open, after `setMultiple True` they leave the others alone.
-`setExpandedIds` and `expandAll` set exactly which sections are open, whatever the
-mode.
+`setExpandedIds` sets exactly which sections are open and `expandAll` opens a list
+of them, whatever the mode.
 
 The body of a closed `section` stays in the page, hidden (`hidden="until-found"`):
 the find-in-page of the browser finds its text, and a link to an id inside it
 opens the section by itself (in Chrome and Edge; elsewhere it is plain hidden). A
-`lazySection` takes a function, so the content of a closed one is never computed
-and not in the page.
+closed body is built at a size of zero, so content that measures itself (a chart,
+a `Klar.VirtualList`, a `Klar.Splitter`) belongs in a `lazySection`, which takes a
+function: the content of a closed one is never computed and not in the page.
 
 Each header is a button inside a heading (level 3 unless you set `headingLevel`)
 with `aria-expanded`. With six sections or fewer a body is also a `region` named
@@ -160,8 +161,8 @@ header.
     Accordion.section sectionIds Shipping "Shipping address" [ shippingView model ]
 
 The body of a closed section stays in the page, hidden, so that find-in-page
-reaches it (see the top of this page). Use `lazySection` for a body that is
-expensive to build.
+reaches it (see the top of this page). It is built at a size of zero, so use
+`lazySection` for a body that is expensive to build or that measures itself.
 
 -}
 section : Ids key -> key -> String -> List (Html msg) -> Section key msg
@@ -383,28 +384,30 @@ setExpandedIds keys (State state) =
     State { state | open = keys }
 
 
-{-| Opens every section that can be opened (not the `disabledSection`s), whatever
-the mode; sections that are open stay open. Give it the same sections that you
-give to `view`.
+{-| Opens every section of this list of keys, whatever the mode; sections that are
+open stay open, and the new ones come after them in `expandedIds`. Give it the keys
+of all your sections, such as the list you gave to `Ids.list`. A
+`disabledSection` is drawn closed even when its key is open.
 
-    Accordion.expandAll (orderSections model) model.accordion
+    Accordion.expandAll [ Shipping, Items, Log ] model.accordion
 
 -}
-expandAll : List (Section key msg) -> State key -> State key
-expandAll sections (State state) =
-    let
-        enabled =
-            List.filterMap
-                (\(Section data) ->
-                    if data.disabled || List.member data.key state.open then
-                        Nothing
+expandAll : List key -> State key -> State key
+expandAll keys (State state) =
+    State
+        { state
+            | open =
+                List.foldl
+                    (\key open ->
+                        if List.member key open then
+                            open
 
-                    else
-                        Just data.key
-                )
-                sections
-    in
-    State { state | open = state.open ++ enabled }
+                        else
+                            open ++ [ key ]
+                    )
+                    state.open
+                    keys
+        }
 
 
 {-| Closes one section.

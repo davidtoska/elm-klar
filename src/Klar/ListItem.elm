@@ -3,7 +3,7 @@ module Klar.ListItem exposing
     , secondary, meta, icon, avatar, leading, trailing, accent
     , onClick, href, selected, disabled, id, rowAriaLabel
     , list, keyedList, ListAttribute, ariaLabel, undivided, density, bordered, maxHeight
-    , viewRemote, skeleton, skeletonRows, onRetry, emptyState, locale, settings
+    , viewRemote, listId, skeleton, skeletonRows, onRetry, emptyState, locale, settings
     )
 
 {-| A dense list row, and the list that holds the rows.
@@ -86,7 +86,7 @@ goes into it is `content`, the row without the `li` and without anything to clic
 
 # Data from a backend
 
-@docs viewRemote, skeleton, skeletonRows, onRetry, emptyState, locale, settings
+@docs viewRemote, listId, skeleton, skeletonRows, onRetry, emptyState, locale, settings
 
 -}
 
@@ -531,6 +531,7 @@ type alias ListConfig msg =
     , bordered : Bool
     , maxHeight : Maybe Int
     , ariaLabel : Maybe String
+    , listId : Maybe String
     , onRetry : Maybe msg
     , emptyState : List (EmptyState.Attribute msg)
     , skeletonRows : Int
@@ -547,6 +548,7 @@ configureList attributes =
         , bordered = False
         , maxHeight = Nothing
         , ariaLabel = Nothing
+        , listId = Nothing
         , onRetry = Nothing
         , emptyState = []
         , skeletonRows = 4
@@ -603,6 +605,26 @@ a page has more than one.
 ariaLabel : String -> ListAttribute msg
 ariaLabel text =
     ListAttribute (\config -> { config | ariaLabel = Just text })
+
+
+{-| The DOM id of `viewRemote`, on the element around the list that is the same in
+every state (loading, failed, empty, rows, old data) and can take the focus
+(`tabindex="-1"`). It gives `Klar.focus` a place to put the focus back when the
+element that had it goes away, such as the "Try again" button of the failure state
+after a press. The id must be unique on the page. There is none by default.
+
+    ListItem.viewRemote [ ListItem.listId "orders", ListItem.onRetry ReloadOrders ] rows
+
+    -- update
+    ReloadOrders ->
+        ( { model | orders = Remote.Loading }
+        , Cmd.batch [ fetchOrders, Klar.focus "orders" NoOp ]
+        )
+
+-}
+listId : String -> ListAttribute msg
+listId value =
+    ListAttribute (\config -> { config | listId = Just value })
 
 
 {-| The message sent by the "Try again" button of `viewRemote`: in the failure
@@ -757,9 +779,12 @@ While the data is `NotAsked` or `Loading` the list shows placeholder rows
 state with a retry button (`onRetry`), no rows show the empty state
 (`emptyState`), and otherwise the rows are shown. Data that is `Kept` stays:
 dimmed and busy while it is refreshed, and under "Old data from 14:05" with a
-retry (`onRetry`) when the last refresh failed, also when it has no rows. The
-rows are drawn inside the same elements whether the data is fresh, refreshing or
-old, so a refresh that starts or ends never takes the focus from a row.
+retry (`onRetry`) when the last refresh failed, also when it has no rows.
+
+Every state is drawn inside one element that stays (`listId` gives it an id), and
+the rows inside the same elements whether the data is fresh, refreshing or old, so
+a refresh that starts or ends never takes the focus from a row. "Loading" is said
+by a polite status that is always in the page, empty in the other states.
 
 -}
 viewRemote : List (ListAttribute msg) -> Remote (List ( String, Html msg )) -> Html msg
@@ -767,34 +792,50 @@ viewRemote attributes data =
     let
         config =
             configureList attributes
+
+        ( settled, freshness ) =
+            Freshness.settle data
     in
-    case Freshness.settle data of
-        ( Remote.Loaded rows, freshness ) ->
-            Html.div
-                [ Internal.cls [ "klar-list-fresh", Freshness.className freshness ]
-                , Freshness.busyAttr freshness
-                ]
-                [ Freshness.notice
-                    { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
-                    freshness
-                , if List.isEmpty rows then
-                    framed config (emptyView config)
-
-                  else
-                    Keyed.ul (listAttributes config) rows
-                ]
-
-        ( Remote.Failed problem, _ ) ->
-            framed config (failureView config problem)
-
-        _ ->
-            loadingView config
-
-
-framed : ListConfig msg -> Html msg -> Html msg
-framed config inner =
     Html.div
-        [ Internal.cls
+        [ Internal.cls [ "klar-list-fresh", Freshness.className freshness ]
+        , Internal.attrMaybe Attr.id config.listId
+        , Internal.attrIf (config.listId /= Nothing) (Attr.tabindex -1)
+        ]
+        [ Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+            [ Html.text
+                (if Freshness.waiting settled then
+                    Locale.pick config.locale { nb = "Laster", en = "Loading" }
+
+                 else
+                    ""
+                )
+            ]
+        , Freshness.notice
+            { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+            freshness
+        , case settled of
+            Remote.Loaded rows ->
+                if List.isEmpty rows then
+                    framed [ Freshness.busyAttr freshness ] config (emptyView config)
+
+                else
+                    Keyed.ul (Freshness.busyAttr freshness :: listAttributes config) rows
+
+            Remote.Failed problem ->
+                framed [] config (failureView config problem)
+
+            _ ->
+                loadingView config
+        ]
+
+
+{-| The frame of the empty and the failure state. `aria-busy` goes on it and on the
+list, never on the element around them, which holds the live regions.
+-}
+framed : List (Html.Attribute msg) -> ListConfig msg -> Html msg -> Html msg
+framed attributes config inner =
+    Html.div
+        (Internal.cls
             [ "klar-list-state"
             , if config.bordered then
                 "klar-list-state--bordered"
@@ -802,7 +843,8 @@ framed config inner =
               else
                 ""
             ]
-        ]
+            :: attributes
+        )
         [ inner ]
 
 
@@ -817,26 +859,23 @@ emptyView config =
         )
 
 
-{-| The placeholder rows, hidden from screen readers, which hear "Loading"
-instead.
+{-| The placeholder rows, hidden from screen readers, which hear "Loading" from the
+status beside them instead.
 -}
 loadingView : ListConfig msg -> Html msg
 loadingView config =
-    Html.div [ Internal.cls [ "klar-list-fresh" ], Attr.attribute "aria-busy" "true" ]
-        [ Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
-            [ Html.text (Locale.pick config.locale { nb = "Laster", en = "Loading" }) ]
-        , Html.ul
-            [ listClass config
-            , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
-            , case config.maxHeight of
-                Just pixels ->
-                    Internal.styleVars [ ( "max-height", Internal.px pixels ) ]
+    Html.ul
+        [ listClass config
+        , Attr.attribute "aria-busy" "true"
+        , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
+        , case config.maxHeight of
+            Just pixels ->
+                Internal.styleVars [ ( "max-height", Internal.px pixels ) ]
 
-                Nothing ->
-                    Internal.noAttr
-            ]
-            (List.range 1 config.skeletonRows |> List.map skeleton)
+            Nothing ->
+                Internal.noAttr
         ]
+        (List.range 1 config.skeletonRows |> List.map skeleton)
 
 
 failureView : ListConfig msg -> Problem -> Html msg

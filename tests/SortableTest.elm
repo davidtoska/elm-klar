@@ -1066,6 +1066,37 @@ moveButtonTests =
                             |> Result.withDefault (Expect.fail "no press")
                     ]
                     ()
+        , test "a second press at the end is said again: the text of the live region changes" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        send (moveUp "a") click withButtons
+                            |> Result.map (liveRegion >> Query.hasNot [ Selector.text "further.\u{00A0}" ])
+                            |> Result.withDefault (Expect.fail "no press")
+                    , \_ ->
+                        withButtons
+                            |> drive [ ( moveUp "a", click ), ( moveUp "a", click ) ]
+                            |> Result.map (liveRegion >> Query.has [ Selector.text "It cannot move further.\u{00A0}" ])
+                            |> Result.withDefault (Expect.fail "no press")
+                    , \_ ->
+                        withButtons
+                            |> drive [ ( moveUp "a", click ), ( moveUp "a", click ), ( moveUp "a", click ) ]
+                            |> Result.map (liveRegion >> Query.hasNot [ Selector.text "further.\u{00A0}" ])
+                            |> Result.withDefault (Expect.fail "no press")
+                    ]
+                    ()
+        , test "the key at the end of the list is said again too" <|
+            \_ ->
+                withButtons
+                    |> afterKeys [ ( "a", space ), ( "a", key "ArrowUp" ), ( "a", key "ArrowUp" ) ]
+                    |> Result.map (liveRegion >> Query.has [ Selector.text "\u{00A0}" ])
+                    |> Result.withDefault (Expect.fail "no keys")
+        , test "a press of a move button while an item is held moves nothing and leaves the item held" <|
+            \_ ->
+                check (withButtons |> afterKeys [ ( "b", space ) ] |> Result.andThen (send (moveDown "d") click))
+                    [ .items >> Expect.equal [ "a", "b", "c", "d", "e" ]
+                    , held >> Expect.equal (Just "b")
+                    ]
         , test "the buttons do not pass a fixed item" <|
             \_ ->
                 let

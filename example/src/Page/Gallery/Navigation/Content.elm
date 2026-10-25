@@ -99,7 +99,7 @@ update msg model =
                 |> Tuple.mapBoth (\state -> { model | accFlush = state }) (Cmd.map AccFlushMsg)
 
         ExpandAll ->
-            ( { model | accMultiple = Accordion.expandAll multipleSections model.accMultiple }, Cmd.none )
+            ( { model | accMultiple = Accordion.expandAll [ "items", "customs", "delivery" ] model.accMultiple }, Cmd.none )
 
         CollapseAll ->
             ( { model | accMultiple = Accordion.collapseAll model.accMultiple }, Cmd.none )
@@ -151,8 +151,7 @@ customerSectionIds =
         [ Contact, History, ChangeLog, Billing ]
 
 
-{-| The sections of the second example: plain text keys. The function gives the
-same sections to `view` and to `Accordion.expandAll`.
+{-| The sections of the second example: plain text keys.
 -}
 multipleSections : List (Accordion.Section String Msg)
 multipleSections =
@@ -280,7 +279,7 @@ shipmentSections model =
     ]
 
 -- the application can change the state too:
---   Accordion.expandAll (shipmentSections model) model.accordion
+--   Accordion.expandAll [ "items", "customs" ] model.accordion
 --   Accordion.collapseAll model.accordion"""
 
 
