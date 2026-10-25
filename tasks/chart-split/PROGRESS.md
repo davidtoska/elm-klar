@@ -79,3 +79,7 @@
 - Next: Shared.
 
 - Shared: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit d7e3273: Shared complete.
+- Next: Line.
+
+- Line: format, full check, byte-identical docs and identical chart/sparkline roots passed.

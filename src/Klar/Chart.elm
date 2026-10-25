@@ -147,6 +147,7 @@ import Html.Events as Events
 import Klar.Chart.Config as Config
 import Klar.Chart.Core as Core
 import Klar.Chart.Data as Data
+import Klar.Chart.Line as Line
 import Klar.Chart.Types as Types
 import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
@@ -628,7 +629,7 @@ two or more series, and each category has a tooltip with its values.
 -}
 line : List (Attribute msg) -> List Series -> Html msg
 line arg1 arg2 =
-    Core.line (List.map unwrapAttribute arg1) (List.map unwrapSeries arg2)
+    Line.line (List.map unwrapAttribute arg1) (List.map unwrapSeries arg2)
 
 
 {-| Vertical or horizontal bars, grouped or stacked: one group of bars per
