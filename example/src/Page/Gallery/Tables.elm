@@ -32,6 +32,7 @@ import Klar.Switch as Switch
 import Klar.Table as Table
 import Klar.Text as Text
 import Klar.Theme as Theme exposing (Tone(..))
+import Page.Gallery.Tables.Budgets as Budgets
 import Page.Gallery.Tables.Large as Large
 import Process
 import Set
@@ -57,6 +58,7 @@ type alias Model =
     , norwegian : Table.State OrderId
     , pagers : Pagers
     , large : Large.Model
+    , budget : Budgets.Model
     }
 
 
@@ -198,6 +200,7 @@ type Msg
     | ManyPage Int
       -- 50 000 rows
     | LargeMsg Large.Msg
+    | BudgetMsg Budgets.Msg
 
 
 init : ( Model, Cmd Msg )
@@ -256,6 +259,7 @@ init =
       , norwegian = Table.init "norwegian-orders" |> Table.setPageSize 10
       , pagers = { full = { page = 6, pageSize = 25 }, compact = 1, few = 2, many = 1234 }
       , large = Large.init
+      , budget = Budgets.init
       }
     , fetchCmd
     )
@@ -647,6 +651,10 @@ update msg model =
         LargeMsg inner ->
             Large.update inner model.large
                 |> Tuple.mapBoth (\large -> { model | large = large }) (Cmd.map LargeMsg)
+
+        BudgetMsg inner ->
+            Budgets.update inner model.budget
+                |> Tuple.mapBoth (\budget -> { model | budget = budget }) (Cmd.map BudgetMsg)
 
 
 {-| Stores the new state of a table and maps its commands.
@@ -1679,7 +1687,8 @@ view locale model =
         { title = "Tables"
         , description = "The data table for large amounts of data: search, column filters, sorting, selection with bulk actions, row actions, expandable rows, CSV export and pagination, in client mode (all rows in the browser) and server mode (one page at a time). Pagination also works on its own."
         }
-        [ Html.Lazy.lazy2 clientSection locale model.client
+        [ Html.map BudgetMsg (Budgets.view locale model.budget)
+        , Html.Lazy.lazy2 clientSection locale model.client
         , Html.Lazy.lazy2 serverSection locale model.server
         , Html.Lazy.lazy2 columnsSection locale model.columns
         , Html.Lazy.lazy2 viewsSection locale model.views

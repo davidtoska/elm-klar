@@ -314,6 +314,7 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 - Ask before leaving with unsaved input: `LeaveGuard`. Undo and redo of a value: `History`.
 
 **Tables, lists and data**
+- Editable budgets with up to six columns, exact line amounts and a grand total: `Budget`. Configure `Budget.setColumns` and `Budget.setFormula`; read `Budget.total` and `Budget.rows` to save.
 - Records with search, sort, filters, selection, paging, 50 000 rows, server mode: `Table` (`Table.virtual` for scrolling). Page controls alone: `Pagination`. A dense row with title, meta, actions: `ListItem`. A very long plain list: `VirtualList`. Hierarchy: `Tree`.
 - KPI number: `Stat`. Line, bar, donut, gauge, sparkline: `Chart`. History of events: `Timeline`. Person or system badge: `Avatar`. A JSON value: `JsonViewer`.
 - Data state from a backend, with old data kept while it refreshes: `Remote`. The body of a card, dialog or drawer from a `Remote`: `RemoteView`. Forgiving text matching and ranking: `Search`. Numbers, sizes, dates, money text: `Format`.

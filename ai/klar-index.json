@@ -2702,6 +2702,49 @@
       "reference": "ai/modules/Klar.Table.md"
     },
     {
+      "name": "Klar.Budget",
+      "import": "import Klar.Budget as Budget",
+      "group": "Tables and lists",
+      "purpose": "An editable budget sheet with up to six columns, calculated line amounts and an exact grand total.",
+      "whenToUse": "people enter cost descriptions, quantities and prices to build a budget.",
+      "whenNot": "displaying or sorting existing records, use `Klar.Table`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "init",
+        "setRows",
+        "update",
+        "view",
+        "total"
+      ],
+      "mainFunctions": [
+        "view",
+        "init",
+        "update",
+        "setColumns",
+        "setFormula",
+        "setRows",
+        "rows",
+        "textColumn"
+      ],
+      "related": [],
+      "keywords": [
+        "budget",
+        "tables and lists",
+        "editable",
+        "sheet",
+        "columns",
+        "calculated"
+      ],
+      "reference": "ai/modules/Klar.Budget.md"
+    },
+    {
       "name": "Klar.Pagination",
       "import": "import Klar.Pagination as Pagination",
       "group": "Tables and lists",

@@ -143,7 +143,7 @@ every module has an example.
 | **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
 | **Choosing** | `Select`, `Select.Option`, `Ids` (your id type as text, once), `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
-| **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree` |
+| **Tables and lists** | `Table`, `Budget`, `Pagination`, `ListItem`, `Tree` |
 | **Overlays** | `Overlay`, `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
