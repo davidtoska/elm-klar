@@ -151,6 +151,7 @@ import Klar.Chart.Data as Data
 import Klar.Chart.Donut as Donut
 import Klar.Chart.Line as Line
 import Klar.Chart.Scalar as Scalar
+import Klar.Chart.Sparkline as Sparkline
 import Klar.Chart.Types as Types
 import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
@@ -721,7 +722,7 @@ with none a dash. The default height is 28px and the width fills the container
 -}
 sparkline : List (Attribute msg) -> List Float -> Html msg
 sparkline arg1 arg2 =
-    Core.sparkline (List.map unwrapAttribute arg1) arg2
+    Sparkline.sparkline (List.map unwrapAttribute arg1) arg2
 
 
 {-| A line chart from a `Remote`: the skeleton while it loads, the problem with

@@ -22,11 +22,11 @@
   split.mjs moves named groups and redirects public forwards; validate.mjs runs
   format/check/docs/DOM; verify-original.mjs audits original implementations and
   dependencies; cleanup-imports.mjs removes unneeded imports at completion.
-- Active extraction pipeline: exec session 41660. All pure groups through
-  Preparation are complete; it continues through Shared, Line, Bar, Donut,
-  Scalar, Sparkline and RemoteView. Inspect its result
+- Active extraction pipeline: exec session 41660. Shared, Line, Bar, Donut and
+  Scalar are complete; it continues through Sparkline and RemoteView. Inspect its result
   before additional edits. It stops on any validation failure and records that
-  stop at the top of this file. finish-chart.mjs removes Core only when empty.
+  stop at the top of this file. RemoteView retires the now-empty Core as part of
+  its extraction. finish-chart.mjs then checks the boundary and cleans imports.
 - Limit later elm-test checks to four workers via the external preload, retaining
   every test and the default 100 fuzz runs. Baseline used the unmodified command.
 - No agent delegation. No main-checkout or Table-source edits. No new dependency.
@@ -95,3 +95,7 @@
 - Next: Scalar.
 
 - Scalar: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit b8d47c1: Scalar complete.
+- Next: Sparkline.
+
+- Sparkline: format, full check, byte-identical docs and identical chart/sparkline roots passed.
