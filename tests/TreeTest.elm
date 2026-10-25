@@ -11,6 +11,7 @@ event on it and gives the message to `Tree.update`.
 -}
 
 import Expect
+import Fuzz
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Json.Encode as Encode
@@ -18,7 +19,7 @@ import Klar.EmptyState as EmptyState
 import Klar.Ids as Ids
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Tree as Tree
-import Test exposing (Test, describe, test)
+import Test exposing (Test, describe, fuzz2, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
@@ -46,6 +47,7 @@ suite =
         , clickTests
         , vocabularyTests
         , pageKeyTests
+        , filterPropertyTests
         ]
 
 
@@ -739,3 +741,128 @@ pageKeyTests =
                     |> Event.toResult
                     |> Expect.err
         ]
+
+
+
+-- THE FILTER KEEPS EXACTLY THE MATCHES AND THEIR ANCESTORS
+
+
+{-| A tree of three levels with three nodes at every level (39 nodes), each
+labelled with one of four words, picked by the fuzzer. The ids are the paths.
+-}
+wordTree : List Int -> List (Tree.Node String)
+wordTree picks =
+    let
+        word i =
+            case modBy 4 (List.drop i picks |> List.head |> Maybe.withDefault 0) of
+                0 ->
+                    "apple"
+
+                1 ->
+                    "bread"
+
+                2 ->
+                    "cheese"
+
+                _ ->
+                    "dates"
+
+        node i path children =
+            if List.isEmpty children then
+                Tree.leaf Ids.string path (word i ++ " " ++ path)
+
+            else
+                Tree.branch Ids.string path (word i ++ " " ++ path) children
+    in
+    List.map
+        (\a ->
+            node (a * 13)
+                ("p" ++ String.fromInt a)
+                (List.map
+                    (\b ->
+                        node (a * 13 + 1 + b * 4)
+                            ("p" ++ String.fromInt a ++ "x" ++ String.fromInt b)
+                            (List.map
+                                (\c -> node (a * 13 + 2 + b * 4 + c) ("p" ++ String.fromInt a ++ "x" ++ String.fromInt b ++ "x" ++ String.fromInt c) [])
+                                (List.range 0 2)
+                            )
+                    )
+                    (List.range 0 2)
+                )
+        )
+        (List.range 0 2)
+
+
+{-| What the filter must show: every node whose label has the word, and every
+ancestor of one. Worked out here from the labels, independently of the tree.
+-}
+expectedRows : String -> List Int -> List String
+expectedRows query picks =
+    let
+        labelOf i =
+            case modBy 4 (List.drop i picks |> List.head |> Maybe.withDefault 0) of
+                0 ->
+                    "apple"
+
+                1 ->
+                    "bread"
+
+                2 ->
+                    "cheese"
+
+                _ ->
+                    "dates"
+
+        hit i =
+            labelOf i == query
+
+        leafRows a b =
+            List.filter (\c -> hit (a * 13 + 2 + b * 4 + c)) (List.range 0 2)
+                |> List.map (\c -> "p" ++ String.fromInt a ++ "x" ++ String.fromInt b ++ "x" ++ String.fromInt c)
+
+        middleRows a =
+            List.concatMap
+                (\b ->
+                    let
+                        below =
+                            leafRows a b
+                    in
+                    if hit (a * 13 + 1 + b * 4) || not (List.isEmpty below) then
+                        ("p" ++ String.fromInt a ++ "x" ++ String.fromInt b) :: below
+
+                    else
+                        []
+                )
+                (List.range 0 2)
+    in
+    List.concatMap
+        (\a ->
+            let
+                below =
+                    middleRows a
+            in
+            if hit (a * 13) || not (List.isEmpty below) then
+                ("p" ++ String.fromInt a) :: below
+
+            else
+                []
+        )
+        (List.range 0 2)
+
+
+filterPropertyTests : Test
+filterPropertyTests =
+    fuzz2 (Fuzz.listOfLength 39 (Fuzz.intRange 0 3)) (Fuzz.oneOfValues [ "apple", "bread", "cheese", "dates" ]) "the filter shows exactly the matches and their ancestors" <|
+        \picks query ->
+            let
+                html =
+                    render [] (Tree.setQuery query start) (wordTree picks)
+
+                expected =
+                    expectedRows query picks
+            in
+            Expect.all
+                ((\_ -> html |> Query.findAll [ role "treeitem" ] |> Query.count (Expect.equal (List.length expected)))
+                    :: List.map (\id -> \_ -> html |> Query.findAll [ Selector.id (itemId id) ] |> Query.count (Expect.equal 1)) expected
+                )
+                ()
