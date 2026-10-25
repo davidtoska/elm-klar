@@ -226,7 +226,7 @@ init _ url key =
     ( { shell = AppShell.init { id = "app-shell", key = key, url = url } |> AppShell.setPage (navigation 0) page
       , page = page
       , key = key
-      , origin = originOf url
+      , origin = originOf url ++ (url.path |> String.split "/" |> List.reverse |> List.drop 1 |> List.reverse |> String.join "/")
       , settings = Settings.default
       , zone = Time.utc
       , zoneName = "UTC"

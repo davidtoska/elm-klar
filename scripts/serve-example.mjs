@@ -11,11 +11,13 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createCompiler, describe } from './playground-compiler.mjs';
+import { createCalendarHandler } from '../calendar/server/server.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'example');
 const port = Number(process.argv[2] || 8000);
 const playground = createCompiler(root);
+const calendar = createCalendarHandler({ demoMode: true, dataFile: path.join(root, 'calendar/server/showcase-data.json'), cookiePath: '/calendar-app/' });
 
 if (!process.argv.includes('--no-build')) {
   const build = spawnSync(process.execPath, [path.join(root, 'scripts', 'build-example.mjs')], { stdio: 'inherit' });
@@ -34,6 +36,14 @@ const server = http
   .createServer(async (request, response) => {
     const json = (status, value) => { response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); };
     const requestUrl = new URL(request.url || '/', 'http://localhost');
+    if (requestUrl.pathname === '/calendar-app') {
+      response.writeHead(302, { Location: '/calendar-app/' });
+      return response.end();
+    }
+    if (requestUrl.pathname.startsWith('/calendar-app/')) {
+      request.url = request.url.slice('/calendar-app'.length);
+      return calendar(request, response);
+    }
     if (requestUrl.pathname.startsWith('/__playground/')) {
       try {
         const origin = request.headers.origin;

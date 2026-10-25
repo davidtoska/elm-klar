@@ -29,4 +29,8 @@ for (const [source, output] of builds) {
   const run = spawnSync(['elm', ...args].join(' '), { cwd: dir, stdio: 'inherit', shell: true });
   if (run.status !== 0) process.exit(run.status ?? 1);
 }
-console.log(`Built example/main.js and ${builds.length - 1} examples. Open example/index.html (or run: npm start).`);
+const calendarArgs = ['make', 'src/Main.elm', '--output=main.js'];
+if (optimize) calendarArgs.splice(2, 0, '--optimize');
+const calendarBuild = spawnSync(['elm', ...calendarArgs].join(' '), { cwd: path.join(root, 'calendar'), stdio: 'inherit', shell: true });
+if (calendarBuild.status !== 0) process.exit(calendarBuild.status ?? 1);
+console.log(`Built the showcase, ${builds.length - 1} examples and the calendar. Run: npm start.`);

@@ -20,3 +20,5 @@ Thumbs.db
 /calendar/main.js
 /calendar/server/data.json
 /calendar/server/data.json.tmp
+/calendar/server/showcase-data.json
+/calendar/server/showcase-data.json.tmp

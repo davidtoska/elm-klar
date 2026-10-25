@@ -31,6 +31,7 @@ import Klar.Text as Text
 import Klar.Theme exposing (Size(..), Tone(..))
 import Klar.TimePicker as TimePicker
 import Process
+import Showcase.CalendarApplication as CalendarApplication
 import Showcase.Config as Config
 import Showcase.Doc as Doc
 import Showcase.Options as Options
@@ -723,7 +724,13 @@ calendars playground locale model =
         [ "Calendar" ]
         "Calendar"
         "The month calendar behind the date fields, also useful on its own. Keyboard on a day: the arrow keys move, Home and End go to the start and end of the week, PageUp and PageDown change month, Shift + PageUp and Shift + PageDown change year, Enter or Space picks the day. Only one day is in the tab order. The title opens a month chooser, and the title of that a year chooser."
-        [ Doc.configuredExample playground
+        [ Doc.example
+            { title = "Google Calendar demo"
+            , description = Just "Try the complete application with day, week, month and agenda views, shared calendars, invitations and recurring events."
+            , code = Nothing
+            }
+            CalendarApplication.view
+        , Doc.configuredExample playground
             [ "Calendar" ]
             { title = "Overview with bookings"
             , description = Just "Dots show bookings (point at a day to read them): gray is past, green done, blue planned, amber at risk, red urgent. The number shows how many. Week numbers on the left and a button back to today. The bookings of the chosen day are listed beside the calendar."

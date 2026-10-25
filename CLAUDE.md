@@ -18,7 +18,10 @@ application with it; `README.md` is the front page of the package.
   which saves its file with `File.Download.string`; the library never reads or sends a file).
   `svg`, `bytes`, `parser`, `regex` and `random` are allowed, added only when a component
   needs them. Never `elm/http` (Klar is transport neutral), never a third-party package.
-- No ports, no kernel code, no `Debug`, no JavaScript in the library or the example.
+- No ports, no kernel code, no `Debug`, no JavaScript in the library (`Klar.*`).
+  Applications and examples may use ports and JavaScript adapters for persistence
+  and external data, including IndexedDB and localStorage. Keep these adapters at
+  the application boundary; library components remain transport neutral and port-free.
 - The stylesheet is Elm: `src/Klar/Internal/Css/*.elm`, one module per group, each a CSS
   string; `src/Klar/Internal/Css.elm` puts them together in order. `Klar.stylesheet` draws it.
 - Icons are Elm values (`Icon.fromSvg`): `src/Klar/Icon.elm` (the everyday set, by hand) and

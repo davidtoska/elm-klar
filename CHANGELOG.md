@@ -5,6 +5,11 @@ adding is a minor release, changing or removing is a major one.
 
 ## Unreleased
 
+### Calendar application integration
+- Embed the existing Google Calendar-style application in the Calendar component tab and application examples, with a full-page link, sidebar navigation and command search.
+- Build and serve the calendar with `npm start`, using a separate local demo store and scoped sessions. Local API requests and Google redirect URLs work under the showcase mount as well as in standalone mode.
+- Allow application/example ports and JavaScript adapters for persistence and external data, while keeping the library port-free and transport neutral.
+
 ### Complete component gallery
 - Give every exposed module an address in the component gallery, including `Klar`, `Picking`, the icon index and all themed icon groups. Icon-group pages show the selected group's searchable icons.
 - Restore the icon browser on the Icon page and add a working custom-control example for `Field`, whose page previously showed only an empty validation heading.

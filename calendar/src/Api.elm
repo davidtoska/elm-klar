@@ -149,7 +149,7 @@ request r toMsg decoder =
     Http.request
         { method = r.method
         , headers = authorization r.token
-        , url = r.url
+        , url = localUrl r.url
         , body = Maybe.map Http.jsonBody r.body |> Maybe.withDefault Http.emptyBody
         , expect = expect toMsg decoder
         , timeout = Just 30000
@@ -162,11 +162,24 @@ task r decoder =
     Http.task
         { method = r.method
         , headers = authorization r.token
-        , url = r.url
+        , url = localUrl r.url
         , body = Maybe.map Http.jsonBody r.body |> Maybe.withDefault Http.emptyBody
         , resolver = Http.stringResolver (resolve decoder)
         , timeout = Just 60000
         }
+
+
+{-| Resolve local API paths beside the application, so the same client works at
+the standalone root and under the showcase's /calendar-app/ mount. Absolute
+Google API URLs keep their origin.
+-}
+localUrl : String -> String
+localUrl url =
+    if String.startsWith "/" url then
+        String.dropLeft 1 url
+
+    else
+        url
 
 
 authorization : Maybe String -> List Http.Header

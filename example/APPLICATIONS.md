@@ -5,6 +5,7 @@ also appear in command search (Ctrl K) and on the complete examples page.
 
 | URL fragment | Screen |
 | --- | --- |
+| `#/applications/google-calendar` | Full calendar with day, week, month, agenda, sharing and invitations |
 | `#/applications/sign-in` | Google, Microsoft and email sign-in |
 | `#/applications/sign-up` | Account details, consent and verification-email feedback |
 | `#/applications/forgot-password` | Account-neutral recovery confirmation |
@@ -16,7 +17,10 @@ also appear in command search (Ctrl K) and on the complete examples page.
 | `#/applications/jev-classification` | Document queue, confidence policy and human review |
 
 Run `npm start` and open one of these fragments on `http://localhost:8000/`.
-All responses, identities, documents and emails are simulated. No credentials or
+The calendar uses its own Node backend mounted at `/calendar-app/`, with
+local demo data saved separately from the standalone calendar. See
+`../calendar/README.md` for optional Google import setup. All other application
+screens below use simulated responses, identities, documents and emails. No credentials or
 documents leave the browser, no provider API is called, and reload resets state.
 The credential screen accepts only invented `demo-` keys. Verification discards
 the key immediately; the saved record contains only a label and environment.

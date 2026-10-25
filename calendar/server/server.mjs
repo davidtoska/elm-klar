@@ -21,8 +21,17 @@ const argValue = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 const PORT = Number(argValue('--port') || process.env.PORT || 8080);
-const DATA = process.env.CALENDAR_DATA || path.join(here, 'data.json');
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+
+// Each host owns a separate store and sessions. Importing this module never
+// starts a server or touches a data file.
+export function createCalendarHandler({
+  dataFile = process.env.CALENDAR_DATA || path.join(here, 'data.json'),
+  demoMode = false,
+  googleClientId = process.env.GOOGLE_CLIENT_ID || '',
+  cookiePath = '/',
+} = {}) {
+const DATA = dataFile;
+const GOOGLE_CLIENT_ID = googleClientId;
 
 // ---------------------------------------------------------------- storage
 
@@ -86,7 +95,7 @@ function createUser({ name, email, password, timeZone }) {
 function startSession(res, user) {
   const token = crypto.randomBytes(24).toString('hex');
   db.sessions[token] = user.email;
-  res.setHeader('Set-Cookie', `calendar_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000`);
+  res.setHeader('Set-Cookie', `calendar_session=${token}; HttpOnly; SameSite=Lax; Path=${cookiePath}; Max-Age=2592000`);
 }
 
 function sessionUser(req) {
@@ -438,7 +447,7 @@ const route = (method, pattern, handler, options = {}) => {
 
 // ---- people
 
-const DEMO = args.includes('--demo');
+const DEMO = demoMode;
 
 route('GET', '/config.json', async () => ({
   googleClientId: GOOGLE_CLIENT_ID,
@@ -479,7 +488,7 @@ route('POST', '/auth/login', async ({ body, res }) => {
 route('POST', '/auth/logout', async ({ req, res }) => {
   const m = /(?:^|;\s*)calendar_session=([0-9a-f]+)/.exec(req.headers.cookie || '');
   if (m) delete db.sessions[m[1]];
-  res.setHeader('Set-Cookie', 'calendar_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+  res.setHeader('Set-Cookie', `calendar_session=; HttpOnly; SameSite=Lax; Path=${cookiePath}; Max-Age=0`);
   save();
   return {};
 });
@@ -754,7 +763,7 @@ route('POST', '/api/import/google', async ({ user, body }) => {
 
 // ---------------------------------------------------------------- server
 
-const server = http.createServer(async (req, res) => {
+const handleRequest = async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
@@ -779,7 +788,7 @@ const server = http.createServer(async (req, res) => {
   } catch (err) {
     sendError(res, err);
   }
-});
+};
 
 // ---------------------------------------------------------------- demo data
 
@@ -827,11 +836,16 @@ function demo() {
 }
 
 if (!load()) {
-  if (args.includes('--demo')) demo();
+  if (DEMO) demo();
   save();
 }
 
-server.listen(PORT, () => {
-  console.log(`Calendar on http://localhost:${PORT}/  (data: ${DATA})`);
-  if (args.includes('--demo')) console.log('Demo people: ada@example.com, bob@example.com, cleo@example.com (password calendar123)');
-});
+return handleRequest;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  http.createServer(createCalendarHandler({ demoMode: args.includes('--demo') })).listen(PORT, '127.0.0.1', () => {
+    console.log(`Calendar on http://localhost:${PORT}/`);
+    if (args.includes('--demo')) console.log('Demo people: ada@example.com, bob@example.com, cleo@example.com (password calendar123)');
+  });
+}

@@ -1,6 +1,6 @@
 # Klar for an AI that builds an application
 
-Klar is an Elm package (`davidtoska/elm-klar`, modules `Klar.*`) for precise, data-dense applications: tables with 50 000 rows, filters, forms, dialogs, dashboards. You build the application, a person reviews it. An application is **Klar plus your own Elm code**: no CSS, no JavaScript, no class names, no `style`.
+Klar is an Elm package (`davidtoska/elm-klar`, modules `Klar.*`) for precise, data-dense applications: tables with 50 000 rows, filters, forms, dialogs, dashboards. You build the application, a person reviews it. The UI is **Klar plus your own Elm code**: no CSS, no class names, no `style`. Applications may use ports and JavaScript adapters for persistence and external data (including IndexedDB and localStorage); the library itself never uses ports or JavaScript.
 
 Read in this order, and stop when you can write the screen: this file; `ai/klar-index.json` (search `keywords`, `purpose`, `whenToUse`, `whenNot`, `quickPath`, `related` before you open anything); `ai/modules/<Module>.md` (every signature, then the documentation; the long ones start with a Quick path); `example/src/Examples/<Name>.elm` (seven complete programs: `Inbox`, `EditForm`, `ConfirmDelete`, `Dashboard`, `MultiStep`, `CommandPalette`, `ReviewDesk`). Do not read `src/` or the rest of `example/`: they are the library's own source and its showcase, not guidance.
 
@@ -390,7 +390,7 @@ and `Remote.settle model.orders (Result.mapError toProblem result)` is the `Remo
 > screen, read `vendor/klar/AI.md` and search `vendor/klar/ai/klar-index.json`; then read
 > `vendor/klar/ai/modules/<Module>.md` for the modules you use and the nearest program in
 > `vendor/klar/example/src/Examples/`. Never write your own popup, dialog, focus, scroll, date, keyboard or
-> virtual-list code, no CSS, no `class`, no `style`, no JavaScript. Keep ids as your own types and backend data as
+> virtual-list code, no CSS, no `class`, no `style`. Use JavaScript only in application adapters for persistence and external data. Keep ids as your own types and backend data as
 > `Remote`. If Klar lacks something, write the best honest version with `-- KLAR GAP: <what is missing>` above it.
 
 ## Links

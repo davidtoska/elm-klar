@@ -16,6 +16,7 @@ import Page.Applications.Connections as Connections
 import Page.Applications.Processes as Processes
 import Page.Applications.Providers as Providers
 import Patterns.Workspace as Pattern
+import Showcase.CalendarApplication as CalendarApplication
 
 
 type alias Model =
@@ -85,8 +86,15 @@ view page model =
         [ Pattern.header (Catalog.title page)
             (Catalog.description page)
             [ Button.view [ Button.ghost, Button.icon Icon.layers, Button.href (Link.internal "#/components/examples") ] "All examples" ]
-        , Pattern.demoNotice
+        , if page == Calendar then
+            Html.text ""
+
+          else
+            Pattern.demoNotice
         , case page of
+            Calendar ->
+                CalendarApplication.view
+
             Connections ->
                 Html.map ConnectionsMsg (Connections.view page model.connections)
 

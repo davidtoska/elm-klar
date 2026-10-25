@@ -176,6 +176,14 @@ Some of the pure modules are useful on their own:
 
 ## The showcase
 
+The **Calendar** component tab (`#/components/calendar`) includes the complete
+Google Calendar-style application, with day, week, month and agenda views, shared
+calendars, recurring events and invitations. `npm start` builds and serves it
+alongside the component gallery. It also appears under Application examples
+(`#/applications/google-calendar`). Choose Ada, Bob or Cleo to explore local demo
+data, or open the calendar in its own tab. See `calendar/README.md` for import
+and standalone usage.
+
 Each component and supporting module has its own gallery page,
 for example `#/components/button`, `#/components/text-input` and
 `#/components/ai-chat`. The options inspector changes the real examples, including

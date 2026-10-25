@@ -223,3 +223,20 @@
   .playground-panel { position: static; max-height: 300px; grid-row: 1; }
   .playground-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 20px; }
 }
+.showcase-calendar {
+  display: block;
+  width: 100%;
+  height: 80vh;
+  min-height: 640px;
+  border: 1px solid var(--klar-border);
+  border-radius: var(--klar-radius);
+  background: var(--klar-surface);
+}
+.playground:has(.showcase-calendar) .playground-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.playground:has(.showcase-calendar) .playground-panel {
+  position: static;
+  max-height: 300px;
+  grid-row: auto;
+}

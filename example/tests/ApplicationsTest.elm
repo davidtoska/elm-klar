@@ -3,6 +3,7 @@ module ApplicationsTest exposing (suite)
 import Dict
 import Expect
 import Html
+import Html.Attributes as Attr
 import Klar.PasswordInput as Password
 import Page.Applications as Applications
 import Page.Applications.Auth as Auth
@@ -64,7 +65,16 @@ suite : Test
 suite =
     describe "Connected application patterns"
         [ describe "Navigation and composition"
-            [ test "every registered page round trips through its deep link" <|
+            [ test "the calendar page embeds the working application" <|
+                \_ ->
+                    Applications.view Catalog.Calendar Applications.init
+                        |> Query.fromHtml
+                        |> Query.find [ S.tag "iframe" ]
+                        |> Query.has
+                            [ S.attribute (Attr.src "/calendar-app/")
+                            , S.attribute (Attr.title "Google Calendar-style application")
+                            ]
+            , test "every registered page round trips through its deep link" <|
                 \_ ->
                     Catalog.all
                         |> List.map (\page -> Url.fromString ("https://demo.test/" ++ Route.path (Route.Application page)) |> Maybe.map Route.fromUrl)

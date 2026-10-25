@@ -18,16 +18,20 @@ type Page
     | AiProviders
     | Classification
     | Processes
+    | Calendar
 
 
 all : List Page
 all =
-    [ SignIn, SignUp, ForgotPassword, ResetPassword, Connections, GitHub, Google, AiProviders, Classification, Processes ]
+    [ Calendar, SignIn, SignUp, ForgotPassword, ResetPassword, Connections, GitHub, Google, AiProviders, Classification, Processes ]
 
 
 slug : Page -> String
 slug page =
     case page of
+        Calendar ->
+            "google-calendar"
+
         SignIn ->
             "sign-in"
 
@@ -67,6 +71,9 @@ fromSlug value =
 title : Page -> String
 title page =
     case page of
+        Calendar ->
+            "Google Calendar demo"
+
         SignIn ->
             "Sign in"
 
@@ -101,6 +108,9 @@ title page =
 description : Page -> String
 description page =
     case page of
+        Calendar ->
+            "A complete Google Calendar-style application with day, week, month and agenda views, shared calendars, invitations and recurring events."
+
         SignIn ->
             "A welcoming entry point with Google, Microsoft and email sign-in."
 
@@ -135,6 +145,9 @@ description page =
 icon : Page -> Icon
 icon page =
     case page of
+        Calendar ->
+            Icon.calendar
+
         SignIn ->
             Icon.logIn
 

@@ -3,6 +3,7 @@ module GalleryTest exposing (suite)
 import Dict
 import Expect
 import Html
+import Html.Attributes as Attr
 import Klar.Button as Button
 import Klar.Locale as Locale
 import Klar.Remote as Remote
@@ -23,7 +24,16 @@ import Url
 suite : Test
 suite =
     describe "Component playground"
-        [ test "every page has a unique, addressable component URL" <|
+        [ test "the Calendar component tab includes the complete calendar application" <|
+            \_ ->
+                Gallery.init
+                    |> Gallery.ensure (Component "Calendar")
+                    |> Tuple.first
+                    |> Gallery.view Settings.default Locale.en (Just (Component "Calendar"))
+                    |> Query.fromHtml
+                    |> Query.find [ S.tag "iframe" ]
+                    |> Query.has [ S.attribute (Attr.src "/calendar-app/") ]
+        , test "every page has a unique, addressable component URL" <|
             \_ ->
                 let
                     slugs =

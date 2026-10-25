@@ -14,6 +14,16 @@ translation.
 
 ## Run it
 
+The calendar is part of the main showcase: run `npm start` in the repository root
+and open the **Calendar** component tab (`http://localhost:8000/#/components/calendar`).
+It also appears under **Application examples → Google Calendar demo** at
+`http://localhost:8000/#/applications/google-calendar`. It builds and starts with
+the showcase, with its own local demo store (`server/showcase-data.json`) and
+one-click sign-in as Ada, Bob or Cleo. **Open full calendar** opens the same
+application outside the embedded view. The standalone store is left untouched.
+
+To run only the calendar:
+
 ```bash
 npm install                                  # once, in the repository root
 npm run calendar:build                       # elm make, writes calendar/main.js
@@ -89,11 +99,17 @@ series), and the sync of later changes in Google (an import is a copy).
 3. Create an **OAuth client ID** of type *Web application* with
    - Authorized JavaScript origin: `http://localhost:8080`
    - Authorized redirect URI: `http://localhost:8080/`
+
 4. Start the server with the client id:
 
    ```bash
    GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com node calendar/server/server.mjs
    ```
+
+For the main showcase, use its origin (normally `http://localhost:8000`) and
+the redirect URI `http://localhost:8000/calendar-app/` instead. Open the full
+calendar before connecting Google; the provider's sign-in runs outside the
+embedded demo. Set `GOOGLE_CLIENT_ID` before starting the showcase.
 
 The browser talks to Google directly with a short-lived access token
 (the OAuth token flow, no client secret, nothing stored on the server); the
