@@ -95,3 +95,7 @@ Execution notes for resuming a long run:
 - Next: Window.
 
 - Window: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 517c3eb: Window complete.
+- Next: Update.
+
+- Update: format, full check, byte-identical docs and 22 identical table roots passed.

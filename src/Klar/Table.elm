@@ -526,6 +526,7 @@ import Klar.Table.Sort as Sorting
 import Klar.Table.State as State
 import Klar.Table.Texts as Texts exposing (Texts)
 import Klar.Table.Types as Types
+import Klar.Table.Update as Update
 import Klar.Tag as Tag
 import Klar.TextInput as TextInput
 import Klar.Theme as Theme exposing (Density(..), Tone)
@@ -903,7 +904,7 @@ would fall back to the page.
 -}
 focus : State id -> Cmd Msg
 focus arg1 =
-    Cmd.map fromCoreMsg (Core.focus (unwrapState arg1))
+    Cmd.map fromCoreMsg (Update.focus (unwrapState arg1))
 
 
 {-| The ids (see `rowId`) of the rows that are expanded. Rows only expand when you
@@ -1034,7 +1035,7 @@ constructor: `Cmd.map TableMsg cmd`.
 -}
 update : Msg -> State id -> ( State id, Cmd Msg )
 update arg1 arg2 =
-    Tuple.mapBoth fromCoreState (Cmd.map fromCoreMsg) (Core.update (unwrapMsg arg1) (unwrapState arg2))
+    Tuple.mapBoth fromCoreState (Cmd.map fromCoreMsg) (Update.update (unwrapMsg arg1) (unwrapState arg2))
 
 
 {-| One column of the table. Make it with `text`, `int`, `float`, `date`,

@@ -26,6 +26,8 @@ Internal implementations keep their original bodies. No markup or styles change.
 6. Processing: the client/server row pipeline.
 7. Popup and Keyboard: markup/event decoding and focus helpers; Layout: shared
    geometry, column sizing and cell attributes.
+   Keyboard keeps only decoders and pure message decisions; the HTML range-click
+   attribute remains with Body, so Keyboard itself does not import Html.
 8. Export, HeaderFilters, Footer: separate export, filter-input and footer view jobs.
 9. Bulk, Header: bulk selection controls and table headings.
 10. Toolbar: search, summaries, density and column choices (uses HeaderFilters).
