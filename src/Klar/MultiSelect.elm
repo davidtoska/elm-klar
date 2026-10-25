@@ -121,6 +121,7 @@ import Dict
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Html.Keyed
 import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Field as Field
@@ -159,6 +160,7 @@ type State id
         , list : VirtualList.State
         , cache : Maybe (Popup.Cache id)
         , said : Maybe Said
+        , saidTicket : Int
         , fromCode : Bool
         , allChosen : Maybe AllChosen
         }
@@ -213,6 +215,7 @@ init id =
         , list = VirtualList.init (listboxId id)
         , cache = Nothing
         , said = Nothing
+        , saidTicket = 0
         , fromCode = False
         , allChosen = Nothing
         }
@@ -536,6 +539,7 @@ type Msg id
     | SearchFocused (Popup.Env id)
     | ListMsg VirtualList.Msg
     | Settle Int
+    | Unsay Int
     | NoOp
 
 
@@ -679,18 +683,21 @@ update msg ((State state) as current) =
             ( add [ opt ] current, Cmd.none )
 
         Remove opt ->
-            ( remove opt.value current |> say (RemovedValue (Just opt.label))
-            , if state.open then
-                Cmd.none
+            remove opt.value current
+                |> say (RemovedValue (Just opt.label))
+                |> Tuple.mapSecond
+                    (\announce ->
+                        if state.open then
+                            announce
 
-              else
-                Internal.focus state.id NoOp
-            )
+                        else
+                            Cmd.batch [ announce, Internal.focus state.id NoOp ]
+                    )
 
         RemoveLast ->
             case List.reverse state.selected of
                 lastOne :: _ ->
-                    ( remove lastOne.value current |> say (RemovedValue (Maybe.map .label lastOne.option)), Cmd.none )
+                    remove lastOne.value current |> say (RemovedValue (Maybe.map .label lastOne.option))
 
                 [] ->
                     ( current, Cmd.none )
@@ -726,13 +733,19 @@ update msg ((State state) as current) =
             ( State { added | allChosen = done }, Internal.focus (searchId state.id) NoOp )
 
         ClearAll ->
-            ( clear current |> say RemovedAll
-            , if state.open then
-                Internal.focus (searchId state.id) NoOp
+            clear current
+                |> say RemovedAll
+                |> Tuple.mapSecond
+                    (\announce ->
+                        Cmd.batch
+                            [ announce
+                            , if state.open then
+                                Internal.focus (searchId state.id) NoOp
 
-              else
-                Internal.focus state.id NoOp
-            )
+                              else
+                                Internal.focus state.id NoOp
+                            ]
+                    )
 
         SearchFocused env ->
             -- A list opened from code (`open`) has not seen the options: keep
@@ -756,6 +769,13 @@ update msg ((State state) as current) =
         Settle ticket ->
             if ticket == state.wait then
                 ( State { state | searched = state.query }, Cmd.none )
+
+            else
+                ( current, Cmd.none )
+
+        Unsay ticket ->
+            if ticket == state.saidTicket then
+                ( State { state | said = Nothing }, Cmd.none )
 
             else
                 ( current, Cmd.none )
@@ -795,15 +815,20 @@ append fresh (State state) =
 
 
 {-| Tells a screen reader about a change made from the closed field. The open list
-has its own status line, which says it already.
+has its own status line, which says it already. Every announcement is a new text
+node (keyed by `saidTicket`), so that two changes that read the same ("Value
+removed" twice) are both announced, and the text goes away after a few seconds, so
+that a screen reader in browse mode does not find an old one.
 -}
-say : Said -> State id -> State id
+say : Said -> State id -> ( State id, Cmd (Msg id) )
 say said (State state) =
     if state.open then
-        State { state | said = Nothing }
+        ( State { state | said = Nothing }, Cmd.none )
 
     else
-        State { state | said = Just said }
+        ( State { state | said = Just said, saidTicket = state.saidTicket + 1 }
+        , Process.sleep 5000 |> Task.perform (\_ -> Unsay (state.saidTicket + 1))
+        )
 
 
 remove : id -> State id -> State id
@@ -1612,26 +1637,29 @@ viewControl toMsg config field t env (State state) =
           else
             Popup.viewChevron
 
-        -- always on the page, so that a change is announced when it happens
-        , Html.span
+        -- always on the page, so that a change is announced when it happens;
+        -- a new key for every announcement (see `say`)
+        , Html.Keyed.node "span"
             [ Internal.cls [ "klar-sr-only" ]
             , Attr.attribute "role" "status"
             , Attr.attribute "aria-live" "polite"
             ]
-            [ Html.text
-                (case state.said of
-                    Just (RemovedValue (Just name)) ->
-                        t.removed name
+            [ ( String.fromInt state.saidTicket
+              , Html.text
+                    (case state.said of
+                        Just (RemovedValue (Just name)) ->
+                            t.removed name
 
-                    Just (RemovedValue Nothing) ->
-                        t.removedValue
+                        Just (RemovedValue Nothing) ->
+                            t.removedValue
 
-                    Just RemovedAll ->
-                        t.removedAll
+                        Just RemovedAll ->
+                            t.removedAll
 
-                    Nothing ->
-                        ""
-                )
+                        Nothing ->
+                            ""
+                    )
+              )
             ]
         ]
 
