@@ -145,6 +145,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Chart.Core as Core
+import Klar.Chart.Types as Types
 import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
@@ -273,7 +274,7 @@ segmentTone arg1 arg2 =
 chart function (`line`, `bar` and so on); later attributes win over earlier ones.
 -}
 type Attribute msg
-    = Attribute (Core.Config msg -> Core.Config msg)
+    = Attribute (Types.Config msg -> Types.Config msg)
 
 
 {-| The DOM id of the chart, which then sits in an element that can take focus
@@ -764,7 +765,7 @@ its categories and its series in one value, made in the `Remote.map` that shapes
 the response, so the labels can never come from another request than the values.
 -}
 type Data
-    = Data { categories : List String, dates : List Date, series : List Core.Series }
+    = Data { categories : List String, dates : List Date, series : List Types.Series }
 
 
 {-| Categories named by text, one per value, and the series: what `categories` and
@@ -842,41 +843,41 @@ sparklineRemote arg1 arg2 =
     Core.sparklineRemote (List.map unwrapAttribute arg1) arg2
 
 
-unwrapSeries : Series -> Core.Series
+unwrapSeries : Series -> Types.Series
 unwrapSeries (Series value) =
-    Core.Series value
+    Types.Series value
 
 
-fromCoreSeries : Core.Series -> Series
-fromCoreSeries (Core.Series value) =
+fromCoreSeries : Types.Series -> Series
+fromCoreSeries (Types.Series value) =
     Series value
 
 
-unwrapSegment : Segment -> Core.Segment
+unwrapSegment : Segment -> Types.Segment
 unwrapSegment (Segment value) =
-    Core.Segment value
+    Types.Segment value
 
 
-fromCoreSegment : Core.Segment -> Segment
-fromCoreSegment (Core.Segment value) =
+fromCoreSegment : Types.Segment -> Segment
+fromCoreSegment (Types.Segment value) =
     Segment value
 
 
-unwrapAttribute : Attribute msg -> Core.Attribute msg
+unwrapAttribute : Attribute msg -> Types.Attribute msg
 unwrapAttribute (Attribute value) =
-    Core.Attribute value
+    Types.Attribute value
 
 
-fromCoreAttribute : Core.Attribute msg -> Attribute msg
-fromCoreAttribute (Core.Attribute value) =
+fromCoreAttribute : Types.Attribute msg -> Attribute msg
+fromCoreAttribute (Types.Attribute value) =
     Attribute value
 
 
-unwrapData : Data -> Core.Data
+unwrapData : Data -> Types.Data
 unwrapData (Data value) =
-    Core.Data value
+    Types.Data value
 
 
-fromCoreData : Core.Data -> Data
-fromCoreData (Core.Data value) =
+fromCoreData : Types.Data -> Data
+fromCoreData (Types.Data value) =
     Data value

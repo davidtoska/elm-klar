@@ -35,3 +35,6 @@
 - Next: Types, Numbers, Axis, Colors, Data, Config, Texts, Masks, Preparation,
   Shared, Line, Bar, Donut, Scalar, Sparkline, RemoteView; then remove empty Core,
   clean imports, final full validation, size/dependency audit and report.
+- Commit bcbebf7: public facade complete.
+
+- Types: format, full check, byte-identical docs and identical chart/sparkline roots passed.
