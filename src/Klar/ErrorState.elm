@@ -50,8 +50,11 @@ server errors and unknown errors). The other kinds, such as a missing resource
 or a permission problem, would fail the same way again, so there is no button
 for them: give those a way forward with `actions` ("Sign in", "Back to orders").
 
-The state is announced to screen readers at once (`role="alert"`); `polite`
-waits for a pause, for the many small regions of a dashboard that fail together.
+The state is announced to screen readers at once when it appears (`role="alert"`);
+`polite` waits for a pause, for the many small regions of a dashboard that fail
+together. A polite state that arrives together with its text is missed by some
+screen readers, so use `polite` where something else on the page speaks up: the
+one assertive notice of the page, or a region that stays (`Klar.RemoteView`).
 The retry button is replaced when the request starts again, and keyboard focus
 falls to the page with it. For the body of a card, a dialog or a page use
 [Klar.RemoteView](Klar-RemoteView), which has a body that keeps focus (`id`,

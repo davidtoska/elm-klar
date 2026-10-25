@@ -104,7 +104,8 @@ group : List Attribute -> List Entry -> Html msg
 
 Overlapping avatars for a list of entries, with a "+N" bubble for those that
 do not fit (see `maxShown`). The tooltip and the accessible name of the bubble
-list the names that are hidden, up to 12 of them. The group as a whole has an
+list the names that are hidden, up to 12 of them; the keyboard reaches the bubble
+(one Tab stop), and its tooltip shows on focus too. The group as a whole has an
 accessible name that tells how many avatars it holds, such as "3 avatars". An
 empty list shows nothing.
 

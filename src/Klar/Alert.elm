@@ -32,7 +32,12 @@ message that goes away by itself use [Klar.Toast](Klar-Toast).
 Errors and warnings use `role="alert"` so screen readers announce them at once,
 even in the middle of a sentence; the other tones use `role="status"`. For a
 message that appears while the user is typing (an "unsaved changes" notice), add
-`Alert.polite`: it waits for a pause.
+`Alert.polite`: it waits for a pause. An alert is announced when it appears, but
+a polite one (`role="status"`) that arrives together with its text is missed by
+some screen readers: a polite region is heard reliably only when its text changes
+while it is on the page. So confirm the result of an action ("The order was
+shipped") with a [Klar.Toast](Klar-Toast), whose region stays on the page, and
+keep the alert for what must stay in view.
 
 
 # Views
