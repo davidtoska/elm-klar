@@ -105,20 +105,31 @@ mode, the AI documentation (`AI.md`, `ai/`) and six example programs. Left befor
 | Item | Size |
 |---|---|
 | Firefox and Safari, a screen reader, touch and pen, Windows high contrast and a Mac keyboard (only Chromium is tested) | M |
-| Split `Table.elm` (about 7 000 lines) and `Chart.elm` (about 3 100 lines) into internal modules | L |
+| `NumberInput` reads a Norwegian `10.000` as 10000 while `Money` refuses it as unclear: one rule for both, an "unclear" problem with its own text | S |
+| A headless-browser focus test in `npm run check`: the lost-focus guards, toast recovery, AppShell focus after a page change, focus through a refresh. elm-test cannot see where focus goes | M |
+| `Remote` has no "failed, retrying" state: `Remote.refresh` on a `Failed` value gives `Loading`, so a focused "Try again" disappears and focus drops to `BODY` (`StatusPage.retrying` is a second `Bool` beside the `Remote`). Decide it together with one `Loaded` constructor that carries the freshness | L |
+| `Klar.Settings` as the one source of the language, today, now and the keyboard platform: every `X.settings` reads them, and the per-component `platform` attributes of `Menu`, `CommandPalette`, `ShortcutHelp` and `Tooltip` go (only `AppShell.settings` reads the language today) | M |
+| Use the shared key helpers everywhere: popup layers use `Internal.onLayerKeys`, the decoders that read `key` themselves get the IME guard, and `check:rules` becomes strict (it still lists `Msg` or `State` types that hold functions and places that drop freshness) | M |
+| Records and unions that will grow are still exposed: `Select.Option` (it gained `meta`, which breaks record literals), `Field.Config` and the `Table` filter union. `DatePicker.invalid` and `TimePicker.invalid` exist only so that `DateTimePicker` can mark its inputs and should be internal | M |
+| A page-level announcer (in `AppShell` or `Overlay.host`) that components post "Loading", "Removed X" and "No results" to; a status region inserted together with its text is not read reliably, and a failing dashboard fires one assertive alert per region | M |
+| One tab stop with arrow keys where Tab now walks every item: chart categories with `onSelect` (365 stops for a year of days), `ListItem`, `ToggleGroup`, `MultiSelect` chips, and cells of `Table` | L |
+| `Klar.Form`: a submit state (submitting, saved, failed) with a double-submit guard and `aria-busy`, server problems addressed by the server's own key (the ones it cannot place are dropped today), and the controls' own refusal texts in the summary | M |
+| `Tree` is neither virtualized nor prepared: about 80 ms per ArrowDown with 1 206 open rows. `PermissionMatrix` still walks every cell on every render | M |
+| Split `Table.elm` (about 7 600 lines) and `Chart.elm` (about 3 300 lines) into internal modules | L |
 | 100 000 rows in `Table`, `Tree` and `Select` as a test in `npm run check` | M |
-| `Autocomplete` values are still `String`, not the application's own type | M |
-| No "old data" marker yet in `Cascader`, `TreeSelect`, `Transfer`, `PermissionMatrix`, `ApprovalFlow` and `Compare`: they show `Kept` data as if it were `Loaded` | M |
-| `Select.Popup` and `Picking.View` hold the same popup code twice, and `Select` chooses an option on the `Enter` that confirms an IME composition | M |
-| `Menu` cannot open with the first item highlighted from the keyboard; `Tag` cannot name its remove button differently | S |
-| The avatar and chart palettes are not tuned per theme | S |
+| `Select.Popup` and `Picking.View` hold the same popup code twice | M |
+| `Rule.parseNumber` reads numbers without the locale: an English `1,234` becomes 1.234 | S |
+| `FileDrop` has no upload state per file: uploading with progress, failed with retry, done, cancel | L |
 | axe in `npm run check` on every showcase page | S |
-| A naming pass over every module against the conventions in `CLAUDE.md` | M |
+| A last naming pass across modules: `onSelect` against `onActivate` (`Stepper`, `SideNav`), one node vocabulary for `Tree` and `Picking` (`disabled`, `disabledNode`) | S |
 
 Left for later on purpose, because they build on the overlay layer: Popconfirm, HoverCard,
 Tour, the notification centre, `Menubar` and `NavigationMenu`. Kanban, the comment thread,
 the audit log with diffs and the conflict resolver build on `Sortable`, `Markdown` and
-`Diff`.
+`Diff`. Also left for later: a right-to-left pass over the stylesheet and the arrow keys, and
+the best-in-class extras named per module (`Menu` submenus and checkable items, a non-modal
+`Drawer`, a hoverable `Tooltip` that Escape hides, a time scale in `Chart`, a typing history of
+its own in `MarkdownEditor`).
 
 ## Technical rules
 
