@@ -35,6 +35,7 @@ import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Table.Csv as Csv
+import Klar.Table.DomIds exposing (bulkDomId, detailDomId, filterInputId, popupDomId, popupSuffix, rowDomId, scrollDomId, triggerDomId)
 import Klar.Table.Filter exposing (activeDrafts, canonicalChoice, choiceLabels, choiceOf, choicesOf, filterTest, fold, localChoice, parseNumber, searchTest, searchText, searchWords, toDraft, toFilter, withinRange)
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
 import Klar.Table.Index as Index exposing (Index)
@@ -3836,66 +3837,6 @@ viewPopup ctx popup options content =
             ]
             (Html.div [ Internal.cls [ "klar-table__popover-title" ] ] [ Html.text options.title ] :: content)
         ]
-
-
-popupSuffix : Popup -> String
-popupSuffix popup =
-    case popup of
-        NoPopup ->
-            "none"
-
-        FilterPopup colId ->
-            "filter-" ++ Internal.sanitizeId colId
-
-        ColumnsPopup ->
-            "columns"
-
-        ExportPopup ->
-            "export"
-
-        BulkExportPopup ->
-            "bulk-export"
-
-        FiltersPopup ->
-            "filters"
-
-
-popupDomId : String -> Popup -> String
-popupDomId tableId popup =
-    tableId ++ "-popup-" ++ popupSuffix popup
-
-
-triggerDomId : String -> Popup -> String
-triggerDomId tableId popup =
-    tableId ++ "-trigger-" ++ popupSuffix popup
-
-
-rowDomId : String -> Int -> String
-rowDomId tableId index =
-    tableId ++ "-row-" ++ String.fromInt index
-
-
-detailDomId : String -> Int -> String
-detailDomId tableId index =
-    tableId ++ "-detail-" ++ String.fromInt index
-
-
-bulkDomId : String -> String
-bulkDomId tableId =
-    tableId ++ "-bulk"
-
-
-{-| The scroll area: where focus waits when the control that had it (the retry
-button) is replaced.
--}
-scrollDomId : String -> String
-scrollDomId tableId =
-    tableId ++ "-scroll"
-
-
-filterInputId : String -> String -> String -> String
-filterInputId tableId colId part =
-    tableId ++ "-filter-" ++ Internal.sanitizeId colId ++ "-" ++ part
 
 
 {-| Fires when focus moves to an element outside the popup (Tab, Shift+Tab).

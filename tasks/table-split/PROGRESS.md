@@ -43,3 +43,8 @@
 - Commit 6ae8b7e: Filter complete.
 
 - Selection: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit f53a76f: Selection complete.
+- Next: DomIds validation. Then State, Query, Columns, ColumnLogic, Rows, Config,
+  Window, Update and Processing (tests that need column/config builders follow them).
+
+- DomIds: format, full check, byte-identical docs and 22 identical table roots passed.
