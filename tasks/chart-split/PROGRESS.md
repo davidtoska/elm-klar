@@ -42,3 +42,7 @@
 - Next: Numbers.
 
 - Numbers: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit aaac395: Numbers complete.
+- Next: Axis.
+
+- Axis: format, full check, byte-identical docs and identical chart/sparkline roots passed.
