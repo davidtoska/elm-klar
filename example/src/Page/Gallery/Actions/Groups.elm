@@ -18,6 +18,7 @@ import Klar.Button as Button
 import Klar.ButtonGroup as ButtonGroup
 import Klar.Icon as Icon
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Text as Text
@@ -120,7 +121,7 @@ update msg model =
 buttonGroupSection : Locale -> Model -> Html Msg
 buttonGroupSection _ model =
     Doc.section "Button group"
-        "Buttons that belong together, joined into one block with shared borders and only the outer corners rounded. The children are ordinary Button.view buttons, so nothing about them changes; the group adds the shape and a name for screen readers. It never wraps."
+        "Buttons that belong together, joined into one block with shared borders and only the outer corners rounded. The children are ordinary Button.view buttons, so nothing about them changes; the group adds the shape and a name for screen readers. It never wraps. ButtonGroup.disabled turns the whole group off (inert) for a group the user is not on; for one that turns off while the user may be on it, give each button Button.ariaDisabled, which keeps the focus."
         [ Doc.example
             { title = "Joined actions"
             , description = Just (lastText model.last)
@@ -128,7 +129,7 @@ buttonGroupSection _ model =
             }
             (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
                 [ ButtonGroup.view [] "Order actions" (orderActions model)
-                , ButtonGroup.view [ ButtonGroup.disabled True ] "Order actions (not available)" (List.take 2 (orderActions model) ++ [ Button.view [ Button.href "#links/open" ] "Open" ])
+                , ButtonGroup.view [ ButtonGroup.disabled True ] "Order actions (not available)" (List.take 2 (orderActions model) ++ [ Button.view [ Button.href (Link.internal "#links/open") ] "Open" ])
                 ]
             )
         , Doc.example
@@ -181,8 +182,8 @@ buttonGroupSection _ model =
                     , Button.iconOnly [ Button.onClick (Did "Redo") ] Icon.redo "Redo"
                     ]
                 , Toolbar.separator
-                , ToggleGroup.multiple [ ToggleGroup.labelHidden, ToggleGroup.id "actions-toolbar-styles" ]
-                    { label = "Text style", selected = model.toolbarStyles, onChange = ToolbarStylesChanged }
+                , ToggleGroup.multiple [ ToggleGroup.label "Text style", ToggleGroup.labelHidden, ToggleGroup.id "actions-toolbar-styles" ]
+                    { selected = model.toolbarStyles, onChange = ToolbarStylesChanged }
                     styleOptions
                 ]
             )
@@ -309,14 +310,14 @@ toggleGroupSection _ model =
             String.fromInt (ordersWith (\s -> List.member s model.statuses)) ++ " of " ++ String.fromInt (List.length Sample.orders) ++ " orders"
     in
     Doc.section "Toggle group"
-        "A row of toggle buttons for choices that can be on or off. A group is either multiple (any number on) or single (none or one on; clicking the one that is on turns it off). Exactly one of a few views is a Klar.SegmentedControl. The ids are your own types, the label is required, and the message carries the whole new selection."
+        "A row of toggle buttons for choices that can be on or off. A group is either multiple (any number on) or single (none or one on; clicking the one that is on turns it off). Exactly one of a few views is a Klar.SegmentedControl. The ids are your own types, the name is ToggleGroup.label (with required and optionalText, as on the other fields), and the message carries the whole new selection. A disabled group or option stays in the tab order (aria-disabled), so an option that is turned off while the user is on it keeps the focus."
         [ Doc.example
             { title = "Many at once"
             , description = Just ("Selected: " ++ listOf styleName model.styles ++ ". Each button is a toggle button (aria-pressed). Tab moves between them, Space or Enter toggles. The icons need a text, which is the accessible name and the tooltip.")
             , code = Just multipleCode
             }
-            (ToggleGroup.multiple []
-                { label = "Text style", selected = model.styles, onChange = StylesChanged }
+            (ToggleGroup.multiple [ ToggleGroup.label "Text style" ]
+                { selected = model.styles, onChange = StylesChanged }
                 styleOptions
             )
         , Doc.example
@@ -324,8 +325,8 @@ toggleGroupSection _ model =
             , description = Just ("Showing " ++ shown ++ ". Click the shipped button again to show every order.")
             , code = Just singleCode
             }
-            (ToggleGroup.single []
-                { label = "Order status", selected = model.status, onChange = StatusChanged }
+            (ToggleGroup.single [ ToggleGroup.label "Order status" ]
+                { selected = model.status, onChange = StatusChanged }
                 (List.map (\status -> ToggleGroup.option status (Types.orderStatusLabel status)) Types.allOrderStatuses)
             )
         , Doc.example
@@ -333,18 +334,20 @@ toggleGroupSection _ model =
             , description = Just ("Showing " ++ shownMany ++ ". A disabled option cannot be changed; if it is on it stays on.")
             , code = Just statusesCode
             }
-            (ToggleGroup.multiple [ ToggleGroup.size Small ]
-                { label = "Statuses to include", selected = model.statuses, onChange = StatusesChanged }
+            (ToggleGroup.multiple [ ToggleGroup.label "Statuses to include", ToggleGroup.size Small ]
+                { selected = model.statuses, onChange = StatusesChanged }
                 (List.map statusOption Types.allOrderStatuses)
             )
         , Doc.example
             { title = "Days of the week: full width, hint and error"
-            , description = Just ("Selected: " ++ listOf weekdayName model.days ++ ". With no day selected the group shows an error, joined to it for screen readers. The list is always in the order of the buttons, whatever the order of the clicks.")
+            , description = Just ("Selected: " ++ listOf weekdayName model.days ++ ". The group is required (the mark after its label); with no day selected it shows an error, joined to it for screen readers. The list is always in the order of the buttons, whatever the order of the clicks.")
             , code = Just daysCode
             }
             (Layout.container [ Layout.maxWidth 520, Layout.alignStart ]
                 [ ToggleGroup.multiple
-                    [ ToggleGroup.fullWidth
+                    [ ToggleGroup.label "Shipping days"
+                    , ToggleGroup.required
+                    , ToggleGroup.fullWidth
                     , ToggleGroup.hint "The days a shipment can leave the warehouse."
                     , ToggleGroup.errorMaybe
                         (if List.isEmpty model.days then
@@ -354,7 +357,7 @@ toggleGroupSection _ model =
                             Nothing
                         )
                     ]
-                    { label = "Shipping days", selected = model.days, onChange = DaysChanged }
+                    { selected = model.days, onChange = DaysChanged }
                     weekdayOptions
                 ]
             )
@@ -364,11 +367,11 @@ toggleGroupSection _ model =
             , code = Nothing
             }
             (Layout.stack [ Layout.gap 3, Layout.alignStart ]
-                [ ToggleGroup.multiple [ ToggleGroup.size Large, ToggleGroup.labelHidden ]
-                    { label = "Large", selected = model.styles, onChange = StylesChanged }
+                [ ToggleGroup.multiple [ ToggleGroup.label "Large", ToggleGroup.size Large, ToggleGroup.labelHidden ]
+                    { selected = model.styles, onChange = StylesChanged }
                     styleOptions
-                , ToggleGroup.multiple [ ToggleGroup.disabled model.disabled, ToggleGroup.labelHidden ]
-                    { label = "Disabled when asked", selected = model.styles, onChange = StylesChanged }
+                , ToggleGroup.multiple [ ToggleGroup.label "Disabled when asked", ToggleGroup.disabled model.disabled, ToggleGroup.labelHidden ]
+                    { selected = model.styles, onChange = StylesChanged }
                     styleOptions
                 , Button.view [ Button.small, Button.pressed model.disabled, Button.onClick (DisabledChanged (not model.disabled)) ] "Disable the second group"
                 , Text.caption "Both groups show the same selection."
@@ -429,8 +432,8 @@ toolbarCode =
         , Button.iconOnly [ Button.onClick Redo ] Icon.redo "Redo"
         ]
     , Toolbar.separator
-    , ToggleGroup.multiple [ ToggleGroup.labelHidden, ToggleGroup.id "editor-styles" ]
-        { label = "Text style", selected = model.styles, onChange = StylesChanged }
+    , ToggleGroup.multiple [ ToggleGroup.label "Text style", ToggleGroup.labelHidden, ToggleGroup.id "editor-styles" ]
+        { selected = model.styles, onChange = StylesChanged }
         [ ToggleGroup.iconOption Bold Icon.bold "Bold"
         , ToggleGroup.iconOption Italic Icon.italic "Italic"
         , ToggleGroup.iconOption Underline Icon.underline "Underline"
@@ -443,9 +446,8 @@ multipleCode : String
 multipleCode =
     """-- model:   styles : List Style     (type Style = Bold | Italic | Underline)
 
-ToggleGroup.multiple []
-    { label = "Text style"
-    , selected = model.styles
+ToggleGroup.multiple [ ToggleGroup.label "Text style" ]
+    { selected = model.styles
     , onChange = StylesChanged
     }
     [ ToggleGroup.iconOption Bold Icon.bold "Bold"
@@ -463,9 +465,8 @@ singleCode : String
 singleCode =
     """-- model:   status : Maybe OrderStatus     (Nothing: every order)
 
-ToggleGroup.single []
-    { label = "Order status"
-    , selected = model.status
+ToggleGroup.single [ ToggleGroup.label "Order status" ]
+    { selected = model.status
     , onChange = StatusChanged        -- Maybe OrderStatus -> Msg
     }
     (List.map (\\status -> ToggleGroup.option status (orderStatusLabel status)) allOrderStatuses)
@@ -474,8 +475,8 @@ ToggleGroup.single []
 
 statusesCode : String
 statusesCode =
-    """ToggleGroup.multiple [ ToggleGroup.size Small ]
-    { label = "Statuses to include", selected = model.statuses, onChange = StatusesChanged }
+    """ToggleGroup.multiple [ ToggleGroup.label "Statuses to include", ToggleGroup.size Small ]
+    { selected = model.statuses, onChange = StatusesChanged }
     [ ToggleGroup.option Confirmed "Confirmed"
     , ToggleGroup.option Delivered "Delivered"
         |> ToggleGroup.withIcon Icon.checkCircle
@@ -488,7 +489,9 @@ statusesCode =
 daysCode : String
 daysCode =
     """ToggleGroup.multiple
-    [ ToggleGroup.fullWidth
+    [ ToggleGroup.label "Shipping days"
+    , ToggleGroup.required
+    , ToggleGroup.fullWidth
     , ToggleGroup.hint "The days a shipment can leave the warehouse."
     , ToggleGroup.errorMaybe
         (if List.isEmpty model.days then
@@ -498,6 +501,6 @@ daysCode =
             Nothing
         )
     ]
-    { label = "Shipping days", selected = model.days, onChange = DaysChanged }
+    { selected = model.days, onChange = DaysChanged }
     [ ToggleGroup.option Mon "Mon", ToggleGroup.option Tue "Tue", ToggleGroup.option Wed "Wed" ]
 """

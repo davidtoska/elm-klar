@@ -11,6 +11,7 @@ import Klar.Checkbox as Checkbox
 import Klar.EmptyState as EmptyState
 import Klar.Field as Field
 import Klar.Icon as Icon
+import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Pagination as Pagination
@@ -26,6 +27,11 @@ import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
 import Test.Runner
+
+
+orders : Link.Target
+orders =
+    Link.internal "#/orders"
 
 
 suite : Test
@@ -499,39 +505,96 @@ buttonTests =
                     (Button.view [ Button.id "save", Button.title "Save now", Button.ariaLabel "Save the order" ] "Save")
         , test "block" <|
             \_ -> rootHas [ Selector.class "klar-button--block" ] (Button.view [ Button.block ] "Save")
-        , test "an icon-only button is named by its label and has no text of its own" <|
+        , test "an icon-only button is named by its label, shows it as a Klar tooltip, and has no text of its own" <|
             \_ ->
                 Button.iconOnly [ Button.ghost ] Icon.refresh "Reload"
                     |> Expect.all
-                        [ rootHas [ attr "aria-label" "Reload", Selector.attribute (Attr.title "Reload"), Selector.class "klar-button--icon-only" ]
+                        [ rootHas [ attr "aria-label" "Reload", attr "data-tip" "Reload", Selector.class "klar-button--icon-only" ]
+                        , rootLacks [ Selector.attribute (Attr.title "Reload") ]
                         , none [ Selector.class "klar-button__label" ]
                         ]
-        , test "an icon-only button keeps a title of its own" <|
-            \_ -> rootHas [ Selector.attribute (Attr.title "Reload the list"), attr "aria-label" "Reload" ] (Button.iconOnly [ Button.title "Reload the list" ] Icon.refresh "Reload")
+        , test "the title of an icon-only button is the text of its tooltip, not a second, native one" <|
+            \_ ->
+                Button.iconOnly [ Button.title "Reload the list" ] Icon.refresh "Reload"
+                    |> Expect.all
+                        [ rootHas [ attr "data-tip" "Reload the list", attr "aria-label" "Reload" ]
+                        , rootLacks [ Selector.attribute (Attr.title "Reload the list") ]
+                        ]
+        , test "a button with a label has no tooltip of its own" <|
+            \_ -> rootLacks [ attr "data-tip" "Save" ] (Button.view [] "Save")
         , test "htmlAttrs adds raw attributes" <|
             \_ -> rootHas [ attr "data-test" "x" ] (Button.view [ Button.htmlAttrs [ Attr.attribute "data-test" "x" ] ] "x")
         , test "a group is a group" <|
             \_ -> rootHas [ attr "role" "group" ] (ButtonGroup.view [] "Period" [ Button.view [] "Day", Button.view [] "Week" ])
         , describe "as a link"
             [ test "href makes it an anchor" <|
-                \_ -> rootHas [ Selector.tag "a", Selector.attribute (Attr.href "#/orders"), Selector.text "Orders" ] (Button.view [ Button.href "#/orders" ] "Orders")
+                \_ -> rootHas [ Selector.tag "a", Selector.attribute (Attr.href "#/orders"), Selector.text "Orders" ] (Button.view [ Button.href orders ] "Orders")
             , test "with the look of a button" <|
-                \_ -> rootHas [ Selector.classes [ "klar-button", "klar-button--primary" ] ] (Button.view [ Button.href "#/orders", Button.primary ] "Orders")
+                \_ -> rootHas [ Selector.classes [ "klar-button", "klar-button--primary" ] ] (Button.view [ Button.href orders, Button.primary ] "Orders")
             , test "an anchor is not a button" <|
-                \_ -> rootLacks [ Selector.tag "button" ] (Button.view [ Button.href "#/orders" ] "Orders")
-            , test "newTab opens a new tab safely" <|
-                \_ -> rootHas [ Selector.attribute (Attr.target "_blank"), Selector.attribute (Attr.rel "noopener noreferrer") ] (Button.view [ Button.href "https://example.com", Button.newTab ] "Docs")
-            , test "without newTab there is no target" <|
-                \_ -> rootLacks [ Selector.attribute (Attr.target "_blank") ] (Button.view [ Button.href "#/x" ] "x")
-            , test "a link that is disabled has no href and says so" <|
+                \_ -> rootLacks [ Selector.tag "button" ] (Button.view [ Button.href orders ] "Orders")
+            , test "newTab opens a new tab safely, and says so to a screen reader" <|
                 \_ ->
-                    Button.view [ Button.href "#/orders", Button.disabled True ] "Orders"
+                    Button.view [ Button.href orders, Button.newTab ] "Orders"
+                        |> Expect.all
+                            [ rootHas [ Selector.attribute (Attr.target "_blank"), Selector.attribute (Attr.rel "noopener noreferrer") ]
+                            , rootHas [ Selector.class "klar-sr-only", Selector.text "(opens in a new tab)" ]
+                            ]
+            , test "the text for a new tab follows the locale" <|
+                \_ -> rootHas [ Selector.class "klar-sr-only", Selector.text "(åpnes i en ny fane)" ] (Button.view [ Button.href orders, Button.newTab, Button.locale Locale.nb ] "Ordrer")
+            , test "a link to another site opens in a new tab by itself" <|
+                \_ ->
+                    case Link.external "https://example.com/docs" of
+                        Just docs ->
+                            rootHas [ Selector.attribute (Attr.target "_blank"), Selector.attribute (Attr.href "https://example.com/docs") ] (Button.view [ Button.href docs ] "Docs")
+
+                        Nothing ->
+                            Expect.fail "a web address is a target"
+            , test "an icon-only link that opens a tab says so in its name" <|
+                \_ -> rootHas [ attr "aria-label" "Orders (opens in a new tab)" ] (Button.iconOnly [ Button.href orders, Button.newTab ] Icon.externalLink "Orders")
+            , test "without newTab there is no target" <|
+                \_ -> rootLacks [ Selector.attribute (Attr.target "_blank") ] (Button.view [ Button.href orders ] "x")
+            , test "a download is a data address with the file name" <|
+                \_ ->
+                    Button.view [ Button.href (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = "id" }) ] "Export"
+                        |> rootHas [ Selector.attribute (Attr.href "data:text/csv;charset=utf-8,id"), attr "download" "orders.csv" ]
+            , test "a button without href and a file to save never say they open a tab" <|
+                \_ ->
+                    Expect.all
+                        [ \_ -> Button.view [ Button.newTab ] "Save" |> rootLacks [ Selector.class "klar-sr-only" ]
+                        , \_ ->
+                            Button.view [ Button.newTab, Button.href (Link.download { fileName = "a.csv", mimeType = "text/csv", content = "a" }) ] "Export"
+                                |> Expect.all
+                                    [ rootLacks [ Selector.attribute (Attr.target "_blank") ]
+                                    , rootLacks [ Selector.class "klar-sr-only" ]
+                                    ]
+                        ]
+                        ()
+            , test "a link is never pressed or expanded" <|
+                \_ ->
+                    Button.view [ Button.href orders, Button.pressed True, Button.expanded True ] "Orders"
+                        |> Expect.all
+                            [ rootLacks [ attr "aria-pressed" "true" ]
+                            , rootLacks [ attr "aria-expanded" "true" ]
+                            ]
+            , test "a link that is disabled has no href, says so, and leaves the tab order like a disabled button" <|
+                \_ ->
+                    Button.view [ Button.href orders, Button.disabled True ] "Orders"
                         |> Expect.all
                             [ rootLacks [ Selector.attribute (Attr.href "#/orders") ]
-                            , rootHas [ attr "aria-disabled" "true" ]
+                            , rootHas [ attr "aria-disabled" "true", attr "role" "link" ]
+                            , rootLacks [ Selector.attribute (Attr.tabindex 0) ]
                             ]
-            , test "a link that is loading has no href either" <|
-                \_ -> rootLacks [ Selector.attribute (Attr.href "#/orders") ] (Button.view [ Button.href "#/orders", Button.loading True ] "Orders")
+            , test "a link that is loading or ariaDisabled has no href but keeps its place in the tab order" <|
+                \_ ->
+                    Expect.all
+                        [ \_ -> Button.view [ Button.href orders, Button.loading True ] "Orders" |> rootLacks [ Selector.attribute (Attr.href "#/orders") ]
+                        , \_ -> Button.view [ Button.href orders, Button.loading True ] "Orders" |> rootHas [ Selector.attribute (Attr.tabindex 0), attr "role" "link" ]
+                        , \_ -> Button.view [ Button.href orders, Button.ariaDisabled True ] "Orders" |> rootHas [ Selector.attribute (Attr.tabindex 0), attr "aria-disabled" "true" ]
+                        ]
+                        ()
+            , test "an inactive link is marked so that Browser.application leaves its click alone" <|
+                \_ -> rootHas [ attr "target" "_self" ] (Button.view [ Button.href orders, Button.ariaDisabled True ] "Orders")
             ]
         , describe "clicks"
             [ test "a click sends the message" <|

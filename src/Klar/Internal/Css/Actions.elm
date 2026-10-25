@@ -40,20 +40,20 @@ css =
 .klar-btn-group > * { flex: 0 1 auto; min-width: 0; }
 
 /* The 1px is the width of a border: neighbors share one. */
-.klar-btn-group > * + * { margin-left: -1px; }
+.klar-btn-group > * + * { margin-inline-start: -1px; }
 
 .klar-btn-group .klar-button { border-radius: 0; }
 
 .klar-btn-group > .klar-button:first-child,
 .klar-btn-group > :first-child .klar-button {
-  border-top-left-radius: var(--klar-radius);
-  border-bottom-left-radius: var(--klar-radius);
+  border-start-start-radius: var(--klar-radius);
+  border-end-start-radius: var(--klar-radius);
 }
 
 .klar-btn-group > .klar-button:last-child,
 .klar-btn-group > :last-child .klar-button {
-  border-top-right-radius: var(--klar-radius);
-  border-bottom-right-radius: var(--klar-radius);
+  border-start-end-radius: var(--klar-radius);
+  border-end-end-radius: var(--klar-radius);
 }
 
 /* One ring per button, always in front of its neighbors: a button that is
@@ -66,10 +66,10 @@ css =
 /* Two solid buttons side by side would melt into one: a pale line between. */
 .klar-btn-group > .klar-button--primary + .klar-button--primary:not(:focus-visible),
 .klar-btn-group > .klar-button--danger + .klar-button--danger:not(:focus-visible) {
-  border-left-color: color-mix(in srgb, var(--klar-white) 40%, transparent);
+  border-inline-start-color: color-mix(in srgb, var(--klar-white) 40%, transparent);
 }
 
-/* The size of the buttons that have none of their own (a toolbar sets the same
+/* The size of the buttons that are Medium, the default (a toolbar sets the same
    custom property). A small or large button keeps its size. The values are those
    of .klar-button--sm and .klar-button--lg in core.css. */
 .klar-btn-group--sm { --klar-control: var(--klar-control-sm); }
@@ -133,18 +133,11 @@ css =
 
 .klar-toggle-group--invalid .klar-button { --_border: var(--klar-danger); }
 
-/* Windows high contrast replaces the colors of a button: what is switched on must not
-   depend on a background. A frame inside the button marks it (an outline would be
-   taken by the focus ring). */
+/* In Windows high contrast an option that is on gets the frame of every pressed
+   button (.klar-button[aria-pressed="true"] in core.css), and an invalid group a
+   frame of its own color. */
 @media (forced-colors: active) {
-  .klar-toggle-group .klar-button[aria-pressed="true"]::after {
-    content: "";
-    position: absolute;
-    inset: 3px;
-    border: 2px solid Highlight;
-    border-radius: 2px;
-    pointer-events: none;
-  }
+  .klar-toggle-group--invalid { outline: 2px solid Mark; outline-offset: 2px; }
 }
 
 /* ---- Split button ----------------------------------------------------- */
@@ -165,8 +158,8 @@ css =
 .klar-split > .klar-button {
   flex: 0 1 auto;
   min-width: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
 }
 
 /* No arrow: the main button is a button of its own again. */
@@ -176,7 +169,7 @@ css =
   position: static;
   display: flex;
   flex: none;
-  margin-left: -1px; /* the width of the border that the two parts share */
+  margin-inline-start: -1px; /* the width of the border that the two parts share */
 }
 
 /* The arrow is a little narrower than a square button. It has no text: Klar.Menu
@@ -185,8 +178,8 @@ css =
   /* never narrower than the 24px that a target needs, in a compact density too */
   width: max(24px, calc(var(--klar-control) * 0.85));
   padding: 0;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
 }
 
 .klar-split > .klar-menu .klar-button__label { display: none; }
@@ -202,7 +195,7 @@ css =
 /* A solid button next to its arrow keeps a pale line between the two. */
 .klar-split > .klar-button--primary + .klar-menu .klar-button:not(:focus-visible),
 .klar-split > .klar-button--danger + .klar-menu .klar-button:not(:focus-visible) {
-  border-left-color: color-mix(in srgb, var(--klar-white) 40%, transparent);
+  border-inline-start-color: color-mix(in srgb, var(--klar-white) 40%, transparent);
 }
 
 /* While the main part is busy the arrow cannot be used (it is aria-disabled, so

@@ -184,7 +184,7 @@ section locale model =
             )
         , Doc.example
             { title = "In context: a tooltip, a menu and a button"
-            , description = Just ("Kbd.toString writes the keys as text for the places that take a String: the shortcut of a tooltip and the hint of a menu item. " ++ lastText model.last)
+            , description = Just ("A menu item takes the same Keys (Menu.withShortcut) and draws them as small caps for the platform of the menu, with aria-keyshortcuts for screen readers. Kbd.toString writes the keys as text for the places that take a String, such as the shortcut of a tooltip. " ++ lastText model.last)
             , code = Just contextCode
             }
             (Layout.row [ Layout.gap 5, Layout.alignCenter, Layout.wrap ]
@@ -193,10 +193,11 @@ section locale model =
                     (Button.iconOnly [ Button.onClick (Did "Palette") ] Icon.search "Search")
                 , Menu.view MenuMsg
                     [ Menu.label "Order"
+                    , Menu.platform platform
                     , Menu.items
-                        [ Menu.item "Save" (Did "Save") |> Menu.withIcon Icon.save |> Menu.withHint (text saveOrder)
-                        , Menu.item "Duplicate" (Did "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withHint (text duplicate)
-                        , Menu.item "Go to orders" (Did "Go to orders") |> Menu.withHint (text goToOrders)
+                        [ Menu.item "Save" (Did "Save") |> Menu.withIcon Icon.save |> Menu.withShortcut saveOrder
+                        , Menu.item "Duplicate" (Did "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withShortcut duplicate
+                        , Menu.item "Go to orders" (Did "Go to orders") |> Menu.withShortcut goToOrders
                         ]
                     ]
                     model.menu
@@ -285,8 +286,12 @@ Tooltip.wrap [ Tooltip.shortcut (Kbd.toString attributes openPalette) ]
     "Open the command palette"
     (Button.iconOnly [] Icon.search "Search")
 
--- the hint of a menu item
-Menu.item "Save" Save |> Menu.withHint (Kbd.toString attributes saveOrder)
+-- a menu item: the same Keys, drawn for the platform of the menu
+Menu.view MenuMsg
+    [ Menu.platform platform
+    , Menu.items [ Menu.item "Save" Save |> Menu.withShortcut saveOrder ]
+    ]
+    model.menu
 
 -- next to a button
 Layout.row [ Layout.gap 2, Layout.alignCenter ]

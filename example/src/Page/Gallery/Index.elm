@@ -12,6 +12,7 @@ import Klar.EmptyState as EmptyState
 import Klar.Icon as Icon
 import Klar.Icon.Library as Library
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.Locale exposing (Locale)
 import Klar.Search as Search
 import Klar.Stat as Stat
@@ -115,7 +116,7 @@ viewSection ( section, hits ) =
             ]
         , Card.footer
             [ Button.view
-                [ Button.href (Route.path (Route.Components (Just (Catalog.slug section))))
+                [ Button.href (Link.internal (Route.path (Route.Components (Just (Catalog.slug section)))))
                 , Button.iconRight Icon.arrowRight
                 , Button.small
                 ]

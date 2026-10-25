@@ -91,7 +91,7 @@ section locale model =
         "A main action with a few alternatives behind a small arrow: Save with Save and close and Save as draft. The menu is the one of Klar.Menu, so it opens below the button with its right edge level with the button's, flips above when there is no room, and is never cut off by a card or a table."
         [ Doc.example
             { title = "A main action and its alternatives"
-            , description = Just (lastText model.last ++ " Keyboard: Enter or Space on the main part saves; ArrowDown or Alt+ArrowDown on either part opens the menu, Escape closes it and gives focus back to the arrow, Tab leaves it. Save pretends to work for a moment and shows the loading state.")
+            , description = Just (lastText model.last ++ " Keyboard: Enter or Space on the main part saves; Enter, Space or ArrowDown on the arrow (and ArrowDown or Alt+ArrowDown on either part) opens the menu with the first item highlighted, ArrowUp on the arrow with the last, a letter jumps to an item, Escape closes it and gives focus back to the arrow, Tab leaves it. A dialog opened from the main part or an item names SplitButton.mainId or SplitButton.triggerId as its opener. Save pretends to work for a moment and shows the loading state.")
             , code = Just saveCode
             }
             (split "actions-split-save"
@@ -153,7 +153,7 @@ section locale model =
             )
         , Doc.example
             { title = "Disabled, and without alternatives"
-            , description = Just "A disabled split button is off in both parts. A split button with no items is drawn as an ordinary button."
+            , description = Just "A disabled split button is off in both parts, which stay in the tab order (aria-disabled), so the focus is kept. A split button with no items is drawn as an ordinary button."
             , code = Nothing
             }
             (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]

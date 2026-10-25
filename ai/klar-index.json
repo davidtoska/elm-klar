@@ -396,7 +396,10 @@
         "view",
         "iconOnly"
       ],
-      "related": [],
+      "related": [
+        "Klar.Link",
+        "Klar.Tooltip"
+      ],
       "keywords": [
         "button",
         "actions",
@@ -434,11 +437,12 @@
         "isOpen",
         "open",
         "close",
-        "item",
-        "separator"
+        "triggerId",
+        "item"
       ],
       "related": [
         "Klar.ContextMenu",
+        "Klar.Kbd",
         "Klar.Modal",
         "Klar.Overlay",
         "Klar.Popover",
@@ -556,7 +560,9 @@
         "update",
         "isOpen",
         "open",
-        "close"
+        "close",
+        "mainId",
+        "triggerId"
       ],
       "related": [
         "Klar.Button",
@@ -590,12 +596,13 @@
       "mainFunctions": [
         "view",
         "internal",
-        "external"
+        "external",
+        "download"
       ],
       "related": [
         "Klar.Button",
-        "Klar.Icon",
-        "Klar.Tooltip"
+        "Klar.Tooltip",
+        "Klar.Icon"
       ],
       "keywords": [
         "link",

@@ -1,6 +1,6 @@
 module Klar.SplitButton exposing
     ( view
-    , State, init, Msg, update, isOpen, open, close
+    , State, init, Msg, update, isOpen, open, close, mainId, triggerId
     , Attribute, primary, secondary, ghost, danger, small, large, size, icon, loading, disabled, menuLabel, locale
     )
 
@@ -50,25 +50,32 @@ the main button stays the same element when items arrive later (remote data), so
 it keeps the keyboard focus.
 
 **Keyboard.** The two parts are two buttons in the Tab order. Enter and Space on the
-main part send `onClick`; on the arrow they open the menu. `ArrowDown` on either
-part opens the menu, and so does `Alt+ArrowDown` (the key that opens a list in
-most programs). The focus moves into the menu: `ArrowDown` and `ArrowUp` move
-the highlight (a menu opens with nothing highlighted, so the first `ArrowDown`
-highlights the first item), Enter or Space picks it, `Home` and `End` jump to the
-first and last, `Escape` closes the menu and gives focus back to the arrow, and
-`Tab` leaves the menu. Screen readers get a button, and a second button named
-"More options for Save" that has a menu (`aria-haspopup`) and says whether it
-is open (`aria-expanded`).
+main part send `onClick`; on the arrow they open the menu with the first item
+highlighted. `ArrowDown` on either part opens the menu at the first item, and so
+does `Alt+ArrowDown` (the key that opens a list in most programs); `ArrowUp` on
+the arrow opens it at the last item. The focus moves into the menu: `ArrowDown`
+and `ArrowUp` move the highlight, a letter jumps to the next item that starts
+with it, Enter or Space picks it, `Home` and `End` jump to the first and last,
+`Escape` closes the menu and gives focus back to the arrow, and `Tab` leaves the
+menu. Screen readers get a button, and a second button named "More options for
+Save" that has a menu (`aria-haspopup`) and says whether it is open
+(`aria-expanded`); the arrow shows that name as its tooltip.
 
 While the button is `loading` the main part shows a spinner and does nothing, and
-the arrow cannot open the menu (it is `aria-disabled` and keeps the keyboard focus, like
-the main part, so a user who has just picked an item is not thrown out of the
-page); with `disabled` both parts are off and cannot be focused. A menu that is open
-when this happens stays open and working until it is closed (`close`, `Escape`, a
-click outside): the state is never faked. The look (`primary`, `secondary`, `ghost`, `danger`, the sizes) is the
-look of a [Klar.Button](Klar-Button), and the same for both parts. Each split
-button needs a `State` and an id of its own. The built-in text ("More options
-for") follows `locale`.
+the arrow cannot open the menu; with `disabled` both parts are dimmed and do
+nothing. In both cases the parts are `aria-disabled` and stay in the tab order, so
+a user who has just picked an item (or pressed the main part) keeps the keyboard
+focus. A menu that is open when this happens stays open and working until it is
+closed (`close`, `Escape`, a click outside): the state is never faked. If the
+items go away while the menu is open, the empty menu stays until it is closed,
+and focus then goes to the main part. The look (`primary`, `secondary`, `ghost`,
+`danger`, the sizes) is the look of a [Klar.Button](Klar-Button), and the same for
+both parts. Each split button needs a `State` and an id of its own. The built-in
+text ("More options for") follows `locale`.
+
+A dialog opened from the main part or from an item names its opener, so that
+focus goes back there when it closes: `mainId` for the main part, `triggerId`
+for the arrow.
 
 For two buttons that are separate actions, side by side, use a
 [Klar.ButtonGroup](Klar-ButtonGroup); for a menu with no main action
@@ -82,7 +89,7 @@ For two buttons that are separate actions, side by side, use a
 
 # State
 
-@docs State, init, Msg, update, isOpen, open, close
+@docs State, init, Msg, update, isOpen, open, close, mainId, triggerId
 
 
 # Attributes
@@ -113,7 +120,8 @@ type State
 
 
 {-| A split button with a closed menu. The `String` is a DOM id that must be
-unique on the page; the ids of the arrow, the menu and its items start with it.
+unique on the page; the ids of the main part (`mainId`), the arrow (`triggerId`),
+the menu and its items start with it.
 
     SplitButton.init "order-save"
 
@@ -130,13 +138,36 @@ isOpen (State state) =
     Menu.isOpen state.menu
 
 
+{-| The DOM id of the main part. Give it to `Modal.open` (or `ConfirmDialog.open`)
+when the main action opens a dialog ("Save..."), so that focus goes back to it
+when the dialog closes.
+-}
+mainId : State -> String
+mainId (State state) =
+    mainIdOf state.id
+
+
+{-| The DOM id of the arrow that opens the menu. Give it to `Modal.open` when an
+item of the menu opens a dialog.
+-}
+triggerId : State -> String
+triggerId (State state) =
+    Menu.triggerId state.menu
+
+
+mainIdOf : String -> String
+mainIdOf id =
+    id ++ "-main"
+
+
 {-| The messages of the split button: opening and closing the menu and moving the
 highlight. Wrap it in a constructor of your own message type and hand it to
 `update`. The click on the main part is not one of them: it sends your `onClick`.
 -}
 type Msg
-    = MenuMsg Bool Menu.Msg
+    = MenuMsg { inactive : Bool, noItems : Bool } Menu.Msg
     | OpenFromKey
+    | Noop
 
 
 {-| Handles the menu and moves keyboard focus into it and back to the arrow.
@@ -146,17 +177,26 @@ through here: it sends the message of the item.
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
-        -- The flag says that the split button was loading or disabled when the
-        -- message was made: such a message cannot open a menu that is closed
-        -- (the arrow of a loading button can still be reached with the keyboard,
-        -- and the menu's own `ArrowDown` would open it).
-        MenuMsg inactive inner ->
+        -- The flags say how the split button was drawn when the message was
+        -- made. A message of a loading or disabled one cannot open a menu that is
+        -- closed. A menu that closes after its items went away gives focus to the
+        -- main part: the arrow is not drawn without items.
+        MenuMsg drawn inner ->
             let
                 ( menu, cmd ) =
                     Menu.update inner state.menu
+
+                opened =
+                    not (Menu.isOpen state.menu) && Menu.isOpen menu
+
+                closed =
+                    Menu.isOpen state.menu && not (Menu.isOpen menu)
             in
-            if inactive && not (Menu.isOpen state.menu) && Menu.isOpen menu then
+            if (drawn.inactive || drawn.noItems) && opened then
                 ( current, Cmd.none )
+
+            else if drawn.noItems && closed then
+                ( State { state | menu = menu }, Internal.focus (mainIdOf state.id) Noop )
 
             else
                 wrap state.id ( menu, cmd )
@@ -170,9 +210,12 @@ update msg ((State state) as current) =
             else
                 open current
 
+        Noop ->
+            ( current, Cmd.none )
 
-{-| Opens the menu and moves keyboard focus into it, for example from a keyboard
-shortcut.
+
+{-| Opens the menu with the first item highlighted and moves keyboard focus into
+it, for example from a keyboard shortcut.
 -}
 open : State -> ( State, Cmd Msg )
 open (State state) =
@@ -191,7 +234,7 @@ close (State state) =
 
 wrap : String -> ( Menu.State, Cmd Menu.Msg ) -> ( State, Cmd Msg )
 wrap id ( menu, cmd ) =
-    ( State { id = id, menu = menu }, Cmd.map (MenuMsg False) cmd )
+    ( State { id = id, menu = menu }, Cmd.map (MenuMsg { inactive = False, noItems = False }) cmd )
 
 
 
@@ -200,9 +243,9 @@ wrap id ( menu, cmd ) =
 
 {-| A setting of a split button. Make them with the functions below and pass a
 list to `view`; later attributes win over earlier ones. What the button does is in
-the arguments of `view`, so the type has no `msg` parameter.
+the arguments of `view`.
 -}
-type Attribute
+type Attribute msg
     = Attribute (Config -> Config)
 
 
@@ -224,7 +267,7 @@ type alias Config =
     }
 
 
-configure : List Attribute -> Config
+configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { variant = Nothing
@@ -241,21 +284,21 @@ configure attributes =
 
 {-| The one main action of a page or dialog: solid blue. Use it once per view.
 -}
-primary : Attribute
+primary : Attribute msg
 primary =
     Attribute (\config -> { config | variant = Just Primary })
 
 
 {-| The default look: white with a thin gray border.
 -}
-secondary : Attribute
+secondary : Attribute msg
 secondary =
     Attribute (\config -> { config | variant = Just Secondary })
 
 
 {-| A quiet button with no border until the pointer is over it, for toolbars.
 -}
-ghost : Attribute
+ghost : Attribute msg
 ghost =
     Attribute (\config -> { config | variant = Just Ghost })
 
@@ -265,21 +308,21 @@ with `secondary` or `ghost` it keeps that look and only the text (and the border
 of a `secondary` button) turns red, exactly as with
 [`Button.danger`](Klar-Button#danger).
 -}
-danger : Attribute
+danger : Attribute msg
 danger =
     Attribute (\config -> { config | danger = True })
 
 
 {-| A compact button, 26px high.
 -}
-small : Attribute
+small : Attribute msg
 small =
     Attribute (\config -> { config | size = Small })
 
 
 {-| A large button, 40px high.
 -}
-large : Attribute
+large : Attribute msg
 large =
     Attribute (\config -> { config | size = Large })
 
@@ -287,14 +330,14 @@ large =
 {-| Sets the size from a variable. The default is `Medium` (32px). `small` and
 `large` are shorthands.
 -}
-size : Size -> Attribute
+size : Size -> Attribute msg
 size value =
     Attribute (\config -> { config | size = value })
 
 
 {-| An icon before the text of the main part.
 -}
-icon : Icon -> Attribute
+icon : Icon -> Attribute msg
 icon value =
     Attribute (\config -> { config | icon = Just value })
 
@@ -305,16 +348,18 @@ stay in the tab order (`aria-disabled`, not `disabled`), so a user who has just
 picked an item from the menu keeps the keyboard focus. Pass a field of your
 model, so the button cannot be clicked twice while a request is on its way.
 -}
-loading : Bool -> Attribute
+loading : Bool -> Attribute msg
 loading value =
     Attribute (\config -> { config | loading = value })
 
 
-{-| Disables both parts (the HTML `disabled` attribute). A disabled button cannot
-be focused. A menu that is open stays open until it is closed. The default is
+{-| Turns both parts off: they are dimmed, send nothing and cannot open the menu,
+and screen readers hear that they are unavailable (`aria-disabled`). They stay in
+the tab order, so a split button that is disabled while the user is on it keeps
+the focus. A menu that is open stays open until it is closed. The default is
 `False`.
 -}
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 disabled value =
     Attribute (\config -> { config | disabled = value })
 
@@ -323,7 +368,7 @@ disabled value =
 options for" and the text of the main part ("More options for Save"), in the
 language of `locale`. Set it when the default does not fit, for example "Save options".
 -}
-menuLabel : String -> Attribute
+menuLabel : String -> Attribute msg
 menuLabel value =
     Attribute (\config -> { config | menuLabel = Just value })
 
@@ -331,7 +376,7 @@ menuLabel value =
 {-| The language of the built-in text, the accessible name of the arrow. The
 default is `Locale.default`, which is `Locale.en`.
 -}
-locale : Locale -> Attribute
+locale : Locale -> Attribute msg
 locale value =
     Attribute (\config -> { config | locale = value })
 
@@ -347,7 +392,7 @@ text of the main part, the message it sends, and the items of the menu (see
 -}
 view :
     (Msg -> msg)
-    -> List Attribute
+    -> List (Attribute msg)
     -> { label : String, onClick : msg, items : List (Menu.Item msg) }
     -> State
     -> Html msg
@@ -362,6 +407,11 @@ view toMsg attributes content (State state) =
         noItems =
             List.isEmpty content.items
 
+        -- A menu that is open when its items go away stays (empty) until it is
+        -- closed, so that the focus in it is not thrown to the page.
+        showArrow =
+            not noItems || Menu.isOpen state.menu
+
         -- the keys that open the menu, when there is a menu that can open
         opensMenu =
             not inactive && not noItems
@@ -372,8 +422,11 @@ view toMsg attributes content (State state) =
         mainButton =
             Button.view
                 (look
-                    ++ [ Button.loading config.loading
-                       , Button.disabled config.disabled
+                    ++ [ Button.id (mainIdOf state.id)
+                       , Button.loading config.loading
+
+                       -- not `disabled`: a part that is turned off while it has focus keeps it
+                       , Button.ariaDisabled config.disabled
                        , Button.onClick content.onClick
                        , Button.htmlAttrs [ Internal.attrIf opensMenu (Internal.onKeys [ ( "ArrowDown", toMsg OpenFromKey ) ]) ]
                        ]
@@ -401,11 +454,11 @@ view toMsg attributes content (State state) =
     Html.div
         [ Internal.cls
             [ "klar-split"
-            , if noItems then
-                "klar-split--single"
+            , if showArrow then
+                ""
 
               else
-                ""
+                "klar-split--single"
             , if config.size == Medium then
                 ""
 
@@ -423,11 +476,8 @@ view toMsg attributes content (State state) =
         , Internal.attrIf opensMenu (Internal.onKeys [ ( "Alt+ArrowDown", toMsg OpenFromKey ) ])
         ]
         [ mainButton
-        , if noItems then
-            Html.text ""
-
-          else
-            Menu.view (\inner -> toMsg (MenuMsg inactive inner))
+        , if showArrow then
+            Menu.view (\inner -> toMsg (MenuMsg { inactive = inactive, noItems = noItems } inner))
                 [ Menu.label ""
                 , Menu.alignEnd
                 , Menu.items content.items
@@ -435,15 +485,20 @@ view toMsg attributes content (State state) =
                     (look
                         ++ [ Button.ariaLabel arrowName
 
-                           -- Loading is not disabled: the arrow may have the focus (the
-                           -- menu gives it back after an item is picked), and an element
-                           -- that becomes `disabled` throws its focus to the page.
-                           , Button.disabled config.disabled
-                           , Button.ariaDisabled config.loading
+                           -- Not `disabled`: the arrow may have the focus (the menu gives
+                           -- it back after an item is picked), and an element that
+                           -- becomes `disabled` throws its focus to the page.
+                           , Button.ariaDisabled inactive
+
+                           -- the name is also the tooltip, as on an icon-only button
+                           , Button.htmlAttrs [ Attr.attribute "data-tip" arrowName ]
                            ]
                     )
                 ]
                 state.menu
+
+          else
+            Html.text ""
         ]
 
 

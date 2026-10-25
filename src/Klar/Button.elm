@@ -3,7 +3,7 @@ module Klar.Button exposing
     , Attribute, primary, secondary, ghost, link, danger, small, large, size, block
     , icon, iconRight, loading
     , onClick, submit, href, newTab, disabled, ariaDisabled
-    , id, title, ariaLabel, pressed, expanded, htmlAttrs
+    , id, title, ariaLabel, pressed, expanded, locale, htmlAttrs
     )
 
 {-| Buttons and button-looking links.
@@ -13,6 +13,7 @@ Do not use when: you need a plain link in running text (as `Klar.Link`) or a cho
 
     import Klar.Button as Button
     import Klar.Icon as Icon
+    import Klar.Link as Link
 
     Button.view [ Button.primary, Button.onClick SaveOrder ] "Save order"
 
@@ -20,12 +21,15 @@ Do not use when: you need a plain link in running text (as `Klar.Link`) or a cho
 
     Button.iconOnly [ Button.ghost, Button.onClick Reload ] Icon.refresh "Reload"
 
-    Button.view [ Button.href "#/orders" ] "Open orders"
+    Button.view [ Button.href (Link.internal "/orders") ] "Open orders"
 
 There are four looks: `primary` (the one main action on a page), `secondary`
 (the default), `ghost` (quiet, for toolbars and table rows) and `link` (looks
 like a link). A button with `href` is rendered as an anchor, so it can be opened
-in a new tab, but it keeps the look of the other buttons.
+in a new tab, but it keeps the look of the other buttons. Its destination is a
+[`Link.Target`](Klar-Link#Target), checked like the one of a
+[Klar.Link](Klar-Link): a page of the application, another site, or a file to
+save (`Link.download`).
 
 `danger` marks a destructive action. On its own (or with `primary`) it is the
 solid red button. Combined with `secondary`, `ghost` or `link` it keeps that
@@ -38,8 +42,9 @@ order of the attributes does not matter.
 
     Button.view [ Button.secondary, Button.danger ] "Delete" -- white, red text and border
 
-A button that is `loading` or `disabled` does not send its message and never
-submits a form.
+A button that is `loading`, `disabled` or `ariaDisabled` does not send its
+message and never submits a form; one that is a link cannot be followed then,
+but keeps its place in the tab order (except with `disabled`).
 
 
 # Views
@@ -64,7 +69,7 @@ submits a form.
 
 # Accessibility and HTML
 
-@docs id, title, ariaLabel, pressed, expanded, htmlAttrs
+@docs id, title, ariaLabel, pressed, expanded, locale, htmlAttrs
 
 -}
 
@@ -73,6 +78,9 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Link as Link
+import Klar.Link.Destination as Destination
+import Klar.Locale as Locale exposing (Locale)
 import Klar.Spinner as Spinner
 import Klar.Theme as Theme exposing (Size(..))
 
@@ -102,7 +110,7 @@ type alias Config msg =
     , ariaDisabled : Bool
     , block : Bool
     , onClick : Maybe msg
-    , href : Maybe String
+    , href : Maybe Link.Target
     , newTab : Bool
     , submit : Bool
     , id : Maybe String
@@ -110,6 +118,7 @@ type alias Config msg =
     , ariaLabel : Maybe String
     , pressed : Maybe Bool
     , expanded : Maybe Bool
+    , locale : Locale
     , extra : List (Html.Attribute msg)
     }
 
@@ -134,6 +143,7 @@ defaults =
     , ariaLabel = Nothing
     , pressed = Nothing
     , expanded = Nothing
+    , locale = Locale.default
     , extra = []
     }
 
@@ -234,8 +244,9 @@ loading value =
 
 
 {-| Disables the button with the HTML `disabled` attribute. A disabled button
-cannot be focused, so keyboard users skip it; use `ariaDisabled` when it should
-keep its place in the tab order.
+cannot be focused, so keyboard users skip it, and a button that is disabled while
+it has focus throws the focus to the page; use `ariaDisabled` when it should keep
+its place in the tab order.
 -}
 disabled : Bool -> Attribute msg
 disabled value =
@@ -245,7 +256,9 @@ disabled value =
 {-| Dimmed and unclickable like `disabled`, but the button stays in the tab
 order and keeps the keyboard focus (`aria-disabled`). Use it for a button that
 becomes unavailable while the user is on it, such as "Load more" after the last
-page. A button with the real `disabled` attribute loses its focus.
+page, and for one that a [Klar.Tooltip](Klar-Tooltip) explains: it still gets the
+pointer and the focus that show the tip. A button with the real `disabled`
+attribute loses its focus.
 -}
 ariaDisabled : Bool -> Attribute msg
 ariaDisabled value =
@@ -276,16 +289,33 @@ submit =
     Attribute (\config -> { config | submit = True })
 
 
-{-| Makes the button an anchor that navigates to the URL. Use `#/path` for links
-inside a single page application.
+{-| Makes the button an anchor (`<a href>`) that leads to the target: a page of
+the application (`Link.internal`), another site (`Link.external`, which opens in
+a new tab) or a file to save (`Link.download`). See [Klar.Link](Klar-Link).
+
+    Button.view [ Button.primary, Button.href (Link.internal "/orders/new") ] "New order"
+
+    Button.view
+        [ Button.icon Icon.download
+        , Button.href (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = csv })
+        ]
+        "Export"
+
+A link has no `onClick` and no `submit` (they are ignored), and no `pressed` or
+`expanded`, which a link cannot have. While it is `loading`, `disabled` or
+`ariaDisabled` it has no `href`: it cannot be followed, and a screen reader finds
+a link that is unavailable.
+
 -}
-href : String -> Attribute msg
-href url =
-    Attribute (\config -> { config | href = Just url })
+href : Link.Target -> Attribute msg
+href target =
+    Attribute (\config -> { config | href = Just target })
 
 
 {-| Opens a link made with `href` in a new tab (`target="_blank"`, with
-`rel="noopener noreferrer"`).
+`rel="noopener noreferrer"`), with the text "(opens in a new tab)" for screen
+readers in the language of `locale`. A link to another site (`Link.external`)
+does this without it.
 -}
 newTab : Attribute msg
 newTab =
@@ -301,7 +331,8 @@ id value =
 
 
 {-| The native tooltip (the `title` attribute). For a keyboard-friendly hint use
-`Klar.Tooltip` instead.
+`Klar.Tooltip` instead. On an `iconOnly` button it is the text of the tooltip
+that the button has already, instead of the label.
 -}
 title : String -> Attribute msg
 title value =
@@ -315,7 +346,8 @@ ariaLabel value =
     Attribute (\config -> { config | ariaLabel = Just value })
 
 
-{-| Makes the button a toggle and says whether it is on (`aria-pressed`).
+{-| Makes the button a toggle and says whether it is on (`aria-pressed`). In
+Windows high contrast a button that is on gets a frame.
 
     Button.view [ Button.pressed model.showArchived, Button.onClick ToggleArchived ] "Archived"
 
@@ -331,6 +363,15 @@ pressed value =
 expanded : Bool -> Attribute msg
 expanded value =
     Attribute (\config -> { config | expanded = Just value })
+
+
+{-| The language of the built-in text: "(opens in a new tab)", which screen
+readers read after the label of a link that opens in a new tab. The default is
+`Locale.default`, which is `Locale.en`.
+-}
+locale : Locale -> Attribute msg
+locale value =
+    Attribute (\config -> { config | locale = value })
 
 
 {-| An escape hatch for raw HTML attributes such as extra event handlers or
@@ -356,7 +397,10 @@ view attributes label =
 
 
 {-| A square button with only an icon. The label is the accessible name and the
-native tooltip, so it must say what the button does.
+tooltip (a [Klar.Tooltip](Klar-Tooltip) that shows on hover and on keyboard
+focus), so it must say what the button does. `Button.title` changes the text of
+the tooltip, and `Tooltip.attrs` in `htmlAttrs` replaces it (to add a shortcut,
+say). Inside `Tooltip.wrap` the wrap's tip is the only one.
 
     Button.iconOnly [ Button.ghost, Button.onClick Close ] Icon.close "Close"
 
@@ -367,7 +411,7 @@ iconOnly attributes iconName label =
         config =
             configure attributes
     in
-    render True { config | icon = Just iconName, ariaLabel = Just label, title = Just (Maybe.withDefault label config.title) } ""
+    render True { config | icon = Just iconName, ariaLabel = Just label } ""
 
 
 render : Bool -> Config msg -> String -> Html msg
@@ -411,13 +455,66 @@ render isIconOnly config label =
                     ""
                 ]
 
+        isLink =
+            config.href /= Nothing
+
+        -- A link opens a new tab when it is asked to, or when it leads to another
+        -- site; a button (no href) and a file to save never do.
+        opensTab =
+            case config.href of
+                Just target ->
+                    not inactive && Destination.fileName target == Nothing && (config.newTab || Destination.opensInNewTab target)
+
+                Nothing ->
+                    False
+
+        newTabText =
+            Locale.pick config.locale { nb = "(åpnes i en ny fane)", en = "(opens in a new tab)" }
+
+        -- An icon-only button is named by its aria-label, which hides the text inside it.
+        name =
+            if opensTab then
+                Maybe.map (\text -> text ++ " " ++ newTabText) config.ariaLabel
+
+            else
+                config.ariaLabel
+
+        -- An icon-only button shows its label as a Klar tooltip, which appears on
+        -- keyboard focus too (a native title never does).
+        tip =
+            if isIconOnly then
+                case config.title of
+                    Just text ->
+                        Just text
+
+                    Nothing ->
+                        config.ariaLabel
+
+            else
+                Nothing
+
         common =
             [ classNames
             , Internal.attrMaybe Attr.id config.id
-            , Internal.attrMaybe Attr.title config.title
-            , Internal.attrMaybe (Attr.attribute "aria-label") config.ariaLabel
-            , Internal.attrMaybe (\p -> Attr.attribute "aria-pressed" (boolString p)) config.pressed
-            , Internal.attrMaybe (\e -> Attr.attribute "aria-expanded" (boolString e)) config.expanded
+            , if isIconOnly then
+                Internal.noAttr
+
+              else
+                Internal.attrMaybe Attr.title config.title
+            , Internal.attrMaybe (Attr.attribute "data-tip") tip
+            , Internal.attrMaybe (Attr.attribute "aria-label") name
+
+            -- a link cannot be pressed or expanded
+            , if isLink then
+                Internal.noAttr
+
+              else
+                Internal.attrMaybe (\p -> Attr.attribute "aria-pressed" (boolString p)) config.pressed
+            , if isLink then
+                Internal.noAttr
+
+              else
+                Internal.attrMaybe (\e -> Attr.attribute "aria-expanded" (boolString e)) config.expanded
             , Internal.attrIf config.loading (Attr.attribute "aria-busy" "true")
             , Internal.attrIf inactive (Attr.attribute "aria-disabled" "true")
             ]
@@ -436,22 +533,34 @@ render isIconOnly config label =
                 Html.text ""
 
               else
-                Html.span [ Internal.cls [ "klar-button__label" ] ] [ Html.text label ]
+                Html.span [ Internal.cls [ "klar-button__label" ] ]
+                    [ Html.text label
+                    , Internal.viewIf opensTab (Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (" " ++ newTabText) ])
+                    ]
             , Internal.viewMaybe Icon.view config.iconRight
             ]
     in
     case config.href of
-        Just url ->
+        Just target ->
+            -- One element whether it can be followed or not, so that a link that
+            -- becomes busy or unavailable while it has focus keeps it.
             Html.a
                 (common
-                    ++ [ if inactive then
-                            Internal.noAttr
+                    ++ (if inactive then
+                            -- `disabled` takes it out of the tab order, as it does a button
+                            Destination.inactiveAttributes { focusable = not config.disabled }
 
-                         else
-                            Attr.href url
-                       , Internal.attrIf config.newTab (Attr.target "_blank")
-                       , Internal.attrIf config.newTab (Attr.rel "noopener noreferrer")
-                       ]
+                        else
+                            [ Attr.href (Destination.href target)
+
+                            -- an attribute, not the property: a property that is taken
+                            -- away again leaves download="" behind, and the link would save
+                            -- the page instead of opening it
+                            , Internal.attrMaybe (Attr.attribute "download") (Destination.fileName target)
+                            , Internal.attrIf opensTab (Attr.target "_blank")
+                            , Internal.attrIf opensTab (Attr.rel "noopener noreferrer")
+                            ]
+                       )
                 )
                 children
 

@@ -10,6 +10,7 @@ import Klar.Button as Button
 import Klar.Card as Card
 import Klar.Icon as Icon
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.Text as Text
 import Showcase.Doc as Doc
 
@@ -74,7 +75,7 @@ viewExample example =
             , Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
                 [ Button.view
                     [ Button.primary
-                    , Button.href ("examples/" ++ example.page ++ ".html")
+                    , Button.href (Link.internal ("./examples/" ++ example.page ++ ".html"))
                     , Button.newTab
                     , Button.iconRight Icon.externalLink
                     ]

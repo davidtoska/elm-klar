@@ -18,11 +18,13 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Layout as Layout
+import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Remote as Remote exposing (Remote)
 import Klar.RemoteView as RemoteView
 import Klar.Search as Search
+import Klar.Shortcut as Shortcut
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
 import Klar.Tag as Tag
@@ -499,9 +501,9 @@ viewButtons model =
             }
             (Layout.stack [ Layout.gap 4 ]
                 [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view [ Button.href "#/components/forms", Button.iconRight Icon.arrowRight ] "Go to Forms"
-                    , Button.view [ Button.href "#/orders", Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
-                    , Button.view [ Button.link, Button.href "#/products" ] "Products"
+                    [ Button.view [ Button.href (Link.internal "#/components/forms"), Button.iconRight Icon.arrowRight ] "Go to Forms"
+                    , Button.view [ Button.href (Link.internal "#/orders"), Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
+                    , Button.view [ Button.link, Button.href (Link.internal "#/products") ] "Products"
                     ]
                 , Layout.container [ Layout.maxWidth 360, Layout.alignStart ]
                     [ Button.view [ Button.primary, Button.block, Button.onClick Clicked ] "Place order" ]
@@ -517,7 +519,7 @@ viewButtons model =
 viewMenus : Model -> Html Msg
 viewMenus model =
     Doc.section "Menus"
-        "Dropdown menus for actions that do not deserve a button of their own. Keyboard: ArrowDown on the button opens the menu, the arrow keys move the highlight, Home and End jump to the first and last item, Enter or Space picks an item, and Escape or Tab closes the menu. The menu opens above everything else and is never clipped by tables or dialogs. The text on the right of a row (Menu.withHint) only shows a shortcut; the application connects the shortcut itself with Klar.Shortcut."
+        "Dropdown menus for actions that do not deserve a button of their own. Keyboard: Enter, Space or ArrowDown on the button opens the menu with the first item highlighted (ArrowUp with the last), the arrow keys move the highlight, a letter jumps to the next item that starts with it, Home and End jump to the first and last item, Enter or Space picks an item, and Escape or Tab closes the menu. The menu opens above everything else and is never clipped by tables or dialogs. The keys on the right of a row (Menu.withShortcut) only show a shortcut, as small caps and as aria-keyshortcuts; the application connects the shortcut itself with Klar.Shortcut. The items under a heading are a group named after it."
         [ Doc.example
             { title = "Menus and triggers"
             , description = Just model.lastAction
@@ -529,8 +531,8 @@ viewMenus model =
                     [ Menu.label "Actions"
                     , Menu.items
                         [ Menu.heading "Order"
-                        , Menu.item "Edit" (Picked "Edit") |> Menu.withIcon Icon.edit |> Menu.withHint "E"
-                        , Menu.item "Duplicate" (Picked "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withHint "Ctrl D"
+                        , Menu.item "Edit" (Picked "Edit") |> Menu.withIcon Icon.edit |> Menu.withShortcut (Shortcut.char 'e')
+                        , Menu.item "Duplicate" (Picked "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withShortcut (Shortcut.mod (Shortcut.char 'd'))
                         , Menu.item "Export" (Picked "Export") |> Menu.withIcon Icon.download |> Menu.disabledItem
                         , Menu.separator
                         , Menu.item "Delete" (Picked "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
@@ -863,8 +865,8 @@ viewStates locale model =
                     , EmptyState.title "No orders yet"
                     , EmptyState.description "Orders you create appear here."
                     , EmptyState.actions
-                        [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders"
-                        , Button.view [ Button.href "#/orders" ] "Import orders"
+                        [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Open orders"
+                        , Button.view [ Button.href (Link.internal "#/orders") ] "Import orders"
                         ]
                     ]
                 ]
@@ -989,10 +991,10 @@ viewProductRow product =
 wayForward : Remote.Kind -> List (Html Msg)
 wayForward kind =
     if kind == Remote.unauthorized then
-        [ Button.view [ Button.small, Button.href "#/" ] "Sign in" ]
+        [ Button.view [ Button.small, Button.href (Link.internal "#/") ] "Sign in" ]
 
     else if kind == Remote.notFound || kind == Remote.forbidden then
-        [ Button.view [ Button.small, Button.href "#/orders" ] "Back to orders" ]
+        [ Button.view [ Button.small, Button.href (Link.internal "#/orders") ] "Back to orders" ]
 
     else
         []
@@ -1257,8 +1259,8 @@ Saved ->
 
 linksCode : String
 linksCode =
-    """Button.view [ Button.href "#/orders", Button.iconRight Icon.arrowRight ] "Go to orders"
-Button.view [ Button.href "#/orders", Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
+    """Button.view [ Button.href (Link.internal "#/orders"), Button.iconRight Icon.arrowRight ] "Go to orders"
+Button.view [ Button.href (Link.internal "#/orders"), Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
 Button.view [ Button.primary, Button.block ] "Place order"
 """
 
@@ -1280,7 +1282,7 @@ Menu.view MenuMsg
     [ Menu.label "Actions"
     , Menu.items
         [ Menu.heading "Order"
-        , Menu.item "Edit" EditOrder |> Menu.withIcon Icon.edit |> Menu.withHint "E"
+        , Menu.item "Edit" EditOrder |> Menu.withIcon Icon.edit |> Menu.withShortcut (Shortcut.char 'e')
         , Menu.item "Duplicate" DuplicateOrder |> Menu.withIcon Icon.copy
         , Menu.item "Export" ExportOrder |> Menu.withIcon Icon.download |> Menu.disabledItem
         , Menu.separator
@@ -1498,8 +1500,8 @@ compactEmptyCode =
     , EmptyState.title "No orders yet"
     , EmptyState.description "Orders you create appear here."
     , EmptyState.actions
-        [ Button.view [ Button.primary, Button.href "#/orders" ] "Open orders"
-        , Button.view [ Button.href "#/import" ] "Import orders"
+        [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Open orders"
+        , Button.view [ Button.href (Link.internal "#/import") ] "Import orders"
         ]
     ]
 
@@ -1519,7 +1521,7 @@ ErrorState.view
 
 -- a retry cannot help: give a way forward
 ErrorState.view
-    [ ErrorState.actions [ Button.view [ Button.href "#/orders" ] "Back to orders" ] ]
+    [ ErrorState.actions [ Button.view [ Button.href (Link.internal "#/orders") ] "Back to orders" ] ]
     (Remote.problem Remote.notFound)
 """
 

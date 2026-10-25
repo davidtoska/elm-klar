@@ -632,10 +632,15 @@ closedMenu =
     Menu.init menuId
 
 
+{-| The menu as a click with the pointer opens it: with nothing highlighted
+(`Menu.open` and the keyboard highlight the first item).
+-}
 openMenu : Menu.State
 openMenu =
-    Menu.open closedMenu
-        |> Tuple.first
+    send (drawMenu [] closedMenu) [ Selector.id (menuId ++ "-trigger") ] (Event.custom "click" (Encode.object [ ( "detail", Encode.int 1 ) ]))
+        |> Result.andThen (inMenu closedMenu)
+        |> Result.map Tuple.first
+        |> Result.withDefault closedMenu
 
 
 {-| The layer behind the open menu is where the keys and the outside click land.
@@ -1112,15 +1117,13 @@ contextMenuTests =
                                 state
                         )
         , describe "the keys move the highlight, as in a menu"
-            [ test "ArrowDown highlights the first item that can be picked" <|
+            [ test "the menu opens with the first item that can be picked highlighted (Menu.open)" <|
                 \_ ->
                     rightClicked
-                        |> Result.andThen (pressInContext "ArrowDown")
                         |> expectOk (activeInContext 1)
             , test "ArrowDown skips the item that cannot be picked" <|
                 \_ ->
                     rightClicked
-                        |> Result.andThen (pressInContext "ArrowDown")
                         |> Result.andThen (pressInContext "ArrowDown")
                         |> expectOk (activeInContext 3)
             , test "End highlights the last item that can be picked" <|

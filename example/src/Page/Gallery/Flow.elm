@@ -25,6 +25,7 @@ import Klar.History as History exposing (History)
 import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
+import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Modal as Modal
@@ -534,10 +535,10 @@ statusSection locale model =
             , code = Just kindsCode
             }
             (Layout.grid [ Layout.minColumn 320, Layout.gap 4 ]
-                [ labelled "StatusPage.success" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href "#/components/flow" ] "Back to orders" ] ] StatusPage.success))
-                , labelled "StatusPage.pageNotFound" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ] StatusPage.pageNotFound))
-                , labelled "StatusPage.forbidden" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href "#/" ] "Home" ] ] StatusPage.forbidden))
-                , labelled "StatusPage.unauthorized" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href "#/" ] "Sign in" ] ] StatusPage.unauthorized))
+                [ labelled "StatusPage.success" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href (Link.internal "#/components/flow") ] "Back to orders" ] ] StatusPage.success))
+                , labelled "StatusPage.pageNotFound" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Go to orders" ] ] StatusPage.pageNotFound))
+                , labelled "StatusPage.forbidden" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href (Link.internal "#/") ] "Home" ] ] StatusPage.forbidden))
+                , labelled "StatusPage.unauthorized" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href (Link.internal "#/") ] "Sign in" ] ] StatusPage.unauthorized))
                 , labelled "StatusPage.server" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.reference "req-7f3a-91c2" ] StatusPage.server))
                 , labelled "StatusPage.network" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.network))
                 , labelled "StatusPage.retrying True: the button is busy where it is and keeps focus" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.retrying True ] StatusPage.network))
@@ -567,7 +568,7 @@ statusSection locale model =
                         [ StatusPage.locale locale
                         , StatusPage.onRetry Retried
                         , StatusPage.reference "req-7f3a-91c2"
-                        , StatusPage.actions [ Button.view [ Button.href "#/orders" ] "Go to orders" ]
+                        , StatusPage.actions [ Button.view [ Button.href (Link.internal "#/orders") ] "Go to orders" ]
                         ]
                         (StatusPage.fromProblem (Remote.problem model.problem |> Remote.withCode "503"))
                     )
@@ -589,7 +590,7 @@ statusSection locale model =
                         , StatusPage.icon Icon.package
                         , StatusPage.actions
                             [ Button.view [ Button.primary, Button.onClick CreateAnother ] "Create another order"
-                            , Button.view [ Button.href "#/orders" ] "Open orders"
+                            , Button.view [ Button.href (Link.internal "#/orders") ] "Open orders"
                             ]
                         , StatusPage.reference "ORD-1042"
                         ]
@@ -973,7 +974,7 @@ historySection locale model =
 kindsCode : String
 kindsCode =
     """StatusPage.view
-    [ StatusPage.actions [ Button.view [ Button.primary, Button.href "#/orders" ] "Go to orders" ] ]
+    [ StatusPage.actions [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Go to orders" ] ]
     StatusPage.pageNotFound
 
 -- the others: success, forbidden, unauthorized, server, network, maintenance

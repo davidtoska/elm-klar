@@ -187,7 +187,9 @@ pathTests =
         [ test "a path, a route in the fragment and a query stay as they are" <|
             \_ ->
                 Expect.all
-                    [ \_ -> Address.path "/orders/12" |> Expect.equal "/orders/12"
+                    [ \_ -> Address.path "./reports/q3.html" |> Expect.equal "./reports/q3.html"
+                    , \_ -> Address.path "../orders" |> Expect.equal "../orders"
+                    , \_ -> Address.path "/orders/12" |> Expect.equal "/orders/12"
                     , \_ -> Address.path "#/orders/12" |> Expect.equal "#/orders/12"
                     , \_ -> Address.path "?page=2&sort=date" |> Expect.equal "?page=2&sort=date"
                     , \_ -> Address.path "/" |> Expect.equal "/"
@@ -243,6 +245,12 @@ insideApplication result =
             noControls result
 
         '?' :: _ ->
+            noControls result
+
+        '.' :: '/' :: _ ->
+            noControls result
+
+        '.' :: '.' :: '/' :: _ ->
             noControls result
 
         [ '/' ] ->
@@ -451,15 +459,25 @@ attributeTests =
                     ]
                     ()
         , describe "disabled"
-            [ test "has no address, is not a tab stop, and says it is unavailable" <|
+            [ test "has no address, stays a tab stop, and says it is unavailable" <|
                 \_ ->
                     link [ Link.disabled True ] ordersLink
                         |> Query.fromHtml
                         |> Expect.all
                             [ Query.has [ Selector.tag "a", attribute "role" "link", attribute "aria-disabled" "true", Selector.class "klar-link--disabled" ]
                             , Query.hasNot [ href "/orders" ]
-                            , Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
+                            , Query.has [ Selector.attribute (Attr.tabindex 0) ]
                             ]
+            , test "is marked so that Browser.application leaves its click alone (no External \"\")" <|
+                \_ ->
+                    link [ Link.disabled True ] ordersLink
+                        |> Query.fromHtml
+                        |> Query.has [ attribute "target" "_self" ]
+            , test "keeps current and the tooltip of a cut text" <|
+                \_ ->
+                    link [ Link.disabled True, Link.current True, Link.truncate ] ordersLink
+                        |> Query.fromHtml
+                        |> Query.has [ attribute "aria-current" "page", Selector.attribute (Attr.title "Orders") ]
             , test "a disabled link to another site is not marked as opening a tab" <|
                 \_ ->
                     link [ Link.disabled True ] website
@@ -469,11 +487,46 @@ attributeTests =
                             , ActionsQuery.absent [ Selector.class "klar-link__external" ]
                             , ActionsQuery.absent [ Selector.class "klar-sr-only" ]
                             ]
+            , test "an enabled link has no tabindex and no target of its own" <|
+                \_ ->
+                    link [] ordersLink
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.hasNot [ Selector.attribute (Attr.tabindex 0) ]
+                            , Query.hasNot [ attribute "target" "_self" ]
+                            ]
             , test "disabled False is an ordinary link again" <|
                 \_ ->
                     link [ Link.disabled True, Link.disabled False ] ordersLink
                         |> Query.fromHtml
                         |> Query.has [ href "/orders" ]
+            ]
+        , describe "download"
+            [ test "is a data address with the text encoded, and the file name in download" <|
+                \_ ->
+                    link [] (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = "id,total\n1,#2 😀" })
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ href "data:text/csv;charset=utf-8,id%2Ctotal%0A1%2C%232%20%F0%9F%98%80" ]
+                            , Query.has [ attribute "download" "orders.csv" ]
+                            , Query.hasNot [ attribute "target" "_blank" ]
+                            , ActionsQuery.absent [ Selector.class "klar-link__external" ]
+                            ]
+            , test "a media type that is not type/subtype is a plain file, and an empty name is download" <|
+                \_ ->
+                    link [] (Link.download { fileName = " ", mimeType = "text/html,<b>", content = "x" })
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ href "data:application/octet-stream;charset=utf-8,x" ]
+                            , Query.has [ attribute "download" "download" ]
+                            ]
+            , test "is left to the browser: onClick does not take it over" <|
+                \_ ->
+                    link [ Link.onClick Opened ] (Link.download { fileName = "a.txt", mimeType = "text/plain", content = "a" })
+                        |> Query.fromHtml
+                        |> Event.simulate plainClick
+                        |> Event.toResult
+                        |> Expect.err
             ]
         , test "inline is the default, and standalone replaces it, the later one winning" <|
             \_ ->

@@ -192,6 +192,7 @@ import Klar.Date exposing (Date)
 import Klar.Format as Format
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Rule as Rule exposing (Combinator(..), Condition, Field, FieldKind, Group, Rule(..))
@@ -1773,8 +1774,7 @@ viewJson ctx =
                 [ Button.ghost
                 , Button.small
                 , Button.icon Icon.download
-                , Button.href ("data:application/json;charset=utf-8," ++ Internal.percentEncode text)
-                , Button.htmlAttrs [ Attr.download ctx.texts.fileName ]
+                , Button.href (Link.download { fileName = ctx.texts.fileName, mimeType = "application/json", content = text })
                 ]
                 ctx.texts.download
             ]

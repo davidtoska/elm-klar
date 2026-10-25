@@ -55,8 +55,23 @@ The group never wraps. It is a `fieldset` that is also `inert` while it is
 like buttons (`Button.href`) included: nothing in a disabled group can be clicked,
 focused or activated with the keyboard. As with all inert content, screen readers
 skip a disabled group instead of announcing its buttons as dimmed, so say in text
-why an action is not available if that matters to the user. The buttons keep the
-size they have (`size` sets it for the buttons that have none of their own).
+why an action is not available if that matters to the user.
+
+`disabled` is for a group that turns off while the user is somewhere else (a
+form that is not filled in yet). A group that turns off while the user may be on
+it (the request that "Duplicate" started) must not use it: a focused button that
+becomes inert throws the focus to the page. Give each button
+`Button.ariaDisabled` instead; the buttons then stay where they are, dimmed, and
+keep the focus.
+
+    ButtonGroup.view []
+        "Order actions"
+        [ Button.view [ Button.ariaDisabled model.saving, Button.onClick Edit ] "Edit"
+        , Button.view [ Button.ariaDisabled model.saving, Button.onClick Duplicate ] "Duplicate"
+        ]
+
+Buttons of the default size (`Medium`) take the size of the group (`size`); a
+button made `Button.small` or `Button.large` keeps its own.
 
 ## View
 
@@ -89,9 +104,9 @@ the type has no `msg` parameter.
 size : Theme.Size -> Attribute
 ```
 
-The size of the buttons that have none of their own: `Small`, `Medium` (the
-default) or `Large` (see [Klar.Theme](Klar.Theme.md)). A button made with `Button.small`
-or `Button.large` keeps its size.
+The size of the buttons of the default size (`Medium`): `Small`, `Medium`
+(the default) or `Large` (see [Klar.Theme](Klar.Theme.md)). A button made with
+`Button.small` or `Button.large` keeps its size.
 
 ### `disabled`
 
@@ -103,3 +118,7 @@ Turns off every button and link in the group (`fieldset` with `disabled` and
 `inert`): they are dimmed, cannot be clicked, are skipped by Tab and cannot be
 activated with the keyboard. A screen reader does not read inert content. The
 default is `False`. Pass a value from your model.
+
+A button that has focus when the group turns off loses it to the page. For a
+group that turns off while the user may be on it, give the buttons
+`Button.ariaDisabled` instead (see the module documentation).

@@ -29,6 +29,7 @@ suite =
         , multipleTests
         , optionTests
         , labelTests
+        , fieldTests
         ]
 
 
@@ -189,14 +190,14 @@ statusOptions =
     ]
 
 
-singleGroup : List ToggleGroup.Attribute -> Maybe Status -> Html Msg
+singleGroup : List (ToggleGroup.Attribute Msg) -> Maybe Status -> Html Msg
 singleGroup attributes selected =
-    ToggleGroup.single attributes { label = "Status", selected = selected, onChange = Chose } statusOptions
+    ToggleGroup.single (ToggleGroup.label "Status" :: attributes) { selected = selected, onChange = Chose } statusOptions
 
 
-multipleGroup : List ToggleGroup.Attribute -> List Status -> Html Msg
+multipleGroup : List (ToggleGroup.Attribute Msg) -> List Status -> Html Msg
 multipleGroup attributes selected =
-    ToggleGroup.multiple attributes { label = "Status", selected = selected, onChange = Changed } statusOptions
+    ToggleGroup.multiple (ToggleGroup.label "Status" :: attributes) { selected = selected, onChange = Changed } statusOptions
 
 
 role : String -> Selector
@@ -291,11 +292,11 @@ renderTests =
                 singleGroup [ ToggleGroup.errorMaybe Nothing ] Nothing
                     |> Query.fromHtml
                     |> ActionsQuery.absent [ role "alert" ]
-        , test "the whole group can be disabled, and enabled again" <|
+        , test "the whole group can be disabled, and enabled again, and stays in the tab order" <|
             \_ ->
                 Expect.all
-                    [ \_ -> singleGroup [ ToggleGroup.disabled True ] Nothing |> Query.fromHtml |> Query.findAll [ Selector.tag "button" ] |> Query.each (Query.has [ Selector.disabled True ])
-                    , \_ -> singleGroup [ ToggleGroup.disabled True, ToggleGroup.disabled False ] Nothing |> Query.fromHtml |> Query.findAll [ Selector.tag "button" ] |> Query.each (Query.has [ Selector.disabled False ])
+                    [ \_ -> singleGroup [ ToggleGroup.disabled True ] Nothing |> Query.fromHtml |> Query.findAll [ Selector.tag "button" ] |> Query.each (Query.has [ Selector.attribute (Attr.attribute "aria-disabled" "true"), Selector.disabled False ])
+                    , \_ -> singleGroup [ ToggleGroup.disabled True, ToggleGroup.disabled False ] Nothing |> Query.fromHtml |> Query.findAll [ Selector.tag "button" ] |> Query.each (Query.hasNot [ Selector.attribute (Attr.attribute "aria-disabled" "true") ])
                     ]
                     ()
         , test "the size reaches the buttons" <|
@@ -320,7 +321,7 @@ renderTests =
         , test "in Windows high contrast a switched on button is marked by a frame, not by a background" <|
             \_ ->
                 Css.rules
-                    |> String.contains "@media (forced-colors: active){.klar-toggle-group .klar-button[aria-pressed=\"true\"]::after{"
+                    |> String.contains ".klar-button[aria-pressed=\"true\"]::before{"
                     |> Expect.equal True
         , test "the buttons of a full width group have little padding, so that seven short day names fit on a phone" <|
             \_ ->
@@ -367,7 +368,7 @@ singleTests =
                     |> Event.expect (Chose Nothing)
         , test "a disabled option cannot be clicked" <|
             \_ ->
-                ToggleGroup.single [] { label = "Status", selected = Nothing, onChange = Chose } [ ToggleGroup.option Open "Open" |> ToggleGroup.disabledOption ]
+                ToggleGroup.single [ ToggleGroup.label "Status" ] { selected = Nothing, onChange = Chose } [ ToggleGroup.option Open "Open" |> ToggleGroup.disabledOption ]
                     |> clickOn "Open"
                     |> Event.toResult
                     |> Expect.err
@@ -439,20 +440,20 @@ optionTests =
     describe "options"
         [ test "an option with an icon and a text shows both" <|
             \_ ->
-                ToggleGroup.single [] { label = "Status", selected = Nothing, onChange = Chose } [ ToggleGroup.option Open "Open" |> ToggleGroup.withIcon Icon.circle ]
+                ToggleGroup.single [ ToggleGroup.label "Status" ] { selected = Nothing, onChange = Chose } [ ToggleGroup.option Open "Open" |> ToggleGroup.withIcon Icon.circle ]
                     |> Query.fromHtml
                     |> optionButton "Open"
                     |> Query.has [ Selector.containing [ Selector.class "klar-icon--circle" ], Selector.containing [ Selector.text "Open" ] ]
         , describe "an option with only an icon"
             [ test "is named for the screen reader and has the tooltip, so the name cannot be forgotten" <|
                 \_ ->
-                    ToggleGroup.multiple [] { label = "Text style", selected = [], onChange = Changed } [ ToggleGroup.iconOption Open Icon.bold "Bold" ]
+                    ToggleGroup.multiple [ ToggleGroup.label "Text style" ] { selected = [], onChange = Changed } [ ToggleGroup.iconOption Open Icon.bold "Bold" ]
                         |> Query.fromHtml
                         |> Query.find [ Selector.tag "button" ]
-                        |> Query.has [ attribute "aria-label" "Bold", Selector.attribute (Attr.title "Bold") ]
+                        |> Query.has [ attribute "aria-label" "Bold", attribute "data-tip" "Bold" ]
             , test "shows no text and shows the icon" <|
                 \_ ->
-                    ToggleGroup.multiple [] { label = "Text style", selected = [], onChange = Changed } [ ToggleGroup.iconOption Open Icon.bold "Bold" ]
+                    ToggleGroup.multiple [ ToggleGroup.label "Text style" ] { selected = [], onChange = Changed } [ ToggleGroup.iconOption Open Icon.bold "Bold" ]
                         |> Query.fromHtml
                         |> Query.find [ Selector.tag "button" ]
                         |> Expect.all
@@ -461,7 +462,7 @@ optionTests =
                             ]
             , test "withIcon replaces the icon and keeps it icon-only" <|
                 \_ ->
-                    ToggleGroup.multiple [] { label = "Text style", selected = [], onChange = Changed } [ ToggleGroup.iconOption Open Icon.bold "Bold" |> ToggleGroup.withIcon Icon.italic ]
+                    ToggleGroup.multiple [ ToggleGroup.label "Text style" ] { selected = [], onChange = Changed } [ ToggleGroup.iconOption Open Icon.bold "Bold" |> ToggleGroup.withIcon Icon.italic ]
                         |> Query.fromHtml
                         |> Query.find [ Selector.tag "button" ]
                         |> Expect.all
@@ -471,11 +472,11 @@ optionTests =
             ]
         , test "a disabled option is disabled" <|
             \_ ->
-                ToggleGroup.single [] { label = "Status", selected = Nothing, onChange = Chose } [ ToggleGroup.option Open "Open", ToggleGroup.option Shipped "Shipped" |> ToggleGroup.disabledOption ]
+                ToggleGroup.single [ ToggleGroup.label "Status" ] { selected = Nothing, onChange = Chose } [ ToggleGroup.option Open "Open", ToggleGroup.option Shipped "Shipped" |> ToggleGroup.disabledOption ]
                     |> Query.fromHtml
                     |> Expect.all
-                        [ optionButton "Shipped" >> Query.has [ Selector.disabled True ]
-                        , optionButton "Open" >> Query.has [ Selector.disabled False ]
+                        [ optionButton "Shipped" >> Query.has [ Selector.attribute (Attr.attribute "aria-disabled" "true"), Selector.disabled False ]
+                        , optionButton "Open" >> Query.hasNot [ Selector.attribute (Attr.attribute "aria-disabled" "true") ]
                         ]
         ]
 
@@ -533,10 +534,51 @@ labelTests =
                     id =
                         Ids.groupId label [ "Open", "Shipped", "Cancelled" ]
                 in
-                ToggleGroup.single [] { label = label, selected = Nothing, onChange = Chose } statusOptions
+                ToggleGroup.single [ ToggleGroup.label label ] { selected = Nothing, onChange = Chose } statusOptions
                     |> Query.fromHtml
                     |> Expect.all
                         [ Query.find [ role "group" ] >> Query.has [ Selector.id id, Selector.attribute (Attr.attribute "aria-labelledby" (id ++ "-label")) ]
                         , Query.find [ Selector.id (id ++ "-label") ] >> Query.has [ Selector.class "klar-field__label" ]
                         ]
+        ]
+
+
+
+-- THE LABEL, REQUIRED AND OPTIONAL
+
+
+fieldTests : Test
+fieldTests =
+    describe "label, required and optional"
+        [ test "the label is shown and names the group" <|
+            \_ ->
+                singleGroup [] Nothing
+                    |> Query.fromHtml
+                    |> Query.has [ Selector.class "klar-field__label", Selector.text "Status" ]
+        , test "required puts a mark after the label, hidden from screen readers" <|
+            \_ ->
+                singleGroup [ ToggleGroup.required ] Nothing
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-field__required" ]
+                    |> Query.has [ Selector.text "*", Selector.attribute (Attr.attribute "aria-hidden" "true") ]
+        , test "optionalText is shown when the group is not required" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> singleGroup [ ToggleGroup.optionalText "(optional)" ] Nothing |> Query.fromHtml |> Query.has [ Selector.class "klar-field__optional", Selector.text "(optional)" ]
+                    , \_ -> singleGroup [ ToggleGroup.optionalText "(optional)", ToggleGroup.required ] Nothing |> Query.fromHtml |> Query.findAll [ Selector.class "klar-field__optional" ] |> Query.count (Expect.equal 0)
+                    ]
+                    ()
+        , test "a group of many options works the selection out on the click" <|
+            \_ ->
+                let
+                    many =
+                        List.range 1 300
+                in
+                ToggleGroup.multiple [ ToggleGroup.label "Codes" ]
+                    { selected = [ 2 ], onChange = identity }
+                    (List.map (\n -> ToggleGroup.option n (String.fromInt n)) many)
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "300" ] ]
+                    |> Event.simulate Event.click
+                    |> Event.expect [ 2, 300 ]
         ]

@@ -36,12 +36,12 @@ Enter", "G then O", "Command plus question mark". The symbols for Cmd and Option
 on a Mac are read by name.
 
 Use `view` next to a label ("Search Ctrl K"), in the text of a help page
-(`inline`), or in a [Klar.Tooltip](Klar-Tooltip). The hint of a
-[Klar.Menu](Klar-Menu) item and the shortcut of a tooltip are plain text:
-`toString` writes the same keys as a `String` for them.
+(`inline`), or in a [Klar.Tooltip](Klar-Tooltip). A [Klar.Menu](Klar-Menu) item
+takes the same `Keys` (`Menu.withShortcut`) and draws them with this module. The
+shortcut of a tooltip is plain text: `toString` writes the same keys as a
+`String` for it.
 
-    Menu.item "Duplicate" Duplicate
-        |> Menu.withHint (Kbd.toString [ Kbd.platform model.platform ] duplicateKeys)
+    Tooltip.attrs "Duplicate" |> Tooltip.withShortcut (Kbd.toString [ Kbd.platform model.platform ] duplicateKeys)
 
 This module only shows keys. The shortcut itself is made and listened to with
 [Klar.Shortcut](Klar-Shortcut), and [Klar.ShortcutHelp](Klar-ShortcutHelp) lists
@@ -252,8 +252,8 @@ key attributes text =
             [ Html.kbd [ Internal.cls [ "klar-kbd" ] ] [ Html.text (String.trim text) ] ]
 
 
-{-| The same keys as plain text, for the places that take a `String`: the hint of
-a menu item, the shortcut of a tooltip, a label. A PC writes the caps with a plus
+{-| The same keys as plain text, for the places that take a `String`: the
+shortcut of a tooltip, a label. A PC writes the caps with a plus
 between them (`Ctrl+Shift+K`), a Mac with a space (`⇧ ⌘ K`), and the steps of a
 sequence are joined with "then" (`G then O`). The text can be given to
 [`Tooltip.shortcut`](Klar-Tooltip#shortcut), which reads both spellings.
@@ -411,7 +411,7 @@ capOf config word =
             { shown = onPlatform { pc = "Alt", mac = "⌥" }
             , spoken =
                 onPlatform
-                    { pc = "Alt"
+                    { pc = say { nb = "Alt", en = "Alt" }
                     , mac = say { nb = "Valg", en = "Option" }
                     }
             }
@@ -422,11 +422,11 @@ capOf config word =
             }
 
         "esc" ->
-            { shown = "Esc", spoken = "Escape" }
+            { shown = "Esc", spoken = say { nb = "Escape", en = "Escape" } }
 
         "enter" ->
             { shown = onPlatform { pc = "Enter", mac = "↩" }
-            , spoken = onPlatform { pc = "Enter", mac = say { nb = "Retur", en = "Return" } }
+            , spoken = onPlatform { pc = say { nb = "Enter", en = "Enter" }, mac = say { nb = "Retur", en = "Return" } }
             }
 
         "space" ->
@@ -450,7 +450,7 @@ capOf config word =
             { shown = "→", spoken = say { nb = "Pil høyre", en = "Right arrow" } }
 
         "backspace" ->
-            { shown = onPlatform { pc = "Backspace", mac = "⌫" }, spoken = "Backspace" }
+            { shown = onPlatform { pc = "Backspace", mac = "⌫" }, spoken = say { nb = "Tilbaketast", en = "Backspace" } }
 
         "delete" ->
             { shown = onPlatform { pc = "Del", mac = "⌦" }
@@ -458,16 +458,16 @@ capOf config word =
             }
 
         "home" ->
-            same "Home"
+            { shown = "Home", spoken = say { nb = "Hjem", en = "Home" } }
 
         "end" ->
-            same "End"
+            { shown = "End", spoken = say { nb = "Slutt", en = "End" } }
 
         "pageup" ->
-            { shown = "PgUp", spoken = "Page Up" }
+            { shown = "PgUp", spoken = say { nb = "Side opp", en = "Page Up" } }
 
         "pagedown" ->
-            { shown = "PgDn", spoken = "Page Down" }
+            { shown = "PgDn", spoken = say { nb = "Side ned", en = "Page Down" } }
 
         _ ->
             case symbolName config.locale word of

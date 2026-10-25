@@ -359,8 +359,11 @@ css =
 
 .klar-button:hover { text-decoration: none; }
 
+/* The ring is a box-shadow, which Windows high contrast removes: the outline is
+   transparent here and takes a system color there (see the forced-colors block). */
 .klar-button:focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
   box-shadow: var(--klar-focus-ring);
   border-color: var(--klar-focus-color);
 }
@@ -459,20 +462,48 @@ css =
 
 .klar-button--block { display: flex; width: 100%; }
 
+/* An unavailable or busy button still gets the pointer, so that its cursor shows
+   and a tooltip around it can explain why; it sends nothing (Klar.Button drops its
+   message), and a link that looks like a button loses its href. */
 .klar-button--disabled,
 .klar-button[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
-  pointer-events: none;
 }
 
-.klar-button--loading { cursor: progress; pointer-events: none; }
+.klar-button--loading { cursor: progress; }
 .klar-button--loading .klar-button__label { opacity: 0.75; }
 
 /* The button has line-height 1; a label that clips its overflow would cut the
    descenders (g, j, p, y) off. The button has a fixed height, so a taller line
    box changes nothing but shows the whole letter. */
 .klar-button__label { overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
+
+/* An icon-only button shows its label as a tooltip (data-tip); inside a
+   Tooltip.wrap the wrap's own tip is the only one. */
+.klar-tip-wrap .klar-button--icon-only[data-tip]::after { display: none; }
+
+/* Windows high contrast replaces the colors of a button: focus, "on" and
+   "unavailable" must not depend on a box-shadow, a background or an opacity. The
+   frame of a toggle that is on is drawn inside the button (the outline is the
+   focus ring's), with ::before, as a tooltip (data-tip) uses ::after. */
+@media (forced-colors: active) {
+  .klar-button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+
+  .klar-button[aria-pressed="true"] { position: relative; }
+
+  .klar-button[aria-pressed="true"]::before {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 2px solid Highlight;
+    border-radius: 2px;
+    pointer-events: none;
+  }
+
+  .klar-button--disabled,
+  .klar-button[disabled] { color: GrayText; border-color: GrayText; opacity: 1; }
+}
 
 /* ---- Spinner --------------------------------------------------------- */
 
@@ -1047,7 +1078,7 @@ css =
   /* A long menu scrolls instead of running off the screen. */
   max-height: min(26rem, calc(100vh - 16px));
   overflow-y: auto;
-  padding: 4px;
+  padding: var(--klar-space-1);
   outline: none;
   /* The popup sits inside its trigger's container: a row menu in a centered
      table cell must not center its items. */
@@ -1060,12 +1091,14 @@ css =
   }
 }
 
+/* A row is as high as an option of a list (--klar-option-h), so it follows the
+   density like the other popup lists. */
 .klar-menu__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 30px;
-  padding: 0 8px;
+  gap: var(--klar-space-2);
+  height: var(--klar-option-h);
+  padding: 0 var(--klar-space-2);
   border-radius: var(--klar-radius);
   color: var(--klar-text);
   cursor: pointer;
@@ -1080,16 +1113,35 @@ css =
 .klar-menu__icon { width: 16px; display: flex; flex: none; color: var(--klar-text-secondary); }
 .klar-menu__item--danger .klar-menu__icon { color: inherit; }
 .klar-menu__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.klar-menu__hint { margin-left: 16px; font-size: var(--klar-text-sm); color: var(--klar-text-muted); }
+.klar-menu__hint { margin-inline-start: var(--klar-space-4); font-size: var(--klar-text-sm); color: var(--klar-text-muted); }
+.klar-menu__keys { display: inline-flex; }
 
-.klar-menu__separator { height: 1px; margin: 4px -4px; background: var(--klar-border); }
+.klar-menu__group { display: block; }
+
+.klar-menu__separator { height: 1px; margin: var(--klar-space-1) calc(-1 * var(--klar-space-1)); background: var(--klar-border); }
 
 .klar-menu__heading {
-  padding: 6px 8px 2px;
+  padding: 6px var(--klar-space-2) 2px; /* no token: 6px and 2px set the caption off its items */
   font-size: var(--klar-text-xs);
   font-weight: var(--klar-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--klar-text-muted);
+}
+
+/* Windows high contrast removes backgrounds: the highlighted item takes the
+   system highlight colors, an item that cannot be picked the gray text. */
+@media (forced-colors: active) {
+  .klar-menu__item--highlighted,
+  .klar-menu__item--danger.klar-menu__item--highlighted {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .klar-menu__item--highlighted .klar-menu__icon,
+  .klar-menu__item--highlighted .klar-menu__hint { color: HighlightText; }
+
+  .klar-menu__item--disabled { color: GrayText; }
 }
 """
