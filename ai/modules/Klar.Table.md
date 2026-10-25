@@ -206,7 +206,8 @@ notExported : ColumnAttribute row msg
 -- Column filters
 filterText : ColumnAttribute row msg
 filterSelect : ColumnAttribute row msg
-filterOptions : List String -> ColumnAttribute row msg
+filterOptions : List { value : String, label : String } -> ColumnAttribute row msg
+filterValue : (row -> String) -> ColumnAttribute row msg
 filterRange : ColumnAttribute row msg
 
 -- Column footers
@@ -502,8 +503,9 @@ rows are clickable, selectable, expandable or have a menu, Tab reaches the row
 that last had focus, and from it that row's checkbox and menu button. ArrowUp,
 ArrowDown, PageUp, PageDown, Home and End move to other rows (which then get the
 tab stops of their own controls), Enter opens the row (or its menu, when the row
-does nothing else), Space selects it, ArrowRight and ArrowLeft expand and
-collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
+does nothing else), Space selects it (Shift+Space, or Shift and a click on a
+checkbox, the rows from the one picked last; Ctrl+A or Cmd+A every row of the
+page), ArrowRight and ArrowLeft expand and collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
 only takes part in the movement. Controls you put in an `actions` column stay tab
 stops in every row. Filter popovers and menus close with Escape, and Escape in
 the search box clears it; a dialog or drawer around the table stays open then, and
@@ -736,8 +738,9 @@ A column filter, as the user set it in the header or as you restore it with
 
   - `Contains text` - the column text contains `text` as one piece, ignoring case
     and accents (the search box, in contrast, looks for each word separately)
-  - `OneOf values` - the column text is exactly one of `values`, case included
-    (see `bool` for yes / no columns)
+  - `OneOf values` - the value the column keeps for the row is exactly one of
+    `values`, case included: its `filterValue` (a stable code) when it has one,
+    otherwise its text (`"true"` or `"false"` for a `bool` column)
   - `Between from to` - the column number is within the bounds (inclusive); a
     `Nothing` bound is open. A row without a number does not match, and on a
     column that has no numbers at all every row matches.
@@ -1319,8 +1322,12 @@ selectable : Attribute id row msg
 Adds a checkbox column, a "select all on this page" checkbox in the header,
 and a bar that covers the toolbar while something is selected (see
 `bulkActions`). Needs `rowId`; Space selects the focused row, and rows that are
-`rowDisabled` cannot be selected. When a whole page is selected and more rows
-match, the bar offers "Select all N matching".
+`rowDisabled` cannot be selected. Shift and a click on a checkbox, or Shift+Space,
+give the rows from the one picked last to this one the state this one gets (as in a
+mail client), and Ctrl+A (Cmd+A) on a row selects every row of the page (of all
+matching rows in a `virtual` client table). When a whole page is selected and more
+rows match, the bar offers "Select all N matching". Screen readers hear the number
+of selected rows when it changes.
 
 ### `bulkActions`
 
@@ -2118,16 +2125,40 @@ are more than eight.
 ### `filterOptions`
 
 ```elm
-filterOptions : List String -> ColumnAttribute row msg
+filterOptions : List { value : String, label : String } -> ColumnAttribute row msg
 ```
 
 The values offered by `filterSelect`, in this order, instead of the ones found
-in the rows (client mode still counts the rows of each). They must equal the
-column's text for the rows they should match, and a chosen value that is not in
-the list stays in it. It also turns the select filter on, so `filterSelect` is
-not needed next to it.
+in the rows (client mode still counts the rows of each), each with the label the
+user sees. The `value` is what the filter keeps and what a `Query` carries: the
+column's `filterValue` of the rows it should match, or the column's text when the
+column has none. A chosen value that is not in the list stays in it. It also
+turns the select filter on, so `filterSelect` is not needed next to it. In server
+mode, give the options: the table only sees one page.
 
-    Table.text (Table.columnId "status") "Status" .statusLabel [ Table.filterOptions [ "Open", "Shipped", "Cancelled" ] ]
+    Table.badge (Table.columnId "status")
+        "Status"
+        statusBadge
+        [ Table.filterValue (.status >> statusCode)
+        , Table.filterOptions (List.map (\s -> { value = statusCode s, label = statusLabel s }) allStatuses)
+        ]
+
+### `filterValue`
+
+```elm
+filterValue : (row -> String) -> ColumnAttribute row msg
+```
+
+The stable value that a select filter keeps for a row, instead of the text the
+column shows: a code such as `"shipped"` for a row shown as "Shipped" in English
+and "Sendt" in Norwegian. The filter, a saved view and the `Query` you send to a
+backend then hold codes, which stay right when the language or a label changes and
+tell two values with the same label apart. The filter popover still shows the
+labels (the column's text, or the labels of `filterOptions`). Without it a select
+filter keeps the column's text, and a yes / no column keeps `"true"` and
+`"false"`.
+
+    Table.filterValue (.status >> statusCode)
 
 ### `filterRange`
 

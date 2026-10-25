@@ -305,8 +305,9 @@ rows are clickable, selectable, expandable or have a menu, Tab reaches the row
 that last had focus, and from it that row's checkbox and menu button. ArrowUp,
 ArrowDown, PageUp, PageDown, Home and End move to other rows (which then get the
 tab stops of their own controls), Enter opens the row (or its menu, when the row
-does nothing else), Space selects it, ArrowRight and ArrowLeft expand and
-collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
+does nothing else), Space selects it (Shift+Space, or Shift and a click on a
+checkbox, the rows from the one picked last; Ctrl+A or Cmd+A every row of the
+page), ArrowRight and ArrowLeft expand and collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
 only takes part in the movement. Controls you put in an `actions` column stay tab
 stops in every row. Filter popovers and menus close with Escape, and Escape in
 the search box clears it; a dialog or drawer around the table stays open then, and
@@ -648,6 +649,9 @@ type alias Model =
     , rowMenu : Maybe ( String, Menu.State )
     , activeRow : Int
     , scroll : Float
+
+    -- the row the user last selected or deselected by itself: where a Shift range starts
+    , anchor : Maybe String
     }
 
 
@@ -699,6 +703,7 @@ init tableId =
         , rowMenu = Nothing
         , activeRow = 0
         , scroll = 0
+        , anchor = Nothing
         }
 
 
@@ -1249,6 +1254,7 @@ type Msg
     | RowMenuOpened String String (List String)
     | RowSelected String Bool
     | RowsSelected (List String) Bool
+    | RangeSelected (List String) Bool String
     | MatchingSelected (List String)
     | AllMatchingPicked
     | SelectionCleared String
@@ -1464,7 +1470,11 @@ step msg model =
             )
 
         RowSelected key checked ->
-            ( { model | selection = pick [ key ] checked model.selection }, Cmd.none )
+            ( { model | selection = pick [ key ] checked model.selection, anchor = Just key }, Cmd.none )
+
+        RangeSelected keys checked target ->
+            -- Shift: the rows from the anchor to this one get the state of this one
+            ( { model | selection = pick keys checked model.selection, anchor = Just target }, Cmd.none )
 
         RowsSelected keys checked ->
             ( { model | selection = pick keys checked model.selection }, Cmd.none )
@@ -3255,8 +3265,12 @@ onResetFilters msg =
 {-| Adds a checkbox column, a "select all on this page" checkbox in the header,
 and a bar that covers the toolbar while something is selected (see
 `bulkActions`). Needs `rowId`; Space selects the focused row, and rows that are
-`rowDisabled` cannot be selected. When a whole page is selected and more rows
-match, the bar offers "Select all N matching".
+`rowDisabled` cannot be selected. Shift and a click on a checkbox, or Shift+Space,
+give the rows from the one picked last to this one the state this one gets (as in a
+mail client), and Ctrl+A (Cmd+A) on a row selects every row of the page (of all
+matching rows in a `virtual` client table). When a whole page is selected and more
+rows match, the bar offers "Select all N matching". Screen readers hear the number
+of selected rows when it changes.
 -}
 selectable : Attribute id row msg
 selectable =
@@ -4339,6 +4353,20 @@ view toMsg attributes (State model) =
         , viewFooter ctx
         , Html.div [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status", Attr.attribute "aria-live" "polite" ]
             [ Html.text (liveSummary ctx) ]
+
+        -- "3 selected" when the selection changes; always there, so that the first
+        -- selection is announced too, and empty when nothing is selected
+        , Internal.viewIf hasSelect
+            (Html.div [ Internal.cls [ "klar-sr-only" ], Attr.attribute "aria-live" "polite", Attr.id (model.id ++ "-selection-status") ]
+                [ Html.text
+                    (if selectionTotal ctx > 0 then
+                        ctx.t.selected (selectionTotal ctx)
+
+                     else
+                        ""
+                    )
+                ]
+            )
         ]
 
 
@@ -6808,7 +6836,16 @@ viewRow ctx index row key expanded =
 
         selectCell =
             if ctx.hasSelect then
-                [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--select", "klar-table__td--control", pinClass ], systemPinStyle ctx 0, gridPart ctx "gridcell" ]
+                [ Html.td
+                    [ Internal.cls [ "klar-table__td", "klar-table__td--select", "klar-table__td--control", pinClass ]
+                    , systemPinStyle ctx 0
+                    , gridPart ctx "gridcell"
+                    , if disabled then
+                        Internal.noAttr
+
+                      else
+                        rangeClick ctx key selected
+                    ]
                     [ Checkbox.view
                         (List.filterMap identity
                             [ Just (Checkbox.ariaLabel (t.selectRow name))
@@ -7071,6 +7108,79 @@ viewCell ctx row index col =
         [ Html.div [ Internal.cls [ "klar-table__cell" ] ] content ]
 
 
+{-| The keys a Shift range runs over, in the order of the table: the rows of the
+page that can be selected, or every matching one in a client table that scrolls.
+Only asked for when the user makes a range.
+-}
+rangeKeys : Ctx row msg -> List String
+rangeKeys ctx =
+    if isLongClientTable ctx then
+        selectableKeys ctx
+
+    else
+        ctx.pageKeys
+
+
+{-| The keys from one key to the other, both included, in the order of the list;
+`Nothing` when one of them is not in it (the anchor is on another page).
+-}
+keysBetween : String -> String -> List String -> Maybe (List String)
+keysBetween from to keys =
+    let
+        place key =
+            keys
+                |> List.indexedMap Tuple.pair
+                |> List.filter (\( _, k ) -> k == key)
+                |> List.head
+                |> Maybe.map Tuple.first
+    in
+    case ( place from, place to ) of
+        ( Just a, Just b ) ->
+            Just (keys |> List.drop (min a b) |> List.take (abs (a - b) + 1))
+
+        _ ->
+            Nothing
+
+
+{-| The message of a Shift range that ends on this row, which gets the state the
+row is about to get (`checked`), as in a mail client; `Nothing` without an anchor
+on this page.
+-}
+rangeMsg : Ctx row msg -> String -> Bool -> Maybe msg
+rangeMsg ctx key checked =
+    ctx.model.anchor
+        |> Maybe.andThen (\anchorKey -> keysBetween anchorKey key (rangeKeys ctx))
+        |> Maybe.map (\keys -> ctx.toMsg (RangeSelected keys checked key))
+
+
+{-| Shift+click on the checkbox of a row (or its cell): the rows from the anchor
+to this one take the state this one is about to get. The checkbox itself sends the
+same state for its own row right after.
+-}
+rangeClick : Ctx row msg -> String -> Bool -> Html.Attribute msg
+rangeClick ctx key selected =
+    if ctx.model.anchor == Nothing || ctx.model.anchor == Just key then
+        Internal.noAttr
+
+    else
+        Events.on "click"
+            (Decode.field "shiftKey" Decode.bool
+                |> Decode.andThen
+                    (\shift ->
+                        if shift then
+                            case rangeMsg ctx key (not selected) of
+                                Just msg ->
+                                    Decode.succeed msg
+
+                                Nothing ->
+                                    Decode.fail "the anchor is not among these rows"
+
+                        else
+                            Decode.fail "not a range"
+                    )
+            )
+
+
 type alias RowInfo msg =
     { index : Int
     , key : String
@@ -7087,19 +7197,26 @@ type alias RowInfo msg =
 -}
 rowKeys : Ctx row msg -> RowInfo msg -> Decoder ( msg, Bool )
 rowKeys ctx info =
-    Decode.map4 (\key targetId modified shift -> { key = key, targetId = targetId, modified = modified, shift = shift })
+    Decode.map5 (\key targetId command alt shift -> { key = key, targetId = targetId, command = command, alt = alt, shift = shift })
         (Decode.field "key" Decode.string)
         (Decode.oneOf [ Decode.at [ "target", "id" ] Decode.string, Decode.succeed "" ])
-        (Decode.map3 (\a b c -> a || b || c)
+        (Decode.map2 (||)
             (Decode.field "ctrlKey" Decode.bool)
             (Decode.field "metaKey" Decode.bool)
-            (Decode.field "altKey" Decode.bool)
         )
+        (Decode.field "altKey" Decode.bool)
         (Decode.field "shiftKey" Decode.bool)
         |> Decode.andThen
             (\event ->
-                if event.targetId /= info.domId || event.modified then
+                if event.targetId /= info.domId then
                     Decode.fail "not on the row"
+
+                else if event.command && not event.alt && String.toLower event.key == "a" && ctx.hasSelect then
+                    -- Ctrl+A (Cmd+A): every row of the page, or every matching row of a table that scrolls
+                    Decode.succeed ( ctx.toMsg (RowsSelected (rangeKeys ctx) True), True )
+
+                else if event.command || event.alt then
+                    Decode.fail "a key with Ctrl, Cmd or Alt"
 
                 else
                     case rowKeyMsg ctx info event.key event.shift of
@@ -7198,7 +7315,19 @@ rowKeyMsg ctx info key shift =
 
         " " ->
             if ctx.hasSelect && not info.disabled then
-                Just (ctx.toMsg (RowSelected info.key (not info.selected)))
+                -- Shift+Space: the rows from the anchor to this one
+                case
+                    if shift then
+                        rangeMsg ctx info.key (not info.selected)
+
+                    else
+                        Nothing
+                of
+                    Just msg ->
+                        Just msg
+
+                    Nothing ->
+                        Just (ctx.toMsg (RowSelected info.key (not info.selected)))
 
             else
                 Nothing

@@ -34,6 +34,95 @@ suite =
         , moneyTests
         , searchEscapeTests
         , filterValueTests
+        , rangeTests
+        ]
+
+
+
+-- RANGES OF ROWS
+
+
+rangeTests : Test
+rangeTests =
+    let
+        selectable =
+            [ Table.selectable ]
+
+        rowOf index state =
+            render selectable state
+                |> Query.fromHtml
+                |> Query.find [ Selector.id ("orders-row-" ++ String.fromInt index) ]
+
+        check value index state =
+            rowOf index state
+                |> Query.find [ Selector.tag "input" ]
+                |> Event.simulate (Event.check value)
+                |> Event.toResult
+                |> Result.map (\msg -> Orders.applyMsg msg state)
+
+        shiftClick index state =
+            rowOf index state
+                |> Query.find [ Selector.class "klar-table__td--select" ]
+                |> Event.simulate (Event.custom "click" (Encode.object [ ( "shiftKey", Encode.bool True ) ]))
+                |> Event.toResult
+                |> Result.map (\msg -> Orders.applyMsg msg state)
+
+        keyOnRow modifiers index key state =
+            rowOf index state
+                |> Event.simulate (Orders.keyDownWith modifiers ("orders-row-" ++ String.fromInt index) key)
+                |> Event.toResult
+                |> Result.map (\msg -> Orders.applyMsg msg state)
+
+        selected =
+            Result.map (Table.selectedIds Ids.strings)
+
+        everyOrder =
+            [ "ORD-2001", "ORD-2002", "ORD-2003", "ORD-2004", "ORD-2005", "ORD-2006", "ORD-2007", "ORD-2008" ]
+    in
+    describe "selecting a range"
+        [ test "Shift+click selects the rows from the one picked last to this one" <|
+            \_ ->
+                check True 1 start
+                    |> Result.andThen (shiftClick 4)
+                    |> selected
+                    |> Expect.equal (Ok [ "ORD-2002", "ORD-2003", "ORD-2004", "ORD-2005" ])
+        , test "upwards too" <|
+            \_ ->
+                check True 4 start
+                    |> Result.andThen (shiftClick 1)
+                    |> selected
+                    |> Expect.equal (Ok [ "ORD-2002", "ORD-2003", "ORD-2004", "ORD-2005" ])
+        , test "a range takes the state the clicked row gets: here it deselects" <|
+            \_ ->
+                check False 2 (Table.select Ids.strings everyOrder start)
+                    |> Result.andThen (shiftClick 5)
+                    |> selected
+                    |> Expect.equal (Ok [ "ORD-2001", "ORD-2002", "ORD-2007", "ORD-2008" ])
+        , test "without a row picked before, Shift+click is a plain click" <|
+            \_ -> shiftClick 3 start |> Expect.err
+        , test "Shift+Space on a row selects the range to it" <|
+            \_ ->
+                check True 0 start
+                    |> Result.andThen (keyOnRow { shift = True, ctrl = False } 2 " ")
+                    |> selected
+                    |> Expect.equal (Ok [ "ORD-2001", "ORD-2002", "ORD-2003" ])
+        , test "Ctrl+A on a row selects every row of the page" <|
+            \_ ->
+                keyOnRow { shift = False, ctrl = True } 0 "a" start
+                    |> selected
+                    |> Expect.equal (Ok everyOrder)
+        , test "the number of selected rows is announced" <|
+            \_ ->
+                render selectable (Table.select Ids.strings [ "ORD-2001", "ORD-2002" ] start)
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "orders-selection-status" ]
+                    |> Query.has [ Selector.text "2 selected", aria "aria-live" "polite" ]
+        , test "and the live region is there before the first selection" <|
+            \_ ->
+                render selectable start
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.id "orders-selection-status" ]
+                    |> Query.hasNot [ Selector.text "selected" ]
         ]
 
 
