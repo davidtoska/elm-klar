@@ -26,6 +26,7 @@ import Api.Types exposing (ApiError, Product)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Lazy
+import Klar
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Card as Card
@@ -126,6 +127,7 @@ type Msg
     | ClearCategory
     | FiltersReset
     | ReorderSelected
+    | NoOp
 
 
 update : Context -> Msg -> Backend -> Model -> ( Model, Backend, Cmd Msg )
@@ -171,15 +173,13 @@ update context msg backend model =
         ClearCategory ->
             ( setCategory Nothing model
             , backend
-            , -- The button is gone now, so the keyboard goes back to the tree,
-              -- where the next category is chosen.
-              case Tree.focused Ids.string model.tree of
-                Just id ->
-                    Cmd.map TreeMsg (Tree.focusNode Ids.string id model.tree)
-
-                Nothing ->
-                    Cmd.none
+            , -- The button is gone now, so the keyboard goes back to the tree
+              -- (its node with the tab stop), where the next category is chosen.
+              Klar.focus "products-tree" NoOp
             )
+
+        NoOp ->
+            ( model, backend, Cmd.none )
 
         FiltersReset ->
             -- The table sends this together with its own reset buttons. The

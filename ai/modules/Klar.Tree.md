@@ -397,9 +397,11 @@ disabled : Node id -> Node id
 ```
 
 A node that is shown but cannot be selected, checked or activated: a click,
-`Space` and `Enter` leave it as it is. It can still be opened and closed, and its
-children are not affected, so in a tree with `checkboxes` the leaves below a
-disabled branch can still be checked one by one.
+`Space` and `Enter` leave it as it is. It can still be opened and closed. Its
+children are not disabled with it: in a tree with `checkboxes` the leaves below a
+disabled branch can still be checked one by one, and its own checkbox shows them.
+Checking an ancestor passes the disabled node and everything below it by, and the
+ancestor's checkbox does not count them.
 
 ## State and messages
 
@@ -430,11 +432,12 @@ init : String -> State id
 ```
 
 A tree state with nothing open, selected or checked. The `String` is the DOM
-id of the tree and must be unique on the page. The element around the filter box
-and the nodes gets this id, in every state of `viewRemote` too, so
-`Klar.focus "warehouse-tree" NoOp` puts the keyboard focus on the node that has the
-tab stop (or on the element itself while nothing is loaded). The nodes get ids that
-start with it, and the filter box gets this id followed by `-filter`.
+id of the tree and must be unique on the page. It goes on an element that lies
+over the filter box and the nodes (it takes no clicks), in every state of
+`viewRemote` too, so `Klar.focus "warehouse-tree" NoOp` puts the keyboard focus on
+the node that has the tab stop (or on that element, which then outlines the tree,
+while nothing is loaded). The nodes get ids that start with it, and the filter box
+gets this id followed by `-filter`.
 
     Tree.init "warehouse-tree"
 
@@ -700,11 +703,14 @@ you set a node back to `NotAsked` to load it again). Usually zero or one id; `*`
 on the keyboard can open several nodes at once.
 
 Call it after every `update`, with the new state. Set the children of those nodes
-to `Loading`, fetch them, and later put `Loaded` or `Failed` in the node. A node
-asks once each time it opens, so a node that stays `NotAsked` is not asked for
-again until it is closed and opened; after a failure the user retries with the
-button that `onRetryChildren` adds. The lazy loading example in the introduction
-above shows the whole flow.
+to `Loading` in that same update, fetch them, and later put `Loaded` or `Failed`
+in the node. An open node asks while its children are `NotAsked`: when it opens,
+and again whenever its row is drawn anew (a hidden panel with the tree is shown
+again), so a node left `NotAsked` can be asked for twice. If the automatic
+request never comes (a stylesheet that switches every animation off), a "Load"
+button appears under the node after a second. After a failure the user retries
+with the button that `onRetryChildren` adds. The lazy loading example in the
+introduction above shows the whole flow.
 
 ### `onRetry`
 
@@ -777,11 +783,11 @@ allowEmptySelection : Attribute id msg
 A click on the selected node (or `Space`, or `Enter` without `onActivate`) selects
 nothing, so the selection can go back to "no node", the normal state of a tree that
 filters something else ("all locations"). Without it a selected node stays selected
-until another is chosen (or `setSelected` clears it). In a `multiSelect` tree a plain
-click on the only selected node clears it too; `Ctrl`+click toggles as before. The
-node loses `aria-selected="true"` and its highlight, and keeps the focus.
+until another is chosen (or `setSelectedIds` with no ids clears it). In a `multiSelect`
+tree a plain click on the only selected node clears it too; `Ctrl`+click toggles as
+before. The node loses `aria-selected="true"` and its highlight, and keeps the focus.
 
-    Tree.view TreeMsg [ Tree.allowEmptySelection, Tree.ariaLabel "Locations" ] nodes state
+    Tree.view TreeMsg [ Tree.allowEmptySelection, Tree.ariaLabel "Locations" ] model.tree nodes
 
 ### `checkboxes`
 
@@ -793,10 +799,12 @@ A tri-state checkbox on every node. Checking a parent checks all the leaves
 below it; a parent with some of them checked shows a dash. A click anywhere on a
 row toggles its checkbox, and so do `Space` and (without `onActivate`) `Enter`.
 Rows are not highlighted as selected in this mode. Lazy nodes can be checked once
-their children have loaded, and `disabled` nodes are skipped: their own checkbox
-cannot be changed, and checking a parent leaves them as they are. While a filter
-is active a parent still stands for every leaf below it, also the hidden ones.
-Read the result with `checkedIds`.
+their children have loaded. A `disabled` node stops the cascade: its own checkbox
+cannot be changed, checking an ancestor leaves it and everything below it as it
+is, and the ancestor's checkbox does not count them (the leaves below a disabled
+branch can still be checked one by one). While a filter is active a parent still
+stands for every leaf below it, also the hidden ones. Read the result with
+`checkedIds`.
 
 ### `filterBox`
 

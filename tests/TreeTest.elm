@@ -195,46 +195,59 @@ stableTests =
     let
         wrapper data =
             renderRemote [ Tree.filterBox, Tree.onRetry Reload ] start data
-                |> Query.find [ Selector.id treeId ]
+                |> Query.find [ Selector.class "klar-tree-wrap" ]
 
         everyState =
             [ ( "fresh", Remote.Loaded fruit )
             , ( "refreshing", refreshing )
             , ( "old after a failed refresh", old )
             ]
+
+        -- The children of the element around the tree, in order: the same
+        -- element at the same place in every state.
+        slots =
+            [ ( "span", "klar-tree__anchor" )
+            , ( "div", "klar-tree__filter" )
+            , ( "span", "klar-sr-only" )
+            , ( "div", "klar-tree__notice" )
+            , ( "div", "klar-tree__scroll" )
+            ]
+
+        allStates =
+            ( "loading", Remote.Loading )
+                :: ( "failed", Remote.Failed retryable )
+                :: ( "empty", Remote.Loaded [] )
+                :: everyState
     in
     describe "the same elements in every state"
-        (List.concatMap
+        (List.map
             (\( name, data ) ->
-                [ test ("the tree is in the scrolling body, a child of the element with the id of init (" ++ name ++ ")") <|
+                test ("the children of the tree's element are the same, in the same order (" ++ name ++ ")") <|
                     \_ ->
                         wrapper data
-                            |> Query.children [ Selector.class "klar-tree__scroll" ]
-                            |> Query.first
-                            |> Query.children [ role "tree" ]
-                            |> Query.count (Expect.equal 1)
-                , test ("the filter box, the marker slot and the live region keep their places (" ++ name ++ ")") <|
-                    \_ ->
-                        wrapper data
+                            |> Query.children []
                             |> Expect.all
-                                [ Query.children [ Selector.class "klar-tree__filter" ] >> Query.count (Expect.equal 1)
-                                , Query.children [ Selector.class "klar-tree__notice" ] >> Query.count (Expect.equal 1)
-                                , Query.children [ role "status", Selector.class "klar-sr-only" ] >> Query.count (Expect.equal 1)
-                                ]
-                ]
+                                (Query.count (Expect.equal (List.length slots))
+                                    :: List.indexedMap
+                                        (\index ( tag, class ) ->
+                                            Query.index index >> Query.has [ Selector.tag tag, Selector.class class ]
+                                        )
+                                        slots
+                                )
             )
-            everyState
-            ++ [ test "the filter box stays while the nodes load, so a search that asks the backend keeps the focus" <|
-                    \_ ->
-                        wrapper Remote.Loading
-                            |> Query.children [ Selector.class "klar-tree__filter" ]
-                            |> Query.count (Expect.equal 1)
-               , test "the filter box stays when the nodes failed" <|
-                    \_ ->
-                        wrapper (Remote.Failed retryable)
-                            |> Query.children [ Selector.class "klar-tree__filter" ]
-                            |> Query.count (Expect.equal 1)
-               , test "old data is marked above the tree, with a retry" <|
+            allStates
+            ++ List.map
+                (\( name, data ) ->
+                    test ("the tree is in the scrolling body (" ++ name ++ ")") <|
+                        \_ ->
+                            wrapper data
+                                |> Query.children [ Selector.class "klar-tree__scroll" ]
+                                |> Query.first
+                                |> Query.children [ role "tree" ]
+                                |> Query.count (Expect.equal 1)
+                )
+                everyState
+            ++ [ test "old data is marked above the tree, with a retry" <|
                     \_ ->
                         wrapper old
                             |> Query.find [ Selector.class "klar-tree__notice" ]
@@ -250,24 +263,30 @@ stableTests =
                             |> Query.children [ role "status", Selector.class "klar-sr-only" ]
                             |> Query.first
                             |> Query.has [ Selector.text "Loading ..." ]
-               , test "the element with the id of init can take the focus" <|
+               , test "the element with the id of init is the anchor, which can take the focus" <|
                     \_ ->
                         wrapper Remote.Loading
-                            |> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                            |> Query.find [ Selector.id treeId ]
+                            |> Query.has [ Selector.class "klar-tree__anchor", Selector.attribute (Attr.tabindex -1) ]
+               , test "only the anchor has the id of init, so a click on a gap of the tree takes no focus" <|
+                    \_ ->
+                        renderRemote [ Tree.filterBox ] start (Remote.Loaded fruit)
+                            |> Query.findAll [ Selector.id treeId ]
+                            |> Query.count (Expect.equal 1)
                , test "Klar.focus on the id of init hands the focus to the node with the tab stop" <|
                     \_ ->
                         renderRemote [] start (Remote.Loaded fruit)
                             |> Query.find [ Selector.id treeId ]
-                            |> Event.simulate (Event.custom "focus" (Encode.object [ ( "target", Encode.object [ ( "id", Encode.string treeId ) ] ) ]))
+                            |> Event.simulate (Event.custom "focus" (Encode.object []))
                             |> Event.toResult
                             |> apply start
                             |> Result.map (Tree.focused Ids.string)
                             |> Expect.equal (Ok (Just "fruit"))
-               , test "a focus that comes from inside is not handed on" <|
+               , test "while there is no node, the anchor keeps the focus" <|
                     \_ ->
-                        renderRemote [] start (Remote.Loaded fruit)
+                        renderRemote [] start Remote.Loading
                             |> Query.find [ Selector.id treeId ]
-                            |> Event.simulate (Event.custom "focus" (Encode.object [ ( "target", Encode.object [ ( "id", Encode.string (itemId "bread") ) ] ) ]))
+                            |> Event.simulate (Event.custom "focus" (Encode.object []))
                             |> Event.toResult
                             |> Expect.err
                , test "emptyState changes the empty state" <|
@@ -378,6 +397,38 @@ loadRequestTests =
                 render [] (Tree.expand Ids.string "box" start) [ Tree.lazy Ids.string "box" "Box" Remote.Loading ]
                     |> Query.findAll [ Selector.class "klar-tree__autoload" ]
                     |> Query.count (Expect.equal 0)
+        , test "if the automatic request never comes, the Load button under the node asks" <|
+            \_ ->
+                let
+                    state =
+                        Tree.expand Ids.string "box" start
+                in
+                render [] state nodes
+                    |> Query.find [ Selector.class "klar-tree__load" ]
+                    |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Load" ] ]
+                    |> Event.simulate Event.click
+                    |> Event.toResult
+                    |> apply state
+                    |> Result.map (Tree.loadRequests Ids.string)
+                    |> Expect.equal (Ok [ "box" ])
+        , test "a node that is loading has no Load button" <|
+            \_ ->
+                render [] (Tree.expand Ids.string "box" start) [ Tree.lazy Ids.string "box" "Box" Remote.Loading ]
+                    |> Query.findAll [ Selector.class "klar-tree__load" ]
+                    |> Query.count (Expect.equal 0)
+        , test "the live region of the tree says that an open branch loads" <|
+            \_ ->
+                render [] (Tree.expand Ids.string "box" start) [ Tree.lazy Ids.string "box" "Box" Remote.Loading ]
+                    |> Query.find [ Selector.class "klar-tree-wrap" ]
+                    |> Query.children [ role "status", Selector.class "klar-sr-only" ]
+                    |> Query.first
+                    |> Query.has [ Selector.text "Loading ..." ]
+        , test "the status row of a loading branch is not a live region of its own" <|
+            \_ ->
+                render [] (Tree.expand Ids.string "box" start) [ Tree.lazy Ids.string "box" "Box" Remote.Loading ]
+                    |> Query.find [ Selector.class "klar-tree__status" ]
+                    |> Query.findAll [ role "status" ]
+                    |> Query.count (Expect.equal 0)
         ]
 
 
@@ -407,14 +458,35 @@ retryFocusTests =
                     |> Query.find [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ]
                     |> Event.simulate Event.click
                     |> Event.expect (Retried "box")
-        , test "Try again of the top level is caught by the tree too, which moves the focus" <|
+        , test "Try again of the top level is caught by the tree too, which moves the focus to the filter box or the anchor" <|
             \_ ->
-                renderRemote [ Tree.onRetry Reload ] start (Remote.Failed retryable)
-                    |> Query.find [ Selector.class "klar-tree__state" ]
-                    |> Event.simulate Event.click
-                    |> Event.toResult
-                    |> apply start
-                    |> Expect.ok
+                let
+                    caught attributes slot =
+                        renderRemote (Tree.onRetry Reload :: attributes) start (Remote.Failed retryable)
+                            |> Query.find [ Selector.class slot ]
+                            |> Event.simulate Event.click
+                            |> Event.toResult
+
+                    -- A message of the tree that does nothing: ArrowLeft on a
+                    -- closed node at the top.
+                    nothing =
+                        render [] start fruit
+                            |> Query.find [ role "tree" ]
+                            |> Event.simulate (keyDown (itemId "fruit") "ArrowLeft")
+                            |> Event.toResult
+                in
+                Expect.all
+                    [ \_ -> Expect.notEqual nothing (caught [] "klar-tree__state")
+                    , \_ -> Expect.notEqual nothing (caught [ Tree.filterBox ] "klar-tree__state")
+
+                    -- The target depends on the filter box ...
+                    , \_ -> Expect.notEqual (caught [] "klar-tree__state") (caught [ Tree.filterBox ] "klar-tree__state")
+
+                    -- ... and the marker of old data sends the same message.
+                    , \_ -> Expect.equal (caught [ Tree.filterBox ] "klar-tree__state") (caught [ Tree.filterBox ] "klar-tree__notice")
+                    , \_ -> Expect.equal (caught [] "klar-tree__state") (caught [] "klar-tree__notice")
+                    ]
+                    ()
         , test "the top level retry sends onRetry" <|
             \_ ->
                 renderRemote [ Tree.onRetry Reload ] start (Remote.Failed retryable)
@@ -472,6 +544,13 @@ disabledTests =
                 [ Tree.leaf Ids.string "bay-1" "Bay 1", Tree.leaf Ids.string "bay-2" "Bay 2" ]
                 |> Tree.disabled
             ]
+
+        site =
+            [ Tree.branch Ids.string
+                "region"
+                "Region"
+                [ Tree.branch Ids.string "site" "Site" (nodes ++ [ Tree.leaf Ids.string "dock" "Dock" ]) ]
+            ]
     in
     describe "disabled nodes"
         [ test "a click on the row of a disabled branch checks nothing" <|
@@ -499,6 +578,31 @@ disabledTests =
                 clickRow [] start nodes "Closed hall"
                     |> Result.map (Tree.selectedIds Ids.string)
                     |> Expect.equal (Ok [])
+        , test "checking the grandparent of a disabled branch passes the branch by" <|
+            \_ ->
+                clickRow [ Tree.checkboxes ] start site "Region"
+                    |> Result.map (Tree.checkedIds Ids.string)
+                    |> Expect.equal (Ok [ "dock" ])
+        , test "Space on the grandparent passes it by too" <|
+            \_ ->
+                press [ Tree.checkboxes ] start site "region" " "
+                    |> Result.map (Tree.checkedIds Ids.string)
+                    |> Expect.equal (Ok [ "dock" ])
+        , test "an ancestor does not count the leaves below a disabled branch" <|
+            \_ ->
+                render [ Tree.checkboxes ] (Tree.setCheckedIds Ids.string [ "dock" ] start) site
+                    |> Query.find [ Selector.id (itemId "region") ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-checked" "true") ]
+        , test "unchecking the grandparent leaves the leaves below a disabled branch checked" <|
+            \_ ->
+                clickRow [ Tree.checkboxes ] (Tree.setCheckedIds Ids.string [ "bay-1", "dock" ] start) site "Region"
+                    |> Result.map (Tree.checkedIds Ids.string)
+                    |> Expect.equal (Ok [ "bay-1" ])
+        , test "a disabled branch shows the leaves below it that were checked one by one" <|
+            \_ ->
+                render [ Tree.checkboxes ] (Tree.setCheckedIds Ids.string [ "bay-1" ] (Tree.setExpandedIds Ids.string [ "region", "site" ] start)) site
+                    |> Query.find [ Selector.id (itemId "closed") ]
+                    |> Query.has [ Selector.attribute (Attr.attribute "aria-checked" "mixed") ]
         ]
 
 
@@ -578,7 +682,7 @@ searchTests =
         , test "says how many nodes match" <|
             \_ ->
                 render [ Tree.filterBox ] searched nodes
-                    |> Query.find [ Selector.id treeId ]
+                    |> Query.find [ Selector.class "klar-tree-wrap" ]
                     |> Query.children [ role "status", Selector.class "klar-sr-only" ]
                     |> Query.first
                     |> Query.has [ Selector.text "2 matches" ]
@@ -718,6 +822,12 @@ pageKeyTests =
             \_ ->
                 firstClicked [ Tree.multiSelect ]
                     |> Result.andThen (\state -> pressWith { ctrl = True, shift = False } [ Tree.multiSelect ] state many "node1" "a")
+                    |> Result.map (Tree.selectedIds Ids.string >> List.length)
+                    |> Expect.equal (Ok 15)
+        , test "Ctrl+A with Caps Lock or Shift (a capital A) selects every node too" <|
+            \_ ->
+                firstClicked [ Tree.multiSelect ]
+                    |> Result.andThen (\state -> pressWith { ctrl = True, shift = True } [ Tree.multiSelect ] state many "node1" "A")
                     |> Result.map (Tree.selectedIds Ids.string >> List.length)
                     |> Expect.equal (Ok 15)
         , test "Ctrl+A is not a key of a single-select tree" <|

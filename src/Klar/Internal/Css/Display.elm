@@ -1729,19 +1729,26 @@ css =
 
 .klar-tree-wrap {
   --_h: 28px;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
 }
 
-/* The element with the id of the tree takes the focus only for a moment (after
-   "Try again", or from Klar.focus) and hands it to a node when there is one. */
-.klar-tree-wrap:focus { outline: none; }
-.klar-tree-wrap:focus-visible {
+/* The element with the id of the tree lies over it and takes no clicks. It holds
+   the focus only for a moment (after "Try again", or from Klar.focus) and hands
+   it to a node when there is one; while there is none it shows the focus. */
+.klar-tree__anchor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--klar-radius);
+}
+.klar-tree__anchor:focus { outline: none; }
+.klar-tree__anchor:focus-visible {
   outline: 2px solid var(--klar-focus-color);
   outline-offset: 2px;
-  border-radius: var(--klar-radius);
 }
 
 /* The slot of the "Old data" marker: always there, and no box of its own. */
@@ -1926,6 +1933,19 @@ css =
   to { opacity: 1; }
 }
 
+/* "Load" beside it: hidden for its first second, the time the automatic request
+   normally takes to turn the row into a loading one, and shown at once where all
+   animations are switched off, so an open lazy node is never a dead end. */
+.klar-tree__load {
+  display: inline-flex;
+  margin-inline-start: var(--klar-space-2);
+  animation: klar-tree-wait 1s;
+}
+
+@keyframes klar-tree-wait {
+  from, to { visibility: hidden; }
+}
+
 /* Windows high contrast: the states that only a background or a color shows. */
 @media (forced-colors: active) {
   .klar-tree__row--selected {
@@ -1942,7 +1962,7 @@ css =
   }
 
   .klar-tree__item:focus-visible > .klar-tree__row,
-  .klar-tree-wrap:focus-visible {
+  .klar-tree__anchor:focus-visible {
     outline: 2px solid CanvasText;
   }
 
