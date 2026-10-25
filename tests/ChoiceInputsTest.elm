@@ -13,6 +13,7 @@ import Klar.Checkbox as Checkbox
 import Klar.CheckboxGroup as CheckboxGroup
 import Klar.Icon as Icon
 import Klar.Internal.Choice as Choice
+import Klar.Locale as Locale
 import Klar.Radio as Radio
 import Klar.SegmentedControl as SegmentedControl
 import Klar.Slider as Slider
@@ -534,6 +535,31 @@ sliderTests =
                         , Query.find [ Selector.tag "input" ] >> Query.has [ aria "aria-valuetext" "5" ]
                         , Query.find [ Selector.class "klar-slider" ] >> Query.has [ Selector.attribute (Attr.attribute "style" "--klar-pct:0.1") ]
                         ]
+        , test "a range writes the unit once, after the second number" <|
+            \_ ->
+                Slider.viewRange [ Slider.id "q", Slider.label "Quantity", Slider.max 500, Slider.range 20 65, Slider.unit "pcs" ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-slider__value" ]
+                    |> Query.has [ Selector.text "20 – 65\u{00A0}pcs" ]
+        , test "the decimal separator follows the locale" <|
+            \_ ->
+                Slider.view [ Slider.id "s", Slider.label "Weight", Slider.step 0.5, Slider.value 2.5, Slider.locale Locale.nb ]
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.tag "input" ]
+                    |> Query.has [ aria "aria-valuetext" "2,5" ]
+        , test "ticks are drawn every so many units, and not at all when there would be more than 100" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        Slider.view [ Slider.label "Discount", Slider.max 50, Slider.ticks 10 ]
+                            |> Query.fromHtml
+                            |> count [ Selector.class "klar-slider__tick" ] 6
+                    , \_ ->
+                        Slider.view [ Slider.label "Discount", Slider.max 100, Slider.ticks 0.5 ]
+                            |> Query.fromHtml
+                            |> count [ Selector.class "klar-slider__tick" ] 0
+                    ]
+                    ()
         , test "a max off the grid: the thumb stops at the last point of the grid" <|
             \_ ->
                 Slider.view [ Slider.id "s", Slider.label "Hours", Slider.max 50, Slider.step 15, Slider.value 50 ]
