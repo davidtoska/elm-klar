@@ -81,14 +81,53 @@ if (process.argv.includes('--update')) {
 
 // One class, one owner: a bare class selector (`.klar-mark {`) that starts rules in two
 // stylesheet modules is two components that picked the same name, and the later module
-// silently restyles the earlier one's elements.
+// silently restyles the earlier one's elements. Only the rules at the top level count:
+// a rule inside `@media` or `@supports` (reduced motion, print, forced colors) is an
+// override of a class that has its rules elsewhere, and any module may write one.
+function topLevelSelectors(css) {
+  const out = [];
+  const open = []; // one entry per open block: true for an at-rule, false for a rule
+  let prelude = '';
+  let quote = null;
+  for (const ch of css) {
+    if (quote !== null) {
+      if (ch === quote) quote = null;
+      if (open.length === 0) prelude += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      if (open.length === 0) prelude += ch;
+    } else if (ch === '{') {
+      const text = prelude.trim();
+      const atRule = text.startsWith('@');
+      if (!atRule && open.length === 0) out.push(text);
+      open.push(atRule);
+      prelude = '';
+    } else if (ch === '}') {
+      open.pop();
+      prelude = '';
+    } else if (ch === ';') {
+      prelude = '';
+    } else {
+      prelude += ch;
+    }
+  }
+  return out;
+}
+
 const owners = new Map();
 const clashes = [];
 for (const file of walk(path.join(root, 'src', 'Klar', 'Internal', 'Css'), '.elm')) {
   const name = path.basename(file);
-  const text = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  for (const m of text.matchAll(/(?:^|[\n};])\s*([^{}@;]+?)\s*\{/g)) {
-    for (const selector of m[1].split(',').map((s) => s.trim())) {
+  const source = fs.readFileSync(file, 'utf8');
+  // the CSS is the one triple-quoted string of the module
+  const start = source.indexOf('"""');
+  const end = source.lastIndexOf('"""');
+  if (start < 0 || end <= start) continue;
+  const css = source.slice(start + 3, end).replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const selectors of topLevelSelectors(css)) {
+    for (const selector of selectors.split(',').map((s) => s.trim())) {
       if (!/^\.klar-[a-zA-Z0-9_-]+$/.test(selector)) continue;
       const cls = selector.slice(1);
       const first = owners.get(cls);
