@@ -46,3 +46,7 @@
 - Next: Axis.
 
 - Axis: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit e17437e: Axis complete.
+- Next: Colors.
+
+- Colors: format, full check, byte-identical docs and identical chart/sparkline roots passed.

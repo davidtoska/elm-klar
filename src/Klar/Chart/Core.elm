@@ -8,6 +8,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Chart.Axis exposing (axisFor, buildAxis, niceNum, verticalTicks, widen, xPos, yPos)
+import Klar.Chart.Colors exposing (colorClass, toneClass, toneClassFor)
 import Klar.Chart.Numbers exposing (compact, dropTrailingZeros, firstJust, formatLabel, formatTick, formatValue, isWhole, missingOr, num, pct, percentText, roundTo, sanitize, smartFormat, stepDecimals, tickGutter, trimFraction)
 import Klar.Chart.Types exposing (Attribute(..), Axis, Config, Data(..), LegendItem, PSeries, Piece, Prepared, Segment(..), Series(..), Slice, State(..), Texts)
 import Klar.Date exposing (Date)
@@ -797,31 +798,6 @@ prepare config list =
     , short = Array.fromList (List.map (labelAtIn shortArray) (List.range 0 (n - 1)))
     , series = List.indexedMap build list
     }
-
-
-colorClass : Maybe Tone -> Int -> Maybe Int -> Maybe Tone -> String
-colorClass chartTone index slot seriesTone =
-    case ( seriesTone, slot, chartTone ) of
-        ( Just t, _, _ ) ->
-            toneClass t
-
-        ( Nothing, Just s, _ ) ->
-            "klar-chart-s" ++ String.fromInt (modBy 8 (s - 1))
-
-        ( Nothing, Nothing, Just t ) ->
-            if index == 0 then
-                toneClass t
-
-            else
-                "klar-chart-s" ++ String.fromInt (modBy 8 index)
-
-        _ ->
-            "klar-chart-s" ++ String.fromInt (modBy 8 index)
-
-
-toneClass : Tone -> String
-toneClass t =
-    "klar-chart-t-" ++ Internal.toneSuffix t
 
 
 valueAt : Int -> PSeries -> Maybe Float
@@ -2288,20 +2264,6 @@ zoneToneFor config value =
 
                 Nothing ->
                     zones |> List.reverse |> List.head |> Maybe.map Tuple.second
-
-
-toneClassFor : Config msg -> Maybe Tone -> String
-toneClassFor _ maybeTone =
-    case maybeTone of
-        Just t ->
-            toneClass t
-
-        Nothing ->
-            toneClass Primary
-
-
-
--- METER
 
 
 {-| A horizontal meter: the value as a marker on a scale with zones.
