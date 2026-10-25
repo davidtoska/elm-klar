@@ -145,6 +145,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Chart.Core as Core
+import Klar.Chart.Data as Data
 import Klar.Chart.Types as Types
 import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
@@ -197,7 +198,7 @@ Values that are not numbers (NaN, infinity) become gaps in the line; use
 -}
 series : String -> List Float -> Series
 series arg1 arg2 =
-    fromCoreSeries (Core.series arg1 arg2)
+    fromCoreSeries (Data.series arg1 arg2)
 
 
 {-| Like `series`, with explicit gaps for missing measurements: a `Nothing`
@@ -208,7 +209,7 @@ breaks the line (or leaves out the bar), and the data table shows a dash.
 -}
 seriesMaybe : String -> List (Maybe Float) -> Series
 seriesMaybe arg1 arg2 =
-    fromCoreSeries (Core.seriesMaybe arg1 arg2)
+    fromCoreSeries (Data.seriesMaybe arg1 arg2)
 
 
 {-| Gives the series palette slot 1 to 8 instead of the slot that matches its
@@ -220,7 +221,7 @@ position in the list. A slot is a place in the chart palette of the theme, not a
 -}
 withSlot : Int -> Series -> Series
 withSlot arg1 arg2 =
-    fromCoreSeries (Core.withSlot arg1 (unwrapSeries arg2))
+    fromCoreSeries (Data.withSlot arg1 (unwrapSeries arg2))
 
 
 {-| Colors the series by meaning (`Success`, `Warning`, `Danger` ...) instead of
@@ -229,7 +230,7 @@ time" and "Late". The `Tone` type is in [Klar.Theme](Klar-Theme).
 -}
 withTone : Tone -> Series -> Series
 withTone arg1 arg2 =
-    fromCoreSeries (Core.withTone arg1 (unwrapSeries arg2))
+    fromCoreSeries (Data.withTone arg1 (unwrapSeries arg2))
 
 
 {-| Draws the series as a dashed line: for forecasts, targets, last year. It is
@@ -238,7 +239,7 @@ the pointer is over a category.
 -}
 dashed : Series -> Series
 dashed arg1 =
-    fromCoreSeries (Core.dashed (unwrapSeries arg1))
+    fromCoreSeries (Data.dashed (unwrapSeries arg1))
 
 
 {-| A slice of a donut, with a label and a value. The size of a slice is its
@@ -251,7 +252,7 @@ Negative and non-numeric values count as 0, and a slice of 0 is left out.
 -}
 segment : String -> Float -> Segment
 segment arg1 arg2 =
-    fromCoreSegment (Core.segment arg1 arg2)
+    fromCoreSegment (Data.segment arg1 arg2)
 
 
 {-| Gives this slice palette slot 1 to 8 instead of the slot that matches its
@@ -259,7 +260,7 @@ position in the list (see `withSlot`).
 -}
 segmentSlot : Int -> Segment -> Segment
 segmentSlot arg1 arg2 =
-    fromCoreSegment (Core.segmentSlot arg1 (unwrapSegment arg2))
+    fromCoreSegment (Data.segmentSlot arg1 (unwrapSegment arg2))
 
 
 {-| Colors this slice by meaning (`Success`, `Warning`, `Danger` ...) instead of
@@ -267,7 +268,7 @@ by position. Reserve it for slices that really are good or bad.
 -}
 segmentTone : Tone -> Segment -> Segment
 segmentTone arg1 arg2 =
-    fromCoreSegment (Core.segmentTone arg1 (unwrapSegment arg2))
+    fromCoreSegment (Data.segmentTone arg1 (unwrapSegment arg2))
 
 
 {-| A setting of a chart. Make them with the functions below and pass a list to a
@@ -778,7 +779,7 @@ the list of series are to `line` and `bar`.
 -}
 byCategory : List String -> List Series -> Data
 byCategory arg1 arg2 =
-    fromCoreData (Core.byCategory arg1 (List.map unwrapSeries arg2))
+    fromCoreData (Data.byCategory arg1 (List.map unwrapSeries arg2))
 
 
 {-| Categories that are days, one per value, and the series: what `dates` and the
@@ -792,7 +793,7 @@ tooltips write them whole.
 -}
 byDate : List Date -> List Series -> Data
 byDate arg1 arg2 =
-    fromCoreData (Core.byDate arg1 (List.map unwrapSeries arg2))
+    fromCoreData (Data.byDate arg1 (List.map unwrapSeries arg2))
 
 
 {-| A donut from a `Remote`, with every state of `lineRemote`.
