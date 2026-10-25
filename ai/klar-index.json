@@ -126,7 +126,7 @@
       "name": "Klar.Settings",
       "import": "import Klar.Settings as Settings",
       "group": "Foundations",
-      "purpose": "What the application says once and every component follows.",
+      "purpose": "What the application says once: the language of the built-in text, the time zone of the times people read, the time now (and so the day today), how tightly things are packed (the density), and the ...",
       "whenToUse": "the application has a language, a clock or a density of its own, which is every application: keep one `Settings` in the model and draw the page from it.",
       "whenNot": "you want colors of your own; the application picks one of the ten themes of `Klar.Theme`, and nothing else.",
       "state": [],
@@ -167,9 +167,10 @@
         "zone",
         "utc",
         "application",
-        "every",
-        "component",
-        "follows"
+        "language",
+        "built",
+        "times",
+        "people"
       ],
       "reference": "ai/modules/Klar.Settings.md"
     },
@@ -323,7 +324,7 @@
         "title",
         "heading",
         "subheading",
-        "headingLevel",
+        "headingAt",
         "overline",
         "figure",
         "paragraph",

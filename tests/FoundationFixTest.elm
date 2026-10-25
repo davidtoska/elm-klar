@@ -119,12 +119,15 @@ focusable =
     Selector.attribute (Attr.tabindex 0)
 
 
-{-| The value of the `style` attribute that `Layout.grid` writes for a template,
-with the default gap.
+{-| The `style` attribute that `Layout.grid` writes for a template, with the default
+gap, and the class that bounds a `columnSpan` inside it to a number of columns.
 -}
-gridStyle : String -> Selector
-gridStyle template =
-    attr "style" ("--klar-grid-template:" ++ template ++ ";--klar-gap:var(--klar-space-3)")
+gridStyle : String -> Int -> Selector
+gridStyle template cols =
+    Selector.all
+        [ attr "style" ("--klar-grid-template:" ++ template ++ ";--klar-gap:var(--klar-space-3)")
+        , Selector.class ("klar-grid--cols-" ++ String.fromInt cols)
+        ]
 
 
 
@@ -138,13 +141,13 @@ layoutColumnTests =
             test name <|
                 \_ ->
                     Layout.grid [ Layout.columns given ] []
-                        |> has [ gridStyle ("repeat(" ++ String.fromInt expected ++ ", minmax(0, 1fr))") ]
+                        |> has [ gridStyle ("repeat(" ++ String.fromInt expected ++ ", minmax(0, 1fr))") expected ]
 
         minColumnTest name given expected =
             test name <|
                 \_ ->
                     Layout.grid [ Layout.minColumn given ] []
-                        |> has [ gridStyle ("repeat(auto-fit, minmax(min(" ++ String.fromInt expected ++ "px, 100%), 1fr))") ]
+                        |> has [ gridStyle ("repeat(auto-fit, minmax(min(" ++ String.fromInt expected ++ "px, 100%), 1fr))") 1 ]
     in
     describe "Layout.columns and Layout.minColumn never write invalid CSS"
         [ columnsTest "3 columns stay 3" 3 3
@@ -161,7 +164,7 @@ layoutColumnTests =
         , test "columns still wins over minColumn, and is clamped too" <|
             \_ ->
                 Layout.grid [ Layout.minColumn 200, Layout.columns 0 ] []
-                    |> has [ gridStyle "repeat(1, minmax(0, 1fr))" ]
+                    |> has [ gridStyle "repeat(1, minmax(0, 1fr))" 1 ]
         , test "fillRest marks a stack as the rest of the height" <|
             \_ ->
                 Layout.stack [ Layout.fillRest ] []
@@ -174,7 +177,7 @@ layoutColumnTests =
         , test "a grid with neither keeps the default of 240 pixels" <|
             \_ ->
                 Layout.grid [] []
-                    |> has [ gridStyle "repeat(auto-fit, minmax(min(240px, 100%), 1fr))" ]
+                    |> has [ gridStyle "repeat(auto-fit, minmax(min(240px, 100%), 1fr))" 1 ]
         ]
 
 

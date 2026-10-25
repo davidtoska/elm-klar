@@ -28,9 +28,10 @@ from other modules: a [Klar.SideNav](Klar-SideNav) for the
 sidebar, a [Klar.Menu](Klar-Menu) for the user menu and a
 [Klar.PageHeader](Klar-PageHeader) at the top of every page.
 
-The density and the time zone of the application are stated once, in a
+The density, the language and the time zone of the application are stated once, in a
 [Klar.Settings](Klar-Settings) that you keep in the model: `AppShell.settings
-model.settings` makes everything inside the shell follow the density.
+model.settings` makes everything inside the shell follow the density, and the shell's
+own text and `lang` follow the language.
 
 A small application, "Acme Operations", with the pages Orders, Customers and
 Reports needs this model and these messages. The shell keeps the sidebar, the drawer,
@@ -276,7 +277,8 @@ whole application with the file. Pass `onStrayDrop` with a message that does
 nothing and the shell cancels such drops.
 
 **Language.** The built-in text (the skip link, the search field, the toggle
-buttons) follows `locale`, English by default. The shell also puts the matching
+buttons) follows the language of `settings`, or `locale`, English by default. The
+shell also puts the matching
 `lang` on its own root element, because the `lang` of the `html` element cannot
 change without JavaScript.
 
@@ -422,6 +424,7 @@ type alias Config msg =
     , onStrayDrop : Maybe msg
     , shortcuts : Maybe (Html.Attribute msg)
     , locale : Locale
+    , localeGiven : Bool
     , density : Density
     }
 
@@ -480,6 +483,7 @@ defaults =
     , onStrayDrop = Nothing
     , shortcuts = Nothing
     , locale = Locale.default
+    , localeGiven = False
     , density = Normal
     }
 
@@ -772,29 +776,43 @@ shortcuts value =
 
 
 {-| The language of the built-in text: the skip link, the search field and the
-toggle buttons. Default `Locale.en`. The shell also sets the `lang` attribute of
-its root element to match, so that screen readers pronounce the application in
-the right language.
+toggle buttons. The default is the language of `settings`, and `Locale.en` without
+them; given, it wins over the settings in any order. The shell also sets the `lang`
+attribute of its root element to match, so that screen readers pronounce the
+application in the right language.
 
     AppShell.locale Locale.nb
 
 -}
 locale : Locale -> Attribute msg
 locale value =
-    Attribute (\config -> { config | locale = value })
+    Attribute (\config -> { config | locale = value, localeGiven = True })
 
 
-{-| The density of the application, from its `Klar.Settings`: everything inside
-the shell follows it (the rows of tables, controls, cards, lists and trees), with
-no attribute on the components. A component that is given its own density
-(`Table.setDensity`) keeps it.
+{-| The density and the language of the application, from its `Klar.Settings`.
+Everything inside the shell follows the density (the rows of tables, controls, cards,
+lists and trees), with no attribute on the components; a component that is given its
+own density (`Table.setDensity`) keeps it. The text of the shell and its `lang` follow
+the language (`Settings.withLocale`), unless `locale` is given. The components inside
+take the language with their own `locale` attribute.
 
     AppShell.settings model.settings
 
 -}
 settings : Settings -> Attribute msg
 settings value =
-    Attribute (\config -> { config | density = Settings.density value })
+    Attribute
+        (\config ->
+            { config
+                | density = Settings.density value
+                , locale =
+                    if config.localeGiven then
+                        config.locale
+
+                    else
+                        Settings.locale value
+            }
+        )
 
 
 

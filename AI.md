@@ -127,7 +127,7 @@ init _ url key =
 
 fetchOrders : Cmd Msg
 fetchOrders =
-    -- stands for a request (Http.task, then Task.mapError toProblem); the answer comes with its time
+    -- the first two lines stand for: Http.task { ... } |> Task.mapError toProblem |> Task.map Ok |> Task.onError (Err >> Task.succeed)
     Process.sleep 600
         |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics" (kroner 125050), Order "1043" "Fjord Foods" (kroner 31000) ])
         |> Task.andThen (\result -> Task.map (GotOrders result) Time.now)
@@ -315,9 +315,9 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 
 **Foundations and structure**
 - Whole-application frame, top bar, sidebar, scrolling content, overlay list: `AppShell`. Side menu typed by your pages: `SideNav`. Title, actions, tabs of a page: `PageHeader`. Path to the page: `Breadcrumbs`.
-- Language, time zone, time now and density of the whole application, stated once: `Settings` (`AppShell.settings model.settings` for the density; `X.settings model.settings` on a component that writes a time, with `Time.here` at the start, and without a zone a time ends in "UTC"; `X.locale (Settings.locale model.settings)` for the language). Tone, size, density types shared by all components, and the ten themes with light and dark mode (`Settings.withTheme Theme.ocean`, `Settings.withMode Theme.System`, `Klar.stylesheetFor settings`; no colors of your own): `Theme`. A color that is a value of your data (a color code on a database row) on an option or a tag: `Color` (`Color.hex` is checked and gives a `Maybe`) and `Select.withColor`, `Tag.color`; a status color that follows the theme: `Select.withTone`. Language (`Locale.en`, `Locale.nb`): `Locale`. Stack, row, grid, spacing, fill the rest: `Layout`. A bordered group: `Card`. Titles and paragraphs: `Text`. An icon: `Icon` (everyday set) and `Icon.Library` (all of them) and by category `Icon.Arrows`, `Icon.Business`, `Icon.Calendar`, `Icon.Communication`, `Icon.Data`, `Icon.Developer`, `Icon.Devices`, `Icon.Documents`, `Icon.Editor`, `Icon.Interface`, `Icon.Logistics`, `Icon.Media`, `Icon.Nature`, `Icon.People`, `Icon.Science`.
+- Language, time zone, time now and density of the whole application, stated once: `Settings` (`AppShell.settings model.settings` for the density and the shell's language; `X.settings model.settings` on a component that writes a time, with `Time.here` at the start, and without a zone a time ends in "UTC"; `X.locale (Settings.locale model.settings)` for the language). Tone, size, density types shared by all components, and the ten themes with light and dark mode (`Settings.withTheme Theme.ocean`, `Settings.withMode Theme.System`, `Klar.stylesheetFor settings`; no colors of your own): `Theme`. A color that is a value of your data (a color code on a database row) on an option or a tag: `Color` (`Color.hex` is checked and gives a `Maybe`) and `Select.withColor`, `Tag.color`; a status color that follows the theme: `Select.withTone`. Language (`Locale.en`, `Locale.nb`): `Locale`. Stack, row, grid, spacing, fill the rest: `Layout`. A bordered group: `Card`. Titles and paragraphs: `Text`. An icon: `Icon` (everyday set) and `Icon.Library` (all of them) and by category `Icon.Arrows`, `Icon.Business`, `Icon.Calendar`, `Icon.Communication`, `Icon.Data`, `Icon.Developer`, `Icon.Devices`, `Icon.Documents`, `Icon.Editor`, `Icon.Interface`, `Icon.Logistics`, `Icon.Media`, `Icon.Nature`, `Icon.People`, `Icon.Science`.
 - Sections that open and close: `Accordion`. The bar of controls above a view: `Toolbar` (actions for selected items: `BulkBar`, or `Table.bulkActions` in a table). Label and value pairs: `DescriptionList`. Switch views of one thing: `Tabs`. Wizard steps (draws only): `Stepper`.
-- Resize panes: `Splitter`. Reorder a list: `Sortable`. `Klar` itself is `Klar.stylesheet` (put it in the view once).
+- Resize panes: `Splitter`. Reorder a list: `Sortable`. `Klar` itself is `Klar.stylesheetFor model.settings` (put it in the view once).
 
 **Actions and feedback**
 - Button or link-looking button: `Button`. Group of buttons: `ButtonGroup`. Main action plus alternatives: `SplitButton`. Choose on/off options: `ToggleGroup`. Actions in a dropdown: `Menu`. Right-click menu: `ContextMenu`. A real link that cannot leave the app by accident: `Link`. Key caps ("Ctrl K"): `Kbd`.
@@ -364,7 +364,7 @@ the application, not of a folder, so list Klar's too:
 ```
 
 `index.html` for a `Browser.application` (every application with an `AppShell`) mounts with `Elm.Main.init()`, no
-`node`; a `Browser.element` takes `{ node: document.getElementById("app") }`. `Klar.stylesheet` removes the margin of
+`node`; a `Browser.element` takes `{ node: document.getElementById("app") }`. The stylesheet removes the margin of
 the `body`, so the page needs no CSS. The routes are the part of the address after `#`, so any static server works.
 
 **A backend.** Klar never sends a request. With `elm/http` in the application, turn the error into a problem once:

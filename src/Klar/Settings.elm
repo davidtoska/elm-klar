@@ -6,11 +6,10 @@ module Klar.Settings exposing
     , time, dateTime, toDate
     )
 
-{-| What the application says once and every component follows: the language of the
-built-in text, the time zone of the times people read, the time now (and so the day
-today), how tightly things are packed (the density), and the theme and mode (light or
-dark) of the look. Keep one `Settings` in the model; it is the one place these values
-live.
+{-| What the application says once: the language of the built-in text, the time zone
+of the times people read, the time now (and so the day today), how tightly things are
+packed (the density), and the theme and mode (light or dark) of the look. Keep one
+`Settings` in the model and draw the page from it.
 
 Use when: the application has a language, a clock or a density of its own, which is every application: keep one `Settings` in the model and draw the page from it.
 Do not use when: you want colors of your own; the application picks one of the ten themes of `Klar.Theme`, and nothing else.
@@ -38,13 +37,14 @@ Quick path: `default`, `withLocale`, `withZone`, `withNow`, `withDensity`, `with
     GotNow posix ->
         ( { model | settings = Settings.withNow posix model.settings }, Cmd.none )
 
-    -- view: the stylesheet with the theme, the shell with the density
+    -- view: the stylesheet with the theme, the shell with the density and the language
     Html.div []
         [ Klar.stylesheetFor model.settings
-        , AppShell.view [ AppShell.settings model.settings, AppShell.locale (Settings.locale model.settings) ] [ page ]
+        , AppShell.view [ AppShell.settings model.settings ] [ page ]
         ]
 
-**Each value reaches the page in one way:**
+**How each value reaches the page.** Elm has no way to hand a value down to everything
+inside a view, so each value goes where it is used:
 
   - The theme and the mode are drawn by `Klar.stylesheetFor model.settings`, in place of
     `Klar.stylesheet` (which draws only the default theme in light mode).
@@ -53,22 +53,25 @@ Quick path: `default`, `withLocale`, `withZone`, `withNow`, `withDensity`, `with
     a list, a tree, a button and an input are packed as the settings say, with no attribute
     on any of them. A component that is given its own density (`Table.setDensity`,
     `Tree.compact`) keeps it.
+  - The language is read from the settings by `AppShell.settings` (the text of the shell
+    and its `lang`), by `scope` (its `lang`) and by `dateTime`. Every other component
+    with built-in text takes it with its own `locale` attribute; its `settings`
+    attribute carries the zone, not the language:
+    `Select.view SelectMsg [ Select.locale (Settings.locale model.settings), ... ] model.country`.
+    Reading it from the settings, and not from a second field of the model, keeps one
+    language on the page.
   - The zone goes to the components that write a time, with their `settings` attribute
     (below).
-  - The language goes to the components with built-in text, with their `locale`
-    attribute: `Select.locale (Settings.locale model.settings)`. Reading it from the
-    settings, and not from a second field of the model, keeps one language on the page.
   - The day today goes to the components that mark it or count from it, with their
-    `today` attribute: `DatePicker.today`, `FilterBar.today`, `RuleBuilder.today`
-    (read it with `today`). The time now goes to `Timeline.now` and `ApprovalFlow.now`.
+    `today` attribute (`DatePicker.today`, `FilterBar.today`, `RuleBuilder.today`; see
+    `today`). The time now goes to `Timeline.now` and `ApprovalFlow.now`.
 
 **The time zone** has to reach the components that write a time (`Table`, `Stat`,
 `Chart`, `Tree`, `ListItem`, `Select`, `MultiSelect`, `Autocomplete`,
 `CommandPalette`, `RemoteView` for "Old data from 14:05", and `Timeline` and
-`ApprovalFlow` for the times of their events). Elm has no way to hand a value down to
-everything inside a view, and a zone written into the data at update time would be
-wrong when it arrives late or changes. So each of them takes the same one value, at
-view time:
+`ApprovalFlow` for the times of their events). A zone written into the data at update
+time would be wrong when it arrives late or changes, so each of them takes the same one
+value, at view time:
 
     Table.view TableMsg [ Table.settings model.settings, ... ] model.table
 
@@ -144,9 +147,11 @@ default =
 
 
 {-| The language of the built-in text of the application: `Locale.en` (the default)
-or `Locale.nb`. Read it with `locale` and give it to every component with built-in
-text (`Select.locale (Settings.locale model.settings)`). Once it is given, `scope`
-also sets the `lang` attribute of its box, which screen readers use to choose the voice.
+or `Locale.nb`. `AppShell.settings` gives it to the shell (its text and its `lang`
+attribute, which screen readers use to choose the voice), `scope` sets the `lang` of
+its box once a language is given, and `dateTime` writes in it. Other components do not
+read it from the settings: give it to each one with built-in text with its `locale`
+attribute (`Select.locale (Settings.locale model.settings)`).
 
     Settings.withLocale Locale.nb model.settings
 
@@ -221,7 +226,9 @@ withMode value (Settings data) =
     Settings { data | mode = value }
 
 
-{-| The language in the settings: `Locale.default` (English) until `withLocale`.
+{-| The language in the settings: `Locale.default` (English) until `withLocale`. This is
+the value to give to the `locale` attribute of a component:
+`Select.locale (Settings.locale model.settings)`.
 -}
 locale : Settings -> Locale
 locale (Settings data) =
@@ -236,13 +243,17 @@ now (Settings data) =
 
 
 {-| The day today: the day of `now` in the zone of the settings, `Nothing` until
-`withNow` was called. Give it to the components that mark today or count from it:
+`withNow` was called. Give it to the components that mark today or count from it
+(`DatePicker.today`, `FilterBar.today`, `RuleBuilder.today`), once it is known:
 
-    DatePicker.view DueMsg
-        (DatePicker.label "Due date"
-            :: List.filterMap identity [ Maybe.map DatePicker.today (Settings.today model.settings) ]
-        )
-        model.due
+    dueAttributes : Model -> List DatePicker.Attribute
+    dueAttributes model =
+        case Settings.today model.settings of
+            Just day ->
+                [ DatePicker.label "Due date", DatePicker.today day ]
+
+            Nothing ->
+                [ DatePicker.label "Due date" ]
 
 -}
 today : Settings -> Maybe Date
@@ -287,7 +298,8 @@ zone (Settings data) =
 {-| A box that carries the density of the settings to everything inside it, for
 a page that is not inside `AppShell` (the shell does the same when it is given
 `AppShell.settings`). When the settings have a language (`withLocale`), the box also
-has its `lang` attribute.
+has its `lang` attribute, as the shell does. The components inside still take the
+language with their own `locale` attribute.
 
     Settings.scope model.settings
         [ Overlay.host { attributes = [], page = [ Card.view [] [ Table.view TableMsg [ ... ] model.table ] ], overlays = overlays } ]
@@ -327,20 +339,21 @@ time (Settings data) posix =
             Format.time Time.utc posix ++ " UTC"
 
 
-{-| The date and the time: `2026-10-20 14:05` in English, `20.10.2026 14:05` in
-Norwegian, with " UTC" added while the zone is not known.
+{-| The date and the time in the language and the zone of the settings:
+`2026-10-20 14:05` in English, `20.10.2026 14:05` in Norwegian, with " UTC" added
+while the zone is not known.
 
-    Settings.dateTime (Settings.locale model.settings) model.settings order.createdAt
+    Settings.dateTime model.settings order.createdAt
 
 -}
-dateTime : Locale -> Settings -> Time.Posix -> String
-dateTime language (Settings data) posix =
+dateTime : Settings -> Time.Posix -> String
+dateTime ((Settings data) as settings) posix =
     case data.zone of
         Just value ->
-            Format.dateTime language value posix
+            Format.dateTime (locale settings) value posix
 
         Nothing ->
-            Format.dateTime language Time.utc posix ++ " UTC"
+            Format.dateTime (locale settings) Time.utc posix ++ " UTC"
 
 
 {-| The calendar day of a time, in the zone of the settings.

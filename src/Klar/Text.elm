@@ -1,5 +1,5 @@
 module Klar.Text exposing
-    ( title, heading, subheading, headingLevel, overline, figure
+    ( title, heading, subheading, headingAt, overline, figure
     , paragraph, paragraphWith, lead, text
     , secondary, muted, caption, strong, truncated
     , mono, code, codeBlock
@@ -33,7 +33,7 @@ Quick path: `heading`, `paragraph`, `paragraphWith`, `muted`, `truncated`
 The headings are real heading elements, so the outline of the page is right for
 screen readers: `title` is the `h1` (use it once per page, and not at all on a page
 with a [Klar.PageHeader](Klar-PageHeader), whose title is the `h1`), `heading` an `h2`
-and `subheading` an `h3`; `headingLevel` is a heading of any level, for an outline that
+and `subheading` an `h3`; `headingAt` is a heading of any level, for an outline that
 goes deeper. Use `figure` for a large number that is not a heading.
 
 **Block or inline.** Some functions make a block, which starts on a new line, and the
@@ -43,7 +43,7 @@ to each other (in a `Layout.stack`, say) end up on one line: put them in
 
 | | Functions |
 | --- | --- |
-| Block | `title`, `heading`, `subheading`, `headingLevel`, `overline`, `lead`, `paragraph`, `paragraphWith`, `codeBlock` |
+| Block | `title`, `heading`, `subheading`, `headingAt`, `overline`, `lead`, `paragraph`, `paragraphWith`, `codeBlock` |
 | Inline | `text`, `figure`, `secondary`, `muted`, `caption`, `strong`, `truncated`, `mono`, `code` |
 
 Every function takes its text as a `String` (`paragraphWith` takes a list of HTML) and no attributes. When you need an id or an
@@ -52,7 +52,7 @@ event handler, wrap the result in an element of your own.
 
 # Headings
 
-@docs title, heading, subheading, headingLevel, overline, figure
+@docs title, heading, subheading, headingAt, overline, figure
 
 
 # Paragraphs
@@ -120,15 +120,17 @@ subheading content =
 
 {-| A heading of the given level, from 1 to 6, for an outline that goes deeper than
 `subheading`: the headings inside a card whose title is an `h3` (`Card.headingLevel 3`)
-are `headingLevel 4`. A number outside the range counts as the nearest level. Level 1
-looks like `title`, 2 like `heading` and 3 to 6 like `subheading`.
+are `headingAt 4`. A number outside the range counts as the nearest level. Level 1
+looks like `title`, 2 like `heading` and 3 to 6 like `subheading`. It is the heading
+itself; `headingLevel` elsewhere in Klar (`Card.headingLevel`, `PageHeader.headingLevel`)
+is an attribute that sets the level of a component's own title.
 
     Card.view [ Card.title "Order 1042", Card.headingLevel 3 ]
-        [ Text.headingLevel 4 "Lines", linesTable ]
+        [ Text.headingAt 4 "Lines", linesTable ]
 
 -}
-headingLevel : Int -> String -> Html msg
-headingLevel level content =
+headingAt : Int -> String -> Html msg
+headingAt level content =
     let
         clamped =
             clamp 1 6 level

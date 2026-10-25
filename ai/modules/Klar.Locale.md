@@ -46,12 +46,12 @@ Quick path: `Settings.withLocale`, `Settings.locale`, `fromCode`, `pick`
 
     import Klar.Locale as Locale exposing (Locale)
 
-    Locale.pick model.locale { nb = "Neste", en = "Next" }
+    Locale.pick (Settings.locale model.settings) { nb = "Neste", en = "Next" }
 
 Every component that has built-in text of its own has a `locale` attribute; the
 default is `Locale.default`, which is English:
 
-    Select.view CountryMsg [ Select.locale Locale.nb ] model.country
+    Select.view CountryMsg [ Select.locale (Settings.locale model.settings) ] model.country
 
 Two languages are built in: English (`Locale.en`) and Norwegian Bokmål
 (`Locale.nb`). The type is opaque, so that more languages can be added in a later
@@ -60,9 +60,11 @@ the library: your own labels, column titles and messages come from your
 application, and `pick` is just a convenient way to choose between two of them.
 
 Switch the language of a whole page by keeping it in the [Klar.Settings](Klar.Settings.md)
-of your model (`Settings.withLocale`) and passing `Settings.locale model.settings` to
-every component; `AppShell.locale` also sets the `lang` attribute of the page content
-from it, which screen readers use to choose the voice.
+of your model (`Settings.withLocale`). `AppShell.settings` gives it to the shell (its own
+text and the `lang` attribute of the page content, which screen readers use to choose
+the voice) and `Settings.scope` sets that `lang` too. The other components do not read
+it from their `settings` attribute: pass `Settings.locale model.settings` to the
+`locale` attribute of every component with built-in text.
 
 ## Choosing a language
 

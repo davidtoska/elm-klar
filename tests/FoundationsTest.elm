@@ -48,9 +48,9 @@ textTests =
                         , Query.find [ Selector.tag "h2" ] >> Query.has [ Selector.text "B", Selector.class "klar-text--heading" ]
                         , Query.find [ Selector.tag "h3" ] >> Query.has [ Selector.text "C", Selector.class "klar-text--subheading" ]
                         ]
-        , test "headingLevel draws the element of the level, with the look of its kind" <|
+        , test "headingAt draws the element of the level, with the look of its kind" <|
             \_ ->
-                Html.div [] [ Text.headingLevel 4 "Lines", Text.headingLevel 1 "Page", Text.headingLevel 2 "Part" ]
+                Html.div [] [ Text.headingAt 4 "Lines", Text.headingAt 1 "Page", Text.headingAt 2 "Part" ]
                     |> Query.fromHtml
                     |> Expect.all
                         [ Query.find [ Selector.tag "h4" ] >> Query.has [ Selector.text "Lines", Selector.class "klar-text--subheading" ]
@@ -59,7 +59,7 @@ textTests =
                         ]
         , test "a level outside 1 to 6 counts as the nearest" <|
             \_ ->
-                Html.div [] [ Text.headingLevel 0 "Low", Text.headingLevel 9 "Deep" ]
+                Html.div [] [ Text.headingAt 0 "Low", Text.headingAt 9 "Deep" ]
                     |> Query.fromHtml
                     |> Expect.all
                         [ Query.find [ Selector.tag "h1" ] >> Query.has [ Selector.text "Low" ]
@@ -178,6 +178,60 @@ layoutTests =
         , test "the stylesheet makes a container with fillRest a flex column" <|
             \_ ->
                 Expect.equal True (String.contains ".klar-container.klar-fill-rest { display: flex; flex-direction: column; }" Klar.css)
+        , test "columnSpan marks the element with its span, at least 1" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        Layout.stack [ Layout.columnSpan 2 ] []
+                            |> Query.fromHtml
+                            |> Query.has [ Selector.class "klar-span", attr "style" "--klar-gap:var(--klar-space-3);--klar-span:2" ]
+                    , \_ ->
+                        Layout.stack [ Layout.columnSpan -3 ] []
+                            |> Query.fromHtml
+                            |> Query.has [ attr "style" "--klar-gap:var(--klar-space-3);--klar-span:1" ]
+                    , \_ ->
+                        Layout.stack [] []
+                            |> Query.fromHtml
+                            |> Query.hasNot [ Selector.class "klar-span" ]
+                    ]
+                    ()
+        , test "a span is never more than the columns of the grid; a responsive grid has one" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> String.contains ".klar-span { grid-column: span min(var(--klar-span, 1), var(--klar-span-max, 1));" Klar.css |> Expect.equal True
+                    , \_ -> String.contains ".klar-grid--cols-3 > * { --klar-span-max: 3; }" Klar.css |> Expect.equal True
+                    , \_ -> String.contains ".klar-grid--cols-24 > * { --klar-span-max: 24; }" Klar.css |> Expect.equal True
+                    , \_ ->
+                        Layout.grid [ Layout.columns 3 ] []
+                            |> Query.fromHtml
+                            |> Query.has [ Selector.class "klar-grid--cols-3", attr "style" "--klar-grid-template:repeat(3, minmax(0, 1fr));--klar-gap:var(--klar-space-3)" ]
+                    , \_ ->
+                        Layout.grid [ Layout.minColumn 200 ] []
+                            |> Query.fromHtml
+                            |> Query.has [ Selector.class "klar-grid--cols-1", attr "style" "--klar-grid-template:repeat(auto-fit, minmax(min(200px, 100%), 1fr));--klar-gap:var(--klar-space-3)" ]
+                    , \_ ->
+                        Layout.grid [ Layout.columns 30 ] []
+                            |> Query.fromHtml
+                            |> Query.has [ Selector.class "klar-grid--cols-24" ]
+                    ]
+                    ()
+        , test "a grid inside a grid keeps the span it is given in the outer grid" <|
+            \_ ->
+                -- The count of the outer grid reaches the inner one through the class of
+                -- the outer grid (`.klar-grid--cols-3 > *`), and the inner grid does not
+                -- write a count of its own that would hide it: its own class is for its
+                -- children only.
+                Layout.grid [ Layout.columns 3 ]
+                    [ Layout.grid [ Layout.columnSpan 2, Layout.columns 2 ] [ Html.text "a", Html.text "b" ]
+                    , Html.text "chart"
+                    ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.class "klar-grid--cols-3" ]
+                        , Query.children [ Selector.class "klar-grid" ]
+                            >> Query.first
+                            >> Query.has [ Selector.class "klar-span", Selector.class "klar-grid--cols-2", attr "style" "--klar-grid-template:repeat(2, minmax(0, 1fr));--klar-gap:var(--klar-space-3);--klar-span:2" ]
+                        ]
         , test "the vertical divider is a vertical separator" <|
             \_ ->
                 Layout.dividerVertical

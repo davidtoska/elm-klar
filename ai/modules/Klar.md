@@ -135,9 +135,11 @@ of the submit, for a form you wire by hand.
 **Language.** Built-in text (placeholders, labels read by screen readers, month
 names) is English by default and Norwegian Bokmål with `locale Locale.nb`; see
 [Klar.Locale](Klar.Locale.md). Keep the language in the [Klar.Settings](Klar.Settings.md) of
-the model, with the time zone, the time now and the theme, and give each component
-`locale (Settings.locale model.settings)`. Your own text always comes from your
-application.
+the model, with the time zone, the time now and the theme. `AppShell.settings` gives it
+to the shell (its text and `lang`); every other component with built-in text takes it
+with its own `locale` attribute, `locale (Settings.locale model.settings)`, because its
+`settings` attribute carries the zone and not the language. Your own text always comes
+from your application.
 
 **Honest with input.** Nothing changes what the user typed behind their back. A
 number outside its range stays in the field with an error; only an explicit action

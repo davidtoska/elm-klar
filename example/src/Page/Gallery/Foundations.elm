@@ -189,7 +189,7 @@ amberScale =
     , ( "--klar-amber-100", "#ffecc2", False )
     , ( "--klar-amber-500", "#d98a0b", False )
     , ( "--klar-amber-600", "#9a5f06", True )
-    , ( "--klar-amber-700", "#8f5806", True )
+    , ( "--klar-amber-700", "#7a4a04", True )
     ]
 
 
@@ -253,7 +253,7 @@ headings : Html Msg
 headings =
     Doc.example
         { title = "Headings and body text"
-        , description = Just "title is the h1, heading an h2 and subheading an h3, so the outline of the page is right for screen readers; headingLevel goes deeper (an h4 inside a card whose title is an h3). Use title once per page: this gallery page already has one. truncated keeps a long text on one line, with the whole text as the tooltip."
+        , description = Just "title is the h1, heading an h2 and subheading an h3, so the outline of the page is right for screen readers; headingAt goes deeper (an h4 inside a card whose title is an h3). Use title once per page: this gallery page already has one. truncated keeps a long text on one line, with the whole text as the tooltip."
         , code = Just """Layout.stack [ Layout.gap 3 ]
     [ Text.overline "Overview"
     , Text.title "Orders and fulfillment"
@@ -261,7 +261,7 @@ headings =
     , Text.heading "Recent activity"
     , Text.paragraph "Body text is set at 13px ..."
     , Text.subheading "Details"
-    , Text.headingLevel 4 "Order lines"
+    , Text.headingAt 4 "Order lines"
     , Layout.row [ Layout.gap 4, Layout.wrap ]
         [ Text.secondary "Secondary text"
         , Text.muted "Muted text for hints and metadata"
@@ -279,7 +279,7 @@ headings =
             , Text.heading "Recent activity"
             , Text.paragraph "Body text is set at 13px with a line height of 1.45. Lines are limited to about 80 characters, so they stay easy to read, also on dense screens."
             , Text.subheading "Details"
-            , Text.headingLevel 4 "Order lines"
+            , Text.headingAt 4 "Order lines"
             , Layout.row [ Layout.gap 4, Layout.wrap ]
                 [ Text.secondary "Secondary text"
                 , Text.muted "Muted text for hints and metadata"
@@ -787,10 +787,14 @@ columnsAndGrow : Html Msg
 columnsAndGrow =
     Doc.example
         { title = "Columns and growing"
-        , description = Just "columns n makes a grid of n equal columns; minColumn, used in the examples above and below, adds and removes columns as the space changes. grow lets one part of a row take the space that is left, such as the main column next to a sidebar."
+        , description = Just "columns n makes a grid of n equal columns; minColumn, used in the examples above and below, adds and removes columns as the space changes. columnSpan lets one element of a grid with columns take several of them. grow lets one part of a row take the space that is left, such as the main column next to a sidebar."
         , code = Just """Layout.stack [ Layout.gap 5 ]
     [ Layout.grid [ Layout.columns 3, Layout.gap 3 ]
         (List.map (\\n -> Card.view [] [ Text.paragraph ("Column " ++ String.fromInt n) ]) (List.range 1 6))
+    , Layout.grid [ Layout.columns 3, Layout.gap 3 ]
+        [ Layout.stack [ Layout.columnSpan 2 ] [ Card.view [] [ Text.paragraph "Two columns wide" ] ]
+        , Card.view [] [ Text.paragraph "One column" ]
+        ]
     , Layout.row [ Layout.gap 4, Layout.alignStart ]
         [ Card.view [ Card.title "Filters" ] [ Text.paragraph "As wide as its content." ]
         , Layout.stack [ Layout.grow, Layout.gap 3 ]
@@ -804,6 +808,10 @@ columnsAndGrow =
                     (\n -> card [] [ Text.paragraph ("Column " ++ String.fromInt n) ])
                     (List.range 1 6)
                 )
+            , Layout.grid [ Layout.columns 3, Layout.gap 3 ]
+                [ Layout.stack [ Layout.columnSpan 2 ] [ card [] [ Text.paragraph "Two columns wide" ] ]
+                , card [] [ Text.paragraph "One column" ]
+                ]
             , Layout.row [ Layout.gap 4, Layout.alignStart ]
                 [ card [ Card.title "Filters" ] [ Text.paragraph "As wide as its content." ]
                 , Layout.stack [ Layout.grow, Layout.gap 3 ]

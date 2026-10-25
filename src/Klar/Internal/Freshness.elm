@@ -259,7 +259,7 @@ marker config value =
         full =
             case value.at of
                 Just at ->
-                    Settings.dateTime config.locale config.settings at
+                    Settings.dateTime (Settings.withLocale config.locale config.settings) at
 
                 Nothing ->
                     ""

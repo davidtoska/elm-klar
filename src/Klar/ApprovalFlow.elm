@@ -1502,7 +1502,7 @@ timeElement env time =
                         []
                )
         )
-        [ Html.text (Settings.dateTime config.locale config.settings time) ]
+        [ Html.text (Settings.dateTime (Settings.withLocale config.locale config.settings) time) ]
 
 
 isoTime : Time.Posix -> String
