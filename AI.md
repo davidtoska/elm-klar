@@ -62,6 +62,7 @@ import Klar.AppShell as AppShell
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
+import Klar.Money as Money exposing (Money)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.SideNav as SideNav
@@ -78,7 +79,7 @@ type Page
 
 
 type alias Order =
-    { id : String, customer : String, total : Float }
+    { id : String, customer : String, total : Money }
 
 
 type alias Model =
@@ -130,8 +131,13 @@ fetchOrders : Cmd Msg
 fetchOrders =
     -- stands for a request: Http.get, then Result.mapError toProblem
     Process.sleep 600
-        |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics" 1250.5, Order "1043" "Fjord Foods" 310 ])
+        |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics" (kroner 125050), Order "1043" "Fjord Foods" (kroner 31000) ])
         |> Task.perform GotOrders
+
+
+kroner : Int -> Money
+kroner ore =
+    Money.fromMinor Money.nok ore |> Maybe.withDefault (Money.zero Money.nok)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -207,10 +213,11 @@ viewPage model =
                     [ Table.columns
                         [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
                         , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
-                        , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
+                        , Table.money (Table.columnId "total") "Total" .total [ Table.footerSum ]
                         ]
                     , Table.remote model.orders
                     , Table.rowId Ids.string .id
+                    , Table.ariaLabel "Orders"
                     , Table.onRetry Reload
                     ]
                     model.table
@@ -285,7 +292,7 @@ Each is checked against the current source; the ones the library has fixed are g
 - **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs, or after it failed). A `case` of your own needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a refresh with `Remote.refresh`, finish it with `Remote.refreshWith old result now`; never write a failed refresh over good data.
 - **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
 - **Focus returns to an opener only if it has an id** (`Button.id`, a `SideNav` link, a field). Without one it goes to the last element that had an id, which may be elsewhere (`LeaveGuard` "Stay" too).
-- **A `ConfirmDialog` may hold one or two controls in `body`** (a reason, a target); a real form is a `Modal`. **Server-mode `Table.exportCsv`** offers the selection only while every selected row is on the page; export from the backend for a selection that spans pages.
+- **A `ConfirmDialog` may hold one or two controls in `body`** (a reason, a target); a real form is a `Modal`. **Server-mode `Table.exportCsv`** offers the selection only while every selected row is on the page; export from the backend for a selection that spans pages. A bulk action of a server table reads `Table.selection`: after "Select all N matching" it is `AllMatching { except }` and `selectedIds` is `[]`.
 - **`Table.activeExternalFilters n`** tells "no matches" from "no data" for filters outside the table; wire `onResetFilters` once to clear the filter bar and the table's own filters.
 - **The first type parameter of `Form` and `Form.State` is the step type** (`()` for a form without steps). Declare the form in `Klar.Form.Spec` once, at the top of a file.
 - **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.
