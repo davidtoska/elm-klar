@@ -253,6 +253,7 @@ type Msg
     | PushManyToasts
     | PushLongToast
     | ClearToasts
+    | FocusToasts
       -- popovers
     | FilterPopoverMsg Popover.Msg
     | HelpPopoverMsg Popover.Msg
@@ -374,6 +375,7 @@ pageShortcuts : List (Shortcut Msg)
 pageShortcuts =
     [ Shortcut.shortcut (Shortcut.char 'n') "Actions" "Create a new order" OpenForm
     , Shortcut.shortcut (Shortcut.shift (Shortcut.char 't')) "Actions" "Show a notification" (PushToast Info)
+    , Shortcut.shortcut (Shortcut.function 6) "Actions" "Go to the newest notification" FocusToasts |> Shortcut.inInputs
     ]
 
 
@@ -849,6 +851,9 @@ update msg model =
         ClearToasts ->
             ( { model | toasts = Toast.dismissAll model.toasts }, Cmd.none )
 
+        FocusToasts ->
+            ( model, Cmd.map ToastMsg (Toast.focus model.toasts) )
+
         -- POPOVERS
         FilterPopoverMsg inner ->
             Popover.update inner model.filterPopover |> andMap FilterPopoverMsg (\state -> { model | filterPopover = state })
@@ -1254,7 +1259,7 @@ drawerSection model =
 toastSection : Model -> Html Msg
 toastSection model =
     Doc.section "Toast"
-        "Short notifications in the bottom right corner that stack up and disappear by themselves: info and success after a few seconds, warnings a little later, errors stay until they are closed. The timer stops while the pointer is over a notification or focus is inside it. A notification can carry an action, typically Undo. At most four are shown, the rest wait in a queue. Screen readers are told without being interrupted."
+        "Short notifications in the bottom right corner that stack up and disappear by themselves: info and success after a few seconds, warnings a little later, errors stay until they are closed. The timer stops while the pointer is over a notification or focus is inside it. A notification can carry an action, typically Undo: F6 takes the keyboard to the newest one, and when it goes away focus returns to where it was. At most four are shown, the rest wait in a queue. Screen readers are told without being interrupted; errors are announced at once."
         [ Doc.example
             { title = "All tones"
             , description = Just ("Notifications now: " ++ String.fromInt (Toast.count model.toasts) ++ ", of which " ++ String.fromInt (Toast.queued model.toasts) ++ " in the queue.")
