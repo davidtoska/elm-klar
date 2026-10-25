@@ -1,5 +1,7 @@
 # Table split plan
 
+Completed; see REPORT.md for the resulting module map and final validation.
+
 Pure refactor, based on c84c57d. Work only on codex/table-split in its own worktree.
 The main checkout has unrelated, uncommitted AI component work and is left untouched.
 
