@@ -157,7 +157,11 @@ layout options items =
                 List.map .index items
 
         matchedSet =
-            Set.fromList matched
+            if filtering then
+                Set.fromList matched
+
+            else
+                Set.empty
 
         matching item =
             not filtering || Set.member item.index matchedSet
