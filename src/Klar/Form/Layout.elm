@@ -731,7 +731,7 @@ type Status
     | Failed Problem
 
 
-{-| The state of the submit as one line or message: nothing while `Idle`, a
+{-| The state of the submit as one line or message: an empty line while `Idle`, a
 spinner with "Saving ..." while `Submitting`, a green message with the text of
 `Succeeded`, and a red message with the title, detail and code of the problem
 in `Failed` and, when `onRetry` is given and trying again could help, a "Try
@@ -739,12 +739,14 @@ again" button. Put it in the button row (`actions`). Reads `id`, `onRetry`,
 `onDismiss` and `locale`.
 
 **Focus.** The message sits in a region that can take focus (`tabindex="-1"`,
-with the DOM id `<form id>-status`), and the region stays in the page from
-"Saving ..." until the answer comes, also when the message inside it is
-replaced. The "Try again" button is replaced by "Saving ..." the moment it is
-pressed, so keyboard focus would fall back to the page: move it to the region
-with `focusStatus` in the same update, and a screen reader follows the retry
-from "Saving ..." to the result.
+with the DOM id `<form id>-status`), and the region is always in the page, in
+every state, also `Idle`: when a save that had the focus on the region ends in
+`Idle`, the focus stays on it and does not fall to the page. "Saving ..." is
+written into a polite live line (`role="status"`) that is always there, so a
+screen reader announces it. The "Try again" button is replaced by "Saving ..."
+the moment it is pressed, so keyboard focus would fall back to the page: move it
+to the region with `focusStatus` in the same update, and a screen reader follows
+the retry from "Saving ..." to the result.
 
     Retry ->
         ( { model | status = FormLayout.Submitting }
@@ -766,28 +768,35 @@ status attributes current =
                 Nothing ->
                     []
 
+        -- the same region and the same live line in every state: focus on the region survives
+        -- the end of a save, and "Saving ..." is announced because the live line was already there
         region content =
             Html.div
                 [ Internal.cls [ "klar-form-statusregion" ]
                 , Attr.id (statusId (Maybe.withDefault "form" config.id))
                 , Attr.tabindex -1
                 ]
-                [ content ]
-    in
-    case current of
-        Idle ->
-            Html.text ""
-
-        Submitting ->
-            region
-                (Html.span
+                [ Html.span
                     [ Internal.cls [ "klar-form-status" ]
                     , Attr.attribute "role" "status"
                     ]
-                    [ Html.span [ Internal.cls [ "klar-spinner", "klar-spinner--sm" ], Attr.attribute "aria-hidden" "true" ] []
-                    , Html.text (Locale.pick config.locale { nb = "Lagrer ...", en = "Saving ..." })
-                    ]
-                )
+                    (if isSubmitting current then
+                        [ Html.span [ Internal.cls [ "klar-spinner", "klar-spinner--sm" ], Attr.attribute "aria-hidden" "true" ] []
+                        , Html.text (Locale.pick config.locale { nb = "Lagrer ...", en = "Saving ..." })
+                        ]
+
+                     else
+                        []
+                    )
+                , content
+                ]
+    in
+    case current of
+        Idle ->
+            region (Html.text "")
+
+        Submitting ->
+            region (Html.text "")
 
         Succeeded message ->
             region (Alert.view ([ Alert.tone Success, Alert.compact, Alert.locale config.locale ] ++ dismiss) message)
@@ -832,6 +841,16 @@ message at that moment.
 focusStatus : String -> msg -> Cmd msg
 focusStatus formId done =
     Internal.focus (statusId formId) done
+
+
+isSubmitting : Status -> Bool
+isSubmitting current =
+    case current of
+        Submitting ->
+            True
+
+        _ ->
+            False
 
 
 statusId : String -> String
