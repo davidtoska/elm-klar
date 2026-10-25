@@ -12,6 +12,7 @@ import Klar.Chart.Colors exposing (colorClass, toneClass, toneClassFor)
 import Klar.Chart.Config exposing (area, ariaLabel, categories, centerCaption, centerLabel, configure, dates, description, emptyText, height, heightOf, hideLegend, horizontal, id, includeZero, legend, locale, maxLabels, onRetry, onSelect, pointsOnHover, range, selectable, settings, showLegend, stacked, thresholds, title, tone, unit, valueFormat, valueLabels, width, yMax, yMin, zoneToneFor)
 import Klar.Chart.Data exposing (byCategory, byDate, dashed, noData, segment, segmentSlot, segmentTone, series, seriesMaybe, withSlot, withTone)
 import Klar.Chart.Numbers exposing (compact, dropTrailingZeros, firstJust, formatLabel, formatTick, formatValue, isWhole, missingOr, num, pct, percentText, roundTo, sanitize, smartFormat, stepDecimals, tickGutter, trimFraction)
+import Klar.Chart.Texts exposing (summaryLine, texts)
 import Klar.Chart.Types exposing (Attribute(..), Axis, Config, Data(..), LegendItem, PSeries, Piece, Prepared, Segment(..), Series(..), Slice, State(..), Texts)
 import Klar.Date exposing (Date)
 import Klar.EmptyState as EmptyState
@@ -105,44 +106,6 @@ remoteWith draw nothing attributes data =
             fromRemote data
     in
     draw (attributes ++ [ state ]) (Maybe.withDefault nothing payload)
-
-
-texts : Locale -> Texts
-texts loc =
-    let
-        pick nb en =
-            Locale.pick loc { nb = nb, en = en }
-
-        plural n one other =
-            Format.plural loc n { one = one, other = other }
-    in
-    { noData = pick "Ingen data å vise" "No data to show"
-    , loading = pick "Laster diagram" "Loading chart"
-    , line = pick "Linjediagram" "Line chart"
-    , bar = pick "Stolpediagram" "Bar chart"
-    , donut = pick "Smultringdiagram" "Donut chart"
-    , gauge = pick "Måler" "Gauge"
-    , meter = pick "Måler" "Meter"
-    , sparkline = pick "Trend" "Trend"
-    , category = pick "Kategori" "Category"
-    , value = pick "Verdi" "Value"
-    , share = pick "Andel" "Share"
-    , total = pick "Totalt" "Total"
-    , other = pick "Andre" "Other"
-    , tableTruncated = \n -> pick ("... og " ++ Format.int loc n ++ " rader til") ("... and " ++ Format.int loc n ++ " more rows")
-    , seriesCount = \n -> Format.int loc n ++ " " ++ plural n (pick "serie" "series") (pick "serier" "series")
-    , pointCount = \n -> Format.int loc n ++ " " ++ plural n (pick "punkt" "point") (pick "punkter" "points")
-    , segmentCount = \n -> Format.int loc n ++ " " ++ plural n (pick "del" "segment") (pick "deler" "segments")
-    , of_ = pick "av" "of"
-    , low = pick "lavest" "low"
-    , high = pick "høyest" "high"
-    , last = pick "siste" "last"
-    , noValue = pick "Ingen verdi" "No value"
-    }
-
-
-
--- STATES AND SHELL
 
 
 stateOf : Config msg -> State
@@ -587,36 +550,6 @@ xTick center text =
         , Internal.styleVars [ ( "left", pct center ) ]
         ]
         [ Html.text text ]
-
-
-summaryLine : Config msg -> String -> Int -> Int -> String
-summaryLine config kindLabel seriesCount pointCount =
-    let
-        t =
-            texts config.locale
-
-        name =
-            case ( config.ariaLabel, config.title ) of
-                ( Just label, _ ) ->
-                    label
-
-                ( Nothing, Just text ) ->
-                    text
-
-                _ ->
-                    ""
-    in
-    String.join ". "
-        (List.filter (\s -> s /= "")
-            [ kindLabel
-            , name
-            , t.seriesCount seriesCount ++ ", " ++ t.pointCount pointCount
-            ]
-        )
-
-
-
--- LINE CHART
 
 
 {-| A line chart with one or more series: a trend over categories, usually time.

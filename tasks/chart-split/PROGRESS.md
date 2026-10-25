@@ -63,3 +63,7 @@
 - Next: Config.
 
 - Config: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 10719fc: Config complete.
+- Next: Texts.
+
+- Texts: format, full check, byte-identical docs and identical chart/sparkline roots passed.
