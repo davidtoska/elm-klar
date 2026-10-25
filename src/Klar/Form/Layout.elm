@@ -207,7 +207,7 @@ status with `Succeeded` or `Failed` when it comes back.
                 ( model, Cmd.none )
 
 `status` shows `Submitting` as a spinner with "Saving ...", `Succeeded` as a
-green message and `Failed` as a red one with the title and detail of the
+line with a green check mark and `Failed` as a red message with the title and detail of the
 `Remote.Problem` and, when `onRetry` is given and the problem is worth trying
 again, a "Try again" button. That button is replaced by "Saving ..." the moment
 it is pressed, which is why `Retry` moves the focus to the status line with
@@ -273,6 +273,7 @@ import Json.Decode as Decode
 import Klar.Alert as Alert
 import Klar.Button as Button
 import Klar.Format as Format
+import Klar.Icon as Icon
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem)
@@ -719,7 +720,8 @@ and start with `Idle`.
   - `Idle`: nothing to show, because nothing has been sent yet or the
     application cleared the message.
   - `Submitting`: the request is on its way.
-  - `Succeeded message`: it worked; the message is shown in green.
+  - `Succeeded message`: it worked; the message is shown with a green check
+    mark and read out by a screen reader.
   - `Failed problem`: it did not; the `Problem` from
     [Klar.Remote](Klar-Remote) is shown in red.
 
@@ -731,19 +733,20 @@ type Status
     | Failed Problem
 
 
-{-| The state of the submit as one line or message: an empty line while `Idle`, a
-spinner with "Saving ..." while `Submitting`, a green message with the text of
-`Succeeded`, and a red message with the title, detail and code of the problem
-in `Failed` and, when `onRetry` is given and trying again could help, a "Try
-again" button. Put it in the button row (`actions`). Reads `id`, `onRetry`,
-`onDismiss` and `locale`.
+{-| The state of the submit as one line or message: nothing while `Idle`, a
+spinner with "Saving ..." while `Submitting`, a line with a check mark and the
+text of `Succeeded` (and a close button with `onDismiss`), and a red message
+with the title, detail and code of the problem in `Failed` and, when `onRetry`
+is given and trying again could help, a "Try again" button. Put it in the button
+row (`actions`). Reads `id`, `onRetry`, `onDismiss` and `locale`.
 
 **Focus.** The message sits in a region that can take focus (`tabindex="-1"`,
 with the DOM id `<form id>-status`), and the region is always in the page, in
 every state, also `Idle`: when a save that had the focus on the region ends in
-`Idle`, the focus stays on it and does not fall to the page. "Saving ..." is
-written into a polite live line (`role="status"`) that is always there, so a
-screen reader announces it. The "Try again" button is replaced by "Saving ..."
+`Idle`, the focus stays on it and does not fall to the page. "Saving ..." and
+the text of `Succeeded` are written into a polite live line (`role="status"`)
+that is always there, so a screen reader announces them; the message of `Failed`
+is an alert (`role="alert"`), announced at once. The "Try again" button is replaced by "Saving ..."
 the moment it is pressed, so keyboard focus would fall back to the page: move it
 to the region with `focusStatus` in the same update, and a screen reader follows
 the retry from "Saving ..." to the result.
@@ -769,40 +772,54 @@ status attributes current =
                     []
 
         -- the same region and the same live line in every state: focus on the region survives
-        -- the end of a save, and "Saving ..." is announced because the live line was already there
-        region content =
+        -- the end of a save, and what the line says ("Saving ...", the message of a success) is
+        -- announced because the live line was already there
+        region modifier line content =
             Html.div
                 [ Internal.cls [ "klar-form-statusregion" ]
                 , Attr.id (statusId (Maybe.withDefault "form" config.id))
                 , Attr.tabindex -1
                 ]
                 [ Html.span
-                    [ Internal.cls [ "klar-form-status" ]
+                    [ Internal.cls [ "klar-form-status", modifier ]
                     , Attr.attribute "role" "status"
                     ]
-                    (if isSubmitting current then
-                        [ Html.span [ Internal.cls [ "klar-spinner", "klar-spinner--sm" ], Attr.attribute "aria-hidden" "true" ] []
-                        , Html.text (Locale.pick config.locale { nb = "Lagrer ...", en = "Saving ..." })
-                        ]
-
-                     else
-                        []
-                    )
+                    line
                 , content
                 ]
     in
     case current of
         Idle ->
-            region (Html.text "")
+            region "" [] (Html.text "")
 
         Submitting ->
-            region (Html.text "")
+            region ""
+                [ Html.span [ Internal.cls [ "klar-spinner", "klar-spinner--sm" ], Attr.attribute "aria-hidden" "true" ] []
+                , Html.text (Locale.pick config.locale { nb = "Lagrer ...", en = "Saving ..." })
+                ]
+                (Html.text "")
 
         Succeeded message ->
-            region (Alert.view ([ Alert.tone Success, Alert.compact, Alert.locale config.locale ] ++ dismiss) message)
+            -- written into the live line, not drawn as an alert: an element with a live role that is
+            -- inserted with its text is often not announced, and two would be announced twice
+            region "klar-form-status--success"
+                [ Html.span [ Internal.cls [ "klar-form-status__icon" ] ] [ Icon.view Icon.check ]
+                , Html.text message
+                ]
+                (case config.onDismiss of
+                    Just msg ->
+                        Button.iconOnly [ Button.ghost, Button.small, Button.onClick msg ]
+                            Icon.close
+                            (Locale.pick config.locale { nb = "Lukk", en = "Close" })
+
+                    Nothing ->
+                        Html.text ""
+                )
 
         Failed problem ->
-            region
+            -- an alert (`role="alert"`), which is announced when it is inserted
+            region ""
+                []
                 (Alert.viewWith
                     ([ Alert.tone Danger
                      , Alert.compact
@@ -841,16 +858,6 @@ message at that moment.
 focusStatus : String -> msg -> Cmd msg
 focusStatus formId done =
     Internal.focus (statusId formId) done
-
-
-isSubmitting : Status -> Bool
-isSubmitting current =
-    case current of
-        Submitting ->
-            True
-
-        _ ->
-            False
 
 
 statusId : String -> String

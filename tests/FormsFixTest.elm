@@ -18,6 +18,7 @@ import Klar.CheckboxGroup as CheckboxGroup
 import Klar.Field as Field
 import Klar.Form.Layout as FormLayout
 import Klar.Radio as Radio
+import Klar.Remote as Remote
 import Klar.SegmentedControl as SegmentedControl
 import Klar.Slider as Slider
 import Klar.Switch as Switch
@@ -741,6 +742,40 @@ formTests =
                     , \_ -> shape (FormLayout.Succeeded "Saved")
                     ]
                     ()
+        , test "the text of a success is written into the live line that is always there, not into a new alert" <|
+            \_ ->
+                FormLayout.status [ FormLayout.id "billing" ] (FormLayout.Succeeded "The order was saved.")
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.find [ Selector.attribute (Attr.attribute "role" "status") ] >> Query.has [ Selector.text "The order was saved." ]
+                        , Query.findAll [ Selector.class "klar-alert" ] >> Query.count (Expect.equal 0)
+                        ]
+        , test "a success has a close button only with onDismiss, outside the live line" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        FormLayout.status [ FormLayout.onDismiss "dismissed" ] (FormLayout.Succeeded "Saved")
+                            |> Query.fromHtml
+                            |> Expect.all
+                                [ Query.find [ Selector.tag "button" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Close") ]
+                                , Query.find [ Selector.attribute (Attr.attribute "role" "status") ] >> Query.findAll [ Selector.tag "button" ] >> Query.count (Expect.equal 0)
+                                ]
+                    , \_ ->
+                        FormLayout.status [] (FormLayout.Succeeded "Saved")
+                            |> Query.fromHtml
+                            |> Query.findAll [ Selector.tag "button" ]
+                            |> Query.count (Expect.equal 0)
+                    ]
+                    ()
+        , test "a failure is an alert inside the region, and the live line stays empty" <|
+            \_ ->
+                FormLayout.status [ FormLayout.id "billing" ] (FormLayout.Failed (Remote.problem Remote.timeout))
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.has [ Selector.id "billing-status" ]
+                        , Query.findAll [ Selector.attribute (Attr.attribute "role" "alert") ] >> Query.count (Expect.equal 1)
+                        , Query.find [ Selector.attribute (Attr.attribute "role" "status") ] >> Query.children [] >> Query.count (Expect.equal 0)
+                        ]
         , test "the id of the form is on the form element" <|
             \_ ->
                 FormLayout.view [ FormLayout.id "billing" ] []
