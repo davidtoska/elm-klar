@@ -64,7 +64,6 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 ## Choosing
 
 - [Klar.Select](Klar.Select.md): A single select with a search box, for lists from a handful to many thousands of options.
-- [Klar.Select.Option](Klar.Select.Option.md): The option model shared by Klar.Select, Klar.MultiSelect and Klar.Autocomplete.
 - [Klar.Ids](Klar.Ids.md): How the application's own id type is written as text and read back, once.
 - [Klar.MultiSelect](Klar.MultiSelect.md): Choose several values from a searchable list.
 - [Klar.Autocomplete](Klar.Autocomplete.md): A text field with suggestions.

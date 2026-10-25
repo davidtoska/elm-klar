@@ -24,8 +24,8 @@ clear : State id -> State id
 -- Attributes
 type Attribute id msg  -- opaque: no constructors are exposed
 type Order  -- opaque: no constructors are exposed
-options : Ids.Ids id -> List (Select.Option.Option id) -> Attribute id msg
-remote : Ids.Ids id -> Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
+options : Ids.Ids id -> List (Select.Option id) -> Attribute id msg
+remote : Ids.Ids id -> Remote.Remote (List (Select.Option id)) -> Attribute id msg
 onRetry : msg -> Attribute id msg
 titles : { available : String, chosen : String } -> Attribute id msg
 sourceOrder : Order
@@ -91,8 +91,8 @@ See also [Klar.MultiSelect](Klar.MultiSelect.md) and [Klar.TreeSelect](Klar.Tree
     -- reading the value
     Transfer.values model.products --> List ProductId
 
-The items are [Klar.Select](Klar.Select.md) options (see
-[Klar.Select.Option](Klar.Select.Option.md)): a value of your own id type, a label, an
+The items are `Select.Option` values, made with `Select.option` (see
+[Klar.Select](Klar.Select.md)): a value of your own id type, a label, an
 optional description, and `disabledOption` for an item that cannot be moved.
 Ids are compared through their key (see `Ids.make` in
 [Klar.Picking](Klar.Picking.md)), which keeps thousands of items fast. As in every
@@ -274,7 +274,7 @@ In which order the chosen ids are kept, given to `order`. It is one of
 ### `options`
 
 ```elm
-options : Ids.Ids id -> List (Select.Option.Option id) -> Attribute id msg
+options : Ids.Ids id -> List (Select.Option id) -> Attribute id msg
 ```
 
 The items to choose from, as options of [Klar.Select](Klar.Select.md), with the
@@ -289,7 +289,7 @@ the same key the first one is used.
 ### `remote`
 
 ```elm
-remote : Ids.Ids id -> Remote.Remote (List (Select.Option.Option id)) -> Attribute id msg
+remote : Ids.Ids id -> Remote.Remote (List (Select.Option id)) -> Attribute id msg
 ```
 
 The items from the backend, as a `Remote` (see [Klar.Remote](Klar.Remote.md)).

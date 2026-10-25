@@ -67,7 +67,7 @@ init =
       , skipping =
             RecurrencePicker.init "recurrence-skipping" today
                 |> setExample 12
-      , chooser = Select.init "recurrence-chooser" |> Select.setValue 2
+      , chooser = Select.init "recurrence-chooser" |> Select.setValue (Just 2)
       }
     , Cmd.none
     )

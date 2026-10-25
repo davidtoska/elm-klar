@@ -1278,11 +1278,8 @@ putRaw raw slot =
         ( RText value, SText _ ) ->
             SText value
 
-        ( RKey (Just key), SSelect state ) ->
+        ( RKey key, SSelect state ) ->
             SSelect (Select.setValue key state)
-
-        ( RKey Nothing, SSelect state ) ->
-            SSelect (Select.clear state)
 
         ( RKeys keys, SMulti state ) ->
             SMulti (MultiSelect.setValues keys state)

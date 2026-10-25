@@ -146,7 +146,7 @@ type alias Model =
     , tree : Tree.State String
     , select : Select.State String
     , multi : MultiSelect.State String
-    , auto : Autocomplete.State
+    , auto : Autocomplete.State String
     , drawer : Drawer.State
     , modal : Modal.State
     , palette : CommandPalette.State
@@ -163,7 +163,7 @@ type Msg
     | TreeMsg Tree.Msg
     | SelectMsg (Select.Msg String)
     | MultiMsg (MultiSelect.Msg String)
-    | AutoMsg Autocomplete.Msg
+    | AutoMsg (Autocomplete.Msg String)
     | DrawerMsg Drawer.Msg
     | ModalMsg Modal.Msg
     | PaletteMsg CommandPalette.Msg
@@ -570,7 +570,7 @@ optionsExample settings locale model =
                 [ Autocomplete.label "Find a warehouse"
                 , Autocomplete.locale locale
                 , Autocomplete.settings settings
-                , Autocomplete.suggestions options
+                , Autocomplete.remote options
                 , Autocomplete.onRetry Refresh
                 ]
                 model.auto

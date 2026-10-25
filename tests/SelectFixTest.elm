@@ -16,6 +16,7 @@ module SelectFixTest exposing (suite)
 
 import Expect exposing (Expectation)
 import Html exposing (Html)
+import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.Autocomplete as Autocomplete
 import Klar.Locale as Locale
@@ -44,7 +45,7 @@ suite =
 type Msg
     = SelectMsg (Select.Msg String)
     | MultiMsg (MultiSelect.Msg String)
-    | AutoMsg Autocomplete.Msg
+    | AutoMsg (Autocomplete.Msg String)
     | Retry
     | Leave
     | Refocus
@@ -273,6 +274,7 @@ failureView kind onRetry =
     Popup.viewFailure
         { locale = Locale.en
         , onRetry = onRetry
+        , focusable = True
         , refocus = Refocus
         , leave = Leave
         , noop = NoOp
@@ -665,13 +667,13 @@ multiSelectTests =
 load shows its error. Typing is the only way to open it, so the state comes
 from the input event, as it does in a browser.
 -}
-openAutocomplete : Result String Autocomplete.State
+openAutocomplete : Result String (Autocomplete.State String)
 openAutocomplete =
     let
         start =
             Autocomplete.init "city"
     in
-    Autocomplete.view AutoMsg [ Autocomplete.suggestions (failed Remote.network) ] start
+    Autocomplete.view AutoMsg [ Autocomplete.remote (failed Remote.network) ] start
         |> Query.fromHtml
         |> Query.find [ Selector.tag "input" ]
         |> Event.simulate (Event.input "m")
@@ -687,10 +689,10 @@ openAutocomplete =
             )
 
 
-autocompleteView : Autocomplete.State -> Kind -> Bool -> Html Msg
+autocompleteView : Autocomplete.State String -> Kind -> Bool -> Html Msg
 autocompleteView state kind withRetry =
     Autocomplete.view AutoMsg
-        ([ Autocomplete.label "City", Autocomplete.suggestions (failed kind) ]
+        ([ Autocomplete.label "City", Autocomplete.remote (failed kind) ]
             ++ (if withRetry then
                     [ Autocomplete.onRetry Retry ]
 
@@ -709,7 +711,7 @@ autocompleteInput =
 {-| Run a test on the open autocomplete, or fail with the reason it could not
 be opened.
 -}
-withOpenAutocomplete : (Autocomplete.State -> Expectation) -> Expectation
+withOpenAutocomplete : (Autocomplete.State String -> Expectation) -> Expectation
 withOpenAutocomplete toExpectation =
     case openAutocomplete of
         Ok state ->
@@ -721,7 +723,7 @@ withOpenAutocomplete toExpectation =
 
 {-| The list is closed and the typed text is still there.
 -}
-autocompleteCloses : Autocomplete.State -> Msg -> Expectation
+autocompleteCloses : Autocomplete.State String -> Msg -> Expectation
 autocompleteCloses state msg =
     case msg of
         AutoMsg inner ->
@@ -784,16 +786,23 @@ autocompleteTests =
                                 |> pressOn autocompleteInput (key "Enter")
                                 |> expectRetry
                         )
-            , test "Tab closes the list first, so focus does not land in the button" <|
+            , test "Tab closes the list and moves on at once (one press, not two)" <|
                 \_ ->
                     withOpenAutocomplete
                         (\state ->
                             autocompleteView state Remote.network True
                                 |> pressOn autocompleteInput (key "Tab")
-                                |> Expect.all
-                                    [ Event.expectPreventDefault
-                                    , expectMessage (autocompleteCloses state)
-                                    ]
+                                |> expectPassiveMessage (autocompleteCloses state)
+                        )
+            , test "the button is for the mouse, so Tab cannot land in it" <|
+                \_ ->
+                    withOpenAutocomplete
+                        (\state ->
+                            autocompleteView state Remote.network True
+                                |> Query.fromHtml
+                                |> Query.find [ Selector.class "klar-select__state" ]
+                                |> Query.find [ Selector.tag "button" ]
+                                |> Query.has [ Selector.attribute (Attr.tabindex -1) ]
                         )
             ]
         , describe "network trouble, but no onRetry (no button)"
@@ -847,7 +856,7 @@ autocompleteTests =
 When an error appears later, the input must stay exactly where it is in the
 tree: an element that moves is rebuilt by the browser and loses focus.
 -}
-inItsWrapper : List (Autocomplete.Attribute Msg) -> Expectation
+inItsWrapper : List (Autocomplete.Attribute String Msg) -> Expectation
 inItsWrapper attributes =
     Autocomplete.view AutoMsg attributes (Autocomplete.init "city")
         |> Query.fromHtml

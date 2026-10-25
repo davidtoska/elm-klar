@@ -46,8 +46,8 @@ See also [Klar.MultiSelect](Klar-MultiSelect) and [Klar.TreeSelect](Klar-TreeSel
     -- reading the value
     Transfer.values model.products --> List ProductId
 
-The items are [Klar.Select](Klar-Select) options (see
-[Klar.Select.Option](Klar-Select-Option)): a value of your own id type, a label, an
+The items are `Select.Option` values, made with `Select.option` (see
+[Klar.Select](Klar-Select)): a value of your own id type, a label, an
 optional description, and `disabledOption` for an item that cannot be moved.
 Ids are compared through their key (see `Ids.make` in
 [Klar.Picking](Klar-Picking)), which keeps thousands of items fast. As in every
@@ -151,7 +151,7 @@ import Klar.Picking.Texts as Texts exposing (Texts)
 import Klar.Picking.View as View
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Search as Search
-import Klar.Select.Option exposing (Option)
+import Klar.Select exposing (Option)
 import Klar.Transfer.Lists as Lists exposing (Chosen, PaneRow, Source)
 import Klar.VirtualList as VirtualList
 import Process

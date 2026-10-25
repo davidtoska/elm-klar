@@ -149,7 +149,7 @@ syncSelect wanted state =
         state
 
     else
-        Select.setValue wanted state
+        Select.setValue (Just wanted) state
 
 
 syncMany : List String -> MultiSelect.State String -> MultiSelect.State String

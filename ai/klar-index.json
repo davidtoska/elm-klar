@@ -1886,12 +1886,12 @@
       "related": [
         "Klar.Locale",
         "Klar.Remote",
-        "Klar.Select.Option",
         "Klar.Autocomplete",
         "Klar.Color",
         "Klar.MultiSelect",
         "Klar.Search",
-        "Klar.Theme"
+        "Klar.Theme",
+        "Klar.VirtualList"
       ],
       "keywords": [
         "select",
@@ -1906,48 +1906,6 @@
         "handful"
       ],
       "reference": "ai/modules/Klar.Select.md"
-    },
-    {
-      "name": "Klar.Select.Option",
-      "import": "import Klar.Select.Option as Option",
-      "group": "Choosing",
-      "purpose": "The option model shared by Klar.Select, Klar.MultiSelect and Klar.Autocomplete.",
-      "whenToUse": "options for a select are built in a module that has no select of its own, such as a data module or a simulated backend.",
-      "whenNot": "the options are built next to the select itself; `Klar.Select` re-exports the same functions.",
-      "state": [],
-      "msg": [],
-      "ids": [],
-      "stateful": false,
-      "quickPath": [
-        "option",
-        "withDescription",
-        "withGroup",
-        "withKeywords"
-      ],
-      "mainFunctions": [
-        "option",
-        "withDescription",
-        "withGroup",
-        "withIcon",
-        "withTone",
-        "withColor",
-        "withKeywords",
-        "disabledOption"
-      ],
-      "related": [
-        "Klar.Autocomplete",
-        "Klar.MultiSelect",
-        "Klar.Select"
-      ],
-      "keywords": [
-        "option",
-        "select",
-        "choosing",
-        "model",
-        "shared",
-        "multiselect"
-      ],
-      "reference": "ai/modules/Klar.Select.Option.md"
     },
     {
       "name": "Klar.Ids",
@@ -1966,13 +1924,15 @@
         "make",
         "list",
         "string",
-        "int"
+        "int",
+        "map"
       ],
       "mainFunctions": [
         "make",
         "list",
         "string",
         "int",
+        "map",
         "toKey",
         "fromKey"
       ],
@@ -2022,7 +1982,6 @@
         "Klar.Locale",
         "Klar.Select",
         "Klar.Remote",
-        "Klar.Select.Option",
         "Klar.Theme"
       ],
       "keywords": [
@@ -2065,12 +2024,11 @@
         "text",
         "setText",
         "picked",
-        "query",
-        "isOpen"
+        "setOption",
+        "clear"
       ],
       "related": [
         "Klar.Locale",
-        "Klar.Select.Option",
         "Klar.Remote",
         "Klar.Search",
         "Klar.Select",
@@ -2112,8 +2070,8 @@
         "id",
         "scrollTop",
         "active",
-        "view",
-        "viewGrouped"
+        "reveal",
+        "view"
       ],
       "related": [
         "Klar.ListItem",
@@ -2315,7 +2273,6 @@
         "Klar.MultiSelect",
         "Klar.Picking",
         "Klar.Remote",
-        "Klar.Select.Option",
         "Klar.TreeSelect",
         "Klar.VirtualList"
       ],

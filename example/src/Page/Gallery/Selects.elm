@@ -97,6 +97,7 @@ orderOptions =
             (\order ->
                 Select.option (orderIdText order.id) (orderIdText order.id ++ " · " ++ order.customer)
                     |> Select.withDescription (order.city ++ " · " ++ orderStatusLabel order.status)
+                    |> Select.withMeta (Format.int Locale.en order.lines ++ " lines")
             )
 
 
@@ -187,7 +188,7 @@ type alias Backend =
 type alias Model =
     { selects : Dict String (Select.State String)
     , multis : Dict String (MultiSelect.State String)
-    , autos : Dict String Autocomplete.State
+    , autos : Dict String (Autocomplete.State String)
     , owner : Select.State OwnerId
     , assignees : MultiSelect.State OwnerId
     , createdCategories : List String
@@ -203,7 +204,7 @@ type alias Model =
 type Msg
     = SelectMsg String (Select.Msg String)
     | MultiMsg String (MultiSelect.Msg String)
-    | AutoMsg String Autocomplete.Msg
+    | AutoMsg String (Autocomplete.Msg String)
     | OwnerMsg (Select.Msg OwnerId)
     | AssigneesMsg (MultiSelect.Msg OwnerId)
     | Responded Target Int String
@@ -211,6 +212,7 @@ type Msg
     | ToggleServerFailure
     | ToggleCustomerFailure
     | LoadSaved
+    | LoadSavedCustomer
     | CityEntered
 
 
@@ -220,23 +222,23 @@ init =
             Dict.fromList
                 (List.map (\( id, setup ) -> ( id, setup (Select.init id) ))
                     [ ( "sel-basic", identity )
-                    , ( "sel-grouped", Select.setValue "NO" )
-                    , ( "sel-rich", Select.setValue "express" )
+                    , ( "sel-grouped", Select.setValue (Just "NO") )
+                    , ( "sel-rich", Select.setValue (Just "express") )
                     , ( "sel-required", identity )
-                    , ( "sel-invalid", Select.setValue "AD" )
-                    , ( "sel-disabled", Select.setValue "DK" )
-                    , ( "sel-readonly", Select.setValue "SE" )
+                    , ( "sel-invalid", Select.setValue (Just "AD") )
+                    , ( "sel-disabled", Select.setValue (Just "DK") )
+                    , ( "sel-readonly", Select.setValue (Just "SE") )
                     , ( "sel-small", identity )
-                    , ( "sel-medium", Select.setValue "NO" )
-                    , ( "sel-traffic", Select.setValue "amber" )
-                    , ( "sel-teams", Select.setValue "sales" )
+                    , ( "sel-medium", Select.setValue (Just "NO") )
+                    , ( "sel-traffic", Select.setValue (Just "amber") )
+                    , ( "sel-teams", Select.setValue (Just "sales") )
                     , ( "sel-large", identity )
                     , ( "sel-empty", identity )
                     , ( "sel-creatable", identity )
-                    , ( "sel-orders", Select.setValue "ORD-11234" )
+                    , ( "sel-orders", Select.setValue (Just "ORD-11234") )
                     , ( "sel-server", identity )
-                    , ( "sel-loading", Select.setValue "ORD-11234" )
-                    , ( "sel-failed", Select.setValue "ORD-11234" )
+                    , ( "sel-loading", Select.setValue (Just "ORD-11234") )
+                    , ( "sel-failed", Select.setValue (Just "ORD-11234") )
                     , ( "sel-scroll", identity )
                     , ( "sel-bottom", identity )
                     ]
@@ -268,7 +270,7 @@ init =
                     , ( "auto-large", identity )
                     ]
                 )
-      , owner = Select.init "typed-owner" |> Select.setValue (OwnerId 2)
+      , owner = Select.init "typed-owner" |> Select.setValue (Just (OwnerId 2))
       , assignees = MultiSelect.init "typed-assignees" |> MultiSelect.setValues [ OwnerId 1, OwnerId 3 ]
       , createdCategories = []
       , orderSearch = idle
@@ -297,7 +299,7 @@ multiState id model =
     Dict.get id model.multis |> Maybe.withDefault (MultiSelect.init id)
 
 
-autoState : String -> Model -> Autocomplete.State
+autoState : String -> Model -> Autocomplete.State String
 autoState id model =
     Dict.get id model.autos |> Maybe.withDefault (Autocomplete.init id)
 
@@ -428,6 +430,15 @@ update msg model =
               }
             , Cmd.none
             )
+
+        LoadSavedCustomer ->
+            -- an order being edited: its customer's id and name, as saved
+            case List.head customerOptions of
+                Just saved ->
+                    ( { model | autos = Dict.update "auto-customer" (Maybe.map (Autocomplete.setOption saved)) model.autos }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         CityEntered ->
             ( { model | lastEnter = Just (Autocomplete.text (autoState "auto-city" model)) }, Cmd.none )
@@ -564,7 +575,7 @@ multiView id locale model attributes =
     MultiSelect.view (MultiMsg id) (MultiSelect.locale locale :: attributes) (multiState id model)
 
 
-autoView : String -> Locale -> Model -> List (Autocomplete.Attribute Msg) -> Html Msg
+autoView : String -> Locale -> Model -> List (Autocomplete.Attribute String Msg) -> Html Msg
 autoView id locale model attributes =
     Autocomplete.view (AutoMsg id) (Autocomplete.locale locale :: attributes) (autoState id model)
 
@@ -628,7 +639,7 @@ failureButton on toggle =
 basics : Locale -> Model -> Html Msg
 basics locale model =
     Doc.section "Searchable select"
-        "Click the field, press Enter, Space, ArrowDown or ArrowUp, or just start typing to open it. In the list ArrowUp and ArrowDown, Home and End, and PageUp and PageDown move the highlight, Enter chooses, Escape closes the list and returns to the field, and Tab closes it and moves on. The search ignores case and accents (é, ü, ñ), accepts several words and shows the best match first. The chosen option has a check mark and is centered in the list when it opens."
+        "Click the field, press Enter, Space, ArrowDown or ArrowUp, or just start typing to open it. In the list ArrowUp and ArrowDown, and PageUp and PageDown move the highlight; Home and End go to the first and last option while the search box is empty and move the caret once you have typed (Ctrl+Home and Ctrl+End always go to the ends). Enter chooses, Escape closes the list and returns to the field, and Tab closes it and moves on. The Enter that confirms an input method composition (Japanese, Chinese, Korean) never chooses. The search ignores case and accents (é, ü, ñ), accepts several words and shows the best match first. The chosen option has a check mark and is centered in the list when it opens."
         [ Doc.example
             { title = "Basic"
             , description = Just "Countries from the sample data. Try “south af” or “nz”: every word has to match, and the grey codes are searched too."
@@ -1022,7 +1033,7 @@ largeLists locale model =
         "3,000 orders. The list draws only the rows that are visible, plus a few above and below (Klar.VirtualList does this for all three components), so it opens, filters on every keystroke and moves with the keyboard without delay. The line under the list says how many options matched. Try “ord-1250”, “pinnacle” or “shipped”, or hold PageDown."
         [ Doc.example
             { title = "3,000 options"
-            , description = Just "The label is the order number and the customer, the description the city and the status. Both are searched."
+            , description = Just "The label is the order number and the customer, the description the city and the status, and the number of lines sits at the end of the row (Select.withMeta). All three are searched."
             , code = Just manyCode
             }
             (Layout.grid [ Layout.minColumn 320, Layout.gap 5 ]
@@ -1208,7 +1219,7 @@ autocompletes locale model =
             autoState "auto-required" model
     in
     Doc.section "Autocomplete"
-        "A free text field with suggestions: the user may type anything, the suggestions only help. Typing shows the suggestions with none highlighted, so Enter keeps the typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the first one goes back to the typed text), Enter chooses the highlighted one, Escape closes the list and Tab moves on. The field keeps focus when a suggestion is clicked, and the list closes when the field loses focus."
+        "A free text field with suggestions: the user may type anything, the suggestions only help. Typing shows the suggestions with none highlighted, so Enter keeps the typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the first one goes back to the typed text), Enter chooses the highlighted one, Escape closes the list and Tab moves on. The field keeps focus when a suggestion is clicked, and the list closes when the field loses focus. A typed text that is exactly a suggestion is picked however the field is left (Enter, Tab, Escape or a click elsewhere), and the values are of your own type, as in Select."
         [ Doc.example
             { title = "City with local suggestions"
             , description =
@@ -1242,18 +1253,27 @@ autocompletes locale model =
             )
         , Doc.example
             { title = "Suggestions from a server"
-            , description = Just ("Customer names from a simulated server. " ++ remoteDescription locale model.customerSearch.results)
+            , description =
+                Just
+                    ("Customer names from a simulated server. "
+                        ++ remoteDescription locale model.customerSearch.results
+                        ++ " Picked: "
+                        ++ Maybe.withDefault "none" (Autocomplete.picked (autoState "auto-customer" model))
+                        ++ ". “Load saved customer” puts a saved name and id back with setOption."
+                    )
             , code = Just autoServerCode
             }
             (Layout.stack [ Layout.gap 4 ]
                 [ Layout.row [ Layout.gap 2 ]
-                    [ failureButton model.customerFails ToggleCustomerFailure ]
+                    [ failureButton model.customerFails ToggleCustomerFailure
+                    , Button.view [ Button.icon Icon.bookmark, Button.onClick LoadSavedCustomer ] "Load saved customer"
+                    ]
                 , Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
                     [ autoView "auto-customer"
                         locale
                         model
                         [ Autocomplete.label "Customer"
-                        , Autocomplete.suggestions model.customerSearch.results
+                        , Autocomplete.remote model.customerSearch.results
                         , Autocomplete.onRetry (Retry CustomerSearch)
                         , Autocomplete.clearable
                         , Autocomplete.hint "Type at least one letter"
@@ -1445,7 +1465,7 @@ remoteCode =
     [ Select.label "Order"
     , Select.remote model.orders -- Loading: "Loading ...", Failed: "Could not be loaded"
     ]
-    (Select.setValue "ORD-11234" model.order)
+    (Select.setValue (Just "ORD-11234") model.order)
 
 Select.value model.order -- Just "ORD-11234", also while the options load"""
 
@@ -1615,7 +1635,7 @@ autoServerCode : String
 autoServerCode =
     """Autocomplete.view CustomerMsg
     [ Autocomplete.label "Customer"
-    , Autocomplete.suggestions model.found -- Remote (List (Option String))
+    , Autocomplete.remote model.found -- Remote (List (Option String))
     , Autocomplete.onRetry RetrySuggestions
     ]
     model.customer

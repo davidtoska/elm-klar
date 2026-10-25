@@ -182,7 +182,7 @@ import Klar.Format as Format
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Search as Search
-import Klar.Select.Option exposing (Option)
+import Klar.Select exposing (Option)
 
 
 

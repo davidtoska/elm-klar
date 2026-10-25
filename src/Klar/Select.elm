@@ -1,7 +1,7 @@
 module Klar.Select exposing
     ( State, init, Msg, update, view
     , value, setValue, setOption, clear, query, isOpen, open, close
-    , Option, option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
+    , Option, option, withDescription, withMeta, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
     , Attribute, options, remote, serverSearch, onRetry
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, searchPlaceholder, clearable, creatable, valueText, disabled, readOnly, size, visibleRows, locale, settings
@@ -60,18 +60,23 @@ indexed once and the result is kept between keystrokes, and only the visible row
 are rendered (see [Klar.VirtualList](Klar-VirtualList)), so a list with several
 thousand options stays responsive.
 
-Keyboard: on the closed field Enter, Space, ArrowDown and ArrowUp open the list,
+Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp and Alt+ArrowDown open the list,
 a printable character opens it and starts the search, and Backspace or Delete
-clears a `clearable` field. In the open list ArrowUp and ArrowDown, Home and End,
-and PageUp and PageDown move the highlight, Enter chooses (and never submits a
-surrounding form), Escape closes the list and returns to the field, and Tab
-closes it and moves on.
+clears a `clearable` field. In the open list ArrowUp and ArrowDown, and PageUp and
+PageDown move the highlight; Home and End go to the first and the last option
+while the search box is empty (with text in it they move the caret), and Ctrl+Home
+and Ctrl+End always do. Enter chooses (and never submits a surrounding form),
+Escape (or Alt+ArrowUp) closes the list and returns to the field, and Tab closes it
+and moves on (to "Try again" first, when old or failed options offer it). Keys that belong to
+an input method composition (Japanese, Chinese, Korean ...) are left to it: the
+Enter that confirms the composed text does not choose an option.
 
 Accessibility: the field is a button with `role="combobox"` and `aria-expanded`.
 The open list is a `listbox` whose options carry `aria-selected`,
-`aria-posinset` and `aria-setsize`, and the search box points at the highlighted
-option with `aria-activedescendant`. The counts under the list ("12 of 40
-matches") are announced politely.
+`aria-posinset` and `aria-setsize` (and the name of their group), and the search
+box points at the highlighted option with `aria-activedescendant` while that
+option is drawn. The counts under the list ("12 of 40 matches") are announced
+politely.
 
 Backend data: `remote` takes a `Remote (List Option)` (see
 [Klar.Remote](Klar-Remote)) and shows loading rows, a failure with a retry button
@@ -93,11 +98,10 @@ the application watches `Select.query` and fetches. The built-in texts ("Select
 
 # Options
 
-Options are plain records, shared with `MultiSelect` and `Autocomplete`. These
-are the helpers of [Klar.Select.Option](Klar-Select-Option) that a select needs,
-so one import is enough.
+Options are plain records, shared with `MultiSelect`, `Autocomplete` and
+`Transfer`: this is the one place to make them, so one import is enough.
 
-@docs Option, option, withDescription, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
+@docs Option, option, withDescription, withMeta, withGroup, withIcon, withTone, withColor, withKeywords, disabledOption, mapOption, filter
 
 
 # Attributes
@@ -145,14 +149,38 @@ import Task
 -- OPTIONS
 
 
-{-| One choice in the list. It is a record with `value` (what the application
-stores), `label` (what the user sees and searches), `description`, `group`,
-`disabled`, `icon` and `keywords`, as described in
-[Klar.Select.Option](Klar-Select-Option). Make options with `option` and the
-`with*` functions, or write the record yourself.
+{-| One choice in the list, the option type of the whole select family
+(`MultiSelect`, `Autocomplete`, `Transfer` and `Rule.choiceFieldOf` take the same
+values). Make options with `option` and the `with*` functions, also in a data module
+or a simulated backend that has no select of its own. Read the fields as you like
+(`.label`, `.value`), but do not write the record by hand: it may gain fields.
+
+  - `value` is what the application stores: its own id type (a `CustomerId`, a code, an `Int`).
+    Values are compared with `==`, so use data, not functions, and keep them unique within one
+    list (two options with the same value both show as chosen)
+  - `label` is what the user sees and searches
+  - `description` is a short secondary text, shown dimmed after the label and searched too
+  - `group` lists the option under a heading, together with the options of the same group
+  - `disabled` shows the option dimmed and keeps it from being chosen
+  - `icon` is drawn before the label
+  - `tone` and `color` mark the option with a small dot before the label, a status color that
+    follows the theme or a color from your data (never both; the last one set wins)
+  - `keywords` are extra words that also match but are never shown (synonyms, codes, old names)
+  - `meta` is a short value at the end of the row, in tabular figures (a stock count, a code)
+
 -}
 type alias Option id =
-    Option.Option id
+    { value : id
+    , label : String
+    , description : Maybe String
+    , group : Maybe String
+    , disabled : Bool
+    , icon : Maybe Icon
+    , tone : Maybe Tone
+    , color : Maybe Color
+    , keywords : List String
+    , meta : Maybe String
+    }
 
 
 {-| An option with a value (what the application stores) and a label (what the
@@ -176,6 +204,18 @@ label.
 withDescription : String -> Option id -> Option id
 withDescription =
     Option.withDescription
+
+
+{-| A short value at the end of the row, in tabular figures, for the numbers of
+a data-dense list: a stock count, a code, a price. It is searched like the
+description.
+
+    Select.option sku.id sku.name |> Select.withMeta (String.fromInt sku.stock ++ " in stock")
+
+-}
+withMeta : String -> Option id -> Option id
+withMeta =
+    Option.withMeta
 
 
 {-| Lists the option under a heading with this name. Options with the same group
@@ -283,6 +323,7 @@ type State id
         , picked : Maybe (Option id)
         , list : VirtualList.State
         , cache : Maybe (Popup.Cache id)
+        , fromCode : Bool
         }
 
 
@@ -306,6 +347,7 @@ init id =
         , picked = Nothing
         , list = VirtualList.init (listboxId id)
         , cache = Nothing
+        , fromCode = False
         }
 
 
@@ -318,37 +360,46 @@ value (State state) =
     state.value
 
 
-{-| Chooses a value from your code, for example to show a saved record. The
-label is looked up in the options when the select is shown; use `setOption` when
-the option may not be among them (server search).
+{-| Sets the value from your code, for example to show a saved record:
+`Just` chooses it, `Nothing` empties the field (as `clear` does), so a `Maybe`
+from your model goes in as it is. The label is looked up in the options when the
+select is shown; use `setOption` when the option may not be among them (server
+search).
 
 While the options are still loading (`Loading` or `NotAsked`) and the label is
 not known, the field shows a muted "Loading ..." instead of the value, and "Could
 not be loaded" when they failed: a value is usually an id, and an id is not
 something to read out in a form. Once the options have loaded without it, or
-with `serverSearch`, the field shows the value itself. `value` returns the value
-all the time.
+with `serverSearch`, the field shows the text `valueText` makes of the value, or
+"Unknown value" without `valueText`. `value` returns the value all the time.
 
-    Select.setValue "de" model.country
+    Select.setValue (Just "de") model.country
+
+    Select.setValue order.warehouse model.warehouse
 
 -}
-setValue : id -> State id -> State id
+setValue : Maybe id -> State id -> State id
 setValue newValue (State state) =
-    State
-        { state
-            | value = Just newValue
-            , picked =
-                case state.picked of
-                    Just opt ->
-                        if opt.value == newValue then
-                            Just opt
+    case newValue of
+        Just given ->
+            State
+                { state
+                    | value = Just given
+                    , picked =
+                        case state.picked of
+                            Just opt ->
+                                if opt.value == given then
+                                    Just opt
 
-                        else
-                            Nothing
+                                else
+                                    Nothing
 
-                    Nothing ->
-                        Nothing
-        }
+                            Nothing ->
+                                Nothing
+                }
+
+        Nothing ->
+            clear (State state)
 
 
 {-| Chooses an option and stores it, so the field shows its label even when the
@@ -387,8 +438,9 @@ isOpen (State state) =
 
 
 {-| Opens the list with an empty search and moves focus into its search box,
-for example from a button of your own. Map the command like the one from
-`update`.
+for example from a button of your own. When focus arrives, the list is the same as
+after a click on the field: the chosen option is highlighted and in the middle of
+the list. Map the command like the one from `update`.
 
     OpenCountry ->
         let
@@ -400,7 +452,7 @@ for example from a button of your own. Map the command like the one from
 -}
 open : State id -> ( State id, Cmd (Msg id) )
 open (State state) =
-    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list }
+    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list, fromCode = True }
     , Internal.focus (searchId state.id) NoOp
     )
 
@@ -448,13 +500,14 @@ type Msg id
     | Dismiss
     | QueryChanged (Popup.Env id) String
     | Backspace (Popup.Env id)
-    | Key (Popup.Env id) Int Popup.Move (Maybe (String -> id))
+    | Key (Popup.Env id) Int Popup.Move
     | Hover Int
     | Navigate VirtualList.Geometry Int
     | Pick (Option id)
     | Create (Option id)
     | Clear
     | FocusSearch
+    | SearchFocused (Popup.Env id) Int
     | ListMsg VirtualList.Msg
     | Settle Int
     | NoOp
@@ -495,7 +548,7 @@ update msg ((State state) as current) =
             else
                 ( current, Cmd.none )
 
-        Key env rowsVisible move creator ->
+        Key env rowsVisible move ->
             -- a navigation key before focus reached the search box: worked out
             -- here, from the rows as they are now
             if state.open then
@@ -514,10 +567,14 @@ update msg ((State state) as current) =
                         else
                             choose opt current
 
-                    Just (Popup.Choose (Popup.Create _ text)) ->
-                        case creator of
-                            Just make ->
-                                choose (Option.option (make text) text) current
+                    Just (Popup.Choose (Popup.Create _ _)) ->
+                        -- The text was typed in the same moment, before focus
+                        -- reached the search box. A message holds no function, so
+                        -- the value cannot be made here: the create row is
+                        -- highlighted, and Enter in the search box creates it.
+                        case Popup.resolve state.highlighted rows of
+                            Just index ->
+                                update (Navigate (Popup.geometry rowsVisible rows) index) current
 
                             Nothing ->
                                 ( current, Cmd.none )
@@ -567,6 +624,17 @@ update msg ((State state) as current) =
 
         Clear ->
             ( State { state | value = Nothing, picked = Nothing }, Internal.focus state.id NoOp )
+
+        SearchFocused env rowsVisible ->
+            -- A list opened from code (`open`) has not seen the options. Now
+            -- that focus reached its search box, it does what a click on the
+            -- field does: the rows are kept, and the chosen option is
+            -- highlighted and in the middle of the list.
+            if state.open && state.fromCode && state.query == "" && state.highlighted == Nothing then
+                openWith env rowsVisible "" (State { state | open = False, fromCode = False })
+
+            else
+                ( State { state | fromCode = False }, Cmd.none )
 
         FocusSearch ->
             ( current, Internal.focus (searchId state.id) NoOp )
@@ -778,7 +846,7 @@ a text too short to search for) the list says "Type to search".
                 Select.update inner model.country
         in
         if Select.query country /= Select.query model.country then
-            ( { model | country = country, countries = Remote.Loading }
+            ( { model | country = country, countries = Remote.refresh model.countries }
             , Cmd.batch [ Cmd.map CountryMsg cmd, fetchCountries (Select.query country) ]
             )
 
@@ -787,6 +855,10 @@ a text too short to search for) the list says "Type to search".
 
     -- in view
     Select.view CountryMsg [ Select.serverSearch, Select.remote model.countries ] model.country
+
+`Remote.refresh` keeps the hits of the last search on screen, dimmed and busy,
+until the new ones arrive (the first search shows loading rows), so the list does
+not flash empty on every pause in the typing.
 
 -}
 serverSearch : Attribute id msg
@@ -1019,7 +1091,9 @@ view toMsg attributes ((State state) as current) =
         interactive =
             not config.disabled && not config.readOnly
     in
-    Field.view field
+    -- Always wrapped: an error that appears while the list is open must not
+    -- rebuild the field and take the focus out of the search box.
+    Field.viewStable field
         (Html.div
             [ Internal.cls
                 [ "klar-anchor"
@@ -1057,7 +1131,7 @@ was picked. When neither knows it, the label is not known, and the field
 says so ("Loading ..." while the options load, "Could not be loaded" when they
 failed) instead of showing the raw value, which is usually an id. A list that
 did load, or a server search (whose options are only the latest hits), shows
-the value itself.
+the text `valueText` makes of the value, or "Unknown value".
 -}
 shownValue : Config id msg -> State id -> List (Option id) -> Shown id
 shownValue config (State state) list =
@@ -1140,7 +1214,7 @@ viewControl toMsg config field t env ((State state) as current) =
         triggerKeys =
             if interactive && not state.open then
                 Popup.onTriggerKeys
-                    ([ ( "Enter", openMsg ), ( " ", openMsg ), ( "ArrowDown", openMsg ), ( "ArrowUp", openMsg ) ]
+                    ([ ( "Enter", openMsg ), ( " ", openMsg ), ( "ArrowDown", openMsg ), ( "ArrowUp", openMsg ), ( "Alt+ArrowDown", openMsg ) ]
                         ++ (if showClear then
                                 [ ( "Backspace", toMsg Clear ), ( "Delete", toMsg Clear ) ]
 
@@ -1157,7 +1231,7 @@ viewControl toMsg config field t env ((State state) as current) =
                 Popup.onWindowKeys
                     { typed = \char -> toMsg (Open env config.visibleRows char)
                     , backspace = toMsg (Backspace env)
-                    , move = \move -> toMsg (Key env config.visibleRows move config.creatable)
+                    , move = \move -> toMsg (Key env config.visibleRows move)
                     , close = toMsg Close
                     , leave = toMsg Dismiss
                     }
@@ -1310,8 +1384,8 @@ viewPopup toMsg config t env (State state) =
                     , ( "ArrowUp", navigate (Popup.prev rows h) )
                     , ( "PageDown", navigate (Popup.pageDown (Popup.pageSize config.visibleRows) rows h) )
                     , ( "PageUp", navigate (Popup.pageUp (Popup.pageSize config.visibleRows) rows h) )
-                    , ( "Home", navigate (Maybe.withDefault h (Popup.first rows)) )
-                    , ( "End", navigate (Maybe.withDefault h (Popup.last rows)) )
+                    , ( "Ctrl+Home", navigate (Maybe.withDefault h (Popup.first rows)) )
+                    , ( "Ctrl+End", navigate (Maybe.withDefault h (Popup.last rows)) )
                     , ( "Enter", pickRow h )
                     ]
 
@@ -1320,11 +1394,33 @@ viewPopup toMsg config t env (State state) =
                     -- when "Try again" is on screen
                     [ ( "Enter", Maybe.withDefault (toMsg NoOp) retry ) ]
 
+        -- Home and End go to the first and last row while the search box is
+        -- empty; with text in it they move the caret.
+        ends =
+            case ( isLoaded, highlighted ) of
+                ( True, Just h ) ->
+                    [ ( "Home", navigate (Maybe.withDefault h (Popup.first rows)) )
+                    , ( "End", navigate (Maybe.withDefault h (Popup.last rows)) )
+                    ]
+
+                _ ->
+                    []
+
+        -- The "Old data" notice above the list has a "Try again" button that
+        -- Tab reaches.
+        staleRetry =
+            if isLoaded && rows.optionRows > 0 then
+                Popup.noticeRetry config.freshness config.onRetry
+
+            else
+                Nothing
+
         keys =
-            Popup.onKeydown
-                { handled = navigation ++ [ ( "Escape", toMsg Close ) ]
+            Popup.onSearchKeys
+                { handled = navigation ++ [ ( "Escape", toMsg Close ), ( "Alt+ArrowUp", toMsg Close ) ]
+                , whenEmpty = ends
                 , passive =
-                    if Popup.isJust retry then
+                    if Popup.isJust retry || Popup.isJust staleRetry then
                         -- Tab goes on to the "try again" button
                         [ ( "Shift+Tab", toMsg Dismiss ) ]
 
@@ -1385,8 +1481,13 @@ viewPopup toMsg config t env (State state) =
             else
                 Html.div
                     [ Internal.cls [ Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
-                    [ Freshness.notice
-                        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                    [ Popup.viewNotice
+                        { locale = config.locale
+                        , settings = config.settings
+                        , onRetry = config.onRetry
+                        , refocus = toMsg FocusSearch
+                        , leave = Just (toMsg Dismiss)
+                        }
                         config.freshness
                     , list
                     , Popup.viewFooter (Popup.statusText t env.filterLocally state.query rows) []
@@ -1404,6 +1505,7 @@ viewPopup toMsg config t env (State state) =
                     Popup.viewFailure
                         { locale = config.locale
                         , onRetry = retry
+                        , focusable = True
                         , refocus = toMsg FocusSearch
                         , leave = toMsg Dismiss
                         , noop = toMsg NoOp
@@ -1442,11 +1544,12 @@ viewPopup toMsg config t env (State state) =
                 , label = t.searchLabel
                 , activeDescendant =
                     if isLoaded then
-                        Maybe.map (Popup.optionId state.id) highlighted
+                        Popup.activeDescendant state.id geometry state.list highlighted
 
                     else
                         Nothing
                 , onInput = QueryChanged env >> toMsg
+                , onFocus = toMsg (SearchFocused env config.visibleRows)
                 , keys = keys
                 , loading = Remote.isLoading config.options
                 , loadingLabel = t.loading

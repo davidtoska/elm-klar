@@ -18,9 +18,10 @@ Quick path: `init`, `update`, `view`, `values`
     import Klar.MultiSelect as MultiSelect
     import Klar.Select as Select
 
-    -- model: one State per field; the String is a DOM id, unique on the page
+    -- model: one State per field, of your own id type; the String is a DOM id,
+    -- unique on the page
     type alias Model =
-        { categories : MultiSelect.State }
+        { categories : MultiSelect.State CategoryId }
 
     init =
         { categories = MultiSelect.init "categories" }
@@ -42,12 +43,11 @@ Quick path: `init`, `update`, `view`, `values`
         model.categories
 
     -- reading the values, in the order they were chosen
-    MultiSelect.values model.categories --> List String
+    MultiSelect.values model.categories --> List CategoryId
 
 It shares the option model, the search, the keyboard handling and the remote
 states with [Klar.Select](Klar-Select): options are `Select.Option` values, made
-with `Select.option` and its `with*` helpers (see
-[Klar.Select.Option](Klar-Select-Option)). As there, the state holds the values,
+with `Select.option` and its `with*` helpers. As there, the state holds the values,
 so react to a change by comparing `MultiSelect.values` before and after in your
 `update`.
 
@@ -61,20 +61,24 @@ Under the list are the buttons "Select all" (or "Select all filtered" while a
 search is active) and "Clear all", and a status line such as "12 of 40 matches ·
 3 selected". `maxSelected` limits how many values can be chosen.
 
-Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
-character open the list, and Backspace removes the last chip; the × of every chip
-is a button. In the open list ArrowUp and ArrowDown, Home and End, and PageUp and
-PageDown move the highlight, Enter checks or unchecks the highlighted option,
-Backspace in an empty search box removes the last chip, Escape closes the list,
-and Tab moves on to "Select all" and "Clear all" and then out of the list.
-Backspace removes a chip only on a fresh key press, so holding it down to delete
-search text never eats the chips.
+Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp, Alt+ArrowDown or a
+printable character open the list, and Backspace removes the last chip; the × of every chip
+is a button. In the open list ArrowUp and ArrowDown, and PageUp and PageDown move
+the highlight; Home and End go to the first and the last option while the search
+box is empty (with text in it they move the caret), and Ctrl+Home and Ctrl+End
+always do. Enter checks or unchecks the highlighted option, Backspace in an empty
+search box removes the last chip, Escape (or Alt+ArrowUp) closes the list, and Tab moves on to
+"Try again" of old options (when it is shown), "Select all" and "Clear all", and
+then out of the list. Backspace removes a chip only on a fresh key press, so
+holding it down to delete search text never eats the chips. Keys that belong to
+an input method composition (Japanese, Chinese, Korean ...) are left to it.
 
 Accessibility: the field is a button with `role="combobox"` whose hidden text
 lists the chosen values for screen readers ("3 selected: Books, Games, Toys"),
 and the open list is a `listbox` with `aria-multiselectable`. The status line is
-announced politely. The built-in texts follow `locale` and are English by
-default (see [Klar.Locale](Klar-Locale)).
+announced politely, and so is a value removed from the closed field with the ×
+of its chip, Backspace or the clear button ("Books removed"). The built-in texts
+follow `locale` and are English by default (see [Klar.Locale](Klar-Locale)).
 
 
 # State
@@ -125,7 +129,7 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
-import Klar.Select.Option as Option exposing (Option)
+import Klar.Select as Select exposing (Option)
 import Klar.Select.Popup as Popup
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Tag as Tag
@@ -154,7 +158,17 @@ type State id
         , selected : List (Selected id)
         , list : VirtualList.State
         , cache : Maybe (Popup.Cache id)
+        , said : Maybe Said
+        , fromCode : Bool
         }
+
+
+{-| What the field last told a screen reader about a change made from the closed
+field (in the open list, the status line under the list says it).
+-}
+type Said
+    = RemovedValue (Maybe String)
+    | RemovedAll
 
 
 {-| A chosen value, with its option when the component has seen it (so the
@@ -186,6 +200,8 @@ init id =
         , selected = []
         , list = VirtualList.init (listboxId id)
         , cache = Nothing
+        , said = Nothing
+        , fromCode = False
         }
 
 
@@ -199,9 +215,11 @@ values (State state) =
 
 
 {-| Replaces the chosen values from your code, for example to show a saved
-record. Duplicates are dropped. The labels are looked up in the options when the
-field is shown; use `setOptions` when the options may not contain them (server
-search). A value that the loaded options do not contain is shown as it is. The
+record. Duplicates are dropped (in a list of up to 2000 values; a longer list is
+taken as it is, so give unique values). The labels are looked up in the options
+when the field is shown; use `setOptions` when the options may not contain them
+(server search). A value that the loaded options do not contain is a chip with the
+text `valueText` makes of it, or "Unknown value" without `valueText`. The
 `maxSelected` limit is not applied to values set this way.
 
     MultiSelect.setValues [ "books", "games" ] model.categories
@@ -278,7 +296,7 @@ for example from a button of your own. Map the command like the one from
 -}
 open : State id -> ( State id, Cmd (Msg id) )
 open (State state) =
-    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list }
+    ( State { state | open = True, query = "", searched = "", highlighted = Nothing, list = VirtualList.reset state.list, fromCode = True }
     , Internal.focus (searchId state.id) NoOp
     )
 
@@ -354,6 +372,43 @@ isChosen v selected =
     List.any (\sel -> sel.value == v) selected
 
 
+{-| Whether "Select all" has anything to add: a matching option that can be
+chosen and is not chosen yet. Values are compared with `==`, so the exact answer
+compares every match with every chosen value, and this runs on every render
+(every hover and scroll). So it compares only when it must and when that is
+cheap: while fewer values are chosen than there are matches to choose, some match
+is not chosen; and when the comparison would be large the button stays available
+(the click works the rest out once, in `update`).
+-}
+anyLeftToChoose : List (Option id) -> List (Selected id) -> Bool
+anyLeftToChoose matched selected =
+    let
+        selectable =
+            List.filter (\opt -> not opt.disabled) matched
+
+        selectableCount =
+            List.length selectable
+
+        chosenCount =
+            List.length selected
+    in
+    if selectableCount == 0 then
+        False
+
+    else if chosenCount < selectableCount || selectableCount * chosenCount > comparisonBudget then
+        True
+
+    else
+        List.any (\opt -> not (isChosen opt.value selected)) selectable
+
+
+{-| The most `==` comparisons a render may spend on the state of "Select all".
+-}
+comparisonBudget : Int
+comparisonBudget =
+    200000
+
+
 
 -- UPDATE
 
@@ -368,16 +423,17 @@ type Msg id
     | Dismiss
     | QueryChanged (Popup.Env id) String
     | Backspace (Popup.Env id)
-    | Key (Popup.Env id) Int (Maybe Int) Popup.Move (Maybe (String -> id))
+    | Key (Popup.Env id) Int (Maybe Int) Popup.Move
     | Hover Int
     | Navigate VirtualList.Geometry Int
     | Toggle (Option id)
     | CreateValue (Option id)
-    | Remove id
+    | Remove (Option id)
     | RemoveLast
-    | SelectMany (List (Option id))
+    | SelectAllMatched (Popup.Env id) (Maybe Int)
     | ClearAll
     | FocusSearch
+    | SearchFocused (Popup.Env id)
     | ListMsg VirtualList.Msg
     | Settle Int
     | NoOp
@@ -415,6 +471,7 @@ update msg ((State state) as current) =
                         , highlighted = Nothing
                         , list = VirtualList.reset state.list
                         , cache = Just (Popup.refresh state.cache env text)
+                        , said = Nothing
                     }
                     |> settle env
                     |> Tuple.mapSecond (\wait -> Cmd.batch [ Internal.focus (searchId state.id) NoOp, wait ])
@@ -431,7 +488,7 @@ update msg ((State state) as current) =
             else
                 update (QueryChanged env (String.dropRight 1 state.query)) current
 
-        Key env rowsVisible limit move creator ->
+        Key env rowsVisible limit move ->
             -- a navigation key before focus reached the search box: worked out
             -- here, from the rows as they are now
             if state.open then
@@ -458,14 +515,18 @@ update msg ((State state) as current) =
                         else
                             update (Toggle opt) current
 
-                    Just (Popup.Choose (Popup.Create _ text)) ->
-                        case creator of
-                            Just make ->
+                    Just (Popup.Choose (Popup.Create _ _)) ->
+                        -- The text was typed in the same moment, before focus
+                        -- reached the search box. A message holds no function, so
+                        -- the value cannot be made here: the create row is
+                        -- highlighted, and Enter in the search box creates it.
+                        case Popup.resolve state.highlighted rows of
+                            Just index ->
                                 if atMax then
                                     ( current, Cmd.none )
 
                                 else
-                                    update (CreateValue (Option.option (make text) text)) current
+                                    update (Navigate (Popup.geometry rowsVisible rows) index) current
 
                             Nothing ->
                                 ( current, Cmd.none )
@@ -517,8 +578,8 @@ update msg ((State state) as current) =
         CreateValue opt ->
             ( add [ opt ] current, Cmd.none )
 
-        Remove v ->
-            ( remove v current
+        Remove opt ->
+            ( remove opt.value current |> say (RemovedValue (Just opt.label))
             , if state.open then
                 Cmd.none
 
@@ -529,22 +590,48 @@ update msg ((State state) as current) =
         RemoveLast ->
             case List.reverse state.selected of
                 lastOne :: _ ->
-                    ( remove lastOne.value current, Cmd.none )
+                    ( remove lastOne.value current |> say (RemovedValue (Maybe.map .label lastOne.option)), Cmd.none )
 
                 [] ->
                     ( current, Cmd.none )
 
-        SelectMany opts ->
-            ( add opts current, Internal.focus (searchId state.id) NoOp )
+        SelectAllMatched env limit ->
+            -- worked out here, once per click, not on every render: it compares
+            -- every matching option with every chosen value
+            let
+                rows =
+                    Popup.cachedRows state.cache env state.query
+
+                fresh =
+                    rows.matched
+                        |> List.filter (\opt -> not opt.disabled && not (isChosen opt.value state.selected))
+                        |> (case limit of
+                                Just n ->
+                                    List.take (max 0 (n - List.length state.selected))
+
+                                Nothing ->
+                                    identity
+                           )
+            in
+            ( append fresh current, Internal.focus (searchId state.id) NoOp )
 
         ClearAll ->
-            ( clear current
+            ( clear current |> say RemovedAll
             , if state.open then
                 Internal.focus (searchId state.id) NoOp
 
               else
                 Internal.focus state.id NoOp
             )
+
+        SearchFocused env ->
+            -- A list opened from code (`open`) has not seen the options: keep
+            -- its rows now, as a click on the field does.
+            if state.open && state.fromCode then
+                ( State { state | fromCode = False, cache = Just (Popup.refresh state.cache env state.query) }, Cmd.none )
+
+            else
+                ( current, Cmd.none )
 
         FocusSearch ->
             ( current, Internal.focus (searchId state.id) NoOp )
@@ -583,17 +670,30 @@ settle env (State state) =
 
 
 add : List (Option id) -> State id -> State id
-add opts (State state) =
-    let
-        fresh =
-            opts
-                |> List.filter (\opt -> not (isChosen opt.value state.selected))
-                |> dedupeBy .value
-    in
+add opts ((State state) as current) =
+    append (List.filter (\opt -> not (isChosen opt.value state.selected)) opts) current
+
+
+{-| Adds options that are not chosen yet, in their order.
+-}
+append : List (Option id) -> State id -> State id
+append fresh (State state) =
     State
         { state
-            | selected = state.selected ++ List.map (\opt -> { value = opt.value, option = Just opt }) fresh
+            | selected = state.selected ++ List.map (\opt -> { value = opt.value, option = Just opt }) (dedupeBy .value fresh)
         }
+
+
+{-| Tells a screen reader about a change made from the closed field. The open list
+has its own status line, which says it already.
+-}
+say : Said -> State id -> State id
+say said (State state) =
+    if state.open then
+        State { state | said = Nothing }
+
+    else
+        State { state | said = Just said }
 
 
 remove : id -> State id -> State id
@@ -714,7 +814,7 @@ them.
                 MultiSelect.update inner model.categories
         in
         if MultiSelect.query categories /= MultiSelect.query model.categories then
-            ( { model | categories = categories, found = Remote.Loading }
+            ( { model | categories = categories, found = Remote.refresh model.found }
             , Cmd.batch [ Cmd.map CategoriesMsg cmd, searchCategories (MultiSelect.query categories) ]
             )
 
@@ -723,6 +823,10 @@ them.
 
     -- in view
     MultiSelect.view CategoriesMsg [ MultiSelect.serverSearch, MultiSelect.remote model.found ] model.categories
+
+`Remote.refresh` keeps the hits of the last search on screen, dimmed and busy,
+until the new ones arrive, so the list does not flash empty on every pause in the
+typing.
 
 -}
 serverSearch : Attribute id msg
@@ -982,7 +1086,9 @@ view toMsg attributes ((State state) as current) =
         interactive =
             not config.disabled && not config.readOnly
     in
-    Field.view field
+    -- Always wrapped: an error that appears while the list is open must not
+    -- rebuild the field and take the focus out of the search box.
+    Field.viewStable field
         (Html.div
             [ Internal.cls
                 [ "klar-anchor"
@@ -1020,7 +1126,7 @@ type Chip id
 the component has not seen as options. `Unresolved True` is a value whose
 options are still loading, `Unresolved False` one whose options failed. A list
 that did load, and a server search (its options are only the latest hits), show
-the value itself.
+the text `valueText` makes of the value, or "Unknown value" (`Unlisted`).
 -}
 resolve : Config id msg -> List (Option id) -> List (Selected id) -> List (Chip id)
 resolve config available selection =
@@ -1032,7 +1138,7 @@ resolve config available selection =
             unlisted value =
                 case config.valueText of
                     Just toText ->
-                        Labelled (Option.option value (toText value))
+                        Labelled (Select.option value (toText value))
 
                     Nothing ->
                         Unlisted
@@ -1167,7 +1273,7 @@ createMsg : Config id msg -> String -> Msg id
 createMsg config text =
     case config.creatable of
         Just make ->
-            CreateValue (Option.option (make text) text)
+            CreateValue (Select.option (make text) text)
 
         Nothing ->
             NoOp
@@ -1233,7 +1339,7 @@ viewControl toMsg config field t env (State state) =
         triggerKeys =
             if interactive && not state.open then
                 Popup.onTriggerKeys
-                    ([ ( "Enter", openMsg ), ( " ", openMsg ), ( "ArrowDown", openMsg ), ( "ArrowUp", openMsg ) ]
+                    ([ ( "Enter", openMsg ), ( " ", openMsg ), ( "ArrowDown", openMsg ), ( "ArrowUp", openMsg ), ( "Alt+ArrowDown", openMsg ) ]
                         ++ (if count > 0 then
                                 [ ( "Backspace", toMsg RemoveLast ) ]
 
@@ -1250,7 +1356,7 @@ viewControl toMsg config field t env (State state) =
                 Popup.onWindowKeys
                     { typed = \char -> toMsg (Open env char)
                     , backspace = toMsg (Backspace env)
-                    , move = \move -> toMsg (Key env config.visibleRows config.maxSelected move config.creatable)
+                    , move = \move -> toMsg (Key env config.visibleRows config.maxSelected move)
                     , close = toMsg Close
                     , leave = toMsg Dismiss
                     }
@@ -1277,7 +1383,7 @@ viewControl toMsg config field t env (State state) =
                             ([ Tag.size tagSize, Tag.locale config.locale ]
                                 ++ chipMark opt
                                 ++ (if interactive then
-                                        [ Tag.onRemove (toMsg (Remove opt.value)) ]
+                                        [ Tag.onRemove (toMsg (Remove opt)) ]
 
                                     else
                                         []
@@ -1394,6 +1500,28 @@ viewControl toMsg config field t env (State state) =
 
           else
             Popup.viewChevron
+
+        -- always on the page, so that a change is announced when it happens
+        , Html.span
+            [ Internal.cls [ "klar-sr-only" ]
+            , Attr.attribute "role" "status"
+            , Attr.attribute "aria-live" "polite"
+            ]
+            [ Html.text
+                (case state.said of
+                    Just (RemovedValue (Just name)) ->
+                        t.removed name
+
+                    Just (RemovedValue Nothing) ->
+                        t.removedValue
+
+                    Just RemovedAll ->
+                        t.removedAll
+
+                    Nothing ->
+                        ""
+                )
+            ]
         ]
 
 
@@ -1432,23 +1560,8 @@ viewPopup toMsg config t env (State state) =
         hasRows =
             isLoaded && rows.optionRows > 0
 
-        toAdd =
-            if hasRows then
-                rows.matched
-                    |> List.filter (\opt -> not opt.disabled && not (isChosen opt.value state.selected))
-                    |> (case remaining of
-                            Just n ->
-                                List.take n
-
-                            Nothing ->
-                                identity
-                       )
-
-            else
-                []
-
         canSelectAll =
-            not (List.isEmpty toAdd)
+            hasRows && not atMax && anyLeftToChoose rows.matched state.selected
 
         canClear =
             count > 0
@@ -1482,8 +1595,8 @@ viewPopup toMsg config t env (State state) =
                     , ( "ArrowUp", navigate (Popup.prev rows h) )
                     , ( "PageDown", navigate (Popup.pageDown (Popup.pageSize config.visibleRows) rows h) )
                     , ( "PageUp", navigate (Popup.pageUp (Popup.pageSize config.visibleRows) rows h) )
-                    , ( "Home", navigate (Maybe.withDefault h (Popup.first rows)) )
-                    , ( "End", navigate (Maybe.withDefault h (Popup.last rows)) )
+                    , ( "Ctrl+Home", navigate (Maybe.withDefault h (Popup.first rows)) )
+                    , ( "Ctrl+End", navigate (Maybe.withDefault h (Popup.last rows)) )
                     , ( "Enter", toggleRow h )
                     ]
 
@@ -1491,6 +1604,27 @@ viewPopup toMsg config t env (State state) =
                     -- Enter never submits a surrounding form; it retries only
                     -- when "Try again" is on screen
                     [ ( "Enter", Maybe.withDefault (toMsg NoOp) retry ) ]
+
+        -- Home and End go to the first and last row while the search box is
+        -- empty; with text in it they move the caret.
+        ends =
+            case ( isLoaded, highlighted ) of
+                ( True, Just h ) ->
+                    [ ( "Home", navigate (Maybe.withDefault h (Popup.first rows)) )
+                    , ( "End", navigate (Maybe.withDefault h (Popup.last rows)) )
+                    ]
+
+                _ ->
+                    []
+
+        -- The "Old data" notice above the list has a "Try again" button that
+        -- Tab reaches.
+        staleRetry =
+            if hasRows then
+                Popup.noticeRetry config.freshness config.onRetry
+
+            else
+                Nothing
 
         -- What Enter and Tab do on a failure depends on whether a "Try again"
         -- button is on screen: the problem must be worth retrying and the
@@ -1510,11 +1644,12 @@ viewPopup toMsg config t env (State state) =
             hasRows && (canSelectAll || canClear)
 
         keys =
-            Popup.onKeydown
-                { handled = navigation ++ [ ( "Escape", toMsg Close ) ]
+            Popup.onSearchKeys
+                { handled = navigation ++ [ ( "Escape", toMsg Close ), ( "Alt+ArrowUp", toMsg Close ) ]
+                , whenEmpty = ends
                 , passive =
                     ( "Shift+Tab", toMsg Dismiss )
-                        :: (if retryFocusable || actionsFocusable then
+                        :: (if retryFocusable || actionsFocusable || Popup.isJust staleRetry then
                                 []
 
                             else
@@ -1540,7 +1675,7 @@ viewPopup toMsg config t env (State state) =
                 [ Button.small
                 , Button.ghost
                 , Button.disabled (not canSelectAll)
-                , Button.onClick (toMsg (SelectMany toAdd))
+                , Button.onClick (toMsg (SelectAllMatched env config.maxSelected))
                 , Button.htmlAttrs (Internal.onMouseDownPrevent (toMsg NoOp) :: leaveOnTab (canSelectAll && not canClear))
                 ]
                 (if String.isEmpty (String.trim state.query) then
@@ -1630,8 +1765,19 @@ viewPopup toMsg config t env (State state) =
             else
                 Html.div
                     [ Internal.cls [ Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
-                    [ Freshness.notice
-                        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                    [ Popup.viewNotice
+                        { locale = config.locale
+                        , settings = config.settings
+                        , onRetry = config.onRetry
+                        , refocus = toMsg FocusSearch
+                        , leave =
+                            if actionsFocusable then
+                                -- Tab goes on to "Select all" and "Clear all"
+                                Nothing
+
+                            else
+                                Just (toMsg Dismiss)
+                        }
                         config.freshness
                     , list
                     , Popup.viewFooter status actions
@@ -1649,6 +1795,7 @@ viewPopup toMsg config t env (State state) =
                     Popup.viewFailure
                         { locale = config.locale
                         , onRetry = retry
+                        , focusable = True
                         , refocus = toMsg FocusSearch
                         , leave = toMsg Dismiss
                         , noop = toMsg NoOp
@@ -1687,11 +1834,12 @@ viewPopup toMsg config t env (State state) =
                 , label = t.searchLabel
                 , activeDescendant =
                     if isLoaded then
-                        Maybe.map (Popup.optionId state.id) highlighted
+                        Popup.activeDescendant state.id geometry state.list highlighted
 
                     else
                         Nothing
                 , onInput = QueryChanged env >> toMsg
+                , onFocus = toMsg (SearchFocused env)
                 , keys = keys
                 , loading = Remote.isLoading config.options
                 , loadingLabel = t.loading

@@ -1,7 +1,7 @@
 module Klar.Autocomplete exposing
     ( State, init, Msg, update, view
-    , text, setText, picked, query, isOpen
-    , Attribute, options, suggestions, onRetry, onEnter
+    , text, setText, picked, setOption, clear, query, isOpen, open, close
+    , Attribute, options, remote, onRetry, onEnter
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, minChars, clearable, disabled, readOnly, size, visibleRows, prefixIcon, locale, settings
     )
@@ -18,44 +18,52 @@ Quick path: `init`, `update`, `view`, `text`, `picked`
     import Klar.Autocomplete as Autocomplete
     import Klar.Select as Select
 
-    -- model: one State per field; the String is a DOM id, unique on the page
+    -- model: one State per field, of the type of the suggestions' values; the
+    -- String is a DOM id, unique on the page
     type alias Model =
-        { city : Autocomplete.State }
+        { customer : Autocomplete.State CustomerId }
 
     init =
-        { city = Autocomplete.init "city" }
+        { customer = Autocomplete.init "customer" }
 
     -- update
-    CityMsg inner ->
+    CustomerMsg inner ->
         let
-            ( city, cmd ) =
-                Autocomplete.update inner model.city
+            ( customer, cmd ) =
+                Autocomplete.update inner model.customer
         in
-        ( { model | city = city }, Cmd.map CityMsg cmd )
+        ( { model | customer = customer }, Cmd.map CustomerMsg cmd )
 
     -- view
-    Autocomplete.view CityMsg
-        [ Autocomplete.label "City"
-        , Autocomplete.options (List.map (\name -> Select.option name name) cities)
+    Autocomplete.view CustomerMsg
+        [ Autocomplete.label "Customer"
+        , Autocomplete.options (List.map (\c -> Select.option c.id c.name) customers)
         ]
-        model.city
+        model.customer
 
-    Autocomplete.text model.city --> what is in the field
-    Autocomplete.picked model.city --> Just value when the text came from a suggestion
+    Autocomplete.text model.customer --> what is in the field
+    Autocomplete.picked model.customer --> Just the CustomerId when the text is a suggestion
 
 Suggestions are options (`Select.Option`, made with `Select.option` and its
-`with*` helpers, see [Klar.Select.Option](Klar-Select-Option)): the label is what
-the field shows when one is picked, and the value is what `picked` returns. They
-are filtered locally (`options`) or come from the application (`suggestions`, a
-`Remote`): then fetch when `Autocomplete.query` changes (it waits for a pause in the typing). The list shows loading
-rows, a failure with a retry button, or "No suggestions".
+`with*` helpers): the label is what the field shows when one is picked, and the
+value, of your own type, is what `picked` returns. They are filtered locally
+(`options`) or come from the application (`remote`, a `Remote`): then fetch when
+`Autocomplete.query` changes (it waits for a pause in the typing). The list shows
+loading rows, a failure with a retry button, or "No suggestions". To show a saved
+record, `setOption` puts its text and its value back.
 
 Keyboard: typing shows the suggestions with none highlighted, so Enter keeps the
 typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the
 first one returns to the typed text), PageDown and PageUp move a page, Enter
 picks the highlighted suggestion, Escape closes the list, and Tab closes it and
-moves on. The field keeps focus while a suggestion is clicked, and the list
-closes when the field loses focus.
+moves on (also when the suggestions failed: Enter retries). Home and End move the
+caret, as in every text field, and the keys of an input method composition
+(Japanese, Chinese, Korean ...) are left to it. The field keeps focus while a
+suggestion is clicked, and the list closes when the field loses focus.
+
+`picked` is the same however the user leaves the field: a text that is exactly
+the label of a suggestion (ignoring case and diacritics) is that suggestion,
+whether the user pressed Enter, Tab or Escape or clicked elsewhere.
 
 Accessibility: the input is a `combobox` with `aria-expanded`, `aria-controls`
 and `aria-activedescendant` over a `listbox` of `option`s. A hidden live region
@@ -68,16 +76,16 @@ follow `locale` and are English by default (see [Klar.Locale](Klar-Locale)).
 @docs State, init, Msg, update, view
 
 
-# Value
+# Value and popup
 
-@docs text, setText, picked, query, isOpen
+@docs text, setText, picked, setOption, clear, query, isOpen, open, close
 
 
 # Attributes
 
 Pass attributes to `view` in a list; later ones win over earlier ones.
 
-@docs Attribute, options, suggestions, onRetry, onEnter
+@docs Attribute, options, remote, onRetry, onEnter
 
 
 # Field
@@ -103,8 +111,8 @@ import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.Select exposing (Option)
 import Klar.Select.Match as Match
-import Klar.Select.Option as Option exposing (Option)
 import Klar.Select.Popup as Popup
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Spinner as Spinner
@@ -119,31 +127,32 @@ import Task
 
 
 {-| Everything one autocomplete keeps track of: the text in the field, the value
-of the suggestion it came from (if any), and whether the list is open. Make it
-with `init`, keep it in your model and pass it to `view` and `update`.
+of the suggestion it came from (if any), and whether the list is open. `id` is
+the type of the suggestions' values (a `CustomerId`, or `String`). Make it with
+`init`, keep it in your model and pass it to `view` and `update`.
 -}
-type State
+type State id
     = State
         { id : String
         , text : String
         , searched : String
         , wait : Int
-        , picked : Maybe String
+        , picked : Maybe id
         , open : Bool
         , highlighted : Maybe Int
         , list : VirtualList.State
-        , cache : Maybe (Popup.Cache String)
+        , cache : Maybe (Popup.Cache id)
         }
 
 
 {-| An empty field. The `String` is the DOM id of the input and must be unique
-on the page: the label points to it, and the id of the list is derived from it
-(`city-listbox`).
+on the page: the label points to it, and the ids of the list are derived from it
+(`city-listbox`, `city-popup`).
 
     Autocomplete.init "city"
 
 -}
-init : String -> State
+init : String -> State id
 init id =
     State
         { id = id
@@ -159,54 +168,101 @@ init id =
 
 
 {-| What is in the field: what the user typed, or the label of the suggestion
-they picked. With `suggestions` from a backend, fetch when `query` changes.
+they picked. With `remote` suggestions, fetch when `query` changes.
 -}
-text : State -> String
+text : State id -> String
 text (State state) =
     state.text
 
 
-{-| The text to fetch `suggestions` for: it follows `text` after a pause of 300 ms in
-the typing (at once when a suggestion is picked, the field is cleared or `setText` is
-called), so **write no debounce of your own**. Fetch when it changes, and drop an
-answer whose text is no longer the current `query`.
+{-| The text to fetch `remote` suggestions for: it follows `text` after a pause of
+300 ms in the typing (at once when a suggestion is picked, the field is cleared or
+`setText` or `setOption` is called), so **write no debounce of your own**. Fetch
+when it changes, and drop an answer whose text is no longer the current `query`.
 
     if Autocomplete.query city /= Autocomplete.query model.city then
         fetchCities (Autocomplete.query city)
 
 -}
-query : State -> String
+query : State id -> String
 query (State state) =
     state.searched
 
 
-{-| Replaces the text, for example to show a saved value. It clears `picked` and
-closes the list.
+{-| Replaces the text, for example to show a saved free text. It clears `picked`
+and closes the list; use `setOption` when the text is a suggestion.
 
     Autocomplete.setText "Rotterdam" model.city
 
 -}
-setText : String -> State -> State
+setText : String -> State id -> State id
 setText newText (State state) =
     State { state | text = newText, searched = newText, picked = Nothing, open = False, highlighted = Nothing }
 
 
 {-| The value of the suggestion the text came from, or `Nothing` when the text is
-free. It is set when a suggestion is picked, or when Enter is pressed on a text
-that is exactly the label of a suggestion (ignoring case and diacritics), and it
-is cleared as soon as the text is edited or replaced with `setText`.
+free. It is set when a suggestion is picked, or when the list closes (Enter, Tab,
+Escape or a click elsewhere) on a text that is exactly the label of a suggestion
+(ignoring case and diacritics), and it is cleared as soon as the text is edited or
+replaced with `setText`.
 -}
-picked : State -> Maybe String
+picked : State id -> Maybe id
 picked (State state) =
     state.picked
+
+
+{-| Puts a suggestion in the field as if the user had picked it: its label is the
+text, and its value is what `picked` returns. Use it to show a saved record whose
+value you keep, for example the customer of an order being edited.
+
+    Autocomplete.setOption (Select.option order.customerId order.customerName) model.customer
+
+-}
+setOption : Option id -> State id -> State id
+setOption opt (State state) =
+    State { state | text = opt.label, searched = opt.label, picked = Just opt.value, open = False, highlighted = Nothing }
+
+
+{-| Empties the field: no text, nothing `picked`, and the list closed.
+-}
+clear : State id -> State id
+clear (State state) =
+    State { state | text = "", searched = "", picked = Nothing, open = False, highlighted = Nothing }
 
 
 {-| Whether the suggestion list is open. It can be `True` while nothing is
 visible, because there are no suggestions to show.
 -}
-isOpen : State -> Bool
+isOpen : State id -> Bool
 isOpen (State state) =
     state.open
+
+
+{-| Opens the suggestion list for the text in the field and moves focus into the
+field, for example from a button of your own. Map the command like the one from
+`update`.
+
+    ShowCities ->
+        let
+            ( city, cmd ) =
+                Autocomplete.open model.city
+        in
+        ( { model | city = city }, Cmd.map CityMsg cmd )
+
+-}
+open : State id -> ( State id, Cmd (Msg id) )
+open (State state) =
+    ( State { state | open = True, highlighted = Nothing, list = VirtualList.reset state.list }
+    , Internal.focus state.id NoOp
+    )
+
+
+{-| Closes the suggestion list and keeps the text. Map the command like the one
+from `update`.
+-}
+close : State id -> ( State id, Cmd (Msg id) )
+close (State state) =
+    ( State { state | open = False, highlighted = Nothing }, Cmd.none )
 
 
 listboxId : String -> String
@@ -214,23 +270,28 @@ listboxId id =
     id ++ "-listbox"
 
 
+popupId : String -> String
+popupId id =
+    id ++ "-popup"
+
+
 
 -- UPDATE
 
 
 {-| The messages an autocomplete sends. Wrap it in a constructor of your own
-message type (`CityMsg Autocomplete.Msg`), give that constructor to `view`, and
-pass the messages you get back to `update`.
+message type (`CityMsg (Autocomplete.Msg String)`), give that constructor to
+`view`, and pass the messages you get back to `update`.
 -}
-type Msg
-    = Input (Popup.Env String) Int String
-    | Blurred
-    | Show (Popup.Env String)
+type Msg id
+    = Input (Popup.Env id) Int String
+    | Blurred (Popup.Env id)
+    | Show (Popup.Env id)
     | Navigate VirtualList.Geometry (Maybe Int)
     | Hover Int
-    | Pick (Option String)
-    | Commit (Popup.Env String)
-    | Close
+    | Pick (Option id)
+    | Commit (Popup.Env id)
+    | Close (Popup.Env id)
     | Clear
     | ListMsg VirtualList.Msg
     | Settle Int
@@ -248,11 +309,11 @@ message type with `Cmd.map`.
         in
         ( { model | city = city }, Cmd.map CityMsg cmd )
 
-With `suggestions`, compare `Autocomplete.query` before and after to see when to
-fetch.
+With `remote` suggestions, compare `Autocomplete.query` before and after to see
+when to fetch.
 
 -}
-update : Msg -> State -> ( State, Cmd Msg )
+update : Msg id -> State id -> ( State id, Cmd (Msg id) )
 update msg ((State state) as current) =
     case msg of
         Input env minimum newText ->
@@ -280,8 +341,8 @@ update msg ((State state) as current) =
                 ]
             )
 
-        Blurred ->
-            ( State { state | open = False, highlighted = Nothing }, Cmd.none )
+        Blurred env ->
+            ( settle env current, Cmd.none )
 
         Show env ->
             let
@@ -314,35 +375,16 @@ update msg ((State state) as current) =
             ( State { state | highlighted = Just index }, Cmd.none )
 
         Pick opt ->
-            ( State { state | text = opt.label, searched = opt.label, picked = Just opt.value, open = False, highlighted = Nothing }, Cmd.none )
+            ( setOption opt current, Cmd.none )
 
         Commit env ->
-            let
-                exact =
-                    if String.isEmpty (String.trim state.text) then
-                        Nothing
+            ( settle env current, Cmd.none )
 
-                    else
-                        env.options
-                            |> List.filter (\opt -> not opt.disabled && Match.isExactMatch state.text opt)
-                            |> List.head
-            in
-            ( State
-                { state
-                    | open = False
-                    , highlighted = Nothing
-                    , picked = Maybe.map .value exact
-                }
-            , Cmd.none
-            )
-
-        Close ->
-            ( State { state | open = False, highlighted = Nothing }, Cmd.none )
+        Close env ->
+            ( settle env current, Cmd.none )
 
         Clear ->
-            ( State { state | text = "", searched = "", picked = Nothing, open = False, highlighted = Nothing }
-            , Internal.focus state.id NoOp
-            )
+            ( clear current, Internal.focus state.id NoOp )
 
         Settle ticket ->
             if ticket == state.wait then
@@ -362,25 +404,58 @@ update msg ((State state) as current) =
             ( current, Cmd.none )
 
 
+{-| The list closes, by whatever key or click: a typed text that is exactly the
+label of a suggestion is that suggestion. A text that came from a pick keeps its
+value (two suggestions may have the same label).
+-}
+settle : Popup.Env id -> State id -> State id
+settle env (State state) =
+    State
+        { state
+            | open = False
+            , highlighted = Nothing
+            , picked =
+                case state.picked of
+                    Just value ->
+                        Just value
+
+                    Nothing ->
+                        exactMatch env state.text
+        }
+
+
+exactMatch : Popup.Env id -> String -> Maybe id
+exactMatch env typed =
+    if String.isEmpty (String.trim typed) then
+        Nothing
+
+    else
+        env.options
+            |> List.filter (\opt -> not opt.disabled && Match.isExactMatch typed opt)
+            |> List.head
+            |> Maybe.map .value
+
+
 
 -- ATTRIBUTES
 
 
 {-| A setting of an autocomplete. Make them with the functions below and pass a
-list to `view`; later attributes win over earlier ones.
+list to `view`; later attributes win over earlier ones. `id` is the type of the
+suggestions' values.
 -}
-type Attribute msg
-    = Attribute (Config msg -> Config msg)
+type Attribute id msg
+    = Attribute (Config id msg -> Config id msg)
 
 
-type Source
-    = Local (List (Option String))
-    | FromApp (Remote (List (Option String)))
+type Source id
+    = Local (List (Option id))
+    | FromApp (Remote (List (Option id)))
 
 
-type alias Config msg =
+type alias Config id msg =
     { field : Field.Config
-    , source : Source
+    , source : Source id
     , freshness : Freshness
     , placeholder : String
     , minChars : Int
@@ -397,7 +472,7 @@ type alias Config msg =
     }
 
 
-configure : List (Attribute msg) -> Config msg
+configure : List (Attribute id msg) -> Config id msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
@@ -419,22 +494,21 @@ configure attributes =
         attributes
 
 
-updateField : (Field.Config -> Field.Config) -> Attribute msg
+updateField : (Field.Config -> Field.Config) -> Attribute id msg
 updateField change =
     Attribute (\config -> { config | field = change config.field })
 
 
 {-| Suggestions that the component filters itself as the user types: best match
 first, ignoring case and diacritics, with several words that must all match, in
-labels, descriptions and keywords (the scoring of [Klar.Search](Klar-Search), see
-[Klar.Select.Option](Klar-Select-Option)). The list is hidden while nothing
-matches. The default is no suggestions. Use `options` or `suggestions`, not both:
-the later one wins.
+labels, descriptions and keywords (the scoring of [Klar.Search](Klar-Search)).
+The list is hidden while nothing matches. The default is no suggestions. Use
+`options` or `remote`, not both: the later one wins.
 
     Autocomplete.options (List.map (\name -> Select.option name name) cities)
 
 -}
-options : List (Option String) -> Attribute msg
+options : List (Option id) -> Attribute id msg
 options list =
     Attribute (\config -> { config | source = Local list, freshness = Freshness.Fresh })
 
@@ -450,11 +524,11 @@ refreshed, and with "Old data from 14:05" at the top of the list when the last
 refresh failed (the list is not a place for a button: the focus stays in the
 field, so use the notice of the page for the retry).
 
-    Autocomplete.suggestions model.citySuggestions
+    Autocomplete.remote model.citySuggestions
 
 -}
-suggestions : Remote (List (Option String)) -> Attribute msg
-suggestions data =
+remote : Remote (List (Option id)) -> Attribute id msg
+remote data =
     let
         ( current, freshness ) =
             Freshness.settle data
@@ -463,15 +537,16 @@ suggestions data =
 
 
 {-| The message to send when the user presses the "Try again" button of the error
-shown when `suggestions` failed. The button appears only for problems that are
-worth retrying (network trouble, timeouts, server errors); while it is shown,
-Enter in the field sends the message as well. For other problems (no access, not
-found ...) nothing is retried, and Enter keeps the typed text as usual.
+shown when `remote` suggestions failed. The button appears only for problems that
+are worth retrying (network trouble, timeouts, server errors), and it is for the
+mouse: the focus stays in the field, where Enter sends the message as well and Tab
+moves on. For other problems (no access, not found ...) nothing is retried, and
+Enter keeps the typed text as usual.
 
     Autocomplete.onRetry ReloadCities
 
 -}
-onRetry : msg -> Attribute msg
+onRetry : msg -> Attribute id msg
 onRetry msg =
     Attribute (\config -> { config | onRetry = Just msg })
 
@@ -481,19 +556,19 @@ highlighted, so the typed text is kept (to run a search for it, for example). It
 arrives after the component has updated `picked`, so you can read
 `Autocomplete.text` and `Autocomplete.picked` in your handler. Picking a
 suggestion is a state change instead: compare `Autocomplete.picked` before and
-after to react to it.
+after to react to it. A `disabled` or `readOnly` field sends nothing.
 
     Autocomplete.onEnter SearchSubmitted
 
 -}
-onEnter : msg -> Attribute msg
+onEnter : msg -> Attribute id msg
 onEnter msg =
     Attribute (\config -> { config | onEnter = Just msg })
 
 
 {-| The label above the field. It names the input for screen readers.
 -}
-label : String -> Attribute msg
+label : String -> Attribute id msg
 label value_ =
     updateField (Field.setLabel value_)
 
@@ -502,7 +577,7 @@ label value_ =
 surroundings already name the field, as in a toolbar or a table cell. It needs a
 `label`.
 -}
-labelHidden : Attribute msg
+labelHidden : Attribute id msg
 labelHidden =
     updateField Field.setLabelHidden
 
@@ -510,7 +585,7 @@ labelHidden =
 {-| A short help text under the field. Screen readers read it with the field
 (`aria-describedby`).
 -}
-hint : String -> Attribute msg
+hint : String -> Attribute id msg
 hint value_ =
     updateField (Field.setHint value_)
 
@@ -520,7 +595,7 @@ hint value_ =
 It is safe to set it while the user types: the input keeps its place in the
 page, and so its keyboard focus, whether or not there is a label or a hint.
 -}
-error : String -> Attribute msg
+error : String -> Attribute id msg
 error value_ =
     updateField (Field.setError (Just value_))
 
@@ -531,7 +606,7 @@ validation result.
     Autocomplete.errorMaybe model.cityError
 
 -}
-errorMaybe : Maybe String -> Attribute msg
+errorMaybe : Maybe String -> Attribute id msg
 errorMaybe maybe =
     updateField (Field.setError maybe)
 
@@ -540,7 +615,7 @@ errorMaybe maybe =
 `aria-required` for screen readers. It does not validate anything; show a
 problem with `error`.
 -}
-required : Attribute msg
+required : Attribute id msg
 required =
     updateField (Field.setRequired True)
 
@@ -548,14 +623,15 @@ required =
 {-| A text after the label of a field that is not `required`, such as
 "(optional)". Required fields show no such text.
 -}
-optionalText : String -> Attribute msg
+optionalText : String -> Attribute id msg
 optionalText value_ =
     updateField (Field.setOptionalText value_)
 
 
-{-| The text shown in the empty field. There is none by default.
+{-| The text shown in the empty field. There is none by default: the field takes
+free text, so there is nothing general to say.
 -}
-placeholder : String -> Attribute msg
+placeholder : String -> Attribute id msg
 placeholder value_ =
     Attribute (\config -> { config | placeholder = value_ })
 
@@ -564,7 +640,7 @@ placeholder value_ =
 default is 1, and spaces at the ends do not count. ArrowDown opens the list
 whatever the length.
 -}
-minChars : Int -> Attribute msg
+minChars : Int -> Attribute id msg
 minChars n =
     Attribute (\config -> { config | minChars = max 0 n })
 
@@ -572,7 +648,7 @@ minChars n =
 {-| Shows a small × that empties the field, closes the list and returns focus to
 the field. It is shown only while the field has text.
 -}
-clearable : Attribute msg
+clearable : Attribute id msg
 clearable =
     Attribute (\config -> { config | clearable = True })
 
@@ -581,7 +657,7 @@ clearable =
 is kept. Pass a field of your model, for example while a form is saving. The
 default is `False`.
 -}
-disabled : Bool -> Attribute msg
+disabled : Bool -> Attribute id msg
 disabled value_ =
     Attribute (\config -> { config | disabled = value_ })
 
@@ -590,7 +666,7 @@ disabled value_ =
 and no suggestions are shown. Unlike `disabled`, a read-only field can be focused
 and its text selected. The default is `False`.
 -}
-readOnly : Bool -> Attribute msg
+readOnly : Bool -> Attribute id msg
 readOnly value_ =
     Attribute (\config -> { config | readOnly = value_ })
 
@@ -598,7 +674,7 @@ readOnly value_ =
 {-| The height of the field: `Small`, `Medium` or `Large` from
 [Klar.Theme](Klar-Theme). The default is `Medium`.
 -}
-size : Size -> Attribute msg
+size : Size -> Attribute id msg
 size value_ =
     Attribute (\config -> { config | size = value_ })
 
@@ -607,7 +683,7 @@ size value_ =
 numbers below 3 or above 20 are brought into that range. Group headings take a
 row each.
 -}
-visibleRows : Int -> Attribute msg
+visibleRows : Int -> Attribute id msg
 visibleRows n =
     Attribute (\config -> { config | visibleRows = clamp 3 20 n })
 
@@ -618,7 +694,7 @@ by default.
     Autocomplete.prefixIcon Icon.search
 
 -}
-prefixIcon : Icon -> Attribute msg
+prefixIcon : Icon -> Attribute id msg
 prefixIcon icon =
     Attribute (\config -> { config | prefixIcon = Just icon })
 
@@ -629,7 +705,7 @@ prefixIcon icon =
     Autocomplete.settings model.settings
 
 -}
-settings : Settings -> Attribute msg
+settings : Settings -> Attribute id msg
 settings given =
     Attribute (\config -> { config | settings = given })
 
@@ -642,7 +718,7 @@ state. The default is `Locale.default`, which is English. See
     Autocomplete.locale Locale.nb
 
 -}
-locale : Locale -> Attribute msg
+locale : Locale -> Attribute id msg
 locale value_ =
     Attribute (\config -> { config | locale = value_ })
 
@@ -651,9 +727,9 @@ locale value_ =
 -- VIEW
 
 
-type Content
+type Content id
     = Hidden
-    | Rows (Popup.Rows String)
+    | Rows (Popup.Rows id)
     | Busy
     | Failed Remote.Problem
     | NoSuggestions
@@ -674,7 +750,7 @@ Always give the field a `label`; `labelHidden` keeps it off the screen but
 available to screen readers.
 
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
+view : (Msg id -> msg) -> List (Attribute id msg) -> State id -> Html msg
 view toMsg attributes (State state) =
     let
         config =
@@ -749,9 +825,9 @@ view toMsg attributes (State state) =
                                 -- settled when it was given: never here
                                 loadedContent ()
 
-        -- What Enter and Tab do on a failure depends on whether a "Try again"
-        -- button is on screen: the problem must be worth retrying and the
-        -- application must have said what retrying means.
+        -- What Enter does on a failure depends on whether a "Try again" button
+        -- is on screen: the problem must be worth retrying and the application
+        -- must have said what retrying means.
         retry =
             case content of
                 Failed problem ->
@@ -784,81 +860,96 @@ view toMsg attributes (State state) =
                 _ ->
                     Nothing
 
-        keys =
+        activeDescendant =
             case content of
                 Rows built ->
-                    let
-                        geometry =
-                            Popup.geometry config.visibleRows built
-
-                        navigate target =
-                            toMsg (Navigate geometry target)
-
-                        moves =
-                            case highlighted of
-                                Just h ->
-                                    [ ( "ArrowDown", navigate (Just (Popup.next built h)) )
-                                    , ( "ArrowUp"
-                                      , if Popup.first built == Just h then
-                                            navigate Nothing
-
-                                        else
-                                            navigate (Just (Popup.prev built h))
-                                      )
-                                    , ( "PageDown", navigate (Just (Popup.pageDown (Popup.pageSize config.visibleRows) built h)) )
-                                    , ( "PageUp", navigate (Just (Popup.pageUp (Popup.pageSize config.visibleRows) built h)) )
-                                    , ( "Enter"
-                                      , case Popup.rowAt h built of
-                                            Just (Popup.Item _ opt) ->
-                                                toMsg (Pick opt)
-
-                                            _ ->
-                                                toMsg NoOp
-                                      )
-                                    ]
-
-                                Nothing ->
-                                    [ ( "ArrowDown", navigate (Popup.first built) )
-                                    , ( "ArrowUp", navigate (Popup.last built) )
-                                    ]
-                    in
-                    Popup.onKeydown
-                        { handled = moves ++ [ ( "Escape", toMsg Close ) ]
-                        , passive = [ ( "Tab", toMsg Close ), ( "Enter", toMsg (Commit env) ) ]
-                        }
-
-                Hidden ->
-                    Popup.onKeydown
-                        { handled =
-                            if interactive && hasSomething config then
-                                [ ( "ArrowDown", toMsg (Show env) ) ]
-
-                            else
-                                []
-                        , passive = [ ( "Enter", toMsg (Commit env) ) ]
-                        }
-
-                Failed _ ->
-                    case retry of
-                        Just retryMsg ->
-                            -- the retry button is for the mouse; Enter retries, and Tab
-                            -- closes the list first so focus does not land in it
-                            Popup.onKeydown
-                                { handled = [ ( "Escape", toMsg Close ), ( "Enter", retryMsg ), ( "Tab", toMsg Close ) ]
-                                , passive = []
-                                }
-
-                        Nothing ->
-                            Popup.onKeydown
-                                { handled = [ ( "Escape", toMsg Close ) ]
-                                , passive = [ ( "Tab", toMsg Close ), ( "Enter", toMsg (Commit env) ) ]
-                                }
+                    Popup.activeDescendant state.id (Popup.geometry config.visibleRows built) state.list highlighted
 
                 _ ->
-                    Popup.onKeydown
-                        { handled = [ ( "Escape", toMsg Close ) ]
-                        , passive = [ ( "Tab", toMsg Close ), ( "Enter", toMsg (Commit env) ) ]
-                        }
+                    Nothing
+
+        -- Tab always closes the list and moves on: nothing in the popup takes
+        -- focus (its "Try again" is for the mouse; Enter retries).
+        leave =
+            ( "Tab", toMsg (Close env) )
+
+        keys =
+            if not interactive then
+                Internal.noAttr
+
+            else
+                case content of
+                    Rows built ->
+                        let
+                            geometry =
+                                Popup.geometry config.visibleRows built
+
+                            navigate target =
+                                toMsg (Navigate geometry target)
+
+                            moves =
+                                case highlighted of
+                                    Just h ->
+                                        [ ( "ArrowDown", navigate (Just (Popup.next built h)) )
+                                        , ( "ArrowUp"
+                                          , if Popup.first built == Just h then
+                                                navigate Nothing
+
+                                            else
+                                                navigate (Just (Popup.prev built h))
+                                          )
+                                        , ( "PageDown", navigate (Just (Popup.pageDown (Popup.pageSize config.visibleRows) built h)) )
+                                        , ( "PageUp", navigate (Just (Popup.pageUp (Popup.pageSize config.visibleRows) built h)) )
+                                        , ( "Enter"
+                                          , case Popup.rowAt h built of
+                                                Just (Popup.Item _ opt) ->
+                                                    toMsg (Pick opt)
+
+                                                _ ->
+                                                    toMsg NoOp
+                                          )
+                                        ]
+
+                                    Nothing ->
+                                        [ ( "ArrowDown", navigate (Popup.first built) )
+                                        , ( "ArrowUp", navigate (Popup.last built) )
+                                        ]
+                        in
+                        Popup.onKeydown
+                            { handled = moves ++ [ ( "Escape", toMsg (Close env) ) ]
+                            , passive = [ leave, ( "Enter", toMsg (Commit env) ) ]
+                            }
+
+                    Hidden ->
+                        Popup.onKeydown
+                            { handled =
+                                if hasSomething config then
+                                    [ ( "ArrowDown", toMsg (Show env) ) ]
+
+                                else
+                                    []
+                            , passive = [ ( "Enter", toMsg (Commit env) ) ]
+                            }
+
+                    Failed _ ->
+                        case retry of
+                            Just retryMsg ->
+                                Popup.onKeydown
+                                    { handled = [ ( "Escape", toMsg (Close env) ), ( "Enter", retryMsg ) ]
+                                    , passive = [ leave ]
+                                    }
+
+                            Nothing ->
+                                Popup.onKeydown
+                                    { handled = [ ( "Escape", toMsg (Close env) ) ]
+                                    , passive = [ leave, ( "Enter", toMsg (Commit env) ) ]
+                                    }
+
+                    _ ->
+                        Popup.onKeydown
+                            { handled = [ ( "Escape", toMsg (Close env) ) ]
+                            , passive = [ leave, ( "Enter", toMsg (Commit env) ) ]
+                            }
 
         isBusy =
             case config.source of
@@ -896,7 +987,11 @@ view toMsg attributes (State state) =
                   else
                     ""
                 ]
-            , Internal.attrMaybe (\msg -> Internal.onKeysPassive [ ( "Enter", msg ) ]) config.onEnter
+            , if interactive then
+                Internal.attrMaybe (\msg -> Internal.onKeysPassive [ ( "Enter", msg ) ]) config.onEnter
+
+              else
+                Internal.noAttr
             ]
             [ Html.div
                 [ Internal.cls
@@ -939,13 +1034,17 @@ view toMsg attributes (State state) =
                                  else
                                     "false"
                                 )
-                           , Internal.attrIf hasListbox (Attr.attribute "aria-controls" (listboxId state.id))
-                           , Internal.attrMaybe (\index -> Attr.attribute "aria-activedescendant" (Popup.optionId state.id index)) highlighted
+                           , if hasListbox then
+                                Attr.attribute "aria-controls" (listboxId state.id)
+
+                             else
+                                Internal.attrIf visible (Attr.attribute "aria-controls" (popupId state.id))
+                           , Internal.attrMaybe (Attr.attribute "aria-activedescendant") activeDescendant
                            , Internal.attrIf isBusy (Attr.attribute "aria-busy" "true")
                            , Attr.attribute "autocomplete" "off"
                            , Attr.spellcheck False
                            , Events.onInput (Input env config.minChars >> toMsg)
-                           , Events.onBlur (toMsg Blurred)
+                           , Events.onBlur (toMsg (Blurred env))
                            , keys
                            ]
                     )
@@ -972,12 +1071,12 @@ view toMsg attributes (State state) =
                 ]
             , Html.div [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status", Attr.attribute "aria-live" "polite" ]
                 [ Html.text liveText ]
-            , viewPopup toMsg config t state.id state.list highlighted state.text retry content
+            , viewPopup toMsg config t { id = state.id, list = state.list, text = state.text } highlighted retry content
             ]
         )
 
 
-hasSomething : Config msg -> Bool
+hasSomething : Config id msg -> Bool
 hasSomething config =
     case config.source of
         Local list ->
@@ -987,12 +1086,21 @@ hasSomething config =
             data /= NotAsked
 
 
-viewPopup : (Msg -> msg) -> Config msg -> Popup.Texts -> String -> VirtualList.State -> Maybe Int -> String -> Maybe msg -> Content -> Html msg
-viewPopup toMsg config t id list highlighted typed retry content =
+viewPopup :
+    (Msg id -> msg)
+    -> Config id msg
+    -> Popup.Texts
+    -> { id : String, list : VirtualList.State, text : String }
+    -> Maybe Int
+    -> Maybe msg
+    -> Content id
+    -> Html msg
+viewPopup toMsg config t state highlighted retry content =
     let
         popup children =
             Html.div
                 [ Internal.cls [ "klar-popup", "klar-select__popup", "klar-select__popup--suggest", Freshness.className config.freshness ]
+                , Attr.id (popupId state.id)
                 , Freshness.busyAttr config.freshness
                 , Internal.onMouseDownPrevent (toMsg NoOp)
                 ]
@@ -1010,8 +1118,9 @@ viewPopup toMsg config t id list highlighted typed retry content =
                 [ Popup.viewFailure
                     { locale = config.locale
                     , onRetry = retry
+                    , focusable = False
                     , refocus = toMsg NoOp
-                    , leave = toMsg Close
+                    , leave = toMsg NoOp
                     , noop = toMsg NoOp
                     }
                     problem
@@ -1023,8 +1132,8 @@ viewPopup toMsg config t id list highlighted typed retry content =
         Rows rows ->
             let
                 rowConfig =
-                    { idBase = id
-                    , query = typed
+                    { idBase = state.id
+                    , query = state.text
                     , highlighted = highlighted
                     , setSize = rows.optionRows
                     , indicator = Popup.NoIndicator
@@ -1056,11 +1165,11 @@ viewPopup toMsg config t id list highlighted typed retry content =
                     VirtualList.viewGrouped (ListMsg >> toMsg)
                         listAttributes
                         { items = rows.rows, viewRow = Popup.viewRow rowConfig, viewHeader = Popup.viewPinned }
-                        list
+                        state.list
 
                   else
                     VirtualList.view (ListMsg >> toMsg)
                         listAttributes
                         { items = rows.rows, viewRow = Popup.viewRow rowConfig }
-                        list
+                        state.list
                 ]
