@@ -21,7 +21,9 @@ import Klar.Select as Select exposing (Option)
 import Klar.Text as Text
 import Klar.Theme exposing (Size(..), Tone(..))
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 
@@ -545,23 +547,23 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Choosing"
         , description = "Select, MultiSelect and Autocomplete share one option model, one search and one set of keyboard rules. Every list can be searched, and only the rows that are visible are drawn, so thousands of options are as fast as ten."
         }
-        [ basics locale model
-        , states locale model
-        , colors locale model
-        , creating locale model
-        , typedIds locale model
-        , largeLists locale model
-        , multiSelects locale model
-        , serverSearch locale model
-        , autocompletes locale model
-        , containers locale model
-        , bottom locale model
+        [ basics playground locale model
+        , states playground locale model
+        , colors playground locale model
+        , creating playground locale model
+        , typedIds playground locale model
+        , largeLists playground locale model
+        , multiSelects playground locale model
+        , serverSearch playground locale model
+        , autocompletes playground locale model
+        , containers playground locale model
+        , bottom playground locale model
         ]
 
 
@@ -621,13 +623,17 @@ countOf locale n one other =
     Format.int locale n ++ " " ++ Format.plural locale n { one = one, other = other }
 
 
-failureButton : Bool -> Msg -> Html Msg
-failureButton on toggle =
-    Button.view
-        [ Button.pressed on
-        , Button.icon Icon.warning
-        , Button.onClick toggle
-        ]
+failureButton : Config.Config -> Bool -> Msg -> Html Msg
+failureButton playground on toggle =
+    Options.buttonView playground
+        (Options.klarButton playground
+            (List.concat
+                [ Config.keep playground "Button" "pressed" (Button.pressed on)
+                , Config.keep playground "Button" "icon" (Button.icon Icon.warning)
+                , Config.keep playground "Button" "onClick" (Button.onClick toggle)
+                ]
+            )
+        )
         (if on then
             "Simulate failure: on"
 
@@ -636,97 +642,130 @@ failureButton on toggle =
         )
 
 
-basics : Locale -> Model -> Html Msg
-basics locale model =
-    Doc.section "Searchable select"
+basics : Config.Config -> Locale -> Model -> Html Msg
+basics playground locale model =
+    Doc.configuredSection playground
+        [ "Select" ]
+        "Searchable select"
         "Click the field, press Enter, Space, ArrowDown or ArrowUp, or just start typing to open it. In the list ArrowUp and ArrowDown, and PageUp and PageDown move the highlight; Home and End go to the first and last option while the search box is empty and move the caret once you have typed (Ctrl+Home and Ctrl+End always go to the ends). Enter chooses, Escape closes the list and returns to the field, and Tab closes it and moves on. The Enter that confirms an input method composition (Japanese, Chinese, Korean) never chooses. The search ignores case and accents (é, ü, ñ), accepts several words and shows the best match first. The chosen option has a check mark and is centered in the list when it opens."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "Basic"
             , description = Just "Countries from the sample data. Try “south af” or “nz”: every word has to match, and the grey codes are searched too."
             , code = Just basicCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
-                [ Layout.stack [ Layout.gap 2 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                     [ selectView "sel-basic"
                         locale
                         model
-                        [ Select.label "Country"
-                        , Select.options countryOptions
-                        , Select.hint "The country the order is delivered to"
-                        ]
+                        (Options.klarSelect playground
+                            (List.concat
+                                [ Config.keep playground "Select" "label" (Select.label "Country")
+                                , Config.keep playground "Select" "options" (Select.options countryOptions)
+                                , Config.keep playground "Select" "hint" (Select.hint "The country the order is delivered to")
+                                ]
+                            )
+                        )
                     , valueCaption countryOptions (Select.value (selectState "sel-basic" model))
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Select" ]
             { title = "Grouped by region"
             , description = Just "The group headings are rows of the same height as the options. The heading of the group at the top stays in place while the list scrolls. While you search, the groups are ordered by best match."
             , code = Just groupedCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-grouped"
                     locale
                     model
-                    [ Select.label "Country (grouped)"
-                    , Select.options countryGroupedOptions
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Country (grouped)")
+                            , Config.keep playground "Select" "options" (Select.options countryGroupedOptions)
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Select" ]
             { title = "Descriptions, icons and disabled options"
             , description = Just "The description and the keywords are searched too: try “overnight” or “lorry”, which are keywords that are never shown. “Hazardous goods” is disabled. Long names are cut with an ellipsis and shown in full as a tooltip."
             , code = Just richCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-rich"
                     locale
                     model
-                    [ Select.label "Delivery method"
-                    , Select.options deliveryOptions
-                    , Select.clearable
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Delivery method")
+                            , Config.keep playground "Select" "options" (Select.options deliveryOptions)
+                            , Config.keep playground "Select" "clearable" Select.clearable
+                            ]
+                        )
+                    )
                 ]
             )
         ]
 
 
-colors : Locale -> Model -> Html Msg
-colors locale model =
-    Doc.section "Colors"
+colors : Config.Config -> Locale -> Model -> Html Msg
+colors playground locale model =
+    Doc.configuredSection playground
+        [ "Select" ]
+        "Colors"
         "An option can carry a small colored dot, in the list, in the closed field and in the chips. A tone (Select.withTone) is a status color that follows the theme and the dark mode: green, amber, red. A color (Select.withColor) is a value of your data, for example the color of a row in a database; Color.hex checks the code, so a bad code is a Nothing you decide about. The label always says the same as the color, because color alone is not read by everyone."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "Traffic light"
             , description = Just "Three tones for a status. The dot follows the theme and the dark mode."
             , code = Just trafficCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-traffic"
                     locale
                     model
-                    [ Select.label "Delivery status"
-                    , Select.options trafficOptions
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Delivery status")
+                            , Config.keep playground "Select" "options" (Select.options trafficOptions)
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Select" ]
             { title = "Colors from the data"
             , description = Just "The options are built from rows, as a database returns them, each with a color code that someone typed. The last row has a code that is not a color: it gets no dot, and the application is the one that knows."
             , code = Just teamCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-teams"
                     locale
                     model
-                    [ Select.label "Team"
-                    , Select.options teamOptions
-                    , Select.clearable
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Team")
+                            , Config.keep playground "Select" "options" (Select.options teamOptions)
+                            , Config.keep playground "Select" "clearable" Select.clearable
+                            ]
+                        )
+                    )
                 , multiView "multi-teams"
                     locale
                     model
-                    [ MultiSelect.label "Teams (chips keep the color)"
-                    , MultiSelect.options teamOptions
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Teams (chips keep the color)")
+                            , Config.keep playground "MultiSelect" "options" (MultiSelect.options teamOptions)
+                            ]
+                        )
+                    )
                 ]
             )
         ]
@@ -787,127 +826,176 @@ teamOption row =
             Select.option row.id row.name"""
 
 
-states : Locale -> Model -> Html Msg
-states locale model =
+states : Config.Config -> Locale -> Model -> Html Msg
+states playground locale model =
     let
         required =
             selectState "sel-required" model
     in
-    Doc.section "States and sizes"
+    Doc.configuredSection playground
+        [ "Select" ]
+        "States and sizes"
         "Label, hint, error message and the required mark go through the same field wrapper as the text inputs. A disabled field cannot be focused; a read-only field can be focused but not opened. A field that can be cleared has a small cross, and Backspace or Delete on the closed field clears it too."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "Required, invalid, disabled and read-only"
             , description = Nothing
             , code = Just statesCode
             }
-            (Layout.grid [ Layout.minColumn 240, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-required"
                     locale
                     model
-                    [ Select.label "Billing country"
-                    , Select.required
-                    , Select.options countryOptions
-                    , Select.errorMaybe
-                        (if Select.value required == Nothing then
-                            Just "Choose a country"
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Billing country")
+                            , Config.keep playground "Select" "required" Select.required
+                            , Config.keep playground "Select" "options" (Select.options countryOptions)
+                            , Config.keep playground
+                                "Select"
+                                "errorMaybe"
+                                (Select.errorMaybe
+                                    (if Select.value required == Nothing then
+                                        Just "Choose a country"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            ]
                         )
-                    ]
+                    )
                 , selectView "sel-invalid"
                     locale
                     model
-                    [ Select.label "Delivery country"
-                    , Select.options countryOptions
-                    , Select.error "We cannot deliver to this country yet"
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Delivery country")
+                            , Config.keep playground "Select" "options" (Select.options countryOptions)
+                            , Config.keep playground "Select" "error" (Select.error "We cannot deliver to this country yet")
+                            ]
+                        )
+                    )
                 , selectView "sel-disabled"
                     locale
                     model
-                    [ Select.label "Disabled"
-                    , Select.options countryOptions
-                    , Select.disabled True
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Disabled")
+                            , Config.keep playground "Select" "options" (Select.options countryOptions)
+                            , Config.keep playground "Select" "disabled" (Select.disabled True)
+                            ]
+                        )
+                    )
                 , selectView "sel-readonly"
                     locale
                     model
-                    [ Select.label "Read-only"
-                    , Select.options countryOptions
-                    , Select.readOnly True
-                    , Select.hint "Copied from the customer record"
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Read-only")
+                            , Config.keep playground "Select" "options" (Select.options countryOptions)
+                            , Config.keep playground "Select" "readOnly" (Select.readOnly True)
+                            , Config.keep playground "Select" "hint" (Select.hint "Copied from the customer record")
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Select" ]
             { title = "Sizes and clearing"
             , description = Just "Small, Medium and Large, like the text inputs. All three can be cleared."
             , code = Just sizesCode
             }
-            (Layout.grid [ Layout.minColumn 220, Layout.gap 5, Layout.alignStart ]
-                [ selectView "sel-small" locale model [ Select.label "Small", Select.size Small, Select.clearable, Select.options countryOptions ]
-                , selectView "sel-medium" locale model [ Select.label "Medium", Select.clearable, Select.options countryOptions ]
-                , selectView "sel-large" locale model [ Select.label "Large", Select.size Large, Select.clearable, Select.options countryOptions ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 220), Config.keep playground "Layout" "gap" (Layout.gap 5), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                [ selectView "sel-small" locale model (Options.klarSelect playground (List.concat [ Config.keep playground "Select" "label" (Select.label "Small"), Config.keep playground "Select" "size" (Select.size Small), Config.keep playground "Select" "clearable" Select.clearable, Config.keep playground "Select" "options" (Select.options countryOptions) ]))
+                , selectView "sel-medium" locale model (Options.klarSelect playground (List.concat [ Config.keep playground "Select" "label" (Select.label "Medium"), Config.keep playground "Select" "clearable" Select.clearable, Config.keep playground "Select" "options" (Select.options countryOptions) ]))
+                , selectView "sel-large" locale model (Options.klarSelect playground (List.concat [ Config.keep playground "Select" "label" (Select.label "Large"), Config.keep playground "Select" "size" (Select.size Large), Config.keep playground "Select" "clearable" Select.clearable, Config.keep playground "Select" "options" (Select.options countryOptions) ]))
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Select" ]
             { title = "A chosen value before the options have arrived"
             , description = Just "The value is chosen, but its name is not known yet. While the options load, and when they could not be fetched, the field says so in muted text instead of showing the id (ORD-11234, ORD-10012, ORD-10047). Select.value and MultiSelect.values return the values all the time."
             , code = Just remoteCode
             }
-            (Layout.grid [ Layout.minColumn 240, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-loading"
                     locale
                     model
-                    [ Select.label "Options are loading"
-                    , Select.remote Loading
-                    , Select.hint "Value: ORD-11234"
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Options are loading")
+                            , Config.keep playground "Select" "remote" (Select.remote (Config.remote playground "Select" "remote" Loading))
+                            , Config.keep playground "Select" "hint" (Select.hint "Value: ORD-11234")
+                            ]
+                        )
+                    )
                 , selectView "sel-failed"
                     locale
                     model
-                    [ Select.label "Options could not be fetched"
-                    , Select.remote unreachable
-                    , Select.clearable
-                    , Select.hint "Value: ORD-11234"
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Options could not be fetched")
+                            , Config.keep playground "Select" "remote" (Select.remote (Config.remote playground "Select" "remote" unreachable))
+                            , Config.keep playground "Select" "clearable" Select.clearable
+                            , Config.keep playground "Select" "hint" (Select.hint "Value: ORD-11234")
+                            ]
+                        )
+                    )
                 , multiView "multi-loading"
                     locale
                     model
-                    [ MultiSelect.label "Multiple choice, options are loading"
-                    , MultiSelect.remote Loading
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Multiple choice, options are loading")
+                            , Config.keep playground "MultiSelect" "remote" (MultiSelect.remote (Config.remote playground "MultiSelect" "remote" Loading))
+                            ]
+                        )
+                    )
                 , multiView "multi-failed"
                     locale
                     model
-                    [ MultiSelect.label "Multiple choice, options could not be fetched"
-                    , MultiSelect.remote unreachable
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Multiple choice, options could not be fetched")
+                            , Config.keep playground "MultiSelect" "remote" (MultiSelect.remote (Config.remote playground "MultiSelect" "remote" unreachable))
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Select" ]
             { title = "No options"
             , description = Just "A list without options says so when it is opened."
             , code = Just emptyCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-empty"
                     locale
                     model
-                    [ Select.label "Carrier"
-                    , Select.options []
-                    , Select.placeholder "No carriers available"
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Carrier")
+                            , Config.keep playground "Select" "options" (Select.options [])
+                            , Config.keep playground "Select" "placeholder" (Select.placeholder "No carriers available")
+                            ]
+                        )
+                    )
                 ]
             )
         ]
 
 
-creating : Locale -> Model -> Html Msg
-creating locale model =
-    Doc.section "New values"
+creating : Config.Config -> Locale -> Model -> Html Msg
+creating playground locale model =
+    Doc.configuredSection playground
+        [ "Select" ]
+        "New values"
         "With creatable the list offers a first row such as Create “Adhesives” when the search does not match an option exactly. The value becomes the text that was typed; the application adds it to its options if it should stay."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "A category that can be created"
             , description =
                 Just
@@ -919,16 +1007,20 @@ creating locale model =
                     )
             , code = Just creatableCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-creatable"
                     locale
                     model
-                    [ Select.label "Category"
-                    , Select.options (categoryOptions model.createdCategories)
-                    , Select.creatable identity
-                    , Select.clearable
-                    , Select.placeholder "Choose or type a category"
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Category")
+                            , Config.keep playground "Select" "options" (Select.options (categoryOptions model.createdCategories))
+                            , Config.keep playground "Select" "creatable" (Select.creatable identity)
+                            , Config.keep playground "Select" "clearable" Select.clearable
+                            , Config.keep playground "Select" "placeholder" (Select.placeholder "Choose or type a category")
+                            ]
+                        )
+                    )
                 ]
             )
         ]
@@ -967,11 +1059,14 @@ ownerNumber (OwnerId n) =
     String.fromInt n
 
 
-typedIds : Locale -> Model -> Html Msg
-typedIds locale model =
-    Doc.section "Your own id type"
+typedIds : Config.Config -> Locale -> Model -> Html Msg
+typedIds playground locale model =
+    Doc.configuredSection playground
+        [ "Select", "Ids" ]
+        "Your own id type"
         "The value of an option can be any plain data: an id type of your own, an Int, a record. The select gives the same value back, so a database id needs no String in between and no parsing on the way out. Values are compared with ==."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "A select of OwnerId"
             , description =
                 Just
@@ -984,14 +1079,18 @@ typedIds locale model =
                     )
             , code = Just typedIdCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ Select.view OwnerMsg
-                    [ Select.label "Owner"
-                    , Select.options ownerOptions
-                    , Select.valueText (\id -> "Owner #" ++ ownerNumber id)
-                    , Select.clearable
-                    , Select.locale locale
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Owner")
+                            , Config.keep playground "Select" "options" (Select.options ownerOptions)
+                            , Config.keep playground "Select" "valueText" (Select.valueText (\id -> "Owner #" ++ ownerNumber id))
+                            , Config.keep playground "Select" "clearable" Select.clearable
+                            , Config.keep playground "Select" "locale" (Select.locale locale)
+                            ]
+                        )
+                    )
                     model.owner
                 ]
             )
@@ -1010,41 +1109,52 @@ typedIds locale model =
                     )
             , code = Just typedMultiCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ MultiSelect.view AssigneesMsg
-                    [ MultiSelect.label "Assignees"
-                    , MultiSelect.options ownerOptions
-                    , MultiSelect.clearable
-                    , MultiSelect.locale locale
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Assignees")
+                            , Config.keep playground "MultiSelect" "options" (MultiSelect.options ownerOptions)
+                            , Config.keep playground "MultiSelect" "clearable" MultiSelect.clearable
+                            , Config.keep playground "MultiSelect" "locale" (MultiSelect.locale locale)
+                            ]
+                        )
+                    )
                     model.assignees
                 ]
             )
         ]
 
 
-largeLists : Locale -> Model -> Html Msg
-largeLists locale model =
+largeLists : Config.Config -> Locale -> Model -> Html Msg
+largeLists playground locale model =
     let
         count =
             List.length (MultiSelect.values (multiState "multi-orders" model))
     in
-    Doc.section "Large lists"
+    Doc.configuredSection playground
+        [ "Select", "VirtualList" ]
+        "Large lists"
         "3,000 orders. The list draws only the rows that are visible, plus a few above and below (Klar.VirtualList does this for all three components), so it opens, filters on every keystroke and moves with the keyboard without delay. The line under the list says how many options matched. Try “ord-1250”, “pinnacle” or “shipped”, or hold PageDown."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "3,000 options"
             , description = Just "The label is the order number and the customer, the description the city and the status, and the number of lines sits at the end of the row (Select.withMeta). The label and the description are searched; the number of lines is not."
             , code = Just manyCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 5 ]
-                [ Layout.stack [ Layout.gap 2 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                     [ selectView "sel-orders"
                         locale
                         model
-                        [ Select.label "Order"
-                        , Select.options orderOptions
-                        , Select.clearable
-                        ]
+                        (Options.klarSelect playground
+                            (List.concat
+                                [ Config.keep playground "Select" "label" (Select.label "Order")
+                                , Config.keep playground "Select" "options" (Select.options orderOptions)
+                                , Config.keep playground "Select" "clearable" Select.clearable
+                                ]
+                            )
+                        )
                     , valueCaption orderOptions (Select.value (selectState "sel-orders" model))
                     ]
                 ]
@@ -1054,16 +1164,20 @@ largeLists locale model =
             , description = Just "“Select all filtered” chooses every match of the search. The field shows three chips and “+N” for the rest."
             , code = Just manyMultiCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 5 ]
-                [ Layout.stack [ Layout.gap 2 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                     [ multiView "multi-orders"
                         locale
                         model
-                        [ MultiSelect.label "Orders"
-                        , MultiSelect.options orderOptions
-                        , MultiSelect.maxVisibleChips 3
-                        , MultiSelect.clearable
-                        ]
+                        (Options.klarMultiSelect playground
+                            (List.concat
+                                [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Orders")
+                                , Config.keep playground "MultiSelect" "options" (MultiSelect.options orderOptions)
+                                , Config.keep playground "MultiSelect" "maxVisibleChips" (MultiSelect.maxVisibleChips 3)
+                                , Config.keep playground "MultiSelect" "clearable" MultiSelect.clearable
+                                ]
+                            )
+                        )
                     , Text.caption
                         (if count == 0 then
                             "No orders selected"
@@ -1077,86 +1191,117 @@ largeLists locale model =
         ]
 
 
-multiSelects : Locale -> Model -> Html Msg
-multiSelects locale model =
+multiSelects : Config.Config -> Locale -> Model -> Html Msg
+multiSelects playground locale model =
     let
         invalid =
             multiState "multi-invalid" model
     in
-    Doc.section "Multiple choice"
+    Doc.configuredSection playground
+        [ "MultiSelect" ]
+        "Multiple choice"
         "The chosen values are shown as chips in the field, wrapping onto several lines. The list has check boxes and stays open while you choose. Enter checks and unchecks, Backspace in an empty search box removes the last chip, and Tab moves on to “Select all” and “Clear all”. On the closed field Backspace removes the last chip, and every chip has its own remove button."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "MultiSelect" ]
             { title = "Cities with chips"
             , description = Just "The field shows five chips and “+N” for the rest, so it does not grow when many are chosen. Point at “+N” to read which ones are hidden. Try “Select all”."
             , code = Just citiesCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ multiView "multi-cities"
                     locale
                     model
-                    [ MultiSelect.label "Cities"
-                    , MultiSelect.options cityOptions
-                    , MultiSelect.clearable
-                    , MultiSelect.hint "The cities this route serves"
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Cities")
+                            , Config.keep playground "MultiSelect" "options" (MultiSelect.options cityOptions)
+                            , Config.keep playground "MultiSelect" "clearable" MultiSelect.clearable
+                            , Config.keep playground "MultiSelect" "hint" (MultiSelect.hint "The cities this route serves")
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MultiSelect" ]
             { title = "Limit, required, disabled and read-only"
             , description = Just "With maxSelected the rest of the list is dimmed once the limit is reached."
             , code = Just limitCode
             }
-            (Layout.grid [ Layout.minColumn 240, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ multiView "multi-limited"
                     locale
                     model
-                    [ MultiSelect.label "Up to three countries"
-                    , MultiSelect.options countryGroupedOptions
-                    , MultiSelect.maxSelected 3
-                    , MultiSelect.required
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Up to three countries")
+                            , Config.keep playground "MultiSelect" "options" (MultiSelect.options countryGroupedOptions)
+                            , Config.keep playground "MultiSelect" "maxSelected" (MultiSelect.maxSelected 3)
+                            , Config.keep playground "MultiSelect" "required" MultiSelect.required
+                            ]
+                        )
+                    )
                 , multiView "multi-invalid"
                     locale
                     model
-                    [ MultiSelect.label "Countries served"
-                    , MultiSelect.options countryOptions
-                    , MultiSelect.required
-                    , MultiSelect.errorMaybe
-                        (if List.isEmpty (MultiSelect.values invalid) then
-                            Just "Choose at least one country"
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Countries served")
+                            , Config.keep playground "MultiSelect" "options" (MultiSelect.options countryOptions)
+                            , Config.keep playground "MultiSelect" "required" MultiSelect.required
+                            , Config.keep playground
+                                "MultiSelect"
+                                "errorMaybe"
+                                (MultiSelect.errorMaybe
+                                    (if List.isEmpty (MultiSelect.values invalid) then
+                                        Just "Choose at least one country"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            ]
                         )
-                    ]
+                    )
                 , multiView "multi-disabled"
                     locale
                     model
-                    [ MultiSelect.label "Disabled"
-                    , MultiSelect.options countryOptions
-                    , MultiSelect.disabled True
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Disabled")
+                            , Config.keep playground "MultiSelect" "options" (MultiSelect.options countryOptions)
+                            , Config.keep playground "MultiSelect" "disabled" (MultiSelect.disabled True)
+                            ]
+                        )
+                    )
                 , multiView "multi-readonly"
                     locale
                     model
-                    [ MultiSelect.label "Read-only"
-                    , MultiSelect.options countryOptions
-                    , MultiSelect.readOnly True
-                    ]
+                    (Options.klarMultiSelect playground
+                        (List.concat
+                            [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Read-only")
+                            , Config.keep playground "MultiSelect" "options" (MultiSelect.options countryOptions)
+                            , Config.keep playground "MultiSelect" "readOnly" (MultiSelect.readOnly True)
+                            ]
+                        )
+                    )
                 ]
             )
         ]
 
 
-serverSearch : Locale -> Model -> Html Msg
-serverSearch locale model =
+serverSearch : Config.Config -> Locale -> Model -> Html Msg
+serverSearch playground locale model =
     let
         server =
             selectState "sel-server" model
     in
-    Doc.section "Server search"
+    Doc.configuredSection playground
+        [ "Select", "MultiSelect" ]
+        "Server search"
         "With serverSearch the component does not filter. The application compares Select.query before and after in update and fetches when the search changes; the answer is given as a Remote. Here a simulated server answers after 0.7 seconds with the 50 best matches. Under two characters the list says “Type to search”, a search for “zzz” gives the empty list, and “Simulate failure” gives the failed state with “Try again”."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select", "MultiSelect" ]
             { title = "Order search"
             , description =
                 Just
@@ -1171,36 +1316,44 @@ serverSearch locale model =
                     )
             , code = Just serverCode
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap ]
-                    [ failureButton model.serverFails ToggleServerFailure
-                    , Button.view [ Button.icon Icon.bookmark, Button.onClick LoadSaved ] "Load saved values"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ failureButton playground model.serverFails ToggleServerFailure
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.bookmark), Config.keep playground "Button" "onClick" (Button.onClick LoadSaved) ])) "Load saved values"
                     ]
-                , Layout.grid [ Layout.minColumn 300, Layout.gap 5 ]
-                    [ Layout.stack [ Layout.gap 2 ]
+                , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 300), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+                    [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                         [ selectView "sel-server"
                             locale
                             model
-                            [ Select.label "Order (server search)"
-                            , Select.serverSearch
-                            , Select.remote model.orderSearch.results
-                            , Select.onRetry (Retry OrderSearch)
-                            , Select.clearable
-                            , Select.searchPlaceholder "Search the orders ..."
-                            ]
+                            (Options.klarSelect playground
+                                (List.concat
+                                    [ Config.keep playground "Select" "label" (Select.label "Order (server search)")
+                                    , Config.keep playground "Select" "serverSearch" Select.serverSearch
+                                    , Config.keep playground "Select" "remote" (Select.remote (Config.remote playground "Select" "remote" model.orderSearch.results))
+                                    , Config.keep playground "Select" "onRetry" (Select.onRetry (Retry OrderSearch))
+                                    , Config.keep playground "Select" "clearable" Select.clearable
+                                    , Config.keep playground "Select" "searchPlaceholder" (Select.searchPlaceholder "Search the orders ...")
+                                    ]
+                                )
+                            )
                         , valueCaption orderOptions (Select.value server)
                         ]
-                    , Layout.stack [ Layout.gap 2 ]
+                    , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                         [ multiView "multi-server"
                             locale
                             model
-                            [ MultiSelect.label "Orders (server search, multiple choice)"
-                            , MultiSelect.serverSearch
-                            , MultiSelect.remote model.orderMultiSearch.results
-                            , MultiSelect.onRetry (Retry OrderMultiSearch)
-                            , MultiSelect.maxVisibleChips 2
-                            , MultiSelect.clearable
-                            ]
+                            (Options.klarMultiSelect playground
+                                (List.concat
+                                    [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Orders (server search, multiple choice)")
+                                    , Config.keep playground "MultiSelect" "serverSearch" MultiSelect.serverSearch
+                                    , Config.keep playground "MultiSelect" "remote" (MultiSelect.remote (Config.remote playground "MultiSelect" "remote" model.orderMultiSearch.results))
+                                    , Config.keep playground "MultiSelect" "onRetry" (MultiSelect.onRetry (Retry OrderMultiSearch))
+                                    , Config.keep playground "MultiSelect" "maxVisibleChips" (MultiSelect.maxVisibleChips 2)
+                                    , Config.keep playground "MultiSelect" "clearable" MultiSelect.clearable
+                                    ]
+                                )
+                            )
                         , Text.caption "The chips keep their names even when the server no longer returns the option."
                         ]
                     ]
@@ -1209,8 +1362,8 @@ serverSearch locale model =
         ]
 
 
-autocompletes : Locale -> Model -> Html Msg
-autocompletes locale model =
+autocompletes : Config.Config -> Locale -> Model -> Html Msg
+autocompletes playground locale model =
     let
         city =
             autoState "auto-city" model
@@ -1218,9 +1371,12 @@ autocompletes locale model =
         requiredCity =
             autoState "auto-required" model
     in
-    Doc.section "Autocomplete"
+    Doc.configuredSection playground
+        [ "Autocomplete" ]
+        "Autocomplete"
         "A free text field with suggestions: the user may type anything, the suggestions only help. Typing shows the suggestions with none highlighted, so Enter keeps the typed text. ArrowDown and ArrowUp move through the suggestions (ArrowUp on the first one goes back to the typed text), Enter chooses the highlighted one, Escape closes the list and Tab moves on. The field keeps focus when a suggestion is clicked, and the list closes when the field loses focus. A typed text that is exactly a suggestion is picked however the field is left (Enter, Tab, Escape or a click elsewhere), and the values are of your own type, as in Select."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Autocomplete" ]
             { title = "City with local suggestions"
             , description =
                 Just
@@ -1238,20 +1394,25 @@ autocompletes locale model =
                     )
             , code = Just autoCityCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ autoView "auto-city"
                     locale
                     model
-                    [ Autocomplete.label "City"
-                    , Autocomplete.options cityOptions
-                    , Autocomplete.prefixIcon Icon.mapPin
-                    , Autocomplete.clearable
-                    , Autocomplete.onEnter CityEntered
-                    , Autocomplete.placeholder "For example Rotterdam"
-                    ]
+                    (Options.klarAutocomplete playground
+                        (List.concat
+                            [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "City")
+                            , Config.keep playground "Autocomplete" "options" (Autocomplete.options cityOptions)
+                            , Config.keep playground "Autocomplete" "prefixIcon" (Autocomplete.prefixIcon Icon.mapPin)
+                            , Config.keep playground "Autocomplete" "clearable" Autocomplete.clearable
+                            , Config.keep playground "Autocomplete" "onEnter" (Autocomplete.onEnter CityEntered)
+                            , Config.keep playground "Autocomplete" "placeholder" (Autocomplete.placeholder "For example Rotterdam")
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Autocomplete" ]
             { title = "Suggestions from a server"
             , description =
                 Just
@@ -1263,98 +1424,134 @@ autocompletes locale model =
                     )
             , code = Just autoServerCode
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Layout.row [ Layout.gap 2 ]
-                    [ failureButton model.customerFails ToggleCustomerFailure
-                    , Button.view [ Button.icon Icon.bookmark, Button.onClick LoadSavedCustomer ] "Load saved customer"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ failureButton playground model.customerFails ToggleCustomerFailure
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.bookmark), Config.keep playground "Button" "onClick" (Button.onClick LoadSavedCustomer) ])) "Load saved customer"
                     ]
-                , Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+                , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                     [ autoView "auto-customer"
                         locale
                         model
-                        [ Autocomplete.label "Customer"
-                        , Autocomplete.serverSearch
-                        , Autocomplete.remote model.customerSearch.results
-                        , Autocomplete.onRetry (Retry CustomerSearch)
-                        , Autocomplete.clearable
-                        , Autocomplete.hint "Type at least one letter"
-                        ]
+                        (Options.klarAutocomplete playground
+                            (List.concat
+                                [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "Customer")
+                                , Config.keep playground "Autocomplete" "serverSearch" Autocomplete.serverSearch
+                                , Config.keep playground "Autocomplete" "remote" (Autocomplete.remote (Config.remote playground "Autocomplete" "remote" model.customerSearch.results))
+                                , Config.keep playground "Autocomplete" "onRetry" (Autocomplete.onRetry (Retry CustomerSearch))
+                                , Config.keep playground "Autocomplete" "clearable" Autocomplete.clearable
+                                , Config.keep playground "Autocomplete" "hint" (Autocomplete.hint "Type at least one letter")
+                                ]
+                            )
+                        )
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Autocomplete" ]
             { title = "States and sizes"
             , description = Just "Required with an error, disabled, read-only, and the two other sizes."
             , code = Just autoStatesCode
             }
-            (Layout.grid [ Layout.minColumn 220, Layout.gap 5, Layout.alignStart ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 220), Config.keep playground "Layout" "gap" (Layout.gap 5), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
                 [ autoView "auto-required"
                     locale
                     model
-                    [ Autocomplete.label "Delivery city"
-                    , Autocomplete.options cityOptions
-                    , Autocomplete.required
-                    , Autocomplete.errorMaybe
-                        (if String.isEmpty (String.trim (Autocomplete.text requiredCity)) then
-                            Just "Enter a city"
+                    (Options.klarAutocomplete playground
+                        (List.concat
+                            [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "Delivery city")
+                            , Config.keep playground "Autocomplete" "options" (Autocomplete.options cityOptions)
+                            , Config.keep playground "Autocomplete" "required" Autocomplete.required
+                            , Config.keep playground
+                                "Autocomplete"
+                                "errorMaybe"
+                                (Autocomplete.errorMaybe
+                                    (if String.isEmpty (String.trim (Autocomplete.text requiredCity)) then
+                                        Just "Enter a city"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            ]
                         )
-                    ]
+                    )
                 , autoView "auto-disabled"
                     locale
                     model
-                    [ Autocomplete.label "Disabled"
-                    , Autocomplete.options cityOptions
-                    , Autocomplete.disabled True
-                    ]
+                    (Options.klarAutocomplete playground
+                        (List.concat
+                            [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "Disabled")
+                            , Config.keep playground "Autocomplete" "options" (Autocomplete.options cityOptions)
+                            , Config.keep playground "Autocomplete" "disabled" (Autocomplete.disabled True)
+                            ]
+                        )
+                    )
                 , autoView "auto-readonly"
                     locale
                     model
-                    [ Autocomplete.label "Read-only"
-                    , Autocomplete.options cityOptions
-                    , Autocomplete.readOnly True
-                    ]
+                    (Options.klarAutocomplete playground
+                        (List.concat
+                            [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "Read-only")
+                            , Config.keep playground "Autocomplete" "options" (Autocomplete.options cityOptions)
+                            , Config.keep playground "Autocomplete" "readOnly" (Autocomplete.readOnly True)
+                            ]
+                        )
+                    )
                 , autoView "auto-small"
                     locale
                     model
-                    [ Autocomplete.label "Small"
-                    , Autocomplete.options cityOptions
-                    , Autocomplete.size Small
-                    ]
+                    (Options.klarAutocomplete playground
+                        (List.concat
+                            [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "Small")
+                            , Config.keep playground "Autocomplete" "options" (Autocomplete.options cityOptions)
+                            , Config.keep playground "Autocomplete" "size" (Autocomplete.size Small)
+                            ]
+                        )
+                    )
                 , autoView "auto-large"
                     locale
                     model
-                    [ Autocomplete.label "Large"
-                    , Autocomplete.options cityOptions
-                    , Autocomplete.size Large
-                    ]
+                    (Options.klarAutocomplete playground
+                        (List.concat
+                            [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "Large")
+                            , Config.keep playground "Autocomplete" "options" (Autocomplete.options cityOptions)
+                            , Config.keep playground "Autocomplete" "size" (Autocomplete.size Large)
+                            ]
+                        )
+                    )
                 ]
             )
         ]
 
 
-containers : Locale -> Model -> Html Msg
-containers locale model =
-    Doc.section "In a scrolling container"
+containers : Config.Config -> Locale -> Model -> Html Msg
+containers playground locale model =
+    Doc.configuredSection playground
+        [ "Select", "MultiSelect" ]
+        "In a scrolling container"
         "The list sits above everything else and is not cut off by the overflow of a card, a table or a dialog. Scroll the area in the card and open the field: the list follows the field."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "A field in a card with a scrolling area"
             , description = Nothing
             , code = Just containerCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 5 ]
-                [ Card.view [ Card.title "Dispatch", Card.subtitle "The content scrolls" ]
-                    [ Layout.stack [ Layout.gap 3, Layout.padding 1, Layout.maxHeight 180 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+                [ Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "Dispatch"), Config.keep playground "Card" "subtitle" (Card.subtitle "The content scrolls") ]))
+                    [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "padding" (Layout.padding 1), Config.keep playground "Layout" "maxHeight" (Layout.maxHeight 180) ]))
                         [ Text.paragraph "The order is ready for dispatch. Choose how it leaves the warehouse."
                         , Text.paragraph "This area has a fixed height and scrolls. Scroll down to the field and open it: the list is shown in full, also outside the area, and follows the field when the area scrolls."
                         , selectView "sel-scroll"
                             locale
                             model
-                            [ Select.label "Delivery method"
-                            , Select.options deliveryOptions
-                            ]
+                            (Options.klarSelect playground
+                                (List.concat
+                                    [ Config.keep playground "Select" "label" (Select.label "Delivery method")
+                                    , Config.keep playground "Select" "options" (Select.options deliveryOptions)
+                                    ]
+                                )
+                            )
                         , Text.paragraph "More text below the field, so that the area has to scroll."
                         , Text.paragraph "The carrier is notified as soon as the order is approved."
                         , Text.paragraph "The last paragraph in the area."
@@ -1365,22 +1562,29 @@ containers locale model =
         ]
 
 
-bottom : Locale -> Model -> Html Msg
-bottom locale model =
-    Doc.section "At the bottom of the page"
+bottom : Config.Config -> Locale -> Model -> Html Msg
+bottom playground locale model =
+    Doc.configuredSection playground
+        [ "Select" ]
+        "At the bottom of the page"
         "When there is no room below the field, the list opens above it."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Select" ]
             { title = "A field at the very bottom"
             , description = Just "Scroll all the way down and open the field."
             , code = Nothing
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ selectView "sel-bottom"
                     locale
                     model
-                    [ Select.label "Country"
-                    , Select.options countryGroupedOptions
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Country")
+                            , Config.keep playground "Select" "options" (Select.options countryGroupedOptions)
+                            ]
+                        )
+                    )
                 ]
             )
         ]

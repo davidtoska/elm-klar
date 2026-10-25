@@ -19,7 +19,9 @@ import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Klar.Tree as Tree
 import Page.Gallery.DataDisplay.Pretend as Pretend
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 
 
@@ -166,15 +168,17 @@ startLoading failing ids model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.section "Tree"
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredSection playground
+        [ "Tree" ]
+        "Tree"
         "Hierarchical data: warehouses, product categories, code lists. The tree follows the WAI-ARIA tree pattern, with one tab stop for the whole tree. The arrow keys move, Right opens a node and moves into it, Left closes it and moves out, Home and End jump to the first and last row, Space selects, Enter opens the item, * opens all nodes on the same level, and letters jump to the next node that starts with them. In the filter box, Down moves into the tree and Escape clears the filter."
-        [ companyExample locale model
-        , categoriesExample locale model
-        , permissionsExample locale model
-        , ordersExample locale model
-        , statesExample locale model
+        [ companyExample playground locale model
+        , categoriesExample playground locale model
+        , permissionsExample playground locale model
+        , ordersExample playground locale model
+        , statesExample playground locale model
         ]
 
 
@@ -192,8 +196,8 @@ lastName id =
     String.split "/" id |> List.reverse |> List.head |> Maybe.withDefault id
 
 
-companyExample : Locale -> Model -> Html Msg
-companyExample locale model =
+companyExample : Config.Config -> Locale -> Model -> Html Msg
+companyExample playground locale model =
     let
         selectedText =
             case Tree.selectedId Ids.string model.company of
@@ -211,7 +215,8 @@ companyExample locale model =
                 Nothing ->
                     "Enter or double-click opens an item."
     in
-    Doc.example
+    Doc.configuredExample playground
+        [ "Tree" ]
         { title = "Company structure with filter and lazy loading"
         , description = Just "The filter keeps the ancestors of the matches and marks the matching text. “Suppliers” and “Product catalog” are fetched the first time they are opened: a spinner while it happens, and a short message with “Try again” when it fails (switch on “Simulate failures” at the top). The categories inside “Product catalog” are lazy nodes inside a lazy node. “Expand all” opens the lazy branches too, and they ask for their children at once. The filter searches the labels, the descriptions and the keywords of the nodes that are loaded: “NL” finds Rotterdam by a keyword."
         , code = Just """Tree.view CompanyMsg
@@ -248,21 +253,25 @@ CompanyMsg m ->
 LoadBranch id ->
     ( { model | branches = markLoading [ id ] model.branches }, fetch id )"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
-                [ Button.view [ Button.small, Button.icon Icon.maximize, Button.onClick ExpandAll ] "Expand all"
-                , Button.view [ Button.small, Button.icon Icon.minimize, Button.onClick CollapseAll ] "Collapse all"
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.maximize), Config.keep playground "Button" "onClick" (Button.onClick ExpandAll) ])) "Expand all"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.minimize), Config.keep playground "Button" "onClick" (Button.onClick CollapseAll) ])) "Collapse all"
                 , Layout.spacer
                 , Text.caption selectedText
                 ]
             , Tree.view CompanyMsg
-                [ Tree.ariaLabel "Company structure"
-                , Tree.filterBox
-                , Tree.onActivate Activated
-                , Tree.onRetryChildren LoadBranch
-                , Tree.maxHeight 440
-                , Tree.locale locale
-                ]
+                (Options.klarTree playground
+                    (List.concat
+                        [ Config.keep playground "Tree" "ariaLabel" (Tree.ariaLabel "Company structure")
+                        , Config.keep playground "Tree" "filterBox" Tree.filterBox
+                        , Config.keep playground "Tree" "onActivate" (Tree.onActivate Activated)
+                        , Config.keep playground "Tree" "onRetryChildren" (Tree.onRetryChildren LoadBranch)
+                        , Config.keep playground "Tree" "maxHeight" (Tree.maxHeight 440)
+                        , Config.keep playground "Tree" "locale" (Tree.locale locale)
+                        ]
+                    )
+                )
                 model.company
                 (companyNodes locale model.branches)
             , Text.caption activatedText
@@ -270,18 +279,19 @@ LoadBranch id ->
         )
 
 
-categoriesExample : Locale -> Model -> Html Msg
-categoriesExample locale model =
-    Doc.example
+categoriesExample : Config.Config -> Locale -> Model -> Html Msg
+categoriesExample playground locale model =
+    Doc.configuredExample playground
+        [ "Tree", "Ids" ]
         { title = "Multiple selection"
         , description = Just "Click selects one, Ctrl+click adds or removes, Shift+click selects a range. From the keyboard: Space toggles, Shift+arrows extend. Disabled nodes cannot be selected."
         , code = Just """Tree.view CategoriesMsg [ Tree.multiSelect, Tree.ariaLabel "Categories" ] model.tree nodes
 
 (Tree.selectedIds Ids.string) model.tree -- [ "Hardware/Fasteners/Bolts", "Hardware/Fasteners/Nuts" ]"""
         }
-        (Layout.stack [ Layout.gap 3 ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
             [ Tree.view CategoriesMsg
-                [ Tree.multiSelect, Tree.ariaLabel "Categories", Tree.locale locale ]
+                (Options.klarTree playground (List.concat [ Config.keep playground "Tree" "multiSelect" Tree.multiSelect, Config.keep playground "Tree" "ariaLabel" (Tree.ariaLabel "Categories"), Config.keep playground "Tree" "locale" (Tree.locale locale) ]))
                 model.categories
                 categoryNodes
             , Text.caption ("Selected: " ++ names (List.map lastName (Tree.selectedIds Ids.string model.categories)))
@@ -289,18 +299,19 @@ categoriesExample locale model =
         )
 
 
-permissionsExample : Locale -> Model -> Html Msg
-permissionsExample locale model =
-    Doc.example
+permissionsExample : Config.Config -> Locale -> Model -> Html Msg
+permissionsExample playground locale model =
+    Doc.configuredExample playground
+        [ "Tree", "Ids" ]
         { title = "Checkboxes with three states"
         , description = Just "Checking a parent checks everything below it; a parent with some of its children checked shows a dash. Space toggles the check. A disabled node (System settings) is passed by: checking Administration leaves it as it is, and the parent's checkbox does not count it. The application reads the checked leaves with Tree.checkedIds."
         , code = Just """Tree.view PermissionsMsg [ Tree.checkboxes, Tree.ariaLabel "Permissions" ] model.tree permissions
 
 (Tree.checkedIds Ids.string) model.tree -- [ "orders-read", "products-read" ]"""
         }
-        (Layout.stack [ Layout.gap 3 ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
             [ Tree.view PermissionsMsg
-                [ Tree.checkboxes, Tree.ariaLabel "Permissions", Tree.locale locale ]
+                (Options.klarTree playground (List.concat [ Config.keep playground "Tree" "checkboxes" Tree.checkboxes, Config.keep playground "Tree" "ariaLabel" (Tree.ariaLabel "Permissions"), Config.keep playground "Tree" "locale" (Tree.locale locale) ]))
                 model.permissions
                 permissions
             , Text.caption ("Checked: " ++ names (Tree.checkedIds Ids.string model.permissions))
@@ -308,9 +319,10 @@ permissionsExample locale model =
         )
 
 
-ordersExample : Locale -> Model -> Html Msg
-ordersExample locale model =
-    Doc.example
+ordersExample : Config.Config -> Locale -> Model -> Html Msg
+ordersExample playground locale model =
+    Doc.configuredExample playground
+        [ "Tree" ]
         { title = "Large tree"
         , description = Just "About four thousand nodes. Only open branches are drawn, and a branch with more than 300 children (the default) shows the first ones and “Show 300 more”. Open “All orders” and try the filter (“logistics”, “rotterdam”)."
         , code = Just """Tree.view OrdersMsg [ Tree.compact, Tree.maxHeight 360, Tree.filterBox, Tree.maxChildren 300 ] model.tree nodes
@@ -319,41 +331,46 @@ ordersExample locale model =
 -- under "All orders" has two ids, "city-Oslo/ORD-10042" and "all/ORD-10042"
 (Tree.leaf Ids.string) ("all/" ++ order.id) order.customer |> Tree.withDescription order.id"""
         }
-        (Html.Lazy.lazy2 orderTree locale model.orders)
+        (Html.Lazy.lazy2 (orderTree playground) locale model.orders)
 
 
 {-| The big tree on its own, so that it can be left alone while something else
 on the page changes.
 -}
-orderTree : Locale -> Tree.State String -> Html Msg
-orderTree locale state =
+orderTree : Config.Config -> Locale -> Tree.State String -> Html Msg
+orderTree playground locale state =
     Tree.view OrdersMsg
-        [ Tree.compact
-        , Tree.maxHeight 360
-        , Tree.filterBox
-        , Tree.maxChildren 300
-        , Tree.ariaLabel "Orders"
-        , Tree.locale locale
-        ]
+        (Options.klarTree playground
+            (List.concat
+                [ Config.keep playground "Tree" "compact" Tree.compact
+                , Config.keep playground "Tree" "maxHeight" (Tree.maxHeight 360)
+                , Config.keep playground "Tree" "filterBox" Tree.filterBox
+                , Config.keep playground "Tree" "maxChildren" (Tree.maxChildren 300)
+                , Config.keep playground "Tree" "ariaLabel" (Tree.ariaLabel "Orders")
+                , Config.keep playground "Tree" "locale" (Tree.locale locale)
+                ]
+            )
+        )
         state
         orderNodes
 
 
-statesExample : Locale -> Model -> Html Msg
-statesExample locale model =
-    Doc.example
+statesExample : Config.Config -> Locale -> Model -> Html Msg
+statesExample playground locale model =
+    Doc.configuredExample playground
+        [ "Tree", "Remote", "EmptyState" ]
         { title = "Loading, failed and empty tree"
         , description = Just "While loading, the tree shows a skeleton. A failure shows the problem with “Try again”: here the backend is down on purpose, so the tree loads for a moment and fails again. Pressing it keeps the keyboard focus in the tree, which stays the same element in every state. An empty list shows the empty state you give it."
         , code = Just "Tree.viewRemote TreeMsg [ Tree.onRetry Reload, Tree.emptyState [ EmptyState.title \"No warehouses\" ] ] model.tree model.nodes"
         }
-        (Layout.grid [ Layout.minColumn 280, Layout.gap 5 ]
-            [ Tree.viewRemote StateMsg [ Tree.locale locale ] (Tree.init "tree-loading") Remote.Loading
+        (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+            [ Tree.viewRemote StateMsg (Options.klarTree playground (List.concat [ Config.keep playground "Tree" "locale" (Tree.locale locale) ])) (Tree.init "tree-loading") Remote.Loading
             , Tree.viewRemote FailedTreeMsg
-                [ Tree.onRetry Retry, Tree.locale locale ]
+                (Options.klarTree playground (List.concat [ Config.keep playground "Tree" "onRetry" (Tree.onRetry Retry), Config.keep playground "Tree" "locale" (Tree.locale locale) ]))
                 model.failedTree
                 (Pretend.down locale model.retrying)
             , Tree.viewRemote StateMsg
-                [ Tree.emptyState [ EmptyState.title "No warehouses registered" ], Tree.locale locale ]
+                (Options.klarTree playground (List.concat [ Config.keep playground "Tree" "emptyState" (Tree.emptyState (Options.klarEmptyState playground (List.concat [ Config.keep playground "EmptyState" "title" (EmptyState.title "No warehouses registered") ]))), Config.keep playground "Tree" "locale" (Tree.locale locale) ]))
                 (Tree.init "tree-empty")
                 (Remote.Loaded [])
             ]

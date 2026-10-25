@@ -10,7 +10,9 @@ import Page.Gallery.NextComponents.CodeQuantity as CodeQuantity
 import Page.Gallery.NextComponents.Comments as Comments
 import Page.Gallery.NextComponents.Kanban as Kanban
 import Page.Gallery.NextComponents.Uploads as Uploads
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 type alias Model =
@@ -81,13 +83,16 @@ subscriptions model =
     Sub.batch [ Sub.map KanbanMsg (Kanban.subscriptions model.kanban), Sub.map UploadsMsg (Uploads.subscriptions model.uploads), Sub.map CommentsMsg (Comments.subscriptions model.comments), Sub.map CodeQuantityMsg (CodeQuantity.subscriptions model.codeQuantity) ]
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view settings locale model =
-    Doc.page { title = "Workflow toolkit", description = "Five additions for precise operational interfaces: Kanban, CommentThread, UploadQueue, CodeBlock and QuantityInput. Each demonstration exercises meaningful edge cases with the same public API an application uses." }
-        [ Doc.section "Kanban"
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground settings locale model =
+    Doc.configuredPage playground
+        { title = "Workflow toolkit", description = "Five additions for precise operational interfaces: Kanban, CommentThread, UploadQueue, CodeBlock and QuantityInput. Each demonstration exercises meaningful edge cases with the same public API an application uses." }
+        [ Doc.configuredSection playground
+            [ "Kanban" ]
+            "Kanban"
             "Ordered work stages with explicit, validated moves."
-            [ Html.map KanbanMsg (Kanban.view settings locale model.kanban) ]
-        , Html.map CommentsMsg (Comments.view settings locale model.comments)
-        , Html.map UploadsMsg (Uploads.view settings locale model.uploads)
-        , Html.map CodeQuantityMsg (CodeQuantity.view settings locale model.codeQuantity)
+            [ Html.map KanbanMsg (Kanban.view playground settings locale model.kanban) ]
+        , Html.map CommentsMsg (Comments.view playground settings locale model.comments)
+        , Html.map UploadsMsg (Uploads.view playground settings locale model.uploads)
+        , Html.map CodeQuantityMsg (CodeQuantity.view playground settings locale model.codeQuantity)
         ]

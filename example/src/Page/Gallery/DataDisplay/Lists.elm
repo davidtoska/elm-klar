@@ -22,7 +22,9 @@ import Klar.Text as Text
 import Klar.Theme as Theme exposing (Tone(..))
 import Page.Gallery.DataDisplay.Pretend as Pretend
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import Time
@@ -153,24 +155,31 @@ update msg model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     let
         row =
-            orderRow locale model.selected
+            orderRow playground locale model.selected
 
         fileRow icon name bytes =
             -- A real link: the order the file belongs to.
             ListItem.view
-                [ ListItem.icon icon
-                , ListItem.meta (Format.bytes locale bytes)
-                , ListItem.href "#/orders/ORD-10001"
-                ]
+                (Options.klarListItem playground
+                    (List.concat
+                        [ Config.keep playground "ListItem" "icon" (ListItem.icon icon)
+                        , Config.keep playground "ListItem" "meta" (ListItem.meta (Format.bytes locale bytes))
+                        , Config.keep playground "ListItem" "href" (ListItem.href "#/orders/ORD-10001")
+                        ]
+                    )
+                )
                 name
     in
-    Doc.section "List items"
+    Doc.configuredSection playground
+        [ "ListItem" ]
+        "List items"
         "Dense rows for records, as a menu of things to open or as the main list next to a detail view. The whole row is one click target (a button, or a link with href), and the actions on the right are buttons of their own that do not trigger the row. Tab moves between the rows, Enter or Space opens a row."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "ListItem" ]
             { title = "List with a selected row"
             , description = Just "The selected row is tinted and has a bar on the left. The bar on the left of the other rows shows the priority: amber for High, red for Urgent. A disabled row is visible but cannot be selected."
             , code = Just """ListItem.list [ ListItem.ariaLabel "Orders", ListItem.bordered ]
@@ -185,15 +194,19 @@ view locale model =
         "Aurora Logistics Ltd"
     ]"""
             }
-            (Layout.stack [ Layout.gap 2 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                 [ ListItem.list [ ListItem.ariaLabel "Orders", ListItem.bordered ]
                     (List.map row listOrders
                         ++ [ ListItem.view
-                                [ ListItem.avatar "Cedar Print Ltd"
-                                , ListItem.secondary "On credit hold, cannot be opened"
-                                , ListItem.disabled True
-                                , ListItem.onClick NoOp
-                                ]
+                                (Options.klarListItem playground
+                                    (List.concat
+                                        [ Config.keep playground "ListItem" "avatar" (ListItem.avatar "Cedar Print Ltd")
+                                        , Config.keep playground "ListItem" "secondary" (ListItem.secondary "On credit hold, cannot be opened")
+                                        , Config.keep playground "ListItem" "disabled" (ListItem.disabled True)
+                                        , Config.keep playground "ListItem" "onClick" (ListItem.onClick NoOp)
+                                        ]
+                                    )
+                                )
                                 "Cedar Print Ltd"
                            ]
                     )
@@ -210,15 +223,17 @@ view locale model =
                     )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ListItem" ]
             { title = "Many rows in a scrolling list"
             , description = Just "300 rows in a list of at most 300 pixels. The list scrolls on its own, and Tab moves between the rows. The rows have no buttons of their own: 300 rows with an edit button each would be 600 stops for the Tab key."
             , code = Just "ListItem.list [ ListItem.maxHeight 300, ListItem.density Compact, ListItem.bordered ] rows"
             }
             (ListItem.list [ ListItem.maxHeight 300, ListItem.density Theme.Compact, ListItem.bordered, ListItem.ariaLabel "All orders" ]
-                (List.map (plainRow locale model.selected) (List.take 300 Sample.orders))
+                (List.map (plainRow playground locale model.selected) (List.take 300 Sample.orders))
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ListItem" ]
             { title = "Compact, comfortable, with headings and without dividers"
             , description = Just "Rows with an href are real links: these open the order page. Without density a list follows the density of the application; with it, the list keeps its own."
             , code = Just """ListItem.list [ ListItem.density Compact, ListItem.undivided ]
@@ -226,7 +241,7 @@ view locale model =
     , ListItem.view [ ListItem.icon Icon.fileText, ListItem.href "#/orders/ORD-10001" ] "Delivery note.pdf"
     ]"""
             }
-            (Layout.grid [ Layout.minColumn 300, Layout.gap 6 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 300), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
                 [ ListItem.list [ ListItem.density Theme.Compact, ListItem.bordered, ListItem.ariaLabel "Files" ]
                     [ ListItem.heading "Today"
                     , fileRow Icon.fileText "Delivery note ORD-10001.pdf" 142400
@@ -237,47 +252,62 @@ view locale model =
                     ]
                 , ListItem.list [ ListItem.density Theme.Comfortable, ListItem.undivided, ListItem.ariaLabel "Comfortable, without dividers" ]
                     (List.map
-                        (\order -> ListItem.view [ ListItem.secondary order.city, ListItem.meta (Types.orderStatusLabel order.status) ] order.customer)
+                        (\order -> ListItem.view (Options.klarListItem playground (List.concat [ Config.keep playground "ListItem" "secondary" (ListItem.secondary order.city), Config.keep playground "ListItem" "meta" (ListItem.meta (Types.orderStatusLabel order.status)) ])) order.customer)
                         (List.take 5 Sample.orders)
                     )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ListItem" ]
             { title = "Long text"
             , description = Just "The title and the secondary line are cut with “...”, and the whole text is in the tooltip. The meta text and the actions keep their place."
             , code = Nothing
             }
             (ListItem.list [ ListItem.bordered, ListItem.ariaLabel "Long texts" ]
                 [ ListItem.view
-                    [ ListItem.icon Icon.fileText
-                    , ListItem.secondary "This is a very long secondary line that describes the contents in detail and that will never fit on one line in a narrow column"
-                    , ListItem.meta (Format.dateTime locale Time.utc Sample.now)
-                    , ListItem.trailing [ Badge.view [ Badge.tone Warning ] "Needs approval" ]
-                    ]
+                    (Options.klarListItem playground
+                        (List.concat
+                            [ Config.keep playground "ListItem" "icon" (ListItem.icon Icon.fileText)
+                            , Config.keep playground "ListItem" "secondary" (ListItem.secondary "This is a very long secondary line that describes the contents in detail and that will never fit on one line in a narrow column")
+                            , Config.keep playground "ListItem" "meta" (ListItem.meta (Format.dateTime locale Time.utc Sample.now))
+                            , Config.keep playground "ListItem" "trailing" (ListItem.trailing [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Warning) ])) "Needs approval" ])
+                            ]
+                        )
+                    )
                     "Summary of the cross-department meeting on delivery planning, customs clearance, pallet packaging and payment terms for the customer"
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ListItem" ]
             { title = "A live queue"
             , description = Just "Turn it on, then Tab into the list and stay on a row. Every few seconds the queue is refreshed and a new order arrives at the top, but the focus stays on the order you are on, and Enter opens that one: the rows are keyed by the id of their order, and a refresh draws them inside the same elements."
             , code = Just """ListItem.viewRemote [ ListItem.ariaLabel "Queue", ListItem.bordered ]
     (Remote.map (List.map (\\order -> ( order.id, viewOrder order ))) model.queue)"""
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Switch.view
-                    [ Switch.label "Receive new orders"
-                    , Switch.hint
-                        (String.fromInt (arrivals - model.arrived) ++ " more orders are waiting.")
-                    , Switch.checked model.polling
-                    , Switch.onCheck PollingToggled
-                    , Switch.disabled (model.arrived >= arrivals)
-                    ]
+                    (Options.klarSwitch playground
+                        (List.concat
+                            [ Config.keep playground "Switch" "label" (Switch.label "Receive new orders")
+                            , Config.keep playground
+                                "Switch"
+                                "hint"
+                                (Switch.hint
+                                    (String.fromInt (arrivals - model.arrived) ++ " more orders are waiting.")
+                                )
+                            , Config.keep playground "Switch" "checked" (Switch.checked model.polling)
+                            , Config.keep playground "Switch" "onCheck" (Switch.onCheck PollingToggled)
+                            , Config.keep playground "Switch" "disabled" (Switch.disabled (model.arrived >= arrivals))
+                            ]
+                        )
+                    )
                 , ListItem.viewRemote
                     [ ListItem.ariaLabel "Queue", ListItem.bordered, ListItem.locale locale ]
-                    (Remote.map (List.map (keyed (plainRow locale model.selected))) model.queue)
+                    (Remote.map (List.map (keyed (plainRow playground locale model.selected))) model.queue)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ListItem" ]
             { title = "Loading, failed and empty list"
             , description = Just "The failed list retries: the backend is down on purpose, so it loads for a moment and fails again. Every state is drawn inside one element with the id of listId, so the update sends the focus there when Try again goes away."
             , code = Just """ListItem.viewRemote
@@ -289,7 +319,7 @@ view locale model =
     ]
     (Remote.map (List.map (\\order -> ( order.id, viewOrder order ))) model.orders)"""
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 4 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ ListItem.viewRemote [ ListItem.bordered, ListItem.ariaLabel "Orders", ListItem.skeletonRows 3, ListItem.locale locale ] Remote.Loading
                 , ListItem.viewRemote
                     [ ListItem.bordered, ListItem.ariaLabel "Orders", ListItem.listId "lists-failed-orders", ListItem.onRetry Retry, ListItem.locale locale ]
@@ -298,10 +328,14 @@ view locale model =
                     [ ListItem.bordered
                     , ListItem.ariaLabel "Orders"
                     , ListItem.emptyState
-                        [ EmptyState.title "No orders"
-                        , EmptyState.description "No order matches the filter."
-                        , EmptyState.icon Icon.search
-                        ]
+                        (Options.klarEmptyState playground
+                            (List.concat
+                                [ Config.keep playground "EmptyState" "title" (EmptyState.title "No orders")
+                                , Config.keep playground "EmptyState" "description" (EmptyState.description "No order matches the filter.")
+                                , Config.keep playground "EmptyState" "icon" (EmptyState.icon Icon.search)
+                                ]
+                            )
+                        )
                     , ListItem.locale locale
                     ]
                     (Remote.Loaded [])
@@ -328,10 +362,10 @@ listOrders =
     ofPriority Urgent 1 ++ ofPriority High 1 ++ ofPriority Normal 2 ++ ofPriority Low 1
 
 
-accentOf : Order -> List (ListItem.Attribute msg)
-accentOf order =
+accentOf : Config.Config -> Order -> List (ListItem.Attribute msg)
+accentOf playground order =
     if order.priority == High || order.priority == Urgent then
-        [ ListItem.accent (Labels.priorityTone order.priority) ]
+        Options.klarListItem playground (List.concat [ Config.keep playground "ListItem" "accent" (ListItem.accent (Labels.priorityTone order.priority)) ])
 
     else
         []
@@ -341,30 +375,33 @@ accentOf order =
 it; the long list does without: 300 rows with a button each would be 600 stops
 for the Tab key.
 -}
-rowAttributes : Locale -> Maybe String -> Order -> List (ListItem.Attribute Msg)
-rowAttributes locale selected order =
-    [ ListItem.avatar order.customer
-    , ListItem.secondary (Types.orderIdText order.id ++ " · " ++ order.city ++ " · " ++ Types.orderStatusLabel order.status)
-    , ListItem.meta (Format.currency locale "$" 2 order.total)
-    , ListItem.selected (selected == Just (Types.orderIdText order.id))
-    , ListItem.onClick (Select (Types.orderIdText order.id))
-    ]
-        ++ accentOf order
+rowAttributes : Config.Config -> Locale -> Maybe String -> Order -> List (ListItem.Attribute Msg)
+rowAttributes playground locale selected order =
+    Options.klarListItem playground
+        (List.concat
+            [ Config.keep playground "ListItem" "avatar" (ListItem.avatar order.customer)
+            , Config.keep playground "ListItem" "secondary" (ListItem.secondary (Types.orderIdText order.id ++ " · " ++ order.city ++ " · " ++ Types.orderStatusLabel order.status))
+            , Config.keep playground "ListItem" "meta" (ListItem.meta (Format.currency locale "$" 2 order.total))
+            , Config.keep playground "ListItem" "selected" (ListItem.selected (selected == Just (Types.orderIdText order.id)))
+            , Config.keep playground "ListItem" "onClick" (ListItem.onClick (Select (Types.orderIdText order.id)))
+            ]
+        )
+        ++ accentOf playground order
 
 
-orderRow : Locale -> Maybe String -> Order -> Html Msg
-orderRow locale selected order =
+orderRow : Config.Config -> Locale -> Maybe String -> Order -> Html Msg
+orderRow playground locale selected order =
     ListItem.view
         (ListItem.trailing
-            [ Button.iconOnly [ Button.ghost, Button.small, Button.onClick (Edit (Types.orderIdText order.id)) ] Icon.edit ("Edit " ++ Types.orderIdText order.id) ]
-            :: rowAttributes locale selected order
+            [ Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (Edit (Types.orderIdText order.id))) ])) Icon.edit ("Edit " ++ Types.orderIdText order.id) ]
+            :: rowAttributes playground locale selected order
         )
         order.customer
 
 
-plainRow : Locale -> Maybe String -> Order -> Html Msg
-plainRow locale selected order =
-    ListItem.view (rowAttributes locale selected order) order.customer
+plainRow : Config.Config -> Locale -> Maybe String -> Order -> Html Msg
+plainRow playground locale selected order =
+    ListItem.view (rowAttributes playground locale selected order) order.customer
 
 
 {-| A row with the id of its order as its key, for `ListItem.viewRemote`.

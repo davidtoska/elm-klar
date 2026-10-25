@@ -10,7 +10,9 @@ import Html exposing (Html)
 import Klar.Locale exposing (Locale)
 import Page.Gallery.Arranging.Sortables as Sortables
 import Page.Gallery.Arranging.Splitters as Splitters
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -68,12 +70,12 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Arranging and resizing"
         , description = "Drag or key a list into a new order, and resize panes by dragging or with the keyboard. Both work with the mouse, a finger and the keyboard alone, and neither needs a subscription: the page only passes the messages on."
         }
-        [ Html.map SortablesMsg (Sortables.view locale model.sortables)
-        , Html.map SplittersMsg (Splitters.view locale model.splitters)
+        [ Html.map SortablesMsg (Sortables.view playground locale model.sortables)
+        , Html.map SplittersMsg (Splitters.view playground locale model.splitters)
         ]

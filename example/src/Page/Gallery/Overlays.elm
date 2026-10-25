@@ -45,7 +45,9 @@ import Klar.Theme exposing (Size(..), Tone(..))
 import Klar.Toast as Toast
 import Klar.Tooltip as Tooltip
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import View.Labels as Labels
@@ -409,8 +411,8 @@ withToast attributes ( model, cmd ) =
     ( { model | toasts = toasts }, Cmd.batch [ cmd, Cmd.map ToastMsg toastCmd ] )
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update : Config.Config -> Msg -> Model -> ( Model, Cmd Msg )
+update playground msg model =
     case msg of
         ShortcutMsg inner ->
             let
@@ -419,14 +421,14 @@ update msg model =
             in
             case fired of
                 Just next ->
-                    update next { model | shortcuts = state }
+                    update playground next { model | shortcuts = state }
 
                 Nothing ->
                     ( { model | shortcuts = state }, Cmd.none )
 
         Navigated place ->
             ( model, Cmd.none )
-                |> withToast [ Toast.tone Info, Toast.title "Navigation", Toast.message ("Go to " ++ place ++ " (a demonstration only).") ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Info), Config.keep playground "Toast" "title" (Toast.title "Navigation"), Config.keep playground "Toast" "message" (Toast.message ("Go to " ++ place ++ " (a demonstration only).")) ]))
 
         NoOp ->
             ( model, Cmd.none )
@@ -463,10 +465,14 @@ update msg model =
                 Modal.close model.formModal
                     |> andMap FormMsg (\state -> { model | formModal = state, form = emptyForm, submitted = False })
                     |> withToast
-                        [ Toast.tone Success
-                        , Toast.title "Order saved"
-                        , Toast.message ("The order for " ++ String.trim model.form.customer ++ " was created.")
-                        ]
+                        (Options.klarToast playground
+                            (List.concat
+                                [ Config.keep playground "Toast" "tone" (Toast.tone Success)
+                                , Config.keep playground "Toast" "title" (Toast.title "Order saved")
+                                , Config.keep playground "Toast" "message" (Toast.message ("The order for " ++ String.trim model.form.customer ++ " was created."))
+                                ]
+                            )
+                        )
 
             else
                 ( { model | submitted = True }, Cmd.none )
@@ -502,7 +508,7 @@ update msg model =
             ( { model | discard = discard, formModal = formState, form = emptyForm, submitted = False }
             , Cmd.batch [ Cmd.map DiscardMsg discardCmd, Cmd.map FormMsg formCmd ]
             )
-                |> withToast [ Toast.tone Warning, Toast.message "The changes were discarded." ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Warning), Config.keep playground "Toast" "message" (Toast.message "The changes were discarded.") ]))
 
         DiscardCancelled ->
             ConfirmDialog.close model.discard |> andMap DiscardMsg (\state -> { model | discard = state })
@@ -547,7 +553,7 @@ update msg model =
         NeutralConfirmed ->
             ConfirmDialog.close model.neutral
                 |> andMap NeutralMsg (\state -> { model | neutral = state })
-                |> withToast [ Toast.tone Success, Toast.title "Sent for approval", Toast.message "The order was sent to the sales manager." ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Success), Config.keep playground "Toast" "title" (Toast.title "Sent for approval"), Config.keep playground "Toast" "message" (Toast.message "The order was sent to the sales manager.") ]))
 
         NeutralCancelled ->
             ConfirmDialog.close model.neutral |> andMap NeutralMsg (\state -> { model | neutral = state })
@@ -561,7 +567,7 @@ update msg model =
         WarningConfirmed ->
             ConfirmDialog.close model.warning
                 |> andMap WarningMsg (\state -> { model | warning = state })
-                |> withToast [ Toast.tone Info, Toast.message "Order ORD-10001 was archived." ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Info), Config.keep playground "Toast" "message" (Toast.message "Order ORD-10001 was archived.") ]))
 
         WarningCancelled ->
             ConfirmDialog.close model.warning |> andMap WarningMsg (\state -> { model | warning = state })
@@ -575,7 +581,7 @@ update msg model =
         DangerConfirmed ->
             ConfirmDialog.close model.danger
                 |> andMap DangerMsg (\state -> { model | danger = state })
-                |> withToast [ Toast.tone Danger, Toast.title "Customer deleted", Toast.message "Contoso Ltd and all its contracts were removed." ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Danger), Config.keep playground "Toast" "title" (Toast.title "Customer deleted"), Config.keep playground "Toast" "message" (Toast.message "Contoso Ltd and all its contracts were removed.") ]))
 
         DangerCancelled ->
             ConfirmDialog.close model.danger |> andMap DangerMsg (\state -> { model | danger = state })
@@ -629,11 +635,15 @@ update msg model =
                                     }
                                 )
                             |> withToast
-                                [ Toast.tone Success
-                                , Toast.title "Order deleted"
-                                , Toast.message (Types.orderIdText order.id ++ " was removed.")
-                                , Toast.action "Undo" (UndoDelete order)
-                                ]
+                                (Options.klarToast playground
+                                    (List.concat
+                                        [ Config.keep playground "Toast" "tone" (Toast.tone Success)
+                                        , Config.keep playground "Toast" "title" (Toast.title "Order deleted")
+                                        , Config.keep playground "Toast" "message" (Toast.message (Types.orderIdText order.id ++ " was removed."))
+                                        , Config.keep playground "Toast" "action" (Toast.action "Undo" (UndoDelete order))
+                                        ]
+                                    )
+                                )
 
                     Nothing ->
                         ( model, Cmd.none )
@@ -643,7 +653,7 @@ update msg model =
 
         UndoDelete order ->
             ( { model | deleted = List.filter (\id -> id /= order.id) model.deleted }, Cmd.none )
-                |> withToast [ Toast.tone Info, Toast.message (Types.orderIdText order.id ++ " was restored.") ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Info), Config.keep playground "Toast" "message" (Toast.message (Types.orderIdText order.id ++ " was restored.")) ]))
 
         RestoreOrders ->
             ( { model | deleted = [] }, Cmd.none )
@@ -659,10 +669,10 @@ update msg model =
             -- The order opened last, or else the first one.
             case ( model.drawerOrder, List.head Sample.orders ) of
                 ( Just order, _ ) ->
-                    update (OpenOrder "open-right-drawer" order) model
+                    update playground (OpenOrder "open-right-drawer" order) model
 
                 ( Nothing, Just order ) ->
-                    update (OpenOrder "open-right-drawer" order) model
+                    update playground (OpenOrder "open-right-drawer" order) model
 
                 ( Nothing, Nothing ) ->
                     ( model, Cmd.none )
@@ -749,15 +759,19 @@ update msg model =
         NoteSaveFailed ->
             ( model, Cmd.none )
                 |> withToast
-                    [ Toast.tone Danger
-                    , Toast.title "Could not save the note"
-                    , Toast.message "The server did not answer."
-                    , Toast.action "Try again" RetrySaveNote
-                    ]
+                    (Options.klarToast playground
+                        (List.concat
+                            [ Config.keep playground "Toast" "tone" (Toast.tone Danger)
+                            , Config.keep playground "Toast" "title" (Toast.title "Could not save the note")
+                            , Config.keep playground "Toast" "message" (Toast.message "The server did not answer.")
+                            , Config.keep playground "Toast" "action" (Toast.action "Try again" RetrySaveNote)
+                            ]
+                        )
+                    )
 
         RetrySaveNote ->
             ( { model | noteAdded = True }, Cmd.none )
-                |> withToast [ Toast.tone Success, Toast.message "The note was saved." ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Success), Config.keep playground "Toast" "message" (Toast.message "The note was saved.") ]))
 
         AskCancel ->
             -- No opener: the dialog gives focus back to the button that was
@@ -800,40 +814,49 @@ update msg model =
             ( model, Process.sleep 0 |> Task.perform (\_ -> RouteOpened order) )
 
         RouteOpened order ->
-            update (OpenOrder "" order) model
+            update playground (OpenOrder "" order) model
 
         -- TOASTS
         ToastMsg inner ->
             Toast.update inner model.toasts |> andMap ToastMsg (\state -> { model | toasts = state })
 
         PushToast tone ->
-            ( model, Cmd.none ) |> withToast (toastFor tone)
+            ( model, Cmd.none ) |> withToast (toastFor playground tone)
 
         PushUndoToast ->
             ( model, Cmd.none )
                 |> withToast
-                    [ Toast.tone Info
-                    , Toast.message "Three orders were moved to the archive."
-                    , Toast.action "Undo" UndoArchive
-                    ]
+                    (Options.klarToast playground
+                        (List.concat
+                            [ Config.keep playground "Toast" "tone" (Toast.tone Info)
+                            , Config.keep playground "Toast" "message" (Toast.message "Three orders were moved to the archive.")
+                            , Config.keep playground "Toast" "action" (Toast.action "Undo" UndoArchive)
+                            ]
+                        )
+                    )
 
         UndoArchive ->
             ( model, Cmd.none )
-                |> withToast [ Toast.tone Info, Toast.message "The orders were taken out of the archive again." ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Info), Config.keep playground "Toast" "message" (Toast.message "The orders were taken out of the archive again.") ]))
 
         PushManyToasts ->
             List.range 1 7
                 |> List.foldl
                     (\n acc ->
                         withToast
-                            [ if modBy 3 n == 0 then
-                                Toast.tone Warning
+                            (Options.klarToast playground
+                                (List.concat
+                                    [ [ if modBy 3 n == 0 then
+                                            Toast.tone Warning
 
-                              else
-                                Toast.tone Info
-                            , Toast.title ("Notification " ++ String.fromInt n)
-                            , Toast.message "Only four are shown at a time. The rest wait in a queue."
-                            ]
+                                        else
+                                            Toast.tone Info
+                                      ]
+                                    , Config.keep playground "Toast" "title" (Toast.title ("Notification " ++ String.fromInt n))
+                                    , Config.keep playground "Toast" "message" (Toast.message "Only four are shown at a time. The rest wait in a queue.")
+                                    ]
+                                )
+                            )
                             acc
                     )
                     ( model, Cmd.none )
@@ -841,10 +864,14 @@ update msg model =
         PushLongToast ->
             ( model, Cmd.none )
                 |> withToast
-                    [ Toast.tone Warning
-                    , Toast.title "The import was stopped because the file contains more rows with invalid values than the limit of fifty"
-                    , Toast.message "Row 1,204: The date 2026-02-31 does not exist. Row 1,205: The postal code is missing. Row 1,207: The phone number has too many digits. Fix the file and upload it again."
-                    ]
+                    (Options.klarToast playground
+                        (List.concat
+                            [ Config.keep playground "Toast" "tone" (Toast.tone Warning)
+                            , Config.keep playground "Toast" "title" (Toast.title "The import was stopped because the file contains more rows with invalid values than the limit of fifty")
+                            , Config.keep playground "Toast" "message" (Toast.message "Row 1,204: The date 2026-02-31 does not exist. Row 1,205: The postal code is missing. Row 1,207: The phone number has too many digits. Fix the file and upload it again.")
+                            ]
+                        )
+                    )
 
         ClearToasts ->
             ( { model | toasts = Toast.dismissAll model.toasts }, Cmd.none )
@@ -910,7 +937,7 @@ update msg model =
 
         PaletteRan label ->
             ( { model | lastNote = "Command: " ++ label ++ "." }, Cmd.none )
-                |> withToast [ Toast.tone Info, Toast.title "Command run", Toast.message label ]
+                |> withToast (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Info), Config.keep playground "Toast" "title" (Toast.title "Command run"), Config.keep playground "Toast" "message" (Toast.message label) ]))
 
         GotHits asked result ->
             -- an answer to a query that is no longer the palette's comes too late
@@ -977,20 +1004,20 @@ searchOrders asked text shouldFail =
         |> Task.perform (GotHits asked)
 
 
-toastFor : Tone -> List (Toast.Attribute Msg)
-toastFor tone =
+toastFor : Config.Config -> Tone -> List (Toast.Attribute Msg)
+toastFor playground tone =
     case tone of
         Success ->
-            [ Toast.tone Success, Toast.title "Changes saved", Toast.message "The order was updated." ]
+            Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Success), Config.keep playground "Toast" "title" (Toast.title "Changes saved"), Config.keep playground "Toast" "message" (Toast.message "The order was updated.") ])
 
         Warning ->
-            [ Toast.tone Warning, Toast.title "Remember to finish", Toast.message "Three orders have no delivery date." ]
+            Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Warning), Config.keep playground "Toast" "title" (Toast.title "Remember to finish"), Config.keep playground "Toast" "message" (Toast.message "Three orders have no delivery date.") ])
 
         Danger ->
-            [ Toast.tone Danger, Toast.title "Could not send", Toast.message "The message was not delivered. This notification stays until you close it." ]
+            Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Danger), Config.keep playground "Toast" "title" (Toast.title "Could not send"), Config.keep playground "Toast" "message" (Toast.message "The message was not delivered. This notification stays until you close it.") ])
 
         _ ->
-            [ Toast.tone Info, Toast.title "For your information", Toast.message "The report is updated every night at 02:00." ]
+            Options.klarToast playground (List.concat [ Config.keep playground "Toast" "tone" (Toast.tone Info), Config.keep playground "Toast" "title" (Toast.title "For your information"), Config.keep playground "Toast" "message" (Toast.message "The report is updated every night at 02:00.") ])
 
 
 describeFilter : String -> Bool -> String
@@ -1079,28 +1106,28 @@ subscriptions model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     Overlay.host
         { attributes = [ Shortcut.listen ShortcutMsg pageShortcuts model.shortcuts ]
         , page =
-            [ Doc.page
+            [ Doc.configuredPage playground
                 { title = "Dialogs and overlays"
                 , description = "Modals, confirmations, drawers, toasts, popovers, tooltips, the context menu, the command palette and the shortcut sheet. The dialogs open from the buttons in the examples. Once focus is in the page (click anywhere on it), N creates an order and Shift T shows a notification. The language switch in the top bar changes the built-in texts of every component here."
                 }
-                [ modalSection model
-                , confirmSection model
-                , drawerSection model
-                , toastSection model
-                , popoverSection locale model
-                , tooltipSection
-                , contextSection model
-                , paletteSection model
-                , helpSection
-                , ContextMenu.view ContextMsg [ ContextMenu.ariaLabel "Order actions", ContextMenu.locale locale ] contextItems model.context
+                [ modalSection playground model
+                , confirmSection playground model
+                , drawerSection playground model
+                , toastSection playground model
+                , popoverSection playground locale model
+                , tooltipSection playground
+                , contextSection playground model
+                , paletteSection playground model
+                , helpSection playground
+                , ContextMenu.view ContextMsg (Options.klarContextMenu playground (List.concat [ Config.keep playground "ContextMenu" "ariaLabel" (ContextMenu.ariaLabel "Order actions"), Config.keep playground "ContextMenu" "locale" (ContextMenu.locale locale) ])) contextItems model.context
                 ]
             ]
-        , overlays = overlays locale model
+        , overlays = overlays playground locale model
         }
 
 
@@ -1113,21 +1140,23 @@ statusBadge order =
 -- SECTION: MODAL
 
 
-modalSection : Model -> Html Msg
-modalSection model =
-    Doc.section "Modal"
+modalSection : Config.Config -> Model -> Html Msg
+modalSection playground model =
+    Doc.configuredSection playground
+        []
+        "Modal"
         "A dialog that takes over the page when the user has to do something before going on. Tab and Shift+Tab keep focus inside the dialog, Escape and a click outside close it (not a static dialog), and focus returns to the button that opened it. The page behind cannot be scrolled, and the overlay layer also makes it inert, so the keyboard cannot reach it either."
         [ Doc.example
             { title = "Sizes"
             , description = Just "Small (400 px), medium (560 px, the default), large (800 px) and full height. The content scrolls on its own while the header and footer stay put."
             , code = Just modalSizesCode
             }
-            (Layout.row [ Layout.gap 2, Layout.wrap ]
-                [ Button.view [ Button.id "open-size-small", Button.onClick (OpenSize SizeSmall) ] "Small"
-                , Button.view [ Button.id "open-size-medium", Button.onClick (OpenSize SizeMedium) ] "Medium"
-                , Button.view [ Button.id "open-size-large", Button.onClick (OpenSize SizeLarge) ] "Large"
-                , Button.view [ Button.id "open-size-tall", Button.onClick (OpenSize SizeTall) ] "Full height"
-                , Button.view [ Button.id "open-size-long", Button.onClick (OpenSize SizeLongTitle) ] "Long title"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-size-small"), Config.keep playground "Button" "onClick" (Button.onClick (OpenSize SizeSmall)) ])) "Small"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-size-medium"), Config.keep playground "Button" "onClick" (Button.onClick (OpenSize SizeMedium)) ])) "Medium"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-size-large"), Config.keep playground "Button" "onClick" (Button.onClick (OpenSize SizeLarge)) ])) "Large"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-size-tall"), Config.keep playground "Button" "onClick" (Button.onClick (OpenSize SizeTall)) ])) "Full height"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-size-long"), Config.keep playground "Button" "onClick" (Button.onClick (OpenSize SizeLongTitle)) ])) "Long title"
                 ]
             )
         , Doc.example
@@ -1135,8 +1164,8 @@ modalSection model =
             , description = Just "A static dialog: Escape and a click outside do nothing (the dialog shakes a little). The close button and Cancel ask whether to discard the changes, with a confirmation dialog on top. Saving with a required field empty shows the errors. The form is long enough to scroll. Shortcut: N."
             , code = Just modalFormCode
             }
-            (Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
-                [ Button.view [ Button.id "open-form", Button.primary, Button.icon Icon.plus, Button.onClick OpenForm ] "New order"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-form"), Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.plus), Config.keep playground "Button" "onClick" (Button.onClick OpenForm) ])) "New order"
                 , Text.caption "Fill in a field and try Escape, a click outside and the close button."
                 ]
             )
@@ -1145,7 +1174,7 @@ modalSection model =
             , description = Just ("A menu, a panel and a select open above the dialog, and Escape closes only the popup. " ++ model.menuPicked)
             , code = Just modalPopupsCode
             }
-            (Button.view [ Button.id "open-menu-modal", Button.onClick OpenMenuModal ] "Open a dialog with a menu")
+            (Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-menu-modal"), Config.keep playground "Button" "onClick" (Button.onClick OpenMenuModal) ])) "Open a dialog with a menu")
         ]
 
 
@@ -1153,33 +1182,40 @@ modalSection model =
 -- SECTION: CONFIRM
 
 
-confirmSection : Model -> Html Msg
-confirmSection model =
-    Doc.section "ConfirmDialog"
+confirmSection : Config.Config -> Model -> Html Msg
+confirmSection playground model =
+    Doc.configuredSection playground
+        []
+        "ConfirmDialog"
         "The question “are you sure?” with everything that belongs to it: a tone (neutral, warning, danger), the consequences, text the user has to type to confirm, and the whole life of the request: waiting, failing and trying again, closing on success. Focus starts on Cancel (or on the typed-confirmation field), so a stray Enter never confirms."
         [ Doc.example
             { title = "Three tones"
             , description = Just "Neutral, warning with a body and consequences, and danger with typed confirmation. “delete” works too, because the dialog ignores case."
             , code = Just confirmTonesCode
             }
-            (Layout.row [ Layout.gap 2, Layout.wrap ]
-                [ Button.view [ Button.id "open-neutral", Button.onClick OpenNeutral ] "Neutral"
-                , Button.view [ Button.id "open-warning", Button.onClick OpenWarning ] "Warning"
-                , Button.view [ Button.id "open-danger", Button.danger, Button.icon Icon.trash, Button.onClick OpenDanger ] "Delete customer"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-neutral"), Config.keep playground "Button" "onClick" (Button.onClick OpenNeutral) ])) "Neutral"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-warning"), Config.keep playground "Button" "onClick" (Button.onClick OpenWarning) ])) "Warning"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-danger"), Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "icon" (Button.icon Icon.trash), Config.keep playground "Button" "onClick" (Button.onClick OpenDanger) ])) "Delete customer"
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Checkbox", "Card", "Badge" ]
             { title = "Life of a request"
             , description = Just "Confirm the deletion: the button shows a spinner and the dialog cannot be closed while the “server” works for a second and a half. On failure the dialog stays open with the problem and “Try again”. Turn off “Simulate a failure” to let it through; a notification with Undo follows."
             , code = Just confirmLifecycleCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Checkbox.view
-                    [ Checkbox.label "Simulate a failure from the server"
-                    , Checkbox.checked model.failDelete
-                    , Checkbox.onCheck FailDeleteChanged
-                    ]
-                , orderList model deleteSamples deleteRow
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "label" (Checkbox.label "Simulate a failure from the server")
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.failDelete)
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck FailDeleteChanged)
+                            ]
+                        )
+                    )
+                , orderList playground model deleteSamples (deleteRow playground)
                 ]
             )
         ]
@@ -1188,17 +1224,17 @@ confirmSection model =
 {-| A card with a row for each order that has not been deleted, or a note and a
 way back when none is left.
 -}
-orderList : Model -> List Types.Order -> (Types.Order -> Html Msg) -> Html Msg
-orderList model samples viewRow =
+orderList : Config.Config -> Model -> List Types.Order -> (Types.Order -> Html Msg) -> Html Msg
+orderList playground model samples viewRow =
     case remaining model samples of
         [] ->
-            Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
+            Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ Text.caption "All orders are deleted. Use Undo in the notification, or restore the examples."
-                , Button.view [ Button.small, Button.icon Icon.undo, Button.onClick RestoreOrders ] "Restore the examples"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.undo), Config.keep playground "Button" "onClick" (Button.onClick RestoreOrders) ])) "Restore the examples"
                 ]
 
         rows ->
-            Card.view [ Card.flush ] (List.intersperse Layout.divider (List.map viewRow rows))
+            Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "flush" Card.flush ])) (List.intersperse Layout.divider (List.map viewRow rows))
 
 
 deleteButtonId : Types.Order -> String
@@ -1206,20 +1242,24 @@ deleteButtonId order =
     "delete-" ++ Types.orderIdText order.id
 
 
-deleteRow : Types.Order -> Html Msg
-deleteRow order =
-    Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.padding 2 ]
-        [ Layout.stack [ Layout.gap 0, Layout.grow ]
+deleteRow : Config.Config -> Types.Order -> Html Msg
+deleteRow playground order =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "padding" (Layout.padding 2) ]))
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 0), Config.keep playground "Layout" "grow" Layout.grow ]))
             [ Text.strong (Types.orderIdText order.id ++ " · " ++ order.customer)
             , Text.caption (order.email ++ " · " ++ order.city)
             ]
         , statusBadge order
         , Button.iconOnly
-            [ Button.ghost
-            , Button.id (deleteButtonId order)
-            , Button.onClick (AskDelete (deleteButtonId order) order)
-            , Button.htmlAttrs (Tooltip.attrs [] ("Delete " ++ Types.orderIdText order.id))
-            ]
+            (Options.klarButton playground
+                (List.concat
+                    [ Config.keep playground "Button" "ghost" Button.ghost
+                    , Config.keep playground "Button" "id" (Button.id (deleteButtonId order))
+                    , Config.keep playground "Button" "onClick" (Button.onClick (AskDelete (deleteButtonId order) order))
+                    , Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [] ("Delete " ++ Types.orderIdText order.id)))
+                    ]
+                )
+            )
             Icon.trash
             ("Delete " ++ Types.orderIdText order.id)
         ]
@@ -1229,25 +1269,32 @@ deleteRow order =
 -- SECTION: DRAWER
 
 
-drawerSection : Model -> Html Msg
-drawerSection model =
-    Doc.section "Drawer"
+drawerSection : Config.Config -> Model -> Html Msg
+drawerSection playground model =
+    Doc.configuredSection playground
+        []
+        "Drawer"
         "A panel from the side for the details of a row in a list, or for filters with many fields. It behaves like the modal: focus moves in, Tab stays inside, Escape and a click outside close it unless it is static, and focus returns to the opener. Widths: 360, 480 (the default) and 720 px."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Checkbox" ]
             { title = "From the right and from the left"
             , description = Just "The details of an order from the right (a skeleton while the data is fetched, and a failure with “Try again”), and filters from the left in a small, static drawer."
             , code = Just drawerCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap ]
-                    [ Button.view [ Button.id "open-right-drawer", Button.onClick OpenRightDrawer ] "Open from the right"
-                    , Button.view [ Button.id "open-left-drawer", Button.onClick OpenLeftDrawer ] "Filters from the left"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-right-drawer"), Config.keep playground "Button" "onClick" (Button.onClick OpenRightDrawer) ])) "Open from the right"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-left-drawer"), Config.keep playground "Button" "onClick" (Button.onClick OpenLeftDrawer) ])) "Filters from the left"
                     ]
                 , Checkbox.view
-                    [ Checkbox.label "Simulate a failure when the order is fetched"
-                    , Checkbox.checked model.failDrawer
-                    , Checkbox.onCheck FailDrawerChanged
-                    ]
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "label" (Checkbox.label "Simulate a failure when the order is fetched")
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.failDrawer)
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck FailDrawerChanged)
+                            ]
+                        )
+                    )
                 ]
             )
         ]
@@ -1257,24 +1304,26 @@ drawerSection model =
 -- SECTION: TOAST
 
 
-toastSection : Model -> Html Msg
-toastSection model =
-    Doc.section "Toast"
+toastSection : Config.Config -> Model -> Html Msg
+toastSection playground model =
+    Doc.configuredSection playground
+        []
+        "Toast"
         "Short notifications in the bottom right corner that stack up and disappear by themselves: info and success after a few seconds, warnings a little later, errors stay until they are closed. The timer stops while the pointer is over a notification or focus is inside it. A notification can carry an action, typically Undo: F8 takes the keyboard to the newest one, and when it goes away focus returns to where it was. At most four are shown, the rest wait in a queue. Screen readers are told without being interrupted; errors are announced at once."
         [ Doc.example
             { title = "All tones"
             , description = Just ("Notifications now: " ++ String.fromInt (Toast.count model.toasts) ++ ", of which " ++ String.fromInt (Toast.queued model.toasts) ++ " in the queue.")
             , code = Just toastCode
             }
-            (Layout.row [ Layout.gap 2, Layout.wrap ]
-                [ Button.view [ Button.icon Icon.info, Button.onClick (PushToast Info) ] "Info"
-                , Button.view [ Button.icon Icon.checkCircle, Button.onClick (PushToast Success) ] "Success"
-                , Button.view [ Button.icon Icon.warning, Button.onClick (PushToast Warning) ] "Warning"
-                , Button.view [ Button.icon Icon.errorCircle, Button.onClick (PushToast Danger) ] "Error"
-                , Button.view [ Button.icon Icon.undo, Button.onClick PushUndoToast ] "With Undo"
-                , Button.view [ Button.icon Icon.layers, Button.onClick PushManyToasts ] "Seven at once"
-                , Button.view [ Button.icon Icon.fileText, Button.onClick PushLongToast ] "Long text"
-                , Button.view [ Button.ghost, Button.onClick ClearToasts ] "Clear all"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.info), Config.keep playground "Button" "onClick" (Button.onClick (PushToast Info)) ])) "Info"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.checkCircle), Config.keep playground "Button" "onClick" (Button.onClick (PushToast Success)) ])) "Success"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.warning), Config.keep playground "Button" "onClick" (Button.onClick (PushToast Warning)) ])) "Warning"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.errorCircle), Config.keep playground "Button" "onClick" (Button.onClick (PushToast Danger)) ])) "Error"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.undo), Config.keep playground "Button" "onClick" (Button.onClick PushUndoToast) ])) "With Undo"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.layers), Config.keep playground "Button" "onClick" (Button.onClick PushManyToasts) ])) "Seven at once"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.fileText), Config.keep playground "Button" "onClick" (Button.onClick PushLongToast) ])) "Long text"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "onClick" (Button.onClick ClearToasts) ])) "Clear all"
                 ]
             )
         ]
@@ -1284,26 +1333,33 @@ toastSection model =
 -- SECTION: POPOVER
 
 
-popoverSection : Locale -> Model -> Html Msg
-popoverSection locale model =
-    Doc.section "Popover"
+popoverSection : Config.Config -> Locale -> Model -> Html Msg
+popoverSection playground locale model =
+    Doc.configuredSection playground
+        []
+        "Popover"
         "A small panel next to a button, with anything inside: a quick filter, a few settings, an explanation. It stays open while the user works in it. A click outside, Escape and the close button close it, and so does tabbing out of the panel. The panel is never clipped by tables or dialogs and flips when there is no room."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Popover", "TextInput", "Checkbox" ]
             { title = "Quick filter and explanation"
             , description = Just model.appliedFilter
             , code = Just popoverCode
             }
-            (Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
-                [ filterPopover locale model
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ filterPopover playground locale model
                 , Popover.view HelpPopoverMsg
-                    [ Popover.icon Icon.help
-                    , Popover.iconOnly
-                    , Popover.trigger [ Button.ghost ]
-                    , Popover.title "Priority levels"
-                    , Popover.closeButton
-                    , Popover.width 280
-                    , Popover.locale locale
-                    ]
+                    (Options.klarPopover playground
+                        (List.concat
+                            [ Config.keep playground "Popover" "icon" (Popover.icon Icon.help)
+                            , Config.keep playground "Popover" "iconOnly" Popover.iconOnly
+                            , Config.keep playground "Popover" "trigger" (Popover.trigger (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost ])))
+                            , Config.keep playground "Popover" "title" (Popover.title "Priority levels")
+                            , Config.keep playground "Popover" "closeButton" Popover.closeButton
+                            , Config.keep playground "Popover" "width" (Popover.width 280)
+                            , Config.keep playground "Popover" "locale" (Popover.locale locale)
+                            ]
+                        )
+                    )
                     model.helpPopover
                     "What is priority?"
                     [ Text.paragraph "Priority is calculated from the due date, the stock level and open issues. Urgent means the order should be picked within one working day."
@@ -1314,34 +1370,46 @@ popoverSection locale model =
         ]
 
 
-filterPopover : Locale -> Model -> Html Msg
-filterPopover locale model =
+filterPopover : Config.Config -> Locale -> Model -> Html Msg
+filterPopover playground locale model =
     Popover.view FilterPopoverMsg
-        [ Popover.locale locale
-        , Popover.icon Icon.filter
-        , Popover.title "Quick filter"
-        , Popover.closeButton
-        ]
+        (Options.klarPopover playground
+            (List.concat
+                [ Config.keep playground "Popover" "locale" (Popover.locale locale)
+                , Config.keep playground "Popover" "icon" (Popover.icon Icon.filter)
+                , Config.keep playground "Popover" "title" (Popover.title "Quick filter")
+                , Config.keep playground "Popover" "closeButton" Popover.closeButton
+                ]
+            )
+        )
         model.filterPopover
         "Filter"
         [ TextInput.view
-            [ TextInput.id "filter-customer"
-            , TextInput.label "Customer"
-            , TextInput.placeholder "For example Cobalt"
-            , TextInput.value model.filterCustomer
-            , TextInput.onInput FilterCustomerChanged
-            , TextInput.onEnter ApplyFilter
-            , TextInput.clearable
-            , TextInput.locale locale
-            ]
+            (Options.klarTextInput playground
+                (List.concat
+                    [ Config.keep playground "TextInput" "id" (TextInput.id "filter-customer")
+                    , Config.keep playground "TextInput" "label" (TextInput.label "Customer")
+                    , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "For example Cobalt")
+                    , Config.keep playground "TextInput" "value" (TextInput.value model.filterCustomer)
+                    , Config.keep playground "TextInput" "onInput" (TextInput.onInput FilterCustomerChanged)
+                    , Config.keep playground "TextInput" "onEnter" (TextInput.onEnter ApplyFilter)
+                    , Config.keep playground "TextInput" "clearable" TextInput.clearable
+                    , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                    ]
+                )
+            )
         , Checkbox.view
-            [ Checkbox.label "Open orders only"
-            , Checkbox.checked model.filterOpen
-            , Checkbox.onCheck FilterOpenChanged
-            ]
-        , Layout.row [ Layout.gap 2, Layout.justifyEnd ]
-            [ Button.view [ Button.ghost, Button.onClick ResetFilter ] "Reset"
-            , Button.view [ Button.primary, Button.onClick ApplyFilter ] "Apply"
+            (Options.klarCheckbox playground
+                (List.concat
+                    [ Config.keep playground "Checkbox" "label" (Checkbox.label "Open orders only")
+                    , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.filterOpen)
+                    , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck FilterOpenChanged)
+                    ]
+                )
+            )
+        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "justifyEnd" Layout.justifyEnd ]))
+            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "onClick" (Button.onClick ResetFilter) ])) "Reset"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick ApplyFilter) ])) "Apply"
             ]
         ]
 
@@ -1350,45 +1418,49 @@ filterPopover locale model =
 -- SECTION: TOOLTIP
 
 
-tooltipSection : Html Msg
-tooltipSection =
-    Doc.section "Tooltip"
+tooltipSection : Config.Config -> Html Msg
+tooltipSection playground =
+    Doc.configuredSection playground
+        []
+        "Tooltip"
         "Short hints without JavaScript. They appear after a short pause with the mouse and at once on keyboard focus, sit above the element and move to the side or below when there is no room. A tooltip is a visual aid: the element needs a name of its own (icon buttons get it from aria-label)."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Tooltip", "Shortcut" ]
             { title = "Icon buttons, with and without a shortcut"
             , description = Just "Tooltip.attrs goes on any element. The shortcut is a Shortcut.Keys, the same value Klar.Shortcut listens to, and is shown after the text."
             , code = Just tooltipAttrsCode
             }
-            (Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                [ Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [] "Reload") ] Icon.refresh "Reload"
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [] "Download as CSV") ] Icon.download "Download as CSV"
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'p')) ] "Print") ] Icon.print "Print"
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')) ] "Open search") ] Icon.search "Search"
-                , Button.iconOnly [ Button.ghost, Button.htmlAttrs (Tooltip.attrs [] "Delete order") ] Icon.trash "Delete order"
-                , Button.view [ Button.primary, Button.icon Icon.save, Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 's')) ] "Save all changes in the form") ] "Save"
-                , Button.view [ Button.htmlAttrs (Tooltip.attrs [ Tooltip.below ] "Shown below the button") ] "Below"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [] "Reload")) ])) Icon.refresh "Reload"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [] "Download as CSV")) ])) Icon.download "Download as CSV"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'p')) ] "Print")) ])) Icon.print "Print"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')) ] "Open search")) ])) Icon.search "Search"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [] "Delete order")) ])) Icon.trash "Delete order"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.save), Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 's')) ] "Save all changes in the form")) ])) "Save"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [ Tooltip.below ] "Shown below the button")) ])) "Below"
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Tooltip", "Shortcut", "Badge" ]
             { title = "Around content, and at the edge"
             , description = Just "Tooltip.wrap makes a real tooltip with role=tooltip, which describes the control to screen readers, and shows the shortcut as key caps. An unavailable button stays focusable (Button.ariaDisabled), so that the keyboard reaches it and hears why. Content that cannot take focus, such as a badge, gets Tooltip.focusable. The buttons on the right show that the hint is not cut off by the edge of the window."
             , code = Just tooltipWrapCode
             }
-            (Layout.row [ Layout.gap 3, Layout.alignCenter ]
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                 [ Tooltip.wrap [ Tooltip.id "gallery-tip-delete" ]
                     "You do not have permission to delete orders"
-                    (\tip -> Button.view [ Button.danger, Button.ariaDisabled True, Button.htmlAttrs tip ] "Delete")
+                    (\tip -> Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "ariaDisabled" (Button.ariaDisabled True), Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs tip) ])) "Delete")
                 , Tooltip.wrap [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')), Tooltip.id "gallery-tip-commands" ]
                     "Open the command palette"
-                    (\tip -> Button.view [ Button.icon Icon.command, Button.htmlAttrs tip ] "Commands")
+                    (\tip -> Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.command), Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs tip) ])) "Commands")
                 , Tooltip.wrap [ Tooltip.focusable, Tooltip.id "gallery-tip-long" ]
                     "This is a long hint that wraps over several lines because it has a maximum width, and it can be reached with the keyboard because the wrapper can take focus."
-                    (\_ -> Badge.view [ Badge.tone Info ] "Hover over me")
+                    (\_ -> Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) "Hover over me")
                 , Layout.spacer
-                , Button.iconOnly [ Button.htmlAttrs (Tooltip.attrs [] "This hint sits right at the edge") ] Icon.settings "Settings"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs (Tooltip.attrs [] "This hint sits right at the edge")) ])) Icon.settings "Settings"
                 , Tooltip.wrap [ Tooltip.shortcut (Shortcut.mod (Shortcut.shift (Shortcut.char 'p'))), Tooltip.id "gallery-tip-pin" ]
                     "Pin to the top"
-                    (\tip -> Button.iconOnly [ Button.htmlAttrs tip ] Icon.bookmark "Pin")
+                    (\tip -> Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "htmlAttrs" (Button.htmlAttrs tip) ])) Icon.bookmark "Pin")
                 ]
             )
         ]
@@ -1398,26 +1470,29 @@ tooltipSection =
 -- SECTION: CONTEXT MENU
 
 
-contextSection : Model -> Html Msg
-contextSection model =
-    Doc.section "ContextMenu"
+contextSection : Config.Config -> Model -> Html Msg
+contextSection playground model =
+    Doc.configuredSection playground
+        []
+        "ContextMenu"
         "The menu that opens where the user right-clicks. One menu serves many elements, and its content is built from the row that was clicked. Arrows, Home, End, Enter and Escape work as in an ordinary menu, and the menu opens towards the free side near the edge of the window. The context menu key (or Shift+F10) works on a row that has focus. A right-click with Shift held, or in a text field, keeps the browser's own menu. The ⋯ button opens the same menu with ContextMenu.openFor."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Card", "Badge" ]
             { title = "Rows with a right-click menu"
             , description = Just ("Right-click a row, tab to it and press Shift+F10, or press its ⋯ button. " ++ model.lastNote)
             , code = Just contextMenuCode
             }
-            (orderList model contextSamples (contextRow model))
+            (orderList playground model contextSamples (contextRow playground model))
         ]
 
 
-contextRow : Model -> Types.Order -> Html Msg
-contextRow model order =
+contextRow : Config.Config -> Model -> Types.Order -> Html Msg
+contextRow playground model order =
     ContextMenu.area ContextMsg
         model.context
         { id = contextRowId order, target = order }
-        [ Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.padding 2 ]
-            [ Layout.stack [ Layout.gap 0, Layout.grow ]
+        [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "padding" (Layout.padding 2) ]))
+            [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 0), Config.keep playground "Layout" "grow" Layout.grow ]))
                 [ Text.strong (Types.orderIdText order.id ++ " · " ++ order.customer)
                 , Text.caption (order.email ++ " · " ++ order.city)
                 ]
@@ -1426,11 +1501,15 @@ contextRow model order =
 
             -- the same menu, from a button: `ContextMenu.openFor`
             , Button.iconOnly
-                [ Button.ghost
-                , Button.small
-                , Button.id (contextRowId order ++ "-more")
-                , Button.onClick (OpenRowMenu order)
-                ]
+                (Options.klarButton playground
+                    (List.concat
+                        [ Config.keep playground "Button" "ghost" Button.ghost
+                        , Config.keep playground "Button" "small" Button.small
+                        , Config.keep playground "Button" "id" (Button.id (contextRowId order ++ "-more"))
+                        , Config.keep playground "Button" "onClick" (Button.onClick (OpenRowMenu order))
+                        ]
+                    )
+                )
                 Icon.moreVertical
                 ("Actions for " ++ Types.orderIdText order.id)
             ]
@@ -1461,32 +1540,43 @@ contextItems order =
 -- SECTION: PALETTE
 
 
-paletteSection : Model -> Html Msg
-paletteSection model =
-    Doc.section "CommandPalette"
+paletteSection : Config.Config -> Model -> Html Msg
+paletteSection playground model =
+    Doc.configuredSection playground
+        []
+        "CommandPalette"
         "One search box for commands and content. Type to narrow down (case and accents do not matter), use the arrow keys to move, Enter to run and Escape to close. Without a query the recent items are listed. Ctrl K opens the palette of this application (the search field in the top bar); the button below opens the one that belongs to this page. Its “Orders” section is asynchronous: the query waits for a pause in the typing, the page asks the “server” when it changes (and drops an answer to an older query), and the palette shows a skeleton meanwhile, then a short failure with “Try again”, or “No orders found”. Old results are dimmed while the next query waits."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Kbd", "Shortcut", "Checkbox" ]
             { title = "Command palette"
             , description = Just ("Search for a customer or an order number, for example “cobalt” or “ORD-100”. " ++ model.lastNote)
             , code = Just paletteCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view
-                        [ Button.id "open-palette"
-                        , Button.icon Icon.search
-                        , Button.onClick (OpenPalette "open-palette")
-                        ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.buttonView playground
+                        (Options.klarButton playground
+                            (List.concat
+                                [ Config.keep playground "Button" "id" (Button.id "open-palette")
+                                , Config.keep playground "Button" "icon" (Button.icon Icon.search)
+                                , Config.keep playground "Button" "onClick" (Button.onClick (OpenPalette "open-palette"))
+                                ]
+                            )
+                        )
                         "Open the palette of this page"
                     , Kbd.view [] (Shortcut.mod (Shortcut.char 'k'))
                     , Text.caption "opens the palette of the application"
                     ]
                 , Checkbox.view
-                    [ Checkbox.label "Simulate a failure in the order search"
-                    , Checkbox.hint "The search takes 0.7 seconds. With a failure the palette shows a short message and “Try again”."
-                    , Checkbox.checked model.failSearch
-                    , Checkbox.onCheck FailSearchChanged
-                    ]
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "label" (Checkbox.label "Simulate a failure in the order search")
+                            , Config.keep playground "Checkbox" "hint" (Checkbox.hint "The search takes 0.7 seconds. With a failure the palette shows a short message and “Try again”.")
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.failSearch)
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck FailSearchChanged)
+                            ]
+                        )
+                    )
                 ]
             )
         ]
@@ -1496,17 +1586,20 @@ paletteSection model =
 -- SECTION: SHORTCUT SHEET
 
 
-helpSection : Html Msg
-helpSection =
-    Doc.section "ShortcutHelp"
+helpSection : Config.Config -> Html Msg
+helpSection playground =
+    Doc.configuredSection playground
+        []
+        "ShortcutHelp"
         "The sheet of all keyboard shortcuts of an application, built from the same list as Shortcut.listen: grouped, with key caps and a small filter box. Sequences such as “g o” show as two steps, and a shortcut that also works in text fields is marked. This sheet lists the shortcuts of this page (N and Shift T) next to the ones the application listens to."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Kbd", "Shortcut" ]
             { title = "Keyboard shortcuts"
             , description = Just "Press ? anywhere (not while typing in a field) for the sheet of the application. The button opens the sheet of this page."
             , code = Just helpCode
             }
-            (Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
-                [ Button.view [ Button.id "open-help", Button.icon Icon.keyboard, Button.onClick OpenHelp ] "Show the shortcuts of this page"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "open-help"), Config.keep playground "Button" "icon" (Button.icon Icon.keyboard), Config.keep playground "Button" "onClick" (Button.onClick OpenHelp) ])) "Show the shortcuts of this page"
                 , Kbd.key [] "?"
                 , Text.caption "opens the sheet of the application"
                 ]
@@ -1518,35 +1611,47 @@ helpSection =
 -- OVERLAYS
 
 
-overlays : Locale -> Model -> List (Overlay Msg)
-overlays locale model =
-    [ sizeModal locale model
-    , formModal locale model
-    , menuModal locale model
-    , discardDialog locale model
-    , neutralDialog locale model
-    , warningDialog locale model
-    , dangerDialog locale model
-    , lifecycleDialog locale model
-    , drawerRightView locale model
-    , cancelDialog locale model
-    , drawerLeftView locale model
+overlays : Config.Config -> Locale -> Model -> List (Overlay Msg)
+overlays playground locale model =
+    [ sizeModal playground locale model
+    , formModal playground locale model
+    , menuModal playground locale model
+    , discardDialog playground locale model
+    , neutralDialog playground locale model
+    , warningDialog playground locale model
+    , dangerDialog playground locale model
+    , lifecycleDialog playground locale model
+    , drawerRightView playground locale model
+    , cancelDialog playground locale model
+    , drawerLeftView playground locale model
     , ShortcutHelp.view HelpMsg
-        [ ShortcutHelp.locale locale
+        (Options.klarShortcutHelp playground
+            (List.concat
+                [ Config.keep playground "ShortcutHelp" "locale" (ShortcutHelp.locale locale)
 
-        -- keys of the components on this page, listed but not listened to
-        , ShortcutHelp.extra
-            [ { group = "Lists", label = "Open the menu of the focused row", keys = Shortcut.shift (Shortcut.function 10) } ]
-        ]
+                -- keys of the components on this page, listed but not listened to
+                , Config.keep playground
+                    "ShortcutHelp"
+                    "extra"
+                    (ShortcutHelp.extra
+                        [ { group = "Lists", label = "Open the menu of the focused row", keys = Shortcut.shift (Shortcut.function 10) } ]
+                    )
+                ]
+            )
+        )
         sheetShortcuts
         model.help
     , CommandPalette.view PaletteMsg
-        [ CommandPalette.locale locale
-        , CommandPalette.sections (paletteSections model)
-        , CommandPalette.recent (List.map orderItem model.recent)
-        ]
+        (Options.klarCommandPalette playground
+            (List.concat
+                [ Config.keep playground "CommandPalette" "locale" (CommandPalette.locale locale)
+                , Config.keep playground "CommandPalette" "sections" (CommandPalette.sections (paletteSections model))
+                , Config.keep playground "CommandPalette" "recent" (CommandPalette.recent (List.map orderItem model.recent))
+                ]
+            )
+        )
         model.palette
-    , Toast.view ToastMsg [ Toast.locale locale ] model.toasts
+    , Toast.view ToastMsg (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "locale" (Toast.locale locale) ])) model.toasts
     ]
 
 
@@ -1559,25 +1664,25 @@ paragraphs =
     ]
 
 
-sizeModal : Locale -> Model -> Overlay Msg
-sizeModal locale model =
+sizeModal : Config.Config -> Locale -> Model -> Overlay Msg
+sizeModal playground locale model =
     let
         ( sizeAttrs, name, subtitle ) =
             case model.sizeKind of
                 SizeSmall ->
-                    ( [ Modal.small ], "Small dialog", "The content scrolls, the header and footer stay put" )
+                    ( Options.klarModal playground (List.concat [ Config.keep playground "Modal" "small" Modal.small ]), "Small dialog", "The content scrolls, the header and footer stay put" )
 
                 SizeMedium ->
-                    ( [ Modal.medium ], "Medium dialog", "The content scrolls, the header and footer stay put" )
+                    ( Options.klarModal playground (List.concat [ Config.keep playground "Modal" "medium" Modal.medium ]), "Medium dialog", "The content scrolls, the header and footer stay put" )
 
                 SizeLarge ->
-                    ( [ Modal.large ], "Large dialog", "The content scrolls, the header and footer stay put" )
+                    ( Options.klarModal playground (List.concat [ Config.keep playground "Modal" "large" Modal.large ]), "Large dialog", "The content scrolls, the header and footer stay put" )
 
                 SizeTall ->
-                    ( [ Modal.medium, Modal.fullHeight ], "Full-height dialog", "The dialog fills the height, whatever the content" )
+                    ( Options.klarModal playground (List.concat [ Config.keep playground "Modal" "medium" Modal.medium, Config.keep playground "Modal" "fullHeight" Modal.fullHeight ]), "Full-height dialog", "The dialog fills the height, whatever the content" )
 
                 SizeLongTitle ->
-                    ( [ Modal.small ]
+                    ( Options.klarModal playground (List.concat [ Config.keep playground "Modal" "small" Modal.small ])
                     , "Consolidated shipment plan for an order with partial deliveries from three warehouses, including backorders and customs documents"
                     , "The title wraps over several lines and never pushes the close button out of the dialog"
                     )
@@ -1600,18 +1705,21 @@ sizeModal locale model =
     in
     Modal.view SizeMsg
         (sizeAttrs
-            ++ [ Modal.subtitle subtitle
-               , Modal.locale locale
-               , Modal.footer [ Button.view [ Button.primary, Button.onClick CloseSize ] "Done" ]
-               ]
+            ++ Options.klarModal playground
+                (List.concat
+                    [ Config.keep playground "Modal" "subtitle" (Modal.subtitle subtitle)
+                    , Config.keep playground "Modal" "locale" (Modal.locale locale)
+                    , Config.keep playground "Modal" "footer" (Modal.footer [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick CloseSize) ])) "Done" ])
+                    ]
+                )
         )
         model.sizeModal
         name
-        [ Layout.stack [ Layout.gap 3 ] body ]
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ])) body ]
 
 
-formModal : Locale -> Model -> Overlay Msg
-formModal locale model =
+formModal : Config.Config -> Locale -> Model -> Overlay Msg
+formModal playground locale model =
     let
         form =
             model.form
@@ -1625,234 +1733,334 @@ formModal locale model =
 
         field id label fieldName value error =
             TextInput.view
-                [ TextInput.id id
-                , TextInput.label label
-                , TextInput.value value
-                , TextInput.onInput (FormEdited fieldName)
-                , TextInput.errorMaybe error
-                , TextInput.autocomplete "off"
-                ]
+                (Options.klarTextInput playground
+                    (List.concat
+                        [ Config.keep playground "TextInput" "id" (TextInput.id id)
+                        , Config.keep playground "TextInput" "label" (TextInput.label label)
+                        , Config.keep playground "TextInput" "value" (TextInput.value value)
+                        , Config.keep playground "TextInput" "onInput" (TextInput.onInput (FormEdited fieldName))
+                        , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe error)
+                        , Config.keep playground "TextInput" "autocomplete" (TextInput.autocomplete "off")
+                        ]
+                    )
+                )
     in
     Modal.view FormMsg
-        [ Modal.subtitle "Fields marked * are required"
-        , Modal.static
-        , Modal.onRequestClose FormRequestClose
-        , Modal.locale locale
-        , Modal.footerStart [ Text.caption "Escape and a click outside do not close this dialog." ]
-        , Modal.footer
-            [ Button.view [ Button.onClick FormRequestClose ] "Cancel"
-            , Button.view [ Button.primary, Button.icon Icon.save, Button.onClick SaveForm ] "Save"
-            ]
-        ]
+        (Options.klarModal playground
+            (List.concat
+                [ Config.keep playground "Modal" "subtitle" (Modal.subtitle "Fields marked * are required")
+                , Config.keep playground "Modal" "static" Modal.static
+                , Config.keep playground "Modal" "onRequestClose" (Modal.onRequestClose FormRequestClose)
+                , Config.keep playground "Modal" "locale" (Modal.locale locale)
+                , Config.keep playground "Modal" "footerStart" (Modal.footerStart [ Text.caption "Escape and a click outside do not close this dialog." ])
+                , Config.keep playground
+                    "Modal"
+                    "footer"
+                    (Modal.footer
+                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick FormRequestClose) ])) "Cancel"
+                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.save), Config.keep playground "Button" "onClick" (Button.onClick SaveForm) ])) "Save"
+                        ]
+                    )
+                ]
+            )
+        )
         model.formModal
         "New order"
-        [ Layout.stack [ Layout.gap 4 ]
-            [ Layout.grid [ Layout.columns 2, Layout.gap 4 ]
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+            [ Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "columns" (Layout.columns 2), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ TextInput.view
-                    [ TextInput.id "order-customer"
-                    , TextInput.label "Customer"
-                    , TextInput.required
-                    , TextInput.value form.customer
-                    , TextInput.onInput (FormEdited Customer)
-                    , TextInput.errorMaybe (requiredError "Customer" form.customer)
-                    , TextInput.autocomplete "off"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "id" (TextInput.id "order-customer")
+                            , Config.keep playground "TextInput" "label" (TextInput.label "Customer")
+                            , Config.keep playground "TextInput" "required" TextInput.required
+                            , Config.keep playground "TextInput" "value" (TextInput.value form.customer)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput (FormEdited Customer))
+                            , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (requiredError "Customer" form.customer))
+                            , Config.keep playground "TextInput" "autocomplete" (TextInput.autocomplete "off")
+                            ]
+                        )
+                    )
                 , TextInput.view
-                    [ TextInput.id "order-reference"
-                    , TextInput.label "Reference"
-                    , TextInput.required
-                    , TextInput.value form.reference
-                    , TextInput.onInput (FormEdited Reference)
-                    , TextInput.errorMaybe (requiredError "Reference" form.reference)
-                    , TextInput.autocomplete "off"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "id" (TextInput.id "order-reference")
+                            , Config.keep playground "TextInput" "label" (TextInput.label "Reference")
+                            , Config.keep playground "TextInput" "required" TextInput.required
+                            , Config.keep playground "TextInput" "value" (TextInput.value form.reference)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput (FormEdited Reference))
+                            , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (requiredError "Reference" form.reference))
+                            , Config.keep playground "TextInput" "autocomplete" (TextInput.autocomplete "off")
+                            ]
+                        )
+                    )
                 ]
             , TextInput.view
-                [ TextInput.id "order-email"
-                , TextInput.label "Contact email"
-                , TextInput.email
-                , TextInput.value form.email
-                , TextInput.onInput (FormEdited Email)
-                , TextInput.errorMaybe (emailError form)
-                , TextInput.hint "Used for order confirmations and shipping notices."
-                ]
+                (Options.klarTextInput playground
+                    (List.concat
+                        [ Config.keep playground "TextInput" "id" (TextInput.id "order-email")
+                        , Config.keep playground "TextInput" "label" (TextInput.label "Contact email")
+                        , Config.keep playground "TextInput" "email" TextInput.email
+                        , Config.keep playground "TextInput" "value" (TextInput.value form.email)
+                        , Config.keep playground "TextInput" "onInput" (TextInput.onInput (FormEdited Email))
+                        , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (emailError form))
+                        , Config.keep playground "TextInput" "hint" (TextInput.hint "Used for order confirmations and shipping notices.")
+                        ]
+                    )
+                )
             , field "order-phone" "Phone" Phone form.phone Nothing
             , field "order-address" "Delivery address" Address form.address Nothing
-            , Layout.grid [ Layout.columns 2, Layout.gap 4 ]
+            , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "columns" (Layout.columns 2), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ field "order-postal-code" "Postal code" PostalCode form.postalCode Nothing
                 , field "order-city" "City" City form.city Nothing
                 ]
             , TextArea.view
-                [ TextArea.id "order-notes"
-                , TextArea.label "Notes"
-                , TextArea.optionalText "(optional)"
-                , TextArea.rows 5
-                , TextArea.value form.notes
-                , TextArea.onInput (FormEdited Notes)
-                ]
+                (Options.klarTextArea playground
+                    (List.concat
+                        [ Config.keep playground "TextArea" "id" (TextArea.id "order-notes")
+                        , Config.keep playground "TextArea" "label" (TextArea.label "Notes")
+                        , Config.keep playground "TextArea" "optionalText" (TextArea.optionalText "(optional)")
+                        , Config.keep playground "TextArea" "rows" (TextArea.rows 5)
+                        , Config.keep playground "TextArea" "value" (TextArea.value form.notes)
+                        , Config.keep playground "TextArea" "onInput" (TextArea.onInput (FormEdited Notes))
+                        ]
+                    )
+                )
             , Layout.divider
             , Text.subheading "Delivery terms"
-            , Layout.stack [ Layout.gap 3 ] paragraphs
+            , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ])) paragraphs
             , Checkbox.view
-                [ Checkbox.label "The customer has accepted the delivery terms"
-                , Checkbox.checked form.accepted
-                , Checkbox.onCheck AcceptedChanged
-                ]
+                (Options.klarCheckbox playground
+                    (List.concat
+                        [ Config.keep playground "Checkbox" "label" (Checkbox.label "The customer has accepted the delivery terms")
+                        , Config.keep playground "Checkbox" "checked" (Checkbox.checked form.accepted)
+                        , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck AcceptedChanged)
+                        ]
+                    )
+                )
             , Checkbox.view
-                [ Checkbox.label "Send the order confirmation by email"
-                , Checkbox.hint "Does not apply to shipping notices."
-                , Checkbox.checked form.confirmByEmail
-                , Checkbox.onCheck ConfirmByEmailChanged
-                ]
+                (Options.klarCheckbox playground
+                    (List.concat
+                        [ Config.keep playground "Checkbox" "label" (Checkbox.label "Send the order confirmation by email")
+                        , Config.keep playground "Checkbox" "hint" (Checkbox.hint "Does not apply to shipping notices.")
+                        , Config.keep playground "Checkbox" "checked" (Checkbox.checked form.confirmByEmail)
+                        , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck ConfirmByEmailChanged)
+                        ]
+                    )
+                )
             ]
         ]
 
 
-menuModal : Locale -> Model -> Overlay Msg
-menuModal locale model =
+menuModal : Config.Config -> Locale -> Model -> Overlay Msg
+menuModal playground locale model =
     Modal.view MenuModalMsg
-        [ Modal.locale locale
-        , Modal.footer [ Button.view [ Button.primary, Button.onClick CloseMenuModal ] "Done" ]
-        ]
+        (Options.klarModal playground
+            (List.concat
+                [ Config.keep playground "Modal" "locale" (Modal.locale locale)
+                , Config.keep playground "Modal" "footer" (Modal.footer [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick CloseMenuModal) ])) "Done" ])
+                ]
+            )
+        )
         model.menuModal
         "Dialog with a menu and a panel"
-        [ Layout.stack [ Layout.gap 4 ]
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
             [ Text.paragraph "The menu, the panel and the list of the select open above the dialog and are not cut off by its scrolling content. Escape closes only the popup, never the whole dialog. A second Escape closes the dialog."
-            , Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
+            , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ Menu.view MenuMsg
-                    [ Menu.label "Actions"
-                    , Menu.items
-                        [ Menu.item "Edit" (MenuPicked "Edit") |> Menu.withIcon Icon.edit
-                        , Menu.item "Duplicate" (MenuPicked "Duplicate") |> Menu.withIcon Icon.copy
-                        , Menu.separator
-                        , Menu.item "Delete" (MenuPicked "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
-                        ]
-                    ]
+                    (Options.klarMenu playground
+                        (List.concat
+                            [ Config.keep playground "Menu" "label" (Menu.label "Actions")
+                            , Config.keep playground
+                                "Menu"
+                                "items"
+                                (Menu.items
+                                    [ Menu.item "Edit" (MenuPicked "Edit") |> Menu.withIcon Icon.edit
+                                    , Menu.item "Duplicate" (MenuPicked "Duplicate") |> Menu.withIcon Icon.copy
+                                    , Menu.separator
+                                    , Menu.item "Delete" (MenuPicked "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                     model.menu
                 , Popover.view NestedPopoverMsg
-                    [ Popover.locale locale
-                    , Popover.icon Icon.sliders
-                    , Popover.title "Settings"
-                    , Popover.closeButton
-                    ]
+                    (Options.klarPopover playground
+                        (List.concat
+                            [ Config.keep playground "Popover" "locale" (Popover.locale locale)
+                            , Config.keep playground "Popover" "icon" (Popover.icon Icon.sliders)
+                            , Config.keep playground "Popover" "title" (Popover.title "Settings")
+                            , Config.keep playground "Popover" "closeButton" Popover.closeButton
+                            ]
+                        )
+                    )
                     model.nestedPopover
                     "Panel"
                     [ TextInput.view
-                        [ TextInput.id "nested-popover-input"
-                        , TextInput.label "Display name"
-                        , TextInput.value model.nestedName
-                        , TextInput.onInput NestedNameChanged
-                        ]
+                        (Options.klarTextInput playground
+                            (List.concat
+                                [ Config.keep playground "TextInput" "id" (TextInput.id "nested-popover-input")
+                                , Config.keep playground "TextInput" "label" (TextInput.label "Display name")
+                                , Config.keep playground "TextInput" "value" (TextInput.value model.nestedName)
+                                , Config.keep playground "TextInput" "onInput" (TextInput.onInput NestedNameChanged)
+                                ]
+                            )
+                        )
                     , Checkbox.view
-                        [ Checkbox.label "Show in the overview"
-                        , Checkbox.checked model.nestedShow
-                        , Checkbox.onCheck NestedShowChanged
-                        ]
+                        (Options.klarCheckbox playground
+                            (List.concat
+                                [ Config.keep playground "Checkbox" "label" (Checkbox.label "Show in the overview")
+                                , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.nestedShow)
+                                , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck NestedShowChanged)
+                                ]
+                            )
+                        )
                     ]
                 , Text.caption model.menuPicked
                 ]
             , Select.view CountryMsg
-                [ Select.label "Country"
-                , Select.clearable
-                , Select.locale locale
-                , Select.options countryOptions
-                ]
+                (Options.klarSelect playground
+                    (List.concat
+                        [ Config.keep playground "Select" "label" (Select.label "Country")
+                        , Config.keep playground "Select" "clearable" Select.clearable
+                        , Config.keep playground "Select" "locale" (Select.locale locale)
+                        , Config.keep playground "Select" "options" (Select.options countryOptions)
+                        ]
+                    )
+                )
                 model.country
             , Layout.divider
-            , Layout.stack [ Layout.gap 3 ] paragraphs
-            , Layout.row [ Layout.gap 3, Layout.alignCenter ]
+            , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ])) paragraphs
+            , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                 [ Menu.view MenuLowerMsg
-                    [ Menu.label "Menu at the bottom of the content"
-                    , Menu.items
-                        [ Menu.item "First" (MenuPicked "First")
-                        , Menu.item "Second" (MenuPicked "Second")
-                        , Menu.item "Third" (MenuPicked "Third")
-                        ]
-                    ]
+                    (Options.klarMenu playground
+                        (List.concat
+                            [ Config.keep playground "Menu" "label" (Menu.label "Menu at the bottom of the content")
+                            , Config.keep playground
+                                "Menu"
+                                "items"
+                                (Menu.items
+                                    [ Menu.item "First" (MenuPicked "First")
+                                    , Menu.item "Second" (MenuPicked "Second")
+                                    , Menu.item "Third" (MenuPicked "Third")
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                     model.menuLower
                 ]
             ]
         ]
 
 
-discardDialog : Locale -> Model -> Overlay Msg
-discardDialog locale model =
+discardDialog : Config.Config -> Locale -> Model -> Overlay Msg
+discardDialog playground locale model =
     ConfirmDialog.view DiscardMsg
-        [ ConfirmDialog.tone Warning
-        , ConfirmDialog.message "The form has data that is not saved. It is lost if you close it now."
-        , ConfirmDialog.confirmLabel "Discard"
-        , ConfirmDialog.cancelLabel "Keep editing"
-        , ConfirmDialog.onConfirm DiscardConfirmed
-        , ConfirmDialog.onCancel DiscardCancelled
-        , ConfirmDialog.locale locale
-        ]
+        (Options.klarConfirmDialog playground
+            (List.concat
+                [ Config.keep playground "ConfirmDialog" "tone" (ConfirmDialog.tone Warning)
+                , Config.keep playground "ConfirmDialog" "message" (ConfirmDialog.message "The form has data that is not saved. It is lost if you close it now.")
+                , Config.keep playground "ConfirmDialog" "confirmLabel" (ConfirmDialog.confirmLabel "Discard")
+                , Config.keep playground "ConfirmDialog" "cancelLabel" (ConfirmDialog.cancelLabel "Keep editing")
+                , Config.keep playground "ConfirmDialog" "onConfirm" (ConfirmDialog.onConfirm DiscardConfirmed)
+                , Config.keep playground "ConfirmDialog" "onCancel" (ConfirmDialog.onCancel DiscardCancelled)
+                , Config.keep playground "ConfirmDialog" "locale" (ConfirmDialog.locale locale)
+                ]
+            )
+        )
         model.discard
         "Discard the changes?"
 
 
-neutralDialog : Locale -> Model -> Overlay Msg
-neutralDialog locale model =
+neutralDialog : Config.Config -> Locale -> Model -> Overlay Msg
+neutralDialog playground locale model =
     ConfirmDialog.view NeutralMsg
-        [ ConfirmDialog.message "The order is sent to the sales manager. You cannot edit it while it is being reviewed."
-        , ConfirmDialog.confirmLabel "Send"
-        , ConfirmDialog.onConfirm NeutralConfirmed
-        , ConfirmDialog.onCancel NeutralCancelled
-        , ConfirmDialog.locale locale
-        ]
+        (Options.klarConfirmDialog playground
+            (List.concat
+                [ Config.keep playground "ConfirmDialog" "message" (ConfirmDialog.message "The order is sent to the sales manager. You cannot edit it while it is being reviewed.")
+                , Config.keep playground "ConfirmDialog" "confirmLabel" (ConfirmDialog.confirmLabel "Send")
+                , Config.keep playground "ConfirmDialog" "onConfirm" (ConfirmDialog.onConfirm NeutralConfirmed)
+                , Config.keep playground "ConfirmDialog" "onCancel" (ConfirmDialog.onCancel NeutralCancelled)
+                , Config.keep playground "ConfirmDialog" "locale" (ConfirmDialog.locale locale)
+                ]
+            )
+        )
         model.neutral
         "Send the order for approval?"
 
 
-warningDialog : Locale -> Model -> Overlay Msg
-warningDialog locale model =
+warningDialog : Config.Config -> Locale -> Model -> Overlay Msg
+warningDialog playground locale model =
     ConfirmDialog.view WarningMsg
-        [ ConfirmDialog.tone Warning
-        , ConfirmDialog.message "The order moves to the archive and no longer shows in open lists."
-        , ConfirmDialog.body
-            [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                [ Text.strong "ORD-10001"
-                , Badge.status Success "Delivered"
-                , Text.caption "Customer since 2019"
+        (Options.klarConfirmDialog playground
+            (List.concat
+                [ Config.keep playground "ConfirmDialog" "tone" (ConfirmDialog.tone Warning)
+                , Config.keep playground "ConfirmDialog" "message" (ConfirmDialog.message "The order moves to the archive and no longer shows in open lists.")
+                , Config.keep playground
+                    "ConfirmDialog"
+                    "body"
+                    (ConfirmDialog.body
+                        [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                            [ Text.strong "ORD-10001"
+                            , Badge.status Success "Delivered"
+                            , Text.caption "Customer since 2019"
+                            ]
+                        ]
+                    )
+                , Config.keep playground
+                    "ConfirmDialog"
+                    "consequences"
+                    (ConfirmDialog.consequences
+                        [ "Open picking tasks are closed"
+                        , "History and documents are kept for ten years"
+                        , "You can restore the order from the archive"
+                        ]
+                    )
+                , Config.keep playground "ConfirmDialog" "confirmLabel" (ConfirmDialog.confirmLabel "Archive")
+                , Config.keep playground "ConfirmDialog" "onConfirm" (ConfirmDialog.onConfirm WarningConfirmed)
+                , Config.keep playground "ConfirmDialog" "onCancel" (ConfirmDialog.onCancel WarningCancelled)
+                , Config.keep playground "ConfirmDialog" "locale" (ConfirmDialog.locale locale)
                 ]
-            ]
-        , ConfirmDialog.consequences
-            [ "Open picking tasks are closed"
-            , "History and documents are kept for ten years"
-            , "You can restore the order from the archive"
-            ]
-        , ConfirmDialog.confirmLabel "Archive"
-        , ConfirmDialog.onConfirm WarningConfirmed
-        , ConfirmDialog.onCancel WarningCancelled
-        , ConfirmDialog.locale locale
-        ]
+            )
+        )
         model.warning
         "Archive the order?"
 
 
-dangerDialog : Locale -> Model -> Overlay Msg
-dangerDialog locale model =
+dangerDialog : Config.Config -> Locale -> Model -> Overlay Msg
+dangerDialog playground locale model =
     ConfirmDialog.view DangerMsg
-        [ ConfirmDialog.tone Danger
-        , ConfirmDialog.icon Icon.trash
-        , ConfirmDialog.message "“Contoso Ltd” and everything that belongs to it is deleted for good."
-        , ConfirmDialog.consequences
-            [ "142 orders lose their customer"
-            , "Contracts and invoice history are deleted"
-            , "This cannot be undone"
-            ]
-        , ConfirmDialog.confirmLabel "Delete customer"
-        , ConfirmDialog.typeToConfirm "DELETE"
-        , ConfirmDialog.ignoreCase
-        , ConfirmDialog.onConfirm DangerConfirmed
-        , ConfirmDialog.onCancel DangerCancelled
-        , ConfirmDialog.locale locale
-        ]
+        (Options.klarConfirmDialog playground
+            (List.concat
+                [ Config.keep playground "ConfirmDialog" "tone" (ConfirmDialog.tone Danger)
+                , Config.keep playground "ConfirmDialog" "icon" (ConfirmDialog.icon Icon.trash)
+                , Config.keep playground "ConfirmDialog" "message" (ConfirmDialog.message "“Contoso Ltd” and everything that belongs to it is deleted for good.")
+                , Config.keep playground
+                    "ConfirmDialog"
+                    "consequences"
+                    (ConfirmDialog.consequences
+                        [ "142 orders lose their customer"
+                        , "Contracts and invoice history are deleted"
+                        , "This cannot be undone"
+                        ]
+                    )
+                , Config.keep playground "ConfirmDialog" "confirmLabel" (ConfirmDialog.confirmLabel "Delete customer")
+                , Config.keep playground "ConfirmDialog" "typeToConfirm" (ConfirmDialog.typeToConfirm "DELETE")
+                , Config.keep playground "ConfirmDialog" "ignoreCase" ConfirmDialog.ignoreCase
+                , Config.keep playground "ConfirmDialog" "onConfirm" (ConfirmDialog.onConfirm DangerConfirmed)
+                , Config.keep playground "ConfirmDialog" "onCancel" (ConfirmDialog.onCancel DangerCancelled)
+                , Config.keep playground "ConfirmDialog" "locale" (ConfirmDialog.locale locale)
+                ]
+            )
+        )
         model.danger
         "Delete the customer?"
 
 
-lifecycleDialog : Locale -> Model -> Overlay Msg
-lifecycleDialog locale model =
+lifecycleDialog : Config.Config -> Locale -> Model -> Overlay Msg
+lifecycleDialog playground locale model =
     let
         name =
             case model.lifecycleTarget of
@@ -1863,13 +2071,17 @@ lifecycleDialog locale model =
                     ""
     in
     ConfirmDialog.view LifecycleMsg
-        [ ConfirmDialog.tone Danger
-        , ConfirmDialog.message (name ++ " is removed from all lists and can no longer be found in searches.")
-        , ConfirmDialog.confirmLabel "Delete order"
-        , ConfirmDialog.onConfirm DeleteConfirmed
-        , ConfirmDialog.onCancel DeleteCancelled
-        , ConfirmDialog.locale locale
-        ]
+        (Options.klarConfirmDialog playground
+            (List.concat
+                [ Config.keep playground "ConfirmDialog" "tone" (ConfirmDialog.tone Danger)
+                , Config.keep playground "ConfirmDialog" "message" (ConfirmDialog.message (name ++ " is removed from all lists and can no longer be found in searches."))
+                , Config.keep playground "ConfirmDialog" "confirmLabel" (ConfirmDialog.confirmLabel "Delete order")
+                , Config.keep playground "ConfirmDialog" "onConfirm" (ConfirmDialog.onConfirm DeleteConfirmed)
+                , Config.keep playground "ConfirmDialog" "onCancel" (ConfirmDialog.onCancel DeleteCancelled)
+                , Config.keep playground "ConfirmDialog" "locale" (ConfirmDialog.locale locale)
+                ]
+            )
+        )
         model.lifecycle
         "Delete the order?"
 
@@ -1877,101 +2089,129 @@ lifecycleDialog locale model =
 {-| Asked from inside the drawer, on top of it. The confirm button stays disabled
 until the box is ticked; a failure of the server goes away when it changes.
 -}
-cancelDialog : Locale -> Model -> Overlay Msg
-cancelDialog locale model =
+cancelDialog : Config.Config -> Locale -> Model -> Overlay Msg
+cancelDialog playground locale model =
     ConfirmDialog.view CancelMsg
-        [ ConfirmDialog.tone Danger
-        , ConfirmDialog.message "The customer is told by email."
-        , ConfirmDialog.body
-            [ Checkbox.view
-                [ Checkbox.id "cancel-ack"
-                , Checkbox.label "I have checked the shipment"
-                , Checkbox.checked model.cancelAck
-                , Checkbox.onCheck CancelAckChanged
+        (Options.klarConfirmDialog playground
+            (List.concat
+                [ Config.keep playground "ConfirmDialog" "tone" (ConfirmDialog.tone Danger)
+                , Config.keep playground "ConfirmDialog" "message" (ConfirmDialog.message "The customer is told by email.")
+                , Config.keep playground
+                    "ConfirmDialog"
+                    "body"
+                    (ConfirmDialog.body
+                        [ Checkbox.view
+                            (Options.klarCheckbox playground
+                                (List.concat
+                                    [ Config.keep playground "Checkbox" "id" (Checkbox.id "cancel-ack")
+                                    , Config.keep playground "Checkbox" "label" (Checkbox.label "I have checked the shipment")
+                                    , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.cancelAck)
+                                    , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck CancelAckChanged)
+                                    ]
+                                )
+                            )
+                        ]
+                    )
+                , Config.keep playground "ConfirmDialog" "confirmLabel" (ConfirmDialog.confirmLabel "Cancel order")
+                , Config.keep playground "ConfirmDialog" "cancelLabel" (ConfirmDialog.cancelLabel "Keep order")
+                , Config.keep playground "ConfirmDialog" "confirmDisabled" (ConfirmDialog.confirmDisabled (not model.cancelAck))
+                , Config.keep playground "ConfirmDialog" "onConfirm" (ConfirmDialog.onConfirm CancelConfirmed)
+                , Config.keep playground "ConfirmDialog" "onCancel" (ConfirmDialog.onCancel CancelCancelled)
+                , Config.keep playground "ConfirmDialog" "locale" (ConfirmDialog.locale locale)
                 ]
-            ]
-        , ConfirmDialog.confirmLabel "Cancel order"
-        , ConfirmDialog.cancelLabel "Keep order"
-        , ConfirmDialog.confirmDisabled (not model.cancelAck)
-        , ConfirmDialog.onConfirm CancelConfirmed
-        , ConfirmDialog.onCancel CancelCancelled
-        , ConfirmDialog.locale locale
-        ]
+            )
+        )
         model.cancel
         "Cancel the order?"
 
 
-drawerRightView : Locale -> Model -> Overlay Msg
-drawerRightView locale model =
+drawerRightView : Config.Config -> Locale -> Model -> Overlay Msg
+drawerRightView playground locale model =
     -- Always in the list, even before the first order is chosen: a closed drawer
     -- listens to the focus on the page, to give it back when it closes.
     Drawer.view RightDrawerMsg
-        [ Drawer.subtitle (Maybe.map (\order -> order.customer ++ " · " ++ order.email) model.drawerOrder |> Maybe.withDefault "")
-        , Drawer.locale locale
-        , Drawer.footer
-            [ Button.view [ Button.onClick CloseRightDrawer ] "Close"
-            , Button.view [ Button.primary, Button.icon Icon.edit, Button.onClick CloseRightDrawer ] "Edit"
-            ]
-        ]
+        (Options.klarDrawer playground
+            (List.concat
+                [ Config.keep playground "Drawer" "subtitle" (Drawer.subtitle (Maybe.map (\order -> order.customer ++ " · " ++ order.email) model.drawerOrder |> Maybe.withDefault ""))
+                , Config.keep playground "Drawer" "locale" (Drawer.locale locale)
+                , Config.keep playground
+                    "Drawer"
+                    "footer"
+                    (Drawer.footer
+                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick CloseRightDrawer) ])) "Close"
+                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.edit), Config.keep playground "Button" "onClick" (Button.onClick CloseRightDrawer) ])) "Edit"
+                        ]
+                    )
+                ]
+            )
+        )
         model.drawerRight
         (Maybe.map (.id >> Types.orderIdText) model.drawerOrder |> Maybe.withDefault "Order")
         (RemoteView.view
-            [ RemoteView.locale locale
-            , RemoteView.onRetry RetryDrawer
-            , RemoteView.loadingLabel "Loading the order ..."
-            , RemoteView.skeleton
-                (Layout.stack [ Layout.gap 5 ]
-                    [ Skeleton.line 35
-                    , Skeleton.lines 4
-                    , Skeleton.block 72
+            (Options.klarRemoteView playground
+                (List.concat
+                    [ Config.keep playground "RemoteView" "locale" (RemoteView.locale locale)
+                    , Config.keep playground "RemoteView" "onRetry" (RemoteView.onRetry RetryDrawer)
+                    , Config.keep playground "RemoteView" "loadingLabel" (RemoteView.loadingLabel "Loading the order ...")
+                    , Config.keep playground
+                        "RemoteView"
+                        "skeleton"
+                        (RemoteView.skeleton
+                            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+                                [ Skeleton.line 35
+                                , Skeleton.lines 4
+                                , Skeleton.block 72
+                                ]
+                            )
+                        )
                     ]
                 )
-            ]
+            )
             model.drawerData
-            (\loaded -> [ Layout.stack [ Layout.gap 5 ] [ orderDetails locale loaded, workflow model ] ])
+            (\loaded -> [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 5) ])) [ orderDetails playground locale loaded, workflow playground model ] ])
         )
 
 
 {-| The actions of the order. Pressing one replaces or disables the button that
 has focus, and the drawer takes the focus itself.
 -}
-workflow : Model -> Html Msg
-workflow model =
-    Layout.stack [ Layout.gap 3 ]
+workflow : Config.Config -> Model -> Html Msg
+workflow playground model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
         [ Text.overline "Workflow"
         , case model.step of
             0 ->
-                Layout.row [ Layout.gap 2 ]
-                    [ Button.view [ Button.id "wf-picking", Button.onClick AdvanceStep ] "Mark as picking" ]
+                Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "wf-picking"), Config.keep playground "Button" "onClick" (Button.onClick AdvanceStep) ])) "Mark as picking" ]
 
             1 ->
-                Layout.stack [ Layout.gap 2 ]
+                Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                     [ Text.caption "Picking started."
-                    , Button.view [ Button.id "wf-packed", Button.onClick AdvanceStep ] "Mark as packed"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "wf-packed"), Config.keep playground "Button" "onClick" (Button.onClick AdvanceStep) ])) "Mark as packed"
                     ]
 
             _ ->
                 Text.caption "Packed."
-        , Layout.row [ Layout.gap 2, Layout.wrap ]
-            [ Button.view [ Button.id "wf-note", Button.disabled model.noteAdded, Button.onClick AddNote ] "Add note"
-            , Button.view [ Button.id "wf-save", Button.onClick SaveNote ] "Save note (fails)"
-            , Button.view [ Button.id "wf-cancel", Button.danger, Button.onClick AskCancel ] "Cancel order ..."
+        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "wf-note"), Config.keep playground "Button" "disabled" (Button.disabled model.noteAdded), Config.keep playground "Button" "onClick" (Button.onClick AddNote) ])) "Add note"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "wf-save"), Config.keep playground "Button" "onClick" (Button.onClick SaveNote) ])) "Save note (fails)"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "wf-cancel"), Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "onClick" (Button.onClick AskCancel) ])) "Cancel order ..."
             ]
         ]
 
 
-orderDetails : Locale -> Types.Order -> Html Msg
-orderDetails locale order =
+orderDetails : Config.Config -> Locale -> Types.Order -> Html Msg
+orderDetails playground locale order =
     let
         row label value =
-            Layout.stack [ Layout.gap 1 ] [ Text.overline label, Text.text value ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ])) [ Text.overline label, Text.text value ]
     in
-    Layout.stack [ Layout.gap 5 ]
-        [ Layout.row [ Layout.gap 3, Layout.alignCenter ]
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
+        [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
             [ statusBadge order
-            , Badge.view [ Badge.tone (Labels.priorityTone order.priority) ] ("Priority: " ++ Types.priorityLabel order.priority)
+            , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone (Labels.priorityTone order.priority)) ])) ("Priority: " ++ Types.priorityLabel order.priority)
             ]
-        , Layout.grid [ Layout.columns 2, Layout.gap 5 ]
+        , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "columns" (Layout.columns 2), Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
             [ row "City" order.city
             , row "Owner" (order.owner |> Maybe.map Sample.ownerName |> Maybe.withDefault "Unassigned")
             , row "Created" (Format.date locale order.created)
@@ -1980,7 +2220,7 @@ orderDetails locale order =
             , row "Total" (Format.currency locale "$" 2 order.total)
             ]
         , Layout.divider
-        , Layout.stack [ Layout.gap 1 ]
+        , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
             [ Text.overline "Note"
             , Text.paragraph
                 (if order.note == "" then
@@ -1993,32 +2233,44 @@ orderDetails locale order =
         ]
 
 
-drawerLeftView : Locale -> Model -> Overlay Msg
-drawerLeftView locale model =
+drawerLeftView : Config.Config -> Locale -> Model -> Overlay Msg
+drawerLeftView playground locale model =
     Drawer.view LeftDrawerMsg
-        [ Drawer.left
-        , Drawer.small
-        , Drawer.static
-        , Drawer.subtitle "Static: closes only with the buttons"
-        , Drawer.locale locale
-        , Drawer.footer
-            [ Button.view [ Button.onClick CloseLeftDrawer ] "Cancel"
-            , Button.view [ Button.primary, Button.onClick CloseLeftDrawer ] "Apply filters"
-            ]
-        ]
+        (Options.klarDrawer playground
+            (List.concat
+                [ Config.keep playground "Drawer" "left" Drawer.left
+                , Config.keep playground "Drawer" "small" Drawer.small
+                , Config.keep playground "Drawer" "static" Drawer.static
+                , Config.keep playground "Drawer" "subtitle" (Drawer.subtitle "Static: closes only with the buttons")
+                , Config.keep playground "Drawer" "locale" (Drawer.locale locale)
+                , Config.keep playground
+                    "Drawer"
+                    "footer"
+                    (Drawer.footer
+                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick CloseLeftDrawer) ])) "Cancel"
+                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick CloseLeftDrawer) ])) "Apply filters"
+                        ]
+                    )
+                ]
+            )
+        )
         model.drawerLeft
         "Filters"
-        [ Layout.stack [ Layout.gap 4 ]
-            [ Checkbox.view [ Checkbox.label "Open orders only", Checkbox.checked model.onlyOpen, Checkbox.onCheck OnlyOpenChanged ]
-            , Checkbox.view [ Checkbox.label "Urgent orders only", Checkbox.checked model.onlyUrgent, Checkbox.onCheck OnlyUrgentChanged ]
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+            [ Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Open orders only"), Config.keep playground "Checkbox" "checked" (Checkbox.checked model.onlyOpen), Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck OnlyOpenChanged) ]))
+            , Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Urgent orders only"), Config.keep playground "Checkbox" "checked" (Checkbox.checked model.onlyUrgent), Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck OnlyUrgentChanged) ]))
             , TextInput.view
-                [ TextInput.id "drawer-city"
-                , TextInput.label "City"
-                , TextInput.value model.drawerCity
-                , TextInput.onInput DrawerCityChanged
-                , TextInput.clearable
-                , TextInput.locale locale
-                ]
+                (Options.klarTextInput playground
+                    (List.concat
+                        [ Config.keep playground "TextInput" "id" (TextInput.id "drawer-city")
+                        , Config.keep playground "TextInput" "label" (TextInput.label "City")
+                        , Config.keep playground "TextInput" "value" (TextInput.value model.drawerCity)
+                        , Config.keep playground "TextInput" "onInput" (TextInput.onInput DrawerCityChanged)
+                        , Config.keep playground "TextInput" "clearable" TextInput.clearable
+                        , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                        ]
+                    )
+                )
             ]
         ]
 

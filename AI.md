@@ -338,19 +338,21 @@ Each module is `Klar.<Name>`; details in `ai/modules/Klar.<Name>.md`.
 - Text diff, JSON diff, record diff: `Diff`. Records side by side: `Compare`. Safe Markdown to HTML: `Markdown`. Edit Markdown with preview: `MarkdownEditor`.
 - Responsive record cards with selection: `CardList`. Keyboard work list with a detail pane: `WorkQueue`. Actor, timestamp and expandable change history: `AuditLog`. Three-way field merge with decisions bound to the reviewed versions: `ConflictResolver`. Persistent unread/read notification history: `NotificationCenter`. See `Examples/ReviewDesk.elm` for all five in one application. Ordered work stages with validated moves and WIP limits: `Kanban`. Threaded safe-Markdown discussion with revision-bound draft acknowledgement: `CommentThread`. Exact source inspection/download with bounded JSON/Elm highlighting: `CodeBlock`. Local file staging and explicit transfer statuses: `UploadQueue` (the application sends files). Raw number text plus an application's own unit id: `QuantityInput` (no implicit conversion).
 - Roles by permissions grid: `PermissionMatrix`. Approval steps and decisions: `ApprovalFlow`.
-- Graphical processes: `Workflow` definitions, `WorkflowBuilder`, `WorkflowNode`, `WorkflowRun`, `Workflow.Engine`, `Workflow.Codec` and `StateMachine`. See [WORKFLOWS.md](WORKFLOWS.md) for the studio, roles and server boundary.
+- Graphical processes: `Workflow` definitions, `WorkflowBuilder`, `WorkflowNode` and `WorkflowRun`. `Workflow.Engine` runs pure transitions; `Workflow.Codec` exchanges versioned JSON. `StateMachine` models a step lifecycle. See [WORKFLOWS.md](WORKFLOWS.md) for roles, approval and the simulated server.
+**AI on the application's server**
+- Review AI statements and proposed changes with exact before/after values, rationale, sources, approve/reject decisions and review notes: `AiReview`. Embed `CommentThread` with `AiReview.discussion`, keyed by both proposal id and revision. Changed content invalidates a previous decision; rejected proposals require a reason. `AiReview.onSubmit` receives revision-bound decisions. Keep `AiReview.saving True` until the server acknowledges; show write failures with `AiReview.errorMaybe`. The server must check permissions and both proposal and target-record versions, apply approved changes atomically, make retries idempotent and persist an audit trail (`AuditLog`).
+- Conversation with streamed safe Markdown, explicit stop/retry and draft acknowledgement: `AiChat`. The application sends `AiChat.submissionText` to its own server, sets `AiChat.Generating`, and appends chunks to a stable assistant message id. Acknowledge only the captured submission after acceptance. Cancel and invalidate the run ticket on stop; ignore late chunks. Use `AiChat.content` to embed `AiReview`, `Table`, `Chart` or `JsonViewer` rather than forcing structured results into prose. Provider keys, retrieval, tool execution and authorization stay on the server. Neither component calls a provider or treats a proposed action as permission to execute it.
 **Forms and inputs**
 - The whole form (fields, dirty, server problems, steps, rows): `Form`; its declaration: `Form.Spec`; its tests: `Form.Check`. The frame (sections, grid, buttons, submit state): `Form.Layout`. The wrapper of one control (label, hint, error): `Field`. Validators: `Validate`. How your id type is written as text, once, for every component: `Ids`.
 - Text: `TextInput`, `TextArea`, `PasswordInput`, `SearchInput` (waits for a pause), `TagInput`, `InlineEdit` (click to edit), `MaskedInput` (IBAN, postal code, phone). Number: `NumberInput`, `Slider`. Money: `Money`, `MoneyInput`. Files: `FileDrop`.
 - Choose: `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `SegmentedControl` (one of a few). `Select` (one of many, searchable; `Select.Option` is its option type), `MultiSelect`, `Autocomplete` (suggestions), `TreeSelect`, `Cascader` (a path through levels), `Transfer` (two lists), `Picking` (the nodes of `TreeSelect` and `Cascader`; `Picking.fromFlat` builds them from rows that name their parent).
+
 **Date and time**
 - The date type: `Date`. A date field: `DatePicker`. A period: `DateRangePicker`. Time: `TimePicker`. Both: `DateTimePicker`. A month with marks: `Calendar`. "Every second Tuesday": `Recurrence` with `RecurrencePicker`.
 
 ## Getting Klar into a project
 
-**Published:** `elm install davidtoska/elm-klar`. **Before it is published, or to keep an exact copy:** a git
-submodule pinned to a tag or a commit, with its `src` in your `source-directories`. Elm reads the dependencies of
-the application, not of a folder, so list Klar's too:
+**Published:** `elm install davidtoska/elm-klar`. **Before it is published, or to keep an exact copy:** a git submodule pinned to a tag or a commit, with its `src` in your `source-directories`. Elm reads the dependencies of the application, not of a folder, so list Klar's too:
 
 ```json
 {
@@ -364,9 +366,7 @@ the application, not of a folder, so list Klar's too:
 }
 ```
 
-`index.html` for a `Browser.application` (every application with an `AppShell`) mounts with `Elm.Main.init()`, no
-`node`; a `Browser.element` takes `{ node: document.getElementById("app") }`. The stylesheet removes the margin of
-the `body`, so the page needs no CSS. The routes are the part of the address after `#`, so any static server works.
+`index.html` for a `Browser.application` (every application with an `AppShell`) mounts with `Elm.Main.init()`, no `node`; a `Browser.element` takes `{ node: document.getElementById("app") }`. The stylesheet removes the margin of the `body`, so the page needs no CSS. The routes are the part of the address after `#`, so any static server works.
 
 **A backend.** Klar never sends a request. With `elm/http` in the application, turn the error into a problem once:
 

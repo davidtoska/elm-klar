@@ -11,7 +11,9 @@ import Page.Gallery.Navigation.Content as Content
 import Page.Gallery.Navigation.Edge as Edge
 import Page.Gallery.Navigation.Frame as Frame
 import Page.Gallery.Navigation.Header as Header
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -26,9 +28,9 @@ type alias Model =
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( { frame = Frame.init
+init : Config.Config -> ( Model, Cmd Msg )
+init playground =
+    ( { frame = Frame.init playground
       , header = Header.init
       , content = Content.init
       , edge = Edge.init
@@ -80,20 +82,20 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Navigation and structure"
         , description = "The frame around a whole application, the side menu, page headers, breadcrumbs, tabs, accordions, toolbars, description lists and steppers."
         }
-        [ Html.map FrameMsg (Frame.shellSection locale model.frame)
-        , Html.map FrameMsg (Frame.sideNavSection locale model.frame)
-        , Html.map HeaderMsg (Header.pageHeaderSection locale model.header)
-        , Html.map HeaderMsg (Header.breadcrumbsSection locale model.header)
-        , Html.map HeaderMsg (Header.tabsSection locale model.header)
-        , Html.map ContentMsg (Content.accordionSection locale model.content)
-        , Html.map ContentMsg (Content.toolbarSection locale model.content)
-        , Content.descriptionListSection locale
-        , Html.map ContentMsg (Content.stepperSection locale model.content)
-        , Html.map EdgeMsg (Edge.section locale model.edge)
+        [ Html.map FrameMsg (Frame.shellSection playground locale model.frame)
+        , Html.map FrameMsg (Frame.sideNavSection playground locale model.frame)
+        , Html.map HeaderMsg (Header.pageHeaderSection playground locale model.header)
+        , Html.map HeaderMsg (Header.breadcrumbsSection playground locale model.header)
+        , Html.map HeaderMsg (Header.tabsSection playground locale model.header)
+        , Html.map ContentMsg (Content.accordionSection playground locale model.content)
+        , Html.map ContentMsg (Content.toolbarSection playground locale model.content)
+        , Content.descriptionListSection playground locale
+        , Html.map ContentMsg (Content.stepperSection playground locale model.content)
+        , Html.map EdgeMsg (Edge.section playground locale model.edge)
         ]

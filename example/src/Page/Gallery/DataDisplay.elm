@@ -19,7 +19,9 @@ import Page.Gallery.DataDisplay.Progress as Progress
 import Page.Gallery.DataDisplay.Stats as Stats
 import Page.Gallery.DataDisplay.Timelines as Timelines
 import Page.Gallery.DataDisplay.Trees as Trees
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -68,8 +70,8 @@ init =
 -- UPDATE
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update : Config.Config -> Msg -> Model -> ( Model, Cmd Msg )
+update playground msg model =
     case msg of
         SetFailing value ->
             ( { model | failing = value }, Cmd.none )
@@ -84,7 +86,7 @@ update msg model =
         TimelinesMsg inner ->
             let
                 ( timelines, cmd ) =
-                    Timelines.update model.failing inner model.timelines
+                    Timelines.update playground model.failing inner model.timelines
             in
             ( { model | timelines = timelines }, Cmd.map TimelinesMsg cmd )
 
@@ -129,29 +131,33 @@ subscriptions _ =
 -- VIEW
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view settings locale model =
-    Doc.page
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground settings locale model =
+    Doc.configuredPage playground
         { title = "Data display"
         , description = "Components that show data: trees, timelines, key figures, charts, avatars, progress, list items and a JSON viewer. Each of them has loading, failed and empty states where that makes sense. The built-in texts follow the language switch in the top bar."
         }
-        [ Layout.row [ Layout.justifyEnd ]
+        [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "justifyEnd" Layout.justifyEnd ]))
             [ Checkbox.view
-                [ Checkbox.label "Simulate failures in the backend"
-                , Checkbox.hint "Applies to the branches loaded in the tree, to “Load more” in the timeline, and to the first key figure."
-                , Checkbox.checked model.failing
-                , Checkbox.onCheck SetFailing
-                ]
+                (Options.klarCheckbox playground
+                    (List.concat
+                        [ Config.keep playground "Checkbox" "label" (Checkbox.label "Simulate failures in the backend")
+                        , Config.keep playground "Checkbox" "hint" (Checkbox.hint "Applies to the branches loaded in the tree, to “Load more” in the timeline, and to the first key figure.")
+                        , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.failing)
+                        , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck SetFailing)
+                        ]
+                    )
+                )
             ]
-        , Html.map TreesMsg (Trees.view locale model.trees)
-        , Html.map TimelinesMsg (Timelines.view settings locale model.timelines)
-        , Html.map StatsMsg (Stats.view locale model.stats)
+        , Html.map TreesMsg (Trees.view playground locale model.trees)
+        , Html.map TimelinesMsg (Timelines.view playground settings locale model.timelines)
+        , Html.map StatsMsg (Stats.view playground locale model.stats)
 
         -- Sections that only depend on the language and on a few flags are not
         -- built and compared again on every key press elsewhere on the page.
-        , Html.map ChartsMsg (Html.Lazy.lazy2 Charts.view locale model.charts)
-        , Html.Lazy.lazy Avatars.view locale
-        , Html.map ProgressMsg (Progress.view locale model.progress)
-        , Html.map ListsMsg (Html.Lazy.lazy2 Lists.view locale model.lists)
-        , Html.map JsonMsg (Json.view locale model.json)
+        , Html.map ChartsMsg (Html.Lazy.lazy2 (Charts.view playground) locale model.charts)
+        , Html.Lazy.lazy (Avatars.view playground) locale
+        , Html.map ProgressMsg (Progress.view playground locale model.progress)
+        , Html.map ListsMsg (Html.Lazy.lazy2 (Lists.view playground) locale model.lists)
+        , Html.map JsonMsg (Json.view playground locale model.json)
         ]

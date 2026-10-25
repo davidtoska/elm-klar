@@ -18,6 +18,7 @@ static file server without rewrite rules.
 -}
 
 import Api.Types exposing (OrderId, orderId, orderIdText)
+import Page.Applications.Catalog as Applications
 import Url exposing (Url)
 import Url.Parser as Parser exposing ((</>), Parser)
 
@@ -27,8 +28,8 @@ type Route
     | Orders
     | OrderDetail OrderId
     | Products
-    | ProcessStudio
     | Components (Maybe String)
+    | Application Applications.Page
     | NotFound
 
 
@@ -45,10 +46,10 @@ parser =
         [ Parser.map Overview Parser.top
         , Parser.map Orders (Parser.s "orders")
         , Parser.map (orderId >> OrderDetail) (Parser.s "orders" </> Parser.string)
-        , Parser.map ProcessStudio (Parser.s "applications" </> Parser.s "process-studio")
         , Parser.map Products (Parser.s "products")
         , Parser.map (Components Nothing) (Parser.s "components")
         , Parser.map (\slug -> Components (Just slug)) (Parser.s "components" </> Parser.string)
+        , Parser.map Application (Parser.s "applications" </> Parser.custom "application example" Applications.fromSlug)
         ]
 
 
@@ -67,9 +68,6 @@ path route =
                 OrderDetail id ->
                     "orders/" ++ orderIdText id
 
-                ProcessStudio ->
-                    "applications/process-studio"
-
                 Products ->
                     "products"
 
@@ -78,6 +76,9 @@ path route =
 
                 Components (Just slug) ->
                     "components/" ++ slug
+
+                Application page ->
+                    "applications/" ++ Applications.slug page
 
                 NotFound ->
                     "not-found"
@@ -96,14 +97,14 @@ title route =
         OrderDetail _ ->
             "Order"
 
-        ProcessStudio ->
-            "Process studio"
-
         Products ->
             "Products"
 
         Components _ ->
             "Components"
+
+        Application page ->
+            Applications.title page
 
         NotFound ->
             "Page not found"

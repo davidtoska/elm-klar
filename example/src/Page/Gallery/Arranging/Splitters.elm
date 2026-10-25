@@ -18,7 +18,9 @@ import Klar.Locale exposing (Locale)
 import Klar.Splitter as Splitter
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 
 
@@ -129,13 +131,15 @@ update msg model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.section "Splitter"
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredSection playground
+        []
+        "Splitter"
         "Panes that the user makes larger and smaller by moving the separator between them. Drag a separator with the mouse or a finger, or tab to it and press the arrow keys (1 percent; with Shift 10 percent), Home and End (the smallest and the largest size of the pane before it), and Enter (fold a pane away, where it may be folded). The sizes are shares of the room, so they follow the window. The panes scroll inside themselves."
-        [ masterDetailExample locale model
-        , workspaceExample locale model
-        , foldExample locale model
+        [ masterDetailExample playground locale model
+        , workspaceExample playground locale model
+        , foldExample playground locale model
         ]
 
 
@@ -146,18 +150,19 @@ sizesText state =
         |> String.join "  /  "
 
 
-framed : Html msg -> Html msg
-framed content =
-    Card.view [ Card.flush ] [ content ]
+framed : Config.Config -> Html msg -> Html msg
+framed playground content =
+    Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "flush" Card.flush ])) [ content ]
 
 
-masterDetailExample : Locale -> Model -> Html Msg
-masterDetailExample locale model =
+masterDetailExample : Config.Config -> Locale -> Model -> Html Msg
+masterDetailExample playground locale model =
     let
         selected =
             orders |> List.drop model.selected |> List.head
     in
-    Doc.example
+    Doc.configuredExample playground
+        [ "Card", "Splitter", "ListItem", "DescriptionList", "Badge" ]
         { title = "A master and its detail"
         , description = Just "The orders cannot be narrower than 220 pixels and the detail not narrower than 280. The sizes are kept in the state: save the layout, move the separator, and restore it, as an application would with the layout of a user. Resize the window and the panes keep their shares."
         , code = Just """Splitter.view MasterDetailMsg
@@ -182,23 +187,27 @@ RestoreLayout ->
         Nothing ->
             ( model, Cmd.none )"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            [ framed
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ framed playground
                 (Splitter.view MasterDetailMsg
-                    [ Splitter.height 360, Splitter.locale locale ]
+                    (Options.klarSplitter playground (List.concat [ Config.keep playground "Splitter" "height" (Splitter.height 360), Config.keep playground "Splitter" "locale" (Splitter.locale locale) ]))
                     model.masterDetail
-                    [ Splitter.pane "Orders" (orderList model.selected) |> Splitter.minPixels 220
-                    , Splitter.pane "Details" (orderDetail locale selected) |> Splitter.minPixels 280
+                    [ Splitter.pane "Orders" (orderList playground model.selected) |> Splitter.minPixels 220
+                    , Splitter.pane "Details" (orderDetail playground locale selected) |> Splitter.minPixels 280
                     ]
                 )
-            , Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                [ Button.view [ Button.small, Button.icon Icon.save, Button.onClick SaveLayout ] "Save the layout"
-                , Button.view
-                    [ Button.small
-                    , Button.icon Icon.undo
-                    , Button.onClick RestoreLayout
-                    , Button.disabled (model.saved == Nothing)
-                    ]
+            , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.save), Config.keep playground "Button" "onClick" (Button.onClick SaveLayout) ])) "Save the layout"
+                , Options.buttonView playground
+                    (Options.klarButton playground
+                        (List.concat
+                            [ Config.keep playground "Button" "small" Button.small
+                            , Config.keep playground "Button" "icon" (Button.icon Icon.undo)
+                            , Config.keep playground "Button" "onClick" (Button.onClick RestoreLayout)
+                            , Config.keep playground "Button" "disabled" (Button.disabled (model.saved == Nothing))
+                            ]
+                        )
+                    )
                     "Restore the saved layout"
                 , Text.caption ("Now: " ++ sizesText model.masterDetail)
                 , Text.caption
@@ -214,33 +223,37 @@ RestoreLayout ->
         )
 
 
-orderList : Int -> Html Msg
-orderList selected =
+orderList : Config.Config -> Int -> Html Msg
+orderList playground selected =
     ListItem.list [ ListItem.ariaLabel "Orders" ]
         (List.indexedMap
             (\index order ->
                 ListItem.view
-                    [ ListItem.secondary order.customer
-                    , ListItem.meta order.city
-                    , ListItem.selected (index == selected)
-                    , ListItem.onClick (Select index)
-                    ]
+                    (Options.klarListItem playground
+                        (List.concat
+                            [ Config.keep playground "ListItem" "secondary" (ListItem.secondary order.customer)
+                            , Config.keep playground "ListItem" "meta" (ListItem.meta order.city)
+                            , Config.keep playground "ListItem" "selected" (ListItem.selected (index == selected))
+                            , Config.keep playground "ListItem" "onClick" (ListItem.onClick (Select index))
+                            ]
+                        )
+                    )
                     (Types.orderIdText order.id)
             )
             orders
         )
 
 
-orderDetail : Locale -> Maybe Order -> Html msg
-orderDetail locale maybeOrder =
+orderDetail : Config.Config -> Locale -> Maybe Order -> Html msg
+orderDetail playground locale maybeOrder =
     case maybeOrder of
         Just order ->
-            Layout.stack [ Layout.gap 3, Layout.padding 4 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "padding" (Layout.padding 4) ]))
                 [ Text.subheading (Types.orderIdText order.id)
-                , DescriptionList.view [ DescriptionList.columns 1, DescriptionList.locale locale ]
+                , DescriptionList.view (Options.klarDescriptionList playground (List.concat [ Config.keep playground "DescriptionList" "columns" (DescriptionList.columns 1), Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale) ]))
                     [ DescriptionList.text "Customer" order.customer
                     , DescriptionList.text "City" order.city
-                    , DescriptionList.html "Status" (Badge.view [ Badge.tone Info ] (Types.orderStatusLabel order.status))
+                    , DescriptionList.html "Status" (Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) (Types.orderStatusLabel order.status))
                     , DescriptionList.text "Lines" (String.fromInt order.lines)
                     , DescriptionList.text "Total" (Format.currency locale "EUR " 2 order.total)
                     , DescriptionList.text "Due" (Format.date locale order.due)
@@ -249,16 +262,17 @@ orderDetail locale maybeOrder =
                 ]
 
         Nothing ->
-            Layout.stack [ Layout.padding 4 ] [ Text.caption "Select an order." ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "padding" (Layout.padding 4) ])) [ Text.caption "Select an order." ]
 
 
-workspaceExample : Locale -> Model -> Html Msg
-workspaceExample locale model =
+workspaceExample : Config.Config -> Locale -> Model -> Html Msg
+workspaceExample playground locale model =
     let
         selected =
             orders |> List.drop model.selected |> List.head
     in
-    Doc.example
+    Doc.configuredExample playground
+        [ "Card", "Splitter", "ListItem", "DescriptionList", "Badge" ]
         { title = "Three panes, and a splitter inside a pane"
         , description = Just "The middle pane holds a second splitter whose panes lie one above the other (stacked), with horizontal separators: Up and Down move them. Each splitter has its own state and its own separators; the inner one has no height of its own, it fills its pane."
         , code = Just """Splitter.view WorkspaceMsg
@@ -280,38 +294,38 @@ workspaceExample locale model =
         |> Splitter.minPixels 220
     ]"""
         }
-        (framed
+        (framed playground
             (Splitter.view WorkspaceMsg
-                [ Splitter.height 420, Splitter.locale locale ]
+                (Options.klarSplitter playground (List.concat [ Config.keep playground "Splitter" "height" (Splitter.height 420), Config.keep playground "Splitter" "locale" (Splitter.locale locale) ]))
                 model.workspace
-                [ Splitter.pane "Warehouses" warehouseList |> Splitter.minPixels 140
+                [ Splitter.pane "Warehouses" (warehouseList playground) |> Splitter.minPixels 140
                 , Splitter.pane "Orders"
                     (Splitter.view CenterMsg
-                        [ Splitter.stacked, Splitter.locale locale ]
+                        (Options.klarSplitter playground (List.concat [ Config.keep playground "Splitter" "stacked" Splitter.stacked, Config.keep playground "Splitter" "locale" (Splitter.locale locale) ]))
                         model.center
-                        [ Splitter.pane "Order list" (orderList model.selected) |> Splitter.minPixels 120
-                        , Splitter.pane "Preview" (orderPreview selected) |> Splitter.minPixels 80
+                        [ Splitter.pane "Order list" (orderList playground model.selected) |> Splitter.minPixels 120
+                        , Splitter.pane "Preview" (orderPreview playground selected) |> Splitter.minPixels 80
                         ]
                     )
                     |> Splitter.minPixels 220
-                , Splitter.pane "Details" (orderDetail locale selected) |> Splitter.minPixels 220
+                , Splitter.pane "Details" (orderDetail playground locale selected) |> Splitter.minPixels 220
                 ]
             )
         )
 
 
-warehouseList : Html msg
-warehouseList =
+warehouseList : Config.Config -> Html msg
+warehouseList playground =
     ListItem.list [ ListItem.ariaLabel "Warehouses" ]
         (List.map
-            (\warehouse -> ListItem.view [ ListItem.icon Icon.warehouse ] warehouse.name)
+            (\warehouse -> ListItem.view (Options.klarListItem playground (List.concat [ Config.keep playground "ListItem" "icon" (ListItem.icon Icon.warehouse) ])) warehouse.name)
             (List.take 8 Sample.warehouses)
         )
 
 
-orderPreview : Maybe Order -> Html msg
-orderPreview maybeOrder =
-    Layout.stack [ Layout.gap 2, Layout.padding 4 ]
+orderPreview : Config.Config -> Maybe Order -> Html msg
+orderPreview playground maybeOrder =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "padding" (Layout.padding 4) ]))
         (case maybeOrder of
             Just order ->
                 [ Text.strong (Types.orderIdText order.id ++ ", " ++ order.customer)
@@ -323,9 +337,10 @@ orderPreview maybeOrder =
         )
 
 
-foldExample : Locale -> Model -> Html Msg
-foldExample locale model =
-    Doc.example
+foldExample : Config.Config -> Locale -> Model -> Html Msg
+foldExample playground locale model =
+    Doc.configuredExample playground
+        [ "Splitter", "Card", "ListItem" ]
         { title = "A pane that folds away"
         , description = Just "Press Enter on the separator, or double-click it, to fold the filters away and to open them again. A folded pane has no room, and it is not there for the keyboard or for screen readers; its size is 0 in the saved sizes, so a layout that is saved folded comes back folded. The button does the same with fold and unfold: drag the separator, fold the filters with the button, and unfold gives back the width you had."
         , code = Just """Splitter.view FiltersMsg
@@ -350,30 +365,30 @@ FiltersToggled ->
     , Cmd.none
     )"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ if Splitter.isFolded 0 model.filters then
-                    Button.view [ Button.small, Button.icon Icon.chevronRight, Button.onClick FiltersToggled ] "Show the filters"
+                    Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.chevronRight), Config.keep playground "Button" "onClick" (Button.onClick FiltersToggled) ])) "Show the filters"
 
                   else
-                    Button.view [ Button.small, Button.icon Icon.chevronLeft, Button.onClick FiltersToggled ] "Hide the filters"
+                    Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.chevronLeft), Config.keep playground "Button" "onClick" (Button.onClick FiltersToggled) ])) "Hide the filters"
                 , Text.caption ("Now: " ++ sizesText model.filters)
                 ]
-            , framed
+            , framed playground
                 (Splitter.view FiltersMsg
-                    [ Splitter.height 220, Splitter.locale locale ]
+                    (Options.klarSplitter playground (List.concat [ Config.keep playground "Splitter" "height" (Splitter.height 220), Config.keep playground "Splitter" "locale" (Splitter.locale locale) ]))
                     model.filters
-                    [ Splitter.pane "Filters" filterPanel |> Splitter.minPixels 180 |> Splitter.collapsible
-                    , Splitter.pane "Results" (resultList locale)
+                    [ Splitter.pane "Filters" (filterPanel playground) |> Splitter.minPixels 180 |> Splitter.collapsible
+                    , Splitter.pane "Results" (resultList playground locale)
                     ]
                 )
             ]
         )
 
 
-filterPanel : Html msg
-filterPanel =
-    Layout.stack [ Layout.gap 2, Layout.padding 4 ]
+filterPanel : Config.Config -> Html msg
+filterPanel playground =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "padding" (Layout.padding 4) ]))
         [ Text.strong "Filters"
         , Text.caption "Status: open"
         , Text.caption "Warehouse: Rotterdam"
@@ -381,15 +396,19 @@ filterPanel =
         ]
 
 
-resultList : Locale -> Html msg
-resultList locale =
+resultList : Config.Config -> Locale -> Html msg
+resultList playground locale =
     ListItem.list [ ListItem.ariaLabel "Results" ]
         (List.map
             (\order ->
                 ListItem.view
-                    [ ListItem.secondary order.customer
-                    , ListItem.meta (Format.currency locale "EUR " 2 order.total)
-                    ]
+                    (Options.klarListItem playground
+                        (List.concat
+                            [ Config.keep playground "ListItem" "secondary" (ListItem.secondary order.customer)
+                            , Config.keep playground "ListItem" "meta" (ListItem.meta (Format.currency locale "EUR " 2 order.total))
+                            ]
+                        )
+                    )
                     (Types.orderIdText order.id)
             )
             (List.take 12 orders)

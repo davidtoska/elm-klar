@@ -31,7 +31,9 @@ import Klar.Text as Text
 import Klar.Theme exposing (Size(..), Tone(..))
 import Klar.TimePicker as TimePicker
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import Time
@@ -75,8 +77,8 @@ type Msg
     | DateTimeMsg String DateTimePicker.Msg
 
 
-init : ( Model, Cmd Msg )
-init =
+init : Config.Config -> ( Model, Cmd Msg )
+init playground =
     let
         schedule =
             Calendar.init "cal-schedule" |> Calendar.setToday today
@@ -89,10 +91,10 @@ init =
       , schedule = schedule
       , due = Remote.Loading
       , outage = False
-      , dates = registry DatePicker.init demoDates
-      , ranges = registry DateRangePicker.init demoRanges
-      , times = registry TimePicker.init demoTimes
-      , dateTimes = registry DateTimePicker.init demoDateTimes
+      , dates = registry DatePicker.init (demoDates playground)
+      , ranges = registry DateRangePicker.init (demoRanges playground)
+      , times = registry TimePicker.init (demoTimes playground)
+      , dateTimes = registry DateTimePicker.init (demoDateTimes playground)
       }
     , fetchDue False (Calendar.visibleRange schedule)
     )
@@ -389,8 +391,8 @@ type alias DateDemo =
     }
 
 
-demoDates : List DateDemo
-demoDates =
+demoDates : Config.Config -> List DateDemo
+demoDates playground =
     let
         plain key attributes =
             { key = key, fixed = Nothing, attributes = attributes, prepare = identity }
@@ -409,10 +411,10 @@ demoDates =
             { key = key, fixed = Just Locale.nb, attributes = attributes, prepare = DatePicker.setValue (Just day) }
 
         base =
-            [ DatePicker.today today ]
+            Options.klarDatePicker playground (List.concat [ Config.keep playground "DatePicker" "today" (DatePicker.today today) ])
 
         bounded =
-            [ DatePicker.min (Date.addDays -14 today), DatePicker.max (Date.addDays 30 today) ]
+            Options.klarDatePicker playground (List.concat [ Config.keep playground "DatePicker" "min" (DatePicker.min (Date.addDays -14 today)), Config.keep playground "DatePicker" "max" (DatePicker.max (Date.addDays 30 today)) ])
     in
     [ plain "date-default" (DatePicker.label "Due date" :: base)
     , withDate "date-value" (DatePicker.label "With a value and a clear button" :: DatePicker.clearable :: base) (Date.addDays 7 today)
@@ -440,7 +442,7 @@ demoDates =
     , plain "date-markers"
         (DatePicker.label "Dock booking" :: DatePicker.markers bookingDots :: DatePicker.weekNumbers :: base)
     , norwegian "date-norwegian"
-        [ DatePicker.label "Norwegian locale", DatePicker.today today, DatePicker.clearable ]
+        (Options.klarDatePicker playground (List.concat [ Config.keep playground "DatePicker" "label" (DatePicker.label "Norwegian locale"), Config.keep playground "DatePicker" "today" (DatePicker.today today), Config.keep playground "DatePicker" "clearable" DatePicker.clearable ]))
         (Date.addDays 3 today)
     , plain "date-bottom" (DatePicker.label "Due date" :: DatePicker.markers bookingDots :: base)
     , plain "date-scroll" (DatePicker.label "Due date" :: DatePicker.markers bookingDots :: base)
@@ -461,8 +463,8 @@ type alias RangeDemo =
     }
 
 
-demoRanges : List RangeDemo
-demoRanges =
+demoRanges : Config.Config -> List RangeDemo
+demoRanges playground =
     let
         plain key attributes =
             { key = key, fixed = Nothing, attributes = attributes, prepare = identity }
@@ -481,7 +483,7 @@ demoRanges =
             { key = key, fixed = Just Locale.nb, attributes = attributes, prepare = DateRangePicker.setValue (Just ( start, finish )) }
 
         base =
-            [ DateRangePicker.today today ]
+            Options.klarDateRangePicker playground (List.concat [ Config.keep playground "DateRangePicker" "today" (DateRangePicker.today today) ])
 
         nextMonth =
             Date.addMonths 1 today
@@ -536,7 +538,7 @@ demoRanges =
         )
     , plain "range-none" (DateRangePicker.label "No quick choices" :: DateRangePicker.noPresets :: base)
     , norwegian "range-norwegian"
-        [ DateRangePicker.label "Norwegian locale", DateRangePicker.today today, DateRangePicker.clearable ]
+        (Options.klarDateRangePicker playground (List.concat [ Config.keep playground "DateRangePicker" "label" (DateRangePicker.label "Norwegian locale"), Config.keep playground "DateRangePicker" "today" (DateRangePicker.today today), Config.keep playground "DateRangePicker" "clearable" DateRangePicker.clearable ]))
         (Date.addDays -6 today)
         today
     , plain "range-bottom" (DateRangePicker.label "Period" :: base)
@@ -558,8 +560,8 @@ type alias TimeDemo =
     }
 
 
-demoTimes : List TimeDemo
-demoTimes =
+demoTimes : Config.Config -> List TimeDemo
+demoTimes playground =
     let
         plain key attributes =
             { key = key, fixed = Nothing, attributes = attributes, prepare = identity }
@@ -575,29 +577,29 @@ demoTimes =
             }
 
         opening =
-            [ TimePicker.min { hour = 8, minute = 0 }, TimePicker.max { hour = 16, minute = 0 } ]
+            Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "min" (TimePicker.min { hour = 8, minute = 0 }), Config.keep playground "TimePicker" "max" (TimePicker.max { hour = 16, minute = 0 }) ])
     in
-    [ plain "time-default" [ TimePicker.label "Every 15 minutes (the default)" ]
-    , withTime "time-value" [ TimePicker.label "With a value and a clear button", TimePicker.clearable ] 14 30
-    , plain "time-step5" [ TimePicker.label "Every 5 minutes", TimePicker.step 5 ]
-    , plain "time-step30" [ TimePicker.label "Every half hour", TimePicker.step 30 ]
+    [ plain "time-default" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Every 15 minutes (the default)") ]))
+    , withTime "time-value" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "With a value and a clear button"), Config.keep playground "TimePicker" "clearable" TimePicker.clearable ])) 14 30
+    , plain "time-step5" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Every 5 minutes"), Config.keep playground "TimePicker" "step" (TimePicker.step 5) ]))
+    , plain "time-step30" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Every half hour"), Config.keep playground "TimePicker" "step" (TimePicker.step 30) ]))
     , plain "time-opening"
         (TimePicker.label "Pick-up time"
             :: TimePicker.hint "Opening hours are 08:00 to 16:00. Other times are not allowed."
             :: opening
         )
-    , typed "time-garbage" [ TimePicker.label "Invalid text", TimePicker.hint "Type 14:30, 1430 or 930" ] "25:99"
+    , typed "time-garbage" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Invalid text"), Config.keep playground "TimePicker" "hint" (TimePicker.hint "Type 14:30, 1430 or 930") ])) "25:99"
     , typed "time-outside" (TimePicker.label "Outside the limits" :: opening) "07:15"
-    , plain "time-required" [ TimePicker.label "Required", TimePicker.required, TimePicker.error "Choose a time" ]
-    , withTime "time-disabled" [ TimePicker.label "Disabled", TimePicker.disabled True ] 9 0
-    , withTime "time-readonly" [ TimePicker.label "Read-only", TimePicker.readOnly True ] 9 0
+    , plain "time-required" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Required"), Config.keep playground "TimePicker" "required" TimePicker.required, Config.keep playground "TimePicker" "error" (TimePicker.error "Choose a time") ]))
+    , withTime "time-disabled" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Disabled"), Config.keep playground "TimePicker" "disabled" (TimePicker.disabled True) ])) 9 0
+    , withTime "time-readonly" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Read-only"), Config.keep playground "TimePicker" "readOnly" (TimePicker.readOnly True) ])) 9 0
     , { key = "time-norwegian"
       , fixed = Just Locale.nb
-      , attributes = [ TimePicker.label "Norwegian locale", TimePicker.step 30 ]
+      , attributes = Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Norwegian locale"), Config.keep playground "TimePicker" "step" (TimePicker.step 30) ])
       , prepare = identity
       }
-    , plain "time-bottom" [ TimePicker.label "Time" ]
-    , plain "time-scroll" [ TimePicker.label "Time" ]
+    , plain "time-bottom" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Time") ]))
+    , plain "time-scroll" (Options.klarTimePicker playground (List.concat [ Config.keep playground "TimePicker" "label" (TimePicker.label "Time") ]))
     ]
 
 
@@ -615,8 +617,8 @@ type alias DateTimeDemo =
     }
 
 
-demoDateTimes : List DateTimeDemo
-demoDateTimes =
+demoDateTimes : Config.Config -> List DateTimeDemo
+demoDateTimes playground =
     let
         plain key attributes =
             { key = key, fixed = Nothing, attributes = attributes, prepare = identity }
@@ -636,7 +638,7 @@ demoDateTimes =
             }
 
         base =
-            [ DateTimePicker.today today ]
+            Options.klarDateTimePicker playground (List.concat [ Config.keep playground "DateTimePicker" "today" (DateTimePicker.today today) ])
     in
     [ plain "datetime-default"
         (DateTimePicker.label "Delivery slot"
@@ -664,7 +666,7 @@ demoDateTimes =
         9
         0
     , norwegian "datetime-norwegian"
-        [ DateTimePicker.label "Norwegian locale", DateTimePicker.today today, DateTimePicker.step 30 ]
+        (Options.klarDateTimePicker playground (List.concat [ Config.keep playground "DateTimePicker" "label" (DateTimePicker.label "Norwegian locale"), Config.keep playground "DateTimePicker" "today" (DateTimePicker.today today), Config.keep playground "DateTimePicker" "step" (DateTimePicker.step 30) ]))
         (Date.addDays 1 today)
         9
         30
@@ -675,30 +677,30 @@ demoDateTimes =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Date and time"
         , description =
             "A calendar, a date field, a period field, a time field and a combined date and time field. Everything can be filled in with the keyboard, and everything opens a calendar or a list that is never cut off by tables, cards or dialogs. “Today” comes from the application and is "
                 ++ Date.toIso today
                 ++ " on this page."
         }
-        [ calendars locale model
-        , datePickers locale model
-        , rangePickers locale model
-        , timePickers locale model
-        , dateTimePickers locale model
-        , placement locale model
+        [ calendars playground locale model
+        , datePickers playground locale model
+        , rangePickers playground locale model
+        , timePickers playground locale model
+        , dateTimePickers playground locale model
+        , placement playground locale model
         ]
 
 
 {-| A test fixture, not a component: a short scrolling box.
 -}
-scrollFixture : List (Html Msg) -> Html Msg
-scrollFixture children =
-    Card.view [ Card.sunken, Card.flush ]
-        [ Layout.stack [ Layout.gap 4, Layout.padding 4, Layout.maxHeight 200 ] children ]
+scrollFixture : Config.Config -> List (Html Msg) -> Html Msg
+scrollFixture playground children =
+    Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "sunken" Card.sunken, Config.keep playground "Card" "flush" Card.flush ]))
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "padding" (Layout.padding 4), Config.keep playground "Layout" "maxHeight" (Layout.maxHeight 200) ])) children ]
 
 
 missing : String -> Html Msg
@@ -715,75 +717,98 @@ find key demos =
 -- VIEW: calendars
 
 
-calendars : Locale -> Model -> Html Msg
-calendars locale model =
-    Doc.section "Calendar"
+calendars : Config.Config -> Locale -> Model -> Html Msg
+calendars playground locale model =
+    Doc.configuredSection playground
+        [ "Calendar" ]
+        "Calendar"
         "The month calendar behind the date fields, also useful on its own. Keyboard on a day: the arrow keys move, Home and End go to the start and end of the week, PageUp and PageDown change month, Shift + PageUp and Shift + PageDown change year, Enter or Space picks the day. Only one day is in the tab order. The title opens a month chooser, and the title of that a year chooser."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Calendar" ]
             { title = "Overview with bookings"
             , description = Just "Dots show bookings (point at a day to read them): gray is past, green done, blue planned, amber at risk, red urgent. The number shows how many. Week numbers on the left and a button back to today. The bookings of the chosen day are listed beside the calendar."
             , code = Just calendarOverviewCode
             }
-            (Layout.row [ Layout.gap 8, Layout.alignStart, Layout.wrap ]
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 8), Config.keep playground "Layout" "alignStart" Layout.alignStart, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ Calendar.view OverviewMsg
-                    [ Calendar.locale locale
-                    , Calendar.ariaLabel "Dock bookings"
-                    , Calendar.todayButton
-                    , Calendar.weekNumbers
-                    , Calendar.size Large
-                    , Calendar.markers (bookingDots ++ bookingCounts locale)
-                    ]
+                    (Options.klarCalendar playground
+                        (List.concat
+                            [ Config.keep playground "Calendar" "locale" (Calendar.locale locale)
+                            , Config.keep playground "Calendar" "ariaLabel" (Calendar.ariaLabel "Dock bookings")
+                            , Config.keep playground "Calendar" "todayButton" Calendar.todayButton
+                            , Config.keep playground "Calendar" "weekNumbers" Calendar.weekNumbers
+                            , Config.keep playground "Calendar" "size" (Calendar.size Large)
+                            , Config.keep playground "Calendar" "markers" (Calendar.markers (bookingDots ++ bookingCounts locale))
+                            ]
+                        )
+                    )
                     model.overview
-                , agenda locale model.overview
+                , agenda playground locale model.overview
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Calendar" ]
             { title = "Small, with limits and blocked weekends"
             , description = Just "From 10 days ago to 40 days ahead; Saturdays and Sundays cannot be picked. The arrow keys stop at the limits but move over the blocked days."
             , code = Just calendarSmallCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Calendar.view CompactMsg
-                    [ Calendar.locale locale
-                    , Calendar.ariaLabel "Delivery window"
-                    , Calendar.min (Date.addDays -10 today)
-                    , Calendar.max (Date.addDays 40 today)
-                    , Calendar.disabledWhen isWeekend
-                    , Calendar.size Small
-                    ]
+                    (Options.klarCalendar playground
+                        (List.concat
+                            [ Config.keep playground "Calendar" "locale" (Calendar.locale locale)
+                            , Config.keep playground "Calendar" "ariaLabel" (Calendar.ariaLabel "Delivery window")
+                            , Config.keep playground "Calendar" "min" (Calendar.min (Date.addDays -10 today))
+                            , Config.keep playground "Calendar" "max" (Calendar.max (Date.addDays 40 today))
+                            , Config.keep playground "Calendar" "disabledWhen" (Calendar.disabledWhen isWeekend)
+                            , Config.keep playground "Calendar" "size" (Calendar.size Small)
+                            ]
+                        )
+                    )
                     model.compact
                 , Text.caption ("Chosen: " ++ describeCalendar locale model.compact)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Calendar" ]
             { title = "Period (two clicks)"
             , description = Just "Made with initRange and two months. After the first click the period is previewed under the mouse pointer (or the keyboard focus)."
             , code = Just calendarPeriodCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Calendar.view PeriodMsg
-                    [ Calendar.locale locale
-                    , Calendar.ariaLabel "Report period"
-                    ]
+                    (Options.klarCalendar playground
+                        (List.concat
+                            [ Config.keep playground "Calendar" "locale" (Calendar.locale locale)
+                            , Config.keep playground "Calendar" "ariaLabel" (Calendar.ariaLabel "Report period")
+                            ]
+                        )
+                    )
                     model.period
                 , Text.caption ("Chosen: " ++ describePeriod locale model.period)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Calendar" ]
             { title = "Norwegian"
             , description = Just "With locale Nb. Norwegian weekday and month names, the week number heading (Uke) and a button back to today (I dag). Weeks still start on Monday."
             , code = Just calendarNorwegianCode
             }
             (Calendar.view NorwegianMsg
-                [ Calendar.ariaLabel "Norwegian calendar"
-                , Calendar.locale Locale.nb
-                , Calendar.weekNumbers
-                , Calendar.todayButton
-                , Calendar.size Small
-                ]
+                (Options.klarCalendar playground
+                    (List.concat
+                        [ Config.keep playground "Calendar" "ariaLabel" (Calendar.ariaLabel "Norwegian calendar")
+                        , Config.keep playground "Calendar" "locale" (Calendar.locale Locale.nb)
+                        , Config.keep playground "Calendar" "weekNumbers" Calendar.weekNumbers
+                        , Config.keep playground "Calendar" "todayButton" Calendar.todayButton
+                        , Config.keep playground "Calendar" "size" (Calendar.size Small)
+                        ]
+                    )
+                )
                 model.norwegian
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Calendar" ]
             { title = "Large amounts of data"
             , description =
                 Just
@@ -793,35 +818,48 @@ calendars locale model =
             , code = Just calendarOrdersCode
             }
             (Calendar.view OrdersMsg
-                [ Calendar.locale locale
-                , Calendar.ariaLabel "Orders by due date"
-                , Calendar.markers orderDots
-                ]
+                (Options.klarCalendar playground
+                    (List.concat
+                        [ Config.keep playground "Calendar" "locale" (Calendar.locale locale)
+                        , Config.keep playground "Calendar" "ariaLabel" (Calendar.ariaLabel "Orders by due date")
+                        , Config.keep playground "Calendar" "markers" (Calendar.markers orderDots)
+                        ]
+                    )
+                )
                 model.orders
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Calendar" ]
             { title = "Marks from a server"
             , description = Just "The calendar tells which days it shows (visibleRange), and the application asks for their marks when that changes and gives them as a Remote (remote). While they load the grid is busy and says so under the days; a failure says why with Try again (onRetry); a refresh keeps the marks, dimmed, and a failed refresh keeps them as old data. Here a pretend server answers in about a second. Turn on the outage and go to another month, or press Refresh."
             , code = Just calendarMonthsCode
             }
-            (Layout.row [ Layout.gap 8, Layout.alignStart, Layout.wrap ]
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 8), Config.keep playground "Layout" "alignStart" Layout.alignStart, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ Calendar.view ScheduleMsg
-                    [ Calendar.locale locale
-                    , Calendar.ariaLabel "Orders due"
-                    , Calendar.remote (Remote.map (dueMarks locale) model.due)
-                    , Calendar.onRetry DueRetry
-                    ]
+                    (Options.klarCalendar playground
+                        (List.concat
+                            [ Config.keep playground "Calendar" "locale" (Calendar.locale locale)
+                            , Config.keep playground "Calendar" "ariaLabel" (Calendar.ariaLabel "Orders due")
+                            , Config.keep playground "Calendar" "remote" (Calendar.remote (Config.remote playground "Calendar" "remote" (Remote.map (dueMarks locale) model.due)))
+                            , Config.keep playground "Calendar" "onRetry" (Calendar.onRetry DueRetry)
+                            ]
+                        )
+                    )
                     model.schedule
-                , Layout.stack [ Layout.gap 4 ]
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                     [ Switch.view
-                        [ Switch.id "schedule-outage"
-                        , Switch.label "Simulate an outage"
-                        , Switch.hint "Requests sent while it is on fail. Turn it off and press Try again."
-                        , Switch.checked model.outage
-                        , Switch.onCheck OutageToggled
-                        , Switch.locale locale
-                        ]
-                    , Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick DueRefresh ] "Refresh"
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "id" (Switch.id "schedule-outage")
+                                , Config.keep playground "Switch" "label" (Switch.label "Simulate an outage")
+                                , Config.keep playground "Switch" "hint" (Switch.hint "Requests sent while it is on fail. Turn it off and press Try again.")
+                                , Config.keep playground "Switch" "checked" (Switch.checked model.outage)
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck OutageToggled)
+                                , Config.keep playground "Switch" "locale" (Switch.locale locale)
+                                ]
+                            )
+                        )
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick DueRefresh) ])) "Refresh"
                     , Text.caption (dueSummary locale model)
                     ]
                 ]
@@ -851,8 +889,8 @@ dueSummary locale model =
 
 {-| The bookings of the chosen day, next to the calendar.
 -}
-agenda : Locale -> Calendar.State -> Html Msg
-agenda locale state =
+agenda : Config.Config -> Locale -> Calendar.State -> Html Msg
+agenda playground locale state =
     case Calendar.value state of
         Nothing ->
             Text.caption "Choose a day to see its bookings."
@@ -862,7 +900,7 @@ agenda locale state =
                 items =
                     List.filter (\b -> b.date == day) bookings
             in
-            Layout.stack [ Layout.gap 3 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 (Text.subheading (Locale.weekdayLong locale (Date.weekday day) ++ " " ++ Format.dateLong locale day)
                     :: (if List.isEmpty items then
                             [ Text.caption "No bookings" ]
@@ -870,7 +908,7 @@ agenda locale state =
                         else
                             List.map
                                 (\b ->
-                                    Layout.row [ Layout.gap 3 ]
+                                    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                                         [ Text.mono b.time
                                         , Badge.status b.tone b.title
                                         ]
@@ -910,9 +948,9 @@ describePeriod locale state =
 {-| A date field with the value the application sees below it. The page's
 language is the default; a demo that insists on a locale keeps it.
 -}
-datePicker : Locale -> Model -> String -> Html Msg
-datePicker pageLocale model key =
-    case find key demoDates of
+datePicker : Config.Config -> Locale -> Model -> String -> Html Msg
+datePicker playground pageLocale model key =
+    case find key (demoDates playground) of
         Nothing ->
             missing key
 
@@ -924,7 +962,7 @@ datePicker pageLocale model key =
                 state =
                     lookup DatePicker.init key model.dates
             in
-            Layout.stack [ Layout.gap 1 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
                 [ DatePicker.view (DateMsg key) (DatePicker.locale lang :: demo.attributes) state
                 , Text.caption (describeDate lang state)
                 ]
@@ -944,41 +982,47 @@ describeDate lang state =
                 "Value: none"
 
 
-datePickers : Locale -> Model -> Html Msg
-datePickers locale model =
-    Doc.section "Date field"
+datePickers : Config.Config -> Locale -> Model -> Html Msg
+datePickers playground locale model =
+    Doc.configuredSection playground
+        [ "DatePicker", "Date" ]
+        "Date field"
         "Type the date or pick it in the calendar. The field reads 2026-10-20, 20.10.2026, 20102026, 20.10.26, 20.10 (this year), t or today, and +3 or -7 (days from today): a complete date as you type it, anything else when Enter is pressed or the field is left. Arrow down or Alt + arrow down opens the calendar, and so does Enter unless there is typed text to take. Escape closes the calendar and returns to the field (inside the month and year choosers it goes back one step first); Tab out of the calendar closes it."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "DatePicker", "Date" ]
             { title = "Default and states"
             , description = Just "Empty, with a value and a clear button, disabled and read-only. The text below each field is the value the application sees."
             , code = Just dateDefaultCode
             }
-            (Layout.grid [ Layout.minColumn 240, Layout.gap 6 ]
-                (List.map (datePicker locale model) [ "date-default", "date-value", "date-disabled", "date-readonly" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (datePicker playground locale model) [ "date-default", "date-value", "date-disabled", "date-readonly" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DatePicker", "Date" ]
             { title = "A date in the past"
             , description = Just "The latest date is today. A two-digit year is read so that the date lands inside the limits: 01.01.30 becomes 1930, because 2030 is after today. The title of the calendar opens the months, and the title of that the years, twenty at a time."
             , code = Just datePastCode
             }
-            (Layout.grid [ Layout.minColumn 240, Layout.gap 6 ]
-                (List.map (datePicker locale model) [ "date-founded" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (datePicker playground locale model) [ "date-founded" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DatePicker", "Date" ]
             { title = "Invalid and required"
             , description = Just "The error message comes from text the field cannot read, from a date outside the limits, or from the application."
             , code = Just dateInvalidCode
             }
-            (Layout.grid [ Layout.minColumn 240, Layout.gap 6 ]
-                (List.map (datePicker locale model) [ "date-garbage", "date-outside", "date-required", "date-bounded" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (datePicker playground locale model) [ "date-garbage", "date-outside", "date-required", "date-bounded" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DatePicker", "Date" ]
             { title = "Blocked days, bookings and the Norwegian locale"
             , description = Just "Weekends cannot be picked in the first field. In the second, the calendar shows the bookings as dots (point at a day to read them). The third uses the Norwegian locale: Norwegian text and the date written 20.10.2026."
             , code = Just dateBlockedCode
             }
-            (Layout.grid [ Layout.minColumn 240, Layout.gap 6 ]
-                (List.map (datePicker locale model) [ "date-weekdays", "date-markers", "date-norwegian" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (datePicker playground locale model) [ "date-weekdays", "date-markers", "date-norwegian" ])
             )
         ]
 
@@ -987,9 +1031,9 @@ datePickers locale model =
 -- VIEW: period fields
 
 
-rangePicker : Locale -> Model -> String -> Html Msg
-rangePicker pageLocale model key =
-    case find key demoRanges of
+rangePicker : Config.Config -> Locale -> Model -> String -> Html Msg
+rangePicker playground pageLocale model key =
+    case find key (demoRanges playground) of
         Nothing ->
             missing key
 
@@ -1001,7 +1045,7 @@ rangePicker pageLocale model key =
                 state =
                     lookup DateRangePicker.init key model.ranges
             in
-            Layout.stack [ Layout.gap 1 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
                 [ DateRangePicker.view (RangeMsg key) (DateRangePicker.locale lang :: demo.attributes) state
                 , Text.caption (describeRange lang state)
                 ]
@@ -1033,41 +1077,47 @@ describeRange lang state =
                 "Value: none"
 
 
-rangePickers : Locale -> Model -> Html Msg
-rangePickers locale model =
-    Doc.section "Period field"
+rangePickers : Config.Config -> Locale -> Model -> Html Msg
+rangePickers playground locale model =
+    Doc.configuredSection playground
+        [ "DateRangePicker" ]
+        "Period field"
         "From and to date in one field, with one calendar that shows two months and a list of quick choices. Choose the period with two clicks: the choice applies at the second click, and between the clicks the period is previewed under the mouse pointer. Escape closes the popup and throws away a half-made choice. Keyboard in the calendar as for the date field."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "DateRangePicker" ]
             { title = "Default with quick choices"
             , description = Just "The quick choices are computed from the “today” the application supplies, and cut to the limits."
             , code = Just rangeDefaultCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 6 ]
-                (List.map (rangePicker locale model) [ "range-default", "range-value", "range-disabled", "range-readonly" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (rangePicker playground locale model) [ "range-default", "range-value", "range-disabled", "range-readonly" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DateRangePicker" ]
             { title = "Limits"
             , description = Just "A longest period, and limits with bookings and week numbers in the calendar. Quick choices that do not fit are disabled, and their tooltip says why."
             , code = Just rangeLimitsCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 6 ]
-                (List.map (rangePicker locale model) [ "range-max", "range-bounded" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (rangePicker playground locale model) [ "range-max", "range-bounded" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DateRangePicker" ]
             { title = "Invalid and required"
             , description = Just "The start date after the end date, text the field cannot read, and a missing period."
             , code = Just rangeInvalidCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 6 ]
-                (List.map (rangePicker locale model) [ "range-order", "range-garbage", "range-required" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (rangePicker playground locale model) [ "range-order", "range-garbage", "range-required" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DateRangePicker" ]
             { title = "Own quick choices, no quick choices and the Norwegian locale"
             , description = Just "Own quick choices are shown even when the field has no today. The Norwegian locale translates the quick choices, the line below the calendar, the placeholders and the messages."
             , code = Just rangePresetsCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 6 ]
-                (List.map (rangePicker locale model) [ "range-custom", "range-none", "range-norwegian" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (rangePicker playground locale model) [ "range-custom", "range-none", "range-norwegian" ])
             )
         ]
 
@@ -1076,9 +1126,9 @@ rangePickers locale model =
 -- VIEW: time fields
 
 
-timePicker : Locale -> Model -> String -> Html Msg
-timePicker pageLocale model key =
-    case find key demoTimes of
+timePicker : Config.Config -> Locale -> Model -> String -> Html Msg
+timePicker playground pageLocale model key =
+    case find key (demoTimes playground) of
         Nothing ->
             missing key
 
@@ -1090,7 +1140,7 @@ timePicker pageLocale model key =
                 state =
                     lookup TimePicker.init key model.times
             in
-            Layout.stack [ Layout.gap 1 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
                 [ TimePicker.view (TimeMsg key) (TimePicker.locale lang :: demo.attributes) state
                 , Text.caption (describeTime state)
                 ]
@@ -1110,33 +1160,38 @@ describeTime state =
                 "Value: none"
 
 
-timePickers : Locale -> Model -> Html Msg
-timePickers locale model =
-    Doc.section "Time field"
+timePickers : Config.Config -> Locale -> Model -> Html Msg
+timePickers playground locale model =
+    Doc.configuredSection playground
+        [ "TimePicker" ]
+        "Time field"
         "Type 14:30, 14.30, 1430, 930 or 14, or choose from the list. The list has times in fixed steps (5, 15 or 30 minutes) on a 24-hour clock. Click in the field, arrow down or Alt + arrow down opens the list; the arrow keys and PageUp / PageDown move, Enter chooses, Escape or Alt + arrow up closes it. Focus stays in the field the whole time."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "TimePicker" ]
             { title = "Steps"
             , description = Just "The list offers a time every 15 minutes unless step says otherwise. Typed times between the steps are accepted too, such as 09:37."
             , code = Just timeStepsCode
             }
-            (Layout.grid [ Layout.minColumn 200, Layout.gap 6 ]
-                (List.map (timePicker locale model) [ "time-default", "time-value", "time-step5", "time-step30" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 200), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (timePicker playground locale model) [ "time-default", "time-value", "time-step5", "time-step30" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "TimePicker" ]
             { title = "Limits and errors"
             , description = Just "The list only offers times inside the limits, and a typed time outside them is refused with a message. So is text the field cannot read."
             , code = Just timeLimitsCode
             }
-            (Layout.grid [ Layout.minColumn 200, Layout.gap 6 ]
-                (List.map (timePicker locale model) [ "time-opening", "time-garbage", "time-outside", "time-required" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 200), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (timePicker playground locale model) [ "time-opening", "time-garbage", "time-outside", "time-required" ])
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "TimePicker" ]
             { title = "Disabled, read-only and Norwegian"
             , description = Just "The Norwegian locale changes the text (the placeholder tt:mm, the button label and the messages); the clock is always 24-hour."
             , code = Just timeStatesCode
             }
-            (Layout.grid [ Layout.minColumn 200, Layout.gap 6 ]
-                (List.map (timePicker locale model) [ "time-disabled", "time-readonly", "time-norwegian" ])
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 200), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (timePicker playground locale model) [ "time-disabled", "time-readonly", "time-norwegian" ])
             )
         ]
 
@@ -1145,9 +1200,9 @@ timePickers locale model =
 -- VIEW: date and time fields
 
 
-dateTimePicker : Locale -> Model -> String -> Html Msg
-dateTimePicker pageLocale model key =
-    case find key demoDateTimes of
+dateTimePicker : Config.Config -> Locale -> Model -> String -> Html Msg
+dateTimePicker playground pageLocale model key =
+    case find key (demoDateTimes playground) of
         Nothing ->
             missing key
 
@@ -1159,7 +1214,7 @@ dateTimePicker pageLocale model key =
                 state =
                     lookup DateTimePicker.init key model.dateTimes
             in
-            Layout.stack [ Layout.gap 1 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
                 [ DateTimePicker.view (DateTimeMsg key) (DateTimePicker.locale lang :: demo.attributes) state
                 , Text.caption (describeDateTime lang state)
                 ]
@@ -1186,17 +1241,20 @@ describeDateTime lang state =
                 "Value: none"
 
 
-dateTimePickers : Locale -> Model -> Html Msg
-dateTimePickers locale model =
-    Doc.section "Date and time field"
+dateTimePickers : Config.Config -> Locale -> Model -> Html Msg
+dateTimePickers playground locale model =
+    Doc.configuredSection playground
+        [ "DateTimePicker" ]
+        "Date and time field"
         "A date field and a time field under one label. The value is only complete when both parts are valid, and each part shows its own message when its text cannot be read. The parts work as described above."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "DateTimePicker" ]
             { title = "Date and time"
             , description = Just "Limits for the date and for the time of day, then a value with clear buttons, required, disabled, read-only and Norwegian. The value below each field is only set when both parts are valid."
             , code = Just dateTimeCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 6 ]
-                (List.map (dateTimePicker locale model)
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                (List.map (dateTimePicker playground locale model)
                     [ "datetime-default", "datetime-value", "datetime-required", "datetime-disabled", "datetime-readonly", "datetime-norwegian" ]
                 )
             )
@@ -1207,37 +1265,41 @@ dateTimePickers locale model =
 -- VIEW: placement
 
 
-placement : Locale -> Model -> Html Msg
-placement locale model =
-    Doc.section "Placement"
+placement : Config.Config -> Locale -> Model -> Html Msg
+placement playground locale model =
+    Doc.configuredSection playground
+        [ "DatePicker", "DateRangePicker", "DateTimePicker", "TimePicker" ]
+        "Placement"
         "Calendars and lists open above everything else. Here the fields sit in a small box that scrolls, and at the bottom of the page. Nothing is cut off, and when there is no room below they open upwards."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "DatePicker", "DateRangePicker", "TimePicker", "Date" ]
             { title = "Inside a scrolling box"
             , description = Just "The box is 200 px high and clips its content. The fields are far down in it."
             , code = Nothing
             }
-            (scrollFixture
+            (scrollFixture playground
                 [ Text.paragraph "Scroll down in the box. The fields below open their calendar and list outside the edge of the box."
                 , Text.paragraph "This is filler so that the box can scroll. Order ORD-10412 left the warehouse this morning, and the next stock count is planned in three weeks."
                 , Text.paragraph "More filler. The pallets have been counted, and the supplier will confirm the delivery within the week. The customer has been told to call the warehouse with any questions."
-                , Layout.grid [ Layout.minColumn 260, Layout.gap 4 ]
-                    [ datePicker locale model "date-scroll"
-                    , rangePicker locale model "range-scroll"
-                    , timePicker locale model "time-scroll"
+                , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 260), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                    [ datePicker playground locale model "date-scroll"
+                    , rangePicker playground locale model "range-scroll"
+                    , timePicker playground locale model "time-scroll"
                     ]
                 , Text.paragraph "Even more filler below the fields."
                 , Text.paragraph "And a little more, so that the box can scroll past the fields."
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DatePicker", "DateRangePicker", "TimePicker", "Date" ]
             { title = "At the bottom of the page"
             , description = Just "Scroll to the bottom of the page and open a field. The calendar opens upwards when there is no room below."
             , code = Nothing
             }
-            (Layout.grid [ Layout.minColumn 260, Layout.gap 4 ]
-                [ datePicker locale model "date-bottom"
-                , rangePicker locale model "range-bottom"
-                , timePicker locale model "time-bottom"
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 260), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ datePicker playground locale model "date-bottom"
+                , rangePicker playground locale model "range-bottom"
+                , timePicker playground locale model "time-bottom"
                 ]
             )
         ]

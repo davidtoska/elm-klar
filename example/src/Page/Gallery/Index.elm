@@ -69,11 +69,11 @@ view locale model =
     in
     Doc.page
         { title = "Component gallery"
-        , description = "Reusable interface components in plain Elm and plain CSS for data-intensive applications: tables, searchable selects, filters, rules, dialogs and more. Everything the showcase application displays comes from here."
+        , description = "Every component has its own page with live examples, states and an options panel. Search the library, choose a component and try your own combinations."
         }
         [ Layout.grid [ Layout.minColumn 150, Layout.gap 4 ]
             [ Stat.view [ Stat.label "Components", Stat.int Catalog.componentCount, Stat.caption "in the library", Stat.locale locale ]
-            , Stat.view [ Stat.label "Pages", Stat.int (List.length Catalog.all), Stat.caption "with live examples", Stat.locale locale ]
+            , Stat.view [ Stat.label "Pages", Stat.int (List.length Catalog.pages), Stat.caption "with live examples", Stat.locale locale ]
             , Stat.view [ Stat.label "Icons", Stat.int Library.count, Stat.caption "one style, all Elm", Stat.locale locale ]
             , Stat.view [ Stat.label "Packages", Stat.int 0, Stat.caption "besides the official elm/*", Stat.locale locale ]
             ]
@@ -114,15 +114,30 @@ viewSection ( section, hits ) =
             [ Badge.view [ Badge.tone Primary ]
                 (String.fromInt (List.length (Catalog.components section)))
             ]
-        , Card.footer
-            [ Button.view
-                [ Button.href (Link.internal (Route.path (Route.Components (Just (Catalog.slug section)))))
-                , Button.iconRight Icon.arrowRight
-                , Button.small
-                ]
-                "Open page"
-            ]
         ]
         [ Layout.row [ Layout.gap 2, Layout.wrap ]
-            (List.map (\name -> Tag.view [] name) hits)
+            (List.map
+                (\name ->
+                    Button.view
+                        [ Button.small
+                        , Button.href
+                            (Link.internal
+                                (Route.path
+                                    (Route.Components
+                                        (Just
+                                            (if section == Catalog.Examples then
+                                                Catalog.slug section
+
+                                             else
+                                                Catalog.componentSlug name
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        ]
+                        name
+                )
+                hits
+            )
         ]

@@ -26,7 +26,9 @@ import Klar.TextInput as TextInput
 import Klar.Validate as Validate
 import Page.Gallery.FormModel.Terms as Terms
 import Page.Gallery.FormModel.Wizard as Wizard
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -293,32 +295,32 @@ subscriptions _ =
     Sub.none
 
 
-accountForm : Locale -> Model -> Html Msg
-accountForm locale model =
+accountForm : Config.Config -> Locale -> Model -> Html Msg
+accountForm playground locale model =
     let
         v =
             Form.bind locale FormMsg form model.form
     in
-    FormLayout.view [ FormLayout.id "account", FormLayout.onSubmit Save ]
+    FormLayout.view (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "id" (FormLayout.id "account"), Config.keep playground "Form.Layout" "onSubmit" (FormLayout.onSubmit Save) ]))
         [ Form.summary v
-        , FormLayout.unsavedFlag [ FormLayout.locale locale ] (Form.isDirty model.form)
+        , FormLayout.unsavedFlag (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) (Form.isDirty model.form)
         , FormLayout.section "Account"
             "Who the customer is, as registered."
             [ FormLayout.grid 2
-                [ Form.textInput v f.name [ TextInput.hint "How the customer appears in lists." ]
+                [ Form.textInput v f.name (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "hint" (TextInput.hint "How the customer appears in lists.") ]))
                 , Form.textInput v f.legalName []
-                , Form.textInput v f.registration [ TextInput.placeholder "8 digits" ]
-                , Form.textInput v f.website [ TextInput.url ]
+                , Form.textInput v f.registration (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "8 digits") ]))
+                , Form.textInput v f.website (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "url" TextInput.url ]))
                 , Form.select v f.country (Remote.Loaded countryOptions) []
                 , Form.multiSelect v f.segments (Remote.Loaded segmentOptions) []
                 ]
             ]
         , FormLayout.actions
-            [ FormLayout.status [ FormLayout.locale locale ] model.status
+            [ FormLayout.status (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) model.status
             , Layout.spacer
-            , Button.view [ Button.onClick Revert, Button.disabled (not (Form.isDirty model.form)) ] "Revert"
-            , Button.view [ Button.onClick Load ] "Load saved account"
-            , Button.view [ Button.primary, Button.submit ] "Save"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Revert), Config.keep playground "Button" "disabled" (Button.disabled (not (Form.isDirty model.form))) ])) "Revert"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Load) ])) "Load saved account"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "submit" Button.submit ])) "Save"
             ]
         ]
 
@@ -327,16 +329,18 @@ accountForm locale model =
 -- THE PAGE (not part of the count)
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Form model"
         , description = "A form declared once: the values of every field live in one state that knows when it is dirty, loads and returns a record, takes the server's problems per field, owns the steps and the repeating rows, and lists every problem with a way to go to it. Try the flat form first: press Save on the empty form (every problem shows and the focus moves to the summary), type the name Acme Trading and the registration number 00000000, then Save (the server refuses and its words show at the fields until you edit them), or Load a saved account and type a letter and delete it again (clean again)."
         }
-        [ Doc.section "A flat form"
+        [ Doc.configuredSection playground
+            [ "Form", "Form.Spec", "Form.Check", "Ids" ]
+            "A flat form"
             "A customer account: texts, a country, several segments, the server's problems, the mark for unsaved changes."
-            [ Doc.example { title = "A customer account", description = Nothing, code = Nothing } (accountForm locale model)
-            , Layout.stack [ Layout.gap 2 ]
+            [ Doc.configuredExample playground [ "Form.Spec", "Form", "Form.Check", "Ids" ] { title = "A customer account", description = Nothing, code = Nothing } (accountForm playground locale model)
+            , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                 [ Text.caption
                     ("Unsaved changes: "
                         ++ (if Form.isDirty model.form then
@@ -356,23 +360,28 @@ view locale model =
                     )
                 ]
             ]
-        , Doc.section "A wizard"
+        , Doc.configuredSection playground
+            [ "Form", "Form.Spec", "Form.Check", "Ids" ]
+            "A wizard"
             "Four steps over one declaration: every kind of field (text, long text, number, choice, several choices, switch, tags, files), a repeating group of contacts with a rule across the rows, a checkbox the model does not hold but still counts, and a review step that lists every problem of every step. Click Next on an empty step; click a later step in the stepper (it checks the steps on the way); add and remove contacts; Load a saved customer and change a letter."
-            [ Doc.example
+            [ Doc.configuredExample playground
+                [ "Form.Spec", "Form", "Form.Check", "Ids" ]
                 { title = "Customer onboarding"
                 , description = Just "Next, Back, the stepper and the review list all come from the form. The code of the declaration is in Page.Gallery.FormModel.Wizard."
                 , code = Just wizardCode
                 }
-                (Html.map WizardMsg (Wizard.view locale model.wizard))
+                (Html.map WizardMsg (Wizard.view playground locale model.wizard))
             ]
-        , Doc.section "Dates, money, identifiers and fields that depend on others"
+        , Doc.configuredSection playground
+            [ "Form", "Form.Spec", "Form.Check", "Ids" ]
+            "Dates, money, identifiers and fields that depend on others"
             "Every value of a business form is a kind of its own, on Klar's own types: a radio choice, an organisation number that is only part of the form for a company (shown and required when Company is chosen, left out of the values otherwise), a credit limit in exact money with its limits, a first delivery date with an earliest day, a contract period, and a checkbox that must be ticked. Choose Company and type an organisation number with a wrong check digit, type 600000 as the credit limit and leave the field, or pick a date before the earliest one."
             [ Doc.example
                 { title = "A customer's terms"
                 , description = Just "Spec.date, Spec.dateRange, Spec.money, Spec.masked, Form.radio and Form.checkbox; Spec.shownWhen and Spec.requiredWhen for the organisation number."
                 , code = Just termsCode
                 }
-                (Html.map TermsMsg (Terms.view locale model.terms))
+                (Html.map TermsMsg (Terms.view playground locale model.terms))
             ]
         ]
 

@@ -41,7 +41,9 @@ import Klar.Theme as Theme
 import Klar.Toolbar as Toolbar
 import Process
 import Set exposing (Set)
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import Time
@@ -225,9 +227,9 @@ pageKeys =
 history records every key typed in the two fields: `Ctrl Z` there undoes the
 history, not the text of one field.
 -}
-pageShortcuts : Locale -> List (Shortcut Msg)
-pageShortcuts locale =
-    History.shortcuts [ History.locale locale ] { onUndo = UndoPressed, onRedo = RedoPressed }
+pageShortcuts : Config.Config -> Locale -> List (Shortcut Msg)
+pageShortcuts playground locale =
+    History.shortcuts (Options.klarHistory playground (List.concat [ Config.keep playground "History" "locale" (History.locale locale) ])) { onUndo = UndoPressed, onRedo = RedoPressed }
         |> List.map Shortcut.inInputs
 
 
@@ -235,18 +237,18 @@ pageShortcuts locale =
 -- UPDATE
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update : Config.Config -> Msg -> Model -> ( Model, Cmd Msg )
+update playground msg model =
     case msg of
         ShortcutMsg inner ->
             let
                 ( state, fired ) =
                     -- the language only changes the names in the sheet, not the keys
-                    Shortcut.update (pageShortcuts Locale.default) inner model.shortcuts
+                    Shortcut.update (pageShortcuts playground Locale.default) inner model.shortcuts
             in
             case fired of
                 Just next ->
-                    update next { model | shortcuts = state }
+                    update playground next { model | shortcuts = state }
 
                 Nothing ->
                     ( { model | shortcuts = state }, Cmd.none )
@@ -478,31 +480,31 @@ dirtied model =
     }
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Shortcut.subscription ShortcutMsg (pageShortcuts Locale.default) model.shortcuts
+subscriptions : Config.Config -> Model -> Sub Msg
+subscriptions playground model =
+    Shortcut.subscription ShortcutMsg (pageShortcuts playground Locale.default) model.shortcuts
 
 
 
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     Overlay.host
-        { attributes = [ Shortcut.listen ShortcutMsg (pageShortcuts locale) model.shortcuts ]
+        { attributes = [ Shortcut.listen ShortcutMsg (pageShortcuts playground locale) model.shortcuts ]
         , page =
-            [ Doc.page
+            [ Doc.configuredPage playground
                 { title = "Pages and flow"
                 , description = "The page for a result, the bar of actions for a selection, the question that stops a user from losing unsaved work, and undo and redo. Each has a small working scene around it. The language switch in the top bar changes the built-in texts."
                 }
-                [ statusSection locale model
-                , bulkSection locale model
-                , guardSection locale model
-                , historySection locale model
+                [ statusSection playground locale model
+                , bulkSection playground locale model
+                , guardSection playground locale model
+                , historySection playground locale model
                 ]
             ]
-        , overlays = [ LeaveGuard.view GuardMsg (guardAttributes locale model) model.guard ]
+        , overlays = [ LeaveGuard.view GuardMsg (guardAttributes playground locale model) model.guard ]
         }
 
 
@@ -525,35 +527,39 @@ frame height content =
 -- STATUS PAGES
 
 
-statusSection : Locale -> Model -> Html Msg
-statusSection locale model =
-    Doc.section "Status page"
+statusSection : Config.Config -> Locale -> Model -> Html Msg
+statusSection playground locale model =
+    Doc.configuredSection playground
+        [ "StatusPage" ]
+        "Status page"
         "A result that is the whole page, where Klar.EmptyState and Klar.ErrorState are the versions that live inside a table or a card. The kind of page chooses the icon, the color and the text; the actions are your buttons. There is exactly one h1, no live region (a page that arrives with a navigation is content, not an alert) and nothing takes focus by itself. The pages below fill their frames the way they fill the content of an application shell."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "StatusPage" ]
             { title = "The kinds"
             , description = Just "Success, not found, no access, signed out, server error, offline and maintenance. Each has a built-in text in English and Norwegian Bokmål, which the title and description attributes replace."
             , code = Just kindsCode
             }
-            (Layout.grid [ Layout.minColumn 320, Layout.gap 4 ]
-                [ labelled "StatusPage.success" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href (Link.internal "#/components/flow") ] "Back to orders" ] ] StatusPage.success))
-                , labelled "StatusPage.pageNotFound" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Go to orders" ] ] StatusPage.pageNotFound))
-                , labelled "StatusPage.forbidden" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.href (Link.internal "#/") ] "Home" ] ] StatusPage.forbidden))
-                , labelled "StatusPage.unauthorized" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.actions [ Button.view [ Button.primary, Button.href (Link.internal "#/") ] "Sign in" ] ] StatusPage.unauthorized))
-                , labelled "StatusPage.server" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.reference "req-7f3a-91c2" ] StatusPage.server))
-                , labelled "StatusPage.network" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.network))
-                , labelled "StatusPage.retrying True: the button is busy where it is and keeps focus" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.retrying True ] StatusPage.network))
-                , labelled "StatusPage.maintenance" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp ] StatusPage.maintenance))
-                , labelled "StatusPage.maintenance with backAt (UTC without settings)" (frame 380 (StatusPage.view [ StatusPage.locale locale, StatusPage.onRetry NoOp, StatusPage.backAt (Time.millisToPosix 52200000) ] StatusPage.maintenance))
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ labelled "StatusPage.success" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "actions" (StatusPage.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "href" (Button.href (Link.internal "#/components/flow")) ])) "Back to orders" ]) ])) StatusPage.success))
+                , labelled "StatusPage.pageNotFound" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "actions" (StatusPage.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "href" (Button.href (Link.internal "#/orders")) ])) "Go to orders" ]) ])) StatusPage.pageNotFound))
+                , labelled "StatusPage.forbidden" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "actions" (StatusPage.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "href" (Button.href (Link.internal "#/")) ])) "Home" ]) ])) StatusPage.forbidden))
+                , labelled "StatusPage.unauthorized" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "actions" (StatusPage.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "href" (Button.href (Link.internal "#/")) ])) "Sign in" ]) ])) StatusPage.unauthorized))
+                , labelled "StatusPage.server" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "onRetry" (StatusPage.onRetry NoOp), Config.keep playground "StatusPage" "reference" (StatusPage.reference "req-7f3a-91c2") ])) StatusPage.server))
+                , labelled "StatusPage.network" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "onRetry" (StatusPage.onRetry NoOp) ])) StatusPage.network))
+                , labelled "StatusPage.retrying True: the button is busy where it is and keeps focus" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "onRetry" (StatusPage.onRetry NoOp), Config.keep playground "StatusPage" "retrying" (StatusPage.retrying True) ])) StatusPage.network))
+                , labelled "StatusPage.maintenance" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "onRetry" (StatusPage.onRetry NoOp) ])) StatusPage.maintenance))
+                , labelled "StatusPage.maintenance with backAt (UTC without settings)" (frame 380 (StatusPage.view (Options.klarStatusPage playground (List.concat [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale), Config.keep playground "StatusPage" "onRetry" (StatusPage.onRetry NoOp), Config.keep playground "StatusPage" "backAt" (StatusPage.backAt (Time.millisToPosix 52200000)) ])) StatusPage.maintenance))
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "StatusPage" ]
             { title = "For a failed request"
             , description = Just "fromProblem picks the icon and the color from the kind of the problem and takes the texts of the problem, so Remote.withTitle and friends change them. Try again is offered only when trying again can help. The reference is selected by one click (copying needs JavaScript), so Ctrl C copies it."
             , code = Just problemCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap ]
-                    (List.map (problemButton model)
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    (List.map (problemButton playground model)
                         [ ( "Server", Remote.server )
                         , ( "Network", Remote.network )
                         , ( "Timeout", Remote.timeout )
@@ -565,17 +571,22 @@ statusSection locale model =
                     )
                 , frame 380
                     (StatusPage.view
-                        [ StatusPage.locale locale
-                        , StatusPage.onRetry Retried
-                        , StatusPage.reference "req-7f3a-91c2"
-                        , StatusPage.actions [ Button.view [ Button.href (Link.internal "#/orders") ] "Go to orders" ]
-                        ]
+                        (Options.klarStatusPage playground
+                            (List.concat
+                                [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale)
+                                , Config.keep playground "StatusPage" "onRetry" (StatusPage.onRetry Retried)
+                                , Config.keep playground "StatusPage" "reference" (StatusPage.reference "req-7f3a-91c2")
+                                , Config.keep playground "StatusPage" "actions" (StatusPage.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "href" (Button.href (Link.internal "#/orders")) ])) "Go to orders" ])
+                                ]
+                            )
+                        )
                         (StatusPage.fromProblem (Remote.problem model.problem |> Remote.withCode "503"))
                     )
                 , Text.caption ("Try again was pressed " ++ String.fromInt model.retries ++ " times.")
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "StatusPage" ]
             { title = "Replacing a form, with focus"
             , description = Just "The form is replaced by the result without a navigation, so the button that was pressed is gone and focus would fall to the page. The page has an id and the update calls Klar.focus with it: the title takes focus, and a screen reader reads the result. Create another order takes focus back to the field."
             , code = Just focusCode
@@ -583,37 +594,53 @@ statusSection locale model =
             (frame 380
                 (if model.created then
                     StatusPage.view
-                        [ StatusPage.locale locale
-                        , StatusPage.id createdId
-                        , StatusPage.title ("Order created for " ++ model.customer)
-                        , StatusPage.description "A confirmation was sent to the customer."
-                        , StatusPage.icon Icon.package
-                        , StatusPage.actions
-                            [ Button.view [ Button.primary, Button.onClick CreateAnother ] "Create another order"
-                            , Button.view [ Button.href (Link.internal "#/orders") ] "Open orders"
-                            ]
-                        , StatusPage.reference "ORD-1042"
-                        ]
+                        (Options.klarStatusPage playground
+                            (List.concat
+                                [ Config.keep playground "StatusPage" "locale" (StatusPage.locale locale)
+                                , Config.keep playground "StatusPage" "id" (StatusPage.id createdId)
+                                , Config.keep playground "StatusPage" "title" (StatusPage.title ("Order created for " ++ model.customer))
+                                , Config.keep playground "StatusPage" "description" (StatusPage.description "A confirmation was sent to the customer.")
+                                , Config.keep playground "StatusPage" "icon" (StatusPage.icon Icon.package)
+                                , Config.keep playground
+                                    "StatusPage"
+                                    "actions"
+                                    (StatusPage.actions
+                                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick CreateAnother) ])) "Create another order"
+                                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "href" (Button.href (Link.internal "#/orders")) ])) "Open orders"
+                                        ]
+                                    )
+                                , Config.keep playground "StatusPage" "reference" (StatusPage.reference "ORD-1042")
+                                ]
+                            )
+                        )
                         StatusPage.success
 
                  else
                     Html.div [ Attr.style "padding" "var(--klar-space-6)", Attr.style "max-width" "420px" ]
-                        [ Layout.stack [ Layout.gap 3 ]
+                        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                             [ Text.heading "New order"
                             , TextInput.view
-                                [ TextInput.id "flow-customer"
-                                , TextInput.label "Customer"
-                                , TextInput.value model.customer
-                                , TextInput.onInput CustomerTyped
-                                , TextInput.onEnter CreateOrder
-                                , TextInput.locale locale
-                                ]
-                            , Button.view
-                                [ Button.id "flow-create-order"
-                                , Button.primary
-                                , Button.disabled (String.isEmpty (String.trim model.customer))
-                                , Button.onClick CreateOrder
-                                ]
+                                (Options.klarTextInput playground
+                                    (List.concat
+                                        [ Config.keep playground "TextInput" "id" (TextInput.id "flow-customer")
+                                        , Config.keep playground "TextInput" "label" (TextInput.label "Customer")
+                                        , Config.keep playground "TextInput" "value" (TextInput.value model.customer)
+                                        , Config.keep playground "TextInput" "onInput" (TextInput.onInput CustomerTyped)
+                                        , Config.keep playground "TextInput" "onEnter" (TextInput.onEnter CreateOrder)
+                                        , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                                        ]
+                                    )
+                                )
+                            , Options.buttonView playground
+                                (Options.klarButton playground
+                                    (List.concat
+                                        [ Config.keep playground "Button" "id" (Button.id "flow-create-order")
+                                        , Config.keep playground "Button" "primary" Button.primary
+                                        , Config.keep playground "Button" "disabled" (Button.disabled (String.isEmpty (String.trim model.customer)))
+                                        , Config.keep playground "Button" "onClick" (Button.onClick CreateOrder)
+                                        ]
+                                    )
+                                )
                                 "Create order"
                             ]
                         ]
@@ -630,13 +657,17 @@ labelled name content =
         ]
 
 
-problemButton : Model -> ( String, Remote.Kind ) -> Html Msg
-problemButton model ( name, kind ) =
-    Button.view
-        [ Button.small
-        , Button.pressed (model.problem == kind)
-        , Button.onClick (ProblemPicked kind)
-        ]
+problemButton : Config.Config -> Model -> ( String, Remote.Kind ) -> Html Msg
+problemButton playground model ( name, kind ) =
+    Options.buttonView playground
+        (Options.klarButton playground
+            (List.concat
+                [ Config.keep playground "Button" "small" Button.small
+                , Config.keep playground "Button" "pressed" (Button.pressed (model.problem == kind))
+                , Config.keep playground "Button" "onClick" (Button.onClick (ProblemPicked kind))
+                ]
+            )
+        )
         name
 
 
@@ -644,8 +675,8 @@ problemButton model ( name, kind ) =
 -- BULK BAR
 
 
-bulkSection : Locale -> Model -> Html Msg
-bulkSection locale model =
+bulkSection : Config.Config -> Locale -> Model -> Html Msg
+bulkSection playground locale model =
     let
         count =
             selectedCount model
@@ -653,48 +684,67 @@ bulkSection locale model =
         pageSelected =
             List.all (isPicked model) pageOrders
     in
-    Doc.section "Bulk action bar"
+    Doc.configuredSection playground
+        [ "BulkBar" ]
+        "Bulk action bar"
         "Appears when a selection is not empty: the count, the actions for it and Clear selection. It does not push anything: the bar takes the place of the toolbar, in the same box, and the toolbar underneath keeps its state (type in the search field, then select a row). The count is announced politely by one region that is always on the page. It never takes focus by itself, and Escape does nothing here: whether Escape clears is the application's decision."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "BulkBar" ]
             { title = "A selectable list of orders"
             , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 orders selected (itemName names the items). Select all stays in its place as an inactive button, so focus is never lost. Clear selection and Delete take the bar away with the button that has focus, and the update calls Klar.focus with the id of the bar: focus goes to the toolbar box, and Tab reaches its first control."
             , code = Just bulkCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ BulkBar.view
-                    [ BulkBar.id "flow-bulk"
-                    , BulkBar.locale locale
-                    , BulkBar.itemName (Locale.pick locale { en = { one = "order", other = "orders" }, nb = { one = "ordre", other = "ordrer" } })
-                    , BulkBar.selectAllMatching { total = matching, onPage = List.length pageOrders, onSelectAll = SelectEverything }
-                    ]
+                    (Options.klarBulkBar playground
+                        (List.concat
+                            [ Config.keep playground "BulkBar" "id" (BulkBar.id "flow-bulk")
+                            , Config.keep playground "BulkBar" "locale" (BulkBar.locale locale)
+                            , Config.keep playground "BulkBar" "itemName" (BulkBar.itemName (Locale.pick locale { en = { one = "order", other = "orders" }, nb = { one = "ordre", other = "ordrer" } }))
+                            , Config.keep playground "BulkBar" "selectAllMatching" (BulkBar.selectAllMatching { total = matching, onPage = List.length pageOrders, onSelectAll = SelectEverything })
+                            ]
+                        )
+                    )
                     { toolbar =
-                        Toolbar.view [ Toolbar.ariaLabel "Orders" ]
+                        Toolbar.view (Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "ariaLabel" (Toolbar.ariaLabel "Orders") ]))
                             [ Toolbar.label "Orders"
                             , Toolbar.spacer
                             , TextInput.view
-                                [ TextInput.search
-                                , TextInput.label "Search orders"
-                                , TextInput.labelHidden
-                                , TextInput.placeholder "Search orders"
-                                , TextInput.value model.search
-                                , TextInput.onInput SearchTyped
-                                , TextInput.locale locale
-                                ]
-                            , Button.view [ Button.primary, Button.icon Icon.plus ] "New order"
+                                (Options.klarTextInput playground
+                                    (List.concat
+                                        [ Config.keep playground "TextInput" "search" TextInput.search
+                                        , Config.keep playground "TextInput" "label" (TextInput.label "Search orders")
+                                        , Config.keep playground "TextInput" "labelHidden" TextInput.labelHidden
+                                        , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "Search orders")
+                                        , Config.keep playground "TextInput" "value" (TextInput.value model.search)
+                                        , Config.keep playground "TextInput" "onInput" (TextInput.onInput SearchTyped)
+                                        , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                                        ]
+                                    )
+                                )
+                            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.plus) ])) "New order"
                             ]
                     , selected = count
                     , onClear = ClearSelection
                     }
-                    [ Button.view [ Button.icon Icon.download, Button.onClick Exported ] "Export"
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.download), Config.keep playground "Button" "onClick" (Button.onClick Exported) ])) "Export"
                     , Menu.view MoreMenuMsg
-                        [ Menu.label "More actions"
-                        , Menu.alignEnd
-                        , Menu.items
-                            [ Menu.item "Assign to me" Assigned |> Menu.withIcon Icon.user
-                            ]
-                        ]
+                        (Options.klarMenu playground
+                            (List.concat
+                                [ Config.keep playground "Menu" "label" (Menu.label "More actions")
+                                , Config.keep playground "Menu" "alignEnd" Menu.alignEnd
+                                , Config.keep playground
+                                    "Menu"
+                                    "items"
+                                    (Menu.items
+                                        [ Menu.item "Assign to me" Assigned |> Menu.withIcon Icon.user
+                                        ]
+                                    )
+                                ]
+                            )
+                        )
                         model.moreMenu
-                    , Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Deleted ] "Delete"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "icon" (Button.icon Icon.trash), Config.keep playground "Button" "onClick" (Button.onClick Deleted) ])) "Delete"
                     ]
                 , Html.div
                     [ Attr.style "border" "1px solid var(--klar-border)"
@@ -706,17 +756,21 @@ bulkSection locale model =
                         , Attr.style "border-bottom" "1px solid var(--klar-border-subtle)"
                         ]
                         [ Checkbox.view
-                            [ Checkbox.ariaLabel "Select all orders on this page"
-                            , Checkbox.checked pageSelected
-                            , Checkbox.indeterminate (count > 0 && not pageSelected)
-                            , Checkbox.onCheck PageToggled
-                            ]
+                            (Options.klarCheckbox playground
+                                (List.concat
+                                    [ Config.keep playground "Checkbox" "ariaLabel" (Checkbox.ariaLabel "Select all orders on this page")
+                                    , Config.keep playground "Checkbox" "checked" (Checkbox.checked pageSelected)
+                                    , Config.keep playground "Checkbox" "indeterminate" (Checkbox.indeterminate (count > 0 && not pageSelected))
+                                    , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck PageToggled)
+                                    ]
+                                )
+                            )
                         ]
-                        :: List.map (orderRow locale model) pageOrders
+                        :: List.map (orderRow playground locale model) pageOrders
                     )
                 , case model.outcome of
                     Just text ->
-                        Alert.view [ Alert.compact, Alert.polite, Alert.locale locale ] text
+                        Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "compact" Alert.compact, Config.keep playground "Alert" "polite" Alert.polite, Config.keep playground "Alert" "locale" (Alert.locale locale) ])) text
 
                     Nothing ->
                         Text.caption ("Showing " ++ String.fromInt (List.length pageOrders) ++ " of " ++ Format.int locale matching ++ " matching orders.")
@@ -725,8 +779,8 @@ bulkSection locale model =
         ]
 
 
-orderRow : Locale -> Model -> Types.Order -> Html Msg
-orderRow locale model order =
+orderRow : Config.Config -> Locale -> Model -> Types.Order -> Html Msg
+orderRow playground locale model order =
     Html.div
         [ Attr.style "display" "flex"
         , Attr.style "align-items" "center"
@@ -735,10 +789,14 @@ orderRow locale model order =
         , Attr.style "border-bottom" "1px solid var(--klar-border-subtle)"
         ]
         [ Checkbox.view
-            [ Checkbox.ariaLabel ("Select order " ++ orderKey order)
-            , Checkbox.checked (isPicked model order)
-            , Checkbox.onCheck (RowToggled (orderKey order))
-            ]
+            (Options.klarCheckbox playground
+                (List.concat
+                    [ Config.keep playground "Checkbox" "ariaLabel" (Checkbox.ariaLabel ("Select order " ++ orderKey order))
+                    , Config.keep playground "Checkbox" "checked" (Checkbox.checked (isPicked model order))
+                    , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck (RowToggled (orderKey order)))
+                    ]
+                )
+            )
         , Html.span [ Attr.style "min-width" "7ch" ] [ Text.mono (orderKey order) ]
         , Html.span [ Attr.style "flex" "1" ] [ Html.text order.customer ]
         , Html.span [ Attr.class "klar-tabular" ] [ Html.text (Format.currency locale "$" 2 order.total) ]
@@ -749,37 +807,44 @@ orderRow locale model order =
 -- LEAVE GUARD
 
 
-guardAttributes : Locale -> Model -> List (LeaveGuard.Attribute Msg)
-guardAttributes locale model =
+guardAttributes : Config.Config -> Locale -> Model -> List (LeaveGuard.Attribute Msg)
+guardAttributes playground locale model =
     LeaveGuard.locale locale
         :: (if model.offerSave then
-                [ LeaveGuard.saveAndLeave ]
+                Options.klarLeaveGuard playground (List.concat [ Config.keep playground "LeaveGuard" "saveAndLeave" LeaveGuard.saveAndLeave ])
 
             else
                 []
            )
 
 
-guardSection : Locale -> Model -> Html Msg
-guardSection locale model =
-    Doc.section "Leave guard"
+guardSection : Config.Config -> Locale -> Model -> Html Msg
+guardSection playground locale model =
+    Doc.configuredSection playground
+        [ "LeaveGuard" ]
+        "Leave guard"
         "Asks \"Leave without saving?\" when the user navigates inside the application while something is not saved. Every navigation goes through LeaveGuard.request: a clean guard answers Proceed with the value, a dirty one answers Hold and opens the dialog, and the held value comes back as data when the user chooses. Several forms are independent sources, and the guard is clean only when all are. The browser's Back and Forward buttons are answered by one more function, LeaveGuard.onUrlChange (second example). Closing the tab, reloading and typing another address cannot be intercepted without JavaScript."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "LeaveGuard" ]
             { title = "A fake application with two forms"
             , description = Just "Change the note or the address, then press Customers or Settings. Focus goes to Stay, Escape means Stay, and focus returns to the button you pressed. Save the forms, or undo the edit by hand, and the next move is free. Save and leave saves for a moment and then goes."
             , code = Just guardCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
-                    [ routeButton model Orders "Orders"
-                    , routeButton model Customers "Customers"
-                    , routeButton model Settings "Settings"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ routeButton playground model Orders "Orders"
+                    , routeButton playground model Customers "Customers"
+                    , routeButton playground model Settings "Settings"
                     , Layout.spacer
                     , Checkbox.view
-                        [ Checkbox.label "Offer Save and leave"
-                        , Checkbox.checked model.offerSave
-                        , Checkbox.onCheck OfferSaveToggled
-                        ]
+                        (Options.klarCheckbox playground
+                            (List.concat
+                                [ Config.keep playground "Checkbox" "label" (Checkbox.label "Offer Save and leave")
+                                , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.offerSave)
+                                , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck OfferSaveToggled)
+                                ]
+                            )
+                        )
                     ]
                 , Html.div
                     [ Attr.style "border" "1px solid var(--klar-border)"
@@ -789,61 +854,69 @@ guardSection locale model =
                     ]
                     [ case model.route of
                         Orders ->
-                            Layout.stack [ Layout.gap 4 ]
+                            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                                 [ Text.heading "Order 1042"
-                                , Layout.grid [ Layout.minColumn 280, Layout.gap 4 ]
-                                    [ Layout.stack [ Layout.gap 2 ]
+                                , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                                    [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                                         [ TextArea.view
-                                            [ TextArea.id "flow-note"
-                                            , TextArea.label "Delivery note"
-                                            , TextArea.value model.note
-                                            , TextArea.rows 3
-                                            , TextArea.onInput NoteTyped
-                                            , TextArea.locale locale
-                                            ]
-                                        , Layout.row [ Layout.gap 2, Layout.alignCenter ]
-                                            [ Button.view [ Button.small, Button.onClick SaveNote, Button.disabled (model.note == model.noteSaved) ] "Save note"
-                                            , FormLayout.unsavedFlag [ FormLayout.locale locale ] (model.note /= model.noteSaved)
+                                            (Options.klarTextArea playground
+                                                (List.concat
+                                                    [ Config.keep playground "TextArea" "id" (TextArea.id "flow-note")
+                                                    , Config.keep playground "TextArea" "label" (TextArea.label "Delivery note")
+                                                    , Config.keep playground "TextArea" "value" (TextArea.value model.note)
+                                                    , Config.keep playground "TextArea" "rows" (TextArea.rows 3)
+                                                    , Config.keep playground "TextArea" "onInput" (TextArea.onInput NoteTyped)
+                                                    , Config.keep playground "TextArea" "locale" (TextArea.locale locale)
+                                                    ]
+                                                )
+                                            )
+                                        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                                            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick SaveNote), Config.keep playground "Button" "disabled" (Button.disabled (model.note == model.noteSaved)) ])) "Save note"
+                                            , FormLayout.unsavedFlag (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) (model.note /= model.noteSaved)
                                             ]
                                         ]
-                                    , Layout.stack [ Layout.gap 2 ]
+                                    , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                                         [ TextInput.view
-                                            [ TextInput.id "flow-address"
-                                            , TextInput.label "Shipping address"
-                                            , TextInput.value model.address
-                                            , TextInput.onInput AddressTyped
-                                            , TextInput.locale locale
-                                            ]
-                                        , Layout.row [ Layout.gap 2, Layout.alignCenter ]
-                                            [ Button.view [ Button.small, Button.onClick SaveAddress, Button.disabled (model.address == model.addressSaved) ] "Save address"
-                                            , FormLayout.unsavedFlag [ FormLayout.locale locale ] (model.address /= model.addressSaved)
+                                            (Options.klarTextInput playground
+                                                (List.concat
+                                                    [ Config.keep playground "TextInput" "id" (TextInput.id "flow-address")
+                                                    , Config.keep playground "TextInput" "label" (TextInput.label "Shipping address")
+                                                    , Config.keep playground "TextInput" "value" (TextInput.value model.address)
+                                                    , Config.keep playground "TextInput" "onInput" (TextInput.onInput AddressTyped)
+                                                    , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                                                    ]
+                                                )
+                                            )
+                                        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                                            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick SaveAddress), Config.keep playground "Button" "disabled" (Button.disabled (model.address == model.addressSaved)) ])) "Save address"
+                                            , FormLayout.unsavedFlag (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) (model.address /= model.addressSaved)
                                             ]
                                         ]
                                     ]
                                 ]
 
                         Customers ->
-                            Layout.stack [ Layout.gap 2 ]
+                            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                                 [ Text.heading "Customers"
                                 , Text.paragraph "You are on another page. Go back to Orders to change the forms again."
                                 ]
 
                         Settings ->
-                            Layout.stack [ Layout.gap 2 ]
+                            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                                 [ Text.heading "Settings"
                                 , Text.paragraph "You are on another page. Go back to Orders to change the forms again."
                                 ]
                     ]
-                , Layout.row [ Layout.gap 3, Layout.wrap, Layout.alignCenter ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     [ if LeaveGuard.isDirty model.guard then
-                        Badge.view [ Badge.tone Theme.Warning ] "Unsaved"
+                        Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Theme.Warning) ])) "Unsaved"
 
                       else
-                        Badge.view [ Badge.tone Theme.Success ] "Everything saved"
+                        Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Theme.Success) ])) "Everything saved"
                     , Text.caption ("Dirty sources: " ++ dirtyText (LeaveGuard.dirtySources model.guard))
                     , case model.saving of
                         Just route ->
-                            Layout.row [ Layout.gap 2, Layout.alignCenter ]
+                            Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                                 [ Spinner.view []
                                 , Text.caption ("Saving, then going to " ++ routeName route ++ " ...")
                                 ]
@@ -858,7 +931,7 @@ guardSection locale model =
             , description = Just "This page keeps its route in its own model, so the buttons of your browser do not reach it. The wiring below is for an application with addresses. To try it for real, open the multi-step flow on the Examples page, which is an application with addresses: make the form dirty and press Back. Back asks with the address bar already at the page you wanted, Stay puts the address right, Leave goes there."
             , code = Just guardBrowserCode
             }
-            (Layout.stack [ Layout.gap 2 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                 [ Text.paragraph "Back while something is dirty: the page stays, the question opens, the address bar is already at the page you pressed Back to."
                 , Text.paragraph "Stay pushes the address of the page that is shown. Leave shows the page you wanted. A second Back after Stay asks again."
                 , Text.caption "The guard never moves in the history to undo a button, which is what looped in the first recipe."
@@ -867,13 +940,17 @@ guardSection locale model =
         ]
 
 
-routeButton : Model -> Route -> String -> Html Msg
-routeButton model route name =
-    Button.view
-        [ Button.id ("flow-go-" ++ String.toLower name)
-        , Button.pressed (model.route == route)
-        , Button.onClick (Navigate route)
-        ]
+routeButton : Config.Config -> Model -> Route -> String -> Html Msg
+routeButton playground model route name =
+    Options.buttonView playground
+        (Options.klarButton playground
+            (List.concat
+                [ Config.keep playground "Button" "id" (Button.id ("flow-go-" ++ String.toLower name))
+                , Config.keep playground "Button" "pressed" (Button.pressed (model.route == route))
+                , Config.keep playground "Button" "onClick" (Button.onClick (Navigate route))
+                ]
+            )
+        )
         name
 
 
@@ -913,48 +990,59 @@ dirtyText forms =
 -- UNDO HISTORY
 
 
-historySection : Locale -> Model -> Html Msg
-historySection locale model =
+historySection : Config.Config -> Locale -> Model -> Html Msg
+historySection playground locale model =
     let
         draft =
             History.present model.history
     in
-    Doc.section "Undo history"
+    Doc.configuredSection playground
+        [ "History" ]
+        "Undo history"
         "Undo and redo as a plain value: the present, the steps before it and the steps after it. Typing in one field is one step (a burst) and ends when the field loses focus; every step has a label that a screen reader hears (\"Undid: Changed quantity\"). History does not listen to the keyboard: the page wires Ctrl Z and Ctrl Shift Z with Klar.Shortcut, marked inInputs because every key typed here is recorded. The saved point tells whether the value is still what was saved."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "History" ]
             { title = "Two fields with undo and redo"
             , description = Just "Type in the quantity, leave the field, type in the note, then press Ctrl Z or the Undo button. Mark saved sets the saved point; undoing past it makes the form dirty again, and redo comes back to it."
             , code = Just historyCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Toolbar.view [ Toolbar.ariaLabel "Edit" ]
-                    [ History.controls [ History.locale locale, History.showShortcuts ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Toolbar.view (Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "ariaLabel" (Toolbar.ariaLabel "Edit") ]))
+                    [ History.controls (Options.klarHistory playground (List.concat [ Config.keep playground "History" "locale" (History.locale locale), Config.keep playground "History" "showShortcuts" History.showShortcuts ]))
                         { onUndo = UndoPressed, onRedo = RedoPressed }
                         model.history
                     , Toolbar.separator
-                    , Button.view [ Button.icon Icon.save, Button.onClick MarkSaved, Button.disabled (History.isAtSavedPoint model.history) ] "Mark saved"
-                    , Button.view [ Button.icon Icon.refresh, Button.onClick DiscardChanges, Button.disabled (History.isAtSavedPoint model.history) ] "Discard changes"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.save), Config.keep playground "Button" "onClick" (Button.onClick MarkSaved), Config.keep playground "Button" "disabled" (Button.disabled (History.isAtSavedPoint model.history)) ])) "Mark saved"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick DiscardChanges), Config.keep playground "Button" "disabled" (Button.disabled (History.isAtSavedPoint model.history)) ])) "Discard changes"
                     , Toolbar.spacer
-                    , FormLayout.unsavedFlag [ FormLayout.locale locale ] (not (History.isAtSavedPoint model.history))
+                    , FormLayout.unsavedFlag (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) (not (History.isAtSavedPoint model.history))
                     ]
-                , Layout.grid [ Layout.minColumn 240, Layout.gap 4 ]
+                , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 240), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                     [ TextInput.view
-                        [ TextInput.id "flow-quantity"
-                        , TextInput.label "Quantity"
-                        , TextInput.value draft.quantity
-                        , TextInput.onInput QuantityTyped
-                        , TextInput.onBlur FieldLeft
-                        , TextInput.locale locale
-                        ]
+                        (Options.klarTextInput playground
+                            (List.concat
+                                [ Config.keep playground "TextInput" "id" (TextInput.id "flow-quantity")
+                                , Config.keep playground "TextInput" "label" (TextInput.label "Quantity")
+                                , Config.keep playground "TextInput" "value" (TextInput.value draft.quantity)
+                                , Config.keep playground "TextInput" "onInput" (TextInput.onInput QuantityTyped)
+                                , Config.keep playground "TextInput" "onBlur" (TextInput.onBlur FieldLeft)
+                                , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                                ]
+                            )
+                        )
                     , TextArea.view
-                        [ TextArea.id "flow-history-note"
-                        , TextArea.label "Note"
-                        , TextArea.value draft.note
-                        , TextArea.rows 3
-                        , TextArea.onInput HistoryNoteTyped
-                        , TextArea.onBlur FieldLeft
-                        , TextArea.locale locale
-                        ]
+                        (Options.klarTextArea playground
+                            (List.concat
+                                [ Config.keep playground "TextArea" "id" (TextArea.id "flow-history-note")
+                                , Config.keep playground "TextArea" "label" (TextArea.label "Note")
+                                , Config.keep playground "TextArea" "value" (TextArea.value draft.note)
+                                , Config.keep playground "TextArea" "rows" (TextArea.rows 3)
+                                , Config.keep playground "TextArea" "onInput" (TextArea.onInput HistoryNoteTyped)
+                                , Config.keep playground "TextArea" "onBlur" (TextArea.onBlur FieldLeft)
+                                , Config.keep playground "TextArea" "locale" (TextArea.locale locale)
+                                ]
+                            )
+                        )
                     ]
                 , Text.caption
                     ("Undo: "

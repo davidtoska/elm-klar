@@ -31,6 +31,8 @@ import Klar.TextArea as TextArea
 import Klar.TextInput as TextInput
 import Klar.Theme exposing (Tone(..))
 import Klar.Validate as Validate
+import Showcase.Config as Config
+import Showcase.Options as Options
 
 
 
@@ -481,8 +483,8 @@ step msg model =
 -- THE VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     let
         v =
             Form.bind locale FormMsg form model.form
@@ -490,37 +492,38 @@ view locale model =
         current =
             Form.currentStep form model.form
     in
-    Layout.stack [ Layout.gap 4 ]
-        [ Form.stepper v [ Stepper.ariaLabel "Customer onboarding" ]
-        , FormLayout.view [ FormLayout.id "wizard-form", FormLayout.onSubmit Next, FormLayout.ariaLabel "Customer onboarding", FormLayout.locale locale ]
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+        [ Form.stepper v (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "ariaLabel" (Stepper.ariaLabel "Customer onboarding") ]))
+        , FormLayout.view (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "id" (FormLayout.id "wizard-form"), Config.keep playground "Form.Layout" "onSubmit" (FormLayout.onSubmit Next), Config.keep playground "Form.Layout" "ariaLabel" (FormLayout.ariaLabel "Customer onboarding"), Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ]))
             [ -- The body of the step is keyed by the step: the inputs of one step are
               -- not reused for the next, which would blur the focused one.
               Form.stepBody v
                 [ case current of
                     Just Account ->
-                        viewAccount v
+                        viewAccount playground v
 
                     Just Contacts ->
-                        viewContacts v model
+                        viewContacts playground v model
 
                     Just Delivery ->
-                        viewDelivery v
+                        viewDelivery playground v
 
                     _ ->
-                        viewReview v model
+                        viewReview playground v model
                 ]
-            , FormLayout.unsavedFlag [ FormLayout.locale locale ] (isDirty model)
+            , FormLayout.unsavedFlag (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) (isDirty model)
             , FormLayout.actions
-                [ FormLayout.status [ FormLayout.id "wizard-form", FormLayout.locale locale ] model.status
+                [ FormLayout.status (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "id" (FormLayout.id "wizard-form"), Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) model.status
                 , Layout.spacer
-                , Button.view [ Button.onClick Revert, Button.disabled (not (isDirty model)) ] "Revert"
-                , Button.view [ Button.onClick Load ] "Load saved customer"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Revert), Config.keep playground "Button" "disabled" (Button.disabled (not (isDirty model))) ])) "Revert"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Load) ])) "Load saved customer"
                 , if current == Just Account then
                     Html.text ""
 
                   else
-                    Button.view [ Button.onClick Back, Button.icon Icon.arrowLeft ] "Back"
-                , Button.view [ Button.primary, Button.submit ]
+                    Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Back), Config.keep playground "Button" "icon" (Button.icon Icon.arrowLeft) ])) "Back"
+                , Options.buttonView playground
+                    (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "submit" Button.submit ]))
                     (if current == Just Review then
                         "Save customer"
 
@@ -529,7 +532,7 @@ view locale model =
                     )
                 ]
             ]
-        , readout model
+        , readout playground model
         ]
 
 
@@ -538,9 +541,9 @@ isDirty model =
     Form.isDirty model.form
 
 
-readout : Model -> Html Msg
-readout model =
-    Layout.stack [ Layout.gap 2 ]
+readout : Config.Config -> Model -> Html Msg
+readout playground model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
         [ Text.caption
             ("Unsaved changes: "
                 ++ (if isDirty model then
@@ -562,17 +565,17 @@ readout model =
         ]
 
 
-viewAccount : Form.View Msg -> Html Msg
-viewAccount v =
-    Layout.stack [ Layout.gap 4 ]
+viewAccount : Config.Config -> Form.View Msg -> Html Msg
+viewAccount playground v =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
         [ Form.summary v
         , FormLayout.section "Company"
             "Who the customer is, as registered."
             [ FormLayout.grid 2
-                [ Form.textInput v f.name [ TextInput.hint "How the customer appears in lists." ]
+                [ Form.textInput v f.name (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "hint" (TextInput.hint "How the customer appears in lists.") ]))
                 , Form.textInput v f.legalName []
-                , Form.textInput v f.registration [ TextInput.inputMode "numeric" ]
-                , Form.textInput v f.website [ TextInput.url, TextInput.placeholder "https://" ]
+                , Form.textInput v f.registration (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "inputMode" (TextInput.inputMode "numeric") ]))
+                , Form.textInput v f.website (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "url" TextInput.url, Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "https://") ]))
                 , Form.select v f.country (Remote.Loaded countryOptions) []
                 , Form.multiSelect v f.segments (Remote.Loaded segmentOptions) []
                 , FormLayout.fullRow (Form.switch v f.preferred [])
@@ -580,72 +583,81 @@ viewAccount v =
             ]
         , FormLayout.section "Certifications and contract"
             "What the customer holds, and the signed agreement."
-            [ Form.tagInput v f.certifications [ TagInput.maxTags 6 ]
-            , Form.fileDrop v f.contract [ FileDrop.accept [ ".pdf" ], FileDrop.maxSize 5000000, FileDrop.maxFiles 1 ]
+            [ Form.tagInput v f.certifications (Options.klarTagInput playground (List.concat [ Config.keep playground "TagInput" "maxTags" (TagInput.maxTags 6) ]))
+            , Form.fileDrop v f.contract (Options.klarFileDrop playground (List.concat [ Config.keep playground "FileDrop" "accept" (FileDrop.accept [ ".pdf" ]), Config.keep playground "FileDrop" "maxSize" (FileDrop.maxSize 5000000), Config.keep playground "FileDrop" "maxFiles" (FileDrop.maxFiles 1) ]))
             ]
         ]
 
 
-viewContacts : Form.View Msg -> Model -> Html Msg
-viewContacts v model =
+viewContacts : Config.Config -> Form.View Msg -> Model -> Html Msg
+viewContacts playground v model =
     let
         card position row =
             Card.view
-                [ Card.headingLevel 3
-                , Card.title ("Contact " ++ String.fromInt (position + 1))
-                , Card.actions [ Form.removeRow v f.contacts position [] ]
-                ]
+                (Options.klarCard playground
+                    (List.concat
+                        [ Config.keep playground "Card" "headingLevel" (Card.headingLevel 3)
+                        , Config.keep playground "Card" "title" (Card.title ("Contact " ++ String.fromInt (position + 1)))
+                        , Config.keep playground "Card" "actions" (Card.actions [ Form.removeRow v f.contacts position [] ])
+                        ]
+                    )
+                )
                 [ FormLayout.grid 2
                     [ Form.textInput v row.name []
-                    , Form.textInput v row.email [ TextInput.email ]
+                    , Form.textInput v row.email (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "email" TextInput.email ]))
                     , Form.select v row.role (Remote.Loaded roleOptions) []
                     , Form.switch v row.primary []
                     ]
                 ]
     in
-    Layout.stack [ Layout.gap 4 ]
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
         (Form.summary v
             :: List.indexedMap card (Form.rowFields f.contacts model.form)
             ++ [ Form.addRow v f.contacts [] "Add contact" ]
         )
 
 
-viewDelivery : Form.View Msg -> Html Msg
-viewDelivery v =
-    Layout.stack [ Layout.gap 4 ]
+viewDelivery : Config.Config -> Form.View Msg -> Html Msg
+viewDelivery playground v =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
         [ Form.summary v
         , FormLayout.section "Delivery"
             "How fast, how much and where."
             [ FormLayout.grid 2
-                [ Form.numberInput v f.leadTime [ NumberInput.suffixText "days" ]
-                , Form.numberInput v f.minimumOrder [ NumberInput.prefixText "NOK", NumberInput.grouped ]
+                [ Form.numberInput v f.leadTime (Options.klarNumberInput playground (List.concat [ Config.keep playground "NumberInput" "suffixText" (NumberInput.suffixText "days") ]))
+                , Form.numberInput v f.minimumOrder (Options.klarNumberInput playground (List.concat [ Config.keep playground "NumberInput" "prefixText" (NumberInput.prefixText "NOK"), Config.keep playground "NumberInput" "grouped" NumberInput.grouped ]))
                 , FormLayout.fullRow (Form.multiSelect v f.shipsTo (Remote.Loaded countryOptions) [])
-                , FormLayout.fullRow (Form.textArea v f.notes [ TextArea.rows 3 ])
+                , FormLayout.fullRow (Form.textArea v f.notes (Options.klarTextArea playground (List.concat [ Config.keep playground "TextArea" "rows" (TextArea.rows 3) ])))
                 ]
             ]
         ]
 
 
-viewReview : Form.View Msg -> Model -> Html Msg
-viewReview v model =
-    Layout.stack [ Layout.gap 4 ]
+viewReview : Config.Config -> Form.View Msg -> Model -> Html Msg
+viewReview playground v model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
         [ Form.summary v
         , case Form.toValues Locale.en form model.form of
             Ok customer ->
-                Alert.view [ Alert.tone Success, Alert.compact ]
+                Options.alertView playground
+                    (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Success), Config.keep playground "Alert" "compact" Alert.compact ]))
                     ("Everything is filled in: " ++ customer.name ++ " with " ++ String.fromInt (List.length customer.contacts) ++ " contacts. Read it once more, then save.")
 
             Err _ ->
                 Text.paragraph "Fix the problems above. Each line leads to its step and its field."
-        , Layout.row [ Layout.wrap ]
-            [ Button.view [ Button.small, Button.onClick (GoTo Account) ] "Edit account"
-            , Button.view [ Button.small, Button.onClick (GoTo Contacts) ] "Edit contacts"
-            , Button.view [ Button.small, Button.onClick (GoTo Delivery) ] "Edit delivery"
+        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "wrap" Layout.wrap ]))
+            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (GoTo Account)) ])) "Edit account"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (GoTo Contacts)) ])) "Edit contacts"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (GoTo Delivery)) ])) "Edit delivery"
             ]
         , Checkbox.view
-            [ Checkbox.id termsId
-            , Checkbox.label "I accept the terms of delivery"
-            , Checkbox.checked model.accepted
-            , Checkbox.onCheck Accepted
-            ]
+            (Options.klarCheckbox playground
+                (List.concat
+                    [ Config.keep playground "Checkbox" "id" (Checkbox.id termsId)
+                    , Config.keep playground "Checkbox" "label" (Checkbox.label "I accept the terms of delivery")
+                    , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.accepted)
+                    , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck Accepted)
+                    ]
+                )
+            )
         ]

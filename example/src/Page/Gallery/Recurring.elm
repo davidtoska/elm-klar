@@ -21,7 +21,9 @@ import Klar.Recurrence as Recurrence exposing (Rule)
 import Klar.RecurrencePicker as RecurrencePicker
 import Klar.Select as Select
 import Klar.Text as Text
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Time exposing (Month(..), Weekday(..))
 
@@ -183,16 +185,16 @@ endOf2027 =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Recurring dates"
         , description = "Rules like every second Tuesday: the field that builds one, and the module that gives its dates, its description in plain language and its RRULE text. A rule is a set of calendar dates, without a time or a time zone: your application attaches those to each date."
         }
-        [ fieldSection locale model
-        , wordsSection
-        , monthEndSection
-        , nextSection model
+        [ fieldSection playground locale model
+        , wordsSection playground
+        , monthEndSection playground
+        , nextSection playground model
         ]
 
 
@@ -205,81 +207,111 @@ mono text =
 -- THE FIELD
 
 
-fieldSection : Locale -> Model -> Html Msg
-fieldSection locale model =
-    Doc.section "The field"
+fieldSection : Config.Config -> Locale -> Model -> Html Msg
+fieldSection playground locale model =
+    Doc.configuredSection playground
+        [ "RecurrencePicker" ]
+        "The field"
         "Choose how often, which days and how it ends. The sentence under the fields is built by Klar.Recurrence and is the only live region; the next dates follow it. The last weekday cannot be turned off, and the field says why. Where a day may be missing (the 31st, 29 February) it asks what to do. The language switch in the top bar changes the built-in text."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "RecurrencePicker" ]
             { title = "A field that builds a rule"
             , description = Just "The start date drives the choices of a monthly rule: try the 29th, 30th or 31st, or the last Tuesday of a month. What the application reads is a Maybe Rule, and a problem while the form is incomplete."
             , code = Just fieldCode
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ DatePicker.view StartMsg
-                    [ DatePicker.label "Start date"
-                    , DatePicker.today today
-                    , DatePicker.locale locale
-                    , DatePicker.hint "The first delivery. The monthly choices follow this date."
-                    ]
+                    (Options.klarDatePicker playground
+                        (List.concat
+                            [ Config.keep playground "DatePicker" "label" (DatePicker.label "Start date")
+                            , Config.keep playground "DatePicker" "today" (DatePicker.today today)
+                            , Config.keep playground "DatePicker" "locale" (DatePicker.locale locale)
+                            , Config.keep playground "DatePicker" "hint" (DatePicker.hint "The first delivery. The monthly choices follow this date.")
+                            ]
+                        )
+                    )
                     model.startDate
                 , RecurrencePicker.view PickerMsg
-                    [ RecurrencePicker.label "Repeat"
-                    , RecurrencePicker.today today
-                    , RecurrencePicker.locale locale
-                    ]
+                    (Options.klarRecurrencePicker playground
+                        (List.concat
+                            [ Config.keep playground "RecurrencePicker" "label" (RecurrencePicker.label "Repeat")
+                            , Config.keep playground "RecurrencePicker" "today" (RecurrencePicker.today today)
+                            , Config.keep playground "RecurrencePicker" "locale" (RecurrencePicker.locale locale)
+                            ]
+                        )
+                    )
                     model.picker
-                , whatTheApplicationSees model.picker
+                , whatTheApplicationSees playground model.picker
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "RecurrencePicker" ]
             { title = "Norwegian"
             , description = Just "A rule that was loaded (an example from the table, put in with setValue) in Norwegian Bokmål, whatever the language switch says."
             , code = Just "RecurrencePicker.view RepeatMsg\n    [ RecurrencePicker.locale Locale.nb ]\n    model.repeat"
             }
             (RecurrencePicker.view NorwegianMsg
-                [ RecurrencePicker.label "Gjenta"
-                , RecurrencePicker.today today
-                , RecurrencePicker.locale Locale.nb
-                ]
+                (Options.klarRecurrencePicker playground
+                    (List.concat
+                        [ Config.keep playground "RecurrencePicker" "label" (RecurrencePicker.label "Gjenta")
+                        , Config.keep playground "RecurrencePicker" "today" (RecurrencePicker.today today)
+                        , Config.keep playground "RecurrencePicker" "locale" (RecurrencePicker.locale Locale.nb)
+                        ]
+                    )
+                )
                 model.norwegian
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "RecurrencePicker" ]
             { title = "Skipped dates"
             , description = Just "A loaded rule that skips dates shows them as tags with a button each, and Remove all. The field never adds a skipped date, and it keeps one that no longer fits the rule until it is removed: switch the rule to monthly and the dates stay."
             , code = Just "RecurrencePicker.setValue (Just rule) model.repeat   -- rule made with Recurrence.except [ ... ]"
             }
             (RecurrencePicker.view SkippingMsg
-                [ RecurrencePicker.label "Repeat"
-                , RecurrencePicker.today today
-                , RecurrencePicker.locale locale
-                ]
+                (Options.klarRecurrencePicker playground
+                    (List.concat
+                        [ Config.keep playground "RecurrencePicker" "label" (RecurrencePicker.label "Repeat")
+                        , Config.keep playground "RecurrencePicker" "today" (RecurrencePicker.today today)
+                        , Config.keep playground "RecurrencePicker" "locale" (RecurrencePicker.locale locale)
+                        ]
+                    )
+                )
                 model.skipping
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "RecurrencePicker" ]
             { title = "Read-only"
             , description = Just "Only the label and the sentence, for a page that shows a saved rule. The state is the same as for the field: the first is a rule loaded with setValue, the second a field that does not repeat."
             , code = Just "RecurrencePicker.view RepeatMsg [ RecurrencePicker.readOnly True ] model.repeat"
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ RecurrencePicker.view LoadedMsg
-                    [ RecurrencePicker.label "Repeat"
-                    , RecurrencePicker.locale locale
-                    , RecurrencePicker.readOnly True
-                    ]
+                    (Options.klarRecurrencePicker playground
+                        (List.concat
+                            [ Config.keep playground "RecurrencePicker" "label" (RecurrencePicker.label "Repeat")
+                            , Config.keep playground "RecurrencePicker" "locale" (RecurrencePicker.locale locale)
+                            , Config.keep playground "RecurrencePicker" "readOnly" (RecurrencePicker.readOnly True)
+                            ]
+                        )
+                    )
                     model.loaded
                 , RecurrencePicker.view LoadedMsg
-                    [ RecurrencePicker.label "Repeat"
-                    , RecurrencePicker.locale locale
-                    , RecurrencePicker.readOnly True
-                    ]
+                    (Options.klarRecurrencePicker playground
+                        (List.concat
+                            [ Config.keep playground "RecurrencePicker" "label" (RecurrencePicker.label "Repeat")
+                            , Config.keep playground "RecurrencePicker" "locale" (RecurrencePicker.locale locale)
+                            , Config.keep playground "RecurrencePicker" "readOnly" (RecurrencePicker.readOnly True)
+                            ]
+                        )
+                    )
                     (RecurrencePicker.init "recurrence-not-repeating" today)
                 ]
             )
         ]
 
 
-whatTheApplicationSees : RecurrencePicker.State -> Html msg
-whatTheApplicationSees picker =
+whatTheApplicationSees : Config.Config -> RecurrencePicker.State -> Html msg
+whatTheApplicationSees playground picker =
     let
         rule =
             case RecurrencePicker.value picker of
@@ -294,7 +326,7 @@ whatTheApplicationSees picker =
                         Nothing ->
                             "Nothing: the date does not repeat"
     in
-    Layout.stack [ Layout.gap 1 ]
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
         [ Text.caption "What the application reads (RecurrencePicker.value, isValid, problem)"
         , mono rule
         ]
@@ -333,9 +365,11 @@ RecurrencePicker.problem model.repeat   -- Maybe Problem: why it is not valid"""
 -- WORDS AND RRULE
 
 
-wordsSection : Html msg
-wordsSection =
-    Doc.section "Rules, words and RRULE"
+wordsSection : Config.Config -> Html msg
+wordsSection playground =
+    Doc.configuredSection playground
+        [ "Recurrence" ]
+        "Rules, words and RRULE"
         "Every rule can be described in plain language, in English and Norwegian Bokmål, and written as the value of an iCalendar RRULE for a backend. The rule is read back from the text (fromRRule), and anything outside the practical subset is a problem that names it, never a guess."
         [ Doc.example
             { title = "Example rules"
@@ -360,8 +394,8 @@ wordsSection =
             , description = Just "The problem says what is not supported, in both languages; the part is shown as the RRULE has it. A rule that leaves out its day takes it from the start of the series (here today), as RFC 5545 says: FREQ=WEEKLY and FREQ=YEARLY are read."
             , code = Just "Recurrence.fromRRule { start = model.today } \"FREQ=HOURLY\"\n    |> Result.mapError (Recurrence.problemText Locale.en)\n--> Err \"Not supported in a recurrence rule: FREQ=HOURLY.\""
             }
-            (Layout.stack [ Layout.gap 2 ]
-                (List.map rejected
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                (List.map (rejected playground)
                     [ "FREQ=HOURLY"
                     , "FREQ=WEEKLY"
                     , "FREQ=YEARLY"
@@ -391,15 +425,15 @@ wordsRow ( name, maybeRule ) =
             Html.tr [] [ Html.td [] [ Html.text name ], Html.td [] [ Html.text "not a valid rule" ] ]
 
 
-rejected : String -> Html msg
-rejected text =
+rejected : Config.Config -> String -> Html msg
+rejected playground text =
     case Recurrence.fromRRule { start = today } text of
         Ok rule ->
-            Layout.stack [ Layout.gap 0 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 0) ]))
                 [ mono text, Text.muted ("read as: " ++ Recurrence.describe Locale.en rule) ]
 
         Err problem ->
-            Layout.stack [ Layout.gap 0 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 0) ]))
                 [ mono text
                 , Text.muted (Recurrence.problemText Locale.en problem)
                 , Text.muted (Recurrence.problemText Locale.nb problem)
@@ -426,28 +460,32 @@ Recurrence.fromRRule { start = firstDelivery } "FREQ=MONTHLY;BYDAY=-1FR;UNTIL=20
 -- MONTH ENDS
 
 
-monthEndSection : Html msg
-monthEndSection =
-    Doc.section "Months that are too short"
+monthEndSection : Config.Config -> Html msg
+monthEndSection playground =
+    Doc.configuredSection playground
+        [ "Recurrence" ]
+        "Months that are too short"
         "\"Monthly on the 31st\" has no 31st in April. By default the rule uses the last day of that month, which is what a run of invoices on the 31st wants; skippingMissingDays skips such months instead, the way RFC 5545 does. The same choice covers 29 February in the years that have none."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Recurrence" ]
             { title = "The 31st, from 31 January 2026"
             , description = Just "Twelve dates each. The default follows the month ends (28 February), the other skips February, April, June, September and November."
             , code = Just "Recurrence.monthlyOnDay 31\n\nRecurrence.monthlyOnDay 31 |> Recurrence.skippingMissingDays"
             }
-            (Layout.grid [ Layout.minColumn 260, Layout.gap 6 ]
-                [ monthEndList "Default: the last day of the month" (Recurrence.monthlyOnDay 31) (day 2026 1 31) 12
-                , monthEndList "Skipping months without a 31st" (Recurrence.monthlyOnDay 31 |> Recurrence.skippingMissingDays) (day 2026 1 31) 12
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 260), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                [ monthEndList playground "Default: the last day of the month" (Recurrence.monthlyOnDay 31) (day 2026 1 31) 12
+                , monthEndList playground "Skipping months without a 31st" (Recurrence.monthlyOnDay 31 |> Recurrence.skippingMissingDays) (day 2026 1 31) 12
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Recurrence" ]
             { title = "29 February, from 2024"
             , description = Just "Six dates each: 28 February in the years without a leap day, or only the leap years."
             , code = Just "Recurrence.yearlyOnDate Feb 29\n\nRecurrence.yearlyOnDate Feb 29 |> Recurrence.skippingMissingDays"
             }
-            (Layout.grid [ Layout.minColumn 260, Layout.gap 6 ]
-                [ monthEndList "Default: 28 February in other years" (Recurrence.yearlyOnDate Feb 29) (day 2024 2 29) 6
-                , monthEndList "Skipping years without it" (Recurrence.yearlyOnDate Feb 29 |> Recurrence.skippingMissingDays) (day 2024 2 29) 6
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 260), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                [ monthEndList playground "Default: 28 February in other years" (Recurrence.yearlyOnDate Feb 29) (day 2024 2 29) 6
+                , monthEndList playground "Skipping years without it" (Recurrence.yearlyOnDate Feb 29 |> Recurrence.skippingMissingDays) (day 2024 2 29) 6
                 ]
             )
         ]
@@ -458,11 +496,11 @@ day year month d =
     Date.fromParts year month d |> Maybe.withDefault today
 
 
-monthEndList : String -> Recurrence.Pattern -> Date -> Int -> Html msg
-monthEndList title pattern start limit =
+monthEndList : Config.Config -> String -> Recurrence.Pattern -> Date -> Int -> Html msg
+monthEndList playground title pattern start limit =
     case Recurrence.rule pattern [] of
         Ok rule ->
-            Layout.stack [ Layout.gap 1 ]
+            Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
                 [ Text.caption title
                 , Text.muted (Recurrence.describe Locale.en rule)
                 , Html.ol
@@ -483,28 +521,35 @@ monthEndList title pattern start limit =
 -- THE NEXT DATES
 
 
-nextSection : Model -> Html Msg
-nextSection model =
+nextSection : Config.Config -> Model -> Html Msg
+nextSection playground model =
     let
         chosen =
             Select.value model.chooser |> Maybe.andThen ruleAt
     in
-    Doc.section "The next twelve dates"
+    Doc.configuredSection playground
+        [ "Recurrence" ]
+        "The next twelve dates"
         "Choose a rule, and its next dates are listed as a calendar would. They come from Recurrence.occurrences, counted from a start date (today in this gallery), and a rule that ends after fewer dates stops there."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Recurrence" ]
             { title = "A rule and its dates"
             , description = Just "occurrences { start, from, limit } is all it takes: the dates on or after from, at most limit, counted from start, so \"after 10 times\" ends after ten dates even when from is later."
             , code = Just "Recurrence.occurrences { start = today, from = today, limit = 12 } rule"
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ Select.view ChooserMsg
-                    [ Select.label "Rule"
-                    , Select.options (List.indexedMap (\index ( name, _ ) -> Select.option index name) examples)
-                    ]
+                    (Options.klarSelect playground
+                        (List.concat
+                            [ Config.keep playground "Select" "label" (Select.label "Rule")
+                            , Config.keep playground "Select" "options" (Select.options (List.indexedMap (\index ( name, _ ) -> Select.option index name) examples))
+                            ]
+                        )
+                    )
                     model.chooser
                 , case chosen of
                     Just rule ->
-                        dateTiles rule
+                        dateTiles playground rule
 
                     Nothing ->
                         Text.muted "Choose a rule."
@@ -513,8 +558,8 @@ nextSection model =
         ]
 
 
-dateTiles : Rule -> Html msg
-dateTiles rule =
+dateTiles : Config.Config -> Rule -> Html msg
+dateTiles playground rule =
     let
         found =
             Recurrence.occurrences { start = today, from = today, limit = 12 } rule
@@ -535,7 +580,7 @@ dateTiles rule =
                     else
                         "The first 12 dates of a series that goes on"
     in
-    Layout.stack [ Layout.gap 3 ]
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
         [ Text.strong (Recurrence.describe Locale.en rule)
         , if List.isEmpty found then
             Text.muted "No dates match the rule."

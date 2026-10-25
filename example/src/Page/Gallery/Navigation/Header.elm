@@ -25,7 +25,9 @@ import Klar.Tabs as Tabs
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Page.Gallery.Navigation.Demo as Demo
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -163,100 +165,172 @@ update msg model =
 -- PAGE HEADER
 
 
-pageHeaderSection : Locale -> Model -> Html Msg
-pageHeaderSection locale model =
-    Doc.section "Page header"
+pageHeaderSection : Config.Config -> Locale -> Model -> Html Msg
+pageHeaderSection playground locale model =
+    Doc.configuredSection playground
+        [ "PageHeader" ]
+        "Page header"
         "PageHeader gathers what belongs at the top of a page: breadcrumbs, title, subtitle, status badges, key facts, actions and tabs. Everything except the title is optional, and a part you leave out takes no room. The title is the h1 of the page, so a real page has one header; this page shows several side by side and gives them headingLevel 3, which changes the element and nothing else. band makes the header a white band across the full width, and sticky keeps the band at the top while the page scrolls (see the frame above)."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "PageHeader" ]
             { title = "Full header"
             , description = Just (Demo.actionText model.lastAction ++ ". Every part is used: breadcrumbs, title, subtitle, badges, key facts, actions (one of them a menu) and tabs.")
             , code = Just pageHeaderCode
             }
             (PageHeader.view
-                [ PageHeader.headingLevel 3
-                , PageHeader.breadcrumbs
-                    (Breadcrumbs.viewStatic
-                        [ Breadcrumbs.items
-                            [ Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home
-                            , Breadcrumbs.link { label = "Orders", href = Demo.href "orders" }
-                            , Breadcrumbs.text "Order 10482"
-                            ]
-                        , Breadcrumbs.locale locale
+                (Options.klarPageHeader playground
+                    (List.concat
+                        [ Config.keep playground "PageHeader" "headingLevel" (PageHeader.headingLevel 3)
+                        , Config.keep playground
+                            "PageHeader"
+                            "breadcrumbs"
+                            (PageHeader.breadcrumbs
+                                (Breadcrumbs.viewStatic
+                                    (Options.klarBreadcrumbs playground
+                                        (List.concat
+                                            [ Config.keep playground
+                                                "Breadcrumbs"
+                                                "items"
+                                                (Breadcrumbs.items
+                                                    [ Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home
+                                                    , Breadcrumbs.link { label = "Orders", href = Demo.href "orders" }
+                                                    , Breadcrumbs.text "Order 10482"
+                                                    ]
+                                                )
+                                            , Config.keep playground "Breadcrumbs" "locale" (Breadcrumbs.locale locale)
+                                            ]
+                                        )
+                                    )
+                                )
+                            )
+                        , Config.keep playground "PageHeader" "title" (PageHeader.title "Order 10482")
+                        , Config.keep playground "PageHeader" "subtitle" (PageHeader.subtitle "Placed by Ada Lovelace on 12 March 2026")
+                        , Config.keep playground
+                            "PageHeader"
+                            "badges"
+                            (PageHeader.badges
+                                [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info), Config.keep playground "Badge" "dot" Badge.dot ])) "Confirmed"
+                                , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Warning) ])) "Waiting for documents"
+                                ]
+                            )
+                        , Config.keep playground
+                            "PageHeader"
+                            "meta"
+                            (PageHeader.meta
+                                [ PageHeader.metaItem "Order number" "10482"
+                                , PageHeader.metaItem "Warehouse" "Rotterdam"
+                                , PageHeader.metaItem "Last changed" "2 hours ago"
+                                ]
+                            )
+                        , Config.keep playground
+                            "PageHeader"
+                            "actions"
+                            (PageHeader.actions
+                                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.edit), Config.keep playground "Button" "onClick" (Button.onClick (Action "Edit")) ])) "Edit"
+                                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.mail), Config.keep playground "Button" "onClick" (Button.onClick (Action "Send confirmation")) ])) "Send confirmation"
+                                , Menu.view HeaderMenuMsg
+                                    (Options.klarMenu playground
+                                        (List.concat
+                                            [ Config.keep playground "Menu" "kebab" (Menu.kebab "More actions")
+                                            , Config.keep playground "Menu" "alignEnd" Menu.alignEnd
+                                            , Config.keep playground
+                                                "Menu"
+                                                "items"
+                                                (Menu.items
+                                                    [ Menu.item "Duplicate" (Action "Duplicate") |> Menu.withIcon Icon.copy
+                                                    , Menu.item "Archive" (Action "Archive") |> Menu.withIcon Icon.archive
+                                                    , Menu.separator
+                                                    , Menu.item "Delete" (Action "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
+                                                    ]
+                                                )
+                                            ]
+                                        )
+                                    )
+                                    model.headerMenu
+                                ]
+                            )
+                        , Config.keep playground
+                            "PageHeader"
+                            "tabs"
+                            (PageHeader.tabs
+                                (Tabs.view HeaderTabsMsg
+                                    (Options.klarTabs playground
+                                        (List.concat
+                                            [ Config.keep playground "Tabs" "ariaLabel" (Tabs.ariaLabel "Order")
+                                            , Config.keep playground "Tabs" "locale" (Tabs.locale locale)
+                                            , Config.keep playground
+                                                "Tabs"
+                                                "tabs"
+                                                (Tabs.tabs
+                                                    [ Tabs.tab Overview "Overview"
+                                                    , Tabs.tab Activity "Activity" |> Tabs.withCount 48
+                                                    , Tabs.tab Documents "Documents" |> Tabs.withCount 3
+                                                    ]
+                                                )
+                                            ]
+                                        )
+                                    )
+                                    model.headerTabs
+                                )
+                            )
                         ]
                     )
-                , PageHeader.title "Order 10482"
-                , PageHeader.subtitle "Placed by Ada Lovelace on 12 March 2026"
-                , PageHeader.badges
-                    [ Badge.view [ Badge.tone Info, Badge.dot ] "Confirmed"
-                    , Badge.view [ Badge.tone Warning ] "Waiting for documents"
-                    ]
-                , PageHeader.meta
-                    [ PageHeader.metaItem "Order number" "10482"
-                    , PageHeader.metaItem "Warehouse" "Rotterdam"
-                    , PageHeader.metaItem "Last changed" "2 hours ago"
-                    ]
-                , PageHeader.actions
-                    [ Button.view [ Button.primary, Button.icon Icon.edit, Button.onClick (Action "Edit") ] "Edit"
-                    , Button.view [ Button.icon Icon.mail, Button.onClick (Action "Send confirmation") ] "Send confirmation"
-                    , Menu.view HeaderMenuMsg
-                        [ Menu.kebab "More actions"
-                        , Menu.alignEnd
-                        , Menu.items
-                            [ Menu.item "Duplicate" (Action "Duplicate") |> Menu.withIcon Icon.copy
-                            , Menu.item "Archive" (Action "Archive") |> Menu.withIcon Icon.archive
-                            , Menu.separator
-                            , Menu.item "Delete" (Action "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
-                            ]
-                        ]
-                        model.headerMenu
-                    ]
-                , PageHeader.tabs
-                    (Tabs.view HeaderTabsMsg
-                        [ Tabs.ariaLabel "Order"
-                        , Tabs.locale locale
-                        , Tabs.tabs
-                            [ Tabs.tab Overview "Overview"
-                            , Tabs.tab Activity "Activity" |> Tabs.withCount 48
-                            , Tabs.tab Documents "Documents" |> Tabs.withCount 3
-                            ]
-                        ]
-                        model.headerTabs
-                    )
-                ]
+                )
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "PageHeader" ]
             { title = "Simple, with a back link, and with a long title"
             , description = Just "Only a title and a subtitle; a back link, a status badge and two buttons; and a title that wraps over several lines without pushing the buttons out of the picture."
             , code = Just pageHeaderSimpleCode
             }
-            (Layout.stack [ Layout.gap 6 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
                 [ PageHeader.view
-                    [ PageHeader.headingLevel 3
-                    , PageHeader.title "Reports"
-                    , PageHeader.subtitle "Choose a report in the menu on the left."
-                    ]
+                    (Options.klarPageHeader playground
+                        (List.concat
+                            [ Config.keep playground "PageHeader" "headingLevel" (PageHeader.headingLevel 3)
+                            , Config.keep playground "PageHeader" "title" (PageHeader.title "Reports")
+                            , Config.keep playground "PageHeader" "subtitle" (PageHeader.subtitle "Choose a report in the menu on the left.")
+                            ]
+                        )
+                    )
                 , Layout.divider
                 , PageHeader.view
-                    [ PageHeader.headingLevel 3
-                    , PageHeader.backLink { href = Demo.href "orders", label = "Back to orders" }
-                    , PageHeader.title "New order"
-                    , PageHeader.badges [ Badge.view [ Badge.tone Info ] "Draft" ]
-                    , PageHeader.actions
-                        [ Button.view [ Button.onClick (Action "Cancel") ] "Cancel"
-                        , Button.view [ Button.primary, Button.onClick (Action "Save") ] "Save"
-                        ]
-                    ]
+                    (Options.klarPageHeader playground
+                        (List.concat
+                            [ Config.keep playground "PageHeader" "headingLevel" (PageHeader.headingLevel 3)
+                            , Config.keep playground "PageHeader" "backLink" (PageHeader.backLink { href = Demo.href "orders", label = "Back to orders" })
+                            , Config.keep playground "PageHeader" "title" (PageHeader.title "New order")
+                            , Config.keep playground "PageHeader" "badges" (PageHeader.badges [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) "Draft" ])
+                            , Config.keep playground
+                                "PageHeader"
+                                "actions"
+                                (PageHeader.actions
+                                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick (Action "Cancel")) ])) "Cancel"
+                                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick (Action "Save")) ])) "Save"
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                 , Layout.divider
                 , PageHeader.view
-                    [ PageHeader.headingLevel 3
-                    , PageHeader.title "A very long title that goes on and on, so that it has to wrap over several lines without pushing the buttons out of the picture"
-                    , PageHeader.subtitle "A long title and many actions wrap neatly."
-                    , PageHeader.actions
-                        [ Button.view [ Button.primary ] "Primary"
-                        , Button.view [] "Secondary"
-                        , Button.view [] "Tertiary"
-                        ]
-                    ]
+                    (Options.klarPageHeader playground
+                        (List.concat
+                            [ Config.keep playground "PageHeader" "headingLevel" (PageHeader.headingLevel 3)
+                            , Config.keep playground "PageHeader" "title" (PageHeader.title "A very long title that goes on and on, so that it has to wrap over several lines without pushing the buttons out of the picture")
+                            , Config.keep playground "PageHeader" "subtitle" (PageHeader.subtitle "A long title and many actions wrap neatly.")
+                            , Config.keep playground
+                                "PageHeader"
+                                "actions"
+                                (PageHeader.actions
+                                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary ])) "Primary"
+                                    , Options.buttonView playground (Options.klarButton playground []) "Secondary"
+                                    , Options.buttonView playground (Options.klarButton playground []) "Tertiary"
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                 ]
             )
         ]
@@ -315,62 +389,91 @@ crumbTrail =
     ]
 
 
-breadcrumbsSection : Locale -> Model -> Html Msg
-breadcrumbsSection locale model =
-    Doc.section "Breadcrumbs"
+breadcrumbsSection : Config.Config -> Locale -> Model -> Html Msg
+breadcrumbsSection playground locale model =
+    Doc.configuredSection playground
+        [ "Breadcrumbs" ]
+        "Breadcrumbs"
         "The path to the current page, with a chevron between the levels. The last level is the current page (aria-current) and is not a link. When the trail has at least two levels more than maxItems, the levels in the middle fold into a \"more\" button that opens a list of them (Escape closes it and returns to the button, Arrow Up and Down move between the links, Tab moves on); one level more is shown whole, since a button for one level saves no room. Long names are cut with an ellipsis and show the whole name as a tooltip."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Breadcrumbs" ]
             { title = "Short trail without state"
             , description = Just "A trail with a fixed depth of two or three levels needs no state: viewStatic."
             , code = Just breadcrumbsStaticCode
             }
             (Breadcrumbs.viewStatic
-                [ Breadcrumbs.items
-                    [ Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home
-                    , Breadcrumbs.link { label = "Orders", href = Demo.href "orders" }
-                    , Breadcrumbs.text "Order 10482"
-                    ]
-                , Breadcrumbs.locale locale
-                ]
+                (Options.klarBreadcrumbs playground
+                    (List.concat
+                        [ Config.keep playground
+                            "Breadcrumbs"
+                            "items"
+                            (Breadcrumbs.items
+                                [ Breadcrumbs.link { label = "Home", href = Demo.href "" } |> Breadcrumbs.withIcon Icon.home
+                                , Breadcrumbs.link { label = "Orders", href = Demo.href "orders" }
+                                , Breadcrumbs.text "Order 10482"
+                                ]
+                            )
+                        , Config.keep playground "Breadcrumbs" "locale" (Breadcrumbs.locale locale)
+                        ]
+                    )
+                )
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Breadcrumbs" ]
             { title = "Long trail that folds"
             , description = Just "Six levels, at most four visible: the first level and the last three stay. Below it the same trail with at most three visible, and at the bottom a static trail (it never folds) with long names in a narrow space, where the names are cut."
             , code = Just "Breadcrumbs.view CrumbsMsg\n    [ Breadcrumbs.items trail, Breadcrumbs.maxItems 4 ]\n    model.crumbs"
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ Breadcrumbs.view CrumbsMsg
-                    [ Breadcrumbs.items crumbTrail, Breadcrumbs.maxItems 4, Breadcrumbs.locale locale ]
+                    (Options.klarBreadcrumbs playground (List.concat [ Config.keep playground "Breadcrumbs" "items" (Breadcrumbs.items crumbTrail), Config.keep playground "Breadcrumbs" "maxItems" (Breadcrumbs.maxItems 4), Config.keep playground "Breadcrumbs" "locale" (Breadcrumbs.locale locale) ]))
                     model.crumbs
                 , Breadcrumbs.view CrumbsDeepMsg
-                    [ Breadcrumbs.items crumbTrail, Breadcrumbs.maxItems 3, Breadcrumbs.locale locale ]
+                    (Options.klarBreadcrumbs playground (List.concat [ Config.keep playground "Breadcrumbs" "items" (Breadcrumbs.items crumbTrail), Config.keep playground "Breadcrumbs" "maxItems" (Breadcrumbs.maxItems 3), Config.keep playground "Breadcrumbs" "locale" (Breadcrumbs.locale locale) ]))
                     model.crumbsDeep
-                , Layout.container [ Layout.maxWidth 420, Layout.alignStart ]
+                , Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 420), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
                     [ Breadcrumbs.viewStatic
-                        [ Breadcrumbs.items
-                            [ Breadcrumbs.link { label = "Home", href = Demo.href "" }
-                            , Breadcrumbs.link { label = "A very long name of an intermediate level that has to be cut down", href = Demo.href "long" }
-                            , Breadcrumbs.text "And an equally long title of the page itself that does not fit either"
-                            ]
-                        , Breadcrumbs.locale locale
-                        ]
+                        (Options.klarBreadcrumbs playground
+                            (List.concat
+                                [ Config.keep playground
+                                    "Breadcrumbs"
+                                    "items"
+                                    (Breadcrumbs.items
+                                        [ Breadcrumbs.link { label = "Home", href = Demo.href "" }
+                                        , Breadcrumbs.link { label = "A very long name of an intermediate level that has to be cut down", href = Demo.href "long" }
+                                        , Breadcrumbs.text "And an equally long title of the page itself that does not fit either"
+                                        ]
+                                    )
+                                , Config.keep playground "Breadcrumbs" "locale" (Breadcrumbs.locale locale)
+                                ]
+                            )
+                        )
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Breadcrumbs" ]
             { title = "A drill-down without addresses"
             , description = Just (Demo.actionText model.lastAction ++ ". Crumbs made with Breadcrumbs.button send a message instead of following a link: the levels of a report that is opened step by step inside one page.")
             , code = Just "Breadcrumbs.viewStatic\n    [ Breadcrumbs.items\n        [ Breadcrumbs.button \"All years\" (DrillUpTo AllYears)\n        , Breadcrumbs.button \"2026\" (DrillUpTo (Year 2026))\n        , Breadcrumbs.text \"March\"\n        ]\n    ]"
             }
             (Breadcrumbs.viewStatic
-                [ Breadcrumbs.ariaLabel "Report levels"
-                , Breadcrumbs.items
-                    [ Breadcrumbs.button "All years" (Action "Show all years")
-                    , Breadcrumbs.button "2026" (Action "Show 2026")
-                    , Breadcrumbs.text "March"
-                    ]
-                , Breadcrumbs.locale locale
-                ]
+                (Options.klarBreadcrumbs playground
+                    (List.concat
+                        [ Config.keep playground "Breadcrumbs" "ariaLabel" (Breadcrumbs.ariaLabel "Report levels")
+                        , Config.keep playground
+                            "Breadcrumbs"
+                            "items"
+                            (Breadcrumbs.items
+                                [ Breadcrumbs.button "All years" (Action "Show all years")
+                                , Breadcrumbs.button "2026" (Action "Show 2026")
+                                , Breadcrumbs.text "March"
+                                ]
+                            )
+                        , Config.keep playground "Breadcrumbs" "locale" (Breadcrumbs.locale locale)
+                        ]
+                    )
+                )
             )
         ]
 
@@ -390,121 +493,177 @@ breadcrumbsStaticCode =
 -- TABS
 
 
-tabsSection : Locale -> Model -> Html Msg
-tabsSection locale model =
-    Doc.section "Tabs"
+tabsSection : Config.Config -> Locale -> Model -> Html Msg
+tabsSection playground locale model =
+    Doc.configuredSection playground
+        [ "Tabs" ]
+        "Tabs"
         "Tabs switch between views of the same thing. The tabs are values of your own type, and the component has a state of its own (the active tab), so the application reads Tabs.active and compares before and after an update. The strip draws the panel of the active tab itself (withPanel), so the two always agree, and a panel is only built while its tab is active. Keyboard: Arrow Left and Right (Up and Down when vertical) move to the previous and next tab and select it, wrapping around at the ends (Home and End jump to the first and last). Only the active tab is in the Tab order, so Tab goes straight from the tab list into the panel. With manual the arrows only move focus, and Enter or Space selects."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Tabs" ]
             { title = "Line with panels"
             , description = Just "The default look. A panel is only built for the active tab. The last tab is disabled and explains why in a tooltip."
             , code = Just tabsCode
             }
             (Tabs.view LineTabsMsg
-                [ Tabs.ariaLabel "Order sections"
-                , Tabs.locale locale
-                , Tabs.tabs
-                    [ Tabs.tab Overview "Overview"
-                        |> Tabs.withPanel
-                            (\_ ->
-                                DescriptionList.view [ DescriptionList.columns 2, DescriptionList.locale locale ]
-                                    [ DescriptionList.text "Customer" "Northwind Traders"
-                                    , DescriptionList.text "Order number" "10482"
-                                    ]
+                (Options.klarTabs playground
+                    (List.concat
+                        [ Config.keep playground "Tabs" "ariaLabel" (Tabs.ariaLabel "Order sections")
+                        , Config.keep playground "Tabs" "locale" (Tabs.locale locale)
+                        , Config.keep playground
+                            "Tabs"
+                            "tabs"
+                            (Tabs.tabs
+                                [ Tabs.tab Overview "Overview"
+                                    |> Tabs.withPanel
+                                        (\_ ->
+                                            DescriptionList.view (Options.klarDescriptionList playground (List.concat [ Config.keep playground "DescriptionList" "columns" (DescriptionList.columns 2), Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale) ]))
+                                                [ DescriptionList.text "Customer" "Northwind Traders"
+                                                , DescriptionList.text "Order number" "10482"
+                                                ]
+                                        )
+                                , Tabs.tab History "History"
+                                    |> Tabs.withCount 12
+                                    |> Tabs.withPanel (\_ -> Text.paragraph "The history would be here: 12 events in the last 90 days.")
+                                , Tabs.tab Files "Files"
+                                    |> Tabs.withIcon Icon.paperclip
+                                    |> Tabs.withPanel (\_ -> Text.paragraph "The files would be here.")
+                                , Tabs.tab Admin "Administration"
+                                    |> Tabs.disabledTab
+                                    |> Tabs.withTitle "Requires administrator access"
+                                ]
                             )
-                    , Tabs.tab History "History"
-                        |> Tabs.withCount 12
-                        |> Tabs.withPanel (\_ -> Text.paragraph "The history would be here: 12 events in the last 90 days.")
-                    , Tabs.tab Files "Files"
-                        |> Tabs.withIcon Icon.paperclip
-                        |> Tabs.withPanel (\_ -> Text.paragraph "The files would be here.")
-                    , Tabs.tab Admin "Administration"
-                        |> Tabs.disabledTab
-                        |> Tabs.withTitle "Requires administrator access"
-                    ]
-                ]
+                        ]
+                    )
+                )
                 model.lineTabs
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Tabs" ]
             { title = "Boxed tabs"
             , description = Just "The tabs are joined to the panel below them. Counts are shown whole, grouped the way the language writes numbers."
             , code = Just "Tabs.view TabsMsg [ Tabs.boxed, Tabs.tabs tabs ] model.tabs"
             }
             (Tabs.view BoxedTabsMsg
-                [ Tabs.boxed
-                , Tabs.ariaLabel "Order details"
-                , Tabs.locale locale
-                , Tabs.tabs
-                    [ Tabs.tab Overview "Overview" |> Tabs.withPanel (\_ -> Text.paragraph "Overview in a boxed panel.")
-                    , Tabs.tab History "History" |> Tabs.withCount 12 |> Tabs.withPanel (\_ -> Text.paragraph "History in a boxed panel.")
-                    , Tabs.tab Notes "Notes" |> Tabs.withCount 12040 |> Tabs.withPanel (\_ -> Text.paragraph "Notes in a boxed panel.")
-                    ]
-                ]
+                (Options.klarTabs playground
+                    (List.concat
+                        [ Config.keep playground "Tabs" "boxed" Tabs.boxed
+                        , Config.keep playground "Tabs" "ariaLabel" (Tabs.ariaLabel "Order details")
+                        , Config.keep playground "Tabs" "locale" (Tabs.locale locale)
+                        , Config.keep playground
+                            "Tabs"
+                            "tabs"
+                            (Tabs.tabs
+                                [ Tabs.tab Overview "Overview" |> Tabs.withPanel (\_ -> Text.paragraph "Overview in a boxed panel.")
+                                , Tabs.tab History "History" |> Tabs.withCount 12 |> Tabs.withPanel (\_ -> Text.paragraph "History in a boxed panel.")
+                                , Tabs.tab Notes "Notes" |> Tabs.withCount 12040 |> Tabs.withPanel (\_ -> Text.paragraph "Notes in a boxed panel.")
+                                ]
+                            )
+                        ]
+                    )
+                )
                 model.boxedTabs
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Tabs" ]
             { title = "Vertical tabs"
             , description = Just "The tabs stacked beside their panel, for settings pages and detail panes. Arrow Up and Down move between them, and the list says aria-orientation vertical."
             , code = Just "Tabs.view TabsMsg [ Tabs.vertical, Tabs.tabs tabs ] model.tabs"
             }
             (Tabs.view VerticalTabsMsg
-                [ Tabs.vertical
-                , Tabs.ariaLabel "Order settings"
-                , Tabs.tabs
-                    [ Tabs.tab Overview "General" |> Tabs.withPanel (\_ -> Text.paragraph "The name, the customer and the warehouse of the order.")
-                    , Tabs.tab Documents "Documents" |> Tabs.withPanel (\_ -> Text.paragraph "Invoices, delivery notes and customs papers.")
-                    , Tabs.tab Notes "Notifications" |> Tabs.withPanel (\_ -> Text.paragraph "Who hears about changes to the order.")
-                    ]
-                ]
+                (Options.klarTabs playground
+                    (List.concat
+                        [ Config.keep playground "Tabs" "vertical" Tabs.vertical
+                        , Config.keep playground "Tabs" "ariaLabel" (Tabs.ariaLabel "Order settings")
+                        , Config.keep playground
+                            "Tabs"
+                            "tabs"
+                            (Tabs.tabs
+                                [ Tabs.tab Overview "General" |> Tabs.withPanel (\_ -> Text.paragraph "The name, the customer and the warehouse of the order.")
+                                , Tabs.tab Documents "Documents" |> Tabs.withPanel (\_ -> Text.paragraph "Invoices, delivery notes and customs papers.")
+                                , Tabs.tab Notes "Notifications" |> Tabs.withPanel (\_ -> Text.paragraph "Who hears about changes to the order.")
+                                ]
+                            )
+                        ]
+                    )
+                )
                 model.verticalTabs
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Tabs" ]
             { title = "Icons, counts and small tabs"
             , description = Just "Small tabs that share the width equally (fill), without panels: they choose something else, so they do not point at a panel that is not there."
             , code = Just "Tabs.tab Inbox \"Inbox\" |> Tabs.withIcon Icon.inbox |> Tabs.withCount 7"
             }
             (Tabs.view IconTabsMsg
-                [ Tabs.small
-                , Tabs.fill
-                , Tabs.ariaLabel "Messages"
-                , Tabs.tabs
-                    [ Tabs.tab Inbox "Inbox" |> Tabs.withIcon Icon.inbox |> Tabs.withCount 7
-                    , Tabs.tab Sent "Sent" |> Tabs.withIcon Icon.send
-                    , Tabs.tab Drafts "Drafts" |> Tabs.withIcon Icon.edit |> Tabs.withCount 2
-                    , Tabs.tab Archive "Archive" |> Tabs.withIcon Icon.archive |> Tabs.disabledTab
-                    ]
-                ]
+                (Options.klarTabs playground
+                    (List.concat
+                        [ Config.keep playground "Tabs" "small" Tabs.small
+                        , Config.keep playground "Tabs" "fill" Tabs.fill
+                        , Config.keep playground "Tabs" "ariaLabel" (Tabs.ariaLabel "Messages")
+                        , Config.keep playground
+                            "Tabs"
+                            "tabs"
+                            (Tabs.tabs
+                                [ Tabs.tab Inbox "Inbox" |> Tabs.withIcon Icon.inbox |> Tabs.withCount 7
+                                , Tabs.tab Sent "Sent" |> Tabs.withIcon Icon.send
+                                , Tabs.tab Drafts "Drafts" |> Tabs.withIcon Icon.edit |> Tabs.withCount 2
+                                , Tabs.tab Archive "Archive" |> Tabs.withIcon Icon.archive |> Tabs.disabledTab
+                                ]
+                            )
+                        ]
+                    )
+                )
                 model.iconTabs
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Tabs" ]
             { title = "Manual activation"
             , description = Just "Arrow Right and Left only move focus. Enter or Space selects the tab. Good when switching is expensive."
             , code = Just "Tabs.view TabsMsg [ Tabs.manual, Tabs.tabs tabs ] model.tabs"
             }
             (Tabs.view ManualTabsMsg
-                [ Tabs.manual
-                , Tabs.ariaLabel "Manual activation"
-                , Tabs.tabs
-                    [ Tabs.tab First "First" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: first.")
-                    , Tabs.tab Second "Second" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: second.")
-                    , Tabs.tab Third "Third" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: third.")
-                    ]
-                ]
+                (Options.klarTabs playground
+                    (List.concat
+                        [ Config.keep playground "Tabs" "manual" Tabs.manual
+                        , Config.keep playground "Tabs" "ariaLabel" (Tabs.ariaLabel "Manual activation")
+                        , Config.keep playground
+                            "Tabs"
+                            "tabs"
+                            (Tabs.tabs
+                                [ Tabs.tab First "First" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: first.")
+                                , Tabs.tab Second "Second" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: second.")
+                                , Tabs.tab Third "Third" |> Tabs.withPanel (\_ -> Text.paragraph "Selected: third.")
+                                ]
+                            )
+                        ]
+                    )
+                )
                 model.manualTabs
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Tabs" ]
             { title = "Many tabs in a narrow space"
             , description = Just "The tab list scrolls sideways when there is no room. Focus on a tab outside the picture scrolls it into view."
             , code = Nothing
             }
-            (Layout.container [ Layout.maxWidth 460, Layout.alignStart ]
+            (Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 460), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
                 [ Tabs.view OverflowTabsMsg
-                    [ Tabs.ariaLabel "Many tabs"
-                    , Tabs.tabs
-                        (List.map
-                            (\n -> Tabs.tab n ("Tab number " ++ String.fromInt n))
-                            (List.range 1 10)
+                    (Options.klarTabs playground
+                        (List.concat
+                            [ Config.keep playground "Tabs" "ariaLabel" (Tabs.ariaLabel "Many tabs")
+                            , Config.keep playground
+                                "Tabs"
+                                "tabs"
+                                (Tabs.tabs
+                                    (List.map
+                                        (\n -> Tabs.tab n ("Tab number " ++ String.fromInt n))
+                                        (List.range 1 10)
+                                    )
+                                )
+                            ]
                         )
-                    ]
+                    )
                     model.overflowTabs
                 ]
             )

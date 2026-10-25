@@ -13,7 +13,9 @@ import Page.Gallery.Forms.NewOrder as NewOrder
 import Page.Gallery.Forms.Structure as Structure
 import Page.Gallery.Forms.Typing as Typing
 import Page.Gallery.Forms.Validation as Validation
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 type alias Model =
@@ -99,16 +101,16 @@ subscriptions _ =
     Sub.none
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Forms"
         , description = "Form fields, validation and form layout. Every control has a label, a hint and an error message that are connected to the field, works with the keyboard, and has built-in texts in English and Norwegian (switch the language in the top bar). The complete order form at the bottom puts it all together."
         }
-        (List.map (Html.map TypingMsg) (Typing.sections locale model.typing)
-            ++ List.map (Html.map ChoicesMsg) (Choices.sections locale model.choices)
-            ++ List.map (Html.map ContentMsg) (Content.sections locale model.content)
-            ++ List.map (Html.map ValidationMsg) (Validation.sections locale model.validation)
-            ++ List.map (Html.map StructureMsg) (Structure.sections locale model.structure)
-            ++ List.map (Html.map NewOrderMsg) (NewOrder.sections locale model.newOrder)
+        (List.map (Html.map TypingMsg) (Typing.sections playground locale model.typing)
+            ++ List.map (Html.map ChoicesMsg) (Choices.sections playground locale model.choices)
+            ++ List.map (Html.map ContentMsg) (Content.sections playground locale model.content)
+            ++ List.map (Html.map ValidationMsg) (Validation.sections playground locale model.validation)
+            ++ List.map (Html.map StructureMsg) (Structure.sections playground locale model.structure)
+            ++ List.map (Html.map NewOrderMsg) (NewOrder.sections playground locale model.newOrder)
         )

@@ -20,7 +20,9 @@ import Klar.Text as Text
 import Klar.Theme as Theme exposing (Density(..))
 import Page.Gallery.Review.Samples as Samples exposing (Product, ProductId)
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 import Time
 
@@ -155,11 +157,13 @@ later toMsg =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.section "Compare"
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredSection playground
+        []
+        "Compare"
         "Records side by side, with the differences marked: the fields are the rows and the records are the columns. Every record is compared with the baseline (the first record, or the one you name). A cell that differs has a sign and hidden text as well as a color, a cell that is the same says so to a screen reader, and a row where every record is equal is dimmed, or left out by the switch \"Show only differences\". The row labels and the headings stay in view while the table scrolls."
-        [ productsExample locale model
+        [ productsExample playground locale model
         , Doc.example
             { title = "What counts as the same"
             , description = Just "Every field gives a text for each record, and two records are the same when the texts are exactly equal. The price is compared as 12.5 and shown as $12.50, so two prices that look alike after rounding are still different. A blank text is no value: a dash, with hidden text for screen readers. Functions are never compared."
@@ -173,9 +177,10 @@ Compare.maybe "Discount" (.discount >> Maybe.map String.fromInt)"""
         ]
 
 
-productsExample : Locale -> Model -> Html Msg
-productsExample locale model =
-    Doc.example
+productsExample : Config.Config -> Locale -> Model -> Html Msg
+productsExample playground locale model =
+    Doc.configuredExample playground
+        [ "Remote", "Compare", "EmptyState", "Badge" ]
         { title = "Three products"
         , description = Just "The buttons put the table in each of its states. \"Refresh\" keeps the table, dimmed, with a progress line (Remote.refresh). \"Refresh, then fail\" ends with the old data still shown, marked \"Old data from\" its time, with \"Try again\" in the toolbar. Choose the baseline with \"Set as baseline\" in the heading of a record (Compare.onBaseline), or with the buttons above, to compare the others with a different record. The \"Summary\" field marks the words that differ from the baseline."
         , code = Just """Compare.viewRemote
@@ -203,49 +208,56 @@ productsExample locale model =
     }
     model.products -- Remote (List Product)"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                 (Text.caption "Show:"
                     :: List.map
-                        (\( label, scenario ) -> Button.view [ Button.small, Button.onClick (Show scenario) ] label)
+                        (\( label, scenario ) -> Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (Show scenario)) ])) label)
                         [ ( "All three", AllThree ), ( "Loading", LoadingNow ), ( "Failure", Failed ), ( "Nothing to compare", NoRecords ), ( "One record", OnlyOne ) ]
-                    ++ [ Button.view [ Button.small, Button.onClick (Refresh Succeeds), Button.loading (Remote.isRefreshing model.products) ] "Refresh"
-                       , Button.view [ Button.small, Button.onClick (Refresh Fails), Button.loading (Remote.isRefreshing model.products) ] "Refresh, then fail"
+                    ++ [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (Refresh Succeeds)), Config.keep playground "Button" "loading" (Button.loading (Remote.isRefreshing model.products)) ])) "Refresh"
+                       , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (Refresh Fails)), Config.keep playground "Button" "loading" (Button.loading (Remote.isRefreshing model.products)) ])) "Refresh, then fail"
                        ]
                 )
-            , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+            , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                 (Text.caption "Baseline:"
                     :: List.map
                         (\product ->
-                            Button.view
-                                [ Button.small
-                                , Button.pressed (isBaseline model product)
-                                , Button.onClick (SetBaseline product.id)
-                                ]
+                            Options.buttonView playground
+                                (Options.klarButton playground
+                                    (List.concat
+                                        [ Config.keep playground "Button" "small" Button.small
+                                        , Config.keep playground "Button" "pressed" (Button.pressed (isBaseline model product))
+                                        , Config.keep playground "Button" "onClick" (Button.onClick (SetBaseline product.id))
+                                        ]
+                                    )
+                                )
                                 product.name
                         )
                         Samples.products
                     ++ [ Text.caption "Density:" ]
                     ++ List.map
                         (\( label, density ) ->
-                            Button.view [ Button.small, Button.pressed (model.density == density), Button.onClick (SetDensity density) ] label
+                            Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "pressed" (Button.pressed (model.density == density)), Config.keep playground "Button" "onClick" (Button.onClick (SetDensity density)) ])) label
                         )
                         [ ( "Compact", Compact ), ( "Normal", Normal ), ( "Comfortable", Comfortable ) ]
                 )
             , Compare.viewRemote
                 (List.concat
-                    [ [ Compare.onlyDifferences model.onlyDifferences
-                      , Compare.onOnlyDifferences OnlyDifferences
-                      , Compare.onRetry Retry
-                      , Compare.onBaseline SetBaseline
-                      , Compare.id compareId
-                      , Compare.density model.density
-                      , Compare.emptyState [ EmptyState.description "Add at least two products from the product list." ]
-                      , Compare.locale locale
-                      ]
+                    [ Options.klarCompare playground
+                        (List.concat
+                            [ Config.keep playground "Compare" "onlyDifferences" (Compare.onlyDifferences model.onlyDifferences)
+                            , Config.keep playground "Compare" "onOnlyDifferences" (Compare.onOnlyDifferences OnlyDifferences)
+                            , Config.keep playground "Compare" "onRetry" (Compare.onRetry Retry)
+                            , Config.keep playground "Compare" "onBaseline" (Compare.onBaseline SetBaseline)
+                            , Config.keep playground "Compare" "id" (Compare.id compareId)
+                            , Config.keep playground "Compare" "density" (Compare.density model.density)
+                            , Config.keep playground "Compare" "emptyState" (Compare.emptyState (Options.klarEmptyState playground (List.concat [ Config.keep playground "EmptyState" "description" (EmptyState.description "Add at least two products from the product list.") ])))
+                            , Config.keep playground "Compare" "locale" (Compare.locale locale)
+                            ]
+                        )
                     , case model.baseline of
                         Just id ->
-                            [ Compare.baseline id ]
+                            Options.klarCompare playground (List.concat [ Config.keep playground "Compare" "baseline" (Compare.baseline id) ])
 
                         Nothing ->
                             []
@@ -255,7 +267,7 @@ productsExample locale model =
                 , ids = Samples.productIds
                 , id = .id
                 , header = \product -> Html.text product.name
-                , fields = fields locale
+                , fields = fields playground locale
                 }
                 model.products
             ]
@@ -272,10 +284,10 @@ isBaseline model product =
             List.head Samples.products |> Maybe.map (\first -> first.id == product.id) |> Maybe.withDefault False
 
 
-fields : Locale -> List (Compare.Field Product Msg)
-fields locale =
+fields : Config.Config -> Locale -> List (Compare.Field Product Msg)
+fields playground locale =
     [ Compare.text "SKU" .sku
-    , Compare.html "Status" .status viewStatus
+    , Compare.html "Status" .status (viewStatus playground)
     , Compare.text "Warehouse" .warehouse
     , Compare.text "Dimensions" .dimensions
     , Compare.heading "Pricing"
@@ -287,15 +299,23 @@ fields locale =
     ]
 
 
-viewStatus : Product -> Html msg
-viewStatus product =
-    Badge.view
-        [ Badge.tone
-            (if product.status == "Active" then
-                Theme.Success
+viewStatus : Config.Config -> Product -> Html msg
+viewStatus playground product =
+    Options.badgeView playground
+        (Options.klarBadge playground
+            (List.concat
+                [ Config.keep playground
+                    "Badge"
+                    "tone"
+                    (Badge.tone
+                        (if product.status == "Active" then
+                            Theme.Success
 
-             else
-                Theme.Neutral
+                         else
+                            Theme.Neutral
+                        )
+                    )
+                ]
             )
-        ]
+        )
         product.status

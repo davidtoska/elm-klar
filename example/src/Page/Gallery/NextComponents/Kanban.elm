@@ -16,6 +16,8 @@ import Klar.Remote as Remote exposing (Remote)
 import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
+import Showcase.Config as Config
+import Showcase.Options as Options
 import Time
 
 
@@ -165,34 +167,34 @@ remote model =
             Remote.Loaded []
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view settings locale model =
-    Layout.stack [ Layout.gap 3 ]
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground settings locale model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
         [ Text.paragraph "Move orders between stages without dragging. Picking is deliberately full; arrow navigation skips that stage, while the empty Dispatched stage is available. A move stays a proposal until you confirm it."
-        , Layout.row [ Layout.wrap, Layout.gap 2 ]
-            (List.map (\( title, mode ) -> Button.view [ Button.small, Button.pressed (model.mode == mode), Button.onClick (Mode mode) ] title)
+        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+            (List.map (\( title, mode ) -> Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "pressed" (Button.pressed (model.mode == mode)), Config.keep playground "Button" "onClick" (Button.onClick (Mode mode)) ])) title)
                 [ ( "Data", Data ), ( "Loading", Loading ), ( "Failure", Failure ), ( "Refreshing", Refreshing ), ( "Old data", Stale ), ( "No stages", Empty ) ]
-                ++ [ Button.view [ Button.small, Button.onClick Reset ] "Reset board" ]
+                ++ [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick Reset) ])) "Reset board" ]
             )
         , Kanban.view BoardMsg
-            [ Kanban.locale locale, Kanban.settings settings, Kanban.onRetry Retry, Kanban.onOpen Open ]
+            (Options.klarKanban playground (List.concat [ Config.keep playground "Kanban" "locale" (Kanban.locale locale), Config.keep playground "Kanban" "settings" (Kanban.settings settings), Config.keep playground "Kanban" "onRetry" (Kanban.onRetry Retry), Config.keep playground "Kanban" "onOpen" (Kanban.onOpen Open) ]))
             { label = "Dispatch stages"
             , columns = remote model
             , columnIds = stageIds
             , cardIds = orderIds
             , cardId = .id
             , title = .number
-            , content = \order -> Layout.stack [ Layout.gap 2 ] [ Text.text order.customer, Text.secondary order.summary, Badge.view [ Badge.tone Info ] "Order" ]
+            , content = \order -> Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ])) [ Text.text order.customer, Text.secondary order.summary, Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) "Order" ]
             }
             model.board
         , case model.issue of
             Just issue ->
-                Alert.view [ Alert.tone Danger, Alert.polite ] (Kanban.problemText locale issue)
+                Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Danger), Config.keep playground "Alert" "polite" Alert.polite ])) (Kanban.problemText locale issue)
 
             Nothing ->
                 case model.lastMove of
                     Just message ->
-                        Alert.view [ Alert.tone Success, Alert.polite ] message
+                        Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Success), Config.keep playground "Alert" "polite" Alert.polite ])) message
 
                     Nothing ->
                         Html.text ""

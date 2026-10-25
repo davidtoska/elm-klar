@@ -33,7 +33,9 @@ import Klar.TextInput as TextInput
 import Klar.Theme exposing (Size(..), Tone(..))
 import Klar.Validate as Validate
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import View.Labels as Labels
@@ -402,19 +404,19 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Basics"
         , description = "Buttons, menus, badges, messages, loading and error states, and the simplest form fields."
         }
-        [ viewButtons model
-        , viewMenus model
-        , viewBadges locale model
-        , viewAlerts locale model
-        , viewLoading
-        , viewStates locale model
-        , viewInputs locale model
+        [ viewButtons playground model
+        , viewMenus playground model
+        , viewBadges playground locale model
+        , viewAlerts playground locale model
+        , viewLoading playground
+        , viewStates playground locale model
+        , viewInputs playground locale model
         ]
 
 
@@ -422,71 +424,78 @@ view locale model =
 -- BUTTONS
 
 
-viewButtons : Model -> Html Msg
-viewButtons model =
-    Doc.section "Buttons"
+viewButtons : Config.Config -> Model -> Html Msg
+viewButtons playground model =
+    Doc.configuredSection playground
+        [ "Button" ]
+        "Buttons"
         "Four looks (primary, secondary, ghost and link) and the solid red danger button. Use only one primary button per area. Ghost is for toolbars and tables. Destructive actions exist in every look."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Button" ]
             { title = "Looks and states"
             , description = Just "Button.disabled takes the button out of the tab order. Button.ariaDisabled dims it the same way but keeps the keyboard focus, for a button that becomes unavailable while the user is on it."
             , code = Just looksCode
             }
-            (Layout.row [ Layout.gap 2, Layout.wrap ]
-                [ Button.view [ Button.primary, Button.onClick Clicked ] ("Primary (" ++ String.fromInt model.clicks ++ ")")
-                , Button.view [ Button.onClick Clicked ] "Secondary"
-                , Button.view [ Button.ghost, Button.onClick Clicked ] "Ghost"
-                , Button.view [ Button.danger, Button.onClick Clicked ] "Delete"
-                , Button.view [ Button.link, Button.onClick Clicked ] "Link button"
-                , Button.view [ Button.disabled True ] "Disabled"
-                , Button.view [ Button.ariaDisabled True ] "Unavailable"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) ("Primary (" ++ String.fromInt model.clicks ++ ")")
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Secondary"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Ghost"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Delete"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "link" Button.link, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Link button"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "disabled" (Button.disabled True) ])) "Disabled"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ariaDisabled" (Button.ariaDisabled True) ])) "Unavailable"
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Button" ]
             { title = "Destructive actions"
             , description = Just "Button.danger on its own (or together with Button.primary) is the solid red button: use it for the confirmation itself. Combined with secondary, ghost or link the button keeps its look and only the text turns red (secondary also gets a red border). The order of the attributes does not matter."
             , code = Just dangerCode
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view [ Button.danger, Button.icon Icon.trash, Button.onClick Clicked ] "Delete"
-                    , Button.view [ Button.secondary, Button.danger, Button.icon Icon.trash, Button.onClick Clicked ] "Delete"
-                    , Button.view [ Button.danger, Button.ghost, Button.icon Icon.trash, Button.onClick Clicked ] "Delete"
-                    , Button.view [ Button.link, Button.danger, Button.onClick Clicked ] "Delete"
-                    , Button.iconOnly [ Button.ghost, Button.danger, Button.onClick Clicked ] Icon.trash "Delete"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "icon" (Button.icon Icon.trash), Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Delete"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "icon" (Button.icon Icon.trash), Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Delete"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.trash), Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Delete"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "link" Button.link, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Delete"
+                    , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) Icon.trash "Delete"
                     ]
-                , Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view [ Button.danger, Button.small, Button.onClick Clicked ] "Small"
-                    , Button.view [ Button.secondary, Button.danger, Button.small, Button.onClick Clicked ] "Small"
-                    , Button.view [ Button.ghost, Button.danger, Button.small, Button.onClick Clicked ] "Small"
-                    , Button.view [ Button.danger, Button.disabled True ] "Disabled"
-                    , Button.view [ Button.secondary, Button.danger, Button.disabled True ] "Disabled"
-                    , Button.view [ Button.ghost, Button.danger, Button.disabled True ] "Disabled"
-                    , Button.view [ Button.secondary, Button.danger, Button.loading True ] "Deleting ..."
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Small"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Small"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Small"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "disabled" (Button.disabled True) ])) "Disabled"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "disabled" (Button.disabled True) ])) "Disabled"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "disabled" (Button.disabled True) ])) "Disabled"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "loading" (Button.loading True) ])) "Deleting ..."
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Button" ]
             { title = "Sizes and icons"
             , description = Just "An icon goes before the label, after it (iconRight), or alone: an icon-only button needs a label, which becomes its accessible name and tooltip."
             , code = Just sizesCode
             }
-            (Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                [ Button.view [ Button.small, Button.icon Icon.plus, Button.onClick Clicked ] "Small"
-                , Button.view [ Button.icon Icon.plus, Button.primary, Button.onClick Clicked ] "New order"
-                , Button.view [ Button.large, Button.icon Icon.download, Button.onClick Clicked ] "Large"
-                , Button.view [ Button.iconRight Icon.arrowRight, Button.onClick Clicked ] "Next"
-                , Button.iconOnly [ Button.onClick Clicked ] Icon.settings "Settings"
-                , Button.iconOnly [ Button.ghost, Button.onClick Clicked ] Icon.refresh "Reload"
-                , Button.iconOnly [ Button.ghost, Button.small, Button.onClick Clicked ] Icon.close "Close"
-                , Button.iconOnly [ Button.primary, Button.onClick Clicked ] Icon.search "Search"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.plus), Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Small"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.plus), Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "New order"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "large" Button.large, Config.keep playground "Button" "icon" (Button.icon Icon.download), Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Large"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "iconRight" (Button.iconRight Icon.arrowRight), Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Next"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) Icon.settings "Settings"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) Icon.refresh "Reload"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) Icon.close "Close"
+                , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) Icon.search "Search"
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Button" ]
             { title = "Loading state"
             , description = Just "A button with loading ignores clicks and shows a spinner instead of its icon. Use it while a request is on its way. Click it to send a pretend request."
             , code = Just loadingButtonCode
             }
-            (Button.view [ Button.primary, Button.icon Icon.save, Button.loading model.saving, Button.onClick SaveClicked ]
+            (Options.buttonView playground
+                (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.save), Config.keep playground "Button" "loading" (Button.loading model.saving), Config.keep playground "Button" "onClick" (Button.onClick SaveClicked) ]))
                 (if model.saving then
                     "Saving ..."
 
@@ -494,19 +503,20 @@ viewButtons model =
                     "Save"
                 )
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Button" ]
             { title = "Links and full width"
             , description = Just "A button with href is a real link, so it can be opened in a new tab, but it keeps the look of a button. Button.block fills its container."
             , code = Just linksCode
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view [ Button.href (Link.internal "#/components/forms"), Button.iconRight Icon.arrowRight ] "Go to Forms"
-                    , Button.view [ Button.href (Link.internal "#/orders"), Button.newTab, Button.iconRight Icon.externalLink ] "Orders in a new tab"
-                    , Button.view [ Button.link, Button.href (Link.internal "#/products") ] "Products"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "href" (Button.href (Link.internal "#/components/forms")), Config.keep playground "Button" "iconRight" (Button.iconRight Icon.arrowRight) ])) "Go to Forms"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "href" (Button.href (Link.internal "#/orders")), Config.keep playground "Button" "newTab" Button.newTab, Config.keep playground "Button" "iconRight" (Button.iconRight Icon.externalLink) ])) "Orders in a new tab"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "link" Button.link, Config.keep playground "Button" "href" (Button.href (Link.internal "#/products")) ])) "Products"
                     ]
-                , Layout.container [ Layout.maxWidth 360, Layout.alignStart ]
-                    [ Button.view [ Button.primary, Button.block, Button.onClick Clicked ] "Place order" ]
+                , Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 360), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "block" Button.block, Config.keep playground "Button" "onClick" (Button.onClick Clicked) ])) "Place order" ]
                 ]
             )
         ]
@@ -516,72 +526,109 @@ viewButtons model =
 -- MENUS
 
 
-viewMenus : Model -> Html Msg
-viewMenus model =
-    Doc.section "Menus"
+viewMenus : Config.Config -> Model -> Html Msg
+viewMenus playground model =
+    Doc.configuredSection playground
+        [ "Menu" ]
+        "Menus"
         "Dropdown menus for actions that do not deserve a button of their own. Keyboard: Enter, Space or ArrowDown on the button opens the menu with the first item highlighted (ArrowUp with the last), the arrow keys move the highlight, a letter jumps to the next item that starts with it, Home and End jump to the first and last item, Enter or Space picks an item, and Escape or Tab closes the menu. The menu opens above everything else and is never clipped by tables or dialogs. The keys on the right of a row (Menu.withShortcut) only show a shortcut, as small caps and as aria-keyshortcuts; the application connects the shortcut itself with Klar.Shortcut. The items under a heading are a group named after it."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Menu" ]
             { title = "Menus and triggers"
             , description = Just model.lastAction
             , code = Just menuCode
             }
-            (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ viewMenu model
                     actionsMenuId
-                    [ Menu.label "Actions"
-                    , Menu.items
-                        [ Menu.heading "Order"
-                        , Menu.item "Edit" (Picked "Edit") |> Menu.withIcon Icon.edit |> Menu.withShortcut (Shortcut.char 'e')
-                        , Menu.item "Duplicate" (Picked "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withShortcut (Shortcut.mod (Shortcut.char 'd'))
-                        , Menu.item "Export" (Picked "Export") |> Menu.withIcon Icon.download |> Menu.disabledItem
-                        , Menu.separator
-                        , Menu.item "Delete" (Picked "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
-                        ]
-                    ]
+                    (Options.klarMenu playground
+                        (List.concat
+                            [ Config.keep playground "Menu" "label" (Menu.label "Actions")
+                            , Config.keep playground
+                                "Menu"
+                                "items"
+                                (Menu.items
+                                    [ Menu.heading "Order"
+                                    , Menu.item "Edit" (Picked "Edit") |> Menu.withIcon Icon.edit |> Menu.withShortcut (Shortcut.char 'e')
+                                    , Menu.item "Duplicate" (Picked "Duplicate") |> Menu.withIcon Icon.copy |> Menu.withShortcut (Shortcut.mod (Shortcut.char 'd'))
+                                    , Menu.item "Export" (Picked "Export") |> Menu.withIcon Icon.download |> Menu.disabledItem
+                                    , Menu.separator
+                                    , Menu.item "Delete" (Picked "Delete") |> Menu.withIcon Icon.trash |> Menu.danger
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                 , viewMenu model
                     newMenuId
-                    [ Menu.label "New"
-                    , Menu.trigger [ Button.primary, Button.icon Icon.plus ]
-                    , Menu.items
-                        [ Menu.item "Order" (Picked "New order") |> Menu.withIcon Icon.fileText
-                        , Menu.item "Customer" (Picked "New customer") |> Menu.withIcon Icon.building
-                        , Menu.item "Product" (Picked "New product") |> Menu.withIcon Icon.tag
-                        ]
-                    ]
+                    (Options.klarMenu playground
+                        (List.concat
+                            [ Config.keep playground "Menu" "label" (Menu.label "New")
+                            , Config.keep playground "Menu" "trigger" (Menu.trigger (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.plus) ])))
+                            , Config.keep playground
+                                "Menu"
+                                "items"
+                                (Menu.items
+                                    [ Menu.item "Order" (Picked "New order") |> Menu.withIcon Icon.fileText
+                                    , Menu.item "Customer" (Picked "New customer") |> Menu.withIcon Icon.building
+                                    , Menu.item "Product" (Picked "New product") |> Menu.withIcon Icon.tag
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                 , viewMenu model
                     kebabMenuId
-                    [ Menu.kebab "More actions"
-                    , Menu.alignEnd
-                    , Menu.items
-                        [ Menu.item "Open" (Picked "Open") |> Menu.withIcon Icon.externalLink
-                        , Menu.item "Archive" (Picked "Archive") |> Menu.withIcon Icon.archive
-                        ]
-                    ]
+                    (Options.klarMenu playground
+                        (List.concat
+                            [ Config.keep playground "Menu" "kebab" (Menu.kebab "More actions")
+                            , Config.keep playground "Menu" "alignEnd" Menu.alignEnd
+                            , Config.keep playground
+                                "Menu"
+                                "items"
+                                (Menu.items
+                                    [ Menu.item "Open" (Picked "Open") |> Menu.withIcon Icon.externalLink
+                                    , Menu.item "Archive" (Picked "Archive") |> Menu.withIcon Icon.archive
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Menu" ]
             { title = "A long menu scrolls"
             , description = Just ("A menu is never taller than about 26 rem (or the window): the rest scrolls. Home and End jump to the first and last item. " ++ model.lastAction)
             , code = Just longMenuCode
             }
             (viewMenu model
                 longMenuId
-                [ Menu.label "Open customer"
-                , Menu.items
-                    (List.map
-                        (\customer -> Menu.item customer (Picked customer) |> Menu.withIcon Icon.building)
-                        (List.take 40 Sample.customers)
+                (Options.klarMenu playground
+                    (List.concat
+                        [ Config.keep playground "Menu" "label" (Menu.label "Open customer")
+                        , Config.keep playground
+                            "Menu"
+                            "items"
+                            (Menu.items
+                                (List.map
+                                    (\customer -> Menu.item customer (Picked customer) |> Menu.withIcon Icon.building)
+                                    (List.take 40 Sample.customers)
+                                )
+                            )
+                        ]
                     )
-                ]
+                )
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Menu" ]
             { title = "Row actions in a scrolling list"
             , description = Just ("The list scrolls, but the menu is not clipped by it: it opens over the edge of the list and, where the browser supports CSS anchor positioning, flips above its button when there is no room below. Cancel is disabled for orders that have shipped. " ++ model.lastAction)
             , code = Just rowMenuCode
             }
-            (Card.view [ Card.flush ]
-                [ Layout.stack [ Layout.gap 0, Layout.maxHeight 168 ]
-                    (List.intersperse Layout.divider (List.map (viewRowWithMenu model) (List.take 8 Sample.orders)))
+            (Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "flush" Card.flush ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 0), Config.keep playground "Layout" "maxHeight" (Layout.maxHeight 168) ]))
+                    (List.intersperse Layout.divider (List.map (viewRowWithMenu playground model) (List.take 8 Sample.orders)))
                 ]
             )
         ]
@@ -592,19 +639,23 @@ viewMenu model id attributes =
     Menu.view (MenuMsg id) attributes (menuState id model)
 
 
-viewRowWithMenu : Model -> Types.Order -> Html Msg
-viewRowWithMenu model order =
-    Layout.row [ Layout.gap 3, Layout.padding 2 ]
+viewRowWithMenu : Config.Config -> Model -> Types.Order -> Html Msg
+viewRowWithMenu playground model order =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "padding" (Layout.padding 2) ]))
         [ Text.mono (Types.orderIdText order.id)
         , Text.text order.customer
         , Layout.spacer
         , Labels.statusBadge order.status
         , viewMenu model
             (rowMenuId order)
-            [ Menu.kebab ("Actions for " ++ Types.orderIdText order.id)
-            , Menu.alignEnd
-            , Menu.items (rowMenuItems order)
-            ]
+            (Options.klarMenu playground
+                (List.concat
+                    [ Config.keep playground "Menu" "kebab" (Menu.kebab ("Actions for " ++ Types.orderIdText order.id))
+                    , Config.keep playground "Menu" "alignEnd" Menu.alignEnd
+                    , Config.keep playground "Menu" "items" (Menu.items (rowMenuItems order))
+                    ]
+                )
+            )
         ]
 
 
@@ -634,44 +685,47 @@ rowMenuItems order =
 -- BADGES AND TAGS
 
 
-viewBadges : Locale -> Model -> Html Msg
-viewBadges locale model =
-    Doc.section "Badges and tags"
+viewBadges : Config.Config -> Locale -> Model -> Html Msg
+viewBadges playground locale model =
+    Doc.configuredSection playground
+        [ "Badge", "Tag" ]
+        "Badges and tags"
         "Small labels for state. Use the tone for meaning, not decoration. A badge (Badge) shows a state; a tag (Tag) is something the user has chosen and can take away. Keyboard: Tab to the × on a tag, Enter or Space removes it."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Badge" ]
             { title = "Badges"
             , description = Just "A badge shows a state the user reads but does not change. The color is not announced by screen readers, so put the meaning in the text. Counts above 99 show as 99+ (the tooltip and screen readers get the exact number), a count is written in the locale (1,280 or 1 280), and a count of zero shows nothing. A solid warning is dark amber, so its white text keeps AA contrast."
             , code = Just badgeCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap ]
-                    [ Badge.view [] "Draft"
-                    , Badge.view [ Badge.tone Info ] "Confirmed"
-                    , Badge.view [ Badge.tone Primary ] "Shipped"
-                    , Badge.view [ Badge.tone Warning ] "Picking"
-                    , Badge.view [ Badge.tone Success ] "Delivered"
-                    , Badge.view [ Badge.tone Danger ] "Cancelled"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.badgeView playground [] "Draft"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) "Confirmed"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Primary) ])) "Shipped"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Warning) ])) "Picking"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Success) ])) "Delivered"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Danger) ])) "Cancelled"
                     ]
-                , Layout.row [ Layout.gap 2, Layout.wrap ]
-                    [ Badge.view [ Badge.tone Info, Badge.dot ] "With dot"
-                    , Badge.view [ Badge.tone Success, Badge.icon Icon.check ] "With icon"
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info), Config.keep playground "Badge" "dot" Badge.dot ])) "With dot"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Success), Config.keep playground "Badge" "icon" (Badge.icon Icon.check) ])) "With icon"
                     , Badge.count [] 7
                     , Badge.count [] 128
-                    , Badge.count [ Badge.tone Danger, Badge.size Small ] 3
-                    , Badge.count [ Badge.tone Neutral, Badge.max 999 ] 1280
-                    , Badge.count [ Badge.tone Neutral, Badge.max 9999, Badge.locale locale ] 1280
+                    , Badge.count (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Danger), Config.keep playground "Badge" "size" (Badge.size Small) ])) 3
+                    , Badge.count (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Neutral), Config.keep playground "Badge" "max" (Badge.max 999) ])) 1280
+                    , Badge.count (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Neutral), Config.keep playground "Badge" "max" (Badge.max 9999), Config.keep playground "Badge" "locale" (Badge.locale locale) ])) 1280
                     ]
-                , Layout.row [ Layout.gap 2, Layout.wrap ]
-                    [ Badge.view [ Badge.tone Primary, Badge.solid ] "Solid"
-                    , Badge.view [ Badge.tone Success, Badge.solid ] "Solid"
-                    , Badge.view [ Badge.tone Warning, Badge.solid ] "Solid"
-                    , Badge.view [ Badge.tone Danger, Badge.solid ] "Solid"
-                    , Badge.view [ Badge.tone Primary, Badge.outline ] "Outline"
-                    , Badge.view [ Badge.tone Warning, Badge.outline ] "Outline"
-                    , Badge.view [ Badge.size Small ] "Small"
-                    , Badge.view [ Badge.size Large, Badge.tone Info ] "Large"
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Primary), Config.keep playground "Badge" "solid" Badge.solid ])) "Solid"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Success), Config.keep playground "Badge" "solid" Badge.solid ])) "Solid"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Warning), Config.keep playground "Badge" "solid" Badge.solid ])) "Solid"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Danger), Config.keep playground "Badge" "solid" Badge.solid ])) "Solid"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Primary), Config.keep playground "Badge" "outline" Badge.outline ])) "Outline"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Warning), Config.keep playground "Badge" "outline" Badge.outline ])) "Outline"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "size" (Badge.size Small) ])) "Small"
+                    , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "size" (Badge.size Large), Config.keep playground "Badge" "tone" (Badge.tone Info) ])) "Large"
                     ]
-                , Layout.row [ Layout.gap 5, Layout.wrap ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 5), Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ Badge.status Success "In stock"
                     , Badge.status Warning "Low stock"
                     , Badge.status Danger "Out of stock"
@@ -680,40 +734,42 @@ viewBadges locale model =
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Tag" ]
             { title = "Tags"
             , description = Just "For example selected filters. The × removes the tag; the text and tooltip of the × come from Tag.locale. When a tag is removed with the keyboard, the focus moves to the next tag: Tag.removeId gives the × an id, and Tag.nextFocus picks the id to focus (the next tag, the one before, or a fallback). Tag.removeLabel names the × when the label is a value, as on the filter chip."
             , code = Just tagCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     (if List.isEmpty model.tags then
-                        [ Button.view [ Button.link, Button.id tagsResetId, Button.onClick TagsReset ] "Show the tags again" ]
+                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "link" Button.link, Config.keep playground "Button" "id" (Button.id tagsResetId), Config.keep playground "Button" "onClick" (Button.onClick TagsReset) ])) "Show the tags again" ]
 
                      else
-                        List.map (viewRemovableTag locale) model.tags
+                        List.map (viewRemovableTag playground locale) model.tags
                     )
-                , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
-                    [ Tag.view [] "Draft"
-                    , Tag.view [ Tag.tone Success, Tag.icon Icon.check ] "Approved"
-                    , Tag.view [ Tag.tone Warning ] "In review"
-                    , Tag.view [ Tag.tone Danger ] "Rejected"
-                    , Tag.view [ Tag.outline ] "Outline"
-                    , Tag.view [ Tag.size Small ] "Small"
-                    , Tag.view [ Tag.size Large ] "Large"
-                    , Tag.view [ Tag.locale locale, Tag.onRemove NoOp, Tag.removeLabel "Remove filter Amount > 100" ] "Amount > 100"
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Options.tagView playground (Options.klarTag playground []) "Draft"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "tone" (Tag.tone Success), Config.keep playground "Tag" "icon" (Tag.icon Icon.check) ])) "Approved"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "tone" (Tag.tone Warning) ])) "In review"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "tone" (Tag.tone Danger) ])) "Rejected"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "outline" Tag.outline ])) "Outline"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "size" (Tag.size Small) ])) "Small"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "size" (Tag.size Large) ])) "Large"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "locale" (Tag.locale locale), Config.keep playground "Tag" "onRemove" (Tag.onRemove NoOp), Config.keep playground "Tag" "removeLabel" (Tag.removeLabel "Remove filter Amount > 100") ])) "Amount > 100"
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Badge", "Tag" ]
             { title = "Long labels"
             , description = Just "A label that does not fit its container is cut with an ellipsis. Labels longer than 12 characters carry the whole text as a tooltip."
             , code = Just longLabelCode
             }
-            (Layout.container [ Layout.maxWidth 200, Layout.alignStart ]
-                [ Layout.stack [ Layout.gap 2, Layout.alignStart ]
-                    [ Badge.view [ Badge.tone Info ] "Awaiting confirmation from the customer"
-                    , Tag.view [ Tag.tone Primary ] "Gothenburg Port, north terminal annex"
+            (Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 200), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                    [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) "Awaiting confirmation from the customer"
+                    , Options.tagView playground (Options.klarTag playground (List.concat [ Config.keep playground "Tag" "tone" (Tag.tone Primary) ])) "Gothenburg Port, north terminal annex"
                     , Badge.status Warning "Waiting for the supplier to confirm the date"
                     ]
                 ]
@@ -721,14 +777,18 @@ viewBadges locale model =
         ]
 
 
-viewRemovableTag : Locale -> Types.Warehouse -> Html Msg
-viewRemovableTag locale warehouse =
-    Tag.view
-        [ Tag.tone Primary
-        , Tag.locale locale
-        , Tag.removeId (tagRemoveId warehouse)
-        , Tag.onRemove (TagRemoved (Types.warehouseIdText warehouse.id))
-        ]
+viewRemovableTag : Config.Config -> Locale -> Types.Warehouse -> Html Msg
+viewRemovableTag playground locale warehouse =
+    Options.tagView playground
+        (Options.klarTag playground
+            (List.concat
+                [ Config.keep playground "Tag" "tone" (Tag.tone Primary)
+                , Config.keep playground "Tag" "locale" (Tag.locale locale)
+                , Config.keep playground "Tag" "removeId" (Tag.removeId (tagRemoveId warehouse))
+                , Config.keep playground "Tag" "onRemove" (Tag.onRemove (TagRemoved (Types.warehouseIdText warehouse.id)))
+                ]
+            )
+        )
         warehouse.name
 
 
@@ -736,42 +796,50 @@ viewRemovableTag locale warehouse =
 -- ALERTS
 
 
-viewAlerts : Locale -> Model -> Html Msg
-viewAlerts locale model =
-    Doc.section "Messages"
+viewAlerts : Config.Config -> Locale -> Model -> Html Msg
+viewAlerts playground locale model =
+    Doc.configuredSection playground
+        [ "Alert" ]
+        "Messages"
         "Alerts and messages in four main tones (info, success, warning and danger), plus neutral and primary. Errors and warnings are announced by screen readers at once."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Alert" ]
             { title = "Tones"
             , description = Just "Actions go below the message. An alert does not hide itself: onDismiss only sends your message, and your update function stops showing the alert."
             , code = Just alertCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Alert.view [ Alert.tone Info, Alert.title "For your information" ] "Orders in status Draft get an automatic reminder after 14 days."
-                , Alert.view [ Alert.tone Success ] "The changes were saved."
-                , Alert.view [ Alert.tone Warning, Alert.title "Remember to save" ] "You have changes that are not saved. They will be lost if you leave the page."
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Info), Config.keep playground "Alert" "title" (Alert.title "For your information") ])) "Orders in status Draft get an automatic reminder after 14 days."
+                , Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Success) ])) "The changes were saved."
+                , Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Warning), Config.keep playground "Alert" "title" (Alert.title "Remember to save") ])) "You have changes that are not saved. They will be lost if you leave the page."
                 , Alert.viewWith
-                    [ Alert.tone Danger
-                    , Alert.title "Could not save"
-                    , Alert.actions [ Button.view [ Button.small, Button.onClick AlertRetried ] "Try again" ]
-                    ]
+                    (Options.klarAlert playground
+                        (List.concat
+                            [ Config.keep playground "Alert" "tone" (Alert.tone Danger)
+                            , Config.keep playground "Alert" "title" (Alert.title "Could not save")
+                            , Config.keep playground "Alert" "actions" (Alert.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick AlertRetried) ])) "Try again" ])
+                            ]
+                        )
+                    )
                     [ Text.text (failedSaveText model.alertRetries) ]
                 , if model.alertDismissed then
-                    Layout.row []
-                        [ Button.view [ Button.link, Button.id alertRestoreId, Button.onClick RestoreAlert ] "Show the dismissible message again" ]
+                    Layout.row (Options.klarLayout playground [])
+                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "link" Button.link, Config.keep playground "Button" "id" (Button.id alertRestoreId), Config.keep playground "Button" "onClick" (Button.onClick RestoreAlert) ])) "Show the dismissible message again" ]
 
                   else
-                    Alert.view [ Alert.tone Neutral, Alert.onDismiss DismissAlert, Alert.compact, Alert.locale locale ] "A compact message that can be dismissed."
+                    Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Neutral), Config.keep playground "Alert" "onDismiss" (Alert.onDismiss DismissAlert), Config.keep playground "Alert" "compact" Alert.compact, Config.keep playground "Alert" "locale" (Alert.locale locale) ])) "A compact message that can be dismissed."
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Alert" ]
             { title = "Banner, icon and polite"
             , description = Just "A banner is flat, for the top of a page or a panel. Alert.icon replaces the icon of the tone. Alert.polite makes a warning or an error wait for a pause in the screen reader: use it for notices that appear by themselves, never for the result of an action."
             , code = Just alertExtrasCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Alert.view [ Alert.banner, Alert.tone Warning, Alert.title "Scheduled maintenance" ] "The warehouse system is read-only on Sunday between 02:00 and 04:00."
-                , Alert.view [ Alert.tone Success, Alert.icon Icon.send ] "Order ORD-10001 was sent to the warehouse."
-                , Alert.view [ Alert.tone Danger, Alert.compact, Alert.polite ] "The stock levels could not be refreshed. The last known values are shown."
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "banner" Alert.banner, Config.keep playground "Alert" "tone" (Alert.tone Warning), Config.keep playground "Alert" "title" (Alert.title "Scheduled maintenance") ])) "The warehouse system is read-only on Sunday between 02:00 and 04:00."
+                , Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Success), Config.keep playground "Alert" "icon" (Alert.icon Icon.send) ])) "Order ORD-10001 was sent to the warehouse."
+                , Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Danger), Config.keep playground "Alert" "compact" Alert.compact, Config.keep playground "Alert" "polite" Alert.polite ])) "The stock levels could not be refreshed. The last known values are shown."
                 ]
             )
         ]
@@ -798,37 +866,41 @@ failedSaveText retries =
 -- LOADING
 
 
-viewLoading : Html Msg
-viewLoading =
-    Doc.section "Loading"
+viewLoading : Config.Config -> Html Msg
+viewLoading playground =
+    Doc.configuredSection playground
+        [ "Spinner", "Skeleton" ]
+        "Loading"
         "Spinner for short waits, skeleton when the shape of the content is known. A skeleton is hidden from screen readers, so the area around it should say that content is on its way."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Spinner", "Skeleton" ]
             { title = "Spinner and skeleton"
             , description = Nothing
             , code = Just loadingCode
             }
-            (Layout.grid [ Layout.minColumn 220, Layout.gap 6 ]
-                [ Layout.row [ Layout.gap 3 ]
-                    [ Spinner.view [ Spinner.size Small ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 220), Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                    [ Spinner.view (Options.klarSpinner playground (List.concat [ Config.keep playground "Spinner" "size" (Spinner.size Small) ]))
                     , Spinner.view []
-                    , Spinner.view [ Spinner.size Large, Spinner.label "Loading" ]
+                    , Spinner.view (Options.klarSpinner playground (List.concat [ Config.keep playground "Spinner" "size" (Spinner.size Large), Config.keep playground "Spinner" "label" (Spinner.label "Loading") ]))
                     ]
-                , Layout.stack [ Layout.gap 2 ] [ Skeleton.line 40, Skeleton.lines 3 ]
-                , Layout.row [ Layout.gap 3 ]
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ])) [ Skeleton.line 40, Skeleton.lines 3 ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                     [ Skeleton.circle 40
-                    , Layout.stack [ Layout.gap 2, Layout.grow ] [ Skeleton.line 60, Skeleton.line 90 ]
+                    , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "grow" Layout.grow ])) [ Skeleton.line 60, Skeleton.line 90 ]
                     ]
-                , Layout.stack [ Layout.gap 2 ] [ Skeleton.block 64, Skeleton.lines 2 ]
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ])) [ Skeleton.block 64, Skeleton.lines 2 ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Spinner" ]
             { title = "Loading a panel"
             , description = Just "The panel has the height of an empty or error state, so the region keeps its place, and it fades in after 400ms, so a fast answer does not flash. A panel and a labelled spinner stay in the view and are switched with Spinner.loading: their live region stays on the page and only its text comes and goes, which screen readers announce reliably. A panel that a case branch puts in the page is announced unreliably; for a Remote, use RemoteView."
             , code = Just "-- always in the view, next to the orders it waits for\nHtml.div []\n    [ Spinner.panel [ Spinner.loading model.loadingOrders ] \"Loading orders ...\"\n    , viewOrders model.orders\n    ]\n\n-- always in the view; announced each time model.saving turns True\nSpinner.view [ Spinner.label \"Saving order\", Spinner.loading model.saving ]\n"
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Spinner.panel [] "Loading orders ..."
-                , Spinner.panel [ Spinner.compact ] "Loading the stock levels ..."
+                , Spinner.panel (Options.klarSpinner playground (List.concat [ Config.keep playground "Spinner" "compact" Spinner.compact ])) "Loading the stock levels ..."
                 ]
             )
         ]
@@ -838,55 +910,73 @@ viewLoading =
 -- EMPTY AND ERROR STATES
 
 
-viewStates : Locale -> Model -> Html Msg
-viewStates locale model =
-    Doc.section "Empty and error states"
+viewStates : Config.Config -> Locale -> Model -> Html Msg
+viewStates playground locale model =
+    Doc.configuredSection playground
+        [ "EmptyState", "ErrorState", "Remote", "RemoteView" ]
+        "Empty and error states"
         "Every list and every table must be able to show three things in addition to data: that it is empty, that it is loading and that it failed. A failure can be retried when that may help."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "EmptyState", "RemoteView", "Remote" ]
             { title = "Loading, failure and retry"
             , description = Just "Klar.Remote holds the four states of a request: not asked, loading, failed or here. The buttons send a pretend request. After “Network error once” the first attempt fails and Try again succeeds; “Server error” fails every time; “No orders” answers with an empty list."
             , code = Just remoteCode
             }
-            (viewRemote locale model)
-        , Doc.example
+            (viewRemote playground locale model)
+        , Doc.configuredExample playground
+            [ "EmptyState" ]
             { title = "Empty state"
             , description = Just "Say what is missing and what the user can do about it. Here the action really clears the search."
             , code = Just emptyCode
             }
-            (viewProductSearch locale model)
-        , Doc.example
+            (viewProductSearch playground locale model)
+        , Doc.configuredExample playground
+            [ "EmptyState" ]
             { title = "Compact empty state"
             , description = Just "Less space and a smaller icon, for tables and small panels. Two actions: the first is the main one. Without a title the state says “Nothing to show”."
             , code = Just compactEmptyCode
             }
-            (Card.view []
+            (Card.view (Options.klarCard playground [])
                 [ EmptyState.view
-                    [ EmptyState.compact
-                    , EmptyState.icon Icon.inbox
-                    , EmptyState.title "No orders yet"
-                    , EmptyState.description "Orders you create appear here."
-                    , EmptyState.actions
-                        [ Button.view [ Button.primary, Button.href (Link.internal "#/orders") ] "Open orders"
-                        , Button.view [ Button.href (Link.internal "#/orders") ] "Import orders"
-                        ]
-                    ]
+                    (Options.klarEmptyState playground
+                        (List.concat
+                            [ Config.keep playground "EmptyState" "compact" EmptyState.compact
+                            , Config.keep playground "EmptyState" "icon" (EmptyState.icon Icon.inbox)
+                            , Config.keep playground "EmptyState" "title" (EmptyState.title "No orders yet")
+                            , Config.keep playground "EmptyState" "description" (EmptyState.description "Orders you create appear here.")
+                            , Config.keep playground
+                                "EmptyState"
+                                "actions"
+                                (EmptyState.actions
+                                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "href" (Button.href (Link.internal "#/orders")) ])) "Open orders"
+                                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "href" (Button.href (Link.internal "#/orders")) ])) "Import orders"
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ErrorState", "Remote" ]
             { title = "Error states"
             , description = Just ("Every Remote.Kind has its own icon and default text. Try again is shown only when it can help; ErrorState.actions gives the other kinds a way forward (Sign in, Back to orders). One click selects the whole code. Nine states on one page are polite (ErrorState.polite), so they do not interrupt a screen reader nine times." ++ retryNote model.retried)
             , code = Just errorCode
             }
-            (Layout.grid [ Layout.minColumn 280, Layout.gap 4 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 280), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 (List.map
                     (\kind ->
                         ErrorState.view
-                            [ ErrorState.compact
-                            , ErrorState.polite
-                            , ErrorState.onRetry (KindRetried kind)
-                            , ErrorState.actions (wayForward kind)
-                            , ErrorState.locale locale
-                            ]
+                            (Options.klarErrorState playground
+                                (List.concat
+                                    [ Config.keep playground "ErrorState" "compact" ErrorState.compact
+                                    , Config.keep playground "ErrorState" "polite" ErrorState.polite
+                                    , Config.keep playground "ErrorState" "onRetry" (ErrorState.onRetry (KindRetried kind))
+                                    , Config.keep playground "ErrorState" "actions" (ErrorState.actions (wayForward playground kind))
+                                    , Config.keep playground "ErrorState" "locale" (ErrorState.locale locale)
+                                    ]
+                                )
+                            )
                             (Remote.problem kind |> Remote.withCode (kindCode kind))
                     )
                     allKinds
@@ -895,50 +985,62 @@ viewStates locale model =
         ]
 
 
-viewRemote : Locale -> Model -> Html Msg
-viewRemote locale model =
-    Layout.stack [ Layout.gap 4 ]
-        [ Layout.row [ Layout.gap 2, Layout.wrap ]
-            [ Button.view [ Button.icon Icon.refresh, Button.onClick (Requested Works) ] "Load orders"
-            , Button.view [ Button.icon Icon.wifiOff, Button.onClick (Requested FailsOnce) ] "Network error once"
-            , Button.view [ Button.icon Icon.server, Button.onClick (Requested FailsAlways) ] "Server error"
-            , Button.view [ Button.icon Icon.inbox, Button.onClick (Requested NoOrders) ] "No orders"
+viewRemote : Config.Config -> Locale -> Model -> Html Msg
+viewRemote playground locale model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+        [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick (Requested Works)) ])) "Load orders"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.wifiOff), Config.keep playground "Button" "onClick" (Button.onClick (Requested FailsOnce)) ])) "Network error once"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.server), Config.keep playground "Button" "onClick" (Button.onClick (Requested FailsAlways)) ])) "Server error"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.inbox), Config.keep playground "Button" "onClick" (Button.onClick (Requested NoOrders)) ])) "No orders"
             ]
-        , Card.view [ Card.flush ]
+        , Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "flush" Card.flush ]))
             (case model.orders of
                 Remote.NotAsked ->
-                    [ EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.database, EmptyState.title "Nothing requested yet" ] ]
+                    [ EmptyState.view (Options.klarEmptyState playground (List.concat [ Config.keep playground "EmptyState" "compact" EmptyState.compact, Config.keep playground "EmptyState" "icon" (EmptyState.icon Icon.database), Config.keep playground "EmptyState" "title" (EmptyState.title "Nothing requested yet") ])) ]
 
                 _ ->
                     -- loading, failure with a retry, empty and the data: no `case` of ours
                     RemoteView.view
-                        [ RemoteView.onRetry Retried
-                        , RemoteView.locale locale
-                        , RemoteView.loadingLabel "Loading orders"
-                        , RemoteView.emptyState
-                            [ EmptyState.icon Icon.inbox
-                            , EmptyState.title "No orders to show"
-                            , EmptyState.description "There are no orders yet."
-                            , EmptyState.actions [ Button.view [ Button.onClick (Requested Works) ] "Load orders" ]
-                            ]
-                        ]
+                        (Options.klarRemoteView playground
+                            (List.concat
+                                [ Config.keep playground "RemoteView" "onRetry" (RemoteView.onRetry Retried)
+                                , Config.keep playground "RemoteView" "locale" (RemoteView.locale locale)
+                                , Config.keep playground "RemoteView" "loadingLabel" (RemoteView.loadingLabel "Loading orders")
+                                , Config.keep playground
+                                    "RemoteView"
+                                    "emptyState"
+                                    (RemoteView.emptyState
+                                        (Options.klarEmptyState playground
+                                            (List.concat
+                                                [ Config.keep playground "EmptyState" "icon" (EmptyState.icon Icon.inbox)
+                                                , Config.keep playground "EmptyState" "title" (EmptyState.title "No orders to show")
+                                                , Config.keep playground "EmptyState" "description" (EmptyState.description "There are no orders yet.")
+                                                , Config.keep playground "EmptyState" "actions" (EmptyState.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick (Requested Works)) ])) "Load orders" ])
+                                                ]
+                                            )
+                                        )
+                                    )
+                                ]
+                            )
+                        )
                         model.orders
                         (\orders ->
                             if List.isEmpty orders then
                                 []
 
                             else
-                                [ Layout.stack [ Layout.gap 0 ]
-                                    (List.intersperse Layout.divider (List.map viewOrderRow orders))
+                                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 0) ]))
+                                    (List.intersperse Layout.divider (List.map (viewOrderRow playground) orders))
                                 ]
                         )
             )
         ]
 
 
-viewOrderRow : Types.Order -> Html Msg
-viewOrderRow order =
-    Layout.row [ Layout.gap 3, Layout.padding 3 ]
+viewOrderRow : Config.Config -> Types.Order -> Html Msg
+viewOrderRow playground order =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "padding" (Layout.padding 3) ]))
         [ Text.mono (Types.orderIdText order.id)
         , Text.text order.customer
         , Layout.spacer
@@ -946,43 +1048,51 @@ viewOrderRow order =
         ]
 
 
-viewProductSearch : Locale -> Model -> Html Msg
-viewProductSearch locale model =
+viewProductSearch : Config.Config -> Locale -> Model -> Html Msg
+viewProductSearch playground locale model =
     let
         hits =
             Search.filter .name model.productSearch Sample.products
     in
-    Layout.stack [ Layout.gap 4 ]
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
         [ TextInput.view
-            [ TextInput.label "Search products"
-            , TextInput.locale locale
-            , TextInput.search
-            , TextInput.clearable
-            , TextInput.value model.productSearch
-            , TextInput.onInput ProductSearchChanged
-            , TextInput.placeholder "Search products ..."
-            , TextInput.id productSearchId
-            ]
-        , Card.view [ Card.flush ]
+            (Options.klarTextInput playground
+                (List.concat
+                    [ Config.keep playground "TextInput" "label" (TextInput.label "Search products")
+                    , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                    , Config.keep playground "TextInput" "search" TextInput.search
+                    , Config.keep playground "TextInput" "clearable" TextInput.clearable
+                    , Config.keep playground "TextInput" "value" (TextInput.value model.productSearch)
+                    , Config.keep playground "TextInput" "onInput" (TextInput.onInput ProductSearchChanged)
+                    , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "Search products ...")
+                    , Config.keep playground "TextInput" "id" (TextInput.id productSearchId)
+                    ]
+                )
+            )
+        , Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "flush" Card.flush ]))
             [ if List.isEmpty hits then
                 EmptyState.view
-                    [ EmptyState.icon Icon.search
-                    , EmptyState.title "No matching products"
-                    , EmptyState.description ("No product matches “" ++ model.productSearch ++ "”. Try another search, or clear it.")
-                    , EmptyState.actions [ Button.view [ Button.onClick ProductSearchCleared ] "Clear search" ]
-                    ]
+                    (Options.klarEmptyState playground
+                        (List.concat
+                            [ Config.keep playground "EmptyState" "icon" (EmptyState.icon Icon.search)
+                            , Config.keep playground "EmptyState" "title" (EmptyState.title "No matching products")
+                            , Config.keep playground "EmptyState" "description" (EmptyState.description ("No product matches “" ++ model.productSearch ++ "”. Try another search, or clear it."))
+                            , Config.keep playground "EmptyState" "actions" (EmptyState.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick ProductSearchCleared) ])) "Clear search" ])
+                            ]
+                        )
+                    )
 
               else
-                Layout.stack [ Layout.gap 0 ]
-                    (List.intersperse Layout.divider (List.map viewProductRow (List.take 5 hits)))
+                Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 0) ]))
+                    (List.intersperse Layout.divider (List.map (viewProductRow playground) (List.take 5 hits)))
             ]
         , Text.muted ("Showing " ++ String.fromInt (min 5 (List.length hits)) ++ " of " ++ Format.int locale (List.length hits) ++ " products")
         ]
 
 
-viewProductRow : Types.Product -> Html Msg
-viewProductRow product =
-    Layout.row [ Layout.gap 3, Layout.padding 3 ]
+viewProductRow : Config.Config -> Types.Product -> Html Msg
+viewProductRow playground product =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "padding" (Layout.padding 3) ]))
         [ Text.mono product.sku
         , Text.text product.name
         , Layout.spacer
@@ -992,13 +1102,13 @@ viewProductRow product =
 
 {-| A way forward for the kinds that a retry cannot help.
 -}
-wayForward : Remote.Kind -> List (Html Msg)
-wayForward kind =
+wayForward : Config.Config -> Remote.Kind -> List (Html Msg)
+wayForward playground kind =
     if kind == Remote.unauthorized then
-        [ Button.view [ Button.small, Button.href (Link.internal "#/") ] "Sign in" ]
+        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "href" (Button.href (Link.internal "#/")) ])) "Sign in" ]
 
     else if kind == Remote.notFound || kind == Remote.forbidden then
-        [ Button.view [ Button.small, Button.href (Link.internal "#/orders") ] "Back to orders" ]
+        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "href" (Button.href (Link.internal "#/orders")) ])) "Back to orders" ]
 
     else
         []
@@ -1064,8 +1174,8 @@ retryNote retried =
 -- TEXT FIELDS AND CHECKBOXES
 
 
-viewInputs : Locale -> Model -> Html Msg
-viewInputs locale model =
+viewInputs : Config.Config -> Locale -> Model -> Html Msg
+viewInputs playground locale model =
     let
         allChecked =
             List.all identity model.options
@@ -1073,141 +1183,198 @@ viewInputs locale model =
         someChecked =
             List.any identity model.options
     in
-    Doc.section "Text fields and checkboxes"
+    Doc.configuredSection playground
+        [ "TextInput", "Checkbox" ]
+        "Text fields and checkboxes"
         "The fields are owned by the application (controlled input). The label, the hint and the error message are connected to the field for screen readers."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "TextInput" ]
             { title = "Text fields"
             , description = Just "The email field is checked by a validator on every keystroke: edit the address to make the error go away. The comment has a limit of 60 characters: its counter turns amber near the end and red past it, and a longer paste is kept, not cut. The order number is verbatim: no spell checking or capitals."
             , code = Just textInputCode
             }
-            (Layout.grid [ Layout.minColumn 260, Layout.gap 4 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 260), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ TextInput.view
-                    [ TextInput.label "Owner"
-                    , TextInput.required
-                    , TextInput.hint "First and last name"
-                    , TextInput.value model.owner
-                    , TextInput.onInput OwnerChanged
-                    , TextInput.placeholder "Maya Patel"
-                    , TextInput.id "basics-owner"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Owner")
+                            , Config.keep playground "TextInput" "required" TextInput.required
+                            , Config.keep playground "TextInput" "hint" (TextInput.hint "First and last name")
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.owner)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput OwnerChanged)
+                            , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "Maya Patel")
+                            , Config.keep playground "TextInput" "id" (TextInput.id "basics-owner")
+                            ]
+                        )
+                    )
                 , TextInput.view
-                    [ TextInput.label "Customer email"
-                    , TextInput.email
-                    , TextInput.prefixIcon Icon.mail
-                    , TextInput.value model.email
-                    , TextInput.onInput EmailChanged
-                    , TextInput.errorMaybe (Validate.run locale Validate.email model.email)
-                    , TextInput.id "basics-email"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Customer email")
+                            , Config.keep playground "TextInput" "email" TextInput.email
+                            , Config.keep playground "TextInput" "prefixIcon" (TextInput.prefixIcon Icon.mail)
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.email)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput EmailChanged)
+                            , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (Validate.run locale Validate.email model.email))
+                            , Config.keep playground "TextInput" "id" (TextInput.id "basics-email")
+                            ]
+                        )
+                    )
                 , TextInput.view
-                    [ TextInput.label "Search"
-                    , TextInput.locale locale
-                    , TextInput.search
-                    , TextInput.clearable
-                    , TextInput.value model.search
-                    , TextInput.onInput SearchChanged
-                    , TextInput.placeholder "Search orders ..."
-                    , TextInput.id "basics-search"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Search")
+                            , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                            , Config.keep playground "TextInput" "search" TextInput.search
+                            , Config.keep playground "TextInput" "clearable" TextInput.clearable
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.search)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput SearchChanged)
+                            , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "Search orders ...")
+                            , Config.keep playground "TextInput" "id" (TextInput.id "basics-search")
+                            ]
+                        )
+                    )
                 , TextInput.view
-                    [ TextInput.label "Amount"
-                    , TextInput.suffixText "EUR"
-                    , TextInput.value model.amount
-                    , TextInput.onInput AmountChanged
-                    , TextInput.optionalText "(optional)"
-                    , TextInput.id "basics-amount"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Amount")
+                            , Config.keep playground "TextInput" "suffixText" (TextInput.suffixText "EUR")
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.amount)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput AmountChanged)
+                            , Config.keep playground "TextInput" "optionalText" (TextInput.optionalText "(optional)")
+                            , Config.keep playground "TextInput" "id" (TextInput.id "basics-amount")
+                            ]
+                        )
+                    )
                 , TextInput.view
-                    [ TextInput.label "Comment"
-                    , TextInput.maxLength 60
-                    , TextInput.value model.comment
-                    , TextInput.onInput CommentChanged
-                    , TextInput.id "basics-comment"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Comment")
+                            , Config.keep playground "TextInput" "maxLength" (TextInput.maxLength 60)
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.comment)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput CommentChanged)
+                            , Config.keep playground "TextInput" "id" (TextInput.id "basics-comment")
+                            ]
+                        )
+                    )
                 , TextInput.view
-                    [ TextInput.label "Order number"
-                    , TextInput.readOnly True
-                    , TextInput.verbatim
-                    , TextInput.value "ORD-10001"
-                    , TextInput.id "basics-readonly"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Order number")
+                            , Config.keep playground "TextInput" "readOnly" (TextInput.readOnly True)
+                            , Config.keep playground "TextInput" "verbatim" TextInput.verbatim
+                            , Config.keep playground "TextInput" "value" (TextInput.value "ORD-10001")
+                            , Config.keep playground "TextInput" "id" (TextInput.id "basics-readonly")
+                            ]
+                        )
+                    )
                 , TextInput.view
-                    [ TextInput.label "Disabled"
-                    , TextInput.disabled True
-                    , TextInput.value "Cannot be changed"
-                    , TextInput.id "basics-disabled"
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Disabled")
+                            , Config.keep playground "TextInput" "disabled" (TextInput.disabled True)
+                            , Config.keep playground "TextInput" "value" (TextInput.value "Cannot be changed")
+                            , Config.keep playground "TextInput" "id" (TextInput.id "basics-disabled")
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "TextInput" ]
             { title = "Sizes"
             , description = Just "Small (26 px), medium (32 px) and large (40 px), the same heights as the buttons. The three fields share one value."
             , code = Just sizedCode
             }
-            (Layout.grid [ Layout.minColumn 220, Layout.gap 4 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 220), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 (List.map
                     (\( name, fieldSize ) ->
                         TextInput.view
-                            [ TextInput.label name
-                            , TextInput.size fieldSize
-                            , TextInput.prefixIcon Icon.mapPin
-                            , TextInput.value model.sized
-                            , TextInput.onInput SizedChanged
-                            , TextInput.placeholder "City"
-                            , TextInput.id ("basics-size-" ++ String.toLower name)
-                            ]
+                            (Options.klarTextInput playground
+                                (List.concat
+                                    [ Config.keep playground "TextInput" "label" (TextInput.label name)
+                                    , Config.keep playground "TextInput" "size" (TextInput.size fieldSize)
+                                    , Config.keep playground "TextInput" "prefixIcon" (TextInput.prefixIcon Icon.mapPin)
+                                    , Config.keep playground "TextInput" "value" (TextInput.value model.sized)
+                                    , Config.keep playground "TextInput" "onInput" (TextInput.onInput SizedChanged)
+                                    , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "City")
+                                    , Config.keep playground "TextInput" "id" (TextInput.id ("basics-size-" ++ String.toLower name))
+                                    ]
+                                )
+                            )
                     )
                     [ ( "Small", Small ), ( "Medium", Medium ), ( "Large", Large ) ]
                 )
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Checkbox" ]
             { title = "Checkboxes"
             , description = Just "A tri-state “Select all” with indeterminate: a click on an indeterminate box selects everything."
             , code = Just checkboxCode
             }
-            (Layout.stack [ Layout.gap 3, Layout.alignStart ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
                 [ Checkbox.view
-                    [ Checkbox.label "Send email notifications"
-                    , Checkbox.hint "You get an email when an order changes status."
-                    , Checkbox.checked model.notify
-                    , Checkbox.onCheck NotifyChanged
-                    ]
-                , Checkbox.view
-                    [ Checkbox.label "I accept the terms of delivery"
-                    , Checkbox.required
-                    , Checkbox.checked model.terms
-                    , Checkbox.onCheck TermsChanged
-                    , Checkbox.errorMaybe
-                        (if model.terms then
-                            Nothing
-
-                         else
-                            Just "You must accept the terms"
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "label" (Checkbox.label "Send email notifications")
+                            , Config.keep playground "Checkbox" "hint" (Checkbox.hint "You get an email when an order changes status.")
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.notify)
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck NotifyChanged)
+                            ]
                         )
-                    ]
-                , Checkbox.view [ Checkbox.label "Disabled", Checkbox.disabled True ]
-                , Checkbox.view [ Checkbox.label "Disabled and checked", Checkbox.checked True, Checkbox.disabled True ]
-                , Checkbox.view [ Checkbox.label "Read only and checked: Tab reaches it, nothing changes it", Checkbox.checked True, Checkbox.readOnly True ]
-                , Layout.row [ Layout.gap 4, Layout.alignCenter ]
-                    [ Checkbox.view [ Checkbox.label "Small", Checkbox.size Small, Checkbox.checked model.notify, Checkbox.onCheck NotifyChanged ]
-                    , Checkbox.view [ Checkbox.label "Medium", Checkbox.checked model.notify, Checkbox.onCheck NotifyChanged ]
-                    , Checkbox.view [ Checkbox.label "Large", Checkbox.size Large, Checkbox.checked model.notify, Checkbox.onCheck NotifyChanged ]
+                    )
+                , Checkbox.view
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "label" (Checkbox.label "I accept the terms of delivery")
+                            , Config.keep playground "Checkbox" "required" Checkbox.required
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.terms)
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck TermsChanged)
+                            , Config.keep playground
+                                "Checkbox"
+                                "errorMaybe"
+                                (Checkbox.errorMaybe
+                                    (if model.terms then
+                                        Nothing
+
+                                     else
+                                        Just "You must accept the terms"
+                                    )
+                                )
+                            ]
+                        )
+                    )
+                , Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Disabled"), Config.keep playground "Checkbox" "disabled" (Checkbox.disabled True) ]))
+                , Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Disabled and checked"), Config.keep playground "Checkbox" "checked" (Checkbox.checked True), Config.keep playground "Checkbox" "disabled" (Checkbox.disabled True) ]))
+                , Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Read only and checked: Tab reaches it, nothing changes it"), Config.keep playground "Checkbox" "checked" (Checkbox.checked True), Config.keep playground "Checkbox" "readOnly" (Checkbox.readOnly True) ]))
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Small"), Config.keep playground "Checkbox" "size" (Checkbox.size Small), Config.keep playground "Checkbox" "checked" (Checkbox.checked model.notify), Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck NotifyChanged) ]))
+                    , Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Medium"), Config.keep playground "Checkbox" "checked" (Checkbox.checked model.notify), Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck NotifyChanged) ]))
+                    , Checkbox.view (Options.klarCheckbox playground (List.concat [ Config.keep playground "Checkbox" "label" (Checkbox.label "Large"), Config.keep playground "Checkbox" "size" (Checkbox.size Large), Config.keep playground "Checkbox" "checked" (Checkbox.checked model.notify), Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck NotifyChanged) ]))
                     ]
                 , Layout.divider
                 , Checkbox.view
-                    [ Checkbox.label "Select all warehouses"
-                    , Checkbox.checked allChecked
-                    , Checkbox.indeterminate (someChecked && not allChecked)
-                    , Checkbox.onCheck AllOptionsChanged
-                    ]
-                , Layout.stack [ Layout.gap 2, Layout.alignStart ]
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "label" (Checkbox.label "Select all warehouses")
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked allChecked)
+                            , Config.keep playground "Checkbox" "indeterminate" (Checkbox.indeterminate (someChecked && not allChecked))
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck AllOptionsChanged)
+                            ]
+                        )
+                    )
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
                     (List.indexedMap
                         (\index ( warehouse, checked ) ->
                             Checkbox.view
-                                [ Checkbox.label warehouse.name
-                                , Checkbox.checked checked
-                                , Checkbox.onCheck (OptionChanged index)
-                                ]
+                                (Options.klarCheckbox playground
+                                    (List.concat
+                                        [ Config.keep playground "Checkbox" "label" (Checkbox.label warehouse.name)
+                                        , Config.keep playground "Checkbox" "checked" (Checkbox.checked checked)
+                                        , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck (OptionChanged index))
+                                        ]
+                                    )
+                                )
                         )
                         (List.map2 Tuple.pair optionWarehouses model.options)
                     )

@@ -17,26 +17,28 @@ import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Remote as Remote
 import Klar.Text as Text
+import Showcase.Config as Config
+import Showcase.Options as Options
 
 
 {-| Examples side by side, as many columns as fit.
 -}
-grid : Int -> List (Html msg) -> Html msg
-grid minWidth children =
-    Layout.grid [ Layout.minColumn minWidth, Layout.gap 5, Layout.alignStart ] children
+grid : Config.Config -> Int -> List (Html msg) -> Html msg
+grid playground minWidth children =
+    Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn minWidth), Config.keep playground "Layout" "gap" (Layout.gap 5), Config.keep playground "Layout" "alignStart" Layout.alignStart ])) children
 
 
-stack : List (Html msg) -> Html msg
-stack children =
-    Layout.stack [ Layout.gap 4 ] children
+stack : Config.Config -> List (Html msg) -> Html msg
+stack playground children =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ])) children
 
 
 {-| A column of limited width at the left edge of the example (not centred
 like a page container), to show how long texts behave in a narrow place.
 -}
-narrow : Int -> List (Html msg) -> Html msg
-narrow width children =
-    Layout.container [ Layout.maxWidth width, Layout.alignStart ] children
+narrow : Config.Config -> Int -> List (Html msg) -> Html msg
+narrow playground width children =
+    Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth width), Config.keep playground "Layout" "alignStart" Layout.alignStart ])) children
 
 
 {-| A small line that shows what the application knows.
@@ -67,9 +69,9 @@ yesNo flag =
 
 {-| Two columns: what goes in, and what comes out.
 -}
-resultTable : List String -> List ( String, String ) -> Html msg
-resultTable headers rows =
-    Layout.grid [ Layout.columns 2, Layout.gap 2, Layout.maxWidth 420 ]
+resultTable : Config.Config -> List String -> List ( String, String ) -> Html msg
+resultTable playground headers rows =
+    Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "columns" (Layout.columns 2), Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 420) ]))
         (List.map Text.overline headers
             ++ List.concatMap (\( left, right ) -> [ Text.mono left, Text.strong right ]) rows
         )

@@ -19,7 +19,9 @@ import Klar.TextArea as TextArea
 import Klar.Theme exposing (Size(..))
 import Page.Gallery.Forms.Common exposing (grid, readout, resultTable, showNumber, stack, yesNo)
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 
@@ -232,12 +234,12 @@ findOrders query =
 -- VIEW
 
 
-sections : Locale -> Model -> List (Html Msg)
-sections lang model =
-    [ textAreas lang model
-    , numbers lang model
-    , passwords lang model
-    , searches lang model
+sections : Config.Config -> Locale -> Model -> List (Html Msg)
+sections playground lang model =
+    [ textAreas playground lang model
+    , numbers playground lang model
+    , passwords playground lang model
+    , searches playground lang model
     ]
 
 
@@ -245,19 +247,25 @@ sections lang model =
 -- TEXT AREA
 
 
-textAreas : Locale -> Model -> Html Msg
-textAreas lang model =
+textAreas : Config.Config -> Locale -> Model -> Html Msg
+textAreas playground lang model =
     let
         field key =
-            [ TextArea.id key
-            , TextArea.value (textOf key model)
-            , TextArea.onInput (TextChanged key)
-            , TextArea.locale lang
-            ]
+            Options.klarTextArea playground
+                (List.concat
+                    [ Config.keep playground "TextArea" "id" (TextArea.id key)
+                    , Config.keep playground "TextArea" "value" (TextArea.value (textOf key model))
+                    , Config.keep playground "TextArea" "onInput" (TextArea.onInput (TextChanged key))
+                    , Config.keep playground "TextArea" "locale" (TextArea.locale lang)
+                    ]
+                )
     in
-    Doc.section "Text area"
+    Doc.configuredSection playground
+        [ "TextArea" ]
+        "Text area"
         "Multi-line text. The height is either fixed or grows with the content between a minimum and a maximum (CSS field-sizing, with a fallback for older browsers). A field with a limit shows a counter that turns amber near the end and red when the text is too long; nothing is ever cut, so paste a long text into \"Description\" and it stays, marked red. Tab moves in and out of the field; Enter inserts a new line, and Ctrl+Enter (Cmd+Enter) sends the message of onCtrlEnter."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "TextArea" ]
             { title = "Fixed and growing height"
             , description = Just "On the left four lines that can be dragged larger. On the right: starts at two lines, grows to six and scrolls after that."
             , code = Just """TextArea.view
@@ -276,27 +284,35 @@ TextArea.view
     , TextArea.onInput DescriptionChanged
     ]"""
             }
-            (grid 320
+            (grid playground
+                320
                 [ TextArea.view
-                    ([ TextArea.label "Delivery note"
-                     , TextArea.hint "Fixed height, four lines. Drag the corner to resize."
-                     , TextArea.rows 4
-                     ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Delivery note")
+                            , Config.keep playground "TextArea" "hint" (TextArea.hint "Fixed height, four lines. Drag the corner to resize.")
+                            , Config.keep playground "TextArea" "rows" (TextArea.rows 4)
+                            ]
+                        )
                         ++ field "ta-fixed"
                     )
                 , TextArea.view
-                    ([ TextArea.label "Description"
-                     , TextArea.hint "Grows with the text."
-                     , TextArea.placeholder "Write several lines ..."
-                     , TextArea.minRows 2
-                     , TextArea.maxRows 6
-                     , TextArea.maxLength 280
-                     ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Description")
+                            , Config.keep playground "TextArea" "hint" (TextArea.hint "Grows with the text.")
+                            , Config.keep playground "TextArea" "placeholder" (TextArea.placeholder "Write several lines ...")
+                            , Config.keep playground "TextArea" "minRows" (TextArea.minRows 2)
+                            , Config.keep playground "TextArea" "maxRows" (TextArea.maxRows 6)
+                            , Config.keep playground "TextArea" "maxLength" (TextArea.maxLength 280)
+                            ]
+                        )
                         ++ field "ta-grow"
                     )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "TextArea" ]
             { title = "States"
             , description = Just "Required, optional, with an error, read-only, disabled, small, with a long text and without the resize handle."
             , code = Just """TextArea.view [ TextArea.label "Reason", TextArea.required, TextArea.error "The reason must be filled in" ]
@@ -304,63 +320,91 @@ TextArea.view [ TextArea.label "Order history", TextArea.readOnly True, TextArea
 TextArea.view [ TextArea.label "Locked", TextArea.disabled True ]
 TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.noResize ]"""
             }
-            (grid 300
+            (grid playground
+                300
                 [ TextArea.view
-                    ([ TextArea.label "Reason for cancelling"
-                     , TextArea.required
-                     , TextArea.errorMaybe
-                        (if String.trim (textOf "ta-required" model) == "" then
-                            Just "The reason must be filled in"
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Reason for cancelling")
+                            , Config.keep playground "TextArea" "required" TextArea.required
+                            , Config.keep playground
+                                "TextArea"
+                                "errorMaybe"
+                                (TextArea.errorMaybe
+                                    (if String.trim (textOf "ta-required" model) == "" then
+                                        Just "The reason must be filled in"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            ]
                         )
-                     ]
                         ++ field "ta-required"
                     )
                 , TextArea.view
-                    ([ TextArea.label "Comment"
-                     , TextArea.optionalText "(optional)"
-                     , TextArea.placeholder "An optional comment"
-                     ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Comment")
+                            , Config.keep playground "TextArea" "optionalText" (TextArea.optionalText "(optional)")
+                            , Config.keep playground "TextArea" "placeholder" (TextArea.placeholder "An optional comment")
+                            ]
+                        )
                         ++ field "ta-optional"
                     )
                 , TextArea.view
-                    [ TextArea.label "Order history (read-only)"
-                    , TextArea.id "ta-readonly"
-                    , TextArea.readOnly True
-                    , TextArea.rows 4
-                    , TextArea.value longNote
-                    , TextArea.locale lang
-                    ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Order history (read-only)")
+                            , Config.keep playground "TextArea" "id" (TextArea.id "ta-readonly")
+                            , Config.keep playground "TextArea" "readOnly" (TextArea.readOnly True)
+                            , Config.keep playground "TextArea" "rows" (TextArea.rows 4)
+                            , Config.keep playground "TextArea" "value" (TextArea.value longNote)
+                            , Config.keep playground "TextArea" "locale" (TextArea.locale lang)
+                            ]
+                        )
+                    )
                 , TextArea.view
-                    [ TextArea.label "Locked field"
-                    , TextArea.id "ta-disabled"
-                    , TextArea.disabled True
-                    , TextArea.value "This field cannot be changed."
-                    , TextArea.locale lang
-                    ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Locked field")
+                            , Config.keep playground "TextArea" "id" (TextArea.id "ta-disabled")
+                            , Config.keep playground "TextArea" "disabled" (TextArea.disabled True)
+                            , Config.keep playground "TextArea" "value" (TextArea.value "This field cannot be changed.")
+                            , Config.keep playground "TextArea" "locale" (TextArea.locale lang)
+                            ]
+                        )
+                    )
                 , TextArea.view
-                    ([ TextArea.label "Small size"
-                     , TextArea.size Small
-                     , TextArea.rows 2
-                     ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Small size")
+                            , Config.keep playground "TextArea" "size" (TextArea.size Small)
+                            , Config.keep playground "TextArea" "rows" (TextArea.rows 2)
+                            ]
+                        )
                         ++ field "ta-small"
                     )
                 , TextArea.view
-                    ([ TextArea.label "Long text with counter"
-                     , TextArea.minRows 3
-                     , TextArea.maxRows 5
-                     , TextArea.maxLength 400
-                     , TextArea.hint "The height stops at five lines, then the text scrolls."
-                     ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Long text with counter")
+                            , Config.keep playground "TextArea" "minRows" (TextArea.minRows 3)
+                            , Config.keep playground "TextArea" "maxRows" (TextArea.maxRows 5)
+                            , Config.keep playground "TextArea" "maxLength" (TextArea.maxLength 400)
+                            , Config.keep playground "TextArea" "hint" (TextArea.hint "The height stops at five lines, then the text scrolls.")
+                            ]
+                        )
                         ++ field "ta-long"
                     )
                 , TextArea.view
-                    ([ TextArea.label "Fixed, no resize handle"
-                     , TextArea.rows 3
-                     , TextArea.noResize
-                     ]
+                    (Options.klarTextArea playground
+                        (List.concat
+                            [ Config.keep playground "TextArea" "label" (TextArea.label "Fixed, no resize handle")
+                            , Config.keep playground "TextArea" "rows" (TextArea.rows 3)
+                            , Config.keep playground "TextArea" "noResize" TextArea.noResize
+                            ]
+                        )
                         ++ field "ta-noresize"
                     )
                 ]
@@ -372,15 +416,18 @@ TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.noResize ]"""
 -- NUMBER
 
 
-numbers : Locale -> Model -> Html Msg
-numbers lang model =
+numbers : Config.Config -> Locale -> Model -> Html Msg
+numbers playground lang model =
     let
         readValue key =
             readout ("Value: " ++ showNumber (NumberInput.value (numberOf key model)))
     in
-    Doc.section "Number field"
+    Doc.configuredSection playground
+        [ "NumberInput" ]
+        "Number field"
         "The number field remembers the text you type and turns it into a number. Comma and point both work as the decimal separator, spaces are ignored. Arrow up and down change the value by one step (Shift or Page Up/Down: ten steps), and the + and − buttons do the same with the mouse. Leaving the field rounds the number to the decimals (1.005 with two decimals is 1.01, as Klar.Format rounds) and formats it, and Escape brings back the number from before the typing. In Norwegian \"10.000\" is ten thousand, and a pasted \"12 kg\" in a field with the unit kg is 12. A number outside min and max is never moved into the range behind your back: it stays as typed and the field says \"Must be between ...\"; only stepping stops at the limits. Text that is not a number gives the error \"Must be a number\"."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "NumberInput" ]
             { title = "Total, discount and quantity"
             , description = Just "Try \"1 234,5\", \"1.234,50\" or \"1,234.5\" and press Tab. Try the arrow keys with and without Shift. Type 55 as the discount and press Tab: the field keeps 55 and shows the error, it is not changed to 50 for you."
             , code = Just """-- model: { total : NumberInput.State }   NumberInput.init "order-total"
@@ -398,116 +445,160 @@ NumberInput.view TotalMsg
 NumberInput.value model.total -- Maybe Float
 NumberInput.isValid model.total -- False when the number is outside min and max"""
             }
-            (grid 260
-                [ stack
+            (grid playground
+                260
+                [ stack playground
                     [ NumberInput.view (NumberMsg "num-total")
-                        [ NumberInput.label "Order total"
-                        , NumberInput.hint "Between 0 and 1\u{00A0}000\u{00A0}000. Steps of 100."
-                        , NumberInput.min 0
-                        , NumberInput.max 1000000
-                        , NumberInput.step 100
-                        , NumberInput.decimals 2
-                        , NumberInput.grouped
-                        , NumberInput.prefixText "$"
-                        , NumberInput.alignRight
-                        , NumberInput.locale lang
-                        ]
+                        (Options.klarNumberInput playground
+                            (List.concat
+                                [ Config.keep playground "NumberInput" "label" (NumberInput.label "Order total")
+                                , Config.keep playground "NumberInput" "hint" (NumberInput.hint "Between 0 and 1\u{00A0}000\u{00A0}000. Steps of 100.")
+                                , Config.keep playground "NumberInput" "min" (NumberInput.min 0)
+                                , Config.keep playground "NumberInput" "max" (NumberInput.max 1000000)
+                                , Config.keep playground "NumberInput" "step" (NumberInput.step 100)
+                                , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 2)
+                                , Config.keep playground "NumberInput" "grouped" NumberInput.grouped
+                                , Config.keep playground "NumberInput" "prefixText" (NumberInput.prefixText "$")
+                                , Config.keep playground "NumberInput" "alignRight" NumberInput.alignRight
+                                , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                                ]
+                            )
+                        )
                         (numberOf "num-total" model)
                     , readValue "num-total"
                     ]
-                , stack
+                , stack playground
                     [ NumberInput.view (NumberMsg "num-discount")
-                        [ NumberInput.label "Discount"
-                        , NumberInput.hint "0 to 50 %, in steps of 0.5. A higher number is kept and shown as an error."
-                        , NumberInput.min 0
-                        , NumberInput.max 50
-                        , NumberInput.step 0.5
-                        , NumberInput.decimals 1
-                        , NumberInput.suffixText "%"
-                        , NumberInput.required
-                        , NumberInput.locale lang
-                        ]
+                        (Options.klarNumberInput playground
+                            (List.concat
+                                [ Config.keep playground "NumberInput" "label" (NumberInput.label "Discount")
+                                , Config.keep playground "NumberInput" "hint" (NumberInput.hint "0 to 50 %, in steps of 0.5. A higher number is kept and shown as an error.")
+                                , Config.keep playground "NumberInput" "min" (NumberInput.min 0)
+                                , Config.keep playground "NumberInput" "max" (NumberInput.max 50)
+                                , Config.keep playground "NumberInput" "step" (NumberInput.step 0.5)
+                                , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 1)
+                                , Config.keep playground "NumberInput" "suffixText" (NumberInput.suffixText "%")
+                                , Config.keep playground "NumberInput" "required" NumberInput.required
+                                , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                                ]
+                            )
+                        )
                         (numberOf "num-discount" model)
                     , readValue "num-discount"
                     ]
-                , stack
+                , stack playground
                     [ NumberInput.view (NumberMsg "num-quantity")
-                        [ NumberInput.label "Quantity"
-                        , NumberInput.hint "Whole numbers from 1 to 20."
-                        , NumberInput.min 1
-                        , NumberInput.max 20
-                        , NumberInput.decimals 0
-                        , NumberInput.suffixText "pcs"
-                        , NumberInput.placeholder "1–20"
-                        , NumberInput.optionalText "(optional)"
-                        , NumberInput.locale lang
-                        ]
+                        (Options.klarNumberInput playground
+                            (List.concat
+                                [ Config.keep playground "NumberInput" "label" (NumberInput.label "Quantity")
+                                , Config.keep playground "NumberInput" "hint" (NumberInput.hint "Whole numbers from 1 to 20.")
+                                , Config.keep playground "NumberInput" "min" (NumberInput.min 1)
+                                , Config.keep playground "NumberInput" "max" (NumberInput.max 20)
+                                , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 0)
+                                , Config.keep playground "NumberInput" "suffixText" (NumberInput.suffixText "pcs")
+                                , Config.keep playground "NumberInput" "placeholder" (NumberInput.placeholder "1–20")
+                                , Config.keep playground "NumberInput" "optionalText" (NumberInput.optionalText "(optional)")
+                                , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                                ]
+                            )
+                        )
                         (numberOf "num-quantity" model)
                     , readValue "num-quantity"
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "NumberInput" ]
             { title = "States and sizes"
             , description = Just "An error from the application, disabled, read-only, small, large, without + and −, and with a prefix."
             , code = Just """NumberInput.view OrderValueMsg [ NumberInput.label "Order value", NumberInput.errorMaybe (belowMinimum model.orderValue) ] model.orderValue
 NumberInput.view (always NoOp) [ NumberInput.label "Locked", NumberInput.disabled True ] state
 NumberInput.view PriceMsg [ NumberInput.noSteppers, NumberInput.prefixText "USD" ] model.price"""
             }
-            (grid 240
+            (grid playground
+                240
                 [ NumberInput.view (NumberMsg "num-value")
-                    [ NumberInput.label "Order value"
-                    , NumberInput.prefixText "$"
-                    , NumberInput.errorMaybe
-                        (if (NumberInput.value (numberOf "num-value" model) |> Maybe.withDefault 0) < 50 then
-                            Just "Orders below $50 are not accepted"
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "Order value")
+                            , Config.keep playground "NumberInput" "prefixText" (NumberInput.prefixText "$")
+                            , Config.keep playground
+                                "NumberInput"
+                                "errorMaybe"
+                                (NumberInput.errorMaybe
+                                    (if (NumberInput.value (numberOf "num-value" model) |> Maybe.withDefault 0) < 50 then
+                                        Just "Orders below $50 are not accepted"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                            ]
                         )
-                    , NumberInput.locale lang
-                    ]
+                    )
                     (numberOf "num-value" model)
                 , NumberInput.view (always NoOp)
-                    [ NumberInput.label "Disabled"
-                    , NumberInput.disabled True
-                    , NumberInput.suffixText "kg"
-                    , NumberInput.locale lang
-                    ]
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "Disabled")
+                            , Config.keep playground "NumberInput" "disabled" (NumberInput.disabled True)
+                            , Config.keep playground "NumberInput" "suffixText" (NumberInput.suffixText "kg")
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                            ]
+                        )
+                    )
                     (NumberInput.setValue (Just 82.5) (NumberInput.init "num-disabled"))
                 , NumberInput.view (always NoOp)
-                    [ NumberInput.label "Read-only"
-                    , NumberInput.readOnly True
-                    , NumberInput.suffixText "cm"
-                    , NumberInput.locale lang
-                    ]
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "Read-only")
+                            , Config.keep playground "NumberInput" "readOnly" (NumberInput.readOnly True)
+                            , Config.keep playground "NumberInput" "suffixText" (NumberInput.suffixText "cm")
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                            ]
+                        )
+                    )
                     (NumberInput.setValue (Just 181) (NumberInput.init "num-readonly"))
                 , NumberInput.view (NumberMsg "num-small")
-                    [ NumberInput.label "Small"
-                    , NumberInput.size Small
-                    , NumberInput.suffixText "%"
-                    , NumberInput.locale lang
-                    ]
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "Small")
+                            , Config.keep playground "NumberInput" "size" (NumberInput.size Small)
+                            , Config.keep playground "NumberInput" "suffixText" (NumberInput.suffixText "%")
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                            ]
+                        )
+                    )
                     (numberOf "num-small" model)
                 , NumberInput.view (NumberMsg "num-large")
-                    [ NumberInput.label "Large"
-                    , NumberInput.size Large
-                    , NumberInput.suffixText "m³"
-                    , NumberInput.decimals 1
-                    , NumberInput.locale lang
-                    ]
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "Large")
+                            , Config.keep playground "NumberInput" "size" (NumberInput.size Large)
+                            , Config.keep playground "NumberInput" "suffixText" (NumberInput.suffixText "m³")
+                            , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 1)
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                            ]
+                        )
+                    )
                     (numberOf "num-large" model)
                 , NumberInput.view (NumberMsg "num-plain")
-                    [ NumberInput.label "No steppers"
-                    , NumberInput.prefixText "USD"
-                    , NumberInput.noSteppers
-                    , NumberInput.grouped
-                    , NumberInput.locale lang
-                    ]
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "No steppers")
+                            , Config.keep playground "NumberInput" "prefixText" (NumberInput.prefixText "USD")
+                            , Config.keep playground "NumberInput" "noSteppers" NumberInput.noSteppers
+                            , Config.keep playground "NumberInput" "grouped" NumberInput.grouped
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                            ]
+                        )
+                    )
                     (numberOf "num-plain" model)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "NumberInput" ]
             { title = "The language sets the number format"
             , description = Just "The same number in an English and in a Norwegian field: the decimal separator follows the locale of the field, whatever the language of the page. What you type is read in the same way in both."
             , code = Just """NumberInput.view PriceMsg
@@ -518,24 +609,34 @@ NumberInput.view PriceMsg [ NumberInput.noSteppers, NumberInput.prefixText "USD"
     ]
     model.price -- shows 1 234,50 for 1234.5"""
             }
-            (grid 240
+            (grid playground
+                240
                 [ NumberInput.view (NumberMsg "num-format-en")
-                    [ NumberInput.label "English format"
-                    , NumberInput.decimals 2
-                    , NumberInput.grouped
-                    , NumberInput.locale Locale.en
-                    ]
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "English format")
+                            , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 2)
+                            , Config.keep playground "NumberInput" "grouped" NumberInput.grouped
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale Locale.en)
+                            ]
+                        )
+                    )
                     (numberOf "num-format-en" model)
                 , NumberInput.view (NumberMsg "num-format-nb")
-                    [ NumberInput.label "Norwegian format"
-                    , NumberInput.decimals 2
-                    , NumberInput.grouped
-                    , NumberInput.locale Locale.nb
-                    ]
+                    (Options.klarNumberInput playground
+                        (List.concat
+                            [ Config.keep playground "NumberInput" "label" (NumberInput.label "Norwegian format")
+                            , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 2)
+                            , Config.keep playground "NumberInput" "grouped" NumberInput.grouped
+                            , Config.keep playground "NumberInput" "locale" (NumberInput.locale Locale.nb)
+                            ]
+                        )
+                    )
                     (numberOf "num-format-nb" model)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "NumberInput" ]
             { title = "How the text is read"
             , description = Just "NumberInput.parse: a single separator is always the decimal separator, several equal separators are thousands separators. So \"1.234\" is one and 234 thousandths, not 1234."
             , code = Just """NumberInput.parse "1 234,56" -- Just 1234.56
@@ -543,7 +644,8 @@ NumberInput.parse "1.234,56" -- Just 1234.56
 NumberInput.parse "1.234" -- Just 1.234
 NumberInput.parse "abc" -- Nothing"""
             }
-            (resultTable [ "Text", "Number" ]
+            (resultTable playground
+                [ "Text", "Number" ]
                 (List.map
                     (\text -> ( "\"" ++ text ++ "\"", showNumber (NumberInput.parse text) ))
                     [ "12", "12,5", "12.5", "1 234,56", "1.234,56", "1,234.56", "1.234.567", "1.234", "-3,5", "−3,5", ",5", "12,", "abc", "1,2,3", "" ]
@@ -556,11 +658,14 @@ NumberInput.parse "abc" -- Nothing"""
 -- PASSWORD
 
 
-passwords : Locale -> Model -> Html Msg
-passwords lang model =
-    Doc.section "Password"
+passwords : Config.Config -> Locale -> Model -> Html Msg
+passwords playground lang model =
+    Doc.configuredSection playground
+        [ "PasswordInput" ]
+        "Password"
         "A password field with a \"show password\" button (Tab to the button, Enter or Space toggles it), a Caps Lock warning (type a capital without Shift) and a simple strength meter. The state holds the password: read it with PasswordInput.value. The meter looks at the length first (a long passphrase is strong without digits), the mix of characters and obvious patterns; it is a guide, not a security guarantee."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "PasswordInput" ]
             { title = "Sign in and new password"
             , description = Just "On the right with a strength meter. Try \"password123\", \"Summer2026\" and \"Summer-2026!\": from weak to strong."
             , code = Just """PasswordInput.view LoginMsg
@@ -580,25 +685,35 @@ PasswordInput.view NewPasswordMsg
 -- read it
 PasswordInput.value model.password -- String"""
             }
-            (grid 300
+            (grid playground
+                300
                 [ PasswordInput.view (PasswordMsg "pw-login")
-                    [ PasswordInput.label "Password"
-                    , PasswordInput.currentPassword
-                    , PasswordInput.hint "The password of your account."
-                    , PasswordInput.locale lang
-                    ]
+                    (Options.klarPasswordInput playground
+                        (List.concat
+                            [ Config.keep playground "PasswordInput" "label" (PasswordInput.label "Password")
+                            , Config.keep playground "PasswordInput" "currentPassword" PasswordInput.currentPassword
+                            , Config.keep playground "PasswordInput" "hint" (PasswordInput.hint "The password of your account.")
+                            , Config.keep playground "PasswordInput" "locale" (PasswordInput.locale lang)
+                            ]
+                        )
+                    )
                     (passwordOf "pw-login" model)
                 , PasswordInput.view (PasswordMsg "pw-new")
-                    [ PasswordInput.label "New password"
-                    , PasswordInput.newPassword
-                    , PasswordInput.required
-                    , PasswordInput.strengthMeter
-                    , PasswordInput.locale lang
-                    ]
+                    (Options.klarPasswordInput playground
+                        (List.concat
+                            [ Config.keep playground "PasswordInput" "label" (PasswordInput.label "New password")
+                            , Config.keep playground "PasswordInput" "newPassword" PasswordInput.newPassword
+                            , Config.keep playground "PasswordInput" "required" PasswordInput.required
+                            , Config.keep playground "PasswordInput" "strengthMeter" PasswordInput.strengthMeter
+                            , Config.keep playground "PasswordInput" "locale" (PasswordInput.locale lang)
+                            ]
+                        )
+                    )
                     (passwordOf "pw-new" model)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "PasswordInput" ]
             { title = "States"
             , description = Just "With an error (until the two passwords are the same), disabled and small."
             , code = Just """PasswordInput.view RepeatMsg
@@ -613,40 +728,59 @@ PasswordInput.value model.password -- String"""
     ]
     model.repeat"""
             }
-            (grid 260
+            (grid playground
+                260
                 [ PasswordInput.view (PasswordMsg "pw-repeat")
-                    [ PasswordInput.label "Repeat password"
-                    , PasswordInput.hint "Compared with \"New password\" above."
-                    , PasswordInput.errorMaybe
-                        (if PasswordInput.value (passwordOf "pw-repeat" model) /= PasswordInput.value (passwordOf "pw-new" model) then
-                            Just "The passwords do not match"
+                    (Options.klarPasswordInput playground
+                        (List.concat
+                            [ Config.keep playground "PasswordInput" "label" (PasswordInput.label "Repeat password")
+                            , Config.keep playground "PasswordInput" "hint" (PasswordInput.hint "Compared with \"New password\" above.")
+                            , Config.keep playground
+                                "PasswordInput"
+                                "errorMaybe"
+                                (PasswordInput.errorMaybe
+                                    (if PasswordInput.value (passwordOf "pw-repeat" model) /= PasswordInput.value (passwordOf "pw-new" model) then
+                                        Just "The passwords do not match"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground "PasswordInput" "locale" (PasswordInput.locale lang)
+                            ]
                         )
-                    , PasswordInput.locale lang
-                    ]
+                    )
                     (passwordOf "pw-repeat" model)
                 , PasswordInput.view (always NoOp)
-                    [ PasswordInput.label "Disabled"
-                    , PasswordInput.disabled True
-                    , PasswordInput.locale lang
-                    ]
+                    (Options.klarPasswordInput playground
+                        (List.concat
+                            [ Config.keep playground "PasswordInput" "label" (PasswordInput.label "Disabled")
+                            , Config.keep playground "PasswordInput" "disabled" (PasswordInput.disabled True)
+                            , Config.keep playground "PasswordInput" "locale" (PasswordInput.locale lang)
+                            ]
+                        )
+                    )
                     (PasswordInput.setValue "secret" (PasswordInput.init "pw-disabled"))
                 , PasswordInput.view (PasswordMsg "pw-small")
-                    [ PasswordInput.label "Small"
-                    , PasswordInput.size Small
-                    , PasswordInput.locale lang
-                    ]
+                    (Options.klarPasswordInput playground
+                        (List.concat
+                            [ Config.keep playground "PasswordInput" "label" (PasswordInput.label "Small")
+                            , Config.keep playground "PasswordInput" "size" (PasswordInput.size Small)
+                            , Config.keep playground "PasswordInput" "locale" (PasswordInput.locale lang)
+                            ]
+                        )
+                    )
                     (passwordOf "pw-small" model)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "PasswordInput" ]
             { title = "Password strength (0 to 4)"
             , description = Just "PasswordInput.strength can be used in the validation, for example \"at least 2\"."
             , code = Just """PasswordInput.strength "Summer2026" -- 3"""
             }
-            (resultTable [ "Password", "Strength" ]
+            (resultTable playground
+                [ "Password", "Strength" ]
                 (List.map
                     (\text -> ( "\"" ++ text ++ "\"", String.fromInt (PasswordInput.strength text) ))
                     [ "", "abc", "aaaaaaaa", "12345678", "password123", "Tiger1234", "summertime", "Summer2026", "Summer-2026!", "Blue-Falcon-Lamp-42" ]
@@ -659,15 +793,18 @@ PasswordInput.value model.password -- String"""
 -- SEARCH
 
 
-searches : Locale -> Model -> Html Msg
-searches lang model =
+searches : Config.Config -> Locale -> Model -> Html Msg
+searches playground lang model =
     let
         slow =
             searchOf "search-slow" model
     in
-    Doc.section "Search field"
+    Doc.configuredSection playground
+        [ "SearchInput", "Search" ]
+        "Search field"
         "The search field waits until you have stopped typing (300 ms) before the text becomes a search. Enter searches at once, Escape or the cross clears the field and searches (and Escape in a field with text is kept from closing a dialog around it). A space at the end starts no new search, and a word that an input method is still composing is not searched for. The application compares committed before and after each update to know when to start a search."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "SearchInput", "Search" ]
             { title = "Search with a delay"
             , description = Just "Count keystrokes against started searches: type \"logistics\" quickly and only one search starts. The hits come from a search through the customer names of 3,000 orders. The \"/\" in the field is only a hint for a shortcut; the application binds the key itself with Klar.Shortcut."
             , code = Just """SearchInput.view SearchMsg
@@ -681,21 +818,33 @@ searches lang model =
 searchChanged =
     SearchInput.committed search /= SearchInput.committed model.search"""
             }
-            (stack
+            (stack playground
                 [ SearchInput.view SearchMsg
-                    [ SearchInput.placeholder "Search orders ..."
-                    , SearchInput.shortcut (Shortcut.char '/')
-                    , SearchInput.remote
-                        (if model.searching then
-                            Remote.Loading
+                    (Options.klarSearchInput playground
+                        (List.concat
+                            [ Config.keep playground "SearchInput" "placeholder" (SearchInput.placeholder "Search orders ...")
+                            , Config.keep playground "SearchInput" "shortcut" (SearchInput.shortcut (Shortcut.char '/'))
+                            , Config.keep playground
+                                "SearchInput"
+                                "remote"
+                                (SearchInput.remote
+                                    (Config.remote playground
+                                        "SearchInput"
+                                        "remote"
+                                        (if model.searching then
+                                            Remote.Loading
 
-                         else
-                            Remote.NotAsked
+                                         else
+                                            Remote.NotAsked
+                                        )
+                                    )
+                                )
+                            , Config.keep playground "SearchInput" "locale" (SearchInput.locale lang)
+                            ]
                         )
-                    , SearchInput.locale lang
-                    ]
+                    )
                     model.search
-                , Layout.row [ Layout.gap 6, Layout.wrap ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6), Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ readout ("In the field: \"" ++ SearchInput.value model.search ++ "\"")
                     , readout ("Searching for: \"" ++ SearchInput.committed model.search ++ "\"")
                     , readout ("Keystrokes: " ++ String.fromInt model.keystrokes)
@@ -711,41 +860,60 @@ searchChanged =
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "SearchInput", "Search" ]
             { title = "Sizes and states"
             , description = Just "Small, disabled, with a label and a hint, and loading."
             , code = Just """SearchInput.view SearchMsg [ SearchInput.size Small, SearchInput.placeholder "Filter ..." ] model.search"""
             }
-            (grid 260
+            (grid playground
+                260
                 [ SearchInput.view (SearchStateMsg "search-small")
-                    [ SearchInput.size Small
-                    , SearchInput.placeholder "Filter ..."
-                    , SearchInput.ariaLabel "Filter the list"
-                    , SearchInput.locale lang
-                    ]
+                    (Options.klarSearchInput playground
+                        (List.concat
+                            [ Config.keep playground "SearchInput" "size" (SearchInput.size Small)
+                            , Config.keep playground "SearchInput" "placeholder" (SearchInput.placeholder "Filter ...")
+                            , Config.keep playground "SearchInput" "ariaLabel" (SearchInput.ariaLabel "Filter the list")
+                            , Config.keep playground "SearchInput" "locale" (SearchInput.locale lang)
+                            ]
+                        )
+                    )
                     (searchOf "search-small" model)
                 , SearchInput.view (always NoOp)
-                    [ SearchInput.placeholder "Search is switched off"
-                    , SearchInput.disabled True
-                    , SearchInput.locale lang
-                    ]
+                    (Options.klarSearchInput playground
+                        (List.concat
+                            [ Config.keep playground "SearchInput" "placeholder" (SearchInput.placeholder "Search is switched off")
+                            , Config.keep playground "SearchInput" "disabled" (SearchInput.disabled True)
+                            , Config.keep playground "SearchInput" "locale" (SearchInput.locale lang)
+                            ]
+                        )
+                    )
                     (SearchInput.init "search-disabled")
                 , SearchInput.view (SearchStateMsg "search-labelled")
-                    [ SearchInput.label "Search orders"
-                    , SearchInput.hint "Searches the customer names."
-                    , SearchInput.placeholder "For example \"logistics\""
-                    , SearchInput.locale lang
-                    ]
+                    (Options.klarSearchInput playground
+                        (List.concat
+                            [ Config.keep playground "SearchInput" "label" (SearchInput.label "Search orders")
+                            , Config.keep playground "SearchInput" "hint" (SearchInput.hint "Searches the customer names.")
+                            , Config.keep playground "SearchInput" "placeholder" (SearchInput.placeholder "For example \"logistics\"")
+                            , Config.keep playground "SearchInput" "locale" (SearchInput.locale lang)
+                            ]
+                        )
+                    )
                     (searchOf "search-labelled" model)
                 , SearchInput.view (SearchStateMsg "search-loading")
-                    [ SearchInput.placeholder "Loading ..."
-                    , SearchInput.remote Remote.Loading
-                    , SearchInput.locale lang
-                    ]
+                    (Options.klarSearchInput playground
+                        (List.concat
+                            [ Config.keep playground "SearchInput" "placeholder" (SearchInput.placeholder "Loading ...")
+                            , Config.keep playground "SearchInput" "remote" (SearchInput.remote (Config.remote playground "SearchInput" "remote" Remote.Loading))
+                            , Config.keep playground "SearchInput" "locale" (SearchInput.locale lang)
+                            ]
+                        )
+                    )
                     (searchOf "search-loading" model)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "SearchInput", "Search" ]
             { title = "Delay and pending text"
             , description = Just "debounce sets how long the field waits after the last keystroke (300 ms by default, 0 commits every keystroke). isPending is true while there is typed text that is not committed yet."
             , code = Just """SearchInput.view SearchMsg
@@ -756,15 +924,19 @@ searchChanged =
 
 SearchInput.isPending model.search -- True until the pause is over"""
             }
-            (stack
+            (stack playground
                 [ SearchInput.view (SearchStateMsg "search-slow")
-                    [ SearchInput.ariaLabel "Search with a long delay"
-                    , SearchInput.placeholder "Waits one second ..."
-                    , SearchInput.debounce 1000
-                    , SearchInput.locale lang
-                    ]
+                    (Options.klarSearchInput playground
+                        (List.concat
+                            [ Config.keep playground "SearchInput" "ariaLabel" (SearchInput.ariaLabel "Search with a long delay")
+                            , Config.keep playground "SearchInput" "placeholder" (SearchInput.placeholder "Waits one second ...")
+                            , Config.keep playground "SearchInput" "debounce" (SearchInput.debounce 1000)
+                            , Config.keep playground "SearchInput" "locale" (SearchInput.locale lang)
+                            ]
+                        )
+                    )
                     slow
-                , Layout.row [ Layout.gap 6, Layout.wrap ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6), Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ readout ("Pending: " ++ yesNo (SearchInput.isPending slow))
                     , readout ("Committed: \"" ++ SearchInput.committed slow ++ "\"")
                     ]

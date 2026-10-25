@@ -28,7 +28,9 @@ import Klar.TextArea as TextArea
 import Klar.Theme as Theme
 import Process
 import Set exposing (Set)
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import Time
@@ -674,14 +676,14 @@ subscriptions _ =
 -- VIEW
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view settings locale model =
-    Doc.page
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground settings locale model =
+    Doc.configuredPage playground
         { title = "Roles and approvals"
         , description = "A permission matrix for roles and an approval flow with approvers and status. The status of a flow is derived from the decisions, so what is drawn can never contradict them. The language switch in the top bar changes the built-in texts."
         }
-        [ matrixSection settings locale model
-        , approvalSection settings locale model
+        [ matrixSection playground settings locale model
+        , approvalSection playground settings locale model
         ]
 
 
@@ -708,92 +710,118 @@ oldData value =
     Remote.refreshWith (Remote.refresh loaded) (Err (Remote.problem Remote.network)) (Time.millisToPosix (Time.posixToMillis Sample.now - 60000))
 
 
-matrixSection : Settings -> Locale -> Model -> Html Msg
-matrixSection settings locale model =
+matrixSection : Config.Config -> Settings -> Locale -> Model -> Html Msg
+matrixSection playground settings locale model =
     let
         changed =
             model.decisions /= model.saved
     in
-    Doc.section "Permission matrix"
+    Doc.configuredSection playground
+        [ "PermissionMatrix" ]
+        "Permission matrix"
         "Roles are the columns and permissions the rows, in groups. A cell is granted, denied or inherited from another role. The values are the application's: it holds them, the matrix reports a click, a key press or a header checkbox as one message with a list of changes, and draws what the application gives back."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "PermissionMatrix" ]
             { title = "Roles that inherit, with Save and Discard"
             , description =
                 Just "A dispatcher has what a picker has, and a supervisor what a dispatcher has, unless a cell says otherwise (dashed boxes with the source). Toggling an inherited cell overrides it (a small mark in its corner); toggling it back to what the parent says, the mark that appears under the pointer, or Delete or Backspace lets it inherit again, and the application only stores or removes what the change says. The administrator column is locked, with the reason under the grid. Cells that differ from the last save have a dot; the count and your buttons are above. Arrow keys, Home, End, Ctrl+Home, Ctrl+End, Page Up and Page Down move; Space or Enter toggles; the checkbox of a role or a permission grants or denies the whole line; Enter on a group row folds it."
             , code = Just matrixCode
             }
-            (Layout.stack [ Layout.gap 2 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                 [ PermissionMatrix.view MatrixMsg
-                    [ PermissionMatrix.onChange CellsChanged
-                    , PermissionMatrix.saved (cellOf model.saved)
-                    , PermissionMatrix.locale locale
-                    , PermissionMatrix.ariaLabel "Permissions of the roles"
-                    , PermissionMatrix.toolbarActions
-                        [ Button.view [ Button.disabled (not changed), Button.onClick Discard ] "Discard"
-                        , Button.view [ Button.primary, Button.disabled (not changed), Button.onClick Save ] "Save"
-                        ]
-                    ]
+                    (Options.klarPermissionMatrix playground
+                        (List.concat
+                            [ Config.keep playground "PermissionMatrix" "onChange" (PermissionMatrix.onChange CellsChanged)
+                            , Config.keep playground "PermissionMatrix" "saved" (PermissionMatrix.saved (cellOf model.saved))
+                            , Config.keep playground "PermissionMatrix" "locale" (PermissionMatrix.locale locale)
+                            , Config.keep playground "PermissionMatrix" "ariaLabel" (PermissionMatrix.ariaLabel "Permissions of the roles")
+                            , Config.keep playground
+                                "PermissionMatrix"
+                                "toolbarActions"
+                                (PermissionMatrix.toolbarActions
+                                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "disabled" (Button.disabled (not changed)), Config.keep playground "Button" "onClick" (Button.onClick Discard) ])) "Discard"
+                                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "disabled" (Button.disabled (not changed)), Config.keep playground "Button" "onClick" (Button.onClick Save) ])) "Save"
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                     model.matrix
                     (theMatrix model.decisions)
                 , Text.caption (Maybe.withDefault "Toggle some cells, then save or discard." model.outcome)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "PermissionMatrix" ]
             { title = "Read-only and compact"
             , description = Just "Without onChange the cells show their state as an icon and a word and nothing can be changed, but the grid can still be moved through with the keys and the groups folded. The density is the one of the table."
             , code = Just readOnlyCode
             }
             (PermissionMatrix.view ReadOnlyMsg
-                [ PermissionMatrix.density Theme.Compact
-                , PermissionMatrix.locale locale
-                , PermissionMatrix.maxHeight 320
-                ]
+                (Options.klarPermissionMatrix playground
+                    (List.concat
+                        [ Config.keep playground "PermissionMatrix" "density" (PermissionMatrix.density Theme.Compact)
+                        , Config.keep playground "PermissionMatrix" "locale" (PermissionMatrix.locale locale)
+                        , Config.keep playground "PermissionMatrix" "maxHeight" (PermissionMatrix.maxHeight 320)
+                        ]
+                    )
+                )
                 model.readOnly
                 (theMatrix model.saved)
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "PermissionMatrix" ]
             { title = "Loading, failing, refreshing and old data"
             , description = Just "A skeleton in the shape of a grid, and the problem with a Try again button when it is worth trying again. Data that is refreshed stays editable, dimmed and busy, and the focus stays on its cell; when the refresh failed, the grid says how old the data is, with Try again. The id of init is on the frame in every state, for Klar.focus after Try again."
             , code = Just remoteCode
             }
-            (Layout.grid [ Layout.minColumn 360, Layout.gap 4 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 360), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ labelled "Loading"
-                    (PermissionMatrix.viewRemote LoadingMsg [ PermissionMatrix.locale locale ] model.loading Remote.Loading)
+                    (PermissionMatrix.viewRemote LoadingMsg (Options.klarPermissionMatrix playground (List.concat [ Config.keep playground "PermissionMatrix" "locale" (PermissionMatrix.locale locale) ])) model.loading Remote.Loading)
                 , labelled ("Failure, tried again " ++ String.fromInt model.retries ++ " times")
                     (PermissionMatrix.viewRemote FailingMsg
-                        [ PermissionMatrix.locale locale, PermissionMatrix.onRetry Retried ]
+                        (Options.klarPermissionMatrix playground (List.concat [ Config.keep playground "PermissionMatrix" "locale" (PermissionMatrix.locale locale), Config.keep playground "PermissionMatrix" "onRetry" (PermissionMatrix.onRetry Retried) ]))
                         model.failing
                         (Remote.Failed (Remote.problem Remote.network))
                     )
                 , labelled "Refreshing"
                     (PermissionMatrix.viewRemote RefreshingMsg
-                        [ PermissionMatrix.locale locale, PermissionMatrix.maxHeight 240 ]
+                        (Options.klarPermissionMatrix playground (List.concat [ Config.keep playground "PermissionMatrix" "locale" (PermissionMatrix.locale locale), Config.keep playground "PermissionMatrix" "maxHeight" (PermissionMatrix.maxHeight 240) ]))
                         model.refreshing
                         (Remote.refresh (Remote.Loaded (theMatrix model.saved)))
                     )
                 , labelled "Old data: the refresh failed"
                     (PermissionMatrix.viewRemote StaleMsg
-                        [ PermissionMatrix.locale locale
-                        , PermissionMatrix.settings settings
-                        , PermissionMatrix.onRetry Retried
-                        , PermissionMatrix.maxHeight 240
-                        ]
+                        (Options.klarPermissionMatrix playground
+                            (List.concat
+                                [ Config.keep playground "PermissionMatrix" "locale" (PermissionMatrix.locale locale)
+                                , Config.keep playground "PermissionMatrix" "settings" (PermissionMatrix.settings settings)
+                                , Config.keep playground "PermissionMatrix" "onRetry" (PermissionMatrix.onRetry Retried)
+                                , Config.keep playground "PermissionMatrix" "maxHeight" (PermissionMatrix.maxHeight 240)
+                                ]
+                            )
+                        )
                         model.stale
                         (oldData (theMatrix model.saved))
                     )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "PermissionMatrix" ]
             { title = "200 permissions by 25 roles"
             , description = Just "5 000 cells and 12 groups. Events are caught once on the grid, so no cell has a handler of its own, and each cell is drawn with Html.Lazy from a few plain values: an arrow key draws two cells again, a toggle the cells it changed. Filter, fold a group, or press the checkbox of a role: it acts on every permission that matches the filter, folded groups included."
             , code = Nothing
             }
             (PermissionMatrix.view BigMsg
-                [ PermissionMatrix.onChange BigChanged
-                , PermissionMatrix.density Theme.Compact
-                , PermissionMatrix.locale locale
-                , PermissionMatrix.maxHeight 420
-                ]
+                (Options.klarPermissionMatrix playground
+                    (List.concat
+                        [ Config.keep playground "PermissionMatrix" "onChange" (PermissionMatrix.onChange BigChanged)
+                        , Config.keep playground "PermissionMatrix" "density" (PermissionMatrix.density Theme.Compact)
+                        , Config.keep playground "PermissionMatrix" "locale" (PermissionMatrix.locale locale)
+                        , Config.keep playground "PermissionMatrix" "maxHeight" (PermissionMatrix.maxHeight 420)
+                        ]
+                    )
+                )
                 model.big
                 (bigMatrix model.bigGrants)
             )
@@ -804,13 +832,17 @@ matrixSection settings locale model =
 -- APPROVAL FLOW
 
 
-viewerButton : Model -> Maybe User -> Html Msg
-viewerButton model choice =
-    Button.view
-        [ Button.small
-        , Button.pressed (model.viewer == choice)
-        , Button.onClick (ViewerPicked choice)
-        ]
+viewerButton : Config.Config -> Model -> Maybe User -> Html Msg
+viewerButton playground model choice =
+    Options.buttonView playground
+        (Options.klarButton playground
+            (List.concat
+                [ Config.keep playground "Button" "small" Button.small
+                , Config.keep playground "Button" "pressed" (Button.pressed (model.viewer == choice))
+                , Config.keep playground "Button" "onClick" (Button.onClick (ViewerPicked choice))
+                ]
+            )
+        )
         (case choice of
             Just user ->
                 userName user
@@ -820,18 +852,21 @@ viewerButton model choice =
         )
 
 
-flowAttributes : Settings -> Locale -> Model -> List (ApprovalFlow.Attribute User Msg)
-flowAttributes settings locale model =
-    [ ApprovalFlow.viewer model.viewer
-    , ApprovalFlow.onApprove ApproveClicked
-    , ApprovalFlow.onReject RejectClicked
-    , ApprovalFlow.deciding model.deciding
-    , ApprovalFlow.now Sample.now
-    , ApprovalFlow.settings settings
-    , ApprovalFlow.locale locale
-    , ApprovalFlow.ariaLabel "Approval of credit note 2024-117"
-    , ApprovalFlow.id creditNoteId
-    ]
+flowAttributes : Config.Config -> Settings -> Locale -> Model -> List (ApprovalFlow.Attribute User Msg)
+flowAttributes playground settings locale model =
+    Options.klarApprovalFlow playground
+        (List.concat
+            [ Config.keep playground "ApprovalFlow" "viewer" (ApprovalFlow.viewer model.viewer)
+            , Config.keep playground "ApprovalFlow" "onApprove" (ApprovalFlow.onApprove ApproveClicked)
+            , Config.keep playground "ApprovalFlow" "onReject" (ApprovalFlow.onReject RejectClicked)
+            , Config.keep playground "ApprovalFlow" "deciding" (ApprovalFlow.deciding model.deciding)
+            , Config.keep playground "ApprovalFlow" "now" (ApprovalFlow.now Sample.now)
+            , Config.keep playground "ApprovalFlow" "settings" (ApprovalFlow.settings settings)
+            , Config.keep playground "ApprovalFlow" "locale" (ApprovalFlow.locale locale)
+            , Config.keep playground "ApprovalFlow" "ariaLabel" (ApprovalFlow.ariaLabel "Approval of credit note 2024-117")
+            , Config.keep playground "ApprovalFlow" "id" (ApprovalFlow.id creditNoteId)
+            ]
+        )
 
 
 creditNoteId : String
@@ -839,76 +874,85 @@ creditNoteId =
     "credit-note-flow"
 
 
-staticAttributes : Settings -> Locale -> List (ApprovalFlow.Attribute User Msg)
-staticAttributes settings locale =
-    [ ApprovalFlow.now Sample.now
-    , ApprovalFlow.settings settings
-    , ApprovalFlow.locale locale
-    ]
+staticAttributes : Config.Config -> Settings -> Locale -> List (ApprovalFlow.Attribute User Msg)
+staticAttributes playground settings locale =
+    Options.klarApprovalFlow playground
+        (List.concat
+            [ Config.keep playground "ApprovalFlow" "now" (ApprovalFlow.now Sample.now)
+            , Config.keep playground "ApprovalFlow" "settings" (ApprovalFlow.settings settings)
+            , Config.keep playground "ApprovalFlow" "locale" (ApprovalFlow.locale locale)
+            ]
+        )
 
 
-approvalSection : Settings -> Locale -> Model -> Html Msg
-approvalSection settings locale model =
-    Doc.section "Approval flow"
+approvalSection : Config.Config -> Settings -> Locale -> Model -> Html Msg
+approvalSection playground settings locale model =
+    Doc.configuredSection playground
+        [ "ApprovalFlow" ]
+        "Approval flow"
         "The steps of an approval, each with the rule for its approvers (all of them, or any one) and a decision from each. Where each step stands, and the flow, is worked out from the decisions: an approval in an any step wins over rejections, a rejection in an all step wins over approvals, and a rejection leaves the later steps not reached. Pick who you are, and decide."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "ApprovalFlow" ]
             { title = "Credit note 2024-117"
             , description = Just "Choose a viewer. A pending approver of the current step gets Approve and Reject; while the decision is on its way (a moment here) the buttons are busy and keep the focus, then the flow takes it. Reject asks for a reason in a form of the application's own, and the reason is shown under the name. Only the approvers of the current step are pending; the others say not needed, not asked yet or not reached. The line above the steps says how far the current step is and is a polite live region."
             , code = Just flowCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     (Text.caption "You are:"
-                        :: List.map (viewerButton model) [ Just Ada, Just Grace, Just Alan, Just Edsger, Just Barbara, Nothing ]
-                        ++ [ Button.view [ Button.small, Button.ghost, Button.onClick FlowReset ] "Start again" ]
+                        :: List.map (viewerButton playground model) [ Just Ada, Just Grace, Just Alan, Just Edsger, Just Barbara, Nothing ]
+                        ++ [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "onClick" (Button.onClick FlowReset) ])) "Start again" ]
                     )
                 , if model.rejecting then
-                    rejectForm model
+                    rejectForm playground model
 
                   else
                     Html.text ""
-                , ApprovalFlow.view personOf (flowAttributes settings locale model) (creditNote model.users)
+                , ApprovalFlow.view personOf (flowAttributes playground settings locale model) (creditNote model.users)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ApprovalFlow" ]
             { title = "The same flow, side by side"
             , description = Just "The horizontal layout for a wide, short strip. It is the same value, so deciding above changes it too. A row with many steps scrolls sideways."
             , code = Just "ApprovalFlow.view personOf [ ApprovalFlow.horizontal ] flow"
             }
             (ApprovalFlow.view personOf
-                (ApprovalFlow.horizontal :: staticAttributes settings locale)
+                (ApprovalFlow.horizontal :: staticAttributes playground settings locale)
                 (creditNote model.users)
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ApprovalFlow" ]
             { title = "Every status"
             , description = Just "A finance step that is overdue, a rejection after which the director is not reached, a flow in which an any step was approved by the second person, a board where two of three must approve (atLeast 2), and a flow without steps. Each status is an icon and words, never only a color."
             , code = Just statusCode
             }
-            (Layout.grid [ Layout.minColumn 340, Layout.gap 4 ]
-                [ labelled "Overdue" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, overdue" :: staticAttributes settings locale) lateRequest)
-                , labelled "Rejected" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, rejected" :: staticAttributes settings locale) rejectedRequest)
-                , labelled "Approved" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, approved" :: staticAttributes settings locale) approvedRequest)
-                , labelled "Two of three" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Investment, two of three" :: staticAttributes settings locale) boardRequest)
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 340), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ labelled "Overdue" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, overdue" :: staticAttributes playground settings locale) lateRequest)
+                , labelled "Rejected" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, rejected" :: staticAttributes playground settings locale) rejectedRequest)
+                , labelled "Approved" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, approved" :: staticAttributes playground settings locale) approvedRequest)
+                , labelled "Two of three" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Investment, two of three" :: staticAttributes playground settings locale) boardRequest)
                 , labelled "No approval required" (ApprovalFlow.view personOf (ApprovalFlow.locale locale :: []) (ApprovalFlow.flow []))
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "ApprovalFlow" ]
             { title = "Loading, failing, refreshing and old data"
             , description = Just "A skeleton of steps, and the problem with Try again. A flow that is refreshed stays, dimmed and busy; one whose refresh failed says how old it is, so nobody decides on an old state without knowing it."
             , code = Just "ApprovalFlow.viewRemote personOf [ ApprovalFlow.id \"approval\", ApprovalFlow.onRetry Reload ] (Remote.map toFlow model.approval)"
             }
-            (Layout.grid [ Layout.minColumn 340, Layout.gap 4 ]
-                [ labelled "Loading" (ApprovalFlow.viewRemote personOf (staticAttributes settings locale) Remote.Loading)
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 340), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ labelled "Loading" (ApprovalFlow.viewRemote personOf (staticAttributes playground settings locale) Remote.Loading)
                 , labelled "Failure"
                     (ApprovalFlow.viewRemote personOf
-                        (ApprovalFlow.onRetry Retried :: staticAttributes settings locale)
+                        (ApprovalFlow.onRetry Retried :: staticAttributes playground settings locale)
                         (Remote.Failed (Remote.problem Remote.timeout))
                     )
                 , labelled "Refreshing"
-                    (ApprovalFlow.viewRemote personOf (staticAttributes settings locale) (Remote.refresh (Remote.Loaded approvedRequest)))
+                    (ApprovalFlow.viewRemote personOf (staticAttributes playground settings locale) (Remote.refresh (Remote.Loaded approvedRequest)))
                 , labelled "Old data: the refresh failed"
                     (ApprovalFlow.viewRemote personOf
-                        (ApprovalFlow.onRetry Retried :: staticAttributes settings locale)
+                        (ApprovalFlow.onRetry Retried :: staticAttributes playground settings locale)
                         (oldData lateRequest)
                     )
                 ]
@@ -916,25 +960,33 @@ approvalSection settings locale model =
         ]
 
 
-rejectForm : Model -> Html Msg
-rejectForm model =
-    Layout.stack [ Layout.gap 2 ]
+rejectForm : Config.Config -> Model -> Html Msg
+rejectForm playground model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
         [ TextArea.view
-            [ TextArea.label "Reason for the rejection"
-            , TextArea.id "access-reject-reason"
-            , TextArea.required
-            , TextArea.rows 2
-            , TextArea.value model.reason
-            , TextArea.onInput ReasonTyped
-            ]
-        , Layout.row [ Layout.gap 2 ]
-            [ Button.view
-                [ Button.danger
-                , Button.disabled (String.isEmpty (String.trim model.reason))
-                , Button.onClick RejectConfirmed
-                ]
+            (Options.klarTextArea playground
+                (List.concat
+                    [ Config.keep playground "TextArea" "label" (TextArea.label "Reason for the rejection")
+                    , Config.keep playground "TextArea" "id" (TextArea.id "access-reject-reason")
+                    , Config.keep playground "TextArea" "required" TextArea.required
+                    , Config.keep playground "TextArea" "rows" (TextArea.rows 2)
+                    , Config.keep playground "TextArea" "value" (TextArea.value model.reason)
+                    , Config.keep playground "TextArea" "onInput" (TextArea.onInput ReasonTyped)
+                    ]
+                )
+            )
+        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+            [ Options.buttonView playground
+                (Options.klarButton playground
+                    (List.concat
+                        [ Config.keep playground "Button" "danger" Button.danger
+                        , Config.keep playground "Button" "disabled" (Button.disabled (String.isEmpty (String.trim model.reason)))
+                        , Config.keep playground "Button" "onClick" (Button.onClick RejectConfirmed)
+                        ]
+                    )
+                )
                 "Reject"
-            , Button.view [ Button.onClick RejectCancelled ] "Cancel"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick RejectCancelled) ])) "Cancel"
             ]
         ]
 

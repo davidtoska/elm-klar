@@ -28,7 +28,9 @@ import Klar.TextInput as TextInput
 import Klar.Theme exposing (Size(..))
 import Klar.Validate as Validate
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 
@@ -470,9 +472,9 @@ update msg order =
 -- VIEW
 
 
-sections : Locale -> Model -> List (Html Msg)
-sections lang order =
-    [ newOrder lang order ]
+sections : Config.Config -> Locale -> Model -> List (Html Msg)
+sections playground lang order =
+    [ newOrder playground lang order ]
 
 
 priorityKey : Api.Types.Priority -> String
@@ -480,8 +482,8 @@ priorityKey priority =
     String.toLower (priorityLabel priority)
 
 
-newOrder : Locale -> Model -> Html Msg
-newOrder lang order =
+newOrder : Config.Config -> Locale -> Model -> Html Msg
+newOrder playground lang order =
     let
         errors =
             errorsOf lang order
@@ -504,22 +506,28 @@ newOrder lang order =
 
         text fieldId label toMsg value extra =
             TextInput.view
-                ([ TextInput.label label
-                 , TextInput.id fieldId
-                 , TextInput.value value
-                 , TextInput.onInput toMsg
-                 , TextInput.onBlur (Touched fieldId)
-                 , TextInput.errorMaybe (shown fieldId)
-                 ]
+                (Options.klarTextInput playground
+                    (List.concat
+                        [ Config.keep playground "TextInput" "label" (TextInput.label label)
+                        , Config.keep playground "TextInput" "id" (TextInput.id fieldId)
+                        , Config.keep playground "TextInput" "value" (TextInput.value value)
+                        , Config.keep playground "TextInput" "onInput" (TextInput.onInput toMsg)
+                        , Config.keep playground "TextInput" "onBlur" (TextInput.onBlur (Touched fieldId))
+                        , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (shown fieldId))
+                        ]
+                    )
                     ++ extra
                 )
 
         formAttributes =
-            [ FormLayout.id formId, FormLayout.locale lang ]
+            Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "id" (FormLayout.id formId), Config.keep playground "Form.Layout" "locale" (FormLayout.locale lang) ])
     in
-    Doc.section "Complete example: new order"
+    Doc.configuredSection playground
+        [ "Form.Layout" ]
+        "Complete example: new order"
         "All the controls in one form. The fields are checked when you leave them and when you submit. Problems give a summary at the top with links to the fields. The submit is a fake request (1.4 seconds) that can succeed or fail. When you change something, the banner about unsaved changes appears."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Form.Layout" ]
             { title = "New order"
             , description = Just "Try to submit the empty form. Fill it in, turn on \"Simulate a failure\" and submit to see the error and \"Try again\"."
             , code = Just """-- customerFields, deliveryFields ... are functions of your own: each returns
@@ -540,19 +548,22 @@ FormLayout.view [ FormLayout.id "new-order-form", FormLayout.onSubmit Submit ]
     ]"""
             }
             (FormLayout.view
-                (formAttributes ++ [ FormLayout.onSubmit Submit, FormLayout.ariaLabel "New order" ])
+                (formAttributes ++ Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "onSubmit" (FormLayout.onSubmit Submit), Config.keep playground "Form.Layout" "ariaLabel" (FormLayout.ariaLabel "New order") ]))
                 [ FormLayout.unsavedChanges
                     (formAttributes
-                        ++ [ FormLayout.onSave Submit
-                           , FormLayout.onDiscard Discard
-                           , FormLayout.saving submitting
-                           , FormLayout.sticky
-                           ]
+                        ++ Options.klarFormLayout playground
+                            (List.concat
+                                [ Config.keep playground "Form.Layout" "onSave" (FormLayout.onSave Submit)
+                                , Config.keep playground "Form.Layout" "onDiscard" (FormLayout.onDiscard Discard)
+                                , Config.keep playground "Form.Layout" "saving" (FormLayout.saving submitting)
+                                , Config.keep playground "Form.Layout" "sticky" FormLayout.sticky
+                                ]
+                            )
                     )
                     dirty
                 , if order.submitted then
                     FormLayout.errorSummary
-                        (formAttributes ++ [ FormLayout.labels fieldLabels, FormLayout.onFocusField FocusField ])
+                        (formAttributes ++ Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "labels" (FormLayout.labels fieldLabels), Config.keep playground "Form.Layout" "onFocusField" (FormLayout.onFocusField FocusField) ]))
                         errors
 
                   else
@@ -560,174 +571,240 @@ FormLayout.view [ FormLayout.id "new-order-form", FormLayout.onSubmit Submit ]
                 , FormLayout.section "Customer"
                     "Who orders and how to reach them. A phone number is required when SMS updates are on."
                     [ FormLayout.grid 2
-                        [ text customerId "Customer" CustomerChanged order.customer [ TextInput.required, TextInput.autocomplete "organization" ]
-                        , text contactId "Contact name" ContactChanged order.contact [ TextInput.required, TextInput.autocomplete "name" ]
+                        [ text customerId "Customer" CustomerChanged order.customer (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "required" TextInput.required, Config.keep playground "TextInput" "autocomplete" (TextInput.autocomplete "organization") ]))
+                        , text contactId "Contact name" ContactChanged order.contact (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "required" TextInput.required, Config.keep playground "TextInput" "autocomplete" (TextInput.autocomplete "name") ]))
                         , FormLayout.fullRow
-                            (text emailId "Email" EmailChanged order.email [ TextInput.email, TextInput.required, TextInput.placeholder "name@example.com", TextInput.autocomplete "email" ])
+                            (text emailId "Email" EmailChanged order.email (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "email" TextInput.email, Config.keep playground "TextInput" "required" TextInput.required, Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "name@example.com"), Config.keep playground "TextInput" "autocomplete" (TextInput.autocomplete "email") ])))
                         , text phoneId
                             "Phone"
                             PhoneChanged
                             order.phone
-                            [ TextInput.tel
-                            , TextInput.hint "With country code, for example +44 20 7946 0958"
-                            , if order.notifySms then
-                                TextInput.required
+                            (Options.klarTextInput playground
+                                (List.concat
+                                    [ Config.keep playground "TextInput" "tel" TextInput.tel
+                                    , Config.keep playground "TextInput" "hint" (TextInput.hint "With country code, for example +44 20 7946 0958")
+                                    , [ if order.notifySms then
+                                            TextInput.required
 
-                              else
-                                TextInput.optionalText "(optional)"
-                            ]
-                        , text dateId "Order date" DateChanged order.orderDate [ TextInput.required, TextInput.placeholder "dd.mm.yyyy", TextInput.hint "For example 14.10.2026, not later than today" ]
+                                        else
+                                            TextInput.optionalText "(optional)"
+                                      ]
+                                    ]
+                                )
+                            )
+                        , text dateId "Order date" DateChanged order.orderDate (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "required" TextInput.required, Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "dd.mm.yyyy"), Config.keep playground "TextInput" "hint" (TextInput.hint "For example 14.10.2026, not later than today") ]))
                         ]
                     ]
                 , FormLayout.section "Delivery"
                     "How the goods are shipped, how urgent the order is and what is paid up front."
                     [ Radio.view
-                        [ Radio.label "Shipping method"
-                        , Radio.id methodId
-                        , Radio.required
-                        , Radio.options
-                            [ Radio.option "standard" "Standard" |> Radio.withDescription "Three to five working days."
-                            , Radio.option "express" "Express" |> Radio.withDescription "The next working day, for orders before 2 pm."
-                            , Radio.option "pickup" "Pick up" |> Radio.withDescription "The customer collects the goods at the warehouse."
-                            ]
-                        , Radio.selected order.method
-                        , Radio.onChange MethodSelected
-                        , Radio.errorMaybe (shown methodId)
-                        ]
-                    , SegmentedControl.view
-                        [ SegmentedControl.label "Priority"
-                        , SegmentedControl.id "new-order-priority"
-                        , SegmentedControl.options
-                            (List.map (\priority -> SegmentedControl.option (priorityKey priority) (priorityLabel priority)) allPriorities)
-                        , SegmentedControl.selected (Maybe.withDefault "normal" order.priority)
-                        , SegmentedControl.onChange PrioritySelected
-                        ]
-                    , Slider.view
-                        [ Slider.label "Discount"
-                        , Slider.id "new-order-discount"
-                        , Slider.hint "Approved by the account owner. Steps of 5 points."
-                        , Slider.min 0
-                        , Slider.max 50
-                        , Slider.step 5
-                        , Slider.value order.discount
-                        , Slider.onInput DiscountChanged
-                        , Slider.unit "%"
-                        , Slider.marks [ ( 0, "None" ), ( 25, "25 %" ), ( 50, "Maximum" ) ]
-                        , Slider.locale lang
-                        ]
-                    , NumberInput.view DepositMsg
-                        [ NumberInput.label "Deposit"
-                        , NumberInput.hint "Between 0 and 100\u{00A0}000."
-                        , NumberInput.min 0
-                        , NumberInput.max 100000
-                        , NumberInput.step 50
-                        , NumberInput.decimals 2
-                        , NumberInput.grouped
-                        , NumberInput.prefixText "$"
-                        , NumberInput.optionalText "(optional)"
-                        , NumberInput.errorMaybe
-                            (if NumberInput.isTouched order.deposit || order.submitted then
-                                Validate.errorFor depositId errors
-
-                             else
-                                Nothing
+                        (Options.klarRadio playground
+                            (List.concat
+                                [ Config.keep playground "Radio" "label" (Radio.label "Shipping method")
+                                , Config.keep playground "Radio" "id" (Radio.id methodId)
+                                , Config.keep playground "Radio" "required" Radio.required
+                                , Config.keep playground
+                                    "Radio"
+                                    "options"
+                                    (Radio.options
+                                        [ Radio.option "standard" "Standard" |> Radio.withDescription "Three to five working days."
+                                        , Radio.option "express" "Express" |> Radio.withDescription "The next working day, for orders before 2 pm."
+                                        , Radio.option "pickup" "Pick up" |> Radio.withDescription "The customer collects the goods at the warehouse."
+                                        ]
+                                    )
+                                , Config.keep playground "Radio" "selected" (Radio.selected order.method)
+                                , Config.keep playground "Radio" "onChange" (Radio.onChange MethodSelected)
+                                , Config.keep playground "Radio" "errorMaybe" (Radio.errorMaybe (shown methodId))
+                                ]
                             )
-                        , NumberInput.locale lang
-                        ]
+                        )
+                    , SegmentedControl.view
+                        (Options.klarSegmentedControl playground
+                            (List.concat
+                                [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Priority")
+                                , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "new-order-priority")
+                                , Config.keep playground
+                                    "SegmentedControl"
+                                    "options"
+                                    (SegmentedControl.options
+                                        (List.map (\priority -> SegmentedControl.option (priorityKey priority) (priorityLabel priority)) allPriorities)
+                                    )
+                                , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (Maybe.withDefault "normal" order.priority))
+                                , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange PrioritySelected)
+                                ]
+                            )
+                        )
+                    , Slider.view
+                        (Options.klarSlider playground
+                            (List.concat
+                                [ Config.keep playground "Slider" "label" (Slider.label "Discount")
+                                , Config.keep playground "Slider" "id" (Slider.id "new-order-discount")
+                                , Config.keep playground "Slider" "hint" (Slider.hint "Approved by the account owner. Steps of 5 points.")
+                                , Config.keep playground "Slider" "min" (Slider.min 0)
+                                , Config.keep playground "Slider" "max" (Slider.max 50)
+                                , Config.keep playground "Slider" "step" (Slider.step 5)
+                                , Config.keep playground "Slider" "value" (Slider.value order.discount)
+                                , Config.keep playground "Slider" "onInput" (Slider.onInput DiscountChanged)
+                                , Config.keep playground "Slider" "unit" (Slider.unit "%")
+                                , Config.keep playground "Slider" "marks" (Slider.marks [ ( 0, "None" ), ( 25, "25 %" ), ( 50, "Maximum" ) ])
+                                , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                                ]
+                            )
+                        )
+                    , NumberInput.view DepositMsg
+                        (Options.klarNumberInput playground
+                            (List.concat
+                                [ Config.keep playground "NumberInput" "label" (NumberInput.label "Deposit")
+                                , Config.keep playground "NumberInput" "hint" (NumberInput.hint "Between 0 and 100\u{00A0}000.")
+                                , Config.keep playground "NumberInput" "min" (NumberInput.min 0)
+                                , Config.keep playground "NumberInput" "max" (NumberInput.max 100000)
+                                , Config.keep playground "NumberInput" "step" (NumberInput.step 50)
+                                , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 2)
+                                , Config.keep playground "NumberInput" "grouped" NumberInput.grouped
+                                , Config.keep playground "NumberInput" "prefixText" (NumberInput.prefixText "$")
+                                , Config.keep playground "NumberInput" "optionalText" (NumberInput.optionalText "(optional)")
+                                , Config.keep playground
+                                    "NumberInput"
+                                    "errorMaybe"
+                                    (NumberInput.errorMaybe
+                                        (if NumberInput.isTouched order.deposit || order.submitted then
+                                            Validate.errorFor depositId errors
+
+                                         else
+                                            Nothing
+                                        )
+                                    )
+                                , Config.keep playground "NumberInput" "locale" (NumberInput.locale lang)
+                                ]
+                            )
+                        )
                         order.deposit
                     ]
                 , FormLayout.section "Notifications and notes"
                     "Updates about the order, labels and a free note."
-                    [ Card.view [ Card.title "Updates" ]
-                        [ Layout.stack [ Layout.gap 4 ]
+                    [ Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "Updates") ]))
+                        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                             [ Switch.view
-                                [ Switch.label "Email updates"
-                                , Switch.id "new-order-notify-email"
-                                , Switch.hint "Status changes and reminders."
-                                , Switch.controlAtEnd
-                                , Switch.checked order.notifyEmail
-                                , Switch.onCheck NotifyEmailToggled
-                                ]
+                                (Options.klarSwitch playground
+                                    (List.concat
+                                        [ Config.keep playground "Switch" "label" (Switch.label "Email updates")
+                                        , Config.keep playground "Switch" "id" (Switch.id "new-order-notify-email")
+                                        , Config.keep playground "Switch" "hint" (Switch.hint "Status changes and reminders.")
+                                        , Config.keep playground "Switch" "controlAtEnd" Switch.controlAtEnd
+                                        , Config.keep playground "Switch" "checked" (Switch.checked order.notifyEmail)
+                                        , Config.keep playground "Switch" "onCheck" (Switch.onCheck NotifyEmailToggled)
+                                        ]
+                                    )
+                                )
                             , Layout.divider
                             , Switch.view
-                                [ Switch.label "SMS updates"
-                                , Switch.id "new-order-notify-sms"
-                                , Switch.hint "Needs a phone number."
-                                , Switch.controlAtEnd
-                                , Switch.checked order.notifySms
-                                , Switch.onCheck NotifySmsToggled
-                                ]
+                                (Options.klarSwitch playground
+                                    (List.concat
+                                        [ Config.keep playground "Switch" "label" (Switch.label "SMS updates")
+                                        , Config.keep playground "Switch" "id" (Switch.id "new-order-notify-sms")
+                                        , Config.keep playground "Switch" "hint" (Switch.hint "Needs a phone number.")
+                                        , Config.keep playground "Switch" "controlAtEnd" Switch.controlAtEnd
+                                        , Config.keep playground "Switch" "checked" (Switch.checked order.notifySms)
+                                        , Config.keep playground "Switch" "onCheck" (Switch.onCheck NotifySmsToggled)
+                                        ]
+                                    )
+                                )
                             ]
                         ]
                     , TagInput.view LabelsMsg
-                        [ TagInput.label "Labels"
-                        , TagInput.hint "Enter or comma adds a tag."
-                        , TagInput.placeholder "Type and press Enter"
-                        , TagInput.maxTags 8
-                        , TagInput.validate (Validate.run lang (Validate.minLength 2))
-                        , TagInput.optionalText "(optional)"
-                        , TagInput.locale lang
-                        ]
+                        (Options.klarTagInput playground
+                            (List.concat
+                                [ Config.keep playground "TagInput" "label" (TagInput.label "Labels")
+                                , Config.keep playground "TagInput" "hint" (TagInput.hint "Enter or comma adds a tag.")
+                                , Config.keep playground "TagInput" "placeholder" (TagInput.placeholder "Type and press Enter")
+                                , Config.keep playground "TagInput" "maxTags" (TagInput.maxTags 8)
+                                , Config.keep playground "TagInput" "validate" (TagInput.validate (Validate.run lang (Validate.minLength 2)))
+                                , Config.keep playground "TagInput" "optionalText" (TagInput.optionalText "(optional)")
+                                , Config.keep playground "TagInput" "locale" (TagInput.locale lang)
+                                ]
+                            )
+                        )
                         order.labels
                     , TextArea.view
-                        [ TextArea.label "Note"
-                        , TextArea.id "new-order-note"
-                        , TextArea.optionalText "(optional)"
-                        , TextArea.minRows 3
-                        , TextArea.maxRows 8
-                        , TextArea.maxLength 500
-                        , TextArea.value order.note
-                        , TextArea.onInput NoteChanged
-                        , TextArea.locale lang
-                        ]
+                        (Options.klarTextArea playground
+                            (List.concat
+                                [ Config.keep playground "TextArea" "label" (TextArea.label "Note")
+                                , Config.keep playground "TextArea" "id" (TextArea.id "new-order-note")
+                                , Config.keep playground "TextArea" "optionalText" (TextArea.optionalText "(optional)")
+                                , Config.keep playground "TextArea" "minRows" (TextArea.minRows 3)
+                                , Config.keep playground "TextArea" "maxRows" (TextArea.maxRows 8)
+                                , Config.keep playground "TextArea" "maxLength" (TextArea.maxLength 500)
+                                , Config.keep playground "TextArea" "value" (TextArea.value order.note)
+                                , Config.keep playground "TextArea" "onInput" (TextArea.onInput NoteChanged)
+                                , Config.keep playground "TextArea" "locale" (TextArea.locale lang)
+                                ]
+                            )
+                        )
                     ]
                 , FormLayout.section "Attachments and terms"
                     "The purchase order and other documents. The files are not uploaded in this example."
                     [ FileDrop.view AttachmentsMsg
-                        [ FileDrop.label "Attachments"
-                        , FileDrop.accept [ ".pdf", "image/*" ]
-                        , FileDrop.maxSize 5000000
-                        , FileDrop.maxFiles 3
-                        , FileDrop.optionalText "(optional)"
-                        , FileDrop.errorMaybe (shown attachmentsId)
-                        , FileDrop.locale lang
-                        ]
+                        (Options.klarFileDrop playground
+                            (List.concat
+                                [ Config.keep playground "FileDrop" "label" (FileDrop.label "Attachments")
+                                , Config.keep playground "FileDrop" "accept" (FileDrop.accept [ ".pdf", "image/*" ])
+                                , Config.keep playground "FileDrop" "maxSize" (FileDrop.maxSize 5000000)
+                                , Config.keep playground "FileDrop" "maxFiles" (FileDrop.maxFiles 3)
+                                , Config.keep playground "FileDrop" "optionalText" (FileDrop.optionalText "(optional)")
+                                , Config.keep playground "FileDrop" "errorMaybe" (FileDrop.errorMaybe (shown attachmentsId))
+                                , Config.keep playground "FileDrop" "locale" (FileDrop.locale lang)
+                                ]
+                            )
+                        )
                         order.attachments
                     , Checkbox.view
-                        [ Checkbox.label "I accept the terms of sale"
-                        , Checkbox.id termsId
-                        , Checkbox.checked order.accepted
-                        , Checkbox.onCheck AcceptedToggled
-                        , case shown termsId of
-                            Just message ->
-                                Checkbox.error message
+                        (Options.klarCheckbox playground
+                            (List.concat
+                                [ Config.keep playground "Checkbox" "label" (Checkbox.label "I accept the terms of sale")
+                                , Config.keep playground "Checkbox" "id" (Checkbox.id termsId)
+                                , Config.keep playground "Checkbox" "checked" (Checkbox.checked order.accepted)
+                                , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck AcceptedToggled)
+                                , [ case shown termsId of
+                                        Just message ->
+                                            Checkbox.error message
 
-                            Nothing ->
-                                Checkbox.hint "Required to place the order."
-                        ]
+                                        Nothing ->
+                                            Checkbox.hint "Required to place the order."
+                                  ]
+                                ]
+                            )
+                        )
                     ]
                 , FormLayout.stickyActions
                     [ Switch.view
-                        [ Switch.label "Simulate a failure"
-                        , Switch.id "new-order-simulate-failure"
-                        , Switch.checked order.simulateFailure
-                        , Switch.onCheck SimulateFailureToggled
-                        , Switch.size Small
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Simulate a failure")
+                                , Config.keep playground "Switch" "id" (Switch.id "new-order-simulate-failure")
+                                , Config.keep playground "Switch" "checked" (Switch.checked order.simulateFailure)
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck SimulateFailureToggled)
+                                , Config.keep playground "Switch" "size" (Switch.size Small)
+                                ]
+                            )
+                        )
                     , Layout.spacer
                     , FormLayout.status
                         (formAttributes
-                            ++ [ FormLayout.onRetry Submit, FormLayout.onDismiss DismissStatus ]
+                            ++ Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "onRetry" (FormLayout.onRetry Submit), Config.keep playground "Form.Layout" "onDismiss" (FormLayout.onDismiss DismissStatus) ])
                         )
                         order.status
-                    , Button.view [ Button.disabled submitting, Button.onClick Discard ] "Reset"
-                    , Button.view
-                        [ Button.primary
-                        , Button.submit
-                        , Button.id submitId
-                        , Button.loading submitting
-                        , Button.icon Icon.send
-                        ]
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "disabled" (Button.disabled submitting), Config.keep playground "Button" "onClick" (Button.onClick Discard) ])) "Reset"
+                    , Options.buttonView playground
+                        (Options.klarButton playground
+                            (List.concat
+                                [ Config.keep playground "Button" "primary" Button.primary
+                                , Config.keep playground "Button" "submit" Button.submit
+                                , Config.keep playground "Button" "id" (Button.id submitId)
+                                , Config.keep playground "Button" "loading" (Button.loading submitting)
+                                , Config.keep playground "Button" "icon" (Button.icon Icon.send)
+                                ]
+                            )
+                        )
                         (if submitting then
                             "Placing order ..."
 

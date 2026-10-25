@@ -7,6 +7,7 @@ in this list.
 
 import Klar.Internal.Css.Access as Access
 import Klar.Internal.Css.Actions as Actions
+import Klar.Internal.Css.Ai as Ai
 import Klar.Internal.Css.Arranging as Arranging
 import Klar.Internal.Css.Base as Base
 import Klar.Internal.Css.Budget as Budget
@@ -70,6 +71,7 @@ css =
         , Kanban.css
         , Uploads.css
         , CodeQuantity.css
+        , Ai.css
         , Workflow.css
         , Density.css
         ]

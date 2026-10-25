@@ -20,7 +20,9 @@ import Klar.Switch as Switch
 import Klar.Theme exposing (Size(..))
 import Page.Gallery.Forms.Common exposing (grid, narrow, readout, stack)
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 
 
@@ -220,12 +222,12 @@ update msg model =
 -- VIEW
 
 
-sections : Locale -> Model -> List (Html Msg)
-sections lang model =
-    [ choices lang model
-    , switches lang model
-    , segments model
-    , sliders lang model
+sections : Config.Config -> Locale -> Model -> List (Html Msg)
+sections playground lang model =
+    [ choices playground lang model
+    , switches playground lang model
+    , segments playground model
+    , sliders playground lang model
     ]
 
 
@@ -265,11 +267,14 @@ extraName extra =
             "Same-day dispatch"
 
 
-choices : Locale -> Model -> Html Msg
-choices lang model =
-    Doc.section "Radio buttons and checkbox groups"
+choices : Config.Config -> Locale -> Model -> Html Msg
+choices playground lang model =
+    Doc.configuredSection playground
+        [ "Radio", "CheckboxGroup" ]
+        "Radio buttons and checkbox groups"
         "The radio group is a fieldset with the label as its legend. Tab enters the group, the arrow keys move and choose (the browser's own behavior) and Space chooses the focused option. The checkbox group has Tab between the boxes and Space toggles; \"Select all\" shows a dash when only some are chosen. The values are the application's own types, compared with ==."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Radio" ]
             { title = "Radio group"
             , description = Just "The values are a type of the application (Standard, Express ...). With a description, a disabled option, a horizontal layout and an error."
             , code = Just """type Shipping = Standard | Express | Freight | Pickup
@@ -286,65 +291,99 @@ Radio.view
     , Radio.onChange ShippingChanged -- Shipping -> Msg
     ]"""
             }
-            (grid 280
-                [ stack
+            (grid playground
+                280
+                [ stack playground
                     [ Radio.view
-                        [ Radio.label "Shipping method"
-                        , Radio.id "radio-method"
-                        , Radio.options
-                            [ Radio.option Standard "Standard"
-                                |> Radio.withDescription "Three to five working days."
-                            , Radio.option Express "Express"
-                                |> Radio.withDescription "Delivered the next working day if ordered before 2 pm."
-                            , Radio.option Freight "Freight"
-                            , Radio.option Pickup "Pick up in store" |> Radio.disabledOption
-                            ]
-                        , Radio.selected model.shipping
-                        , Radio.onChange ShippingChanged
-                        ]
+                        (Options.klarRadio playground
+                            (List.concat
+                                [ Config.keep playground "Radio" "label" (Radio.label "Shipping method")
+                                , Config.keep playground "Radio" "id" (Radio.id "radio-method")
+                                , Config.keep playground
+                                    "Radio"
+                                    "options"
+                                    (Radio.options
+                                        [ Radio.option Standard "Standard"
+                                            |> Radio.withDescription "Three to five working days."
+                                        , Radio.option Express "Express"
+                                            |> Radio.withDescription "Delivered the next working day if ordered before 2 pm."
+                                        , Radio.option Freight "Freight"
+                                        , Radio.option Pickup "Pick up in store" |> Radio.disabledOption
+                                        ]
+                                    )
+                                , Config.keep playground "Radio" "selected" (Radio.selected model.shipping)
+                                , Config.keep playground "Radio" "onChange" (Radio.onChange ShippingChanged)
+                                ]
+                            )
+                        )
                     , readout ("Chosen: " ++ (model.shipping |> Maybe.map shippingName |> Maybe.withDefault "nothing"))
                     ]
                 , Radio.view
-                    [ Radio.label "Preferred contact"
-                    , Radio.id "radio-contact"
-                    , Radio.hint "Horizontal layout, nothing chosen yet."
-                    , Radio.horizontal
-                    , Radio.options
-                        [ Radio.option "email" "Email"
-                        , Radio.option "phone" "Phone"
-                        , Radio.option "post" "Post"
-                        ]
-                    , Radio.selected (pickOf "radio-contact" model)
-                    , Radio.onChange (PickChanged "radio-contact")
-                    ]
-                , Radio.view
-                    [ Radio.label "Partial delivery"
-                    , Radio.id "radio-partial"
-                    , Radio.required
-                    , Radio.errorMaybe
-                        (if pickOf "radio-partial" model == Nothing then
-                            Just "Choose one option"
-
-                         else
-                            Nothing
+                    (Options.klarRadio playground
+                        (List.concat
+                            [ Config.keep playground "Radio" "label" (Radio.label "Preferred contact")
+                            , Config.keep playground "Radio" "id" (Radio.id "radio-contact")
+                            , Config.keep playground "Radio" "hint" (Radio.hint "Horizontal layout, nothing chosen yet.")
+                            , Config.keep playground "Radio" "horizontal" Radio.horizontal
+                            , Config.keep playground
+                                "Radio"
+                                "options"
+                                (Radio.options
+                                    [ Radio.option "email" "Email"
+                                    , Radio.option "phone" "Phone"
+                                    , Radio.option "post" "Post"
+                                    ]
+                                )
+                            , Config.keep playground "Radio" "selected" (Radio.selected (pickOf "radio-contact" model))
+                            , Config.keep playground "Radio" "onChange" (Radio.onChange (PickChanged "radio-contact"))
+                            ]
                         )
-                    , Radio.options
-                        [ Radio.option "yes" "Allowed"
-                        , Radio.option "no" "Not allowed"
-                        ]
-                    , Radio.selected (pickOf "radio-partial" model)
-                    , Radio.onChange (PickChanged "radio-partial")
-                    ]
+                    )
                 , Radio.view
-                    [ Radio.label "Disabled group"
-                    , Radio.id "radio-disabled"
-                    , Radio.disabled True
-                    , Radio.options [ Radio.option "a" "Option A", Radio.option "b" "Option B" ]
-                    , Radio.selected (Just "b")
-                    ]
+                    (Options.klarRadio playground
+                        (List.concat
+                            [ Config.keep playground "Radio" "label" (Radio.label "Partial delivery")
+                            , Config.keep playground "Radio" "id" (Radio.id "radio-partial")
+                            , Config.keep playground "Radio" "required" Radio.required
+                            , Config.keep playground
+                                "Radio"
+                                "errorMaybe"
+                                (Radio.errorMaybe
+                                    (if pickOf "radio-partial" model == Nothing then
+                                        Just "Choose one option"
+
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground
+                                "Radio"
+                                "options"
+                                (Radio.options
+                                    [ Radio.option "yes" "Allowed"
+                                    , Radio.option "no" "Not allowed"
+                                    ]
+                                )
+                            , Config.keep playground "Radio" "selected" (Radio.selected (pickOf "radio-partial" model))
+                            , Config.keep playground "Radio" "onChange" (Radio.onChange (PickChanged "radio-partial"))
+                            ]
+                        )
+                    )
+                , Radio.view
+                    (Options.klarRadio playground
+                        (List.concat
+                            [ Config.keep playground "Radio" "label" (Radio.label "Disabled group")
+                            , Config.keep playground "Radio" "id" (Radio.id "radio-disabled")
+                            , Config.keep playground "Radio" "disabled" (Radio.disabled True)
+                            , Config.keep playground "Radio" "options" (Radio.options [ Radio.option "a" "Option A", Radio.option "b" "Option B" ])
+                            , Config.keep playground "Radio" "selected" (Radio.selected (Just "b"))
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Radio" ]
             { title = "Groups without an id"
             , description = Just "Two groups have the same label and no id. The name of a group is made from the label and the texts of its options, so they are two groups: choosing in one does not change the other. (Two groups with the same label and the same texts need an id each.)"
             , code = Just """Radio.view
@@ -361,22 +400,32 @@ Radio.view
     , Radio.onChange SecondChanged
     ]"""
             }
-            (grid 280
+            (grid playground
+                280
                 [ Radio.view
-                    [ Radio.label "Notification"
-                    , Radio.options [ Radio.option "sms" "SMS", Radio.option "email" "Email" ]
-                    , Radio.selected (pickOf "radio-noid-a" model)
-                    , Radio.onChange (PickChanged "radio-noid-a")
-                    ]
+                    (Options.klarRadio playground
+                        (List.concat
+                            [ Config.keep playground "Radio" "label" (Radio.label "Notification")
+                            , Config.keep playground "Radio" "options" (Radio.options [ Radio.option "sms" "SMS", Radio.option "email" "Email" ])
+                            , Config.keep playground "Radio" "selected" (Radio.selected (pickOf "radio-noid-a" model))
+                            , Config.keep playground "Radio" "onChange" (Radio.onChange (PickChanged "radio-noid-a"))
+                            ]
+                        )
+                    )
                 , Radio.view
-                    [ Radio.label "Notification"
-                    , Radio.options [ Radio.option "call" "Phone call", Radio.option "letter" "Letter" ]
-                    , Radio.selected (pickOf "radio-noid-b" model)
-                    , Radio.onChange (PickChanged "radio-noid-b")
-                    ]
+                    (Options.klarRadio playground
+                        (List.concat
+                            [ Config.keep playground "Radio" "label" (Radio.label "Notification")
+                            , Config.keep playground "Radio" "options" (Radio.options [ Radio.option "call" "Phone call", Radio.option "letter" "Letter" ])
+                            , Config.keep playground "Radio" "selected" (Radio.selected (pickOf "radio-noid-b" model))
+                            , Config.keep playground "Radio" "onChange" (Radio.onChange (PickChanged "radio-noid-b"))
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "CheckboxGroup" ]
             { title = "Checkbox group"
             , description = Just "\"Select all\" is tri-state, and its text can be changed with selectAllLabel. The selection is a list of the application's own values, in the same order as the options."
             , code = Just """type Extra = GiftWrap | PaperInvoice | Insurance | SameDay
@@ -392,75 +441,109 @@ CheckboxGroup.view
     , CheckboxGroup.selectAll
     ]"""
             }
-            (grid 280
-                [ stack
+            (grid playground
+                280
+                [ stack playground
                     [ CheckboxGroup.view
-                        [ CheckboxGroup.label "Extras"
-                        , CheckboxGroup.id "checks-extras"
-                        , CheckboxGroup.options
-                            [ CheckboxGroup.option GiftWrap (extraName GiftWrap)
-                            , CheckboxGroup.option PaperInvoice (extraName PaperInvoice)
-                            , CheckboxGroup.option Insurance (extraName Insurance)
-                                |> CheckboxGroup.withDescription "Covers loss and damage up to $500."
-                            , CheckboxGroup.option SameDay (extraName SameDay) |> CheckboxGroup.disabledOption
-                            ]
-                        , CheckboxGroup.selected model.extras
-                        , CheckboxGroup.onChange ExtrasChanged
-                        , CheckboxGroup.selectAll
-                        , CheckboxGroup.locale lang
-                        ]
+                        (Options.klarCheckboxGroup playground
+                            (List.concat
+                                [ Config.keep playground "CheckboxGroup" "label" (CheckboxGroup.label "Extras")
+                                , Config.keep playground "CheckboxGroup" "id" (CheckboxGroup.id "checks-extras")
+                                , Config.keep playground
+                                    "CheckboxGroup"
+                                    "options"
+                                    (CheckboxGroup.options
+                                        [ CheckboxGroup.option GiftWrap (extraName GiftWrap)
+                                        , CheckboxGroup.option PaperInvoice (extraName PaperInvoice)
+                                        , CheckboxGroup.option Insurance (extraName Insurance)
+                                            |> CheckboxGroup.withDescription "Covers loss and damage up to $500."
+                                        , CheckboxGroup.option SameDay (extraName SameDay) |> CheckboxGroup.disabledOption
+                                        ]
+                                    )
+                                , Config.keep playground "CheckboxGroup" "selected" (CheckboxGroup.selected model.extras)
+                                , Config.keep playground "CheckboxGroup" "onChange" (CheckboxGroup.onChange ExtrasChanged)
+                                , Config.keep playground "CheckboxGroup" "selectAll" CheckboxGroup.selectAll
+                                , Config.keep playground "CheckboxGroup" "locale" (CheckboxGroup.locale lang)
+                                ]
+                            )
+                        )
                     , readout ("Chosen: " ++ String.join ", " (List.map extraName model.extras))
                     ]
-                , stack
+                , stack playground
                     [ CheckboxGroup.view
-                        [ CheckboxGroup.label "Delivery days"
-                        , CheckboxGroup.id "checks-days"
-                        , CheckboxGroup.hint "Horizontal layout, small boxes."
-                        , CheckboxGroup.horizontal
-                        , CheckboxGroup.size Small
-                        , CheckboxGroup.options
-                            [ CheckboxGroup.option "mon" "Mon"
-                            , CheckboxGroup.option "tue" "Tue"
-                            , CheckboxGroup.option "wed" "Wed"
-                            , CheckboxGroup.option "thu" "Thu"
-                            , CheckboxGroup.option "fri" "Fri"
-                            ]
-                        , CheckboxGroup.selected (checksOf "checks-days" model)
-                        , CheckboxGroup.onChange (ChecksChanged "checks-days")
-                        ]
+                        (Options.klarCheckboxGroup playground
+                            (List.concat
+                                [ Config.keep playground "CheckboxGroup" "label" (CheckboxGroup.label "Delivery days")
+                                , Config.keep playground "CheckboxGroup" "id" (CheckboxGroup.id "checks-days")
+                                , Config.keep playground "CheckboxGroup" "hint" (CheckboxGroup.hint "Horizontal layout, small boxes.")
+                                , Config.keep playground "CheckboxGroup" "horizontal" CheckboxGroup.horizontal
+                                , Config.keep playground "CheckboxGroup" "size" (CheckboxGroup.size Small)
+                                , Config.keep playground
+                                    "CheckboxGroup"
+                                    "options"
+                                    (CheckboxGroup.options
+                                        [ CheckboxGroup.option "mon" "Mon"
+                                        , CheckboxGroup.option "tue" "Tue"
+                                        , CheckboxGroup.option "wed" "Wed"
+                                        , CheckboxGroup.option "thu" "Thu"
+                                        , CheckboxGroup.option "fri" "Fri"
+                                        ]
+                                    )
+                                , Config.keep playground "CheckboxGroup" "selected" (CheckboxGroup.selected (checksOf "checks-days" model))
+                                , Config.keep playground "CheckboxGroup" "onChange" (CheckboxGroup.onChange (ChecksChanged "checks-days"))
+                                ]
+                            )
+                        )
                     , readout ("Chosen: " ++ String.join ", " (checksOf "checks-days" model))
                     ]
                 , CheckboxGroup.view
-                    [ CheckboxGroup.label "Documents"
-                    , CheckboxGroup.id "checks-documents"
-                    , CheckboxGroup.required
-                    , CheckboxGroup.errorMaybe
-                        (if List.isEmpty (checksOf "checks-documents" model) then
-                            Just "Choose at least one document"
+                    (Options.klarCheckboxGroup playground
+                        (List.concat
+                            [ Config.keep playground "CheckboxGroup" "label" (CheckboxGroup.label "Documents")
+                            , Config.keep playground "CheckboxGroup" "id" (CheckboxGroup.id "checks-documents")
+                            , Config.keep playground "CheckboxGroup" "required" CheckboxGroup.required
+                            , Config.keep playground
+                                "CheckboxGroup"
+                                "errorMaybe"
+                                (CheckboxGroup.errorMaybe
+                                    (if List.isEmpty (checksOf "checks-documents" model) then
+                                        Just "Choose at least one document"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground
+                                "CheckboxGroup"
+                                "options"
+                                (CheckboxGroup.options
+                                    [ CheckboxGroup.option "invoice" "Invoice"
+                                    , CheckboxGroup.option "packing-list" "Packing list"
+                                    , CheckboxGroup.option "customs" "Customs declaration"
+                                    ]
+                                )
+                            , Config.keep playground "CheckboxGroup" "selected" (CheckboxGroup.selected (checksOf "checks-documents" model))
+                            , Config.keep playground "CheckboxGroup" "onChange" (CheckboxGroup.onChange (ChecksChanged "checks-documents"))
+                            , Config.keep playground "CheckboxGroup" "selectAllLabel" (CheckboxGroup.selectAllLabel "All documents")
+                            , Config.keep playground "CheckboxGroup" "locale" (CheckboxGroup.locale lang)
+                            ]
                         )
-                    , CheckboxGroup.options
-                        [ CheckboxGroup.option "invoice" "Invoice"
-                        , CheckboxGroup.option "packing-list" "Packing list"
-                        , CheckboxGroup.option "customs" "Customs declaration"
-                        ]
-                    , CheckboxGroup.selected (checksOf "checks-documents" model)
-                    , CheckboxGroup.onChange (ChecksChanged "checks-documents")
-                    , CheckboxGroup.selectAllLabel "All documents"
-                    , CheckboxGroup.locale lang
-                    ]
+                    )
                 , CheckboxGroup.view
-                    [ CheckboxGroup.label "Disabled group"
-                    , CheckboxGroup.id "checks-disabled"
-                    , CheckboxGroup.disabled True
-                    , CheckboxGroup.options [ CheckboxGroup.option "a" "Option A", CheckboxGroup.option "b" "Option B" ]
-                    , CheckboxGroup.selected [ "a" ]
-                    ]
+                    (Options.klarCheckboxGroup playground
+                        (List.concat
+                            [ Config.keep playground "CheckboxGroup" "label" (CheckboxGroup.label "Disabled group")
+                            , Config.keep playground "CheckboxGroup" "id" (CheckboxGroup.id "checks-disabled")
+                            , Config.keep playground "CheckboxGroup" "disabled" (CheckboxGroup.disabled True)
+                            , Config.keep playground "CheckboxGroup" "options" (CheckboxGroup.options [ CheckboxGroup.option "a" "Option A", CheckboxGroup.option "b" "Option B" ])
+                            , Config.keep playground "CheckboxGroup" "selected" (CheckboxGroup.selected [ "a" ])
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Radio", "CheckboxGroup" ]
             { title = "Read only"
             , description = Just "For a record the user may read but not change. Unlike disabled, nothing is dimmed and Tab still reaches the controls (the chosen option of a group), so a screen reader reads the value with \"read only\"; a click, Space or an arrow key changes nothing. Turn it off to edit."
             , code = Just """Radio.view [ Radio.label "Delivery", Radio.readOnly model.locked, ... ]
@@ -470,113 +553,172 @@ Switch.view [ Switch.label "Active", Switch.readOnly model.locked, ... ]
 SegmentedControl.view [ SegmentedControl.label "Period", SegmentedControl.readOnly model.locked, ... ]
 Slider.view [ Slider.label "Discount", Slider.readOnly model.locked, ... ]"""
             }
-            (stack
+            (stack playground
                 [ Switch.view
-                    [ Switch.label "Read only"
-                    , Switch.id "readonly-toggle"
-                    , Switch.checked model.readOnly
-                    , Switch.onCheck ReadOnlyChecked
-                    , Switch.locale lang
-                    ]
-                , grid 240
+                    (Options.klarSwitch playground
+                        (List.concat
+                            [ Config.keep playground "Switch" "label" (Switch.label "Read only")
+                            , Config.keep playground "Switch" "id" (Switch.id "readonly-toggle")
+                            , Config.keep playground "Switch" "checked" (Switch.checked model.readOnly)
+                            , Config.keep playground "Switch" "onCheck" (Switch.onCheck ReadOnlyChecked)
+                            , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                            ]
+                        )
+                    )
+                , grid playground
+                    240
                     [ Radio.view
-                        [ Radio.label "Delivery"
-                        , Radio.id "radio-readonly"
-                        , Radio.readOnly model.readOnly
-                        , Radio.options
-                            [ Radio.option "standard" "Standard"
-                            , Radio.option "express" "Express"
-                            , Radio.option "pickup" "Pick up in store"
-                            ]
-                        , Radio.selected (pickOf "radio-readonly" model)
-                        , Radio.onChange (PickChanged "radio-readonly")
-                        ]
+                        (Options.klarRadio playground
+                            (List.concat
+                                [ Config.keep playground "Radio" "label" (Radio.label "Delivery")
+                                , Config.keep playground "Radio" "id" (Radio.id "radio-readonly")
+                                , Config.keep playground "Radio" "readOnly" (Radio.readOnly model.readOnly)
+                                , Config.keep playground
+                                    "Radio"
+                                    "options"
+                                    (Radio.options
+                                        [ Radio.option "standard" "Standard"
+                                        , Radio.option "express" "Express"
+                                        , Radio.option "pickup" "Pick up in store"
+                                        ]
+                                    )
+                                , Config.keep playground "Radio" "selected" (Radio.selected (pickOf "radio-readonly" model))
+                                , Config.keep playground "Radio" "onChange" (Radio.onChange (PickChanged "radio-readonly"))
+                                ]
+                            )
+                        )
                     , CheckboxGroup.view
-                        [ CheckboxGroup.label "Documents"
-                        , CheckboxGroup.id "checks-readonly"
-                        , CheckboxGroup.readOnly model.readOnly
-                        , CheckboxGroup.options
-                            [ CheckboxGroup.option "invoice" "Invoice"
-                            , CheckboxGroup.option "packing-list" "Packing list"
-                            ]
-                        , CheckboxGroup.selected (checksOf "checks-readonly" model)
-                        , CheckboxGroup.onChange (ChecksChanged "checks-readonly")
-                        , CheckboxGroup.locale lang
-                        ]
-                    , stack
+                        (Options.klarCheckboxGroup playground
+                            (List.concat
+                                [ Config.keep playground "CheckboxGroup" "label" (CheckboxGroup.label "Documents")
+                                , Config.keep playground "CheckboxGroup" "id" (CheckboxGroup.id "checks-readonly")
+                                , Config.keep playground "CheckboxGroup" "readOnly" (CheckboxGroup.readOnly model.readOnly)
+                                , Config.keep playground
+                                    "CheckboxGroup"
+                                    "options"
+                                    (CheckboxGroup.options
+                                        [ CheckboxGroup.option "invoice" "Invoice"
+                                        , CheckboxGroup.option "packing-list" "Packing list"
+                                        ]
+                                    )
+                                , Config.keep playground "CheckboxGroup" "selected" (CheckboxGroup.selected (checksOf "checks-readonly" model))
+                                , Config.keep playground "CheckboxGroup" "onChange" (CheckboxGroup.onChange (ChecksChanged "checks-readonly"))
+                                , Config.keep playground "CheckboxGroup" "locale" (CheckboxGroup.locale lang)
+                                ]
+                            )
+                        )
+                    , stack playground
                         [ Checkbox.view
-                            [ Checkbox.label "Newsletter"
-                            , Checkbox.id "check-readonly"
-                            , Checkbox.readOnly model.readOnly
-                            , Checkbox.checked (flagOf "check-readonly" model)
-                            , Checkbox.onCheck (FlagChanged "check-readonly")
-                            ]
+                            (Options.klarCheckbox playground
+                                (List.concat
+                                    [ Config.keep playground "Checkbox" "label" (Checkbox.label "Newsletter")
+                                    , Config.keep playground "Checkbox" "id" (Checkbox.id "check-readonly")
+                                    , Config.keep playground "Checkbox" "readOnly" (Checkbox.readOnly model.readOnly)
+                                    , Config.keep playground "Checkbox" "checked" (Checkbox.checked (flagOf "check-readonly" model))
+                                    , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck (FlagChanged "check-readonly"))
+                                    ]
+                                )
+                            )
                         , Switch.view
-                            [ Switch.label "Active customer"
-                            , Switch.id "sw-readonly"
-                            , Switch.readOnly model.readOnly
-                            , Switch.checked (flagOf "sw-readonly" model)
-                            , Switch.onCheck (FlagChanged "sw-readonly")
-                            , Switch.locale lang
-                            ]
+                            (Options.klarSwitch playground
+                                (List.concat
+                                    [ Config.keep playground "Switch" "label" (Switch.label "Active customer")
+                                    , Config.keep playground "Switch" "id" (Switch.id "sw-readonly")
+                                    , Config.keep playground "Switch" "readOnly" (Switch.readOnly model.readOnly)
+                                    , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-readonly" model))
+                                    , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-readonly"))
+                                    , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                                    ]
+                                )
+                            )
                         , Slider.view
-                            [ Slider.label "Discount"
-                            , Slider.id "slider-readonly"
-                            , Slider.readOnly model.readOnly
-                            , Slider.max 50
-                            , Slider.step 5
-                            , Slider.value (levelOf "slider-discount" model)
-                            , Slider.onInput (LevelChanged "slider-discount")
-                            , Slider.unit "%"
-                            ]
+                            (Options.klarSlider playground
+                                (List.concat
+                                    [ Config.keep playground "Slider" "label" (Slider.label "Discount")
+                                    , Config.keep playground "Slider" "id" (Slider.id "slider-readonly")
+                                    , Config.keep playground "Slider" "readOnly" (Slider.readOnly model.readOnly)
+                                    , Config.keep playground "Slider" "max" (Slider.max 50)
+                                    , Config.keep playground "Slider" "step" (Slider.step 5)
+                                    , Config.keep playground "Slider" "value" (Slider.value (levelOf "slider-discount" model))
+                                    , Config.keep playground "Slider" "onInput" (Slider.onInput (LevelChanged "slider-discount"))
+                                    , Config.keep playground "Slider" "unit" (Slider.unit "%")
+                                    ]
+                                )
+                            )
                         , SegmentedControl.view
-                            [ SegmentedControl.label "Period"
-                            , SegmentedControl.id "seg-readonly"
-                            , SegmentedControl.readOnly model.readOnly
-                            , SegmentedControl.options (letters "Day" "Week" "Month")
-                            , SegmentedControl.selected (segmentOf "seg-readonly" model)
-                            , SegmentedControl.onChange (PickChanged "seg-readonly")
-                            ]
+                            (Options.klarSegmentedControl playground
+                                (List.concat
+                                    [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Period")
+                                    , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-readonly")
+                                    , Config.keep playground "SegmentedControl" "readOnly" (SegmentedControl.readOnly model.readOnly)
+                                    , Config.keep playground "SegmentedControl" "options" (SegmentedControl.options (letters "Day" "Week" "Month"))
+                                    , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-readonly" model))
+                                    , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-readonly"))
+                                    ]
+                                )
+                            )
                         ]
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Radio", "CheckboxGroup" ]
             { title = "Long texts in a narrow place"
             , description = Just "Labels and descriptions wrap over several lines without moving the control itself."
             , code = Nothing
             }
-            (narrow 340
-                [ stack
+            (narrow playground
+                340
+                [ stack playground
                     [ Radio.view
-                        [ Radio.label "What should the carrier do when nobody is at the delivery address at the agreed time?"
-                        , Radio.id "radio-long"
-                        , Radio.options
-                            [ Radio.option "a" "Leave the parcel with a neighbour or at the nearest pick-up point and send a notification by email"
-                                |> Radio.withDescription "The carrier keeps the parcel for up to seven days before it goes back to the warehouse."
-                            , Radio.option "b" "Try again the next working day"
-                            ]
-                        , Radio.selected (pickOf "radio-long" model)
-                        , Radio.onChange (PickChanged "radio-long")
-                        ]
+                        (Options.klarRadio playground
+                            (List.concat
+                                [ Config.keep playground "Radio" "label" (Radio.label "What should the carrier do when nobody is at the delivery address at the agreed time?")
+                                , Config.keep playground "Radio" "id" (Radio.id "radio-long")
+                                , Config.keep playground
+                                    "Radio"
+                                    "options"
+                                    (Radio.options
+                                        [ Radio.option "a" "Leave the parcel with a neighbour or at the nearest pick-up point and send a notification by email"
+                                            |> Radio.withDescription "The carrier keeps the parcel for up to seven days before it goes back to the warehouse."
+                                        , Radio.option "b" "Try again the next working day"
+                                        ]
+                                    )
+                                , Config.keep playground "Radio" "selected" (Radio.selected (pickOf "radio-long" model))
+                                , Config.keep playground "Radio" "onChange" (Radio.onChange (PickChanged "radio-long"))
+                                ]
+                            )
+                        )
                     , CheckboxGroup.view
-                        [ CheckboxGroup.label "Send a copy of the delivery confirmation to these recipients"
-                        , CheckboxGroup.id "checks-long"
-                        , CheckboxGroup.options
-                            [ CheckboxGroup.option "manager" "The account manager and the responsible warehouse supervisor"
-                            , CheckboxGroup.option "accounts" "Accounts payable"
-                                |> CheckboxGroup.withDescription "Only the addresses registered as invoice recipients on the customer record."
-                            ]
-                        , CheckboxGroup.selected (checksOf "checks-long" model)
-                        , CheckboxGroup.onChange (ChecksChanged "checks-long")
-                        ]
+                        (Options.klarCheckboxGroup playground
+                            (List.concat
+                                [ Config.keep playground "CheckboxGroup" "label" (CheckboxGroup.label "Send a copy of the delivery confirmation to these recipients")
+                                , Config.keep playground "CheckboxGroup" "id" (CheckboxGroup.id "checks-long")
+                                , Config.keep playground
+                                    "CheckboxGroup"
+                                    "options"
+                                    (CheckboxGroup.options
+                                        [ CheckboxGroup.option "manager" "The account manager and the responsible warehouse supervisor"
+                                        , CheckboxGroup.option "accounts" "Accounts payable"
+                                            |> CheckboxGroup.withDescription "Only the addresses registered as invoice recipients on the customer record."
+                                        ]
+                                    )
+                                , Config.keep playground "CheckboxGroup" "selected" (CheckboxGroup.selected (checksOf "checks-long" model))
+                                , Config.keep playground "CheckboxGroup" "onChange" (CheckboxGroup.onChange (ChecksChanged "checks-long"))
+                                ]
+                            )
+                        )
                     , Switch.view
-                        [ Switch.label "Send the invoice to the accounting system of the customer when the order is delivered"
-                        , Switch.id "sw-long"
-                        , Switch.hint "The invoice is sent through the e-invoicing network and cannot be recalled once it has been delivered."
-                        , Switch.checked (flagOf "sw-long" model)
-                        , Switch.onCheck (FlagChanged "sw-long")
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Send the invoice to the accounting system of the customer when the order is delivered")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-long")
+                                , Config.keep playground "Switch" "hint" (Switch.hint "The invoice is sent through the e-invoicing network and cannot be recalled once it has been delivered.")
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-long" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-long"))
+                                ]
+                            )
+                        )
                     ]
                 ]
             )
@@ -587,11 +729,14 @@ Slider.view [ Slider.label "Discount", Slider.readOnly model.locked, ... ]"""
 -- SWITCH
 
 
-switches : Locale -> Model -> Html Msg
-switches lang model =
-    Doc.section "Switch"
+switches : Config.Config -> Locale -> Model -> Html Msg
+switches playground lang model =
+    Doc.configuredSection playground
+        [ "Switch" ]
+        "Switch"
         "A switch (role=switch) for settings that take effect at once. Space toggles it. While the application is saving, the knob shows a spinner, clicks and Space change nothing, and the switch keeps the keyboard focus."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Switch" ]
             { title = "Switch with a hint"
             , description = Just "Sizes, disabled, error, and a save that takes time (click the last one, then press Space again while it saves: the focus stays)."
             , code = Just """Switch.view
@@ -610,102 +755,148 @@ NotifyChecked value ->
     else
         ( { model | notify = value, saving = True }, saveNotify value )"""
             }
-            (grid 300
-                [ stack
+            (grid playground
+                300
+                [ stack playground
                     [ Switch.view
-                        [ Switch.label "Email updates"
-                        , Switch.id "sw-email"
-                        , Switch.hint "You get an email when an order changes status."
-                        , Switch.checked (flagOf "sw-email" model)
-                        , Switch.onCheck (FlagChanged "sw-email")
-                        , Switch.locale lang
-                        ]
-                    , Switch.view
-                        [ Switch.label "SMS updates"
-                        , Switch.id "sw-sms"
-                        , Switch.checked (flagOf "sw-sms" model)
-                        , Switch.onCheck (FlagChanged "sw-sms")
-                        , Switch.size Small
-                        , Switch.locale lang
-                        ]
-                    , Switch.view
-                        [ Switch.label "Large switch"
-                        , Switch.id "sw-large"
-                        , Switch.checked (flagOf "sw-large" model)
-                        , Switch.onCheck (FlagChanged "sw-large")
-                        , Switch.size Large
-                        , Switch.locale lang
-                        ]
-                    ]
-                , stack
-                    [ Switch.view
-                        [ Switch.label "Disabled (off)"
-                        , Switch.id "sw-disabled-off"
-                        , Switch.disabled True
-                        ]
-                    , Switch.view
-                        [ Switch.label "Disabled (on)"
-                        , Switch.id "sw-disabled-on"
-                        , Switch.disabled True
-                        , Switch.checked True
-                        ]
-                    , Switch.view
-                        [ Switch.label "Show prices with tax"
-                        , Switch.id "sw-error"
-                        , Switch.checked (flagOf "sw-error" model)
-                        , Switch.onCheck (FlagChanged "sw-error")
-                        , Switch.errorMaybe
-                            (if flagOf "sw-error" model then
-                                Nothing
-
-                             else
-                                Just "Prices for consumers must include tax"
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Email updates")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-email")
+                                , Config.keep playground "Switch" "hint" (Switch.hint "You get an email when an order changes status.")
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-email" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-email"))
+                                , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                                ]
                             )
-                        , Switch.locale lang
-                        ]
+                        )
                     , Switch.view
-                        [ Switch.label "Saving to the server"
-                        , Switch.id "sw-saving"
-                        , Switch.hint "The switch shows a spinner for a second and ignores clicks meanwhile."
-                        , Switch.checked (flagOf "sw-saving" model)
-                        , Switch.loading model.saving
-                        , Switch.onCheck SavingChecked
-                        , Switch.locale lang
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "SMS updates")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-sms")
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-sms" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-sms"))
+                                , Config.keep playground "Switch" "size" (Switch.size Small)
+                                , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                                ]
+                            )
+                        )
+                    , Switch.view
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Large switch")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-large")
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-large" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-large"))
+                                , Config.keep playground "Switch" "size" (Switch.size Large)
+                                , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                                ]
+                            )
+                        )
+                    ]
+                , stack playground
+                    [ Switch.view
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Disabled (off)")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-disabled-off")
+                                , Config.keep playground "Switch" "disabled" (Switch.disabled True)
+                                ]
+                            )
+                        )
+                    , Switch.view
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Disabled (on)")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-disabled-on")
+                                , Config.keep playground "Switch" "disabled" (Switch.disabled True)
+                                , Config.keep playground "Switch" "checked" (Switch.checked True)
+                                ]
+                            )
+                        )
+                    , Switch.view
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Show prices with tax")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-error")
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-error" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-error"))
+                                , Config.keep playground
+                                    "Switch"
+                                    "errorMaybe"
+                                    (Switch.errorMaybe
+                                        (if flagOf "sw-error" model then
+                                            Nothing
+
+                                         else
+                                            Just "Prices for consumers must include tax"
+                                        )
+                                    )
+                                , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                                ]
+                            )
+                        )
+                    , Switch.view
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Saving to the server")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-saving")
+                                , Config.keep playground "Switch" "hint" (Switch.hint "The switch shows a spinner for a second and ignores clicks meanwhile.")
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-saving" model))
+                                , Config.keep playground "Switch" "loading" (Switch.loading model.saving)
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck SavingChecked)
+                                , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                                ]
+                            )
+                        )
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Switch" ]
             { title = "List of settings"
             , description = Just "With controlAtEnd the switch sits at the far end of the line, as in a list of settings."
             , code = Just """Switch.view [ Switch.label "Daily report", Switch.controlAtEnd, Switch.checked model.dailyReport, Switch.onCheck DailyReportChecked ]"""
             }
-            (Card.view [ Card.title "Notifications" ]
-                [ Layout.stack [ Layout.gap 4 ]
+            (Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "Notifications") ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                     [ Switch.view
-                        [ Switch.label "Daily report by email"
-                        , Switch.id "sw-setting-a"
-                        , Switch.hint "Sent at 07:00 every day."
-                        , Switch.controlAtEnd
-                        , Switch.checked (flagOf "sw-setting-a" model)
-                        , Switch.onCheck (FlagChanged "sw-setting-a")
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Daily report by email")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-setting-a")
+                                , Config.keep playground "Switch" "hint" (Switch.hint "Sent at 07:00 every day.")
+                                , Config.keep playground "Switch" "controlAtEnd" Switch.controlAtEnd
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-setting-a" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-setting-a"))
+                                ]
+                            )
+                        )
                     , Layout.divider
                     , Switch.view
-                        [ Switch.label "Tell me about new orders"
-                        , Switch.id "sw-setting-b"
-                        , Switch.controlAtEnd
-                        , Switch.checked (flagOf "sw-setting-b" model)
-                        , Switch.onCheck (FlagChanged "sw-setting-b")
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Tell me about new orders")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-setting-b")
+                                , Config.keep playground "Switch" "controlAtEnd" Switch.controlAtEnd
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-setting-b" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-setting-b"))
+                                ]
+                            )
+                        )
                     , Layout.divider
                     , Switch.view
-                        [ Switch.label "Show the unread counter in the menu"
-                        , Switch.id "sw-setting-c"
-                        , Switch.controlAtEnd
-                        , Switch.checked (flagOf "sw-setting-c" model)
-                        , Switch.onCheck (FlagChanged "sw-setting-c")
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Show the unread counter in the menu")
+                                , Config.keep playground "Switch" "id" (Switch.id "sw-setting-c")
+                                , Config.keep playground "Switch" "controlAtEnd" Switch.controlAtEnd
+                                , Config.keep playground "Switch" "checked" (Switch.checked (flagOf "sw-setting-c" model))
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck (FlagChanged "sw-setting-c"))
+                                ]
+                            )
+                        )
                     ]
                 ]
             )
@@ -716,11 +907,14 @@ NotifyChecked value ->
 -- SEGMENTED CONTROL
 
 
-segments : Model -> Html Msg
-segments model =
-    Doc.section "Segmented control"
+segments : Config.Config -> Model -> Html Msg
+segments playground model =
+    Doc.configuredSection playground
+        [ "SegmentedControl" ]
+        "Segmented control"
         "A choice between a few options that look like joined buttons, for views, periods and modes. They are radio buttons underneath: Tab goes to the chosen option, the arrow keys move and choose. One option is always chosen, so selected takes a value, not a Maybe."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "SegmentedControl" ]
             { title = "With icons, periods and full width"
             , description = Just "On the left icons with text (the values are a type of the application), in the middle a period picker, and on the right full width."
             , code = Just """type Layout = ListLayout | GridLayout | ColumnsLayout
@@ -735,45 +929,71 @@ SegmentedControl.view
     , SegmentedControl.onChange LayoutChanged -- Layout -> Msg
     ]"""
             }
-            (grid 300
+            (grid playground
+                300
                 [ SegmentedControl.view
-                    [ SegmentedControl.label "View"
-                    , SegmentedControl.id "seg-view"
-                    , SegmentedControl.options
-                        [ SegmentedControl.option ListLayout "List" |> SegmentedControl.withIcon Icon.list
-                        , SegmentedControl.option GridLayout "Grid" |> SegmentedControl.withIcon Icon.grid
-                        , SegmentedControl.option ColumnsLayout "Columns" |> SegmentedControl.withIcon Icon.columns
-                        ]
-                    , SegmentedControl.selected model.layout
-                    , SegmentedControl.onChange LayoutChanged
-                    ]
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "View")
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-view")
+                            , Config.keep playground
+                                "SegmentedControl"
+                                "options"
+                                (SegmentedControl.options
+                                    [ SegmentedControl.option ListLayout "List" |> SegmentedControl.withIcon Icon.list
+                                    , SegmentedControl.option GridLayout "Grid" |> SegmentedControl.withIcon Icon.grid
+                                    , SegmentedControl.option ColumnsLayout "Columns" |> SegmentedControl.withIcon Icon.columns
+                                    ]
+                                )
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected model.layout)
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange LayoutChanged)
+                            ]
+                        )
+                    )
                 , SegmentedControl.view
-                    [ SegmentedControl.label "Period"
-                    , SegmentedControl.id "seg-period"
-                    , SegmentedControl.options
-                        [ SegmentedControl.option "day" "Day"
-                        , SegmentedControl.option "week" "Week"
-                        , SegmentedControl.option "month" "Month"
-                        , SegmentedControl.option "year" "Year" |> SegmentedControl.disabledOption
-                        ]
-                    , SegmentedControl.selected (segmentOf "seg-period" model)
-                    , SegmentedControl.onChange (PickChanged "seg-period")
-                    ]
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Period")
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-period")
+                            , Config.keep playground
+                                "SegmentedControl"
+                                "options"
+                                (SegmentedControl.options
+                                    [ SegmentedControl.option "day" "Day"
+                                    , SegmentedControl.option "week" "Week"
+                                    , SegmentedControl.option "month" "Month"
+                                    , SegmentedControl.option "year" "Year" |> SegmentedControl.disabledOption
+                                    ]
+                                )
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-period" model))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-period"))
+                            ]
+                        )
+                    )
                 , SegmentedControl.view
-                    [ SegmentedControl.label "Owner (full width)"
-                    , SegmentedControl.id "seg-owner"
-                    , SegmentedControl.fullWidth
-                    , SegmentedControl.options
-                        [ SegmentedControl.option "all" "All"
-                        , SegmentedControl.option "mine" "Mine"
-                        , SegmentedControl.option "unassigned" "Unassigned"
-                        ]
-                    , SegmentedControl.selected (segmentOf "seg-owner" model)
-                    , SegmentedControl.onChange (PickChanged "seg-owner")
-                    ]
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Owner (full width)")
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-owner")
+                            , Config.keep playground "SegmentedControl" "fullWidth" SegmentedControl.fullWidth
+                            , Config.keep playground
+                                "SegmentedControl"
+                                "options"
+                                (SegmentedControl.options
+                                    [ SegmentedControl.option "all" "All"
+                                    , SegmentedControl.option "mine" "Mine"
+                                    , SegmentedControl.option "unassigned" "Unassigned"
+                                    ]
+                                )
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-owner" model))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-owner"))
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "SegmentedControl" ]
             { title = "Sizes, icon only, error and disabled"
             , description = Just "A segment made with iconOption has only an icon; its text is the accessible name and the tooltip, so it cannot be forgotten. A label that the segments make clear is kept for screen readers with labelHidden."
             , code = Just """SegmentedControl.view
@@ -787,77 +1007,116 @@ SegmentedControl.view
     , SegmentedControl.onChange LayoutChanged
     ]"""
             }
-            (grid 260
+            (grid playground
+                260
                 [ SegmentedControl.view
-                    [ SegmentedControl.label "Small"
-                    , SegmentedControl.labelHidden
-                    , SegmentedControl.id "seg-small"
-                    , SegmentedControl.size Small
-                    , SegmentedControl.options (letters "A" "B" "C")
-                    , SegmentedControl.selected (segmentOf "seg-small" model)
-                    , SegmentedControl.onChange (PickChanged "seg-small")
-                    ]
-                , SegmentedControl.view
-                    [ SegmentedControl.label "Large"
-                    , SegmentedControl.labelHidden
-                    , SegmentedControl.id "seg-large"
-                    , SegmentedControl.size Large
-                    , SegmentedControl.options (letters "A" "B" "C")
-                    , SegmentedControl.selected (segmentOf "seg-large" model)
-                    , SegmentedControl.onChange (PickChanged "seg-large")
-                    ]
-                , SegmentedControl.view
-                    [ SegmentedControl.label "Icons only"
-                    , SegmentedControl.labelHidden
-                    , SegmentedControl.id "seg-icons"
-                    , SegmentedControl.options
-                        [ SegmentedControl.iconOption "list" Icon.list "List"
-                        , SegmentedControl.iconOption "grid" Icon.grid "Grid"
-                        ]
-                    , SegmentedControl.selected (segmentOf "seg-icons" model)
-                    , SegmentedControl.onChange (PickChanged "seg-icons")
-                    ]
-                , SegmentedControl.view
-                    [ SegmentedControl.label "Choice with an error"
-                    , SegmentedControl.id "seg-error"
-                    , SegmentedControl.required
-                    , SegmentedControl.errorMaybe
-                        (if segmentOf "seg-error" model == "third" then
-                            Just "Third is not allowed for this report"
-
-                         else
-                            Nothing
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Small")
+                            , Config.keep playground "SegmentedControl" "labelHidden" SegmentedControl.labelHidden
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-small")
+                            , Config.keep playground "SegmentedControl" "size" (SegmentedControl.size Small)
+                            , Config.keep playground "SegmentedControl" "options" (SegmentedControl.options (letters "A" "B" "C"))
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-small" model))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-small"))
+                            ]
                         )
-                    , SegmentedControl.options (letters "First" "Second" "Third")
-                    , SegmentedControl.selected (segmentOf "seg-error" model)
-                    , SegmentedControl.onChange (PickChanged "seg-error")
-                    ]
+                    )
                 , SegmentedControl.view
-                    [ SegmentedControl.label "Disabled"
-                    , SegmentedControl.id "seg-disabled"
-                    , SegmentedControl.disabled True
-                    , SegmentedControl.options (letters "Off" "On" "Auto")
-                    , SegmentedControl.selected "on"
-                    ]
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Large")
+                            , Config.keep playground "SegmentedControl" "labelHidden" SegmentedControl.labelHidden
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-large")
+                            , Config.keep playground "SegmentedControl" "size" (SegmentedControl.size Large)
+                            , Config.keep playground "SegmentedControl" "options" (SegmentedControl.options (letters "A" "B" "C"))
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-large" model))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-large"))
+                            ]
+                        )
+                    )
+                , SegmentedControl.view
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Icons only")
+                            , Config.keep playground "SegmentedControl" "labelHidden" SegmentedControl.labelHidden
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-icons")
+                            , Config.keep playground
+                                "SegmentedControl"
+                                "options"
+                                (SegmentedControl.options
+                                    [ SegmentedControl.iconOption "list" Icon.list "List"
+                                    , SegmentedControl.iconOption "grid" Icon.grid "Grid"
+                                    ]
+                                )
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-icons" model))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-icons"))
+                            ]
+                        )
+                    )
+                , SegmentedControl.view
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Choice with an error")
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-error")
+                            , Config.keep playground "SegmentedControl" "required" SegmentedControl.required
+                            , Config.keep playground
+                                "SegmentedControl"
+                                "errorMaybe"
+                                (SegmentedControl.errorMaybe
+                                    (if segmentOf "seg-error" model == "third" then
+                                        Just "Third is not allowed for this report"
+
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground "SegmentedControl" "options" (SegmentedControl.options (letters "First" "Second" "Third"))
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-error" model))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-error"))
+                            ]
+                        )
+                    )
+                , SegmentedControl.view
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Disabled")
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-disabled")
+                            , Config.keep playground "SegmentedControl" "disabled" (SegmentedControl.disabled True)
+                            , Config.keep playground "SegmentedControl" "options" (SegmentedControl.options (letters "Off" "On" "Auto"))
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected "on")
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "SegmentedControl" ]
             { title = "Long texts in a narrow place"
             , description = Just "The text is cut with an ellipsis when the options do not fit."
             , code = Nothing
             }
-            (narrow 340
+            (narrow playground
+                340
                 [ SegmentedControl.view
-                    [ SegmentedControl.label "Who can see this report?"
-                    , SegmentedControl.id "seg-long"
-                    , SegmentedControl.fullWidth
-                    , SegmentedControl.options
-                        [ SegmentedControl.option "all" "Everyone in the whole company, across all warehouses and offices"
-                        , SegmentedControl.option "unit" "Only my warehouse"
-                        ]
-                    , SegmentedControl.selected (segmentOf "seg-long" model)
-                    , SegmentedControl.onChange (PickChanged "seg-long")
-                    ]
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Who can see this report?")
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "seg-long")
+                            , Config.keep playground "SegmentedControl" "fullWidth" SegmentedControl.fullWidth
+                            , Config.keep playground
+                                "SegmentedControl"
+                                "options"
+                                (SegmentedControl.options
+                                    [ SegmentedControl.option "all" "Everyone in the whole company, across all warehouses and offices"
+                                    , SegmentedControl.option "unit" "Only my warehouse"
+                                    ]
+                                )
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (segmentOf "seg-long" model))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange (PickChanged "seg-long"))
+                            ]
+                        )
+                    )
                 ]
             )
         ]
@@ -877,15 +1136,18 @@ letters first second third =
 -- SLIDER
 
 
-sliders : Locale -> Model -> Html Msg
-sliders lang model =
+sliders : Config.Config -> Locale -> Model -> Html Msg
+sliders playground lang model =
     let
         ( quantityLow, quantityHigh ) =
             rangeOf "range-quantity" model
     in
-    Doc.section "Slider"
+    Doc.configuredSection playground
+        [ "Slider" ]
+        "Slider"
         "A slider for one number and for a range. The arrow keys change the value by one step, Page Up and Page Down by ten percent, Home and End jump to the ends. The colored part of the track follows the thumb without JavaScript. On the range slider the thumbs cannot pass each other."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Slider" ]
             { title = "Single slider"
             , description = Just "With a bubble over the thumb (on hover, focus and drag), tick marks and a unit. Below: marks with text and a value written in your own way."
             , code = Just """Slider.view
@@ -900,36 +1162,46 @@ sliders lang model =
     , Slider.ticks 10
     ]"""
             }
-            (grid 340
+            (grid playground
+                340
                 [ Slider.view
-                    [ Slider.label "Discount"
-                    , Slider.id "slider-discount"
-                    , Slider.hint "Steps of 5 points."
-                    , Slider.min 0
-                    , Slider.max 50
-                    , Slider.step 5
-                    , Slider.value (levelOf "slider-discount" model)
-                    , Slider.onInput (LevelChanged "slider-discount")
-                    , Slider.unit "%"
-                    , Slider.bubble
-                    , Slider.ticks 10
-                    , Slider.locale lang
-                    ]
+                    (Options.klarSlider playground
+                        (List.concat
+                            [ Config.keep playground "Slider" "label" (Slider.label "Discount")
+                            , Config.keep playground "Slider" "id" (Slider.id "slider-discount")
+                            , Config.keep playground "Slider" "hint" (Slider.hint "Steps of 5 points.")
+                            , Config.keep playground "Slider" "min" (Slider.min 0)
+                            , Config.keep playground "Slider" "max" (Slider.max 50)
+                            , Config.keep playground "Slider" "step" (Slider.step 5)
+                            , Config.keep playground "Slider" "value" (Slider.value (levelOf "slider-discount" model))
+                            , Config.keep playground "Slider" "onInput" (Slider.onInput (LevelChanged "slider-discount"))
+                            , Config.keep playground "Slider" "unit" (Slider.unit "%")
+                            , Config.keep playground "Slider" "bubble" Slider.bubble
+                            , Config.keep playground "Slider" "ticks" (Slider.ticks 10)
+                            , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                            ]
+                        )
+                    )
                 , Slider.view
-                    [ Slider.label "Urgency"
-                    , Slider.id "slider-urgency"
-                    , Slider.min 0
-                    , Slider.max 100
-                    , Slider.step 10
-                    , Slider.value (levelOf "slider-urgency" model)
-                    , Slider.onInput (LevelChanged "slider-urgency")
-                    , Slider.marks [ ( 0, "Low" ), ( 50, "Normal" ), ( 100, "Urgent" ) ]
-                    , Slider.valueFormat (\v -> String.fromInt (round (v / 10)) ++ " of 10")
-                    , Slider.locale lang
-                    ]
+                    (Options.klarSlider playground
+                        (List.concat
+                            [ Config.keep playground "Slider" "label" (Slider.label "Urgency")
+                            , Config.keep playground "Slider" "id" (Slider.id "slider-urgency")
+                            , Config.keep playground "Slider" "min" (Slider.min 0)
+                            , Config.keep playground "Slider" "max" (Slider.max 100)
+                            , Config.keep playground "Slider" "step" (Slider.step 10)
+                            , Config.keep playground "Slider" "value" (Slider.value (levelOf "slider-urgency" model))
+                            , Config.keep playground "Slider" "onInput" (Slider.onInput (LevelChanged "slider-urgency"))
+                            , Config.keep playground "Slider" "marks" (Slider.marks [ ( 0, "Low" ), ( 50, "Normal" ), ( 100, "Urgent" ) ])
+                            , Config.keep playground "Slider" "valueFormat" (Slider.valueFormat (\v -> String.fromInt (round (v / 10)) ++ " of 10"))
+                            , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Slider" ]
             { title = "Fetch when the thumb is let go"
             , description = Just "onInput keeps the written value up to date while dragging; onCommit is sent once when the thumb is let go (and for every key press), the moment to ask the server for the filtered list."
             , code = Just """Slider.view
@@ -941,19 +1213,24 @@ sliders lang model =
     , Slider.onCommit PriceChosen -- once, when the thumb is let go
     ]"""
             }
-            (narrow 340
-                [ stack
+            (narrow playground
+                340
+                [ stack playground
                     [ Slider.view
-                        [ Slider.label "Highest price"
-                        , Slider.id "slider-price"
-                        , Slider.max 1000
-                        , Slider.step 10
-                        , Slider.value (levelOf "slider-price" model)
-                        , Slider.onInput (LevelChanged "slider-price")
-                        , Slider.onCommit PriceChosen
-                        , Slider.unit "USD"
-                        , Slider.locale lang
-                        ]
+                        (Options.klarSlider playground
+                            (List.concat
+                                [ Config.keep playground "Slider" "label" (Slider.label "Highest price")
+                                , Config.keep playground "Slider" "id" (Slider.id "slider-price")
+                                , Config.keep playground "Slider" "max" (Slider.max 1000)
+                                , Config.keep playground "Slider" "step" (Slider.step 10)
+                                , Config.keep playground "Slider" "value" (Slider.value (levelOf "slider-price" model))
+                                , Config.keep playground "Slider" "onInput" (Slider.onInput (LevelChanged "slider-price"))
+                                , Config.keep playground "Slider" "onCommit" (Slider.onCommit PriceChosen)
+                                , Config.keep playground "Slider" "unit" (Slider.unit "USD")
+                                , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                                ]
+                            )
+                        )
                     , readout
                         (case model.committed of
                             Just price ->
@@ -965,7 +1242,8 @@ sliders lang model =
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Slider" ]
             { title = "Range"
             , description = Just "Two thumbs that cannot pass each other, named \"Order quantity, from\" and \"Order quantity, to\" for screen readers. Keep at least 10 pieces between them."
             , code = Just """Slider.viewRange
@@ -978,59 +1256,82 @@ sliders lang model =
     , Slider.unit "pcs"
     ]"""
             }
-            (grid 340
+            (grid playground
+                340
                 [ Slider.viewRange
-                    [ Slider.label "Order quantity"
-                    , Slider.id "range-quantity"
-                    , Slider.min 0
-                    , Slider.max 500
-                    , Slider.minGap 10
-                    , Slider.range quantityLow quantityHigh
-                    , Slider.onRangeInput (RangeChanged "range-quantity")
-                    , Slider.unit "pcs"
-                    , Slider.bubble
-                    , Slider.ticks 50
-                    , Slider.locale lang
-                    ]
+                    (Options.klarSlider playground
+                        (List.concat
+                            [ Config.keep playground "Slider" "label" (Slider.label "Order quantity")
+                            , Config.keep playground "Slider" "id" (Slider.id "range-quantity")
+                            , Config.keep playground "Slider" "min" (Slider.min 0)
+                            , Config.keep playground "Slider" "max" (Slider.max 500)
+                            , Config.keep playground "Slider" "minGap" (Slider.minGap 10)
+                            , Config.keep playground "Slider" "range" (Slider.range quantityLow quantityHigh)
+                            , Config.keep playground "Slider" "onRangeInput" (Slider.onRangeInput (RangeChanged "range-quantity"))
+                            , Config.keep playground "Slider" "unit" (Slider.unit "pcs")
+                            , Config.keep playground "Slider" "bubble" Slider.bubble
+                            , Config.keep playground "Slider" "ticks" (Slider.ticks 50)
+                            , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                            ]
+                        )
+                    )
                 , Slider.viewRange
-                    [ Slider.label "Disabled range"
-                    , Slider.id "range-disabled"
-                    , Slider.disabled True
-                    , Slider.range 30 70
-                    , Slider.locale lang
-                    ]
+                    (Options.klarSlider playground
+                        (List.concat
+                            [ Config.keep playground "Slider" "label" (Slider.label "Disabled range")
+                            , Config.keep playground "Slider" "id" (Slider.id "range-disabled")
+                            , Config.keep playground "Slider" "disabled" (Slider.disabled True)
+                            , Config.keep playground "Slider" "range" (Slider.range 30 70)
+                            , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Slider" ]
             { title = "States"
             , description = Just "Disabled and with an error."
             , code = Just """Slider.view [ Slider.label "Threshold", Slider.disabled True, Slider.value 40 ]"""
             }
-            (grid 340
+            (grid playground
+                340
                 [ Slider.view
-                    [ Slider.label "Reorder threshold (disabled)"
-                    , Slider.id "slider-disabled"
-                    , Slider.disabled True
-                    , Slider.value 40
-                    , Slider.unit "%"
-                    , Slider.locale lang
-                    ]
-                , Slider.view
-                    [ Slider.label "Service level"
-                    , Slider.id "slider-service"
-                    , Slider.required
-                    , Slider.errorMaybe
-                        (if levelOf "slider-service" model < 50 then
-                            Just "The value must be at least 50"
-
-                         else
-                            Nothing
+                    (Options.klarSlider playground
+                        (List.concat
+                            [ Config.keep playground "Slider" "label" (Slider.label "Reorder threshold (disabled)")
+                            , Config.keep playground "Slider" "id" (Slider.id "slider-disabled")
+                            , Config.keep playground "Slider" "disabled" (Slider.disabled True)
+                            , Config.keep playground "Slider" "value" (Slider.value 40)
+                            , Config.keep playground "Slider" "unit" (Slider.unit "%")
+                            , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                            ]
                         )
-                    , Slider.value (levelOf "slider-service" model)
-                    , Slider.onInput (LevelChanged "slider-service")
-                    , Slider.unit "%"
-                    , Slider.locale lang
-                    ]
+                    )
+                , Slider.view
+                    (Options.klarSlider playground
+                        (List.concat
+                            [ Config.keep playground "Slider" "label" (Slider.label "Service level")
+                            , Config.keep playground "Slider" "id" (Slider.id "slider-service")
+                            , Config.keep playground "Slider" "required" Slider.required
+                            , Config.keep playground
+                                "Slider"
+                                "errorMaybe"
+                                (Slider.errorMaybe
+                                    (if levelOf "slider-service" model < 50 then
+                                        Just "The value must be at least 50"
+
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground "Slider" "value" (Slider.value (levelOf "slider-service" model))
+                            , Config.keep playground "Slider" "onInput" (Slider.onInput (LevelChanged "slider-service"))
+                            , Config.keep playground "Slider" "unit" (Slider.unit "%")
+                            , Config.keep playground "Slider" "locale" (Slider.locale lang)
+                            ]
+                        )
+                    )
                 ]
             )
         ]

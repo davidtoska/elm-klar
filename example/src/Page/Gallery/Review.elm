@@ -8,7 +8,9 @@ import Html exposing (Html)
 import Klar.Locale exposing (Locale)
 import Page.Gallery.Review.Compares as Compares
 import Page.Gallery.Review.Diffs as Diffs
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -62,12 +64,12 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Diff and compare"
         , description = "What changed: text, JSON and record diffs, and records side by side."
         }
-        [ Html.map DiffsMsg (Diffs.view locale model.diffs)
-        , Html.map ComparesMsg (Compares.view locale model.compares)
+        [ Html.map DiffsMsg (Diffs.view playground locale model.diffs)
+        , Html.map ComparesMsg (Compares.view playground locale model.compares)
         ]

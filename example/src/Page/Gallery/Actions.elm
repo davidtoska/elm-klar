@@ -11,7 +11,9 @@ import Page.Gallery.Actions.Groups as Groups
 import Page.Gallery.Actions.Keys as Keys
 import Page.Gallery.Actions.Links as Links
 import Page.Gallery.Actions.Split as Split
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -77,15 +79,15 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Actions and links"
         , description = "Button groups, toggle groups, split buttons, links and keyboard keys."
         }
-        [ Html.map GroupsMsg (Groups.buttonGroupSection locale model.groups)
-        , Html.map GroupsMsg (Groups.toggleGroupSection locale model.groups)
-        , Html.map SplitMsg (Split.section locale model.split)
-        , Html.map LinksMsg (Links.section locale model.links)
-        , Html.map KeysMsg (Keys.section locale model.keys)
+        [ Html.map GroupsMsg (Groups.buttonGroupSection playground locale model.groups)
+        , Html.map GroupsMsg (Groups.toggleGroupSection playground locale model.groups)
+        , Html.map SplitMsg (Split.section playground locale model.split)
+        , Html.map LinksMsg (Links.section playground locale model.links)
+        , Html.map KeysMsg (Keys.section playground locale model.keys)
         ]

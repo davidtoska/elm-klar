@@ -28,7 +28,9 @@ import Klar.Table as Table
 import Klar.Text as Text
 import Klar.Theme as Theme
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import View.Ids exposing (orderRows)
@@ -816,45 +818,57 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     Overlay.host
         { attributes = []
         , page =
-            [ Doc.page
+            [ Doc.configuredPage playground
                 { title = "Rules and filters"
                 , description = "Rules that filter data: a rule builder with groups and conditions, a filter bar with quick filters above a table, and saved views. All three edit the same data model (Klar.Rule), which the application runs with Rule.matches."
                 }
-                [ workbench locale model
-                , ruleBuilders locale model
-                , filterBars locale model
-                , savedViews locale model
-                , norwegian model
-                , api
+                [ workbench playground locale model
+                , ruleBuilders playground locale model
+                , filterBars playground locale model
+                , savedViews playground locale model
+                , norwegian playground model
+                , api playground
                 ]
             ]
-        , overlays = [ viewDialog locale model ]
+        , overlays = [ viewDialog playground locale model ]
         }
 
 
-viewDialog : Locale -> Model -> Overlay Msg
-viewDialog locale model =
+viewDialog : Config.Config -> Locale -> Model -> Overlay Msg
+viewDialog playground locale model =
     Modal.view DialogMsg
-        [ Modal.subtitle "Orders to review this week"
-        , Modal.locale locale
-        , Modal.footer
-            [ Button.view [ Button.onClick DialogCancelled ] "Cancel"
-            , Button.view [ Button.primary, Button.onClick DialogApplied ] "Apply rule"
-            ]
-        ]
+        (Options.klarModal playground
+            (List.concat
+                [ Config.keep playground "Modal" "subtitle" (Modal.subtitle "Orders to review this week")
+                , Config.keep playground "Modal" "locale" (Modal.locale locale)
+                , Config.keep playground
+                    "Modal"
+                    "footer"
+                    (Modal.footer
+                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick DialogCancelled) ])) "Cancel"
+                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick DialogApplied) ])) "Apply rule"
+                        ]
+                    )
+                ]
+            )
+        )
         model.dialog
         "Edit rule"
         [ RuleBuilder.view DraftMsg
-            [ RuleBuilder.fields orderFields
-            , RuleBuilder.locale locale
-            , RuleBuilder.today Sample.today
-            , RuleBuilder.ariaLabel "Rule for the review list"
-            ]
+            (Options.klarRuleBuilder playground
+                (List.concat
+                    [ Config.keep playground "RuleBuilder" "fields" (RuleBuilder.fields orderFields)
+                    , Config.keep playground "RuleBuilder" "locale" (RuleBuilder.locale locale)
+                    , Config.keep playground "RuleBuilder" "today" (RuleBuilder.today Sample.today)
+                    , Config.keep playground "RuleBuilder" "ariaLabel" (RuleBuilder.ariaLabel "Rule for the review list")
+                    ]
+                )
+            )
             model.draft
         ]
 
@@ -864,53 +878,75 @@ The views button sits above the bar rather than next to it: side by side the bar
 gets a narrow column (and runs off a phone screen).
 -}
 viewBench :
-    { toMsg : BenchMsg -> Msg
-    , locale : Locale
-    , fields : List (Rule.Field Types.Order)
-    , quick : List ( String, Rule )
-    , matchCount : Int
-    , counting : Bool
-    , label : String
-    }
+    Config.Config
+    ->
+        { toMsg : BenchMsg -> Msg
+        , locale : Locale
+        , fields : List (Rule.Field Types.Order)
+        , quick : List ( String, Rule )
+        , matchCount : Int
+        , counting : Bool
+        , label : String
+        }
     -> Bench
     -> Html Msg
-viewBench options bench =
-    Layout.stack [ Layout.gap 4 ]
-        [ Layout.stack [ Layout.gap 3, Layout.alignStart ]
-            [ Layout.row [ Layout.gap 2, Layout.alignCenter ]
+viewBench playground options bench =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+            [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                 [ SavedViews.view (ViewsMsg >> options.toMsg)
-                    [ SavedViews.currentRule bench.rule
-                    , SavedViews.size Theme.Small
-                    , SavedViews.locale options.locale
-                    ]
+                    (Options.klarSavedViews playground
+                        (List.concat
+                            [ Config.keep playground "SavedViews" "currentRule" (SavedViews.currentRule bench.rule)
+                            , Config.keep playground "SavedViews" "size" (SavedViews.size Theme.Small)
+                            , Config.keep playground "SavedViews" "locale" (SavedViews.locale options.locale)
+                            ]
+                        )
+                    )
                     bench.views
-                , Button.view [ Button.ghost, Button.small, Button.onClick (options.toMsg NewViewAsked) ] "New view ..."
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (options.toMsg NewViewAsked)) ])) "New view ..."
                 ]
             , FilterBar.view (FiltersMsg >> options.toMsg)
-                [ FilterBar.fields options.fields
-                , FilterBar.quick options.quick
-                , FilterBar.today Sample.today
-                , FilterBar.locale options.locale
-                ]
+                (Options.klarFilterBar playground
+                    (List.concat
+                        [ Config.keep playground "FilterBar" "fields" (FilterBar.fields options.fields)
+                        , Config.keep playground "FilterBar" "quick" (FilterBar.quick options.quick)
+                        , Config.keep playground "FilterBar" "today" (FilterBar.today Sample.today)
+                        , Config.keep playground "FilterBar" "locale" (FilterBar.locale options.locale)
+                        ]
+                    )
+                )
                 bench.filters
             ]
         , RuleBuilder.view (BuilderMsg >> options.toMsg)
-            [ RuleBuilder.fields options.fields
-            , RuleBuilder.locale options.locale
-            , RuleBuilder.matchCount
-                (if options.counting then
-                    -- the old count stays, dimmed, while the new one is worked out
-                    Remote.refresh (Remote.Loaded options.matchCount)
+            (Options.klarRuleBuilder playground
+                (List.concat
+                    [ Config.keep playground "RuleBuilder" "fields" (RuleBuilder.fields options.fields)
+                    , Config.keep playground "RuleBuilder" "locale" (RuleBuilder.locale options.locale)
+                    , Config.keep playground
+                        "RuleBuilder"
+                        "matchCount"
+                        (RuleBuilder.matchCount
+                            (Config.remote playground
+                                "RuleBuilder"
+                                "matchCount"
+                                (if options.counting then
+                                    -- the old count stays, dimmed, while the new one is worked out
+                                    Remote.refresh (Remote.Loaded options.matchCount)
 
-                 else
-                    Remote.Loaded options.matchCount
+                                 else
+                                    Remote.Loaded options.matchCount
+                                )
+                            )
+                        )
+                    , Config.keep playground "RuleBuilder" "totalCount" (RuleBuilder.totalCount (List.length Sample.orders))
+                    , Config.keep playground "RuleBuilder" "today" (RuleBuilder.today Sample.today)
+                    , Config.keep playground "RuleBuilder" "json" RuleBuilder.json
+                    , Config.keep playground "RuleBuilder" "importJson" RuleBuilder.importJson
+                    , Config.keep playground "RuleBuilder" "ariaLabel" (RuleBuilder.ariaLabel options.label)
+                    ]
                 )
-            , RuleBuilder.totalCount (List.length Sample.orders)
-            , RuleBuilder.today Sample.today
-            , RuleBuilder.json
-            , RuleBuilder.importJson
-            , RuleBuilder.ariaLabel options.label
-            ]
+            )
             bench.builder
         ]
 
@@ -922,20 +958,23 @@ orderCount =
     Format.int Locale.en (List.length Sample.orders)
 
 
-workbench : Locale -> Model -> Html Msg
-workbench locale model =
-    Doc.section "Workbench"
+workbench : Config.Config -> Locale -> Model -> Html Msg
+workbench playground locale model =
+    Doc.configuredSection playground
+        [ "RuleBuilder", "FilterBar", "SavedViews" ]
+        "Workbench"
         ("Saved views, the filter bar and the rule builder edit one and the same rule, and the table of "
             ++ orderCount
             ++ " orders is filtered with Rule.matches as you go. Change the rule in one place and the others follow. A view is marked “modified” when the rule is no longer the same as the saved one."
         )
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "RuleBuilder", "FilterBar", "SavedViews", "Rule" ]
             { title = orderCount ++ " orders, one rule"
             , description = Just "Preloaded: Status is Confirmed and (Priority is Urgent or Total > 5000). The application runs the rule a quarter of a second after you stop typing; switch on the slow count to see the refreshing count (the old number, dimmed, with a spinner) that a large data set gives. A condition that is not complete yet shows as a dashed chip in the filter bar and does not filter. “Show JSON” and “Import JSON” in the toolbar of the rule builder take the rule out and in as JSON."
             , code = Just workbenchCode
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ viewBench
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ viewBench playground
                     { toMsg = WorkbenchMsg
                     , locale = locale
                     , fields = orderFields
@@ -946,13 +985,17 @@ workbench locale model =
                     }
                     model.workbench
                 , Checkbox.view
-                    [ Checkbox.id "rules-slow-count"
-                    , Checkbox.label "Simulate a slow count (large data set)"
-                    , Checkbox.hint "The rule runs 0.9 seconds after the last change; meanwhile the rule builder keeps the old count, dimmed, and the table is dimmed too."
-                    , Checkbox.checked model.slow
-                    , Checkbox.onCheck SlowToggled
-                    ]
-                , Html.Lazy.lazy4 viewTable locale model.applied model.counting model.table
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "id" (Checkbox.id "rules-slow-count")
+                            , Config.keep playground "Checkbox" "label" (Checkbox.label "Simulate a slow count (large data set)")
+                            , Config.keep playground "Checkbox" "hint" (Checkbox.hint "The rule runs 0.9 seconds after the last change; meanwhile the rule builder keeps the old count, dimmed, and the table is dimmed too.")
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.slow)
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck SlowToggled)
+                            ]
+                        )
+                    )
+                , Html.Lazy.lazy4 (viewTable playground) locale model.applied model.counting model.table
                 ]
             )
         ]
@@ -963,26 +1006,38 @@ lazily keeps typing in the builder fast (it is redrawn when the applied rule,
 the counting flag or the table's own state changes, not on every keystroke
 elsewhere).
 -}
-viewTable : Locale -> Rule -> Bool -> Table.State OrderId -> Html Msg
-viewTable locale applied counting table =
+viewTable : Config.Config -> Locale -> Rule -> Bool -> Table.State OrderId -> Html Msg
+viewTable playground locale applied counting table =
     Table.view TableMsg
-        [ Table.columns orderColumns
-        , Table.remote
-            (if counting then
-                Remote.refresh (Remote.Loaded Sample.orders)
+        (Options.klarTable playground
+            (List.concat
+                [ Config.keep playground "Table" "columns" (Table.columns orderColumns)
+                , Config.keep playground
+                    "Table"
+                    "remote"
+                    (Table.remote
+                        (Config.remote playground
+                            "Table"
+                            "remote"
+                            (if counting then
+                                Remote.refresh (Remote.Loaded Sample.orders)
 
-             else
-                Remote.Loaded Sample.orders
+                             else
+                                Remote.Loaded Sample.orders
+                            )
+                        )
+                    )
+                , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                , Config.keep playground "Table" "rowFilter" (Table.rowFilter (Rule.matches Sample.today orderFields applied))
+                , Config.keep playground "Table" "activeExternalFilters" (Table.activeExternalFilters (completeConditions orderFields applied))
+                , Config.keep playground "Table" "onResetFilters" (Table.onResetFilters ResetAll)
+                , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders")
+                , Config.keep playground "Table" "locale" (Table.locale locale)
+                , Config.keep playground "Table" "maxHeight" (Table.maxHeight 420)
+                , Config.keep playground "Table" "pageSizes" (Table.pageSizes [ 25, 50, 100 ])
+                ]
             )
-        , Table.rowId orderRows .id
-        , Table.rowFilter (Rule.matches Sample.today orderFields applied)
-        , Table.activeExternalFilters (completeConditions orderFields applied)
-        , Table.onResetFilters ResetAll
-        , Table.ariaLabel "Orders"
-        , Table.locale locale
-        , Table.maxHeight 420
-        , Table.pageSizes [ 25, 50, 100 ]
-        ]
+        )
         table
 
 
@@ -1087,40 +1142,57 @@ Table.view TableMsg
     model.table"""
 
 
-ruleBuilders : Locale -> Model -> Html Msg
-ruleBuilders locale model =
-    Doc.section "Rule builder"
+ruleBuilders : Config.Config -> Locale -> Model -> Html Msg
+ruleBuilders playground locale model =
+    Doc.configuredSection playground
+        [ "RuleBuilder", "Rule" ]
+        "Rule builder"
         "A tree of groups and conditions, drawn with thin gray lines. A group is “All” (and) or “Any” (or) of its conditions and can be turned around with “Not”; the three-dot menu of a group moves, duplicates and removes it, and a group can be collapsed to one line. The field picker searches and groups the fields; the value editor follows the field type and the operator. Keyboard: Tab moves through every control. Enter, Space or ArrowDown opens a picker, type to search, Enter chooses. All and Any switch with the arrow keys. Enter in a value field does nothing, and Delete or Backspace never removes a condition: use the Remove button, and take it back with “Undo”."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "RuleBuilder", "Rule" ]
             { title = "Empty rule"
             , description = Just "Without conditions the rule lets every row through. “Condition” adds a condition on the first field and moves focus to its field picker; “Group” adds a subgroup with one condition. Groups nest at most three levels here (maxDepth)."
             , code = Just emptyCode
             }
             (RuleBuilder.view EmptyMsg
-                [ RuleBuilder.fields orderFields
-                , RuleBuilder.locale locale
-                , RuleBuilder.today Sample.today
-                , RuleBuilder.maxDepth 3
-                ]
+                (Options.klarRuleBuilder playground
+                    (List.concat
+                        [ Config.keep playground "RuleBuilder" "fields" (RuleBuilder.fields orderFields)
+                        , Config.keep playground "RuleBuilder" "locale" (RuleBuilder.locale locale)
+                        , Config.keep playground "RuleBuilder" "today" (RuleBuilder.today Sample.today)
+                        , Config.keep playground "RuleBuilder" "maxDepth" (RuleBuilder.maxDepth 3)
+                        ]
+                    )
+                )
                 model.empty
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "RuleBuilder", "Rule" ]
             { title = "Issues are shown on the rule"
             , description = Just "Rule.validate runs all the time. A condition shows its issues once the user has tried to fill it in, or when the application asks for it with RuleBuilder.showIssues (here at start-up and with “Check the rule”); RuleBuilder.hideIssues takes them away again until the user touches a condition. An unknown field and a condition that does not fit its field typically come from old JSON."
             , code = Just invalidCode
             }
             (RuleBuilder.view InvalidMsg
-                [ RuleBuilder.fields orderFields
-                , RuleBuilder.locale locale
-                , RuleBuilder.today Sample.today
-                , RuleBuilder.actions
-                    [ Button.view [ Button.small, Button.icon Icon.clipboardCheck, Button.onClick CheckInvalid ] "Check the rule"
-                    , Button.view [ Button.small, Button.ghost, Button.icon Icon.eyeOff, Button.onClick HideInvalid ] "Hide issues"
-                    ]
-                ]
+                (Options.klarRuleBuilder playground
+                    (List.concat
+                        [ Config.keep playground "RuleBuilder" "fields" (RuleBuilder.fields orderFields)
+                        , Config.keep playground "RuleBuilder" "locale" (RuleBuilder.locale locale)
+                        , Config.keep playground "RuleBuilder" "today" (RuleBuilder.today Sample.today)
+                        , Config.keep playground
+                            "RuleBuilder"
+                            "actions"
+                            (RuleBuilder.actions
+                                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.clipboardCheck), Config.keep playground "Button" "onClick" (Button.onClick CheckInvalid) ])) "Check the rule"
+                                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.eyeOff), Config.keep playground "Button" "onClick" (Button.onClick HideInvalid) ])) "Hide issues"
+                                ]
+                            )
+                        ]
+                    )
+                )
                 model.invalid
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "RuleBuilder", "Rule" ]
             { title = "Narrow space and long lists"
             , description =
                 Just
@@ -1134,32 +1206,41 @@ ruleBuilders locale model =
             }
             -- as many columns as fit (two from about 520px): on a phone the
             -- text goes under the builder, which then has the whole width
-            (Layout.grid [ Layout.minColumn 250, Layout.gap 4 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 250), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ RuleBuilder.view NarrowMsg
-                    [ RuleBuilder.fields orderFields
-                    , RuleBuilder.locale locale
-                    , RuleBuilder.today Sample.today
-                    , RuleBuilder.matchCount (Remote.Loaded model.narrowCount)
-                    ]
+                    (Options.klarRuleBuilder playground
+                        (List.concat
+                            [ Config.keep playground "RuleBuilder" "fields" (RuleBuilder.fields orderFields)
+                            , Config.keep playground "RuleBuilder" "locale" (RuleBuilder.locale locale)
+                            , Config.keep playground "RuleBuilder" "today" (RuleBuilder.today Sample.today)
+                            , Config.keep playground "RuleBuilder" "matchCount" (RuleBuilder.matchCount (Config.remote playground "RuleBuilder" "matchCount" (Remote.Loaded model.narrowCount)))
+                            ]
+                        )
+                    )
                     model.narrow
-                , Layout.stack [ Layout.gap 2 ]
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                     [ Text.subheading "What the rule says"
                     , Text.paragraph (Rule.describe locale orderFields (RuleBuilder.rule model.narrow))
                     , Text.caption "The summary is made by Rule.describe and is the same sentence that the rule builder shows at the bottom."
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Rule" ]
             { title = "In a dialog that scrolls"
             , description = Just "The rule is edited on a copy and taken into use with “Apply rule”; if it is not valid, all issues are shown instead. The pickers open above the scrolling body of the dialog and are not cut off by it, and Escape in a picker closes only the picker."
             , code = Just dialogCode
             }
-            (Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
-                [ Button.view
-                    [ Button.id "rules-dialog-open"
-                    , Button.icon Icon.edit
-                    , Button.onClick DialogOpened
-                    ]
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground
+                    (Options.klarButton playground
+                        (List.concat
+                            [ Config.keep playground "Button" "id" (Button.id "rules-dialog-open")
+                            , Config.keep playground "Button" "icon" (Button.icon Icon.edit)
+                            , Config.keep playground "Button" "onClick" (Button.onClick DialogOpened)
+                            ]
+                        )
+                    )
                     "Edit rule ..."
                 , Text.secondary
                     (Rule.describe locale orderFields model.dialogRule
@@ -1245,23 +1326,30 @@ DialogApplied ->
         ( { model | draft = RuleBuilder.showIssues model.draft }, Cmd.none )"""
 
 
-filterBars : Locale -> Model -> Html Msg
-filterBars locale model =
-    Doc.section "Filter bar"
+filterBars : Config.Config -> Locale -> Model -> Html Msg
+filterBars playground locale model =
+    Doc.configuredSection playground
+        [ "FilterBar" ]
+        "Filter bar"
         "Quick filters above a table: the active conditions as chips, “Add filter” opens a small editor (field, operator, value), and ready-made filters as toggle pills. The filters are an ordinary Rule (an “all of” group), so they can be given to Rule.matches or opened in the rule builder. Keyboard: Tab moves through the pills and buttons, and the chips are one tab stop: ArrowLeft and ArrowRight move along them, Home and End jump, Enter on a condition chip opens it, Delete removes a chip; in the editor, Enter in a text or number field applies the filter, Ctrl+Enter (Cmd+Enter) applies it from any control, and Escape closes the editor and gives focus back. Removing a chip or “Clear all” can be undone."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "FilterBar" ]
             { title = "Quick filters and match count"
             , description = Just "Click a chip to change it. An incomplete condition is shown dashed and does not filter."
             , code = Just filterCode
             }
             (FilterBar.view QuickMsg
-                [ FilterBar.fields orderFields
-                , FilterBar.quick presets
-                , FilterBar.matchCount (Remote.Loaded model.quickCount)
-                , FilterBar.totalCount (List.length Sample.orders)
-                , FilterBar.today Sample.today
-                , FilterBar.locale locale
-                ]
+                (Options.klarFilterBar playground
+                    (List.concat
+                        [ Config.keep playground "FilterBar" "fields" (FilterBar.fields orderFields)
+                        , Config.keep playground "FilterBar" "quick" (FilterBar.quick presets)
+                        , Config.keep playground "FilterBar" "matchCount" (FilterBar.matchCount (Config.remote playground "FilterBar" "matchCount" (Remote.Loaded model.quickCount)))
+                        , Config.keep playground "FilterBar" "totalCount" (FilterBar.totalCount (List.length Sample.orders))
+                        , Config.keep playground "FilterBar" "today" (FilterBar.today Sample.today)
+                        , Config.keep playground "FilterBar" "locale" (FilterBar.locale locale)
+                        ]
+                    )
+                )
                 model.quick
             )
         ]
@@ -1281,20 +1369,27 @@ filterCode =
 List.filter (Rule.matches today orderFields (FilterBar.rule model.filters)) orders"""
 
 
-savedViews : Locale -> Model -> Html Msg
-savedViews locale model =
-    Doc.section "Saved views"
+savedViews : Config.Config -> Locale -> Model -> Html Msg
+savedViews playground locale model =
+    Doc.configuredSection playground
+        [ "SavedViews" ]
+        "Saved views"
         "A dropdown button with named rules. Applying a view goes through the application: it compares SavedViews.revision before and after update and loads the rule of SavedViews.active. The component stores nothing, and without ports there is no local storage, so the application keeps SavedViews.views where it keeps the user's settings. Keyboard: ArrowDown on the button opens the list, ArrowUp, ArrowDown, Home and End move between the views, Enter applies the view that has focus, and Escape cancels a rename, a deletion or a save and otherwise closes the list."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "SavedViews" ]
             { title = "No saved views yet"
             , description = Just "The name must be filled in and must not exist already (upper and lower case count as the same). Deleting is confirmed on the row, not in a dialog."
             , code = Just savedViewsCode
             }
-            (Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ SavedViews.view NoViewsMsg
-                    [ SavedViews.currentRule (FilterBar.rule model.quick)
-                    , SavedViews.locale locale
-                    ]
+                    (Options.klarSavedViews playground
+                        (List.concat
+                            [ Config.keep playground "SavedViews" "currentRule" (SavedViews.currentRule (FilterBar.rule model.quick))
+                            , Config.keep playground "SavedViews" "locale" (SavedViews.locale locale)
+                            ]
+                        )
+                    )
                     model.noViews
                 , Text.muted
                     ("Saves the filter from the example above: "
@@ -1315,16 +1410,19 @@ SavedViews.views model.views   -- List SavedView, to store them
 SavedViews.active model.views  -- Maybe SavedView"""
 
 
-norwegian : Model -> Html Msg
-norwegian model =
-    Doc.section "Norwegian"
+norwegian : Config.Config -> Model -> Html Msg
+norwegian playground model =
+    Doc.configuredSection playground
+        [ "RuleBuilder", "FilterBar", "SavedViews" ]
+        "Norwegian"
         "All three components have built-in text in English and Norwegian (locale). The labels of fields, choices and views come from the application; here they are Norwegian too."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "RuleBuilder", "FilterBar", "SavedViews", "Rule" ]
             { title = "Locale Nb"
             , description = Nothing
             , code = Just norwegianCode
             }
-            (viewBench
+            (viewBench playground
                 { toMsg = NorwegianMsg
                 , locale = Locale.nb
                 , fields = norwegianFields
@@ -1354,9 +1452,11 @@ norwegianFields =
     ]"""
 
 
-api : Html Msg
-api =
-    Doc.section "API"
+api : Config.Config -> Html Msg
+api playground =
+    Doc.configuredSection playground
+        [ "Rule" ]
+        "API"
         "The rule builder and the filter bar are stateful components (init, update, view) that hold the rule; the application reads it with rule and reacts by comparing before and after update. There are no out-messages."
         [ Doc.example { title = "Klar.Rule", description = Just "The rule as plain data, with no HTML: the components edit it and the application runs it.", code = Nothing }
             (Doc.props

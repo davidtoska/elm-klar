@@ -5,10 +5,25 @@ adding is a minor release, changing or removing is a major one.
 
 ## Unreleased
 
+### Complete component gallery
+- Give every exposed module an address in the component gallery, including `Klar`, `Picking`, the icon index and all themed icon groups. Icon-group pages show the selected group's searchable icons.
+- Restore the icon browser on the Icon page and add a working custom-control example for `Field`, whose page previously showed only an empty validation heading.
+- Check the full exposed-module manifest against the gallery, and verify rendered examples rather than section headings. Include the completed Table and Chart module splits without changing their public APIs.
+
 ### Processes and state
-- Add seven workflow/state modules, a graphical process studio, dedicated component pages and four executable templates, including membership admission with role-assigned interview, recommendation, director approval and enrollment.
-- Validate bindings, unique outputs, bounded cycles and paths to a terminal output. Returns invalidate obsolete downstream results while retaining audit history; manual and AI steps both enforce required inputs.
-- Freeze request identities, reject invalid/stale actions, recover ongoing workers after errors and guard file imports against late replies. Stage ownership changes explicitly and namespace builder fields for safe composition.
+- Add `Workflow`, `Workflow.Engine` and `Workflow.Codec`: validated ordered definitions, named bindings, per-node JSON state, bounded returns, deterministic execution and versioned definition exchange.
+- Add `WorkflowNode`, `WorkflowBuilder`, `WorkflowRun` and `StateMachine`, each with a dedicated component page. The editor includes a node palette, role assignments, connection editing and keyboard-accessible reordering; the runner retains intermediate results and attempt history.
+- Add a process studio with four templates and an Elm request/server simulator. Membership admission demonstrates interviews, coordinator recommendations, managing-director approval and registrar-only enrollment. Server checks gate human actions by session roles; cancellation and stale revisions reject late replies.
+
+### Connected application examples
+- Nine routed application screens cover Google/Microsoft/email sign-in, account creation, password recovery/reset, connected apps, GitHub repository access, Drive/Calendar imports, AI provider credentials and a simulated JEV classification queue with human review.
+- A typed registry drives sidebar navigation, command search and the examples index. Copyable larger compositions use only public Klar components, with no new stylesheet or package API.
+- Feature lifecycles clear credential drafts and ignore cancelled or late simulated responses. The application-pattern guide documents server boundaries and the JEV Choice request shape.
+
+### AI workspace
+- New `AiReview`: source excerpts, full before/after values, explanations, revision-bound approve/reject decisions, required rejection reasons and per-statement discussion slots. Stale data, duplicate ids and changed content cannot be submitted.
+- New `AiChat`: role-labelled safe Markdown, server-driven streaming status, stop/retry actions, structured content slots and draft acknowledgements that preserve newer writing.
+- A dedicated AI gallery demonstrates revision conflicts, failed writes, comments by revision, partial responses and cancellation tickets. Provider credentials and execution stay on the application's server.
 
 Every group of modules was audited against the best in its class, improved, reviewed and fixed
 on its own branch, with shared decisions: `ariaLabel` is a name only a screen reader hears and

@@ -15,6 +15,8 @@ import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.SideNav as SideNav
 import Klar.Theme exposing (Size(..), Tone(..))
+import Showcase.Config as Config
+import Showcase.Options as Options
 
 
 {-| The address of a link in a preview. The showcase treats only `#/...` as a
@@ -80,8 +82,8 @@ pageFor key =
 {-| The menu of the pretend application, in three sections, with a group inside
 a group.
 -}
-menu : List (SideNav.Entry String msg)
-menu =
+menu : Config.Config -> List (SideNav.Entry String msg)
+menu playground =
     [ SideNav.section "Workspace"
         [ SideNav.item Ids.string { key = "overview", label = "Overview", href = href "overview" }
             |> SideNav.withIcon Icon.home
@@ -90,7 +92,7 @@ menu =
             |> SideNav.withCount 12
         , SideNav.item Ids.string { key = "customers", label = "Customers", href = href "customers" }
             |> SideNav.withIcon Icon.users
-            |> SideNav.withBadge (Badge.view [ Badge.tone Warning, Badge.size Small ] "New")
+            |> SideNav.withBadge (Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Warning), Config.keep playground "Badge" "size" (Badge.size Small) ])) "New")
         ]
     , SideNav.section "Analysis"
         [ SideNav.group Ids.string

@@ -14,7 +14,9 @@ import Klar.Remote as Remote
 import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 import Time
 
@@ -150,8 +152,8 @@ update msg model =
             ( model, Cmd.none )
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view settings locale model =
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground settings locale model =
     let
         comments =
             List.map
@@ -184,22 +186,24 @@ view settings locale model =
                 Stale ->
                     Remote.refreshWith (Remote.Loaded comments) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)
     in
-    Doc.section "CommentThread"
+    Doc.configuredSection playground
+        [ "CommentThread" ]
+        "CommentThread"
         "Replies, safe Markdown, explicit resolution and a draft that survives late server answers. Posting is simulated locally; no request is sent."
-        [ Layout.stack [ Layout.gap 3 ]
-            [ Layout.row [ Layout.gap 2, Layout.wrap ]
-                (List.map (\( label, value ) -> Button.view [ Button.small, Button.pressed (value == model.dataState), Button.onClick (DataState value) ] label)
+        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                (List.map (\( label, value ) -> Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "pressed" (Button.pressed (value == model.dataState)), Config.keep playground "Button" "onClick" (Button.onClick (DataState value)) ])) label)
                     [ ( "Data", Ready ), ( "Loading", Loading ), ( "Failure", Failed ), ( "Empty", Empty ), ( "Refreshing", Refreshing ), ( "Old data", Stale ) ]
-                    ++ [ Button.view [ Button.small, Button.pressed model.failNext, Button.onClick FailNext ] "Fail next post", Button.view [ Button.small, Button.onClick Reset ] "Reset discussion" ]
+                    ++ [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "pressed" (Button.pressed model.failNext), Config.keep playground "Button" "onClick" (Button.onClick FailNext) ])) "Fail next post", Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick Reset) ])) "Reset discussion" ]
                 )
             , Text.secondary "Post a comment, then keep typing during the 1.5 second delay. The acknowledgement only clears the sent draft. A failed snapshot can be retried separately below."
             , Thread.view ThreadMsg
-                [ Thread.onSubmit Post, Thread.sending model.pending, Thread.errorMaybe model.error, Thread.onResolve Resolve, Thread.onRetry Retry, Thread.locale locale, Thread.settings settings, Thread.maxLength 2000 ]
+                (Options.klarCommentThread playground (List.concat [ Config.keep playground "CommentThread" "onSubmit" (Thread.onSubmit Post), Config.keep playground "CommentThread" "sending" (Thread.sending model.pending), Config.keep playground "CommentThread" "errorMaybe" (Thread.errorMaybe model.error), Config.keep playground "CommentThread" "onResolve" (Thread.onResolve Resolve), Config.keep playground "CommentThread" "onRetry" (Thread.onRetry Retry), Config.keep playground "CommentThread" "locale" (Thread.locale locale), Config.keep playground "CommentThread" "settings" (Thread.settings settings), Config.keep playground "CommentThread" "maxLength" (Thread.maxLength 2000) ]))
                 { label = "Dispatch discussion", ids = Ids.int, comments = remote }
                 model.thread
             , case model.failed of
                 Just sent ->
-                    Layout.stack [ Layout.gap 2 ] [ Text.strong "Retained failed post", Text.codeBlock (Thread.submissionBody sent), Button.view [ Button.small, Button.disabled model.pending, Button.onClick (Post sent) ] "Retry this exact post" ]
+                    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ])) [ Text.strong "Retained failed post", Text.codeBlock (Thread.submissionBody sent), Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "disabled" (Button.disabled model.pending), Config.keep playground "Button" "onClick" (Button.onClick (Post sent)) ])) "Retry this exact post" ]
 
                 Nothing ->
                     Html.text ""

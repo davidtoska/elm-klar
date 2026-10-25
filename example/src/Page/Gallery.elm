@@ -1,6 +1,7 @@
-module Page.Gallery exposing (Model, Msg, ensure, init, leave, subscriptions, update, view)
+module Page.Gallery exposing (Model, Msg, compilerSubscriptions, ensure, init, leave, subscriptions, update, view)
 
-{-| The component gallery: the index and one page per component group. A page is
+{-| The component gallery: the index and one configurable page per component.
+The existing scenario models are grouped by domain. A scenario model is
 created the first time it is visited and then kept, so its state (filters, open
 dialogs, typed text) survives navigating away.
 
@@ -10,12 +11,13 @@ mechanical.
 
 -}
 
-import Dict
 import Html exposing (Html)
+import Html.Lazy
 import Klar.Locale exposing (Locale)
 import Klar.Settings exposing (Settings)
 import Page.Gallery.Access as Access
 import Page.Gallery.Actions as Actions
+import Page.Gallery.Ai as Ai
 import Page.Gallery.Arranging as Arranging
 import Page.Gallery.Basics as Basics
 import Page.Gallery.Catalog as Catalog exposing (Section(..))
@@ -42,7 +44,8 @@ import Page.Gallery.StaleData as StaleData
 import Page.Gallery.Structured as Structured
 import Page.Gallery.Tables as Tables
 import Page.Gallery.Workbench as Workbench
-import Showcase.Doc as Doc
+import Showcase.Config as Config
+import Showcase.Playground as Playground
 
 
 
@@ -50,7 +53,7 @@ import Showcase.Doc as Doc
 
 
 type alias Model =
-    { processes : Maybe Processes.Model
+    { playground : Playground.Model
     , index : Index.Model
     , foundations : Maybe Foundations.Model
     , basics : Maybe Basics.Model
@@ -76,12 +79,14 @@ type alias Model =
     , serverLists : Maybe ServerLists.Model
     , workbench : Maybe Workbench.Model
     , nextComponents : Maybe NextComponents.Model
+    , processes : Maybe Processes.Model
+    , ai : Maybe Ai.Model
     }
 
 
 init : Model
 init =
-    { processes = Nothing
+    { playground = Playground.init
     , index = Index.init
     , foundations = Nothing
     , basics = Nothing
@@ -107,6 +112,8 @@ init =
     , serverLists = Nothing
     , workbench = Nothing
     , nextComponents = Nothing
+    , processes = Nothing
+    , ai = Nothing
     }
 
 
@@ -115,7 +122,7 @@ init =
 
 
 type Msg
-    = ProcessesMsg Processes.Msg
+    = PlaygroundMsg Playground.Msg
     | IndexMsg Index.Msg
     | FoundationsMsg Foundations.Msg
     | BasicsMsg Basics.Msg
@@ -141,19 +148,41 @@ type Msg
     | ServerListsMsg ServerLists.Msg
     | WorkbenchMsg Workbench.Msg
     | NextComponentsMsg NextComponents.Msg
+    | ProcessesMsg Processes.Msg
+    | AiMsg Ai.Msg
 
 
 {-| Creates the page for a section if it has not been visited yet. Call it when
 the route changes.
 -}
 ensure : Section -> Model -> ( Model, Cmd Msg )
-ensure section model =
-    case section of
-        Processes ->
-            create model.processes Processes.init (\page -> { model | processes = page }) ProcessesMsg model
+ensure section previous =
+    let
+        component =
+            case section of
+                Component name ->
+                    name
 
-        ProcessComponent _ ->
-            create model.processes Processes.init (\page -> { model | processes = page }) ProcessesMsg model
+                _ ->
+                    ""
+
+        model =
+            { previous | playground = Playground.select component previous.playground }
+
+        ( ensured, cmd ) =
+            ensureGroup (Catalog.group section) model
+
+        ( playground, compilerCmd ) =
+            Playground.load component ensured.playground
+    in
+    ( { ensured | playground = playground }, Cmd.batch [ cmd, Cmd.map PlaygroundMsg compilerCmd ] )
+
+
+ensureGroup : Section -> Model -> ( Model, Cmd Msg )
+ensureGroup section model =
+    case section of
+        Component _ ->
+            ( model, Cmd.none )
 
         Foundations ->
             create model.foundations Foundations.init (\page -> { model | foundations = page }) FoundationsMsg model
@@ -174,13 +203,13 @@ ensure section model =
             create model.formModel FormModel.init (\page -> { model | formModel = page }) FormModelMsg model
 
         DateTime ->
-            create model.dateTime DateTime.init (\page -> { model | dateTime = page }) DateTimeMsg model
+            create model.dateTime (DateTime.init (Playground.current model.playground)) (\page -> { model | dateTime = page }) DateTimeMsg model
 
         Overlays ->
             create model.overlays Overlays.init (\page -> { model | overlays = page }) OverlaysMsg model
 
         Navigation ->
-            create model.navigation Navigation.init (\page -> { model | navigation = page }) NavigationMsg model
+            create model.navigation (Navigation.init (Playground.current model.playground)) (\page -> { model | navigation = page }) NavigationMsg model
 
         DataDisplay ->
             create model.dataDisplay DataDisplay.init (\page -> { model | dataDisplay = page }) DataDisplayMsg model
@@ -230,6 +259,12 @@ ensure section model =
         NextComponents ->
             create model.nextComponents NextComponents.init (\page -> { model | nextComponents = page }) NextComponentsMsg model
 
+        Ai ->
+            create model.ai Ai.init (\page -> { model | ai = page }) AiMsg model
+
+        Processes ->
+            create model.processes Processes.init (\page -> { model | processes = page }) ProcessesMsg model
+
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
 create existing ( page, cmd ) store toMsg model =
@@ -244,8 +279,8 @@ create existing ( page, cmd ) store toMsg model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ProcessesMsg inner ->
-            step model.processes (Processes.update inner) (\page -> { model | processes = page }) ProcessesMsg model
+        PlaygroundMsg inner ->
+            ( { model | playground = Playground.update inner model.playground }, Cmd.map PlaygroundMsg (Playground.command inner model.playground) )
 
         IndexMsg inner ->
             ( { model | index = Index.update inner model.index }, Cmd.none )
@@ -272,13 +307,13 @@ update msg model =
             step model.dateTime (DateTime.update inner) (\page -> { model | dateTime = page }) DateTimeMsg model
 
         OverlaysMsg inner ->
-            step model.overlays (Overlays.update inner) (\page -> { model | overlays = page }) OverlaysMsg model
+            step model.overlays (Overlays.update (Playground.current model.playground) inner) (\page -> { model | overlays = page }) OverlaysMsg model
 
         NavigationMsg inner ->
             step model.navigation (Navigation.update inner) (\page -> { model | navigation = page }) NavigationMsg model
 
         DataDisplayMsg inner ->
-            step model.dataDisplay (DataDisplay.update inner) (\page -> { model | dataDisplay = page }) DataDisplayMsg model
+            step model.dataDisplay (DataDisplay.update (Playground.current model.playground) inner) (\page -> { model | dataDisplay = page }) DataDisplayMsg model
 
         RulesMsg inner ->
             step model.rules (Rules.update inner) (\page -> { model | rules = page }) RulesMsg model
@@ -290,7 +325,7 @@ update msg model =
             step model.actions (Actions.update inner) (\page -> { model | actions = page }) ActionsMsg model
 
         FlowMsg inner ->
-            step model.flow (Flow.update inner) (\page -> { model | flow = page }) FlowMsg model
+            step model.flow (Flow.update (Playground.current model.playground) inner) (\page -> { model | flow = page }) FlowMsg model
 
         MarkdownMsg inner ->
             step model.markdown (Markdown.update inner) (\page -> { model | markdown = page }) MarkdownMsg model
@@ -314,13 +349,19 @@ update msg model =
             step model.staleData (StaleData.update inner) (\page -> { model | staleData = page }) StaleDataMsg model
 
         ServerListsMsg inner ->
-            step model.serverLists (ServerLists.update inner) (\page -> { model | serverLists = page }) ServerListsMsg model
+            step model.serverLists (ServerLists.update (Playground.current model.playground) inner) (\page -> { model | serverLists = page }) ServerListsMsg model
 
         WorkbenchMsg inner ->
             step model.workbench (Workbench.update inner) (\page -> { model | workbench = page }) WorkbenchMsg model
 
         NextComponentsMsg inner ->
             step model.nextComponents (NextComponents.update inner) (\page -> { model | nextComponents = page }) NextComponentsMsg model
+
+        AiMsg inner ->
+            step model.ai (Ai.update inner) (\page -> { model | ai = page }) AiMsg model
+
+        ProcessesMsg inner ->
+            step model.processes (Processes.update inner) (\page -> { model | processes = page }) ProcessesMsg model
 
 
 {-| Runs a page's update on its model, if the page exists.
@@ -345,99 +386,126 @@ step existing change store toMsg model =
 
 view : Settings -> Locale -> Maybe Section -> Model -> Html Msg
 view settings locale maybeSection model =
+    let
+        content =
+            viewContent settings locale maybeSection model
+    in
+    case maybeSection of
+        Just (Component name) ->
+            Playground.view PlaygroundMsg name (Catalog.title (Catalog.owner name)) model.playground content
+
+        _ ->
+            content
+
+
+viewContent : Settings -> Locale -> Maybe Section -> Model -> Html Msg
+viewContent settings locale maybeSection model =
     case maybeSection of
         Nothing ->
             Html.map IndexMsg (Index.view locale model.index)
 
         Just section ->
-            case section of
-                Processes ->
-                    show ProcessesMsg (Processes.view { component = "", values = Dict.empty } settings locale) model.processes
-
-                ProcessComponent name ->
-                    Doc.page { title = name, description = "Workflow components, interactive examples and execution state." } [ show ProcessesMsg (Processes.view { component = name, values = Dict.empty } settings locale) model.processes ]
+            case Catalog.group section of
+                Component _ ->
+                    Html.text ""
 
                 Foundations ->
-                    show FoundationsMsg (Foundations.view locale) model.foundations
+                    show FoundationsMsg Foundations.view (Playground.current model.playground) locale model.foundations
 
                 Basics ->
-                    show BasicsMsg (Basics.view locale) model.basics
+                    show BasicsMsg Basics.view (Playground.current model.playground) locale model.basics
 
                 Selects ->
-                    show SelectsMsg (Selects.view locale) model.selects
+                    show SelectsMsg Selects.view (Playground.current model.playground) locale model.selects
 
                 Tables ->
-                    show TablesMsg (Tables.view locale) model.tables
+                    show TablesMsg Tables.view (Playground.current model.playground) locale model.tables
 
                 Forms ->
-                    show FormsMsg (Forms.view locale) model.forms
+                    show FormsMsg Forms.view (Playground.current model.playground) locale model.forms
 
                 FormModel ->
-                    show FormModelMsg (FormModel.view locale) model.formModel
+                    show FormModelMsg FormModel.view (Playground.current model.playground) locale model.formModel
 
                 DateTime ->
-                    show DateTimeMsg (DateTime.view locale) model.dateTime
+                    show DateTimeMsg DateTime.view (Playground.current model.playground) locale model.dateTime
 
                 Overlays ->
-                    show OverlaysMsg (Overlays.view locale) model.overlays
+                    show OverlaysMsg Overlays.view (Playground.current model.playground) locale model.overlays
 
                 Navigation ->
-                    show NavigationMsg (Navigation.view locale) model.navigation
+                    show NavigationMsg Navigation.view (Playground.current model.playground) locale model.navigation
 
                 DataDisplay ->
-                    show DataDisplayMsg (DataDisplay.view settings locale) model.dataDisplay
+                    showWithSettings DataDisplayMsg DataDisplay.view (Playground.current model.playground) settings locale model.dataDisplay
 
                 Rules ->
-                    show RulesMsg (Rules.view locale) model.rules
+                    show RulesMsg Rules.view (Playground.current model.playground) locale model.rules
 
                 Arranging ->
-                    show ArrangingMsg (Arranging.view locale) model.arranging
+                    show ArrangingMsg Arranging.view (Playground.current model.playground) locale model.arranging
 
                 Actions ->
-                    show ActionsMsg (Actions.view locale) model.actions
+                    show ActionsMsg Actions.view (Playground.current model.playground) locale model.actions
 
                 Flow ->
-                    show FlowMsg (Flow.view locale) model.flow
+                    show FlowMsg Flow.view (Playground.current model.playground) locale model.flow
 
                 Markdown ->
-                    show MarkdownMsg (Markdown.view locale) model.markdown
+                    show MarkdownMsg Markdown.view (Playground.current model.playground) locale model.markdown
 
                 Review ->
-                    show ReviewMsg (Review.view locale) model.review
+                    show ReviewMsg Review.view (Playground.current model.playground) locale model.review
 
                 Structured ->
-                    show StructuredMsg (Structured.view locale) model.structured
+                    show StructuredMsg Structured.view (Playground.current model.playground) locale model.structured
 
                 Picking ->
-                    show PickingMsg (Picking.view locale) model.picking
+                    show PickingMsg Picking.view (Playground.current model.playground) locale model.picking
 
                 Access ->
-                    show AccessMsg (Access.view settings locale) model.access
+                    showWithSettings AccessMsg Access.view (Playground.current model.playground) settings locale model.access
 
                 Recurring ->
-                    show RecurringMsg (Recurring.view locale) model.recurring
+                    show RecurringMsg Recurring.view (Playground.current model.playground) locale model.recurring
 
                 StaleData ->
-                    show StaleDataMsg (StaleData.view settings locale) model.staleData
+                    showWithSettings StaleDataMsg StaleData.view (Playground.current model.playground) settings locale model.staleData
 
                 ServerLists ->
-                    show ServerListsMsg (ServerLists.view locale) model.serverLists
+                    show ServerListsMsg ServerLists.view (Playground.current model.playground) locale model.serverLists
 
                 Examples ->
                     Examples.view
 
                 Workbench ->
-                    show WorkbenchMsg (Workbench.view settings locale) model.workbench
+                    showWithSettings WorkbenchMsg Workbench.view (Playground.current model.playground) settings locale model.workbench
 
                 NextComponents ->
-                    show NextComponentsMsg (NextComponents.view settings locale) model.nextComponents
+                    showWithSettings NextComponentsMsg NextComponents.view (Playground.current model.playground) settings locale model.nextComponents
+
+                Ai ->
+                    showWithSettings AiMsg Ai.view (Playground.current model.playground) settings locale model.ai
+
+                Processes ->
+                    showWithSettings ProcessesMsg Processes.view (Playground.current model.playground) settings locale model.processes
 
 
-show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
-show toMsg viewPage maybePage =
+show : (pageMsg -> Msg) -> (Config.Config -> Locale -> page -> Html pageMsg) -> Config.Config -> Locale -> Maybe page -> Html Msg
+show toMsg viewPage config locale maybePage =
     case maybePage of
         Just page ->
-            Html.map toMsg (viewPage page)
+            Html.map toMsg (Html.Lazy.lazy3 viewPage config locale page)
+
+        Nothing ->
+            Html.text ""
+
+
+showWithSettings : (pageMsg -> Msg) -> (Config.Config -> Settings -> Locale -> page -> Html pageMsg) -> Config.Config -> Settings -> Locale -> Maybe page -> Html Msg
+showWithSettings toMsg viewPage config settings locale maybePage =
+    case maybePage of
+        Just page ->
+            Html.map toMsg (Html.Lazy.lazy4 viewPage config settings locale page)
 
         Nothing ->
             Html.text ""
@@ -449,6 +517,11 @@ show toMsg viewPage maybePage =
 
 {-| Only the page on screen listens.
 -}
+compilerSubscriptions : Sub Msg
+compilerSubscriptions =
+    Sub.map PlaygroundMsg Playground.subscriptions
+
+
 subscriptions : Maybe Section -> Model -> Sub Msg
 subscriptions maybeSection model =
     case maybeSection of
@@ -456,11 +529,8 @@ subscriptions maybeSection model =
             Sub.none
 
         Just section ->
-            case section of
-                Processes ->
-                    Sub.none
-
-                ProcessComponent _ ->
+            case Catalog.group section of
+                Component _ ->
                     Sub.none
 
                 Foundations ->
@@ -503,7 +573,7 @@ subscriptions maybeSection model =
                     sub ActionsMsg Actions.subscriptions model.actions
 
                 Flow ->
-                    sub FlowMsg Flow.subscriptions model.flow
+                    sub FlowMsg (Flow.subscriptions (Playground.current model.playground)) model.flow
 
                 Markdown ->
                     sub MarkdownMsg Markdown.subscriptions model.markdown
@@ -537,6 +607,12 @@ subscriptions maybeSection model =
 
                 NextComponents ->
                     sub NextComponentsMsg NextComponents.subscriptions model.nextComponents
+
+                Ai ->
+                    sub AiMsg Ai.subscriptions model.ai
+
+                Processes ->
+                    sub ProcessesMsg Processes.subscriptions model.processes
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

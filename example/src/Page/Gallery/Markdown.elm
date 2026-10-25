@@ -21,7 +21,9 @@ import Klar.MarkdownEditor as MarkdownEditor
 import Klar.Text as Text
 import Klar.TextArea as TextArea
 import Page.Gallery.Markdown.Sample as Sample
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 import Time
 
@@ -197,37 +199,44 @@ subscriptions model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Markdown"
         , description = "A safe Markdown renderer that copes with unfinished text, and an editor with preview."
         }
-        [ documentSection locale model
-        , streamingSection locale model
-        , safetySection locale model
-        , editorSection locale model
-        , optionsSection
+        [ documentSection playground locale model
+        , streamingSection playground locale model
+        , safetySection playground locale model
+        , editorSection playground locale model
+        , optionsSection playground
         ]
 
 
-documentSection : Locale -> Model -> Html Msg
-documentSection locale model =
+documentSection : Config.Config -> Locale -> Model -> Html Msg
+documentSection playground locale model =
     let
         headings =
-            Markdown.headings [ Markdown.idPrefix idPrefix ] model.document
+            Markdown.headings (Options.klarMarkdown playground (List.concat [ Config.keep playground "Markdown" "idPrefix" (Markdown.idPrefix idPrefix) ])) model.document
 
         entry heading =
-            Button.view
-                [ Button.link
-                , Button.small
-                , Button.onClick (ScrollTo (Markdown.headingId heading))
-                ]
+            Options.buttonView playground
+                (Options.klarButton playground
+                    (List.concat
+                        [ Config.keep playground "Button" "link" Button.link
+                        , Config.keep playground "Button" "small" Button.small
+                        , Config.keep playground "Button" "onClick" (Button.onClick (ScrollTo (Markdown.headingId heading)))
+                        ]
+                    )
+                )
                 (String.repeat (Markdown.headingLevel heading - 1) "\u{2003}" ++ Markdown.headingText heading)
     in
-    Doc.section "A document"
+    Doc.configuredSection playground
+        [ "Markdown" ]
+        "A document"
         "Headings, paragraphs, emphasis, links, quotes, lists (loose, nested, numbered, tasks), code, tables and images. The parser is part of the library, not the browser: HTML is shown as text, links are checked, and images are links until the page says otherwise. The table of contents is made from Markdown.headings and moves the box to the heading by its id. A link in the text to one of its headings ([the notes](#notes)) gets the prefix, #doc-notes; this showcase is a Browser.application, where such a click is a UrlRequest, so the page draws these links with Markdown.customLink and moves the box itself."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Markdown" ]
             { title = "Every feature, and a table of contents"
             , description = Just "Wide tables and code scroll inside their own box, and a box that can scroll takes the Tab key. Each paragraph chooses its direction."
             , code = Just """let
@@ -247,8 +256,8 @@ headingLink link =
     else
         Nothing"""
             }
-            (Layout.row [ Layout.gap 6, Layout.alignStart ]
-                [ Layout.stack [ Layout.gap 1, Layout.alignStart ] (List.map entry headings)
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1), Config.keep playground "Layout" "alignStart" Layout.alignStart ])) (List.map entry headings)
                 , Html.div
                     [ Attr.id boxId
                     , Attr.style "flex" "1 1 420px"
@@ -257,10 +266,11 @@ headingLink link =
                     , Attr.style "overflow" "auto"
                     , Attr.style "padding-right" "12px"
                     ]
-                    [ Markdown.viewDocument [ Markdown.locale locale, Markdown.idPrefix idPrefix, Markdown.customLink headingLink ] model.document ]
+                    [ Markdown.viewDocument (Options.klarMarkdown playground (List.concat [ Config.keep playground "Markdown" "locale" (Markdown.locale locale), Config.keep playground "Markdown" "idPrefix" (Markdown.idPrefix idPrefix), Config.keep playground "Markdown" "customLink" (Markdown.customLink headingLink) ])) model.document ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Markdown" ]
             { title = "Links of your own: citations"
             , description = Just "Markdown.customLink draws the links that the page wants to draw itself, after the checks of the module, and gives Nothing for the others. Here [1](#cite-1) becomes a button that shows its source. Character references such as &nbsp;, &mdash;, &amp; and &copy; are the characters they stand for, never markup."
             , code = Just """Markdown.view [ Markdown.customLink citation ] answer
@@ -272,8 +282,8 @@ citation link =
     else
         Nothing"""
             }
-            (Layout.stack [ Layout.gap 2 ]
-                [ Markdown.view [ Markdown.locale locale, Markdown.customLink citation ] Sample.cited
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                [ Markdown.view (Options.klarMarkdown playground (List.concat [ Config.keep playground "Markdown" "locale" (Markdown.locale locale), Config.keep playground "Markdown" "customLink" (Markdown.customLink (citation playground)) ])) Sample.cited
                 , Text.caption
                     (case model.cited of
                         Just "1" ->
@@ -290,12 +300,13 @@ citation link =
                     )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Markdown" ]
             { title = "Headings in a page that has headings"
             , description = Just "With headingOffset 2 a # is an h3. The levels stop at h6 and never skip one."
             , code = Just "Markdown.view [ Markdown.headingOffset 2 ] \"# Title\\n\\n## Section\\n\\n#### Detail\""
             }
-            (Markdown.view [ Markdown.headingOffset 2 ] "# Title\n\n## Section\n\n#### Detail, written as level four")
+            (Markdown.view (Options.klarMarkdown playground (List.concat [ Config.keep playground "Markdown" "headingOffset" (Markdown.headingOffset 2) ])) "# Title\n\n## Section\n\n#### Detail, written as level four")
         ]
 
 
@@ -322,21 +333,21 @@ headingLink link =
 
 {-| The citations of an answer, `[1](#cite-1)`, as buttons that show their source.
 -}
-citation : { href : String, external : Bool, title : String, content : List (Html Msg) } -> Maybe (Html Msg)
-citation link =
+citation : Config.Config -> { href : String, external : Bool, title : String, content : List (Html Msg) } -> Maybe (Html Msg)
+citation playground link =
     if String.startsWith "#cite-" link.href then
         let
             source =
                 String.dropLeft 6 link.href
         in
-        Just (Button.view [ Button.link, Button.small, Button.onClick (Cite source) ] source)
+        Just (Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "link" Button.link, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (Cite source)) ])) source)
 
     else
         Nothing
 
 
-streamingSection : Locale -> Model -> Html Msg
-streamingSection locale model =
+streamingSection : Config.Config -> Locale -> Model -> Html Msg
+streamingSection playground locale model =
     let
         shown =
             String.left model.revealed Sample.answer
@@ -344,28 +355,39 @@ streamingSection locale model =
         total =
             String.length Sample.answer
     in
-    Doc.section "Text that is still arriving"
+    Doc.configuredSection playground
+        [ "Markdown" ]
+        "Text that is still arriving"
         "The same function reads every prefix of the text. An open bold, an open code span, a link whose address has not come, a half table row and an open code fence are shown as far as they go, and what is complete does not move. The text is cut in the middle of the emoji at the end on purpose: half of a character is left out until the rest arrives."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Markdown" ]
             { title = "An answer, a few characters at a time"
             , description = Just "Pause it anywhere, or restart. Left: the text as it has arrived. Right: what the reader sees."
             , code = Just """-- every tick: model.shown = model.shown + 3
 Markdown.view [] (String.left model.shown answer)"""
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Layout.row [ Layout.gap 2, Layout.alignCenter ]
-                    [ Button.view [ Button.icon Icon.refresh, Button.onClick Restart ] "Restart"
-                    , Button.view
-                        [ Button.icon
-                            (if model.running then
-                                Icon.pause
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick Restart) ])) "Restart"
+                    , Options.buttonView playground
+                        (Options.klarButton playground
+                            (List.concat
+                                [ Config.keep playground
+                                    "Button"
+                                    "icon"
+                                    (Button.icon
+                                        (if model.running then
+                                            Icon.pause
 
-                             else
-                                Icon.play
+                                         else
+                                            Icon.play
+                                        )
+                                    )
+                                , Config.keep playground "Button" "disabled" (Button.disabled (not model.running && model.revealed >= total))
+                                , Config.keep playground "Button" "onClick" (Button.onClick PauseOrResume)
+                                ]
                             )
-                        , Button.disabled (not model.running && model.revealed >= total)
-                        , Button.onClick PauseOrResume
-                        ]
+                        )
                         (if model.running then
                             "Pause"
 
@@ -374,14 +396,14 @@ Markdown.view [] (String.left model.shown answer)"""
                         )
                     , Text.muted (Format.int locale model.revealed ++ " of " ++ Format.int locale total ++ " characters")
                     ]
-                , Layout.grid [ Layout.minColumn 320, Layout.gap 4 ]
+                , Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                     [ Html.div []
                         [ Text.overline "As it arrives"
                         , Text.codeBlock shown
                         ]
                     , Html.div []
                         [ Text.overline "As it is read"
-                        , Markdown.view [ Markdown.locale locale ] shown
+                        , Markdown.view (Options.klarMarkdown playground (List.concat [ Config.keep playground "Markdown" "locale" (Markdown.locale locale) ])) shown
                         ]
                     ]
                 ]
@@ -389,11 +411,14 @@ Markdown.view [] (String.left model.shown answer)"""
         ]
 
 
-safetySection : Locale -> Model -> Html Msg
-safetySection locale model =
-    Doc.section "Text you do not trust"
+safetySection : Config.Config -> Locale -> Model -> Html Msg
+safetySection playground locale model =
+    Doc.configuredSection playground
+        [ "Markdown" ]
+        "Text you do not trust"
         "Edit the text, or leave it. A script, a tag with an event handler, a link that runs code, a link to a page of its own and a picture that tells another server that you read this are all shown as what they are. Links that may be followed carry rel=\"noopener noreferrer\" and a small arrow."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Markdown" ]
             { title = "Harmful text, rendered harmlessly"
             , description = Just "Images are not loaded unless you turn them on. The image address here is made up and goes nowhere."
             , code = Just """Markdown.view [] text
@@ -402,21 +427,25 @@ safetySection locale model =
 Markdown.view [ Markdown.images ] text
 Markdown.view [ Markdown.imagesFrom (List.filterMap Markdown.imageHost [ "cdn.example.com" ]) ] text"""
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Layout.grid [ Layout.minColumn 320, Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 320), Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                     [ TextArea.view
-                        [ TextArea.label "Text"
-                        , TextArea.id "md-harmful"
-                        , TextArea.rows 9
-                        , TextArea.value model.harmful
-                        , TextArea.onInput HarmfulChanged
-                        ]
+                        (Options.klarTextArea playground
+                            (List.concat
+                                [ Config.keep playground "TextArea" "label" (TextArea.label "Text")
+                                , Config.keep playground "TextArea" "id" (TextArea.id "md-harmful")
+                                , Config.keep playground "TextArea" "rows" (TextArea.rows 9)
+                                , Config.keep playground "TextArea" "value" (TextArea.value model.harmful)
+                                , Config.keep playground "TextArea" "onInput" (TextArea.onInput HarmfulChanged)
+                                ]
+                            )
+                        )
                     , Html.div []
                         [ Text.overline "As it is read"
                         , Markdown.view
                             (Markdown.locale locale
                                 :: (if model.loadImages then
-                                        [ Markdown.images ]
+                                        Options.klarMarkdown playground (List.concat [ Config.keep playground "Markdown" "images" Markdown.images ])
 
                                     else
                                         []
@@ -426,21 +455,28 @@ Markdown.view [ Markdown.imagesFrom (List.filterMap Markdown.imageHost [ "cdn.ex
                         ]
                     ]
                 , Checkbox.view
-                    [ Checkbox.label "Load images (Markdown.images)"
-                    , Checkbox.hint "Only for text you trust: the picture is fetched from another server."
-                    , Checkbox.checked model.loadImages
-                    , Checkbox.onCheck ImagesToggled
-                    ]
+                    (Options.klarCheckbox playground
+                        (List.concat
+                            [ Config.keep playground "Checkbox" "label" (Checkbox.label "Load images (Markdown.images)")
+                            , Config.keep playground "Checkbox" "hint" (Checkbox.hint "Only for text you trust: the picture is fetched from another server.")
+                            , Config.keep playground "Checkbox" "checked" (Checkbox.checked model.loadImages)
+                            , Config.keep playground "Checkbox" "onCheck" (Checkbox.onCheck ImagesToggled)
+                            ]
+                        )
+                    )
                 ]
             )
         ]
 
 
-editorSection : Locale -> Model -> Html Msg
-editorSection locale model =
-    Doc.section "The editor"
+editorSection : Config.Config -> Locale -> Model -> Html Msg
+editorSection playground locale model =
+    Doc.configuredSection playground
+        [ "MarkdownEditor" ]
+        "The editor"
         "A text area with a toolbar and a preview that follows the text. The container decides the layout: side by side when it is wide, two tabs when it is narrow. The buttons and Ctrl B, Ctrl I and Ctrl K act on the selection and give it back, so pressing a button twice undoes it. Ctrl Z undoes the last changes of the buttons. Nothing is cut off at the limit: the counter turns red and an error says by how much."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "MarkdownEditor" ]
             { title = "Wide: side by side"
             , description = Just "Select a word and press Ctrl B, or a line and press the list button. Paste a long text to see the counter."
             , code = Just """MarkdownEditor.view DescriptionMsg
@@ -451,66 +487,81 @@ editorSection locale model =
     ]
     model.description"""
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ MarkdownEditor.view WideMsg (editorAttributes locale) model.wide
-                , Layout.row [ Layout.gap 2, Layout.alignCenter ]
-                    [ Button.view [ Button.small, Button.onClick LoadSample ] "Load the sample"
-                    , Button.view [ Button.small, Button.onClick ClearEditors ] "Clear"
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ MarkdownEditor.view WideMsg (editorAttributes playground locale) model.wide
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick LoadSample) ])) "Load the sample"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick ClearEditors) ])) "Clear"
                     , Text.muted (Format.int locale (String.length (MarkdownEditor.value model.wide)) ++ " characters in the model")
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MarkdownEditor" ]
             { title = "Narrow: tabs"
             , description = Just "The same editor in a column of 380 pixels. Write and Preview are tabs; the arrow keys move between them."
             , code = Just "MarkdownEditor.view DescriptionMsg [ MarkdownEditor.label \"Description\" ] model.description"
             }
-            (Layout.container [ Layout.maxWidth 380 ]
-                [ MarkdownEditor.view NarrowMsg (editorAttributes locale) model.narrow ]
+            (Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 380) ]))
+                [ MarkdownEditor.view NarrowMsg (editorAttributes playground locale) model.narrow ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MarkdownEditor" ]
             { title = "States"
             , description = Just "Read only, disabled, and with an error from the application."
             , code = Nothing
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ MarkdownEditor.view LockedMsg
-                    [ MarkdownEditor.label "Read only", MarkdownEditor.readOnly True, MarkdownEditor.rows 4, MarkdownEditor.locale locale ]
+                    (Options.klarMarkdownEditor playground (List.concat [ Config.keep playground "MarkdownEditor" "label" (MarkdownEditor.label "Read only"), Config.keep playground "MarkdownEditor" "readOnly" (MarkdownEditor.readOnly True), Config.keep playground "MarkdownEditor" "rows" (MarkdownEditor.rows 4), Config.keep playground "MarkdownEditor" "locale" (MarkdownEditor.locale locale) ]))
                     model.locked
                 , MarkdownEditor.view ErroredMsg
-                    [ MarkdownEditor.label "With an error"
-                    , MarkdownEditor.errorMaybe
-                        (if String.trim (MarkdownEditor.value model.errored) == "" then
-                            Just "A description is needed before the order can be saved."
+                    (Options.klarMarkdownEditor playground
+                        (List.concat
+                            [ Config.keep playground "MarkdownEditor" "label" (MarkdownEditor.label "With an error")
+                            , Config.keep playground
+                                "MarkdownEditor"
+                                "errorMaybe"
+                                (MarkdownEditor.errorMaybe
+                                    (if String.trim (MarkdownEditor.value model.errored) == "" then
+                                        Just "A description is needed before the order can be saved."
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground "MarkdownEditor" "required" MarkdownEditor.required
+                            , Config.keep playground "MarkdownEditor" "rows" (MarkdownEditor.rows 4)
+                            , Config.keep playground "MarkdownEditor" "sideBySide" MarkdownEditor.sideBySide
+                            , Config.keep playground "MarkdownEditor" "locale" (MarkdownEditor.locale locale)
+                            ]
                         )
-                    , MarkdownEditor.required
-                    , MarkdownEditor.rows 4
-                    , MarkdownEditor.sideBySide
-                    , MarkdownEditor.locale locale
-                    ]
+                    )
                     model.errored
                 ]
             )
         ]
 
 
-editorAttributes : Locale -> List (MarkdownEditor.Attribute msg)
-editorAttributes locale =
-    [ MarkdownEditor.label "Description"
-    , MarkdownEditor.hint "Shown on the packing slip. Markdown is supported."
-    , MarkdownEditor.maxLength 400
-    , MarkdownEditor.rows 9
-    , MarkdownEditor.syntaxHelp
-    , MarkdownEditor.locale locale
-    ]
+editorAttributes : Config.Config -> Locale -> List (MarkdownEditor.Attribute msg)
+editorAttributes playground locale =
+    Options.klarMarkdownEditor playground
+        (List.concat
+            [ Config.keep playground "MarkdownEditor" "label" (MarkdownEditor.label "Description")
+            , Config.keep playground "MarkdownEditor" "hint" (MarkdownEditor.hint "Shown on the packing slip. Markdown is supported.")
+            , Config.keep playground "MarkdownEditor" "maxLength" (MarkdownEditor.maxLength 400)
+            , Config.keep playground "MarkdownEditor" "rows" (MarkdownEditor.rows 9)
+            , Config.keep playground "MarkdownEditor" "syntaxHelp" MarkdownEditor.syntaxHelp
+            , Config.keep playground "MarkdownEditor" "locale" (MarkdownEditor.locale locale)
+            ]
+        )
 
 
-optionsSection : Html Msg
-optionsSection =
-    Doc.section "Options"
+optionsSection : Config.Config -> Html Msg
+optionsSection playground =
+    Doc.configuredSection playground
+        [ "Markdown" ]
+        "Options"
         ""
         [ Doc.props
             [ { name = "Markdown.view"

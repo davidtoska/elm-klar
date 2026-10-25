@@ -31,7 +31,6 @@ import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Overlay as Overlay exposing (Overlay)
-import Klar.PageHeader as PageHeader
 import Klar.Radio as Radio
 import Klar.Remote as Remote exposing (Remote)
 import Klar.SegmentedControl as SegmentedControl
@@ -42,7 +41,8 @@ import Klar.SideNav as SideNav
 import Klar.Text as Text
 import Klar.Theme as Theme exposing (Density(..), Tone(..))
 import Klar.Toast as Toast
-import Page.Applications.Processes as Studio
+import Page.Applications as Applications
+import Page.Applications.Catalog as ApplicationCatalog
 import Page.Effect as Effect exposing (Effect(..))
 import Page.Gallery as Gallery
 import Page.Gallery.Catalog as Catalog
@@ -92,9 +92,9 @@ type alias Model =
     , tools : Drawer.State
     , overview : Overview.Model
     , orders : Orders.Model
-    , studio : Studio.Model
     , products : Products.Model
     , gallery : Gallery.Model
+    , applications : Applications.Model
     }
 
 
@@ -141,8 +141,8 @@ init _ url key =
             , overview = overview
             , orders = orders
             , products = products
-            , studio = Studio.init
             , gallery = Gallery.init
+            , applications = Applications.init
             }
 
         ( entered, enterCmd ) =
@@ -211,8 +211,8 @@ type Msg
     | OverviewMsg Overview.Msg
     | OrdersMsg Orders.Msg
     | ProductsMsg Products.Msg
-    | StudioMsg Studio.Msg
     | GalleryMsg Gallery.Msg
+    | ApplicationsMsg Applications.Msg
 
 
 
@@ -227,20 +227,20 @@ routeChanged url model =
 
         next =
             { model
-                | studio =
+                | route = route
+                , shell = AppShell.setPage menu (routeKey route) model.shell
+                , applications =
                     if route == model.route then
-                        model.studio
+                        model.applications
 
                     else
-                        Studio.leave model.studio
+                        Applications.leave model.applications
                 , gallery =
                     if route == model.route then
                         model.gallery
 
                     else
                         Gallery.leave model.gallery
-                , route = route
-                , shell = AppShell.setPage menu (routeKey route) model.shell
             }
     in
     -- Closing an order opened by link (`#/orders/ORD-10001` back to
@@ -563,19 +563,19 @@ update msg model =
             in
             applyEffects effects { model | products = drained, backend = backend } (Cmd.map ProductsMsg cmd)
 
-        StudioMsg inner ->
-            let
-                ( studio, cmd ) =
-                    Studio.update inner model.studio
-            in
-            ( { model | studio = studio }, Cmd.map StudioMsg cmd )
-
         GalleryMsg inner ->
             let
                 ( gallery, cmd ) =
                     Gallery.update inner model.gallery
             in
             ( { model | gallery = gallery }, Cmd.map GalleryMsg cmd )
+
+        ApplicationsMsg inner ->
+            let
+                ( applications, cmd ) =
+                    Applications.update inner model.applications
+            in
+            ( { model | applications = applications }, Cmd.map ApplicationsMsg cmd )
 
 
 {-| Goes to a page. Asking for the page the user is already on (the sidebar link of
@@ -610,7 +610,7 @@ data again, gallery pages are created the first time.
 enter : Route -> Model -> ( Model, Cmd Msg )
 enter route model =
     case route of
-        ProcessStudio ->
+        Application _ ->
             ( model, Cmd.none )
 
         Overview ->
@@ -759,8 +759,8 @@ shortcuts =
 routeKey : Route -> String
 routeKey route =
     case route of
-        ProcessStudio ->
-            "process-studio"
+        Application page ->
+            "application-" ++ ApplicationCatalog.slug page
 
         Overview ->
             "overview"
@@ -809,10 +809,21 @@ menu =
             |> SideNav.withIcon Icon.home
         , SideNav.item Ids.string { key = "orders", label = "Orders", href = Route.path Orders }
             |> SideNav.withIcon Icon.clipboard
-        , SideNav.item Ids.string { key = "process-studio", label = "Process studio", href = Route.path ProcessStudio } |> SideNav.withIcon Icon.gitBranch
         , SideNav.item Ids.string { key = "products", label = "Products", href = Route.path Products }
             |> SideNav.withIcon Icon.database
         ]
+    , SideNav.section "Application examples"
+        (List.map
+            (\page ->
+                SideNav.item Ids.string
+                    { key = "application-" ++ ApplicationCatalog.slug page
+                    , label = ApplicationCatalog.title page
+                    , href = Route.path (Application page)
+                    }
+                    |> SideNav.withIcon (ApplicationCatalog.icon page)
+            )
+            ApplicationCatalog.all
+        )
     , SideNav.section "Component library"
         [ SideNav.item Ids.string { key = "components", label = "Overview", href = Route.path (Components Nothing) }
             |> SideNav.withIcon Icon.layers
@@ -820,15 +831,26 @@ menu =
             { key = "components-pages", label = "Components" }
             (List.map
                 (\section ->
-                    SideNav.item Ids.string
-                        { key = "components-" ++ Catalog.slug section
+                    SideNav.group Ids.string
+                        { key = "component-group-" ++ Catalog.slug section
                         , label = Catalog.title section
-                        , href = Route.path (Components (Just (Catalog.slug section)))
                         }
+                        (List.map
+                            (\name ->
+                                SideNav.item Ids.string
+                                    { key = "components-" ++ Catalog.componentSlug name
+                                    , label = name
+                                    , href = Route.path (Components (Just (Catalog.componentSlug name)))
+                                    }
+                            )
+                            (Catalog.components section)
+                        )
                 )
-                Catalog.all
+                (List.filter ((/=) Catalog.Examples) Catalog.all)
             )
             |> SideNav.withIcon Icon.grid
+        , SideNav.item Ids.string { key = "components-examples", label = "Complete examples", href = Route.path (Components (Just "examples")) }
+            |> SideNav.withIcon Icon.layout
         ]
     ]
 
@@ -841,7 +863,11 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Shortcut.subscription ShortcutMsg shortcuts model.shortcuts
+        , Sub.map GalleryMsg Gallery.compilerSubscriptions
         , case model.route of
+            Application _ ->
+                Sub.none
+
             Overview ->
                 Sub.map OverviewMsg (Overview.subscriptions model.overview)
 
@@ -850,9 +876,6 @@ subscriptions model =
 
             OrderDetail _ ->
                 Sub.map OrdersMsg (Orders.subscriptions model.orders)
-
-            ProcessStudio ->
-                Sub.none
 
             Products ->
                 Sub.map ProductsMsg (Products.subscriptions model.products)
@@ -941,8 +964,8 @@ viewPage model =
             { content = content, overlays = [] }
     in
     case model.route of
-        ProcessStudio ->
-            plain (Layout.stack [ Layout.gap 4 ] [ PageHeader.view [ PageHeader.title "Process studio", PageHeader.subtitle "Build, run and inspect AI work, human tasks and approval." ], Alert.view [ Alert.tone Info, Alert.compact ] "Interactive demo. The Elm server, identities and AI results are simulated.", Html.map StudioMsg (Studio.view model.studio) ])
+        Application page ->
+            plain (Html.map ApplicationsMsg (Applications.view page model.applications))
 
         Overview ->
             mapView OverviewMsg (Overview.view (pageContext model) model.overview)
@@ -959,7 +982,13 @@ viewPage model =
         Components maybeSlug ->
             plain
                 (Html.map GalleryMsg
-                    (Gallery.view model.settings model.locale (maybeSlug |> Maybe.andThen Catalog.fromSlug) model.gallery)
+                    (case ( maybeSlug, maybeSlug |> Maybe.andThen Catalog.fromSlug ) of
+                        ( Just _, Nothing ) ->
+                            Text.paragraph "Component not found. Use the component menu to open a page."
+
+                        ( _, section ) ->
+                            Gallery.view model.settings model.locale section model.gallery
+                    )
                 )
 
         NotFound ->
@@ -1171,30 +1200,32 @@ viewPalette model =
         , CommandPalette.placeholder "Search pages, actions and orders ..."
         , CommandPalette.sections
             [ CommandPalette.section "Navigation"
-                ([ go "Overview" Overview Icon.home (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'h' ]))
-                 , go "Orders" Orders Icon.clipboard (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ]))
-                 , go "Products" Products Icon.database (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'p' ]))
-                 , go "Component library" (Components Nothing) Icon.layers (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'c' ]))
-                 ]
-                    ++ List.map
-                        (\section ->
-                            go (Catalog.title section) (Components (Just (Catalog.slug section))) (Catalog.icon section) Nothing
-                        )
-                        Catalog.all
+                [ go "Overview" Overview Icon.home (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'h' ]))
+                , go "Orders" Orders Icon.clipboard (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ]))
+                , go "Products" Products Icon.database (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'p' ]))
+                , go "Component library" (Components Nothing) Icon.layers (Just (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'c' ]))
+                ]
+            , CommandPalette.section "Application examples"
+                (List.map
+                    (\page ->
+                        go (ApplicationCatalog.title page) (Application page) (ApplicationCatalog.icon page) Nothing
+                            |> CommandPalette.withDescription (ApplicationCatalog.description page)
+                    )
+                    ApplicationCatalog.all
                 )
             , CommandPalette.section "Components"
                 (List.concatMap
                     (\section ->
                         List.map
                             (\name ->
-                                CommandPalette.item name (GoTo (Components (Just (Catalog.slug section))))
+                                CommandPalette.item name (GoTo (Components (Just (Catalog.componentSlug name))))
                                     |> CommandPalette.withIcon (Catalog.icon section)
                                     |> CommandPalette.withDescription (Catalog.title section)
                                     |> CommandPalette.withId (Catalog.slug section ++ "-" ++ name)
                             )
                             (Catalog.components section)
                     )
-                    Catalog.all
+                    (List.filter ((/=) Catalog.Examples) Catalog.all)
                 )
             , CommandPalette.section "Actions"
                 [ CommandPalette.item "Switch language" (PaletteAction ToggleLocale)

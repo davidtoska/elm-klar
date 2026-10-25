@@ -5874,6 +5874,99 @@
       "reference": "ai/modules/Klar.Icon.Science.md"
     },
     {
+      "name": "Klar.AiReview",
+      "import": "import Klar.AiReview as Review",
+      "group": "AI",
+      "purpose": "Review server-generated AI proposals one statement or change at a time, with evidence, exact before/after values, a reason and explicit approval or rejection.",
+      "whenToUse": "a person must understand and decide on AI suggestions before a server applies them.",
+      "whenNot": "approving ordinary workflow stages; use `Klar.ApprovalFlow`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "proposal",
+        "init",
+        "update",
+        "view",
+        "onSubmit"
+      ],
+      "mainFunctions": [
+        "view",
+        "proposal",
+        "source",
+        "init",
+        "update",
+        "reset",
+        "decisions",
+        "onSubmit"
+      ],
+      "related": [
+        "Klar.CommentThread"
+      ],
+      "keywords": [
+        "ai review",
+        "aireview",
+        "ai",
+        "review",
+        "server",
+        "generated",
+        "proposals",
+        "statement"
+      ],
+      "reference": "ai/modules/Klar.AiReview.md"
+    },
+    {
+      "name": "Klar.AiChat",
+      "import": "import Klar.AiChat as Chat",
+      "group": "AI",
+      "purpose": "A transport-neutral AI conversation with safe Markdown, streamed answers, explicit generation status and a composer that preserves newer drafts.",
+      "whenToUse": "an application talks to AI on its own server and needs a conversation UI.",
+      "whenNot": "discussing an ordinary record; use `Klar.CommentThread`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "message",
+        "init",
+        "update",
+        "view",
+        "onSend",
+        "acknowledge"
+      ],
+      "mainFunctions": [
+        "view",
+        "message",
+        "init",
+        "update",
+        "draft",
+        "setDraft",
+        "reset",
+        "submissionText"
+      ],
+      "related": [],
+      "keywords": [
+        "ai chat",
+        "aichat",
+        "ai",
+        "transport",
+        "neutral",
+        "conversation",
+        "markdown",
+        "streamed"
+      ],
+      "reference": "ai/modules/Klar.AiChat.md"
+    },
+    {
       "name": "Klar.UploadQueue",
       "import": "import Klar.UploadQueue as UploadQueue",
       "group": "Files and media",

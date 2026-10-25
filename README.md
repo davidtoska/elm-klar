@@ -149,10 +149,11 @@ every module has an example.
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
 | **Arranging** | `Sortable`, `Splitter`, `Kanban` (validated moves and work-in-progress limits) |
-| **Processes and state** | `Workflow`, `Workflow.Engine`, `Workflow.Codec`, `WorkflowNode`, `WorkflowBuilder`, `WorkflowRun`, `StateMachine` |
 | **Pages and flow** | `StatusPage`, `BulkBar`, `LeaveGuard`, `History` |
 | **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare`, `AuditLog`, `ConflictResolver`, `CodeBlock`, `CommentThread` |
 | **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
+| **Processes and state** | `Workflow`, `Workflow.Engine`, `Workflow.Codec`, `WorkflowNode`, `WorkflowBuilder`, `WorkflowRun`, `StateMachine` |
+| **AI** | `AiReview` (sources, before/after, version-bound approval and statement discussion), `AiChat` (streaming, cancellation, safe Markdown and preserved drafts) |
 | **Data display** | `Stat`, `Chart` (line, bar, donut, gauge, meter, sparkline), `Timeline`, `Avatar`, `JsonViewer` |
 | **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews`, `ServerList` (a server-side list with all three) |
 | **Data and utilities** | `Remote`, `RemoteView`, `Search`, `Format`, `Shortcut` |
@@ -175,6 +176,56 @@ Some of the pure modules are useful on their own:
 
 ## The showcase
 
+Each component and supporting module has its own gallery page,
+for example `#/components/button`, `#/components/text-input` and
+`#/components/ai-chat`. The options inspector changes the real examples, including
+sizes, states, text, icons and composed content. Options are kept per component
+while navigating; **Original states** temporarily shows the untouched examples.
+The index, grouped sidebar and command palette link directly to component pages.
+The icon groups are browsable separately, for example `#/components/icon-arrows`;
+`#/components/icon-library` searches the entire icon collection. Supporting modules
+such as `Picking` and `Field` also have live examples.
+
+The inspector is generated from the exposed Elm attributes. After changing the
+public API, run `npm run gen:gallery`; `npm run check:gallery` checks that it is
+current, and `npm run test:gallery` tests the routes, examples and configuration.
+The gallery check also compares every exposed module with the page catalog, so a
+new helper or icon module cannot silently disappear from the demo.
+
+With `npm start`, every attribute also has an **Elm expression** editor. Choose a
+target example, write the complete attribute (including callbacks, typed records,
+lists or render functions), and press **Apply Elm expressions**. Add imports and
+helper definitions in **Scope, imports and helper definitions** for data and
+functions of your own. **Trace callback** supplies an editable message that reports
+the callback's arguments in the event log. Elm type errors appear in the panel;
+the last successful preview stays visible. Editing or resetting invalidates older
+compilation responses, and configurations remain independent per component.
+**View data, state and event mapping** also edits the view's positional arguments,
+including conversation/message records and component state passed outside the
+attribute list.
+
+The compiler uses a temporary copy of the example sources and never edits the
+working tree. Each preview compiles its component domain independently of the
+rest of the application. Static hosting retains the quick controls; custom Elm
+expressions require the local development server. `npm run test:compiler` checks
+real compilation of callbacks and custom typed data, as well as rejected types.
+
+The **Process studio** (`#/applications/process-studio`) builds and runs vertical
+workflows with AI work, manual tasks, approval, branches and bounded returns.
+Four templates cover character sheets, document triage, editorial review and
+membership admission through an interviewer, coordinator, managing director and
+registrar. Edit per-step JSON state, instructions, bindings and assigned roles;
+inspect outputs, attempts and decision identities while the Elm server simulator
+runs. Definitions import/export as JSON. Every component has its own gallery page
+under **Processes & state**. See [WORKFLOWS.md](WORKFLOWS.md) for the API boundary.
+
+The gallery's **AI workspace** (`#/components/ai`) combines statement-level review,
+sources, revision-specific comments and streaming chat. Its local server simulation
+lets you try failed saves, revision conflicts, stale data and interrupted responses.
+Klar stays transport neutral: your application server holds provider credentials,
+retrieves evidence, authorizes tool calls and applies approved proposals only after
+checking their proposal and target-record revisions. AI output never applies itself.
+
 [`example/`](example) is a complete application built only with this package: an
 operations console with a dashboard, orders (a server-mode table with a drawer
 editor), products, and a gallery with live examples of every component and state.
@@ -183,6 +234,14 @@ developer tools that make the pretend network fail so you can see how the interf
 behaves. Its Examples page opens seven small complete applications (an inbox, an edit
 form, delete with confirmation, a dashboard, a multi-step flow, a command palette and a review desk),
 each one Elm file in `example/src/Examples/`.
+
+The **Application examples** menu adds nine larger screens for connected AI apps:
+Google/Microsoft sign-in, account creation and password recovery, connected-app
+settings, GitHub repository permissions, Drive and Calendar imports, AI provider
+credentials and a JEV classification queue with human review. They use reusable
+Klar compositions with no extra CSS. All provider responses are simulated; secrets
+are cleared and never persisted. See [the application-pattern guide](example/APPLICATIONS.md)
+for routes, copying the patterns, extending the registry and server integration.
 
 The **Data workbench** gallery page connects five components in an order review desk:
 review a queue with j/k or arrow keys, select records as cards, resolve concurrent
@@ -273,12 +332,3 @@ values of an opaque type, so adding to them is never a breaking change.
 
 [BSD 3-Clause](LICENSE). The icons are based on [Feather](https://feathericons.com)
 and [Lucide](https://lucide.dev); their license texts are at the end of [LICENSE](LICENSE).
-
-## Process studio
-
-Run `npm start` and open `#/applications/process-studio` to build and execute
-vertical AI/human workflows, including role-assigned membership admission and
-managing-director approval. Each workflow module has its own gallery page.
-Definitions import/export as JSON. Per-node state, outputs and attempt history
-stay visible through review, bounded returns, waits, failure and retry. The server
-and AI are simulated in Elm. See [WORKFLOWS.md](WORKFLOWS.md).

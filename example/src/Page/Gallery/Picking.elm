@@ -20,7 +20,9 @@ import Klar.Text as Text
 import Klar.Transfer as Transfer
 import Klar.TreeSelect as TreeSelect
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 import Time
 
@@ -484,19 +486,22 @@ fetch siteId model cmd =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     let
         nodes =
             Remote.map (regionNodes model.fetched) model.regions
     in
-    Doc.page
+    Doc.configuredPage playground
         { title = "Picking from trees and lists"
         , description = "Pick from a tree, drill down through columns, or move items between two lists. The ids are the application's own type, and everything that comes from the backend shows that it is loading, failed or empty."
         }
-        [ Doc.section "TreeSelect"
+        [ Doc.configuredSection playground
+            []
+            "TreeSelect"
             "A field that opens a tree. Type to filter: the matches keep their ancestors, which open, and clearing the text brings back what was open. The sites of Bergen and Rotterdam are fetched when they are opened, Hamburg fails the first two times (use “Try again”), and Frankfurt is closed (disabled). “Refresh the zones” refreshes the zones that are loaded and fails: they stay, marked busy, then under a row that says “Old data” with “Try again”."
-            [ Doc.example
+            [ Doc.configuredExample playground
+                [ "Picking", "TreeSelect" ]
                 { title = "One location"
                 , description = Just "Arrow keys move, Right and Left open and close, Enter chooses. Home and End go to the first and last row while the search box is empty, and move the caret in a text (Ctrl or Cmd with them always move the rows). The popup opens on the value, with the nodes above it open. A disabled node cannot be chosen, but the nodes inside it can."
                 , code =
@@ -518,16 +523,20 @@ SiteMsg inner ->
 
 TreeSelect.value model.site -- Maybe LocationId"""
                 }
-                (Layout.stack [ Layout.gap 3 ]
+                (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                     [ TreeSelect.view SiteMsg
-                        [ TreeSelect.label "Location"
-                        , TreeSelect.remote nodes
-                        , TreeSelect.onRetryChildren RetryZones
-                        , TreeSelect.clearable
-                        , TreeSelect.locale locale
-                        ]
+                        (Options.klarTreeSelect playground
+                            (List.concat
+                                [ Config.keep playground "TreeSelect" "label" (TreeSelect.label "Location")
+                                , Config.keep playground "TreeSelect" "remote" (TreeSelect.remote (Config.remote playground "TreeSelect" "remote" nodes))
+                                , Config.keep playground "TreeSelect" "onRetryChildren" (TreeSelect.onRetryChildren RetryZones)
+                                , Config.keep playground "TreeSelect" "clearable" TreeSelect.clearable
+                                , Config.keep playground "TreeSelect" "locale" (TreeSelect.locale locale)
+                                ]
+                            )
+                        )
                         model.site
-                    , Button.view [ Button.small, Button.secondary, Button.onClick RefreshZones ] "Refresh the zones (the refresh fails)"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "onClick" (Button.onClick RefreshZones) ])) "Refresh the zones (the refresh fails)"
                     , Text.caption
                         ("Value: "
                             ++ (case TreeSelect.value model.site of
@@ -540,7 +549,8 @@ TreeSelect.value model.site -- Maybe LocationId"""
                         )
                     ]
                 )
-            , Doc.example
+            , Doc.configuredExample playground
+                [ "TreeSelect" ]
                 { title = "Several locations, with check boxes"
                 , description = Just "Checking a parent chooses everything below it, and the value is the parent: one id, also when its children are not loaded. A parent with only some of its nodes checked shows a dash. Uncheck a bin of a checked site and the site becomes what is left. `leaves` writes the choice out as the bins."
                 , code =
@@ -549,14 +559,18 @@ TreeSelect.value model.site -- Maybe LocationId"""
 TreeSelect.values model.sites -- [ nordics ]
 TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
                 }
-                (Layout.stack [ Layout.gap 3 ]
+                (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                     [ TreeSelect.view SitesMsg
-                        [ TreeSelect.label "Locations"
-                        , TreeSelect.remote nodes
-                        , TreeSelect.onRetryChildren RetryZones
-                        , TreeSelect.clearable
-                        , TreeSelect.locale locale
-                        ]
+                        (Options.klarTreeSelect playground
+                            (List.concat
+                                [ Config.keep playground "TreeSelect" "label" (TreeSelect.label "Locations")
+                                , Config.keep playground "TreeSelect" "remote" (TreeSelect.remote (Config.remote playground "TreeSelect" "remote" nodes))
+                                , Config.keep playground "TreeSelect" "onRetryChildren" (TreeSelect.onRetryChildren RetryZones)
+                                , Config.keep playground "TreeSelect" "clearable" TreeSelect.clearable
+                                , Config.keep playground "TreeSelect" "locale" (TreeSelect.locale locale)
+                                ]
+                            )
+                        )
                         model.sites
                     , Text.caption ("Value: " ++ listText locationText (TreeSelect.values model.sites))
                     , case model.regions of
@@ -573,7 +587,8 @@ TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
                             Text.caption ""
                     ]
                 )
-            , Doc.example
+            , Doc.configuredExample playground
+                [ "TreeSelect" ]
                 { title = "Five thousand nodes"
                 , description = Just "Only the rows on screen are drawn, and the filter does not freeze: try “product 37”. Check a category and one id is the value. The nodes are built from flat rows that name their parent, as a backend sends them."
                 , code =
@@ -584,40 +599,60 @@ TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
 
 TreeSelect.view CatalogueMsg [ TreeSelect.label "Products", TreeSelect.nodes catalogue ] model.catalogue"""
                 }
-                (Layout.stack [ Layout.gap 3 ]
+                (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                     [ TreeSelect.view CatalogueMsg
-                        [ TreeSelect.label "Products"
-                        , TreeSelect.nodes catalogue
-                        , TreeSelect.clearable
-                        , TreeSelect.locale locale
-                        ]
+                        (Options.klarTreeSelect playground
+                            (List.concat
+                                [ Config.keep playground "TreeSelect" "label" (TreeSelect.label "Products")
+                                , Config.keep playground "TreeSelect" "nodes" (TreeSelect.nodes catalogue)
+                                , Config.keep playground "TreeSelect" "clearable" TreeSelect.clearable
+                                , Config.keep playground "TreeSelect" "locale" (TreeSelect.locale locale)
+                                ]
+                            )
+                        )
                         model.catalogue
                     , Text.caption ("Value: " ++ listText identity (TreeSelect.values model.catalogue))
                     ]
                 )
-            , Doc.example
+            , Doc.configuredExample playground
+                [ "TreeSelect", "Remote" ]
                 { title = "A top level that fails"
                 , description = Just "The backend is down on purpose: the popup shows the problem with “Try again”, which loads for a moment and fails again."
                 , code = Just "TreeSelect.view DownMsg [ TreeSelect.label \"Locations\", TreeSelect.remote model.down, TreeSelect.onRetry RetryDown ] model.downState"
                 }
                 (TreeSelect.view DownMsg
-                    [ TreeSelect.label "Locations"
-                    , TreeSelect.remote
-                        (if model.down then
-                            Loading
+                    (Options.klarTreeSelect playground
+                        (List.concat
+                            [ Config.keep playground "TreeSelect" "label" (TreeSelect.label "Locations")
+                            , Config.keep playground
+                                "TreeSelect"
+                                "remote"
+                                (TreeSelect.remote
+                                    (Config.remote playground
+                                        "TreeSelect"
+                                        "remote"
+                                        (if model.down then
+                                            Loading
 
-                         else
-                            Failed (Remote.problem Remote.network)
+                                         else
+                                            Failed (Remote.problem Remote.network)
+                                        )
+                                    )
+                                )
+                            , Config.keep playground "TreeSelect" "onRetry" (TreeSelect.onRetry RetryDown)
+                            , Config.keep playground "TreeSelect" "locale" (TreeSelect.locale locale)
+                            ]
                         )
-                    , TreeSelect.onRetry RetryDown
-                    , TreeSelect.locale locale
-                    ]
+                    )
                     model.downState
                 )
             ]
-        , Doc.section "Cascader"
+        , Doc.configuredSection playground
+            []
+            "Cascader"
             "The same hierarchy as columns, for people who know where to look. The closed field shows the path, shortened in the middle when it is long. Typing leaves the columns and shows the full paths that match: try “A-03”. On a narrow screen the columns scroll sideways."
-            [ Doc.example
+            [ Doc.configuredExample playground
+                [ "Cascader" ]
                 { title = "Region, site, zone, bin"
                 , description = Just "Right opens a branch and moves into its column, Left goes back, Enter chooses a bin. The value is the path of ids from the top down. Only a node without children can be chosen."
                 , code =
@@ -631,14 +666,18 @@ TreeSelect.view CatalogueMsg [ TreeSelect.label "Products", TreeSelect.nodes cat
 
 Cascader.value model.place -- Just [ nordics, oslo, receiving, bin ]"""
                 }
-                (Layout.stack [ Layout.gap 3 ]
+                (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                     [ Cascader.view PlaceMsg
-                        [ Cascader.label "Bin"
-                        , Cascader.remote nodes
-                        , Cascader.onRetryChildren RetryZones
-                        , Cascader.clearable
-                        , Cascader.locale locale
-                        ]
+                        (Options.klarCascader playground
+                            (List.concat
+                                [ Config.keep playground "Cascader" "label" (Cascader.label "Bin")
+                                , Config.keep playground "Cascader" "remote" (Cascader.remote (Config.remote playground "Cascader" "remote" nodes))
+                                , Config.keep playground "Cascader" "onRetryChildren" (Cascader.onRetryChildren RetryZones)
+                                , Config.keep playground "Cascader" "clearable" Cascader.clearable
+                                , Config.keep playground "Cascader" "locale" (Cascader.locale locale)
+                                ]
+                            )
+                        )
                         model.place
                     , Text.caption
                         ("Value: "
@@ -652,21 +691,26 @@ Cascader.value model.place -- Just [ nordics, oslo, receiving, bin ]"""
                         )
                     ]
                 )
-            , Doc.example
+            , Doc.configuredExample playground
+                [ "Cascader" ]
                 { title = "Choose any level"
                 , description = Just "With anyNode a region or a site can be chosen too: Enter, a double click or the button under the columns choose the branch, Right opens it."
                 , code = Just "Cascader.view PlaceAnyMsg [ Cascader.label \"Place\", Cascader.nodes places, Cascader.anyNode ] model.placeAny"
                 }
-                (Layout.stack [ Layout.gap 3 ]
+                (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                     [ Cascader.view PlaceAnyMsg
-                        [ Cascader.label "Place"
-                        , Cascader.remote nodes
-                        , Cascader.onRetryChildren RetryZones
-                        , Cascader.anyNode
-                        , Cascader.clearable
-                        , Cascader.separator " > "
-                        , Cascader.locale locale
-                        ]
+                        (Options.klarCascader playground
+                            (List.concat
+                                [ Config.keep playground "Cascader" "label" (Cascader.label "Place")
+                                , Config.keep playground "Cascader" "remote" (Cascader.remote (Config.remote playground "Cascader" "remote" nodes))
+                                , Config.keep playground "Cascader" "onRetryChildren" (Cascader.onRetryChildren RetryZones)
+                                , Config.keep playground "Cascader" "anyNode" Cascader.anyNode
+                                , Config.keep playground "Cascader" "clearable" Cascader.clearable
+                                , Config.keep playground "Cascader" "separator" (Cascader.separator " > ")
+                                , Config.keep playground "Cascader" "locale" (Cascader.locale locale)
+                                ]
+                            )
+                        )
                         model.placeAny
                     , Text.caption
                         ("Value: "
@@ -681,9 +725,12 @@ Cascader.value model.place -- Just [ nordics, oslo, receiving, bin ]"""
                     ]
                 )
             ]
-        , Doc.section "Transfer"
+        , Doc.configuredSection playground
+            []
+            "Transfer"
             "Two lists and the buttons between them, for assigning many things to one thing."
-            [ Doc.example
+            [ Doc.configuredExample playground
+                [ "Transfer" ]
                 { title = "Products in a promotion"
                 , description = Just "Two thousand products. Mark with a click or Space, move with the buttons, a double click, Enter or Ctrl+Right and Ctrl+Left (Cmd on a Mac). The filter boxes and the check boxes in the headers work on what is shown. Every 250th product is disabled; product 9999 is chosen but no longer in the list, so it is shown as an unknown value that can be taken out. The chosen products keep the order of the list."
                 , code =
@@ -696,14 +743,18 @@ Cascader.value model.place -- Just [ nordics, oslo, receiving, bin ]"""
 
 Transfer.values model.products -- List ProductNo"""
                 }
-                (Layout.stack [ Layout.gap 3 ]
+                (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                     [ Transfer.view ProductsMsg
-                        [ Transfer.label "Products in the promotion"
-                        , Transfer.options productIds products
-                        , Transfer.titles { available = "All products", chosen = "In the promotion" }
-                        , Transfer.hint "Move the products that are part of the promotion to the right."
-                        , Transfer.locale locale
-                        ]
+                        (Options.klarTransfer playground
+                            (List.concat
+                                [ Config.keep playground "Transfer" "label" (Transfer.label "Products in the promotion")
+                                , Config.keep playground "Transfer" "options" (Transfer.options productIds products)
+                                , Config.keep playground "Transfer" "titles" (Transfer.titles { available = "All products", chosen = "In the promotion" })
+                                , Config.keep playground "Transfer" "hint" (Transfer.hint "Move the products that are part of the promotion to the right.")
+                                , Config.keep playground "Transfer" "locale" (Transfer.locale locale)
+                                ]
+                            )
+                        )
                         model.products
                     , Text.caption
                         (String.fromInt (List.length (Transfer.values model.products))
@@ -718,19 +769,24 @@ Transfer.values model.products -- List ProductNo"""
                         )
                     ]
                 )
-            , Doc.example
+            , Doc.configuredExample playground
+                [ "Transfer", "Ids" ]
                 { title = "In the order they were moved"
                 , description = Just "For lists where the order means something, such as the columns of an export, the chosen ids keep the order of moving. The buttons in the header of “Exported” move the marked columns (or the highlighted one) up, down, to the top or to the bottom, and so do Alt+Up and Alt+Down in the list."
                 , code = Just "Transfer.order Transfer.movedOrder"
                 }
                 (Transfer.view OrderedMsg
-                    [ Transfer.label "Columns in the export"
-                    , Transfer.options Ids.string exportColumns
-                    , Transfer.order Transfer.movedOrder
-                    , Transfer.titles { available = "Columns", chosen = "Exported" }
-                    , Transfer.visibleRows 6
-                    , Transfer.locale locale
-                    ]
+                    (Options.klarTransfer playground
+                        (List.concat
+                            [ Config.keep playground "Transfer" "label" (Transfer.label "Columns in the export")
+                            , Config.keep playground "Transfer" "options" (Transfer.options Ids.string exportColumns)
+                            , Config.keep playground "Transfer" "order" (Transfer.order Transfer.movedOrder)
+                            , Config.keep playground "Transfer" "titles" (Transfer.titles { available = "Columns", chosen = "Exported" })
+                            , Config.keep playground "Transfer" "visibleRows" (Transfer.visibleRows 6)
+                            , Config.keep playground "Transfer" "locale" (Transfer.locale locale)
+                            ]
+                        )
+                    )
                     model.columns
                 )
             ]

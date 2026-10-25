@@ -14,7 +14,9 @@ import Klar.Money as Money exposing (Currency, Money)
 import Klar.MoneyInput as MoneyInput
 import Klar.NumberInput as NumberInput
 import Klar.Text as Text
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -199,24 +201,24 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Structured input"
         , description = "Masked input for phone numbers, IBAN and the like, and exact money input."
         }
-        [ viewIdentifiers locale model
-        , viewCodes locale model
-        , viewMoney locale model
-        , viewSharing locale model
+        [ viewIdentifiers playground locale model
+        , viewCodes playground locale model
+        , viewMoney playground locale model
+        , viewSharing playground locale model
         ]
 
 
 {-| Examples side by side, as many columns as fit.
 -}
-grid : List (Html msg) -> Html msg
-grid children =
-    Layout.grid [ Layout.minColumn 260, Layout.gap 5, Layout.alignStart ] children
+grid : Config.Config -> List (Html msg) -> Html msg
+grid playground children =
+    Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 260), Config.keep playground "Layout" "gap" (Layout.gap 5), Config.keep playground "Layout" "alignStart" Layout.alignStart ])) children
 
 
 {-| What the application knows about an identifier: the value, or why there is none.
@@ -244,68 +246,78 @@ readout state =
 -- IDENTIFIERS WITH A CHECK DIGIT
 
 
-viewIdentifiers : Locale -> Model -> Html Msg
-viewIdentifiers locale model =
-    Doc.section "Identifiers with a check digit"
+viewIdentifiers : Config.Config -> Locale -> Model -> Html Msg
+viewIdentifiers playground locale model =
+    Doc.configuredSection playground
+        [ "MaskedInput" ]
+        "Identifiers with a check digit"
         "The field writes the groups while the user types, and says what is wrong in words: the length of the IBAN of the country, the check digit, a character that does not belong. Separators can be typed or left out. Letters in a field for digits are not dropped; they stay and are reported. The value is Nothing until the identifier is complete and its check digits are right. Try the IBANs NO93 8601 1117 947 and DE89 3704 0044 0532 0130 00, and the organisation number 974 760 673. Errors that more typing cannot fix show at once; an unfinished value is an error when the field is left. An edit in the middle of the text is kept as typed until you type at the end or leave the field."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "MaskedInput" ]
             { title = "IBAN"
             , description = Just "The countries of the SWIFT IBAN registry, each with its length (a country that joined recently may be missing). The check digits are tested with modulus 97."
             , code = Just ibanCode
             }
-            (Layout.stack [ Layout.gap 2 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                 [ MaskedInput.view IbanMsg
-                    [ MaskedInput.label "IBAN"
-                    , MaskedInput.hint "For example NO93 8601 1117 947 or DE89 3704 0044 0532 0130 00."
-                    , MaskedInput.locale locale
-                    ]
+                    (Options.klarMaskedInput playground
+                        (List.concat
+                            [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "IBAN")
+                            , Config.keep playground "MaskedInput" "hint" (MaskedInput.hint "For example NO93 8601 1117 947 or DE89 3704 0044 0532 0130 00.")
+                            , Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale)
+                            ]
+                        )
+                    )
                     model.iban
                 , readout model.iban
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MaskedInput" ]
             { title = "Organisation number and bank account"
             , description = Just "Norwegian numbers with a check digit (modulus 11). The value is the digits; the groups are only for reading."
             , code = Just orgnrCode
             }
-            (grid
-                [ Layout.stack [ Layout.gap 2 ]
-                    [ MaskedInput.view OrgnrMsg [ MaskedInput.label "Organisation number", MaskedInput.required, MaskedInput.locale locale ] model.orgnr
+            (grid playground
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ MaskedInput.view OrgnrMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "Organisation number"), Config.keep playground "MaskedInput" "required" MaskedInput.required, Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.orgnr
                     , readout model.orgnr
                     ]
-                , Layout.stack [ Layout.gap 2 ]
-                    [ MaskedInput.view AccountMsg [ MaskedInput.label "Bank account", MaskedInput.hint "For example 8601.11.17947.", MaskedInput.locale locale ] model.account
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ MaskedInput.view AccountMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "Bank account"), Config.keep playground "MaskedInput" "hint" (MaskedInput.hint "For example 8601.11.17947."), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.account
                     , readout model.account
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MaskedInput" ]
             { title = "Business numbers of Sweden, Denmark and Finland"
             , description = Just "Each with its check digit: Luhn for Sweden, modulus 11 for Denmark and Finland. Try 556012-5790, 24256790 and 0112038-9."
             , code = Just "MaskedInput.init \"supplier-se\" MaskedInput.swedishOrganisationNumber"
             }
-            (grid
-                [ Layout.stack [ Layout.gap 2 ]
-                    [ MaskedInput.view SwedishMsg [ MaskedInput.label "Organisationsnummer (Sweden)", MaskedInput.locale locale ] model.nordic.se
+            (grid playground
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ MaskedInput.view SwedishMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "Organisationsnummer (Sweden)"), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.nordic.se
                     , readout model.nordic.se
                     ]
-                , Layout.stack [ Layout.gap 2 ]
-                    [ MaskedInput.view DanishMsg [ MaskedInput.label "CVR number (Denmark)", MaskedInput.locale locale ] model.nordic.dk
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ MaskedInput.view DanishMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "CVR number (Denmark)"), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.nordic.dk
                     , readout model.nordic.dk
                     ]
-                , Layout.stack [ Layout.gap 2 ]
-                    [ MaskedInput.view FinnishMsg [ MaskedInput.label "Y-tunnus (Finland)", MaskedInput.locale locale ] model.nordic.fi
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ MaskedInput.view FinnishMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "Y-tunnus (Finland)"), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.nordic.fi
                     , readout model.nordic.fi
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MaskedInput" ]
             { title = "Product barcode"
             , description = Just "The GTIN-13 (EAN-13) under the barcode of a product, with its check digit (modulus 10). A scanner that types the number and Enter works too. Try 5901234123457."
             , code = Just "MaskedInput.init \"article-gtin\" MaskedInput.ean13"
             }
-            (Layout.stack [ Layout.gap 2 ]
-                [ MaskedInput.view GtinMsg [ MaskedInput.label "EAN-13", MaskedInput.locale locale ] model.gtin
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                [ MaskedInput.view GtinMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "EAN-13"), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.gtin
                 , readout model.gtin
                 ]
             )
@@ -340,55 +352,64 @@ MaskedInput.view OrgnrMsg
 -- POSTAL CODES, PHONE NUMBERS AND A PATTERN OF YOUR OWN
 
 
-viewCodes : Locale -> Model -> Html Msg
-viewCodes locale model =
-    Doc.section "Postal codes, phone numbers and codes of your own"
+viewCodes : Config.Config -> Locale -> Model -> Html Msg
+viewCodes playground locale model =
+    Doc.configuredSection playground
+        [ "MaskedInput" ]
+        "Postal codes, phone numbers and codes of your own"
         "A postal code has no check digit, so the application knows which ones exist. The phone number is the international form with a country code (+47 912 34 567); it is a help for typing, not a phone number database. A pattern of your own is made with a tiny language, and an invalid pattern is a Nothing that the application sees at once."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "MaskedInput" ]
             { title = "Postal codes"
             , description = Just "Each country writes them in its own way: 0150 in Norway, 123 45 in Sweden, 1234 AB in the Netherlands (in capitals, with the space). The second field is the postal code of an address: when its country changes, setMask gives it the rule of the new country and keeps what was typed."
             , code = Just postalCode
             }
-            (grid
-                [ Layout.stack [ Layout.gap 2 ]
-                    [ MaskedInput.view PostalNoMsg [ MaskedInput.label "Postal code (Norway)", MaskedInput.locale locale ] model.postalNo
+            (grid playground
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ MaskedInput.view PostalNoMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "Postal code (Norway)"), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.postalNo
                     , readout model.postalNo
                     ]
-                , Layout.stack [ Layout.gap 2 ]
-                    [ Layout.row [ Layout.gap 2, Layout.wrap ]
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                    [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
                         (List.map
                             (\( code, name ) ->
-                                Button.view
-                                    [ Button.small
-                                    , Button.pressed (model.postalCountry == code)
-                                    , Button.onClick (PostalCountryPicked code)
-                                    ]
+                                Options.buttonView playground
+                                    (Options.klarButton playground
+                                        (List.concat
+                                            [ Config.keep playground "Button" "small" Button.small
+                                            , Config.keep playground "Button" "pressed" (Button.pressed (model.postalCountry == code))
+                                            , Config.keep playground "Button" "onClick" (Button.onClick (PostalCountryPicked code))
+                                            ]
+                                        )
+                                    )
                                     name
                             )
                             [ ( "NO", "Norway" ), ( "SE", "Sweden" ), ( "NL", "The Netherlands" ) ]
                         )
-                    , MaskedInput.view PostalNlMsg [ MaskedInput.label "Postal code of the address", MaskedInput.locale locale ] model.postalNl
+                    , MaskedInput.view PostalNlMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "Postal code of the address"), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.postalNl
                     , readout model.postalNl
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MaskedInput" ]
             { title = "Phone number"
             , description = Just "+47 numbers have eight digits and are written 912 34 567 (mobile) or 22 12 34 56; others have 7 to 15 digits in groups of three. Spaces, hyphens and parentheses are not part of the value."
             , code = Just phoneCode
             }
-            (Layout.stack [ Layout.gap 2 ]
-                [ MaskedInput.view PhoneMsg [ MaskedInput.label "Phone", MaskedInput.hint "With the country code, like +47.", MaskedInput.locale locale ] model.phone
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                [ MaskedInput.view PhoneMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "Phone"), Config.keep playground "MaskedInput" "hint" (MaskedInput.hint "With the country code, like +47."), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.phone
                 , readout model.phone
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MaskedInput" ]
             { title = "A pattern of your own"
             , description = Just "@ is a letter, # a digit, * either, and any other character is written by the field and is not in the value: the SKU AB-1234 has the value AB1234 and the text AB-1234."
             , code = Just skuCode
             }
-            (Layout.stack [ Layout.gap 2 ]
-                [ MaskedInput.view SkuMsg [ MaskedInput.label "SKU", MaskedInput.hint "Two letters, a hyphen and four digits.", MaskedInput.locale locale ] model.sku
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
+                [ MaskedInput.view SkuMsg (Options.klarMaskedInput playground (List.concat [ Config.keep playground "MaskedInput" "label" (MaskedInput.label "SKU"), Config.keep playground "MaskedInput" "hint" (MaskedInput.hint "Two letters, a hyphen and four digits."), Config.keep playground "MaskedInput" "locale" (MaskedInput.locale locale) ])) model.sku
                 , readout model.sku
                 , Text.caption ("Text: " ++ MaskedInput.text model.sku)
                 ]
@@ -437,33 +458,41 @@ skuCode =
 -- MONEY
 
 
-viewMoney : Locale -> Model -> Html Msg
-viewMoney locale model =
-    Doc.section "Money"
+viewMoney : Config.Config -> Locale -> Model -> Html Msg
+viewMoney playground locale model =
+    Doc.configuredSection playground
+        [ "Money", "MoneyInput" ]
+        "Money"
         "An amount is a whole number of minor units and a currency, never a Float. The field reads 1 234,50 and 1,234.50 and 'kr 1 234,50'; it writes the amount with the decimals of the currency when it is left; it never rounds what was typed. More decimals than the currency has is an error (try 12.505 in NOK), and so is an amount outside the limits, which stays in the field as typed. In Norwegian, 10.000 is refused as unclear rather than read as ten, since many people write ten thousand that way. The currency code stands at the end of the field."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Money", "MoneyInput" ]
             { title = "NOK, JPY and KWD"
             , description = Just "Two decimals, none, and three. Each has a minimum and a maximum. Try 12,5 and 12.505 in NOK, 1500 and 1.5 in JPY, and 1.234 in KWD."
             , code = Just moneyCode
             }
-            (grid
-                [ moneyField locale NokMsg model.nok "Price (NOK)" (limits Money.nok 1000 500000)
-                , moneyField locale JpyMsg model.jpy "Price (JPY)" (limits Money.jpy 100 500000)
-                , moneyField locale KwdMsg model.kwd "Price (KWD)" (limits kuwaitiDinar 500 1000000)
+            (grid playground
+                [ moneyField playground locale NokMsg model.nok "Price (NOK)" (limits Money.nok 1000 500000)
+                , moneyField playground locale JpyMsg model.jpy "Price (JPY)" (limits Money.jpy 100 500000)
+                , moneyField playground locale KwdMsg model.kwd "Price (KWD)" (limits kuwaitiDinar 500 1000000)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "MoneyInput" ]
             { title = "A negative amount"
             , description = Just "Refused by default, because most amounts are not negative; allowNegative accepts a minus sign and parentheses: (100,50) is -100.50."
             , code = Just negativeCode
             }
-            (Layout.stack [ Layout.gap 2 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                 [ MoneyInput.view SignedMsg
-                    [ MoneyInput.label "Credit note"
-                    , MoneyInput.allowNegative
-                    , MoneyInput.alignRight
-                    , MoneyInput.locale locale
-                    ]
+                    (Options.klarMoneyInput playground
+                        (List.concat
+                            [ Config.keep playground "MoneyInput" "label" (MoneyInput.label "Credit note")
+                            , Config.keep playground "MoneyInput" "allowNegative" MoneyInput.allowNegative
+                            , Config.keep playground "MoneyInput" "alignRight" MoneyInput.alignRight
+                            , Config.keep playground "MoneyInput" "locale" (MoneyInput.locale locale)
+                            ]
+                        )
+                    )
                     model.signed
                 , readoutMoney locale model.signed
                 ]
@@ -480,16 +509,20 @@ limits cur low high =
     )
 
 
-moneyField : Locale -> (MoneyInput.Msg -> Msg) -> MoneyInput.State -> String -> ( Money, Money ) -> Html Msg
-moneyField locale toMsg state label ( low, high ) =
-    Layout.stack [ Layout.gap 2 ]
+moneyField : Config.Config -> Locale -> (MoneyInput.Msg -> Msg) -> MoneyInput.State -> String -> ( Money, Money ) -> Html Msg
+moneyField playground locale toMsg state label ( low, high ) =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
         [ MoneyInput.view toMsg
-            [ MoneyInput.label label
-            , MoneyInput.min low
-            , MoneyInput.max high
-            , MoneyInput.alignRight
-            , MoneyInput.locale locale
-            ]
+            (Options.klarMoneyInput playground
+                (List.concat
+                    [ Config.keep playground "MoneyInput" "label" (MoneyInput.label label)
+                    , Config.keep playground "MoneyInput" "min" (MoneyInput.min low)
+                    , Config.keep playground "MoneyInput" "max" (MoneyInput.max high)
+                    , Config.keep playground "MoneyInput" "alignRight" MoneyInput.alignRight
+                    , Config.keep playground "MoneyInput" "locale" (MoneyInput.locale locale)
+                    ]
+                )
+            )
             state
         , readoutMoney locale state
         ]
@@ -550,40 +583,50 @@ negativeCode =
 -- SHARING AN AMOUNT
 
 
-viewSharing : Locale -> Model -> Html Msg
-viewSharing locale model =
-    Doc.section "Exact arithmetic"
+viewSharing : Config.Config -> Locale -> Model -> Html Msg
+viewSharing playground locale model =
+    Doc.configuredSection playground
+        [ "Money" ]
+        "Exact arithmetic"
         "Splitting an amount never loses a minor unit, and a percentage is rounded half away from zero, as a person does by hand. Money of different currencies cannot be added: that is an Err, not a wrong sum."
         [ Doc.example
             { title = "Split an amount"
             , description = Just "100.00 in three is 33.34, 33.33 and 33.33: the unit that does not divide goes to the first part. The parts always add up to the amount."
             , code = Just splitCode
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ grid
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ grid playground
                     [ MoneyInput.view SharedMsg
-                        [ MoneyInput.label "Amount"
-                        , MoneyInput.alignRight
-                        , MoneyInput.locale locale
-                        ]
+                        (Options.klarMoneyInput playground
+                            (List.concat
+                                [ Config.keep playground "MoneyInput" "label" (MoneyInput.label "Amount")
+                                , Config.keep playground "MoneyInput" "alignRight" MoneyInput.alignRight
+                                , Config.keep playground "MoneyInput" "locale" (MoneyInput.locale locale)
+                                ]
+                            )
+                        )
                         model.shared
                     , NumberInput.view PartsMsg
-                        [ NumberInput.label "Parts"
-                        , NumberInput.min 1
-                        , NumberInput.max 12
-                        , NumberInput.decimals 0
-                        , NumberInput.locale locale
-                        ]
+                        (Options.klarNumberInput playground
+                            (List.concat
+                                [ Config.keep playground "NumberInput" "label" (NumberInput.label "Parts")
+                                , Config.keep playground "NumberInput" "min" (NumberInput.min 1)
+                                , Config.keep playground "NumberInput" "max" (NumberInput.max 12)
+                                , Config.keep playground "NumberInput" "decimals" (NumberInput.decimals 0)
+                                , Config.keep playground "NumberInput" "locale" (NumberInput.locale locale)
+                                ]
+                            )
+                        )
                         model.parts
                     ]
-                , viewParts locale model
+                , viewParts playground locale model
                 ]
             )
         ]
 
 
-viewParts : Locale -> Model -> Html msg
-viewParts locale model =
+viewParts : Config.Config -> Locale -> Model -> Html msg
+viewParts playground locale model =
     case ( MoneyInput.value model.shared, NumberInput.value model.parts ) of
         ( Just amount, Just parts ) ->
             case Money.split (round parts) amount of
@@ -594,7 +637,7 @@ viewParts locale model =
                                 |> Result.map (Money.toString locale)
                                 |> Result.withDefault "too large"
                     in
-                    Layout.stack [ Layout.gap 2 ]
+                    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                         [ Text.paragraphWith
                             [ Text.strong "Parts: "
                             , Text.mono (String.join ", " (List.map (Money.toAmountString locale) shares))

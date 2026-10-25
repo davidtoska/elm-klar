@@ -15,7 +15,9 @@ import Klar.Locale exposing (Locale)
 import Klar.Switch as Switch
 import Klar.Text as Text
 import Page.Gallery.Review.Samples as Samples exposing (AuditEntry)
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -222,24 +224,27 @@ update msg model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.section "Diff"
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredSection playground
+        []
+        "Diff"
         "What changed between two versions, so that a person can see it and decide. A text is compared line by line with the shortest set of changes, and the words that changed are marked inside a changed line. The viewer folds the unchanged lines, says \"Showing 200 of 400 changes\" when it draws only the first changes, and says that a diff is too large instead of freezing. Changes are marked with a sign and with hidden text as well as with color. The box that scrolls is a tab stop; \"Next change\" and \"Previous change\" move the focus to a change, and the keys n and p do the same while the focus is in the box."
-        [ policyExample locale model
-        , stockExample locale model
-        , orderExample locale model
-        , auditExample locale model
-        , sameExample locale model
-        , manyExample locale model
-        , bigExample locale model
-        , blockExample locale model
+        [ policyExample playground locale model
+        , stockExample playground locale model
+        , orderExample playground locale model
+        , auditExample playground locale model
+        , sameExample playground locale model
+        , manyExample playground locale model
+        , bigExample playground locale model
+        , blockExample playground locale model
         ]
 
 
-policyExample : Locale -> Model -> Html Msg
-policyExample locale model =
-    Doc.example
+policyExample : Config.Config -> Locale -> Model -> Html Msg
+policyExample playground locale model =
+    Doc.configuredExample playground
+        [ "Switch", "Diff" ]
         { title = "Two versions of a shipping policy"
         , description = Just "Unified and side by side (the buttons in the toolbar). Long lines wrap, the unchanged lines are folded into a row that opens when it is pressed, and the changed words are marked inside a changed line (a changed number digit by digit). \"Ignore white space\" leaves out the two edits that only touch spaces, and the viewer says so; side by side, the old column still shows the old text. The buttons under the viewer go to a change by its key (Diff.goToHunk), and the pressed one is the change the user is on (Diff.currentHunk), which is where a panel to accept or reject that change would go."
         , code = Just """-- when the texts are known (in update):
@@ -262,16 +267,16 @@ PolicyMsg inner ->
     in
     ( { model | policy = state }, Cmd.map PolicyMsg cmd )"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            [ Layout.row [ Layout.gap 4, Layout.wrap, Layout.alignCenter ]
-                [ Switch.view [ Switch.label "Ignore white space", Switch.checked model.ignoreSpace, Switch.onCheck IgnoreSpace ]
-                , Switch.view [ Switch.label "Wrap long lines", Switch.checked model.wrap, Switch.onCheck Wrap ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                [ Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "Ignore white space"), Config.keep playground "Switch" "checked" (Switch.checked model.ignoreSpace), Config.keep playground "Switch" "onCheck" (Switch.onCheck IgnoreSpace) ]))
+                , Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "Wrap long lines"), Config.keep playground "Switch" "checked" (Switch.checked model.wrap), Config.keep playground "Switch" "onCheck" (Switch.onCheck Wrap) ]))
                 ]
             , Diff.view PolicyMsg
                 (List.concat
-                    [ [ Diff.ariaLabel "Changes to the shipping policy", Diff.locale locale ]
+                    [ Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "Changes to the shipping policy"), Config.keep playground "Diff" "locale" (Diff.locale locale) ])
                     , if model.wrap then
-                        [ Diff.wrapLines ]
+                        Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "wrapLines" Diff.wrapLines ])
 
                       else
                         []
@@ -279,15 +284,19 @@ PolicyMsg inner ->
                 )
                 model.policy
                 model.policyDiff
-            , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+            , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                 (Text.caption "Go to:"
                     :: List.indexedMap
                         (\index hunk ->
-                            Button.view
-                                [ Button.small
-                                , Button.pressed (Maybe.map Diff.hunkKey (Diff.currentHunk model.policyDiff model.policy) == Just (Diff.hunkKey hunk))
-                                , Button.onClick (GoToPolicyChange (Diff.hunkKey hunk))
-                                ]
+                            Options.buttonView playground
+                                (Options.klarButton playground
+                                    (List.concat
+                                        [ Config.keep playground "Button" "small" Button.small
+                                        , Config.keep playground "Button" "pressed" (Button.pressed (Maybe.map Diff.hunkKey (Diff.currentHunk model.policyDiff model.policy) == Just (Diff.hunkKey hunk)))
+                                        , Config.keep playground "Button" "onClick" (Button.onClick (GoToPolicyChange (Diff.hunkKey hunk)))
+                                        ]
+                                    )
+                                )
                                 ("Change " ++ String.fromInt (index + 1))
                         )
                         (Diff.hunks model.policyDiff)
@@ -296,9 +305,10 @@ PolicyMsg inner ->
         )
 
 
-stockExample : Locale -> Model -> Html Msg
-stockExample locale model =
-    Doc.example
+stockExample : Config.Config -> Locale -> Model -> Html Msg
+stockExample playground locale model =
+    Doc.configuredExample playground
+        [ "Diff" ]
         { title = "Stock levels as CSV"
         , description = Just "Lines that keep their length, as in code and data files, scroll sideways inside the box and not the page. One line of context around each change. A changed number is marked digit by digit, and the viewer remembers which folds were opened when the data is compared again."
         , code = Just """Diff.view StockMsg
@@ -310,34 +320,36 @@ stockExample locale model =
     (Diff.lines [] oldCsv newCsv)"""
         }
         (Diff.view StockMsg
-            [ Diff.ariaLabel "Changes to the stock levels", Diff.context 1, Diff.maxHeight 360, Diff.locale locale ]
+            (Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "Changes to the stock levels"), Config.keep playground "Diff" "context" (Diff.context 1), Config.keep playground "Diff" "maxHeight" (Diff.maxHeight 360), Config.keep playground "Diff" "locale" (Diff.locale locale) ]))
             model.stock
             model.stockDiff
         )
 
 
-orderExample : Locale -> Model -> Html Msg
-orderExample locale model =
-    Doc.example
+orderExample : Config.Config -> Locale -> Model -> Html Msg
+orderExample playground locale model =
+    Doc.configuredExample playground
+        [ "Switch", "Diff" ]
         { title = "An order as JSON"
         , description = Just "Every change by path, in a fixed order (the keys of an object alphabetically). Numbers are compared exactly: 0.30000000000000004 is not 0.3. Arrays are compared by position, which makes a reordered list of lines a mess; with \"Match order lines by sku\" the records are paired by their sku, and moving a line is no change. An added or removed object is one change, and a changed text shows what changed inside it."
         , code = Just """Diff.json [ Diff.matchBy "sku" ] oldOrder newOrder
 
 Diff.view OrderMsg [ Diff.ariaLabel "Changes to the order" ] model.order model.orderDiff"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            [ Switch.view [ Switch.label "Match order lines by sku", Switch.checked model.byKey, Switch.onCheck ByKey ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "Match order lines by sku"), Config.keep playground "Switch" "checked" (Switch.checked model.byKey), Config.keep playground "Switch" "onCheck" (Switch.onCheck ByKey) ]))
             , Diff.view OrderMsg
-                [ Diff.ariaLabel "Changes to the order", Diff.locale locale ]
+                (Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "Changes to the order"), Config.keep playground "Diff" "locale" (Diff.locale locale) ]))
                 model.order
                 model.orderDiff
             ]
         )
 
 
-auditExample : Locale -> Model -> Html Msg
-auditExample locale model =
-    Doc.example
+auditExample : Config.Config -> Locale -> Model -> Html Msg
+auditExample playground locale model =
+    Doc.configuredExample playground
+        [ "Card", "Switch", "Diff" ]
         { title = "Fields of an order, as an audit log"
         , description = Just "The text of each side is yours, so dates and amounts are written the way users read them. A field that did not change is left out (and can be shown, muted). A log with many entries uses the view without state, which has no toolbar and no id. The last card uses the view with state, to step through the fields with the keyboard."
         , code = Just """Diff.fields
@@ -349,16 +361,16 @@ auditExample locale model =
 -- one entry in a list of many:
 Diff.viewStatic [ Diff.ariaLabel "Changes by Ada Lovelace, 12 Oct 2026" ] entryDiff"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            (List.map (auditCard locale) auditDiffs
-                ++ [ Card.view [ Card.title "With the toolbar", Card.headingLevel 4 ]
-                        [ Layout.stack [ Layout.gap 3 ]
-                            [ Switch.view [ Switch.label "Show the fields that did not change", Switch.checked model.showUnchanged, Switch.onCheck ShowUnchanged ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            (List.map (auditCard playground locale) auditDiffs
+                ++ [ Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "With the toolbar"), Config.keep playground "Card" "headingLevel" (Card.headingLevel 4) ]))
+                        [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                            [ Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "Show the fields that did not change"), Config.keep playground "Switch" "checked" (Switch.checked model.showUnchanged), Config.keep playground "Switch" "onCheck" (Switch.onCheck ShowUnchanged) ]))
                             , Diff.view AuditMsg
                                 (List.concat
-                                    [ [ Diff.ariaLabel "Changes to the order", Diff.locale locale ]
+                                    [ Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "Changes to the order"), Config.keep playground "Diff" "locale" (Diff.locale locale) ])
                                     , if model.showUnchanged then
-                                        [ Diff.showUnchangedFields ]
+                                        Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "showUnchangedFields" Diff.showUnchangedFields ])
 
                                       else
                                         []
@@ -383,55 +395,58 @@ firstAudit entries =
             ( { who = "", when = "", fields = [] }, Diff.fields [] )
 
 
-auditCard : Locale -> ( AuditEntry, Diff.Diff ) -> Html Msg
-auditCard locale ( entry, diff ) =
-    Card.view [ Card.title entry.who, Card.subtitle entry.when, Card.headingLevel 4 ]
+auditCard : Config.Config -> Locale -> ( AuditEntry, Diff.Diff ) -> Html Msg
+auditCard playground locale ( entry, diff ) =
+    Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title entry.who), Config.keep playground "Card" "subtitle" (Card.subtitle entry.when), Config.keep playground "Card" "headingLevel" (Card.headingLevel 4) ]))
         [ Diff.viewStatic
-            [ Diff.ariaLabel ("Changes by " ++ entry.who ++ ", " ++ entry.when), Diff.locale locale ]
+            (Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel ("Changes by " ++ entry.who ++ ", " ++ entry.when)), Config.keep playground "Diff" "locale" (Diff.locale locale) ]))
             diff
         ]
 
 
-sameExample : Locale -> Model -> Html Msg
-sameExample locale model =
-    Doc.example
+sameExample : Config.Config -> Locale -> Model -> Html Msg
+sameExample playground locale model =
+    Doc.configuredExample playground
+        [ "Diff" ]
         { title = "No changes"
         , description = Just "Two equal versions say so, instead of showing an empty box. When an option was used the viewer says that too, as here: the two texts differ only in white space."
         , code = Just """Diff.lines [ Diff.ignoreWhitespace ] "Total:  42" "Total: 42"
     |> Diff.isEmpty -- True"""
         }
         (Diff.view SameMsg
-            [ Diff.ariaLabel "Changes to the total", Diff.locale locale ]
+            (Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "Changes to the total"), Config.keep playground "Diff" "locale" (Diff.locale locale) ]))
             model.same
             sameDiff
         )
 
 
-manyExample : Locale -> Model -> Html Msg
-manyExample locale model =
-    Doc.example
+manyExample : Config.Config -> Locale -> Model -> Html Msg
+manyExample playground locale model =
+    Doc.configuredExample playground
+        [ "Diff" ]
         { title = "A diff with many changes"
         , description = Just "400 changes in 1 200 lines. The first 200 are drawn, and the footer says so and shows more on request. \"Next change\" goes on to the 201st change by itself."
         , code = Just """Diff.view ManyMsg [ Diff.maxChanges 200 ] model.many model.manyDiff"""
         }
         (case model.manyDiff of
             Nothing ->
-                Layout.row [ Layout.gap 3, Layout.alignCenter ]
-                    [ Button.view [ Button.onClick CompareMany ] "Compare two texts of 1 200 lines"
+                Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick CompareMany) ])) "Compare two texts of 1 200 lines"
                     , Text.caption "About a tenth of a second."
                     ]
 
             Just diff ->
                 Diff.view ManyMsg
-                    [ Diff.ariaLabel "Changes to the pick list", Diff.maxHeight 420, Diff.locale locale ]
+                    (Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "Changes to the pick list"), Config.keep playground "Diff" "maxHeight" (Diff.maxHeight 420), Config.keep playground "Diff" "locale" (Diff.locale locale) ]))
                     model.many
                     diff
         )
 
 
-bigExample : Locale -> Model -> Html Msg
-bigExample locale model =
-    Doc.example
+bigExample : Config.Config -> Locale -> Model -> Html Msg
+bigExample playground locale model =
+    Doc.configuredExample playground
+        [ "Diff" ]
         { title = "Too large to compare"
         , description = Just "Two exports of 3 000 lines with nothing in common. The shortest set of changes would take far longer than the viewer allows (about a third of a second), so the diff degrades to a summary, and says so. Diff.tooLarge tells the application, which can offer the two files for download."
         , code = Just """case Diff.tooLarge diff of
@@ -444,14 +459,14 @@ bigExample locale model =
         }
         (case model.bigDiff of
             Nothing ->
-                Layout.row [ Layout.gap 3, Layout.alignCenter ]
-                    [ Button.view [ Button.onClick CompareBig ] "Compare two exports of 3 000 lines"
+                Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick CompareBig) ])) "Compare two exports of 3 000 lines"
                     , Text.caption "Takes about a third of a second."
                     ]
 
             Just diff ->
                 Diff.view BigMsg
-                    [ Diff.ariaLabel "Changes between the exports", Diff.locale locale ]
+                    (Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "Changes between the exports"), Config.keep playground "Diff" "locale" (Diff.locale locale) ]))
                     model.big
                     diff
         )
@@ -466,9 +481,10 @@ blockOfLines count =
         |> String.join "\n"
 
 
-blockExample : Locale -> Model -> Html Msg
-blockExample locale model =
-    Doc.example
+blockExample : Config.Config -> Locale -> Model -> Html Msg
+blockExample playground locale model =
+    Doc.configuredExample playground
+        [ "Diff" ]
         { title = "One huge block"
         , description = Just "A log of 20 000 lines that did not exist before is one change. The viewer draws the first 500 lines, says \"Showing 500 of 20,000 changed lines\" and offers 500 more; the focus goes to the first new line. A static view cuts the block the same way and has no button."
         , code = Just """Diff.lines [] "" newLog
@@ -476,14 +492,14 @@ blockExample locale model =
         }
         (case model.blockDiff of
             Nothing ->
-                Layout.row [ Layout.gap 3, Layout.alignCenter ]
-                    [ Button.view [ Button.onClick CompareBlock ] "Compare with a new log of 20 000 lines"
+                Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick CompareBlock) ])) "Compare with a new log of 20 000 lines"
                     , Text.caption "Draws 500 lines, not 20 000."
                     ]
 
             Just diff ->
                 Diff.view BlockMsg
-                    [ Diff.ariaLabel "The new log", Diff.maxHeight 420, Diff.locale locale ]
+                    (Options.klarDiff playground (List.concat [ Config.keep playground "Diff" "ariaLabel" (Diff.ariaLabel "The new log"), Config.keep playground "Diff" "maxHeight" (Diff.maxHeight 420), Config.keep playground "Diff" "locale" (Diff.locale locale) ]))
                     model.block
                     diff
         )

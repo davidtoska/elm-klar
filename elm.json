@@ -185,6 +185,10 @@
             "Klar.Icon.People",
             "Klar.Icon.Science"
         ],
+        "AI": [
+            "Klar.AiReview",
+            "Klar.AiChat"
+        ],
         "Files and media": [
             "Klar.UploadQueue"
         ],

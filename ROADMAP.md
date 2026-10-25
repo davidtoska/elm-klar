@@ -217,7 +217,16 @@ actual). M each or less. Built already: `Klar.Compare`, `TreeSelect`, `Cascader`
 The query language is the contract between a person, an AI and a backend: a person types
 it, an AI writes it, `Rule` is the typed result, the server runs it.
 
-## Phase E: AI interface (`Klar.Ai.*`)
+## Phase E: AI interface
+
+The first working slice is now `Klar.AiReview` and `Klar.AiChat`, with a dedicated
+AI workspace in the gallery. Review includes sources, exact before/after text,
+explanations, version-bound decisions and a slot for per-statement CommentThread
+discussions. Chat includes safe Markdown, partial messages, generation status,
+explicit stop/retry and revision-bound draft acknowledgement. The example simulates
+server conflicts, failed writes and cancellation tickets. Real providers and
+server persistence belong to each application. The typed-parts model below remains
+a possible extension; the current API does not claim to implement it.
 
 *"The assistant is in the application, and I stay in charge."*
 
@@ -236,11 +245,11 @@ First slice:
 
 | Component | Size |
 |---|---|
-| Conversation (roles, grouping, date separators, follows the newest message, "jump to latest", virtualised) | L |
-| Composer (grows with the text, Enter sends, Shift+Enter newline, IME safe, attachments, slash commands, send / stop, length meter) | L |
+| Conversation | `AiChat` built: roles and streamed Markdown; grouping, date separators, jump-to-latest and virtualisation remain |
+| Composer | `AiChat` built: explicit send/stop, raw drafts, length validation and late acknowledgement protection. Enter inserts a newline. Attachments and slash commands remain |
 | `Turn` states and typed parts | M |
 | Reasoning panel and tool call card (arguments in `JsonViewer`, status, duration, retry) | M |
-| **Approval request**: what the AI wants to do, why, risk level; approve, deny, edit; keyboard | M |
+| **Approval request** | `AiReview` built: rationale, sources, before/after, approve/reject, notes and per-statement discussion; risk policy and editing belong to the application |
 | Citations (numbered chips, hover card with the source) | M |
 | Provenance badge ("AI generated", model, time) and "AI summary" card with sources | S |
 | Usage meter (tokens, cost, context window) | S |

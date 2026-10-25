@@ -17,7 +17,9 @@ import Klar.Sortable as Sortable
 import Klar.Switch as Switch
 import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -193,14 +195,16 @@ update msg model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.section "Sortable"
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredSection playground
+        []
+        "Sortable"
         "A list the user puts in a new order. Take hold of the grip with the mouse, a finger or a pen and drag; or tab to the grip and press Space, move with the arrow keys (Home and End jump to the ends), and press Space again to drop (Escape cancels). While an item is held a line shows where it would land, and nothing else moves. A live region says what happens: picked up, moved to position, dropped, cancelled."
-        [ pickSequenceExample locale model
-        , chipsExample locale model
-        , planExample locale model
-        , shipmentsExample locale model
+        [ pickSequenceExample playground locale model
+        , chipsExample playground locale model
+        , planExample playground locale model
+        , shipmentsExample playground locale model
         ]
 
 
@@ -209,9 +213,10 @@ order names =
     String.join "  >  " names
 
 
-pickSequenceExample : Locale -> Model -> Html Msg
-pickSequenceExample locale model =
-    Doc.example
+pickSequenceExample : Config.Config -> Locale -> Model -> Html Msg
+pickSequenceExample playground locale model =
+    Doc.configuredExample playground
+        [ "Sortable" ]
         { title = "A pick sequence, with ids of its own type"
         , description = Just "The application keeps its steps in its own order and draws them in that order. When the user lets go, reorder puts the dropped step in its new place in the same update. The ids are a StepId, written as text once with Klar.Ids; no String ids in the code of the page."
         , code = Just """type StepId = StepId Int
@@ -247,13 +252,13 @@ Sortable.view StepsMsg
         model.steps
     )"""
         }
-        (Layout.stack [ Layout.gap 3 ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
             [ Sortable.view StepsMsg
-                [ Sortable.ariaLabel "Pick sequence", Sortable.locale locale ]
+                (Options.klarSortable playground (List.concat [ Config.keep playground "Sortable" "ariaLabel" (Sortable.ariaLabel "Pick sequence"), Config.keep playground "Sortable" "locale" (Sortable.locale locale) ]))
                 model.stepList
-                (List.map (\step -> Sortable.item stepIds step.id step.title (stepRow step)) model.steps)
-            , Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                [ Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick ResetSteps ] "Reset"
+                (List.map (\step -> Sortable.item stepIds step.id step.title (stepRow playground step)) model.steps)
+            , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick ResetSteps) ])) "Reset"
                 , Text.caption
                     (case Sortable.lifted stepIds model.stepList of
                         Just (StepId n) ->
@@ -268,18 +273,19 @@ Sortable.view StepsMsg
         )
 
 
-stepRow : Step -> Html msg
-stepRow step =
-    Layout.row [ Layout.gap 2, Layout.alignCenter ]
+stepRow : Config.Config -> Step -> Html msg
+stepRow playground step =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
         [ Html.span [ Attr.class "klar-truncate" ] [ Html.text step.title ]
         , Layout.spacer
         , Text.caption step.place
         ]
 
 
-chipsExample : Locale -> Model -> Html Msg
-chipsExample locale model =
-    Doc.example
+chipsExample : Config.Config -> Locale -> Model -> Html Msg
+chipsExample playground locale model =
+    Doc.configuredExample playground
+        [ "Sortable", "Ids" ]
         { title = "A chip list"
         , description = Just "Left and Right move an item in a horizontal list. The chips wrap onto more lines; the line shows the gap the item would land in. The ids are plain text here."
         , code = Just """Sortable.view ChipsMsg
@@ -300,22 +306,23 @@ ChipsMsg inner ->
     , Cmd.map ChipsMsg cmd
     )"""
         }
-        (Layout.stack [ Layout.gap 3 ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
             [ Sortable.view ChipsMsg
-                [ Sortable.horizontal, Sortable.ariaLabel "Preferred warehouses", Sortable.locale locale ]
+                (Options.klarSortable playground (List.concat [ Config.keep playground "Sortable" "horizontal" Sortable.horizontal, Config.keep playground "Sortable" "ariaLabel" (Sortable.ariaLabel "Preferred warehouses"), Config.keep playground "Sortable" "locale" (Sortable.locale locale) ]))
                 model.chipList
                 (List.map (\name -> Sortable.item Ids.string name name (Html.text name)) model.chips)
-            , Layout.row [ Layout.gap 2, Layout.alignCenter ]
-                [ Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick ResetChips ] "Reset"
+            , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick ResetChips) ])) "Reset"
                 , Text.caption (order model.chips)
                 ]
             ]
         )
 
 
-planExample : Locale -> Model -> Html Msg
-planExample locale model =
-    Doc.example
+planExample : Config.Config -> Locale -> Model -> Html Msg
+planExample playground locale model =
+    Doc.configuredExample playground
+        [ "Switch", "Sortable" ]
         { title = "Fixed steps, a locked list and an empty list"
         , description = Just "The first and the last step are fixed: they have a lock instead of a grip, cannot be moved, and nothing can be moved past them. Lock the list and every grip is dimmed and out of reach of the keyboard. The move buttons stop at the fixed steps too. Clear the list to see the empty state."
         , code = Just """Sortable.view PlanMsg
@@ -340,25 +347,29 @@ planExample locale model =
         model.plan
     )"""
         }
-        (Layout.stack [ Layout.gap 3 ]
-            [ Layout.row [ Layout.gap 3, Layout.alignCenter, Layout.wrap ]
-                [ Switch.view [ Switch.label "Lock the list", Switch.checked model.locked, Switch.onCheck SetLocked ]
-                , Button.view [ Button.small, Button.icon Icon.trash, Button.onClick ClearPlan ] "Clear the list"
-                , Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick ResetPlan ] "Reset"
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "Lock the list"), Config.keep playground "Switch" "checked" (Switch.checked model.locked), Config.keep playground "Switch" "onCheck" (Switch.onCheck SetLocked) ]))
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.trash), Config.keep playground "Button" "onClick" (Button.onClick ClearPlan) ])) "Clear the list"
+                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick ResetPlan) ])) "Reset"
                 ]
             , Sortable.view PlanMsg
-                [ Sortable.ariaLabel "Plan"
-                , Sortable.moveButtons
-                , Sortable.disabled model.locked
-                , Sortable.emptyText "No steps in the plan."
-                , Sortable.locale locale
-                ]
+                (Options.klarSortable playground
+                    (List.concat
+                        [ Config.keep playground "Sortable" "ariaLabel" (Sortable.ariaLabel "Plan")
+                        , Config.keep playground "Sortable" "moveButtons" Sortable.moveButtons
+                        , Config.keep playground "Sortable" "disabled" (Sortable.disabled model.locked)
+                        , Config.keep playground "Sortable" "emptyText" (Sortable.emptyText "No steps in the plan.")
+                        , Config.keep playground "Sortable" "locale" (Sortable.locale locale)
+                        ]
+                    )
+                )
                 model.planList
                 (List.map
                     (\step ->
                         let
                             row =
-                                Sortable.item stepIds step.id step.title (stepRow step)
+                                Sortable.item stepIds step.id step.title (stepRow playground step)
                         in
                         if step.fixed then
                             Sortable.fixed row
@@ -373,9 +384,10 @@ planExample locale model =
         )
 
 
-shipmentsExample : Locale -> Model -> Html Msg
-shipmentsExample locale model =
-    Doc.example
+shipmentsExample : Config.Config -> Locale -> Model -> Html Msg
+shipmentsExample playground locale model =
+    Doc.configuredExample playground
+        [ "Sortable", "Ids", "Badge" ]
         { title = "The whole item as the handle, and move buttons"
         , description = Just "With wholeItem the mouse can take hold of an item anywhere, except on its buttons and links. A finger uses the grip only, so the rest of the item still scrolls the page. moveButtons adds Move up and Move down to every item: the way to reorder for people who cannot drag. A press moves the item one place, through reorder like a drop, says where it went, and the focus stays on the button; at the end the button is dimmed and says that the item cannot move further. Nothing to write in the update."
         , code = Just """Sortable.view ShipmentsMsg
@@ -383,19 +395,19 @@ shipmentsExample locale model =
     model.shipmentList
     (List.map (\\number -> Sortable.item Ids.string number number (shipmentRow number)) model.shipments)"""
         }
-        (Layout.stack [ Layout.gap 3 ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
             [ Sortable.view ShipmentsMsg
-                [ Sortable.wholeItem, Sortable.moveButtons, Sortable.ariaLabel "Shipments", Sortable.locale locale ]
+                (Options.klarSortable playground (List.concat [ Config.keep playground "Sortable" "wholeItem" Sortable.wholeItem, Config.keep playground "Sortable" "moveButtons" Sortable.moveButtons, Config.keep playground "Sortable" "ariaLabel" (Sortable.ariaLabel "Shipments"), Config.keep playground "Sortable" "locale" (Sortable.locale locale) ]))
                 model.shipmentList
-                (List.map (\number -> Sortable.item Ids.string number number (shipmentRow number)) model.shipments)
+                (List.map (\number -> Sortable.item Ids.string number number (shipmentRow playground number)) model.shipments)
             , Text.caption ("Order: " ++ order model.shipments)
             ]
         )
 
 
-shipmentRow : String -> Html Msg
-shipmentRow number =
-    Layout.row [ Layout.gap 2, Layout.alignCenter ]
+shipmentRow : Config.Config -> String -> Html Msg
+shipmentRow playground number =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
         [ Html.span [ Attr.class "klar-tabular" ] [ Html.text number ]
-        , Badge.view [ Badge.tone Info ] "Ready to ship"
+        , Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) "Ready to ship"
         ]

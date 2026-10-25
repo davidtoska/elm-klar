@@ -37,7 +37,9 @@ import Page.Gallery.Tables.Budgets as Budgets
 import Page.Gallery.Tables.Large as Large
 import Process
 import Set
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 import Task
 import View.Ids exposing (orderRows)
@@ -1322,9 +1324,9 @@ disabledUnless allowed item =
         Menu.disabledItem item
 
 
-orderDetail : Locale -> Order -> Html Msg
-orderDetail locale o =
-    DescriptionList.view [ DescriptionList.columns 3, DescriptionList.density Theme.Compact, DescriptionList.locale locale ]
+orderDetail : Config.Config -> Locale -> Order -> Html Msg
+orderDetail playground locale o =
+    DescriptionList.view (Options.klarDescriptionList playground (List.concat [ Config.keep playground "DescriptionList" "columns" (DescriptionList.columns 3), Config.keep playground "DescriptionList" "density" (DescriptionList.density Theme.Compact), Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale) ]))
         [ DescriptionList.text "Warehouse" (Sample.warehouseName o.warehouse)
         , DescriptionList.text "Created" (Format.date locale o.created)
         , DescriptionList.text "Due" (Format.dateLong locale o.due)
@@ -1371,8 +1373,8 @@ serverColumns =
 {-| One helper for each kind of value. The columns depend on the locale because
 the cell of the total and the footer of the id write a currency and a count.
 -}
-kindColumns : Locale -> List (Table.Column Order Msg)
-kindColumns locale =
+kindColumns : Config.Config -> Locale -> List (Table.Column Order Msg)
+kindColumns playground locale =
     [ Table.text columnIds.id "Order" (.id >> orderIdText) [ Table.width 108, Table.cell (.id >> orderIdText >> Text.mono), Table.footer (orderCount locale) ]
     , Table.status columnIds.priority "Priority" priorityEntry [ Table.width 104, Table.sortNumber (.priority >> priorityRank) ]
     , Table.badge columnIds.status "Status" statusEntry [ Table.width 108, Table.sortNumber (.status >> statusRank) ]
@@ -1381,8 +1383,8 @@ kindColumns locale =
     , Table.maybeDate columnIds.delivered "Delivered" .delivered [ Table.width 112 ]
     , Table.int columnIds.lines "Lines" .lines [ Table.width 96, Table.footerSum ]
     , Table.money columnIds.total "Total" (.total >> dollars) [ Table.width 136, Table.filterRange, Table.footerSum ]
-    , Table.custom columnIds.progress "Progress" (viewProgress locale) [ Table.width 112, Table.sortNumber (steps >> toFloat), Table.exportAs progressText ]
-    , Table.actions columnIds.actions "Actions" orderButtons []
+    , Table.custom columnIds.progress "Progress" (viewProgress playground locale) [ Table.width 112, Table.sortNumber (steps >> toFloat), Table.exportAs progressText ]
+    , Table.actions columnIds.actions "Actions" (orderButtons playground) []
     ]
 
 
@@ -1409,22 +1411,30 @@ dollars amount =
         |> Maybe.withDefault (Money.zero Money.usd)
 
 
-viewProgress : Locale -> Order -> Html Msg
-viewProgress locale o =
+viewProgress : Config.Config -> Locale -> Order -> Html Msg
+viewProgress playground locale o =
     Progress.view
-        [ Progress.ariaLabel ("Progress of " ++ orderIdText o.id)
-        , Progress.locale locale
-        , Progress.outOf (steps o) 4
-        , Progress.segments 4
-        , Progress.size Theme.Small
-        , Progress.tone
-            (if o.status == Cancelled then
-                Danger
+        (Options.klarProgress playground
+            (List.concat
+                [ Config.keep playground "Progress" "ariaLabel" (Progress.ariaLabel ("Progress of " ++ orderIdText o.id))
+                , Config.keep playground "Progress" "locale" (Progress.locale locale)
+                , Config.keep playground "Progress" "outOf" (Progress.outOf (steps o) 4)
+                , Config.keep playground "Progress" "segments" (Progress.segments 4)
+                , Config.keep playground "Progress" "size" (Progress.size Theme.Small)
+                , Config.keep playground
+                    "Progress"
+                    "tone"
+                    (Progress.tone
+                        (if o.status == Cancelled then
+                            Danger
 
-             else
-                Primary
+                         else
+                            Primary
+                        )
+                    )
+                ]
             )
-        ]
+        )
 
 
 progressText : Order -> String
@@ -1432,10 +1442,10 @@ progressText o =
     String.fromInt (steps o * 25) ++ "%"
 
 
-orderButtons : Order -> List (Html Msg)
-orderButtons o =
-    [ Button.iconOnly [ Button.ghost, Button.small, Button.onClick (ColumnAction ("Opened " ++ orderIdText o.id ++ ".")) ] Icon.externalLink ("Open " ++ orderIdText o.id)
-    , Button.iconOnly [ Button.ghost, Button.small, Button.onClick (ColumnAction ("A label for " ++ orderIdText o.id ++ " is on its way to the printer.")) ] Icon.print ("Print a label for " ++ orderIdText o.id)
+orderButtons : Config.Config -> Order -> List (Html Msg)
+orderButtons playground o =
+    [ Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (ColumnAction ("Opened " ++ orderIdText o.id ++ "."))) ])) Icon.externalLink ("Open " ++ orderIdText o.id)
+    , Button.iconOnly (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (ColumnAction ("A label for " ++ orderIdText o.id ++ " is on its way to the printer."))) ])) Icon.print ("Print a label for " ++ orderIdText o.id)
     ]
 
 
@@ -1699,35 +1709,35 @@ stringList items =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.page
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredPage playground
         { title = "Tables"
         , description = "The data table for large amounts of data: search, column filters, sorting, selection with bulk actions, row actions, expandable rows, CSV export and pagination, in client mode (all rows in the browser) and server mode (one page at a time). Pagination also works on its own."
         }
-        [ Html.map BudgetMsg (Budgets.view locale model.budget)
-        , Html.Lazy.lazy2 clientSection locale model.client
-        , Html.Lazy.lazy2 serverSection locale model.server
-        , Html.Lazy.lazy2 columnsSection locale model.columns
-        , Html.Lazy.lazy2 viewsSection locale model.views
-        , Html.Lazy.lazy2 simpleSection locale model.simple
-        , Html.Lazy.lazy2 statesSection locale model.states
-        , Html.Lazy.lazy2 narrowSection locale model.narrow
-        , Html.Lazy.lazy norwegianSection model.norwegian
-        , Html.Lazy.lazy2 paginationSection locale model.pagers
-        , Html.Lazy.lazy2 largeSection locale model.large
+        [ Html.map BudgetMsg (Budgets.view playground locale model.budget)
+        , Html.Lazy.lazy2 (clientSection playground) locale model.client
+        , Html.Lazy.lazy2 (serverSection playground) locale model.server
+        , Html.Lazy.lazy2 (columnsSection playground) locale model.columns
+        , Html.Lazy.lazy2 (viewsSection playground) locale model.views
+        , Html.Lazy.lazy2 (simpleSection playground) locale model.simple
+        , Html.Lazy.lazy2 (statesSection playground) locale model.states
+        , Html.Lazy.lazy2 (narrowSection playground) locale model.narrow
+        , Html.Lazy.lazy (norwegianSection playground) model.norwegian
+        , Html.Lazy.lazy2 (paginationSection playground) locale model.pagers
+        , Html.Lazy.lazy2 (largeSection playground) locale model.large
         ]
 
 
-largeSection : Locale -> Large.Model -> Html Msg
-largeSection locale large =
-    Html.map LargeMsg (Large.view locale large)
+largeSection : Config.Config -> Locale -> Large.Model -> Html Msg
+largeSection playground locale large =
+    Html.map LargeMsg (Large.view playground locale large)
 
 
-eventRow : String -> String -> Html Msg
-eventRow label text =
-    Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-        [ Badge.view [ Badge.tone Info ] label
+eventRow : Config.Config -> String -> String -> Html Msg
+eventRow playground label text =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+        [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Info) ])) label
         , Text.secondary text
         ]
 
@@ -1749,61 +1759,75 @@ whileRefreshing busy rows =
         rows
 
 
-clientSection : Locale -> Client -> Html Msg
-clientSection locale client =
-    Doc.section "Client mode: everything on"
+clientSection : Config.Config -> Locale -> Client -> Html Msg
+clientSection playground locale client =
+    Doc.configuredSection playground
+        [ "Table" ]
+        "Client mode: everything on"
         "The table gets all 3,000 orders and searches, filters, sorts and pages them itself, building HTML only for the page on screen. Keyboard: the rows are one tab stop, not fifty. Tab goes to the row that last had focus, and on to its checkbox and its menu button. ArrowUp, ArrowDown, PageUp, PageDown, Home and End move between rows, Enter opens a row, Space selects it, ArrowRight and ArrowLeft show and hide its details, and Shift+F10 (or the menu key) opens its menu. Enter or Space on a column header sorts (with Shift to sort by more than one column). Escape closes filters and menus and clears the search box."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "Orders"
             , description = Just "Try: search for “rotterdam urgent”, filter on status, city and total, Shift-click a header to add a sort level, select rows and use the bulk actions, export CSV, hide columns, change the density, expand a row. Urgent open orders have a red accent, cancelled orders are disabled."
             , code = Just clientCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Switch.view
-                    [ Switch.label "Urgent orders only"
-                    , Switch.hint "A filter outside the table, applied with Table.rowFilter."
-                    , Switch.checked client.urgentOnly
-                    , Switch.onCheck UrgentOnlyToggled
-                    ]
+                    (Options.klarSwitch playground
+                        (List.concat
+                            [ Config.keep playground "Switch" "label" (Switch.label "Urgent orders only")
+                            , Config.keep playground "Switch" "hint" (Switch.hint "A filter outside the table, applied with Table.rowFilter.")
+                            , Config.keep playground "Switch" "checked" (Switch.checked client.urgentOnly)
+                            , Config.keep playground "Switch" "onCheck" (Switch.onCheck UrgentOnlyToggled)
+                            ]
+                        )
+                    )
                 , Table.view ClientTable
-                    ([ Table.columns clientColumns
-                     , Table.remote (whileRefreshing client.refreshing client.orders)
-                     , Table.rowId orderRows .id
-                     , Table.rowLabel orderLabel
-                     , Table.ariaLabel "Orders"
-                     , Table.locale locale
-                     , Table.searchable
-                     , Table.searchDebounce 120
-                     , Table.multiSort
-                     , Table.bulkActions
-                        [ Button.view [ Button.small, Button.icon Icon.ban, Button.onClick CancelSelected ] "Cancel orders"
-                        , Button.view [ Button.small, Button.icon Icon.send, Button.onClick RemindSelected ] "Send reminder"
-                        , Button.view [ Button.small, Button.danger, Button.icon Icon.trash, Button.onClick DeleteSelected ] "Delete"
-                        ]
-                     , Table.rowActions orderActions
-                     , Table.onRowClick Opened
-                     , Table.currentRow (\o -> Just o.id == client.opened)
-                     , Table.expandedRow (orderDetail locale)
-                     , Table.rowTone orderTone
-                     , Table.rowDisabled isCancelled
-                     , Table.toolbarActions [ Button.view [ Button.primary, Button.icon Icon.plus, Button.onClick NewOrder ] "New order" ]
-                     , Table.onRefresh Refresh
-                     , Table.exportCsv "orders.csv"
-                     , Table.columnChooser
-                     , Table.densityToggle
-                     , Table.maxHeight 560
-                     , Table.onResetFilters ExternalFilterCleared
-                     ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns clientColumns)
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" (whileRefreshing client.refreshing client.orders)))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "rowLabel" (Table.rowLabel orderLabel)
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "searchable" Table.searchable
+                            , Config.keep playground "Table" "searchDebounce" (Table.searchDebounce 120)
+                            , Config.keep playground "Table" "multiSort" Table.multiSort
+                            , Config.keep playground
+                                "Table"
+                                "bulkActions"
+                                (Table.bulkActions
+                                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.ban), Config.keep playground "Button" "onClick" (Button.onClick CancelSelected) ])) "Cancel orders"
+                                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.send), Config.keep playground "Button" "onClick" (Button.onClick RemindSelected) ])) "Send reminder"
+                                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "danger" Button.danger, Config.keep playground "Button" "icon" (Button.icon Icon.trash), Config.keep playground "Button" "onClick" (Button.onClick DeleteSelected) ])) "Delete"
+                                    ]
+                                )
+                            , Config.keep playground "Table" "rowActions" (Table.rowActions orderActions)
+                            , Config.keep playground "Table" "onRowClick" (Table.onRowClick Opened)
+                            , Config.keep playground "Table" "currentRow" (Table.currentRow (\o -> Just o.id == client.opened))
+                            , Config.keep playground "Table" "expandedRow" (Table.expandedRow (orderDetail playground locale))
+                            , Config.keep playground "Table" "rowTone" (Table.rowTone orderTone)
+                            , Config.keep playground "Table" "rowDisabled" (Table.rowDisabled isCancelled)
+                            , Config.keep playground "Table" "toolbarActions" (Table.toolbarActions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.plus), Config.keep playground "Button" "onClick" (Button.onClick NewOrder) ])) "New order" ])
+                            , Config.keep playground "Table" "onRefresh" (Table.onRefresh Refresh)
+                            , Config.keep playground "Table" "exportCsv" (Table.exportCsv "orders.csv")
+                            , Config.keep playground "Table" "columnChooser" Table.columnChooser
+                            , Config.keep playground "Table" "densityToggle" Table.densityToggle
+                            , Config.keep playground "Table" "maxHeight" (Table.maxHeight 560)
+                            , Config.keep playground "Table" "onResetFilters" (Table.onResetFilters ExternalFilterCleared)
+                            ]
+                        )
                         ++ (if client.urgentOnly then
-                                [ Table.rowFilter isUrgent, Table.activeExternalFilters 1 ]
+                                Options.klarTable playground (List.concat [ Config.keep playground "Table" "rowFilter" (Table.rowFilter isUrgent), Config.keep playground "Table" "activeExternalFilters" (Table.activeExternalFilters 1) ])
 
                             else
                                 []
                            )
                     )
                     client.table
-                , eventRow "Event" client.lastEvent
-                , Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
+                , eventRow playground "Event" client.lastEvent
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ Text.caption ("Selected: " ++ Format.int locale (List.length (Table.selectedIds orderRows client.table)) ++ " · Query:")
                     , Text.code (queryText (Table.query client.table))
                     ]
@@ -1854,8 +1878,8 @@ clientCode =
 -- VIEW: SERVER MODE
 
 
-serverSection : Locale -> Server -> Html Msg
-serverSection locale server =
+serverSection : Config.Config -> Locale -> Server -> Html Msg
+serverSection playground locale server =
     let
         status =
             case server.rows of
@@ -1872,48 +1896,63 @@ serverSection locale server =
                     else
                         "Ready. " ++ server.lastEvent
     in
-    Doc.section "Server mode"
+    Doc.configuredSection playground
+        [ "Table" ]
+        "Server mode"
         "The application gives the table only the page to show and the total; the table records what the user asks for. The application compares Table.query before and after update and fetches when the query changed. The “server” here is a pure function over Showcase.Sample.orders behind Process.sleep (400–900 ms). The search and the text filters wait 350 ms after the last key press before the query changes. “Select all N matching” gives Table.AllMatching, which the server uses together with the query."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "Page by page from a slow service"
             , description = Just "Page, sort, search and filter: the first load shows skeleton rows, later loads keep the rows dimmed under a progress line. Switch on “Simulate failure” and change the page to see the failure with “Try again”."
             , code = Just serverCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 5, Layout.wrap, Layout.alignCenter ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 5), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     [ Switch.view
-                        [ Switch.label "Simulate failure (HTTP 503)"
-                        , Switch.checked server.simulateError
-                        , Switch.onCheck SimulateErrorToggled
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Simulate failure (HTTP 503)")
+                                , Config.keep playground "Switch" "checked" (Switch.checked server.simulateError)
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck SimulateErrorToggled)
+                                ]
+                            )
+                        )
                     , Switch.view
-                        [ Switch.label "Slow server (+2.2 s)"
-                        , Switch.checked server.slowServer
-                        , Switch.onCheck SlowServerToggled
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "Slow server (+2.2 s)")
+                                , Config.keep playground "Switch" "checked" (Switch.checked server.slowServer)
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck SlowServerToggled)
+                                ]
+                            )
+                        )
                     , Layout.spacer
                     , Text.caption ("Requests: " ++ String.fromInt server.request)
                     ]
                 , Table.view ServerTable
-                    [ Table.columns serverColumns
-                    , Table.server { total = server.total }
-                    , Table.remote (whileRefreshing server.refreshing server.rows)
-                    , Table.rowId orderRows .id
-                    , Table.rowLabel orderLabel
-                    , Table.ariaLabel "Orders from the server"
-                    , Table.locale locale
-                    , Table.searchable
-                    , Table.multiSort
-                    , Table.bulkActions [ Button.view [ Button.small, Button.icon Icon.download, Button.onClick ServerExportSelected ] "Export on the server" ]
-                    , Table.onRetry ServerRetry
-                    , Table.onRefresh ServerRefresh
-                    , Table.exportCsv "orders-server.csv"
-                    , Table.columnChooser
-                    , Table.maxHeight 480
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns serverColumns)
+                            , Config.keep playground "Table" "server" (Table.server { total = server.total })
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" (whileRefreshing server.refreshing server.rows)))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "rowLabel" (Table.rowLabel orderLabel)
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders from the server")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "searchable" Table.searchable
+                            , Config.keep playground "Table" "multiSort" Table.multiSort
+                            , Config.keep playground "Table" "bulkActions" (Table.bulkActions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.download), Config.keep playground "Button" "onClick" (Button.onClick ServerExportSelected) ])) "Export on the server" ])
+                            , Config.keep playground "Table" "onRetry" (Table.onRetry ServerRetry)
+                            , Config.keep playground "Table" "onRefresh" (Table.onRefresh ServerRefresh)
+                            , Config.keep playground "Table" "exportCsv" (Table.exportCsv "orders-server.csv")
+                            , Config.keep playground "Table" "columnChooser" Table.columnChooser
+                            , Config.keep playground "Table" "maxHeight" (Table.maxHeight 480)
+                            ]
+                        )
+                    )
                     server.table
-                , eventRow "Status" status
-                , Layout.stack [ Layout.gap 1 ]
+                , eventRow playground "Status" status
+                , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 1) ]))
                     [ Text.caption ("The last query sent to the server (#" ++ String.fromInt server.request ++ "):")
                     , Text.codeBlock (queryBlock server.query)
                     ]
@@ -1963,58 +2002,70 @@ Table.view TableMsg
 -- VIEW: COLUMNS
 
 
-columnsSection : Locale -> Columns -> Html Msg
-columnsSection locale columns =
-    Doc.section "Columns"
+columnsSection : Config.Config -> Locale -> Columns -> Html Msg
+columnsSection playground locale columns =
+    Doc.configuredSection playground
+        [ "Table" ]
+        "Columns"
         "A column is data: an id, a title and a function that reads a value from the row. The helpers (text, int, float, date, maybeDate, badge, status, bool, custom and actions) set sensible defaults for each kind of value, and attributes refine them: width and alignment, pinning, hiding, tooltips, your own cell, how the column sorts, whether it is searched and exported, its filter and its footer."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "One helper for each kind of value"
             , description = Just "Order is text drawn with your own cell and counted in the footer, Priority a status dot, Status a badge, Overdue a yes / no column, Created a date, Delivered a date that may be missing, Lines an integer, Total an amount of money (Klar.Money) that sorts, filters by range and adds up exactly in the footer, Progress your own content with a sort and an export value (see the CSV file), and the last column holds inline buttons that never trigger a row click and are left out of the CSV file."
             , code = Just kindsCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Table.view KindsTable
-                    [ Table.columns (kindColumns locale)
-                    , Table.remote someOrders
-                    , Table.rowId orderRows .id
-                    , Table.rowLabel (.id >> orderIdText)
-                    , Table.ariaLabel "Order columns"
-                    , Table.locale locale
-                    , Table.exportCsv "orders-kinds.csv"
-                    , Table.pageSizes [ 10, 25, 50 ]
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns (kindColumns playground locale))
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" someOrders))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "rowLabel" (Table.rowLabel (.id >> orderIdText))
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Order columns")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "exportCsv" (Table.exportCsv "orders-kinds.csv")
+                            , Config.keep playground "Table" "pageSizes" (Table.pageSizes [ 10, 25, 50 ])
+                            ]
+                        )
+                    )
                     columns.kinds
-                , eventRow "Event" columns.lastEvent
+                , eventRow playground "Event" columns.lastEvent
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Table" ]
             { title = "Sorting, search and export"
             , description = Just "Sort by the headers, type a search such as “berg” or “18”, open the export menu. Each column has something set that differs from the default; the list under the table explains what."
             , code = Just sortingCode
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ Table.view SortingTable
-                    [ Table.columns (sortingColumns locale)
-                    , Table.remote someOrders
-                    , Table.rowId orderRows .id
-                    , Table.rowLabel (.id >> orderIdText)
-                    , Table.ariaLabel "Order sorting and export"
-                    , Table.locale locale
-                    , Table.searchable
-                    , Table.searchPlaceholder "Search orders, owners, notes ..."
-                    , Table.exportCsv "orders-columns.csv"
-                    , Table.csvSeparator ';'
-                    , Table.pageSizes [ 10, 25, 50 ]
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns (sortingColumns locale))
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" someOrders))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "rowLabel" (Table.rowLabel (.id >> orderIdText))
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Order sorting and export")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "searchable" Table.searchable
+                            , Config.keep playground "Table" "searchPlaceholder" (Table.searchPlaceholder "Search orders, owners, notes ...")
+                            , Config.keep playground "Table" "exportCsv" (Table.exportCsv "orders-columns.csv")
+                            , Config.keep playground "Table" "csvSeparator" (Table.csvSeparator ';')
+                            , Config.keep playground "Table" "pageSizes" (Table.pageSizes [ 10, 25, 50 ])
+                            ]
+                        )
+                    )
                     columns.sorting
-                , sortingNotes
+                , sortingNotes playground
                 ]
             )
         ]
 
 
-sortingNotes : Html Msg
-sortingNotes =
+sortingNotes : Config.Config -> Html Msg
+sortingNotes playground =
     let
         note title attributes explanation =
             DescriptionList.html title
@@ -2025,7 +2076,7 @@ sortingNotes =
                     ]
                 )
     in
-    DescriptionList.view [ DescriptionList.labelBeside, DescriptionList.labelWidth 110, DescriptionList.bordered, DescriptionList.density Theme.Compact ]
+    DescriptionList.view (Options.klarDescriptionList playground (List.concat [ Config.keep playground "DescriptionList" "labelBeside" DescriptionList.labelBeside, Config.keep playground "DescriptionList" "labelWidth" (DescriptionList.labelWidth 110), Config.keep playground "DescriptionList" "bordered" DescriptionList.bordered, Config.keep playground "DescriptionList" "density" (DescriptionList.density Theme.Compact) ]))
         [ note "Owner" "sortText" "Sorts by last name, not by the first name that is shown. Orders without an owner come last."
         , note "Due" "sortDate, exportAs" "Shown as “20 October 2026”, sorted by date, exported as an ISO date."
         , note "Delivery" "sortMaybeNumber, alignRight" "Sorts by days early or late. Orders that are not delivered yet are a dash and come last, whichever way you sort."
@@ -2096,44 +2147,51 @@ sortingCode =
 -- VIEW: SAVED VIEWS
 
 
-viewsSection : Locale -> Views -> Html Msg
-viewsSection locale views =
-    Doc.section "State: read it and restore it"
+viewsSection : Config.Config -> Locale -> Views -> Html Msg
+viewsSection playground locale views =
+    Doc.configuredSection playground
+        [ "Table" ]
+        "State: read it and restore it"
         "Everything the user can change lives in the table's State: sort, page, page size, search, filters, selection, expanded rows, hidden columns and density. Read it with the accessors, and set it with the setters to restore a view, one the user saved or one taken from the URL. There are no out-messages: compare the state before and after update to react to a change."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "Saved views"
             , description = Just "Each view button builds a state with the setters and puts it in the model. The search box, the filter popovers, the column chooser and the density buttons show it at once, and the last view opens one order and selects two others. The two buttons below change the state the user has now: they keep the sort, the density and the selection. The block under the table is the state read back with the accessors."
             , code = Just viewsCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     [ Text.caption "Views:"
-                    , Button.view [ Button.small, Button.onClick (ViewApplied AllOrders) ] (savedViewName AllOrders)
-                    , Button.view [ Button.small, Button.onClick (ViewApplied OpenAndUrgent) ] (savedViewName OpenAndUrgent)
-                    , Button.view [ Button.small, Button.onClick (ViewApplied LargeOrders) ] (savedViewName LargeOrders)
-                    , Button.view [ Button.small, Button.onClick (ViewApplied DeliveredInRotterdam) ] (savedViewName DeliveredInRotterdam)
-                    , Button.view [ Button.small, Button.onClick (ViewApplied ReviewOrders) ] (savedViewName ReviewOrders)
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (ViewApplied AllOrders)) ])) (savedViewName AllOrders)
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (ViewApplied OpenAndUrgent)) ])) (savedViewName OpenAndUrgent)
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (ViewApplied LargeOrders)) ])) (savedViewName LargeOrders)
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (ViewApplied DeliveredInRotterdam)) ])) (savedViewName DeliveredInRotterdam)
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (ViewApplied ReviewOrders)) ])) (savedViewName ReviewOrders)
                     , Layout.spacer
                     , Text.caption ("Last applied: " ++ views.applied)
                     ]
-                , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     [ Text.caption "On the live state:"
-                    , Button.view [ Button.small, Button.ghost, Button.onClick ViewFiltersCleared ] "Clear search and filters"
-                    , Button.view [ Button.small, Button.ghost, Button.onClick ViewPageThree ] "Go to page 3"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "onClick" (Button.onClick ViewFiltersCleared) ])) "Clear search and filters"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "onClick" (Button.onClick ViewPageThree) ])) "Go to page 3"
                     ]
                 , Table.view ViewsTable
-                    [ Table.columns clientColumns
-                    , Table.remote allOrders
-                    , Table.rowId orderRows .id
-                    , Table.rowLabel orderLabel
-                    , Table.ariaLabel "Orders with saved views"
-                    , Table.locale locale
-                    , Table.searchable
-                    , Table.selectable
-                    , Table.expandedRow (orderDetail locale)
-                    , Table.columnChooser
-                    , Table.densityToggle
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns clientColumns)
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" allOrders))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "rowLabel" (Table.rowLabel orderLabel)
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders with saved views")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "searchable" Table.searchable
+                            , Config.keep playground "Table" "selectable" Table.selectable
+                            , Config.keep playground "Table" "expandedRow" (Table.expandedRow (orderDetail playground locale))
+                            , Config.keep playground "Table" "columnChooser" Table.columnChooser
+                            , Config.keep playground "Table" "densityToggle" Table.densityToggle
+                            ]
+                        )
+                    )
                     views.table
                 , Text.codeBlock (stateBlock views.table)
                 ]
@@ -2190,43 +2248,55 @@ Table.density model.table"""
 -- VIEW: SIMPLE TABLES
 
 
-simpleSection : Locale -> Simple -> Html Msg
-simpleSection locale simple =
-    Doc.section "Simple tables"
+simpleSection : Config.Config -> Locale -> Simple -> Html Msg
+simpleSection playground locale simple =
+    Doc.configuredSection playground
+        [ "Table" ]
+        "Simple tables"
         "A short table without toolbar or paging: columns, rows and sorting. Numbers are right-aligned with tabular digits. The totals in the bottom row are computed by the table."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "Owners"
             , description = Just "Sorted by the number of orders, descending. Click a column header to sort; a third click removes the sort."
             , code = Just ownersCode
             }
             (Table.view OwnersTable
-                [ Table.columns ownerColumns
-                , Table.remote ownerRows
-                , Table.rowId Ids.string .name
-                , Table.ariaLabel "Owners"
-                , Table.locale locale
-                , Table.unpaged
-                , Table.zebra
-                ]
+                (Options.klarTable playground
+                    (List.concat
+                        [ Config.keep playground "Table" "columns" (Table.columns ownerColumns)
+                        , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" ownerRows))
+                        , Config.keep playground "Table" "rowId" (Table.rowId Ids.string .name)
+                        , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Owners")
+                        , Config.keep playground "Table" "locale" (Table.locale locale)
+                        , Config.keep playground "Table" "unpaged" Table.unpaged
+                        , Config.keep playground "Table" "zebra" Table.zebra
+                        ]
+                    )
+                )
                 simple.owners
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Table" ]
             { title = "Selection without a toolbar"
             , description = Just "A table with only checkboxes. The band above the table is always there and says “No rows selected”, so the rows do not jump down under the pointer when the first row is selected; then it is replaced by the bar with the bulk actions."
             , code = Just pickingCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Table.view PickingTable
-                    [ Table.columns ownerColumns
-                    , Table.remote ownerRows
-                    , Table.rowId Ids.string .name
-                    , Table.ariaLabel "Owners with selection"
-                    , Table.locale locale
-                    , Table.unpaged
-                    , Table.bulkActions [ Button.view [ Button.small, Button.icon Icon.send, Button.onClick PickingNotified ] "Send summary" ]
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns ownerColumns)
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" ownerRows))
+                            , Config.keep playground "Table" "rowId" (Table.rowId Ids.string .name)
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Owners with selection")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "unpaged" Table.unpaged
+                            , Config.keep playground "Table" "bulkActions" (Table.bulkActions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.send), Config.keep playground "Button" "onClick" (Button.onClick PickingNotified) ])) "Send summary" ])
+                            ]
+                        )
+                    )
                     simple.picking
-                , eventRow "Event" simple.lastEvent
+                , eventRow playground "Event" simple.lastEvent
                 ]
             )
         ]
@@ -2269,103 +2339,145 @@ pickingCode =
 -- VIEW: STATES
 
 
-statesSection : Locale -> States -> Html Msg
-statesSection locale states =
+statesSection : Config.Config -> Locale -> States -> Html Msg
+statesSection playground locale states =
     let
         lifecycle =
             states.lifecycle
     in
-    Doc.section "Empty states, loading and failure"
+    Doc.configuredSection playground
+        [ "Table" ]
+        "Empty states, loading and failure"
         "No data and no matches are different states: with no matches the user gets “Clear search and filters”. The header is always there, the skeleton rows are as tall as real rows, and a failure is shown inside the table with “Try again” when that can help."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "No data"
             , description = Just "Table.remote (Remote.Loaded []) with the application's own empty state."
             , code = Just emptyCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Table.view EmptyTable
-                    [ Table.columns smallColumns
-                    , Table.remote noOrders
-                    , Table.rowId orderRows .id
-                    , Table.ariaLabel "No orders"
-                    , Table.locale locale
-                    , Table.searchable
-                    , Table.emptyState
-                        [ EmptyState.title "No orders yet"
-                        , EmptyState.description "Orders you create show up here."
-                        , EmptyState.actions [ Button.view [ Button.primary, Button.icon Icon.plus, Button.onClick CreateOrder ] "Create order" ]
-                        ]
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns smallColumns)
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" noOrders))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "No orders")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "searchable" Table.searchable
+                            , Config.keep playground
+                                "Table"
+                                "emptyState"
+                                (Table.emptyState
+                                    (Options.klarEmptyState playground
+                                        (List.concat
+                                            [ Config.keep playground "EmptyState" "title" (EmptyState.title "No orders yet")
+                                            , Config.keep playground "EmptyState" "description" (EmptyState.description "Orders you create show up here.")
+                                            , Config.keep playground "EmptyState" "actions" (EmptyState.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.plus), Config.keep playground "Button" "onClick" (Button.onClick CreateOrder) ])) "Create order" ])
+                                            ]
+                                        )
+                                    )
+                                )
+                            ]
+                        )
+                    )
                     states.empty
-                , eventRow "Event" states.lastEvent
+                , eventRow playground "Event" states.lastEvent
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Table" ]
             { title = "No matches"
             , description = Just "3,000 rows, but the search “Zyxwv” matches none. “Clear search and filters” empties the search box and the filters."
             , code = Just noMatchCode
             }
             (Table.view NoMatchTable
-                [ Table.columns smallColumns
-                , Table.remote allOrders
-                , Table.rowId orderRows .id
-                , Table.ariaLabel "Orders without matches"
-                , Table.locale locale
-                , Table.searchable
-                , Table.maxHeight 360
-                ]
+                (Options.klarTable playground
+                    (List.concat
+                        [ Config.keep playground "Table" "columns" (Table.columns smallColumns)
+                        , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" allOrders))
+                        , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                        , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders without matches")
+                        , Config.keep playground "Table" "locale" (Table.locale locale)
+                        , Config.keep playground "Table" "searchable" Table.searchable
+                        , Config.keep playground "Table" "maxHeight" (Table.maxHeight 360)
+                        ]
+                    )
+                )
                 states.noMatch
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Table" ]
             { title = "Loading"
             , description = Just "Remote.Loading: skeleton rows with the right number of columns under the header, and aria-busy on the table."
             , code = Just loadingCode
             }
             (Table.view LoadingTable
-                [ Table.columns smallColumns
-                , Table.remote Remote.Loading
-                , Table.rowId orderRows .id
-                , Table.ariaLabel "Orders that are loading"
-                , Table.locale locale
-                , Table.searchable
-                , Table.selectable
-                ]
+                (Options.klarTable playground
+                    (List.concat
+                        [ Config.keep playground "Table" "columns" (Table.columns smallColumns)
+                        , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" Remote.Loading))
+                        , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                        , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders that are loading")
+                        , Config.keep playground "Table" "locale" (Table.locale locale)
+                        , Config.keep playground "Table" "searchable" Table.searchable
+                        , Config.keep playground "Table" "selectable" Table.selectable
+                        ]
+                    )
+                )
                 states.loading
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Table" ]
             { title = "Failed, and trying again"
             , description = Just ("Remote.Failed with Table.onRetry (and onRefresh). “Try again” is only offered when trying again could help: choose “No access” to see it go. An attempt takes a second and fails again until the service is back. Attempts so far: " ++ String.fromInt lifecycle.attempts ++ ".")
             , code = Just failedCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 5, Layout.wrap, Layout.alignCenter ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 5), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     [ SegmentedControl.view
-                        [ SegmentedControl.label "Kind of failure"
-                        , SegmentedControl.labelHidden
-                        , SegmentedControl.options
-                            [ SegmentedControl.option "network" "No connection"
-                            , SegmentedControl.option "server" "Server error"
-                            , SegmentedControl.option "forbidden" "No access"
-                            ]
-                        , SegmentedControl.selected (failureKindValue lifecycle.kind)
-                        , SegmentedControl.onChange FailureKindChosen
-                        ]
+                        (Options.klarSegmentedControl playground
+                            (List.concat
+                                [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Kind of failure")
+                                , Config.keep playground "SegmentedControl" "labelHidden" SegmentedControl.labelHidden
+                                , Config.keep playground
+                                    "SegmentedControl"
+                                    "options"
+                                    (SegmentedControl.options
+                                        [ SegmentedControl.option "network" "No connection"
+                                        , SegmentedControl.option "server" "Server error"
+                                        , SegmentedControl.option "forbidden" "No access"
+                                        ]
+                                    )
+                                , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (failureKindValue lifecycle.kind))
+                                , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange FailureKindChosen)
+                                ]
+                            )
+                        )
                     , Switch.view
-                        [ Switch.label "The service is back"
-                        , Switch.checked lifecycle.serviceBack
-                        , Switch.onCheck ServiceBackToggled
-                        ]
+                        (Options.klarSwitch playground
+                            (List.concat
+                                [ Config.keep playground "Switch" "label" (Switch.label "The service is back")
+                                , Config.keep playground "Switch" "checked" (Switch.checked lifecycle.serviceBack)
+                                , Config.keep playground "Switch" "onCheck" (Switch.onCheck ServiceBackToggled)
+                                ]
+                            )
+                        )
                     ]
                 , Table.view FailedTable
-                    [ Table.columns smallColumns
-                    , Table.remote lifecycle.rows
-                    , Table.rowId orderRows .id
-                    , Table.ariaLabel "Orders that failed to load"
-                    , Table.locale locale
-                    , Table.onRetry FailedRetry
-                    , Table.onRefresh FailedRetry
-                    , Table.unpaged
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns smallColumns)
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" lifecycle.rows))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders that failed to load")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "onRetry" (Table.onRetry FailedRetry)
+                            , Config.keep playground "Table" "onRefresh" (Table.onRefresh FailedRetry)
+                            , Config.keep playground "Table" "unpaged" Table.unpaged
+                            ]
+                        )
+                    )
                     states.failed
                 ]
             )
@@ -2418,29 +2530,36 @@ failedCode =
 -- VIEW: NARROW CONTAINER
 
 
-narrowSection : Locale -> Table.State OrderId -> Html Msg
-narrowSection locale table =
-    Doc.section "Narrow and long"
+narrowSection : Config.Config -> Locale -> Table.State OrderId -> Html Msg
+narrowSection playground locale table =
+    Doc.configuredSection playground
+        [ "Table" ]
+        "Narrow and long"
         "Many columns in a narrow container: the table scrolls sideways with a discreet shadow at the edge, the first column stays in place, and the header stays put while the rows scroll. Long values are cut with … and shown in full as a tooltip."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "11 columns in 640 px, compact density, 300 rows"
             , description = Just "The first row has very long values. Scroll sideways and down."
             , code = Just narrowCode
             }
-            (Layout.container [ Layout.maxWidth 640, Layout.alignStart ]
+            (Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 640), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
                 [ Table.view NarrowTable
-                    [ Table.columns narrowColumns
-                    , Table.remote narrowOrders
-                    , Table.rowId orderRows .id
-                    , Table.rowLabel orderLabel
-                    , Table.ariaLabel "Orders in a narrow container"
-                    , Table.locale locale
-                    , Table.searchable
-                    , Table.densityToggle
-                    , Table.exportCsv "orders-narrow.csv"
-                    , Table.maxHeight 320
-                    , Table.pageSizes [ 25, 50, 100 ]
-                    ]
+                    (Options.klarTable playground
+                        (List.concat
+                            [ Config.keep playground "Table" "columns" (Table.columns narrowColumns)
+                            , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" narrowOrders))
+                            , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                            , Config.keep playground "Table" "rowLabel" (Table.rowLabel orderLabel)
+                            , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders in a narrow container")
+                            , Config.keep playground "Table" "locale" (Table.locale locale)
+                            , Config.keep playground "Table" "searchable" Table.searchable
+                            , Config.keep playground "Table" "densityToggle" Table.densityToggle
+                            , Config.keep playground "Table" "exportCsv" (Table.exportCsv "orders-narrow.csv")
+                            , Config.keep playground "Table" "maxHeight" (Table.maxHeight 320)
+                            , Config.keep playground "Table" "pageSizes" (Table.pageSizes [ 25, 50, 100 ])
+                            ]
+                        )
+                    )
                     table
                 ]
             )
@@ -2472,25 +2591,32 @@ narrowCode =
 -- VIEW: LOCALE
 
 
-norwegianSection : Table.State OrderId -> Html Msg
-norwegianSection table =
-    Doc.section "Locale"
+norwegianSection : Config.Config -> Table.State OrderId -> Html Msg
+norwegianSection playground table =
+    Doc.configuredSection playground
+        [ "Table" ]
+        "Locale"
         "The built-in text (the search placeholder, the filter popovers, the footer, what screen readers hear), the number and date formats, the alphabetical order of text and the CSV separator follow the table's locale. The titles of your columns, and everything else you pass in, are your own text."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Table" ]
             { title = "The same table in Norwegian"
             , description = Just "Table.locale Locale.nb, whatever the language of the page: the search box, the filters, the footer and the pagination speak Norwegian, numbers get a decimal comma and a space between thousands (1 234,50 $), dates are written 20.10.2026, and the CSV file uses semicolons."
             , code = Just norwegianCode
             }
             (Table.view NorwegianTable
-                [ Table.columns norwegianColumns
-                , Table.remote allOrders
-                , Table.rowId orderRows .id
-                , Table.ariaLabel "Orders in Norwegian"
-                , Table.locale Locale.nb
-                , Table.searchable
-                , Table.exportCsv "orders-nb.csv"
-                , Table.maxHeight 420
-                ]
+                (Options.klarTable playground
+                    (List.concat
+                        [ Config.keep playground "Table" "columns" (Table.columns norwegianColumns)
+                        , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" allOrders))
+                        , Config.keep playground "Table" "rowId" (Table.rowId orderRows .id)
+                        , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders in Norwegian")
+                        , Config.keep playground "Table" "locale" (Table.locale Locale.nb)
+                        , Config.keep playground "Table" "searchable" Table.searchable
+                        , Config.keep playground "Table" "exportCsv" (Table.exportCsv "orders-nb.csv")
+                        , Config.keep playground "Table" "maxHeight" (Table.maxHeight 420)
+                        ]
+                    )
+                )
                 table
             )
         ]
@@ -2511,94 +2637,124 @@ norwegianCode =
 -- VIEW: PAGINATION
 
 
-paginationSection : Locale -> Pagers -> Html Msg
-paginationSection locale pagers =
-    Doc.section "Pagination"
+paginationSection : Config.Config -> Locale -> Pagers -> Html Msg
+paginationSection playground locale pagers =
+    Doc.configuredSection playground
+        [ "Pagination" ]
+        "Pagination"
         "Klar.Pagination is used by the table, but works on its own too. It is controlled: the application owns the page and the page size and changes them in onPage and onPageSize. The number of buttons is always the same, so nothing jumps while paging. Keyboard: every control is an ordinary button; type a page number in “Go to page” and press Enter."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Pagination" ]
             { title = "Full"
             , description = Just "The range, rows per page, first / previous / page numbers / next / last, and go to page. The block under it is the same arithmetic as plain functions, for fetching and showing pages yourself."
             , code = Just fullPagerCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ Pagination.view
-                    [ Pagination.id "pager-full"
-                    , Pagination.ariaLabel "Order pages"
-                    , Pagination.onPage FullPage
-                    , Pagination.onPageSize FullPageSize
-                    , Pagination.jumpToPage
-                    , Pagination.locale locale
-                    ]
+                    (Options.klarPagination playground
+                        (List.concat
+                            [ Config.keep playground "Pagination" "id" (Pagination.id "pager-full")
+                            , Config.keep playground "Pagination" "ariaLabel" (Pagination.ariaLabel "Order pages")
+                            , Config.keep playground "Pagination" "onPage" (Pagination.onPage FullPage)
+                            , Config.keep playground "Pagination" "onPageSize" (Pagination.onPageSize FullPageSize)
+                            , Config.keep playground "Pagination" "jumpToPage" Pagination.jumpToPage
+                            , Config.keep playground "Pagination" "locale" (Pagination.locale locale)
+                            ]
+                        )
+                    )
                     { page = pagers.full.page, pageSize = pagers.full.pageSize, total = 3000 }
                 , Text.codeBlock (pageMath { page = pagers.full.page, pageSize = pagers.full.pageSize, total = 3000 })
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Pagination" ]
             { title = "Compact"
             , description = Just "For cards and side panels."
             , code = Just "Pagination.view [ Pagination.compact, Pagination.onPage PageChanged ] { page = model.page, pageSize = 25, total = 3000 }"
             }
             (Pagination.view
-                [ Pagination.id "pager-compact"
-                , Pagination.ariaLabel "Compact order pages"
-                , Pagination.compact
-                , Pagination.onPage CompactPage
-                , Pagination.locale locale
-                ]
+                (Options.klarPagination playground
+                    (List.concat
+                        [ Config.keep playground "Pagination" "id" (Pagination.id "pager-compact")
+                        , Config.keep playground "Pagination" "ariaLabel" (Pagination.ariaLabel "Compact order pages")
+                        , Config.keep playground "Pagination" "compact" Pagination.compact
+                        , Config.keep playground "Pagination" "onPage" (Pagination.onPage CompactPage)
+                        , Config.keep playground "Pagination" "locale" (Pagination.locale locale)
+                        ]
+                    )
+                )
                 { page = pagers.compact, pageSize = 25, total = 3000 }
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Pagination" ]
             { title = "Few pages and very many pages"
             , description = Just "42 rows make 5 pages without an ellipsis. 1,000,000 rows make 40,000 pages, with two neighbors on each side of the current page."
             , code = Just "Pagination.view [ Pagination.siblings 2, Pagination.onPage PageChanged, Pagination.jumpToPage ] { page = model.page, pageSize = 25, total = 1000000 }"
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ Pagination.view
-                    [ Pagination.id "pager-few"
-                    , Pagination.ariaLabel "Few order pages"
-                    , Pagination.onPage FewPage
-                    , Pagination.locale locale
-                    ]
+                    (Options.klarPagination playground
+                        (List.concat
+                            [ Config.keep playground "Pagination" "id" (Pagination.id "pager-few")
+                            , Config.keep playground "Pagination" "ariaLabel" (Pagination.ariaLabel "Few order pages")
+                            , Config.keep playground "Pagination" "onPage" (Pagination.onPage FewPage)
+                            , Config.keep playground "Pagination" "locale" (Pagination.locale locale)
+                            ]
+                        )
+                    )
                     { page = pagers.few, pageSize = 10, total = 42 }
                 , Pagination.view
-                    [ Pagination.id "pager-many"
-                    , Pagination.ariaLabel "Many order pages"
-                    , Pagination.onPage ManyPage
-                    , Pagination.siblings 2
-                    , Pagination.jumpToPage
-                    , Pagination.locale locale
-                    ]
+                    (Options.klarPagination playground
+                        (List.concat
+                            [ Config.keep playground "Pagination" "id" (Pagination.id "pager-many")
+                            , Config.keep playground "Pagination" "ariaLabel" (Pagination.ariaLabel "Many order pages")
+                            , Config.keep playground "Pagination" "onPage" (Pagination.onPage ManyPage)
+                            , Config.keep playground "Pagination" "siblings" (Pagination.siblings 2)
+                            , Config.keep playground "Pagination" "jumpToPage" Pagination.jumpToPage
+                            , Config.keep playground "Pagination" "locale" (Pagination.locale locale)
+                            ]
+                        )
+                    )
                     { page = pagers.many, pageSize = 25, total = 1000000 }
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Pagination" ]
             { title = "Empty and disabled"
             , description = Just "No rows, and disabled with a message of its own in place of the range while a page loads."
             , code = Just "Pagination.view [ Pagination.disabled True, Pagination.summary [ Text.text \"Loading orders ...\" ] ] { page = 3, pageSize = 25, total = 3000 }"
             }
-            (Layout.stack [ Layout.gap 4 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
                 [ Pagination.view
-                    [ Pagination.id "pager-empty"
-                    , Pagination.ariaLabel "Empty order pages"
-                    , Pagination.onPage (\_ -> NoOp)
-                    , Pagination.onPageSize (\_ -> NoOp)
-                    , Pagination.locale locale
-                    ]
+                    (Options.klarPagination playground
+                        (List.concat
+                            [ Config.keep playground "Pagination" "id" (Pagination.id "pager-empty")
+                            , Config.keep playground "Pagination" "ariaLabel" (Pagination.ariaLabel "Empty order pages")
+                            , Config.keep playground "Pagination" "onPage" (Pagination.onPage (\_ -> NoOp))
+                            , Config.keep playground "Pagination" "onPageSize" (Pagination.onPageSize (\_ -> NoOp))
+                            , Config.keep playground "Pagination" "locale" (Pagination.locale locale)
+                            ]
+                        )
+                    )
                     { page = 1, pageSize = 25, total = 0 }
                 , Pagination.view
-                    [ Pagination.id "pager-disabled"
-                    , Pagination.ariaLabel "Disabled order pages"
-                    , Pagination.disabled True
-                    , Pagination.summary [ Text.text "Loading orders ..." ]
-                    , Pagination.onPage (\_ -> NoOp)
-                    , Pagination.onPageSize (\_ -> NoOp)
-                    , Pagination.jumpToPage
-                    , Pagination.locale locale
-                    ]
+                    (Options.klarPagination playground
+                        (List.concat
+                            [ Config.keep playground "Pagination" "id" (Pagination.id "pager-disabled")
+                            , Config.keep playground "Pagination" "ariaLabel" (Pagination.ariaLabel "Disabled order pages")
+                            , Config.keep playground "Pagination" "disabled" (Pagination.disabled True)
+                            , Config.keep playground "Pagination" "summary" (Pagination.summary [ Text.text "Loading orders ..." ])
+                            , Config.keep playground "Pagination" "onPage" (Pagination.onPage (\_ -> NoOp))
+                            , Config.keep playground "Pagination" "onPageSize" (Pagination.onPageSize (\_ -> NoOp))
+                            , Config.keep playground "Pagination" "jumpToPage" Pagination.jumpToPage
+                            , Config.keep playground "Pagination" "locale" (Pagination.locale locale)
+                            ]
+                        )
+                    )
                     { page = 3, pageSize = 25, total = 3000 }
                 ]
             )
-        , Layout.stack [ Layout.gap 2 ]
+        , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
             [ Text.subheading "Attributes"
             , Doc.props
                 [ { name = "onPage", type_ = "Int -> msg", description = "The page the user chose, counted from 1 and always valid. Sent by the page buttons, first / previous / next / last and “Go to page”." }

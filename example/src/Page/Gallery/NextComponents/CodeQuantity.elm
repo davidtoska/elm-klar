@@ -16,6 +16,8 @@ import Klar.Settings exposing (Settings)
 import Klar.Text as Text
 import Klar.TextArea as TextArea
 import Klar.Theme exposing (Tone(..))
+import Showcase.Config as Config
+import Showcase.Options as Options
 
 
 type UnitId
@@ -74,13 +76,16 @@ init =
     )
 
 
-attributes : Locale -> List (Quantity.Attribute msg)
-attributes locale =
-    [ Quantity.label "Shipment mass"
-    , Quantity.required
-    , Quantity.hint "Change kg to g: the number stays exactly as typed. Conversion is a separate business decision."
-    , Quantity.locale locale
-    ]
+attributes : Config.Config -> Locale -> List (Quantity.Attribute msg)
+attributes playground locale =
+    Options.klarQuantityInput playground
+        (List.concat
+            [ Config.keep playground "QuantityInput" "label" (Quantity.label "Shipment mass")
+            , Config.keep playground "QuantityInput" "required" Quantity.required
+            , Config.keep playground "QuantityInput" "hint" (Quantity.hint "Change kg to g: the number stays exactly as typed. Conversion is a separate business decision.")
+            , Config.keep playground "QuantityInput" "locale" (Quantity.locale locale)
+            ]
+        )
         ++ (Quantity.between 0 500 |> Maybe.map (Quantity.limits >> List.singleton) |> Maybe.withDefault [])
 
 
@@ -136,13 +141,13 @@ subscriptions _ =
     Sub.none
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view _ locale model =
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground _ locale model =
     let
         status result =
             case result of
                 Err message ->
-                    Alert.view [ Alert.tone Warning, Alert.compact ] message
+                    Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Warning), Config.keep playground "Alert" "compact" Alert.compact ])) message
 
                 Ok Nothing ->
                     Text.secondary "No quantity entered."
@@ -154,51 +159,58 @@ view _ locale model =
             { ids = unitIds, units = [ Quantity.unit Percent "Percent" "%" ] }
 
         discountAttributes =
-            [ Quantity.label "Discount", Quantity.locale locale, Quantity.required ] ++ (Quantity.between 0 100 |> Maybe.map (Quantity.limits >> List.singleton) |> Maybe.withDefault [])
+            Options.klarQuantityInput playground (List.concat [ Config.keep playground "QuantityInput" "label" (Quantity.label "Discount"), Config.keep playground "QuantityInput" "locale" (Quantity.locale locale), Config.keep playground "QuantityInput" "required" Quantity.required ]) ++ (Quantity.between 0 100 |> Maybe.map (Quantity.limits >> List.singleton) |> Maybe.withDefault [])
     in
-    Layout.stack [ Layout.gap 6 ]
-        [ Card.view [ Card.title "QuantityInput: exact text, explicit units", Card.headingLevel 2 ]
-            [ Layout.stack [ Layout.gap 4 ]
-                [ Quantity.view QuantityMsg (attributes locale) (catalogue model) model.quantity
-                , Text.secondary ("Raw input: " ++ Quantity.raw model.quantity)
-                , status (Quantity.value (attributes locale) (catalogue model) model.quantity)
-                , Quantity.view DiscountMsg discountAttributes discountCatalogue model.discount
-                , status (Quantity.value discountAttributes discountCatalogue model.discount)
-                , Layout.row [ Layout.gap 2, Layout.wrap ]
-                    [ Button.view [ Button.onClick ToggleUnit ]
-                        (if model.kilogramsAvailable then
-                            "Remove kg from catalogue"
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+        [ Config.only playground
+            [ "QuantityInput" ]
+            (Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "QuantityInput: exact text, explicit units"), Config.keep playground "Card" "headingLevel" (Card.headingLevel 2) ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                    [ Quantity.view QuantityMsg (attributes playground locale) (catalogue model) model.quantity
+                    , Text.secondary ("Raw input: " ++ Quantity.raw model.quantity)
+                    , status (Quantity.value (attributes playground locale) (catalogue model) model.quantity)
+                    , Quantity.view DiscountMsg discountAttributes discountCatalogue model.discount
+                    , status (Quantity.value discountAttributes discountCatalogue model.discount)
+                    , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                        [ Options.buttonView playground
+                            (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick ToggleUnit) ]))
+                            (if model.kilogramsAvailable then
+                                "Remove kg from catalogue"
 
-                         else
-                            "Restore kg to catalogue"
-                        )
-                    , Button.view [ Button.primary, Button.onClick Submit ] "Validate quantities"
-                    , Button.view [ Button.onClick Reset ] "Reset examples"
+                             else
+                                "Restore kg to catalogue"
+                            )
+                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "onClick" (Button.onClick Submit) ])) "Validate quantities"
+                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Reset) ])) "Reset examples"
+                        ]
+                    , case model.submitted of
+                        Just message ->
+                            Text.secondary message
+
+                        Nothing ->
+                            Html.text ""
                     ]
-                , case model.submitted of
-                    Just message ->
-                        Text.secondary message
-
-                    Nothing ->
-                        Html.text ""
                 ]
-            ]
-        , Card.view [ Card.title "CodeBlock: inspect and download the exact source", Card.headingLevel 2 ]
-            [ Layout.stack [ Layout.gap 4 ]
-                [ TextArea.view [ TextArea.label "Payload to inspect", TextArea.value model.source, TextArea.onInput Source, TextArea.rows 6 ]
-                , Button.view [ Button.onClick TogglePreview, Button.pressed model.preview ] "Limit preview to three lines"
-                , Code.view
-                    ([ Code.language Code.json, Code.lineNumbers True, Code.highlightLines [ 3, 4 ], Code.maxHeight 300, Code.download "order-payload.json", Code.locale locale ]
-                        ++ (if model.preview then
-                                [ Code.maxLines 3 ]
+            )
+        , Config.only playground
+            [ "CodeBlock" ]
+            (Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "CodeBlock: inspect and download the exact source"), Config.keep playground "Card" "headingLevel" (Card.headingLevel 2) ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                    [ TextArea.view (Options.klarTextArea playground (List.concat [ Config.keep playground "TextArea" "label" (TextArea.label "Payload to inspect"), Config.keep playground "TextArea" "value" (TextArea.value model.source), Config.keep playground "TextArea" "onInput" (TextArea.onInput Source), Config.keep playground "TextArea" "rows" (TextArea.rows 6) ]))
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick TogglePreview), Config.keep playground "Button" "pressed" (Button.pressed model.preview) ])) "Limit preview to three lines"
+                    , Code.view
+                        (Options.klarCodeBlock playground (List.concat [ Config.keep playground "CodeBlock" "language" (Code.language Code.json), Config.keep playground "CodeBlock" "lineNumbers" (Code.lineNumbers True), Config.keep playground "CodeBlock" "highlightLines" (Code.highlightLines [ 3, 4 ]), Config.keep playground "CodeBlock" "maxHeight" (Code.maxHeight 300), Config.keep playground "CodeBlock" "download" (Code.download "order-payload.json"), Config.keep playground "CodeBlock" "locale" (Code.locale locale) ])
+                            ++ (if model.preview then
+                                    Options.klarCodeBlock playground (List.concat [ Config.keep playground "CodeBlock" "maxLines" (Code.maxLines 3) ])
 
-                            else
-                                []
-                           )
-                    )
-                    { id = "inspected-payload", label = "Order payload", source = model.source }
-                , Code.view [ Code.language Code.elm, Code.lineNumbers True, Code.locale locale ]
-                    { id = "elm-source-example", label = "Elm: nested comments and strings", source = "{- Shipping policy\n   {- Internal note: review exceptions. -}\n-}\npolicy order =\n    if order.total > 500 then\n        \"Review required\"\n    else\n        \"Ready\"\n" }
+                                else
+                                    []
+                               )
+                        )
+                        { id = "inspected-payload", label = "Order payload", source = model.source }
+                    , Code.view (Options.klarCodeBlock playground (List.concat [ Config.keep playground "CodeBlock" "language" (Code.language Code.elm), Config.keep playground "CodeBlock" "lineNumbers" (Code.lineNumbers True), Config.keep playground "CodeBlock" "locale" (Code.locale locale) ]))
+                        { id = "elm-source-example", label = "Elm: nested comments and strings", source = "{- Shipping policy\n   {- Internal note: review exceptions. -}\n-}\npolicy order =\n    if order.total > 500 then\n        \"Review required\"\n    else\n        \"Ready\"\n" }
+                    ]
                 ]
-            ]
+            )
         ]

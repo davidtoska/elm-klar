@@ -20,7 +20,9 @@ import Klar.Switch as Switch
 import Klar.Table as Table
 import Klar.Text as Text
 import Klar.VirtualList as VirtualList
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -277,68 +279,89 @@ rowsAttribute model =
         Table.remote model.list
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.section "50 000 rows"
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredSection playground
+        [ "Table", "VirtualList" ]
+        "50 000 rows"
         "A large collection is a normal case: a table and a list over 50 000 generated rows, in one page. Search, sort and page or scroll, and every step stays under a tenth of a second."
         [ Doc.example
             { title = "Load"
             , description = Just "The rows are made here, in the example, by a small generator. Prepared rows are made once, when the rows arrive; turn the switch off to give the table a plain list instead and feel the difference."
             , code = Just loadCode
             }
-            (Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
-                [ Button.view [ Button.onClick (Load locale) ] "Load 50 000 rows"
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick (Load locale)) ])) "Load 50 000 rows"
                 , Switch.view
-                    [ Switch.label "Prepared rows"
-                    , Switch.checked model.useRows
-                    , Switch.onCheck PreparedToggled
-                    ]
+                    (Options.klarSwitch playground
+                        (List.concat
+                            [ Config.keep playground "Switch" "label" (Switch.label "Prepared rows")
+                            , Config.keep playground "Switch" "checked" (Switch.checked model.useRows)
+                            , Config.keep playground "Switch" "onCheck" (Switch.onCheck PreparedToggled)
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Table" ]
             { title = "Table, in pages"
             , description = Just "Pages of 25 rows: the way to read a table that people search, filter and sort to find a few rows."
             , code = Nothing
             }
             (Table.view PagedMsg
-                [ Table.columns columns
-                , rowsAttribute model
-                , Table.rowId itemIds .id
-                , Table.searchable
-                , Table.ariaLabel "Items, in pages"
-                , Table.locale locale
-                ]
+                (Options.klarTable playground
+                    (List.concat
+                        [ Config.keep playground "Table" "columns" (Table.columns columns)
+                        , [ rowsAttribute model ]
+                        , Config.keep playground "Table" "rowId" (Table.rowId itemIds .id)
+                        , Config.keep playground "Table" "searchable" Table.searchable
+                        , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Items, in pages")
+                        , Config.keep playground "Table" "locale" (Table.locale locale)
+                        ]
+                    )
+                )
                 model.paged
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Table" ]
             { title = "Table, scrolling"
             , description = Just "The same rows in one list that scrolls, with the header and the totals in view: the way to read a long table from the top. Only the rows in view are drawn. Click a row, then use the arrow keys, PageUp, PageDown, Home and End."
             , code = Just scrollingCode
             }
             (Table.view ScrollingMsg
-                [ Table.columns columns
-                , rowsAttribute model
-                , Table.rowId itemIds .id
-                , Table.virtual
-                , Table.searchable
-                , Table.selectable
-                , Table.densityToggle
-                , Table.ariaLabel "Items, scrolling"
-                , Table.locale locale
-                ]
+                (Options.klarTable playground
+                    (List.concat
+                        [ Config.keep playground "Table" "columns" (Table.columns columns)
+                        , [ rowsAttribute model ]
+                        , Config.keep playground "Table" "rowId" (Table.rowId itemIds .id)
+                        , Config.keep playground "Table" "virtual" Table.virtual
+                        , Config.keep playground "Table" "searchable" Table.searchable
+                        , Config.keep playground "Table" "selectable" Table.selectable
+                        , Config.keep playground "Table" "densityToggle" Table.densityToggle
+                        , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Items, scrolling")
+                        , Config.keep playground "Table" "locale" (Table.locale locale)
+                        ]
+                    )
+                )
                 model.scrolling
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "VirtualList" ]
             { title = "List"
             , description = Just "A plain list of equal rows that people scan and pick from. The list makes its own rows, so it needs no height and no style, and it is one tab stop: ArrowDown, ArrowUp, Home, End, PageDown and PageUp move through the rows, Enter picks one."
             , code = Just listCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ SearchInput.view SearchMsg
-                    [ SearchInput.placeholder "Search 50,000 items ..."
-                    , SearchInput.ariaLabel "Search the items"
-                    , SearchInput.locale locale
-                    ]
+                    (Options.klarSearchInput playground
+                        (List.concat
+                            [ Config.keep playground "SearchInput" "placeholder" (SearchInput.placeholder "Search 50,000 items ...")
+                            , Config.keep playground "SearchInput" "ariaLabel" (SearchInput.ariaLabel "Search the items")
+                            , Config.keep playground "SearchInput" "locale" (SearchInput.locale locale)
+                            ]
+                        )
+                    )
                     model.search
                 , Text.secondary
                     (Format.int locale (Array.length model.results)
@@ -354,23 +377,31 @@ view locale model =
                            )
                     )
                 , VirtualList.list ListMsg
-                    [ VirtualList.onSelect ItemPicked
-                    , VirtualList.selected model.picked
-                    , VirtualList.height 352
-                    ]
-                    { label = "Items", items = model.results, viewRow = viewItem }
+                    (Options.klarVirtualList playground
+                        (List.concat
+                            [ Config.keep playground "VirtualList" "onSelect" (VirtualList.onSelect ItemPicked)
+                            , Config.keep playground "VirtualList" "selected" (VirtualList.selected model.picked)
+                            , Config.keep playground "VirtualList" "height" (VirtualList.height 352)
+                            ]
+                        )
+                    )
+                    { label = "Items", items = model.results, viewRow = viewItem playground }
                     model.listState
                 ]
             )
         ]
 
 
-viewItem : Item -> Html msg
-viewItem found =
+viewItem : Config.Config -> Item -> Html msg
+viewItem playground found =
     ListItem.content
-        [ ListItem.secondary (found.category ++ ", " ++ found.warehouse)
-        , ListItem.meta (String.fromInt found.quantity ++ " in stock")
-        ]
+        (Options.klarListItem playground
+            (List.concat
+                [ Config.keep playground "ListItem" "secondary" (ListItem.secondary (found.category ++ ", " ++ found.warehouse))
+                , Config.keep playground "ListItem" "meta" (ListItem.meta (String.fromInt found.quantity ++ " in stock"))
+                ]
+            )
+        )
         found.name
 
 

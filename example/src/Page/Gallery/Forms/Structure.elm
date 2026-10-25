@@ -20,7 +20,9 @@ import Klar.Theme exposing (Size(..))
 import Klar.Validate as Validate
 import Page.Gallery.Forms.Common exposing (stack)
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 
 
@@ -219,27 +221,30 @@ mapMini change model =
 -- VIEW
 
 
-sections : Locale -> Model -> List (Html Msg)
-sections lang model =
-    [ formLayout lang model ]
+sections : Config.Config -> Locale -> Model -> List (Html Msg)
+sections playground lang model =
+    [ formLayout playground lang model ]
 
 
 {-| A text field of the layout example. It keeps what is typed.
 -}
-layoutField : Model -> String -> String -> List (TextInput.Attribute Msg) -> Html Msg
-layoutField model key label extra =
+layoutField : Config.Config -> Model -> String -> String -> List (TextInput.Attribute Msg) -> Html Msg
+layoutField playground model key label extra =
     TextInput.view
-        ([ TextInput.label label
-         , TextInput.id key
-         , TextInput.value (textOf key model)
-         , TextInput.onInput (TextChanged key)
-         ]
+        (Options.klarTextInput playground
+            (List.concat
+                [ Config.keep playground "TextInput" "label" (TextInput.label label)
+                , Config.keep playground "TextInput" "id" (TextInput.id key)
+                , Config.keep playground "TextInput" "value" (TextInput.value (textOf key model))
+                , Config.keep playground "TextInput" "onInput" (TextInput.onInput (TextChanged key))
+                ]
+            )
             ++ extra
         )
 
 
-formLayout : Locale -> Model -> Html Msg
-formLayout lang model =
+formLayout : Config.Config -> Locale -> Model -> Html Msg
+formLayout playground lang model =
     let
         mini =
             model.mini
@@ -257,9 +262,12 @@ formLayout lang model =
         dirty =
             model.unsavedText /= model.unsavedBaseline
     in
-    Doc.section "Form layout"
+    Doc.configuredSection playground
+        [ "Form.Layout" ]
+        "Form layout"
         "FormLayout.view makes a form without the browser's own validation. Sections have a title and an explanation on the left and the fields on the right (above each other on a narrow screen, or with \"stacked\"). FormLayout.grid puts fields in columns. The error summary links to each field, and the link moves keyboard focus there."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Form.Layout" ]
             { title = "Sections and columns"
             , description = Just "Turn on \"Stacked layout\" to see the version for narrow places such as dialogs. Below 880 pixels of width everything stacks by itself."
             , code = Just """FormLayout.view [ FormLayout.onSubmit Submit ]
@@ -273,17 +281,21 @@ formLayout lang model =
     , FormLayout.actions [ Button.view [] "Cancel", Button.view [ Button.primary, Button.submit ] "Save" ]
     ]"""
             }
-            (stack
+            (stack playground
                 [ Switch.view
-                    [ Switch.label "Stacked layout"
-                    , Switch.id "layout-stacked"
-                    , Switch.checked model.stacked
-                    , Switch.onCheck StackedToggled
-                    ]
+                    (Options.klarSwitch playground
+                        (List.concat
+                            [ Config.keep playground "Switch" "label" (Switch.label "Stacked layout")
+                            , Config.keep playground "Switch" "id" (Switch.id "layout-stacked")
+                            , Config.keep playground "Switch" "checked" (Switch.checked model.stacked)
+                            , Config.keep playground "Switch" "onCheck" (Switch.onCheck StackedToggled)
+                            ]
+                        )
+                    )
                 , FormLayout.view
-                    ([ FormLayout.onSubmit NoOp, FormLayout.ariaLabel "Example form", FormLayout.locale lang ]
+                    (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "onSubmit" (FormLayout.onSubmit NoOp), Config.keep playground "Form.Layout" "ariaLabel" (FormLayout.ariaLabel "Example form"), Config.keep playground "Form.Layout" "locale" (FormLayout.locale lang) ])
                         ++ (if model.stacked then
-                                [ FormLayout.stacked ]
+                                Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "stacked" FormLayout.stacked ])
 
                             else
                                 []
@@ -292,30 +304,31 @@ formLayout lang model =
                     [ FormLayout.section "Contact"
                         "Used for order confirmations and invoices. We never share the address."
                         [ FormLayout.grid 2
-                            [ layoutField model "lay-first" "First name" [ TextInput.required ]
-                            , layoutField model "lay-last" "Last name" [ TextInput.required ]
-                            , FormLayout.fullRow (layoutField model "lay-email" "Email" [ TextInput.email ])
+                            [ layoutField playground model "lay-first" "First name" (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "required" TextInput.required ]))
+                            , layoutField playground model "lay-last" "Last name" (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "required" TextInput.required ]))
+                            , FormLayout.fullRow (layoutField playground model "lay-email" "Email" (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "email" TextInput.email ])))
                             ]
                         ]
                     , FormLayout.section "Address"
                         "Where the goods are delivered."
-                        [ layoutField model "lay-street" "Street" []
+                        [ layoutField playground model "lay-street" "Street" []
                         , FormLayout.grid 3
-                            [ layoutField model "lay-zip" "Postcode" []
-                            , layoutField model "lay-city" "City" []
-                            , TextInput.view [ TextInput.label "Country", TextInput.id "lay-country", TextInput.value "Netherlands", TextInput.disabled True ]
+                            [ layoutField playground model "lay-zip" "Postcode" []
+                            , layoutField playground model "lay-city" "City" []
+                            , TextInput.view (Options.klarTextInput playground (List.concat [ Config.keep playground "TextInput" "label" (TextInput.label "Country"), Config.keep playground "TextInput" "id" (TextInput.id "lay-country"), Config.keep playground "TextInput" "value" (TextInput.value "Netherlands"), Config.keep playground "TextInput" "disabled" (TextInput.disabled True) ]))
                             ]
                         ]
                     , FormLayout.actions
-                        [ Button.view [ Button.ghost, Button.danger ] "Delete"
+                        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "danger" Button.danger ])) "Delete"
                         , Layout.spacer
-                        , Button.view [] "Cancel"
-                        , Button.view [ Button.primary, Button.submit ] "Save"
+                        , Options.buttonView playground (Options.klarButton playground []) "Cancel"
+                        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "submit" Button.submit ])) "Save"
                         ]
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Form.Layout" ]
             { title = "Error summary"
             , description = Just "Press \"Create\" with errors in the fields. The summary gets focus; each link moves focus to its field."
             , code = Just """FormLayout.errorSummary
@@ -329,103 +342,141 @@ formLayout lang model =
 FocusField fieldId ->
     ( model, Klar.focus fieldId NoOp )"""
             }
-            (FormLayout.view [ FormLayout.id "mini-form", FormLayout.onSubmit MiniSubmit, FormLayout.ariaLabel "Small form", FormLayout.stacked ]
+            (FormLayout.view (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "id" (FormLayout.id "mini-form"), Config.keep playground "Form.Layout" "onSubmit" (FormLayout.onSubmit MiniSubmit), Config.keep playground "Form.Layout" "ariaLabel" (FormLayout.ariaLabel "Small form"), Config.keep playground "Form.Layout" "stacked" FormLayout.stacked ]))
                 [ if mini.submitted then
                     FormLayout.errorSummary
-                        [ FormLayout.id "mini-form"
-                        , FormLayout.locale lang
-                        , FormLayout.onFocusField FocusField
-                        , FormLayout.labels [ ( "mini-name", "Name" ), ( "mini-email", "Email" ), ( "mini-phone", "Phone" ) ]
-                        ]
+                        (Options.klarFormLayout playground
+                            (List.concat
+                                [ Config.keep playground "Form.Layout" "id" (FormLayout.id "mini-form")
+                                , Config.keep playground "Form.Layout" "locale" (FormLayout.locale lang)
+                                , Config.keep playground "Form.Layout" "onFocusField" (FormLayout.onFocusField FocusField)
+                                , Config.keep playground "Form.Layout" "labels" (FormLayout.labels [ ( "mini-name", "Name" ), ( "mini-email", "Email" ), ( "mini-phone", "Phone" ) ])
+                                ]
+                            )
+                        )
                         errors
 
                   else
                     Text.text ""
                 , FormLayout.grid 3
                     [ TextInput.view
-                        [ TextInput.label "Name"
-                        , TextInput.id "mini-name"
-                        , TextInput.required
-                        , TextInput.value mini.name
-                        , TextInput.onInput MiniName
-                        , TextInput.errorMaybe (shown "mini-name")
-                        ]
+                        (Options.klarTextInput playground
+                            (List.concat
+                                [ Config.keep playground "TextInput" "label" (TextInput.label "Name")
+                                , Config.keep playground "TextInput" "id" (TextInput.id "mini-name")
+                                , Config.keep playground "TextInput" "required" TextInput.required
+                                , Config.keep playground "TextInput" "value" (TextInput.value mini.name)
+                                , Config.keep playground "TextInput" "onInput" (TextInput.onInput MiniName)
+                                , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (shown "mini-name"))
+                                ]
+                            )
+                        )
                     , TextInput.view
-                        [ TextInput.label "Email"
-                        , TextInput.id "mini-email"
-                        , TextInput.email
-                        , TextInput.required
-                        , TextInput.value mini.email
-                        , TextInput.onInput MiniEmail
-                        , TextInput.errorMaybe (shown "mini-email")
-                        ]
+                        (Options.klarTextInput playground
+                            (List.concat
+                                [ Config.keep playground "TextInput" "label" (TextInput.label "Email")
+                                , Config.keep playground "TextInput" "id" (TextInput.id "mini-email")
+                                , Config.keep playground "TextInput" "email" TextInput.email
+                                , Config.keep playground "TextInput" "required" TextInput.required
+                                , Config.keep playground "TextInput" "value" (TextInput.value mini.email)
+                                , Config.keep playground "TextInput" "onInput" (TextInput.onInput MiniEmail)
+                                , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (shown "mini-email"))
+                                ]
+                            )
+                        )
                     , TextInput.view
-                        [ TextInput.label "Phone"
-                        , TextInput.id "mini-phone"
-                        , TextInput.tel
-                        , TextInput.value mini.phone
-                        , TextInput.onInput MiniPhone
-                        , TextInput.errorMaybe (shown "mini-phone")
-                        ]
+                        (Options.klarTextInput playground
+                            (List.concat
+                                [ Config.keep playground "TextInput" "label" (TextInput.label "Phone")
+                                , Config.keep playground "TextInput" "id" (TextInput.id "mini-phone")
+                                , Config.keep playground "TextInput" "tel" TextInput.tel
+                                , Config.keep playground "TextInput" "value" (TextInput.value mini.phone)
+                                , Config.keep playground "TextInput" "onInput" (TextInput.onInput MiniPhone)
+                                , Config.keep playground "TextInput" "errorMaybe" (TextInput.errorMaybe (shown "mini-phone"))
+                                ]
+                            )
+                        )
                     ]
-                , FormLayout.actions [ Button.view [ Button.primary, Button.submit ] "Create" ]
+                , FormLayout.actions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "submit" Button.submit ])) "Create" ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Form.Layout" ]
             { title = "Status of the submit"
             , description = Just "Where the submit is: nothing, saving, saved or failed. A failure is shown with an explanation, and with \"Try again\" when that can help."
             , code = Just """-- model.status : FormLayout.Status
 --     = Idle | Submitting | Succeeded String | Failed Remote.Problem
 FormLayout.status [ FormLayout.id "order-form", FormLayout.onRetry Retry, FormLayout.onDismiss Dismiss ] model.status"""
             }
-            (stack
+            (stack playground
                 [ SegmentedControl.view
-                    [ SegmentedControl.label "Status"
-                    , SegmentedControl.labelHidden
-                    , SegmentedControl.id "status-kind"
-                    , SegmentedControl.size Small
-                    , SegmentedControl.options
-                        [ SegmentedControl.option "idle" "Nothing"
-                        , SegmentedControl.option "submitting" "Saving"
-                        , SegmentedControl.option "succeeded" "Saved"
-                        , SegmentedControl.option "failed" "Failed"
-                        ]
-                    , SegmentedControl.selected (Maybe.withDefault "idle" model.statusKind)
-                    , SegmentedControl.onChange StatusKindSelected
-                    ]
+                    (Options.klarSegmentedControl playground
+                        (List.concat
+                            [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Status")
+                            , Config.keep playground "SegmentedControl" "labelHidden" SegmentedControl.labelHidden
+                            , Config.keep playground "SegmentedControl" "id" (SegmentedControl.id "status-kind")
+                            , Config.keep playground "SegmentedControl" "size" (SegmentedControl.size Small)
+                            , Config.keep playground
+                                "SegmentedControl"
+                                "options"
+                                (SegmentedControl.options
+                                    [ SegmentedControl.option "idle" "Nothing"
+                                    , SegmentedControl.option "submitting" "Saving"
+                                    , SegmentedControl.option "succeeded" "Saved"
+                                    , SegmentedControl.option "failed" "Failed"
+                                    ]
+                                )
+                            , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (Maybe.withDefault "idle" model.statusKind))
+                            , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange StatusKindSelected)
+                            ]
+                        )
+                    )
                 , FormLayout.status
-                    [ FormLayout.id statusDemoId
-                    , FormLayout.onRetry StatusRetry
-                    , FormLayout.onDismiss StatusDismiss
-                    , FormLayout.locale lang
-                    ]
+                    (Options.klarFormLayout playground
+                        (List.concat
+                            [ Config.keep playground "Form.Layout" "id" (FormLayout.id statusDemoId)
+                            , Config.keep playground "Form.Layout" "onRetry" (FormLayout.onRetry StatusRetry)
+                            , Config.keep playground "Form.Layout" "onDismiss" (FormLayout.onDismiss StatusDismiss)
+                            , Config.keep playground "Form.Layout" "locale" (FormLayout.locale lang)
+                            ]
+                        )
+                    )
                     model.status
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Form.Layout" ]
             { title = "Unsaved changes"
             , description = Just "The banner is shown for as long as the form differs from what is saved, and it can stick to the top while the page scrolls. The small flag takes no room while the form is clean: it fits the footer of a dialog or a drawer."
             , code = Just """FormLayout.unsavedChanges [ FormLayout.onSave Save, FormLayout.onDiscard Discard ] (model.draft /= model.saved)
 
 FormLayout.unsavedFlag [] (model.draft /= model.saved)"""
             }
-            (stack
+            (stack playground
                 [ FormLayout.unsavedChanges
-                    [ FormLayout.onSave UnsavedSave
-                    , FormLayout.onDiscard UnsavedDiscard
-                    , FormLayout.locale lang
-                    ]
+                    (Options.klarFormLayout playground
+                        (List.concat
+                            [ Config.keep playground "Form.Layout" "onSave" (FormLayout.onSave UnsavedSave)
+                            , Config.keep playground "Form.Layout" "onDiscard" (FormLayout.onDiscard UnsavedDiscard)
+                            , Config.keep playground "Form.Layout" "locale" (FormLayout.locale lang)
+                            ]
+                        )
+                    )
                     dirty
                 , TextInput.view
-                    [ TextInput.label "Title"
-                    , TextInput.id "unsaved-text"
-                    , TextInput.hint ("Saved: \"" ++ model.unsavedBaseline ++ "\"")
-                    , TextInput.value model.unsavedText
-                    , TextInput.onInput UnsavedChanged
-                    ]
-                , Layout.row [ Layout.gap 3 ]
-                    [ Button.view [ Button.primary, Button.disabled (not dirty), Button.onClick UnsavedSave ] "Save"
-                    , FormLayout.unsavedFlag [ FormLayout.locale lang ] dirty
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Title")
+                            , Config.keep playground "TextInput" "id" (TextInput.id "unsaved-text")
+                            , Config.keep playground "TextInput" "hint" (TextInput.hint ("Saved: \"" ++ model.unsavedBaseline ++ "\""))
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.unsavedText)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput UnsavedChanged)
+                            ]
+                        )
+                    )
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "disabled" (Button.disabled (not dirty)), Config.keep playground "Button" "onClick" (Button.onClick UnsavedSave) ])) "Save"
+                    , FormLayout.unsavedFlag (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale lang) ])) dirty
                     ]
                 ]
             )

@@ -17,7 +17,7 @@
     "check:icons": "node scripts/check-icons.mjs",
     "check:example-imports": "node scripts/check-example-imports.mjs",
     "check:compat": "node scripts/check-compat.mjs",
-    "check": "npm run check:text && npm run check:classes && npm run check:icons && npm run check:docs && npm run check:ai-docs && npm run check:ai-names && node scripts/check-doc-examples.mjs --strict && npm run check:api && npm run check:rules && npm run check:format && npm test -- --workers 2 && npm run test:processes && npm run build:example && npm run check:example-imports",
+    "check": "npm run check:text && npm run check:classes && npm run check:icons && npm run check:docs && npm run check:ai-docs && npm run check:ai-names && node scripts/check-doc-examples.mjs --strict && npm run check:api && npm run check:rules && npm run check:format && npm run check:gallery && npm test -- --workers 2 && npm run test:gallery && npm run test:compiler && npm run build:example && npm run check:example-imports",
     "format": "elm-format --yes src/ tests/ example/src/ example/tests/ calendar/src/ calendar/tests/ && node scripts/check-text.mjs --fix",
     "test": "elm-test",
     "build:example": "node scripts/build-example.mjs --optimize",
@@ -25,6 +25,10 @@
     "calendar:build": "cd calendar && elm make src/Main.elm --optimize --output=main.js",
     "calendar:test": "cd calendar && elm-test",
     "calendar": "npm run calendar:build && node calendar/server/server.mjs",
+    "gen:gallery": "node scripts/generate-gallery-options.mjs",
+    "check:gallery": "node scripts/generate-gallery-options.mjs --check",
+    "test:gallery": "cd example && elm-test --workers 2",
+    "test:compiler": "node --test scripts/playground-compiler.test.mjs",
     "test:processes": "cd example && elm-test tests/ProcessesTest.elm --workers 2"
   },
   "devDependencies": {

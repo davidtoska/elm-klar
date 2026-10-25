@@ -21,6 +21,8 @@ import Klar.Money as Money exposing (Money)
 import Klar.Radio as Radio
 import Klar.Select as Select
 import Klar.Text as Text
+import Showcase.Config as Config
+import Showcase.Options as Options
 
 
 type Kind
@@ -143,24 +145,24 @@ update msg model =
                     Form.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     let
         v =
             Form.bind locale FormMsg form model.form
     in
-    Layout.stack [ Layout.gap 3 ]
-        [ FormLayout.view [ FormLayout.id "terms", FormLayout.onSubmit Save ]
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+        [ FormLayout.view (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "id" (FormLayout.id "terms"), Config.keep playground "Form.Layout" "onSubmit" (FormLayout.onSubmit Save) ]))
             [ Form.summary v
             , FormLayout.grid 2
-                [ FormLayout.fullRow (Form.radio v f.kind kinds [ Radio.horizontal ])
+                [ FormLayout.fullRow (Form.radio v f.kind kinds (Options.klarRadio playground (List.concat [ Config.keep playground "Radio" "horizontal" Radio.horizontal ])))
                 , Form.maskedInput v f.organisationNumber []
                 , Form.moneyInput v f.creditLimit []
                 , Form.datePicker v f.firstDelivery []
                 , Form.dateRangePicker v f.contract []
                 , FormLayout.fullRow (Form.checkbox v f.accepted [])
                 ]
-            , FormLayout.actions [ Layout.spacer, Button.view [ Button.primary, Button.submit ] "Save terms" ]
+            , FormLayout.actions [ Layout.spacer, Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "submit" Button.submit ])) "Save terms" ]
             ]
         , Text.caption
             (case model.saved of

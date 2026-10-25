@@ -12,7 +12,9 @@ import Klar.Date as Date
 import Klar.JsonViewer as JsonViewer
 import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 
 
@@ -74,15 +76,18 @@ update msg model =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     let
         root id value =
-            JsonViewer.view RootMsg [ JsonViewer.locale locale ] (JsonViewer.init id) value
+            JsonViewer.view RootMsg (Options.klarJsonViewer playground (List.concat [ Config.keep playground "JsonViewer" "locale" (JsonViewer.locale locale) ])) (JsonViewer.init id) value
     in
-    Doc.section "JSON viewer"
+    Doc.configuredSection playground
+        [ "JsonViewer" ]
+        "JSON viewer"
         "For looking at the response of a service. The values have muted colors (text green, numbers blue, booleans brown, null gray), the keys are blue, and thin gray lines follow the indentation. Every node is a button with aria-expanded: Tab moves between the nodes, Enter or Space opens and closes. Long texts are cut, with the start of the whole text in a tooltip. There is no copy button, but the text can be selected."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "JsonViewer" ]
             { title = "Response from a service"
             , description = Just "The two top levels are open from the start. Empty objects and lists are shown on one line."
             , code = Just """JsonViewer.view JsonMsg
@@ -98,32 +103,38 @@ JsonMsg m ->
     ( { model | viewer = viewer }, Cmd.map JsonMsg cmd )"""
             }
             (JsonViewer.view ResponseMsg
-                [ JsonViewer.toolbar
-                , JsonViewer.rootLabel "response"
-                , JsonViewer.ariaLabel "Response from the order service"
-                , JsonViewer.locale locale
-                ]
+                (Options.klarJsonViewer playground
+                    (List.concat
+                        [ Config.keep playground "JsonViewer" "toolbar" JsonViewer.toolbar
+                        , Config.keep playground "JsonViewer" "rootLabel" (JsonViewer.rootLabel "response")
+                        , Config.keep playground "JsonViewer" "ariaLabel" (JsonViewer.ariaLabel "Response from the order service")
+                        , Config.keep playground "JsonViewer" "locale" (JsonViewer.locale locale)
+                        ]
+                    )
+                )
                 model.response
                 apiResponse
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "JsonViewer" ]
             { title = "Large and deep data"
             , description = Just "450 numbers and 150 objects are shown 20 at a time with “Show more”. The object “deep” is nested 16 levels and stops at level 12 with “...”. Everything below the top level is collapsed to start with; open it with “Expand all”."
             , code = Just "JsonViewer.view BigMsg [ JsonViewer.maxItems 20, JsonViewer.maxDepth 12, JsonViewer.maxHeight 360 ] model.state value"
             }
-            (Html.Lazy.lazy2 bigViewer locale model.big)
-        , Doc.example
+            (Html.Lazy.lazy2 (bigViewer playground) locale model.big)
+        , Doc.configuredExample playground
+            [ "JsonViewer" ]
             { title = "A response with three thousand records"
             , description = Just "About thirty thousand values. Only what is open is drawn, and a list shows 50 records at a time: open “orders” and page through with “Show more”. The keyboard and scrolling should still feel immediate."
             , code = Just "JsonViewer.view HugeMsg [ JsonViewer.maxItems 50, JsonViewer.maxHeight 380 ] model.state response"
             }
-            (Html.Lazy.lazy2 hugeViewer locale model.huge)
+            (Html.Lazy.lazy2 (hugeViewer playground) locale model.huge)
         , Doc.example
             { title = "Simple values and empty responses"
             , description = Just "The root can be anything: a text, a number, null, an empty object or an empty list."
             , code = Nothing
             }
-            (Layout.grid [ Layout.minColumn 220, Layout.gap 3 ]
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 220), Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 [ root "json-root-string" (Encode.string "Just a text at the root")
                 , root "json-root-number" (Encode.float 3.14159)
                 , root "json-root-null" Encode.null
@@ -137,29 +148,37 @@ JsonMsg m ->
 {-| The viewers with big values are built only when their state or the language
 changes: decoding thousands of values on every key press would be a waste.
 -}
-bigViewer : Locale -> JsonViewer.State -> Html Msg
-bigViewer locale state =
+bigViewer : Config.Config -> Locale -> JsonViewer.State -> Html Msg
+bigViewer playground locale state =
     JsonViewer.view BigMsg
-        [ JsonViewer.toolbar
-        , JsonViewer.maxItems 20
-        , JsonViewer.maxDepth 12
-        , JsonViewer.maxHeight 380
-        , JsonViewer.ariaLabel "Large response"
-        , JsonViewer.locale locale
-        ]
+        (Options.klarJsonViewer playground
+            (List.concat
+                [ Config.keep playground "JsonViewer" "toolbar" JsonViewer.toolbar
+                , Config.keep playground "JsonViewer" "maxItems" (JsonViewer.maxItems 20)
+                , Config.keep playground "JsonViewer" "maxDepth" (JsonViewer.maxDepth 12)
+                , Config.keep playground "JsonViewer" "maxHeight" (JsonViewer.maxHeight 380)
+                , Config.keep playground "JsonViewer" "ariaLabel" (JsonViewer.ariaLabel "Large response")
+                , Config.keep playground "JsonViewer" "locale" (JsonViewer.locale locale)
+                ]
+            )
+        )
         state
         bigResponse
 
 
-hugeViewer : Locale -> JsonViewer.State -> Html Msg
-hugeViewer locale state =
+hugeViewer : Config.Config -> Locale -> JsonViewer.State -> Html Msg
+hugeViewer playground locale state =
     JsonViewer.view HugeMsg
-        [ JsonViewer.toolbar
-        , JsonViewer.maxItems 50
-        , JsonViewer.maxHeight 380
-        , JsonViewer.ariaLabel "Three thousand orders"
-        , JsonViewer.locale locale
-        ]
+        (Options.klarJsonViewer playground
+            (List.concat
+                [ Config.keep playground "JsonViewer" "toolbar" JsonViewer.toolbar
+                , Config.keep playground "JsonViewer" "maxItems" (JsonViewer.maxItems 50)
+                , Config.keep playground "JsonViewer" "maxHeight" (JsonViewer.maxHeight 380)
+                , Config.keep playground "JsonViewer" "ariaLabel" (JsonViewer.ariaLabel "Three thousand orders")
+                , Config.keep playground "JsonViewer" "locale" (JsonViewer.locale locale)
+                ]
+            )
+        )
         state
         hugeResponse
 

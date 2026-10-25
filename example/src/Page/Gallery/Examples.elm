@@ -12,6 +12,7 @@ import Klar.Icon as Icon
 import Klar.Layout as Layout
 import Klar.Link as Link
 import Klar.Text as Text
+import Page.Applications.Catalog as Applications
 import Showcase.Doc as Doc
 
 
@@ -67,9 +68,25 @@ view : Html msg
 view =
     Doc.page
         { title = "Examples"
-        , description = "Seven complete applications for common screens. Each is one Elm file that uses only Klar, with no CSS and no class names, and it is the program an AI copies: example/src/Examples/<Name>.elm."
+        , description = "Complete screens and copyable application patterns built from Klar components. Explore account flows, connected tools, AI credentials and document classification, or open a standalone application."
         }
-        [ Doc.section "Programs" "Each one opens in a tab of its own, because it is an application of its own." (List.map viewExample examples) ]
+        [ Doc.section "Connected AI applications"
+            "Interactive pages in the showcase menu. Shared compositions live in example/src/Patterns/Workspace.elm; each feature owns its state and update."
+            [ Layout.grid [ Layout.minColumn 280, Layout.gap 4 ]
+                (List.map
+                    (\page ->
+                        Card.view [ Card.title (Applications.title page), Card.headingLevel 3 ]
+                            [ Layout.stack [ Layout.gap 3 ]
+                                [ Text.paragraph (Applications.description page)
+                                , Button.view [ Button.href (Link.internal ("#/applications/" ++ Applications.slug page)), Button.icon (Applications.icon page) ] "Explore example"
+                                ]
+                            ]
+                    )
+                    Applications.all
+                )
+            ]
+        , Doc.section "Standalone programs" "Each one opens in a tab of its own, because it is an application of its own." (List.map viewExample examples)
+        ]
 
 
 viewExample : Example -> Html msg

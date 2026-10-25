@@ -41,7 +41,9 @@ import Klar.Text as Text
 import Klar.Timeline as Timeline
 import Klar.Tree as Tree
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 import Time
 
@@ -390,45 +392,53 @@ subscriptions _ =
 -- VIEW
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view settings locale model =
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground settings locale model =
     Overlay.host
         { attributes = []
         , page =
-            [ Doc.page
+            [ Doc.configuredPage playground
                 { title = "Old and refreshing data"
                 , description = "A Remote that is Kept: the data stays on the screen while it is refreshed, and when the last refresh failed it is marked as old, with the time and a retry. Choose a state, or press Refresh (and switch on the failing refresh to see the real flow). No component has an attribute for this."
                 }
-                [ controls model
-                , Alert.stale [ Alert.locale locale ] Refresh (Remote.staleIn "orders, figures, chart, history, regions and options" model.data)
-                , Doc.section "Tables and tiles" "" [ tableExample settings locale model, tilesExample settings locale model ]
-                , Doc.section "Charts and history" "" [ chartExample settings locale model, timelineExample settings locale model ]
-                , Doc.section "Trees and lists of options" "" [ treeExample settings locale model, optionsExample settings locale model ]
-                , Doc.section "Cards, drawers, dialogs and the palette" "" [ cardExample settings locale model, overlayButtons ]
+                [ controls playground model
+                , Alert.stale (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "locale" (Alert.locale locale) ])) Refresh (Remote.staleIn "orders, figures, chart, history, regions and options" model.data)
+                , Doc.configuredSection playground [] "Tables and tiles" "" [ tableExample playground settings locale model, tilesExample playground settings locale model ]
+                , Doc.configuredSection playground [] "Charts and history" "" [ chartExample playground settings locale model, timelineExample playground settings locale model ]
+                , Doc.configuredSection playground [] "Trees and lists of options" "" [ treeExample playground settings locale model, optionsExample playground settings locale model ]
+                , Doc.configuredSection playground [] "Cards, drawers, dialogs and the palette" "" [ cardExample playground settings locale model, overlayButtons playground ]
                 ]
             ]
-        , overlays = overlays settings locale model
+        , overlays = overlays playground settings locale model
         }
 
 
-controls : Model -> Html Msg
-controls model =
-    Layout.row [ Layout.gap 4, Layout.wrap, Layout.alignCenter ]
+controls : Config.Config -> Model -> Html Msg
+controls playground model =
+    Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
         [ SegmentedControl.view
-            [ SegmentedControl.label "State of the data"
-            , SegmentedControl.labelHidden
-            , SegmentedControl.options (List.map (\( name, _, text ) -> SegmentedControl.option name text) modes)
+            (Options.klarSegmentedControl playground
+                (List.concat
+                    [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "State of the data")
+                    , Config.keep playground "SegmentedControl" "labelHidden" SegmentedControl.labelHidden
+                    , Config.keep playground "SegmentedControl" "options" (SegmentedControl.options (List.map (\( name, _, text ) -> SegmentedControl.option name text) modes))
 
-            -- while the data refreshes no preset matches, and no segment is chosen
-            , SegmentedControl.selected (Maybe.map modeValue model.mode |> Maybe.withDefault "")
-            , SegmentedControl.onChange ModeChosen
-            ]
-        , Button.view [ Button.icon Icon.refresh, Button.onClick Refresh ] "Refresh"
+                    -- while the data refreshes no preset matches, and no segment is chosen
+                    , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (Maybe.map modeValue model.mode |> Maybe.withDefault ""))
+                    , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange ModeChosen)
+                    ]
+                )
+            )
+        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick Refresh) ])) "Refresh"
         , Switch.view
-            [ Switch.label "Simulate failing refresh"
-            , Switch.checked model.failing
-            , Switch.onCheck FailingToggled
-            ]
+            (Options.klarSwitch playground
+                (List.concat
+                    [ Config.keep playground "Switch" "label" (Switch.label "Simulate failing refresh")
+                    , Config.keep playground "Switch" "checked" (Switch.checked model.failing)
+                    , Config.keep playground "Switch" "onCheck" (Switch.onCheck FailingToggled)
+                    ]
+                )
+            )
         ]
 
 
@@ -437,78 +447,98 @@ card title content =
     Doc.example { title = title, description = Nothing, code = Nothing } content
 
 
-tableExample : Settings -> Locale -> Model -> Html Msg
-tableExample settings locale model =
+tableExample : Config.Config -> Settings -> Locale -> Model -> Html Msg
+tableExample playground settings locale model =
     card "Table"
         (Table.view TableMsg
-            [ Table.ariaLabel "Orders"
-            , Table.locale locale
-            , Table.settings settings
-            , Table.columns
-                [ Table.text (Table.columnId "id") "Order" .id []
-                , Table.text (Table.columnId "customer") "Customer" .customer []
-                , Table.float (Table.columnId "total") "Total" 2 .total []
-                ]
-            , Table.remote (Remote.map .orders model.data)
-            , Table.rowId Ids.string .id
-            , Table.onRetry Refresh
-            , Table.onRefresh Refresh
-            ]
+            (Options.klarTable playground
+                (List.concat
+                    [ Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders")
+                    , Config.keep playground "Table" "locale" (Table.locale locale)
+                    , Config.keep playground "Table" "settings" (Table.settings settings)
+                    , Config.keep playground
+                        "Table"
+                        "columns"
+                        (Table.columns
+                            [ Table.text (Table.columnId "id") "Order" .id []
+                            , Table.text (Table.columnId "customer") "Customer" .customer []
+                            , Table.float (Table.columnId "total") "Total" 2 .total []
+                            ]
+                        )
+                    , Config.keep playground "Table" "remote" (Table.remote (Config.remote playground "Table" "remote" (Remote.map .orders model.data)))
+                    , Config.keep playground "Table" "rowId" (Table.rowId Ids.string .id)
+                    , Config.keep playground "Table" "onRetry" (Table.onRetry Refresh)
+                    , Config.keep playground "Table" "onRefresh" (Table.onRefresh Refresh)
+                    ]
+                )
+            )
             model.table
         )
 
 
-tilesExample : Settings -> Locale -> Model -> Html Msg
-tilesExample settings locale model =
+tilesExample : Config.Config -> Settings -> Locale -> Model -> Html Msg
+tilesExample playground settings locale model =
     let
         tile label toAttributes =
             Stat.view
-                [ Stat.label label
-                , Stat.locale locale
-                , Stat.settings settings
-                , Stat.onRetry Refresh
-                , Stat.remote model.data toAttributes
-                ]
+                (Options.klarStat playground
+                    (List.concat
+                        [ Config.keep playground "Stat" "label" (Stat.label label)
+                        , Config.keep playground "Stat" "locale" (Stat.locale locale)
+                        , Config.keep playground "Stat" "settings" (Stat.settings settings)
+                        , Config.keep playground "Stat" "onRetry" (Stat.onRetry Refresh)
+                        , Config.keep playground "Stat" "remote" (Stat.remote model.data toAttributes)
+                        ]
+                    )
+                )
     in
     card "Stat"
-        (Layout.grid [ Layout.minColumn 200, Layout.gap 3 ]
-            [ tile "Open orders" (\w -> [ Stat.int w.open, Stat.delta w.change ])
-            , tile "Revenue" (\w -> [ Stat.decimal 2 (List.sum (List.map .total w.orders)), Stat.caption "this week" ])
+        (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "minColumn" (Layout.minColumn 200), Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+            [ tile "Open orders" (\w -> Options.klarStat playground (List.concat [ Config.keep playground "Stat" "int" (Stat.int w.open), Config.keep playground "Stat" "delta" (Stat.delta w.change) ]))
+            , tile "Revenue" (\w -> Options.klarStat playground (List.concat [ Config.keep playground "Stat" "decimal" (Stat.decimal 2 (List.sum (List.map .total w.orders))), Config.keep playground "Stat" "caption" (Stat.caption "this week") ]))
             ]
         )
 
 
-chartExample : Settings -> Locale -> Model -> Html Msg
-chartExample settings locale model =
+chartExample : Config.Config -> Settings -> Locale -> Model -> Html Msg
+chartExample playground settings locale model =
     let
         sales =
             Remote.map .sales model.data
     in
     card "Chart"
-        (Layout.stack [ Layout.gap 3 ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
             [ Chart.lineRemote
-                [ Chart.title "Sales per day"
-                , Chart.locale locale
-                , Chart.settings settings
-                , Chart.onRetry Refresh
-                , Chart.height 160
-                ]
+                (Options.klarChart playground
+                    (List.concat
+                        [ Config.keep playground "Chart" "title" (Chart.title "Sales per day")
+                        , Config.keep playground "Chart" "locale" (Chart.locale locale)
+                        , Config.keep playground "Chart" "settings" (Chart.settings settings)
+                        , Config.keep playground "Chart" "onRetry" (Chart.onRetry Refresh)
+                        , Config.keep playground "Chart" "height" (Chart.height 160)
+                        ]
+                    )
+                )
                 (Remote.map (\values -> Chart.byCategory [] [ Chart.series "Sales" values ]) sales)
-            , Chart.sparklineRemote [ Chart.ariaLabel "Sales trend", Chart.locale locale, Chart.settings settings ] sales
+            , Chart.sparklineRemote (Options.klarChart playground (List.concat [ Config.keep playground "Chart" "ariaLabel" (Chart.ariaLabel "Sales trend"), Config.keep playground "Chart" "locale" (Chart.locale locale), Config.keep playground "Chart" "settings" (Chart.settings settings) ])) sales
             ]
         )
 
 
-timelineExample : Settings -> Locale -> Model -> Html Msg
-timelineExample settings locale model =
+timelineExample : Config.Config -> Settings -> Locale -> Model -> Html Msg
+timelineExample playground settings locale model =
     card "Timeline"
         (Timeline.viewRemote
-            [ Timeline.ariaLabel "Order history"
-            , Timeline.locale locale
-            , Timeline.settings settings
-            , Timeline.onRetry Refresh
-            , Timeline.compact
-            ]
+            (Options.klarTimeline playground
+                (List.concat
+                    [ Config.keep playground "Timeline" "ariaLabel" (Timeline.ariaLabel "Order history")
+                    , Config.keep playground "Timeline" "locale" (Timeline.locale locale)
+                    , Config.keep playground "Timeline" "settings" (Timeline.settings settings)
+                    , Config.keep playground "Timeline" "onRetry" (Timeline.onRetry Refresh)
+                    , Config.keep playground "Timeline" "compact" Timeline.compact
+                    ]
+                )
+            )
             (Remote.map
                 (.events >> List.map (\( id, hour, title ) -> Timeline.event id (Time.millisToPosix (hour * 3600 * 1000)) title))
                 model.data
@@ -516,15 +546,19 @@ timelineExample settings locale model =
         )
 
 
-treeExample : Settings -> Locale -> Model -> Html Msg
-treeExample settings locale model =
+treeExample : Config.Config -> Settings -> Locale -> Model -> Html Msg
+treeExample playground settings locale model =
     card "Tree"
         (Tree.viewRemote TreeMsg
-            [ Tree.ariaLabel "Regions"
-            , Tree.locale locale
-            , Tree.settings settings
-            , Tree.onRetry Refresh
-            ]
+            (Options.klarTree playground
+                (List.concat
+                    [ Config.keep playground "Tree" "ariaLabel" (Tree.ariaLabel "Regions")
+                    , Config.keep playground "Tree" "locale" (Tree.locale locale)
+                    , Config.keep playground "Tree" "settings" (Tree.settings settings)
+                    , Config.keep playground "Tree" "onRetry" (Tree.onRetry Refresh)
+                    ]
+                )
+            )
             model.tree
             (Remote.map
                 (\w ->
@@ -537,37 +571,49 @@ treeExample settings locale model =
         )
 
 
-optionsExample : Settings -> Locale -> Model -> Html Msg
-optionsExample settings locale model =
+optionsExample : Config.Config -> Settings -> Locale -> Model -> Html Msg
+optionsExample playground settings locale model =
     let
         options =
             Remote.map (\w -> List.map (\( value, label ) -> Select.option value label) w.warehouses) model.data
     in
     card "Select, MultiSelect and Autocomplete"
-        (Layout.stack [ Layout.gap 3 ]
+        (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
             [ Select.view SelectMsg
-                [ Select.label "Warehouse"
-                , Select.locale locale
-                , Select.settings settings
-                , Select.remote options
-                , Select.onRetry Refresh
-                ]
+                (Options.klarSelect playground
+                    (List.concat
+                        [ Config.keep playground "Select" "label" (Select.label "Warehouse")
+                        , Config.keep playground "Select" "locale" (Select.locale locale)
+                        , Config.keep playground "Select" "settings" (Select.settings settings)
+                        , Config.keep playground "Select" "remote" (Select.remote (Config.remote playground "Select" "remote" options))
+                        , Config.keep playground "Select" "onRetry" (Select.onRetry Refresh)
+                        ]
+                    )
+                )
                 model.select
             , MultiSelect.view MultiMsg
-                [ MultiSelect.label "Warehouses"
-                , MultiSelect.locale locale
-                , MultiSelect.settings settings
-                , MultiSelect.remote options
-                , MultiSelect.onRetry Refresh
-                ]
+                (Options.klarMultiSelect playground
+                    (List.concat
+                        [ Config.keep playground "MultiSelect" "label" (MultiSelect.label "Warehouses")
+                        , Config.keep playground "MultiSelect" "locale" (MultiSelect.locale locale)
+                        , Config.keep playground "MultiSelect" "settings" (MultiSelect.settings settings)
+                        , Config.keep playground "MultiSelect" "remote" (MultiSelect.remote (Config.remote playground "MultiSelect" "remote" options))
+                        , Config.keep playground "MultiSelect" "onRetry" (MultiSelect.onRetry Refresh)
+                        ]
+                    )
+                )
                 model.multi
             , Autocomplete.view AutoMsg
-                [ Autocomplete.label "Find a warehouse"
-                , Autocomplete.locale locale
-                , Autocomplete.settings settings
-                , Autocomplete.remote options
-                , Autocomplete.onRetry Refresh
-                ]
+                (Options.klarAutocomplete playground
+                    (List.concat
+                        [ Config.keep playground "Autocomplete" "label" (Autocomplete.label "Find a warehouse")
+                        , Config.keep playground "Autocomplete" "locale" (Autocomplete.locale locale)
+                        , Config.keep playground "Autocomplete" "settings" (Autocomplete.settings settings)
+                        , Config.keep playground "Autocomplete" "remote" (Autocomplete.remote (Config.remote playground "Autocomplete" "remote" options))
+                        , Config.keep playground "Autocomplete" "onRetry" (Autocomplete.onRetry Refresh)
+                        ]
+                    )
+                )
                 model.auto
             ]
         )
@@ -577,15 +623,19 @@ optionsExample settings locale model =
 body says so (`emptyState`); the Refresh button inside the body keeps focus while the
 refresh starts and ends, because the body is the same element in every state.
 -}
-detail : Settings -> Locale -> Model -> List (Html Msg)
-detail settings locale model =
+detail : Config.Config -> Settings -> Locale -> Model -> List (Html Msg)
+detail playground settings locale model =
     RemoteView.view
-        [ RemoteView.locale locale
-        , RemoteView.settings settings
-        , RemoteView.onRetry Refresh
-        , RemoteView.loadingLabel "Loading order"
-        , RemoteView.emptyState [ EmptyState.title "No orders" ]
-        ]
+        (Options.klarRemoteView playground
+            (List.concat
+                [ Config.keep playground "RemoteView" "locale" (RemoteView.locale locale)
+                , Config.keep playground "RemoteView" "settings" (RemoteView.settings settings)
+                , Config.keep playground "RemoteView" "onRetry" (RemoteView.onRetry Refresh)
+                , Config.keep playground "RemoteView" "loadingLabel" (RemoteView.loadingLabel "Loading order")
+                , Config.keep playground "RemoteView" "emptyState" (RemoteView.emptyState (Options.klarEmptyState playground (List.concat [ Config.keep playground "EmptyState" "title" (EmptyState.title "No orders") ])))
+                ]
+            )
+        )
         (Remote.map .orders model.data)
         (\orders ->
             case orders of
@@ -595,52 +645,68 @@ detail settings locale model =
                 first :: _ ->
                     [ Text.paragraph (first.id ++ " for " ++ first.customer)
                     , Text.secondary ("Total " ++ String.fromFloat first.total)
-                    , Layout.row [] [ Button.view [ Button.small, Button.icon Icon.refresh, Button.onClick Refresh ] "Refresh" ]
+                    , Layout.row (Options.klarLayout playground []) [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick Refresh) ])) "Refresh" ]
                     ]
         )
 
 
-cardExample : Settings -> Locale -> Model -> Html Msg
-cardExample settings locale model =
+cardExample : Config.Config -> Settings -> Locale -> Model -> Html Msg
+cardExample playground settings locale model =
     card "Card"
-        (Card.view [ Card.title "Order", Card.headingLevel 3 ] (detail settings locale model))
+        (Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "Order"), Config.keep playground "Card" "headingLevel" (Card.headingLevel 3) ])) (detail playground settings locale model))
 
 
-overlayButtons : Html Msg
-overlayButtons =
+overlayButtons : Config.Config -> Html Msg
+overlayButtons playground =
     card "Drawer, dialog and command palette"
-        (Layout.row [ Layout.gap 3, Layout.wrap ]
-            [ Button.view [ Button.id "stale-open-drawer", Button.onClick OpenDrawer ] "Open drawer"
-            , Button.view [ Button.id "stale-open-modal", Button.onClick OpenModal ] "Open dialog"
-            , Button.view [ Button.id "stale-open-palette", Button.onClick OpenPalette ] "Open palette"
+        (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "wrap" Layout.wrap ]))
+            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "stale-open-drawer"), Config.keep playground "Button" "onClick" (Button.onClick OpenDrawer) ])) "Open drawer"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "stale-open-modal"), Config.keep playground "Button" "onClick" (Button.onClick OpenModal) ])) "Open dialog"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "id" (Button.id "stale-open-palette"), Config.keep playground "Button" "onClick" (Button.onClick OpenPalette) ])) "Open palette"
             ]
         )
 
 
-overlays : Settings -> Locale -> Model -> List (Overlay Msg)
-overlays settings locale model =
+overlays : Config.Config -> Settings -> Locale -> Model -> List (Overlay Msg)
+overlays playground settings locale model =
     [ Drawer.view DrawerMsg
-        [ Drawer.locale locale
-        , Drawer.footer [ Button.view [ Button.onClick CloseDrawer ] "Close" ]
-        ]
+        (Options.klarDrawer playground
+            (List.concat
+                [ Config.keep playground "Drawer" "locale" (Drawer.locale locale)
+                , Config.keep playground "Drawer" "footer" (Drawer.footer [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick CloseDrawer) ])) "Close" ])
+                ]
+            )
+        )
         model.drawer
         "Order"
-        (detail settings locale model)
+        (detail playground settings locale model)
     , Modal.view ModalMsg
-        [ Modal.locale locale
-        , Modal.footer [ Button.view [ Button.onClick CloseModal ] "Close" ]
-        ]
+        (Options.klarModal playground
+            (List.concat
+                [ Config.keep playground "Modal" "locale" (Modal.locale locale)
+                , Config.keep playground "Modal" "footer" (Modal.footer [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick CloseModal) ])) "Close" ])
+                ]
+            )
+        )
         model.modal
         "Order"
-        (detail settings locale model)
+        (detail playground settings locale model)
     , CommandPalette.view PaletteMsg
-        [ CommandPalette.locale locale
-        , CommandPalette.settings settings
-        , CommandPalette.sections
-            [ CommandPalette.remote "Orders"
-                (Remote.map (\w -> List.map (\order -> CommandPalette.item order.id (Picked order.id)) w.orders) model.data)
-                |> CommandPalette.onRetry Refresh
-            ]
-        ]
+        (Options.klarCommandPalette playground
+            (List.concat
+                [ Config.keep playground "CommandPalette" "locale" (CommandPalette.locale locale)
+                , Config.keep playground "CommandPalette" "settings" (CommandPalette.settings settings)
+                , Config.keep playground
+                    "CommandPalette"
+                    "sections"
+                    (CommandPalette.sections
+                        [ CommandPalette.remote "Orders"
+                            (Remote.map (\w -> List.map (\order -> CommandPalette.item order.id (Picked order.id)) w.orders) model.data)
+                            |> CommandPalette.onRetry Refresh
+                        ]
+                    )
+                ]
+            )
+        )
         model.palette
     ]

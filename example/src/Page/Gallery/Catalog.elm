@@ -2,10 +2,14 @@ module Page.Gallery.Catalog exposing
     ( Section(..)
     , all
     , componentCount
+    , componentSlug
     , components
     , description
     , fromSlug
+    , group
     , icon
+    , owner
+    , pages
     , slug
     , title
     )
@@ -43,43 +47,21 @@ type Section
     | ServerLists
     | Workbench
     | NextComponents
+    | Ai
     | Processes
-    | ProcessComponent String
+    | Component String
 
 
 all : List Section
 all =
-    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench, NextComponents, Processes ] ++ List.map ProcessComponent [ "Workflow", "Workflow.Engine", "Workflow.Codec", "WorkflowNode", "WorkflowBuilder", "WorkflowRun", "StateMachine" ]
+    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench, NextComponents, Ai, Processes ]
 
 
 slug : Section -> String
 slug section =
     case section of
-        Processes ->
-            "processes"
-
-        ProcessComponent name ->
-            case name of
-                "Workflow.Engine" ->
-                    "workflow-engine"
-
-                "Workflow.Codec" ->
-                    "workflow-codec"
-
-                "WorkflowNode" ->
-                    "workflow-node"
-
-                "WorkflowBuilder" ->
-                    "workflow-builder"
-
-                "WorkflowRun" ->
-                    "workflow-run"
-
-                "StateMachine" ->
-                    "state-machine"
-
-                _ ->
-                    "workflow"
+        Component name ->
+            componentSlug name
 
         Foundations ->
             "foundations"
@@ -156,19 +138,22 @@ slug section =
         NextComponents ->
             "workflow-toolkit"
 
+        Ai ->
+            "ai"
+
+        Processes ->
+            "processes"
+
 
 fromSlug : String -> Maybe Section
 fromSlug value =
-    all |> List.filter (\section -> slug section == value) |> List.head
+    (pages ++ all) |> List.filter (\section -> slug section == value) |> List.head
 
 
 title : Section -> String
 title section =
     case section of
-        Processes ->
-            "Processes & state"
-
-        ProcessComponent name ->
+        Component name ->
             name
 
         Foundations ->
@@ -246,15 +231,18 @@ title section =
         NextComponents ->
             "Workflow toolkit"
 
+        Ai ->
+            "AI workspace"
+
+        Processes ->
+            "Processes & state"
+
 
 icon : Section -> Icon
 icon section =
     case section of
-        Processes ->
-            Icon.gitBranch
-
-        ProcessComponent _ ->
-            Icon.gitBranch
+        Component name ->
+            icon (owner name)
 
         Foundations ->
             Icon.layers
@@ -331,15 +319,18 @@ icon section =
         NextComponents ->
             Icon.layers
 
+        Ai ->
+            Icon.zap
+
+        Processes ->
+            Icon.gitBranch
+
 
 description : Section -> String
 description section =
     case section of
-        Processes ->
-            "Build and run visual AI/human workflows, approval and state machines."
-
-        ProcessComponent name ->
-            "Explore Klar." ++ name ++ " with a working process studio."
+        Component name ->
+            "Configure Klar." ++ name ++ " and explore its states and compositions."
 
         Foundations ->
             "Colors, typography, icons and layout."
@@ -416,56 +407,59 @@ description section =
         NextComponents ->
             "Kanban work stages, threaded discussion, explicit file uploads, safe source code and typed quantities."
 
+        Ai ->
+            "Server-generated AI proposals, sources, revision-bound approval, statement discussions and streaming chat."
+
+        Processes ->
+            "Visual workflows, AI tasks, human checkpoints, bounded loops, execution state and state machines."
+
 
 {-| The components shown on each page.
 -}
 components : Section -> List String
 components section =
     case section of
-        Processes ->
-            []
-
-        ProcessComponent name ->
+        Component name ->
             [ name ]
 
         Foundations ->
-            [ "Layout (Stack, Row, Grid)", "Card", "Text", "Icon" ]
+            [ "Klar", "Layout", "Card", "Text", "Icon", "Icon.Library", "Icon.Arrows", "Icon.Business", "Icon.Calendar", "Icon.Communication", "Icon.Data", "Icon.Developer", "Icon.Devices", "Icon.Documents", "Icon.Editor", "Icon.Interface", "Icon.Logistics", "Icon.Media", "Icon.Nature", "Icon.People", "Icon.Science", "Theme", "Color", "Settings", "Locale", "Format" ]
 
         Basics ->
             [ "Button", "Menu", "Badge", "Tag", "Alert", "Spinner", "Skeleton", "EmptyState", "ErrorState", "TextInput", "Checkbox" ]
 
         Selects ->
-            [ "Select", "MultiSelect", "Autocomplete", "VirtualList" ]
+            [ "Select", "MultiSelect", "Autocomplete" ]
 
         Tables ->
-            [ "Table", "Budget", "Pagination" ]
+            [ "Table", "Budget", "Pagination", "VirtualList" ]
 
         Forms ->
-            [ "TextArea", "NumberInput", "PasswordInput", "Radio", "CheckboxGroup", "Switch", "Slider", "SegmentedControl", "SearchInput", "TagInput", "FileDrop", "InlineEdit", "Form.Layout" ]
+            [ "TextArea", "NumberInput", "PasswordInput", "Radio", "CheckboxGroup", "Switch", "Slider", "SegmentedControl", "SearchInput", "TagInput", "FileDrop", "InlineEdit", "Form.Layout", "Field", "Validate", "Search" ]
 
         FormModel ->
             [ "Form", "Form.Spec", "Form.Check", "Ids" ]
 
         DateTime ->
-            [ "DatePicker", "DateRangePicker", "TimePicker", "DateTimePicker", "Calendar" ]
+            [ "Date", "DatePicker", "DateRangePicker", "TimePicker", "DateTimePicker", "Calendar" ]
 
         Overlays ->
-            [ "Modal", "ConfirmDialog", "Drawer", "Toast", "Popover", "Tooltip", "ContextMenu", "CommandPalette", "ShortcutHelp" ]
+            [ "Overlay", "Modal", "ConfirmDialog", "Drawer", "Toast", "Popover", "Tooltip", "ContextMenu", "CommandPalette", "ShortcutHelp" ]
 
         Navigation ->
             [ "AppShell", "SideNav", "PageHeader", "Breadcrumbs", "Tabs", "Accordion", "Toolbar", "DescriptionList", "Stepper" ]
 
         DataDisplay ->
-            [ "Tree", "Timeline", "Stat", "Chart (line, bar, donut, gauge)", "Avatar", "Progress", "ListItem", "JsonViewer" ]
+            [ "Tree", "Timeline", "Stat", "Chart", "Avatar", "Progress", "ListItem", "JsonViewer" ]
 
         Rules ->
-            [ "RuleBuilder", "FilterBar", "SavedViews" ]
+            [ "Rule", "RuleBuilder", "FilterBar", "SavedViews" ]
 
         Arranging ->
             [ "Sortable", "Splitter" ]
 
         Actions ->
-            [ "ButtonGroup", "ToggleGroup", "SplitButton", "Link", "Kbd" ]
+            [ "Shortcut", "ButtonGroup", "ToggleGroup", "SplitButton", "Link", "Kbd" ]
 
         Flow ->
             [ "StatusPage", "BulkBar", "LeaveGuard", "History" ]
@@ -480,7 +474,7 @@ components section =
             [ "MaskedInput", "Money", "MoneyInput" ]
 
         Picking ->
-            [ "TreeSelect", "Cascader", "Transfer" ]
+            [ "Picking", "TreeSelect", "Cascader", "Transfer" ]
 
         Access ->
             [ "PermissionMatrix", "ApprovalFlow" ]
@@ -495,7 +489,7 @@ components section =
             [ "ServerList" ]
 
         Examples ->
-            [ "Inbox", "Edit form", "Confirm delete", "Dashboard", "Multi-step flow", "Command palette" ]
+            [ "Inbox", "Edit form", "Confirm delete", "Dashboard", "Multi-step flow", "Command palette", "Review desk" ]
 
         Workbench ->
             [ "CardList", "WorkQueue", "ConflictResolver", "AuditLog", "NotificationCenter" ]
@@ -503,7 +497,53 @@ components section =
         NextComponents ->
             [ "Kanban", "CommentThread", "UploadQueue", "CodeBlock", "QuantityInput" ]
 
+        Ai ->
+            [ "AiReview", "AiChat" ]
+
+        Processes ->
+            [ "Workflow", "Workflow.Engine", "Workflow.Codec", "WorkflowNode", "WorkflowBuilder", "WorkflowRun", "StateMachine" ]
+
 
 componentCount : Int
 componentCount =
-    all |> List.map (components >> List.length) |> List.sum
+    List.length pages
+
+
+{-| Every component has its own address. Sections remain as compatibility links.
+-}
+pages : List Section
+pages =
+    all |> List.filter ((/=) Examples) |> List.concatMap components |> List.map Component
+
+
+owner : String -> Section
+owner name =
+    all |> List.filter (\section -> section /= Examples && List.member name (components section)) |> List.head |> Maybe.withDefault Foundations
+
+
+group : Section -> Section
+group section =
+    case section of
+        Component name ->
+            owner name
+
+        _ ->
+            section
+
+
+componentSlug : String -> String
+componentSlug name =
+    name
+        |> String.toList
+        |> List.indexedMap
+            (\index char ->
+                if char == '.' then
+                    "-"
+
+                else if Char.isUpper char && index > 0 && String.slice (index - 1) index name /= "." then
+                    "-" ++ String.fromChar (Char.toLower char)
+
+                else
+                    String.fromChar (Char.toLower char)
+            )
+        |> String.concat

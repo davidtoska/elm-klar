@@ -182,6 +182,10 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Icon.Nature](Klar.Icon.Nature.md): Nature, weather and animals: 16 icons.
 - [Klar.Icon.People](Klar.Icon.People.md): People and expressions: 16 icons.
 - [Klar.Icon.Science](Klar.Icon.Science.md): Science, health and everyday objects: 16 icons.
+## AI
+
+- [Klar.AiReview](Klar.AiReview.md): Review server-generated AI proposals one statement or change at a time, with evidence, exact before/after values, a reason and explicit approval or rejection.
+- [Klar.AiChat](Klar.AiChat.md): A transport-neutral AI conversation with safe Markdown, streamed answers, explicit generation status and a composer that preserves newer drafts.
 ## Files and media
 
 - [Klar.UploadQueue](Klar.UploadQueue.md): A local file-transfer workbench: validated file staging, an explicit add action, and an application-controlled queue with exact byte progress.

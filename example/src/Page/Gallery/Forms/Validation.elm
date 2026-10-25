@@ -6,7 +6,10 @@ languages, and a field to try them on.
 
 import Api.Types exposing (orderId)
 import Html exposing (Html)
+import Html.Attributes as Attr
+import Html.Events as Events
 import Klar.Badge as Badge
+import Klar.Field as Field
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Text as Text
@@ -14,7 +17,9 @@ import Klar.TextInput as TextInput
 import Klar.Theme exposing (Tone(..))
 import Klar.Validate as Validate
 import Page.Gallery.Forms.Common exposing (stack)
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Showcase.Sample as Sample
 
 
@@ -39,9 +44,36 @@ update msg model =
             ( { model | tryValue = value }, Cmd.none )
 
 
-sections : Locale -> Model -> List (Html Msg)
-sections lang model =
-    [ validation lang model ]
+sections : Config.Config -> Locale -> Model -> List (Html Msg)
+sections playground lang model =
+    [ Doc.configuredSection playground
+        [ "Field" ]
+        "Custom form controls"
+        "Field connects a custom control to its label, hint and validation message."
+        [ Doc.example
+            { title = "A native input in a Klar field"
+            , description = Just "Type an email address to try the same validation used by the built-in controls."
+            , code = Just "Field.view config (Html.input (Field.controlAttributes config ++ [ onInput Changed ]) [])"
+            }
+            (let
+                config =
+                    Field.empty
+                        |> Field.setId "custom-email"
+                        |> Field.setLabel "Customer email"
+                        |> Field.setHint "Used for order confirmations."
+                        |> Field.setError (Validate.run lang Validate.email model.tryValue)
+             in
+             Field.view config
+                (Html.input
+                    (Field.controlAttributes config
+                        ++ [ Attr.type_ "email", Attr.value model.tryValue, Events.onInput TryChanged ]
+                    )
+                    []
+                )
+            )
+        ]
+    , validation playground lang model
+    ]
 
 
 
@@ -119,11 +151,14 @@ tryValidators =
 -- VIEW
 
 
-validation : Locale -> Model -> Html Msg
-validation lang model =
-    Doc.section "Validation"
+validation : Config.Config -> Locale -> Model -> Html Msg
+validation playground lang model =
+    Doc.configuredSection playground
+        [ "Validate" ]
+        "Validation"
         "Pure functions that give an error message in the chosen language, or nothing when the value is fine. All of them except \"required\" accept an empty value, so optional fields are easy. Validation is pure and can be tested without a browser; the table below is calculated while the page is shown."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Validate" ]
             { title = "Examples"
             , description = Just "The call, the value, and the result in Norwegian and English. \"OK\" means that the validator finds nothing wrong."
             , code = Just """Validate.run Locale.en Validate.email "ada@"
@@ -138,7 +173,7 @@ Validate.collect Locale.en
     ]
 -- List { field : String, message : String }"""
             }
-            (validatorTable
+            (validatorTable playground
                 (List.map
                     (\( call, validator, value ) ->
                         { call = call
@@ -150,22 +185,27 @@ Validate.collect Locale.en
                     validatorSamples
                 )
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Validate" ]
             { title = "Try it yourself"
             , description = Just "Type a value and see what each validator says."
             , code = Just """TextInput.view [ TextInput.label "Value", TextInput.value model.text, TextInput.onInput TextChanged ]"""
             }
-            (stack
+            (stack playground
                 [ TextInput.view
-                    [ TextInput.label "Value"
-                    , TextInput.id "try-value"
-                    , TextInput.value model.tryValue
-                    , TextInput.onInput TryChanged
-                    , TextInput.clearable
-                    , TextInput.locale lang
-                    , TextInput.placeholder "Type something, for example an email address"
-                    ]
-                , validatorTable
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "label" (TextInput.label "Value")
+                            , Config.keep playground "TextInput" "id" (TextInput.id "try-value")
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.tryValue)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput TryChanged)
+                            , Config.keep playground "TextInput" "clearable" TextInput.clearable
+                            , Config.keep playground "TextInput" "locale" (TextInput.locale lang)
+                            , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "Type something, for example an email address")
+                            ]
+                        )
+                    )
+                , validatorTable playground
                     (List.map
                         (\( call, validator ) ->
                             { call = call
@@ -181,21 +221,21 @@ Validate.collect Locale.en
         ]
 
 
-validatorTable : List { call : String, value : String, nb : Maybe String, en : Maybe String } -> Html msg
-validatorTable rows =
-    Layout.grid [ Layout.columns 4, Layout.gap 2 ]
+validatorTable : Config.Config -> List { call : String, value : String, nb : Maybe String, en : Maybe String } -> Html msg
+validatorTable playground rows =
+    Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "columns" (Layout.columns 4), Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
         (List.map Text.overline [ "Call", "Value", "Norwegian", "English" ]
             ++ List.concatMap
-                (\row -> [ Text.mono row.call, Text.mono row.value, resultBadge row.nb, resultBadge row.en ])
+                (\row -> [ Text.mono row.call, Text.mono row.value, resultBadge playground row.nb, resultBadge playground row.en ])
                 rows
         )
 
 
-resultBadge : Maybe String -> Html msg
-resultBadge result =
+resultBadge : Config.Config -> Maybe String -> Html msg
+resultBadge playground result =
     case result of
         Nothing ->
-            Layout.row [] [ Badge.view [ Badge.tone Success ] "OK" ]
+            Layout.row (Options.klarLayout playground []) [ Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Success) ])) "OK" ]
 
         Just message ->
             Text.secondary message

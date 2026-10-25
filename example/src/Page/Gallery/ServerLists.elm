@@ -38,7 +38,9 @@ import Klar.Text as Text
 import Klar.Theme exposing (Tone(..))
 import Klar.Toast as Toast
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 import Time
 
@@ -225,8 +227,8 @@ andThen next ( model, cmd ) =
 -- UPDATE
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update : Config.Config -> Msg -> Model -> ( Model, Cmd Msg )
+update playground msg model =
     case msg of
         OrdersMsg m ->
             follow (ServerList.update m model.orders) model
@@ -280,11 +282,15 @@ update msg model =
                     let
                         ( toasts, cmd ) =
                             Toast.push
-                                [ Toast.tone Danger
-                                , Toast.key "supplier"
-                                , Toast.title "Could not load the supplier"
-                                , Toast.message (Remote.title Klar.Locale.default problem)
-                                ]
+                                (Options.klarToast playground
+                                    (List.concat
+                                        [ Config.keep playground "Toast" "tone" (Toast.tone Danger)
+                                        , Config.keep playground "Toast" "key" (Toast.key "supplier")
+                                        , Config.keep playground "Toast" "title" (Toast.title "Could not load the supplier")
+                                        , Config.keep playground "Toast" "message" (Toast.message (Remote.title Klar.Locale.default problem))
+                                        ]
+                                    )
+                                )
                                 model.toasts
                     in
                     ( { next | toasts = toasts }, Cmd.map ToastMsg cmd )
@@ -394,75 +400,91 @@ subscriptions _ =
 -- VIEW
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
     Overlay.host
         { attributes = []
         , page =
-            [ Doc.page
+            [ Doc.configuredPage playground
                 { title = "Server lists"
                 , description = "A table, a filter bar and saved views over rows that live on a server, with no glue in the application: Klar.ServerList compares the query, goes back to page 1, tickets the requests and drops late answers. Make the server slow, jumble the answers or let it fail."
                 }
-                [ Doc.section "An inbox" "" [ inbox locale model ]
-                , Doc.section "A page that is one RemoteView" "" [ supplier locale model ]
+                [ Doc.configuredSection playground [] "An inbox" "" [ inbox playground locale model ]
+                , Doc.configuredSection playground [] "A page that is one RemoteView" "" [ supplier playground locale model ]
                 ]
             ]
-        , overlays = [ Toast.view ToastMsg [ Toast.locale locale ] model.toasts ]
+        , overlays = [ Toast.view ToastMsg (Options.klarToast playground (List.concat [ Config.keep playground "Toast" "locale" (Toast.locale locale) ])) model.toasts ]
         }
 
 
-inbox : Locale -> Model -> Html Msg
-inbox locale model =
-    Layout.stack [ Layout.gap 3 ]
-        [ Layout.row [ Layout.gap 4, Layout.wrap, Layout.alignCenter ]
+inbox : Config.Config -> Locale -> Model -> Html Msg
+inbox playground locale model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+        [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
             [ SegmentedControl.view
-                [ SegmentedControl.label "Speed of the server"
-                , SegmentedControl.labelHidden
-                , SegmentedControl.options (List.map (\( name, _, text ) -> SegmentedControl.option name text) speeds)
-                , SegmentedControl.selected (speeds |> List.filter (\( _, speed, _ ) -> speed == model.speed) |> List.head |> Maybe.map (\( name, _, _ ) -> name) |> Maybe.withDefault "fast")
-                , SegmentedControl.onChange SpeedChosen
-                ]
-            , Switch.view [ Switch.label "The server fails", Switch.checked model.failing, Switch.onCheck FailingToggled ]
-            , Button.view [ Button.secondary, Button.onClick SaveView ] "Save view ..."
+                (Options.klarSegmentedControl playground
+                    (List.concat
+                        [ Config.keep playground "SegmentedControl" "label" (SegmentedControl.label "Speed of the server")
+                        , Config.keep playground "SegmentedControl" "labelHidden" SegmentedControl.labelHidden
+                        , Config.keep playground "SegmentedControl" "options" (SegmentedControl.options (List.map (\( name, _, text ) -> SegmentedControl.option name text) speeds))
+                        , Config.keep playground "SegmentedControl" "selected" (SegmentedControl.selected (speeds |> List.filter (\( _, speed, _ ) -> speed == model.speed) |> List.head |> Maybe.map (\( name, _, _ ) -> name) |> Maybe.withDefault "fast"))
+                        , Config.keep playground "SegmentedControl" "onChange" (SegmentedControl.onChange SpeedChosen)
+                        ]
+                    )
+                )
+            , Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "The server fails"), Config.keep playground "Switch" "checked" (Switch.checked model.failing), Config.keep playground "Switch" "onCheck" (Switch.onCheck FailingToggled) ]))
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "onClick" (Button.onClick SaveView) ])) "Save view ..."
             ]
-        , Layout.row [ Layout.gap 2, Layout.alignStart ]
-            [ ServerList.viewSavedViews OrdersMsg [ SavedViews.locale locale ] model.orders
-            , Layout.stack [ Layout.grow ]
+        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+            [ ServerList.viewSavedViews OrdersMsg (Options.klarSavedViews playground (List.concat [ Config.keep playground "SavedViews" "locale" (SavedViews.locale locale) ])) model.orders
+            , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "grow" Layout.grow ]))
                 [ ServerList.viewFilterBar OrdersMsg
-                    [ FilterBar.fields fields
-                    , FilterBar.totalCount (List.length allOrders)
-                    , FilterBar.today model.today
-                    , FilterBar.locale locale
-                    ]
+                    (Options.klarFilterBar playground
+                        (List.concat
+                            [ Config.keep playground "FilterBar" "fields" (FilterBar.fields fields)
+                            , Config.keep playground "FilterBar" "totalCount" (FilterBar.totalCount (List.length allOrders))
+                            , Config.keep playground "FilterBar" "today" (FilterBar.today model.today)
+                            , Config.keep playground "FilterBar" "locale" (FilterBar.locale locale)
+                            ]
+                        )
+                    )
                     model.orders
                 ]
             ]
         , ServerList.viewTable OrdersMsg
-            [ Table.columns
-                [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
-                , Table.text (Table.columnId "customer") "Customer" .customer []
-                , Table.status (Table.columnId "status") "Status" (\order -> ( statusTone order.status, order.status )) []
-                , Table.float (Table.columnId "total") "Total" 2 .total []
-                ]
-            , Table.rowId Ids.string .id
-            , Table.ariaLabel "Orders"
-            , Table.locale locale
-            , Table.settings (Settings.withZone model.zone Settings.default)
-            , Table.searchable
-            , Table.selectable
-            , Table.bulkActions [ Button.view [ Button.small, Button.icon Icon.download, Button.onClick ExportAll ] "Export all selected ..." ]
-            , Table.exportCsv "orders.csv"
-            , Table.pageSizes [ 10, 25, 50 ]
-            ]
+            (Options.klarTable playground
+                (List.concat
+                    [ Config.keep playground
+                        "Table"
+                        "columns"
+                        (Table.columns
+                            [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
+                            , Table.text (Table.columnId "customer") "Customer" .customer []
+                            , Table.status (Table.columnId "status") "Status" (\order -> ( statusTone order.status, order.status )) []
+                            , Table.float (Table.columnId "total") "Total" 2 .total []
+                            ]
+                        )
+                    , Config.keep playground "Table" "rowId" (Table.rowId Ids.string .id)
+                    , Config.keep playground "Table" "ariaLabel" (Table.ariaLabel "Orders")
+                    , Config.keep playground "Table" "locale" (Table.locale locale)
+                    , Config.keep playground "Table" "settings" (Table.settings (Settings.withZone model.zone Settings.default))
+                    , Config.keep playground "Table" "searchable" Table.searchable
+                    , Config.keep playground "Table" "selectable" Table.selectable
+                    , Config.keep playground "Table" "bulkActions" (Table.bulkActions [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "icon" (Button.icon Icon.download), Config.keep playground "Button" "onClick" (Button.onClick ExportAll) ])) "Export all selected ..." ])
+                    , Config.keep playground "Table" "exportCsv" (Table.exportCsv "orders.csv")
+                    , Config.keep playground "Table" "pageSizes" (Table.pageSizes [ 10, 25, 50 ])
+                    ]
+                )
+            )
             model.orders
         , if model.exportNote == "" then
             Html.text ""
 
           else
-            Alert.view [ Alert.tone Info, Alert.title "A request for your backend" ] model.exportNote
-        , Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
-            [ Button.view [ Button.secondary, Button.small, Button.onClick ShipFirst ] "Ship the first order (mapRows)"
-            , Button.view [ Button.secondary, Button.small, Button.onClick OpenAddress ] "Open an address (fromQueryString)"
+            Options.alertView playground (Options.klarAlert playground (List.concat [ Config.keep playground "Alert" "tone" (Alert.tone Info), Config.keep playground "Alert" "title" (Alert.title "A request for your backend") ])) model.exportNote
+        , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+            [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick ShipFirst) ])) "Ship the first order (mapRows)"
+            , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "secondary" Button.secondary, Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick OpenAddress) ])) "Open an address (fromQueryString)"
             ]
         , Text.secondary ("The address of the list (toQueryString): #/orders?" ++ ServerList.toQueryString model.orders)
         , Html.pre [ Attr.id "server-log", Attr.style "font-size" "12px", Attr.style "margin" "0" ] [ Html.text (String.join "\n" (List.reverse model.log)) ]
@@ -493,18 +515,22 @@ statusTone status =
             Info
 
 
-supplier : Locale -> Model -> Html Msg
-supplier locale model =
-    Layout.stack [ Layout.gap 3 ]
-        [ Switch.view [ Switch.label "The supplier request fails", Switch.checked model.supplierFailing, Switch.onCheck SupplierFailingToggled ]
-        , Card.view [ Card.title "Supplier", Card.headingLevel 3 ]
+supplier : Config.Config -> Locale -> Model -> Html Msg
+supplier playground locale model =
+    Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+        [ Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "The supplier request fails"), Config.keep playground "Switch" "checked" (Switch.checked model.supplierFailing), Config.keep playground "Switch" "onCheck" (Switch.onCheck SupplierFailingToggled) ]))
+        , Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "Supplier"), Config.keep playground "Card" "headingLevel" (Card.headingLevel 3) ]))
             (RemoteView.view
-                [ RemoteView.id "supplier-body"
-                , RemoteView.onRetry SupplierRetry
-                , RemoteView.loadingLabel "Loading supplier"
-                , RemoteView.locale locale
-                , RemoteView.settings (Settings.withZone model.zone Settings.default)
-                ]
+                (Options.klarRemoteView playground
+                    (List.concat
+                        [ Config.keep playground "RemoteView" "id" (RemoteView.id "supplier-body")
+                        , Config.keep playground "RemoteView" "onRetry" (RemoteView.onRetry SupplierRetry)
+                        , Config.keep playground "RemoteView" "loadingLabel" (RemoteView.loadingLabel "Loading supplier")
+                        , Config.keep playground "RemoteView" "locale" (RemoteView.locale locale)
+                        , Config.keep playground "RemoteView" "settings" (RemoteView.settings (Settings.withZone model.zone Settings.default))
+                        ]
+                    )
+                )
                 model.supplier
                 (\name -> [ Text.paragraph name ])
             )

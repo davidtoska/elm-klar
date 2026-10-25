@@ -3,11 +3,13 @@ module Page.Gallery.Workbench exposing (Model, Msg, init, subscriptions, update,
 {-| Five workbench components exercised together in a complete application.
 -}
 
-import Examples.ReviewDesk as ReviewDesk
 import Html exposing (Html)
 import Klar.Locale exposing (Locale)
 import Klar.Settings exposing (Settings)
+import Page.Gallery.Workbench.Demo as ReviewDesk
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 type alias Model =
@@ -33,10 +35,10 @@ subscriptions =
     ReviewDesk.subscriptions
 
 
-view : Settings -> Locale -> Model -> Html Msg
-view settings locale model =
-    Doc.page
+view : Config.Config -> Settings -> Locale -> Model -> Html Msg
+view playground settings locale model =
+    Doc.configuredPage playground
         { title = "Data workbench"
         , description = "CardList, WorkQueue, ConflictResolver, AuditLog and NotificationCenter in one connected review desk. Approve an order to see every panel respond; inspect all remote states with the controls. The complete program is example/src/Examples/ReviewDesk.elm."
         }
-        [ ReviewDesk.view locale { model | settings = settings } ]
+        [ ReviewDesk.view playground locale { model | settings = settings } ]

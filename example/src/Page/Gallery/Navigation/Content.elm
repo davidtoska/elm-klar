@@ -32,7 +32,9 @@ import Klar.TextInput as TextInput
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
 import Klar.Toolbar as Toolbar
 import Page.Gallery.Navigation.Demo as Demo
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 
@@ -153,8 +155,8 @@ customerSectionIds =
 
 {-| The sections of the second example: plain text keys.
 -}
-multipleSections : List (Accordion.Section String Msg)
-multipleSections =
+multipleSections : Config.Config -> List (Accordion.Section String Msg)
+multipleSections playground =
     [ Accordion.section Ids.string
         "items"
         "Line items"
@@ -164,31 +166,34 @@ multipleSections =
         "customs"
         "Customs"
         [ Text.paragraph "Held at the border: the commercial invoice is missing." ]
-        |> Accordion.withBadge (Badge.view [ Badge.tone Danger, Badge.size Small ] "Held")
+        |> Accordion.withBadge (Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Danger), Config.keep playground "Badge" "size" (Badge.size Small) ])) "Held")
     , Accordion.section Ids.string
         "delivery"
         "Delivery"
         [ Text.paragraph "Collected by the carrier on Monday, expected on Thursday." ]
-        |> Accordion.withBadge (Badge.view [ Badge.tone Success, Badge.size Small ] "On time")
+        |> Accordion.withBadge (Options.badgeView playground (Options.klarBadge playground (List.concat [ Config.keep playground "Badge" "tone" (Badge.tone Success), Config.keep playground "Badge" "size" (Badge.size Small) ])) "On time")
     ]
 
 
-accordionSection : Locale -> Model -> Html Msg
-accordionSection locale model =
-    Doc.section "Accordion"
+accordionSection : Config.Config -> Locale -> Model -> Html Msg
+accordionSection playground locale model =
+    Doc.configuredSection playground
+        [ "Accordion" ]
+        "Accordion"
         "Sections that open and close, keyed by a type of the application's own. By default opening a section closes the others; setMultiple True on the state lets several stay open. The body of a closed section stays in the page, hidden until found: press Ctrl+F and search for \"Rotterdam\" or \"invoice\" with the sections closed, and the browser opens the section (Chrome and Edge). A lazySection is not in the page while it is closed. A header is a button with aria-expanded, inside a heading. Keyboard: Enter and Space open and close the section, Arrow Up and Down move between the headers (wrapping around), Home and End to the first and last."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Accordion" ]
             { title = "Bordered, one open at a time"
             , description = Just "The default. A disabled section is skipped by the arrow keys. The change log is built only when it is opened (lazySection)."
             , code = Just accordionCode
             }
             (Accordion.view AccSingleMsg
-                [ Accordion.headingLevel 4 ]
+                (Options.klarAccordion playground (List.concat [ Config.keep playground "Accordion" "headingLevel" (Accordion.headingLevel 4) ]))
                 model.accSingle
                 [ Accordion.section customerSectionIds
                     Contact
                     "Contact details"
-                    [ DescriptionList.view [ DescriptionList.columns 2, DescriptionList.locale locale ]
+                    [ DescriptionList.view (Options.klarDescriptionList playground (List.concat [ Config.keep playground "DescriptionList" "columns" (DescriptionList.columns 2), Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale) ]))
                         [ DescriptionList.text "Email" "purchasing@northwind.example"
                         , DescriptionList.text "Phone" "+31 20 555 0100"
                         , DescriptionList.text "Address" "Harbor Road 12, 3011 AA Rotterdam"
@@ -213,28 +218,30 @@ accordionSection locale model =
                     |> Accordion.withIcon Icon.fileText
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Accordion" ]
             { title = "Several open, with badges"
             , description = Just "setMultiple True on the state. The count and the status badges sit at the right of the header. The buttons change the state from the application (expandAll, collapseAll)."
             , code = Just accordionMultipleCode
             }
-            (Layout.stack [ Layout.gap 3 ]
-                [ Layout.row [ Layout.gap 2, Layout.alignCenter, Layout.wrap ]
-                    [ Button.view [ Button.small, Button.onClick ExpandAll ] "Expand all"
-                    , Button.view [ Button.small, Button.onClick CollapseAll ] "Collapse all"
-                    , Text.caption (String.fromInt (List.length (Accordion.expandedIds model.accMultiple)) ++ " of " ++ String.fromInt (List.length multipleSections) ++ " sections open")
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick ExpandAll) ])) "Expand all"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick CollapseAll) ])) "Collapse all"
+                    , Text.caption (String.fromInt (List.length (Accordion.expandedIds model.accMultiple)) ++ " of " ++ String.fromInt (List.length (multipleSections playground)) ++ " sections open")
                     ]
-                , Accordion.view AccMultipleMsg [ Accordion.headingLevel 4 ] model.accMultiple multipleSections
+                , Accordion.view AccMultipleMsg (Options.klarAccordion playground (List.concat [ Config.keep playground "Accordion" "headingLevel" (Accordion.headingLevel 4) ])) model.accMultiple (multipleSections playground)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Accordion" ]
             { title = "Without a frame"
             , description = Just "flush: only a line between the sections, for use inside cards and drawers. Here also small."
             , code = Just accordionFlushCode
             }
-            (Card.view [ Card.title "Settings" ]
+            (Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "title" (Card.title "Settings") ]))
                 [ Accordion.view AccFlushMsg
-                    [ Accordion.headingLevel 4, Accordion.flush, Accordion.small ]
+                    (Options.klarAccordion playground (List.concat [ Config.keep playground "Accordion" "headingLevel" (Accordion.headingLevel 4), Config.keep playground "Accordion" "flush" Accordion.flush, Config.keep playground "Accordion" "small" Accordion.small ]))
                     model.accFlush
                     [ Accordion.section Ids.string "general" "General" [ Text.paragraph "Language, time zone and date format." ]
                     , Accordion.section Ids.string "notifications" "Notifications" [ Text.paragraph "Which events you are told about." ]
@@ -297,123 +304,149 @@ accordionFlushCode =
 -- TOOLBAR
 
 
-toolbarSection : Locale -> Model -> Html Msg
-toolbarSection locale model =
-    Doc.section "Toolbar"
+toolbarSection : Config.Config -> Locale -> Model -> Html Msg
+toolbarSection playground locale model =
+    Doc.configuredSection playground
+        [ "Toolbar" ]
+        "Toolbar"
         "A horizontal bar of grouped controls for the whole view, separators and flexible space. It is a group of controls (role=\"group\", labelled with Toolbar.ariaLabel) and wraps onto a new line when there is no room; scroll keeps it on one line and scrolls sideways instead. The size (size, small, large) sets the height of every control inside, so buttons and fields line up without extra work. Every control is reached with Tab; the arrow keys are not used. Actions for selected items are not a toolbar: BulkBar covers the toolbar while something is selected, and a Table draws its own bar (Table.bulkActions)."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Toolbar" ]
             { title = "Groups, separators and space"
             , description = Just (Demo.actionText model.lastAction ++ ". Buttons in groups, a separator, flexible space, a label, and then a search field and a menu. The last button of the second group is disabled.")
             , code = Just toolbarCode
             }
-            (Toolbar.view [ Toolbar.ariaLabel "Orders" ]
+            (Toolbar.view (Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "ariaLabel" (Toolbar.ariaLabel "Orders") ]))
                 [ Toolbar.group
-                    [ Button.view [ Button.primary, Button.icon Icon.plus, Button.onClick (Action "New order") ] "New order"
-                    , Button.view [ Button.icon Icon.download, Button.onClick (Action "Export") ] "Export"
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.plus), Config.keep playground "Button" "onClick" (Button.onClick (Action "New order")) ])) "New order"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.download), Config.keep playground "Button" "onClick" (Button.onClick (Action "Export")) ])) "Export"
                     ]
                 , Toolbar.separator
                 , Toolbar.group
-                    [ Button.view [ Button.ghost, Button.icon Icon.filter, Button.onClick (Action "Filter") ] "Filter"
-                    , Button.view [ Button.ghost, Button.icon Icon.columns, Button.onClick (Action "Columns") ] "Columns"
-                    , Button.view [ Button.ghost, Button.icon Icon.layers, Button.disabled True ] "Group by"
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.filter), Config.keep playground "Button" "onClick" (Button.onClick (Action "Filter")) ])) "Filter"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.columns), Config.keep playground "Button" "onClick" (Button.onClick (Action "Columns")) ])) "Columns"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.layers), Config.keep playground "Button" "disabled" (Button.disabled True) ])) "Group by"
                     ]
                 , Toolbar.spacer
                 , Toolbar.label (Format.int locale 1482 ++ " orders")
                 , TextInput.view
-                    [ TextInput.search
-                    , TextInput.labelHidden
-                    , TextInput.label "Search orders"
-                    , TextInput.placeholder "Search ..."
-                    , TextInput.clearable
-                    , TextInput.value model.search
-                    , TextInput.onInput SearchChanged
-                    , TextInput.id "nav-toolbar-search"
-                    , TextInput.locale locale
-                    ]
+                    (Options.klarTextInput playground
+                        (List.concat
+                            [ Config.keep playground "TextInput" "search" TextInput.search
+                            , Config.keep playground "TextInput" "labelHidden" TextInput.labelHidden
+                            , Config.keep playground "TextInput" "label" (TextInput.label "Search orders")
+                            , Config.keep playground "TextInput" "placeholder" (TextInput.placeholder "Search ...")
+                            , Config.keep playground "TextInput" "clearable" TextInput.clearable
+                            , Config.keep playground "TextInput" "value" (TextInput.value model.search)
+                            , Config.keep playground "TextInput" "onInput" (TextInput.onInput SearchChanged)
+                            , Config.keep playground "TextInput" "id" (TextInput.id "nav-toolbar-search")
+                            , Config.keep playground "TextInput" "locale" (TextInput.locale locale)
+                            ]
+                        )
+                    )
                 , Menu.view ToolbarMenuMsg
-                    [ Menu.kebab "More actions"
-                    , Menu.alignEnd
-                    , Menu.items
-                        [ Menu.item "Print" (Action "Print") |> Menu.withIcon Icon.print
-                        , Menu.item "Download as CSV" (Action "CSV") |> Menu.withIcon Icon.download
-                        ]
-                    ]
+                    (Options.klarMenu playground
+                        (List.concat
+                            [ Config.keep playground "Menu" "kebab" (Menu.kebab "More actions")
+                            , Config.keep playground "Menu" "alignEnd" Menu.alignEnd
+                            , Config.keep playground
+                                "Menu"
+                                "items"
+                                (Menu.items
+                                    [ Menu.item "Print" (Action "Print") |> Menu.withIcon Icon.print
+                                    , Menu.item "Download as CSV" (Action "CSV") |> Menu.withIcon Icon.download
+                                    ]
+                                )
+                            ]
+                        )
+                    )
                     model.toolbarMenu
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Toolbar" ]
             { title = "Sizes"
             , description = Just "small, standard and large. The buttons follow the height without being marked as small or large."
             , code = Just toolbarSizesCode
             }
-            (Layout.stack [ Layout.gap 3 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
                 (List.map
                     (\( attributes, label ) ->
                         Toolbar.view (Toolbar.ariaLabel (label ++ " toolbar") :: attributes)
                             [ Toolbar.group
-                                [ Button.view [ Button.icon Icon.plus ] label
-                                , Button.view [ Button.icon Icon.filter ] "Filter"
+                                [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.plus) ])) label
+                                , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.filter) ])) "Filter"
                                 ]
                             , Toolbar.separator
                             , Toolbar.groupLabelled "View"
                                 [ ButtonGroup.view []
                                     "View"
-                                    [ Button.view [ Button.icon Icon.list ] "List"
-                                    , Button.view [ Button.icon Icon.grid ] "Grid"
+                                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.list) ])) "List"
+                                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.grid) ])) "Grid"
                                     ]
                                 ]
                             , Toolbar.spacer
                             , Toolbar.label (Format.int locale 1482 ++ " rows")
                             ]
                     )
-                    [ ( [ Toolbar.small ], "Small" )
+                    [ ( Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "small" Toolbar.small ]), "Small" )
                     , ( [], "Standard" )
-                    , ( [ Toolbar.large ], "Large" )
+                    , ( Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "large" Toolbar.large ]), "Large" )
                     ]
                 )
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Toolbar" ]
             { title = "Wraps and scrolls"
             , description = Just "The same content in a narrow space: on the left the groups wrap onto a new line, on the right the bar scrolls sideways (scroll)."
             , code = Just "Toolbar.view [ Toolbar.scroll, Toolbar.ariaLabel \"Actions\" ]\n    [ Toolbar.group [ Button.view [ Button.icon Icon.plus ] \"New\" ]\n    , Toolbar.separator\n    , Toolbar.group [ Button.view [ Button.ghost, Button.icon Icon.trash ] \"Delete\" ]\n    ]"
             }
-            (Layout.row [ Layout.gap 6, Layout.alignStart, Layout.wrap ]
-                [ Layout.container [ Layout.maxWidth 300, Layout.alignStart ]
-                    [ Toolbar.view [ Toolbar.ariaLabel "Wraps" ] narrowToolbarItems ]
-                , Layout.container [ Layout.maxWidth 300, Layout.alignStart ]
-                    [ Toolbar.view [ Toolbar.scroll, Toolbar.ariaLabel "Scrolls" ] narrowToolbarItems ]
+            (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6), Config.keep playground "Layout" "alignStart" Layout.alignStart, Config.keep playground "Layout" "wrap" Layout.wrap ]))
+                [ Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 300), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                    [ Toolbar.view (Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "ariaLabel" (Toolbar.ariaLabel "Wraps") ])) (narrowToolbarItems playground) ]
+                , Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 300), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                    [ Toolbar.view (Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "scroll" Toolbar.scroll, Config.keep playground "Toolbar" "ariaLabel" (Toolbar.ariaLabel "Scrolls") ])) (narrowToolbarItems playground) ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Toolbar" ]
             { title = "Plain, inside a card"
             , description = Just "plain: no border, background or padding, for a bar that sits inside another surface such as a card header."
             , code = Just toolbarPlainCode
             }
             (Card.view
-                [ Card.title "Open orders"
-                , Card.actions
-                    [ Toolbar.view [ Toolbar.plain, Toolbar.small, Toolbar.ariaLabel "Card actions" ]
-                        [ Button.view [ Button.ghost, Button.icon Icon.refresh, Button.onClick (Action "Refresh") ] "Refresh"
-                        , Button.view [ Button.ghost, Button.icon Icon.download, Button.onClick (Action "Export open orders") ] "Export"
+                (Options.klarCard playground
+                    (List.concat
+                        [ Config.keep playground "Card" "title" (Card.title "Open orders")
+                        , Config.keep playground
+                            "Card"
+                            "actions"
+                            (Card.actions
+                                [ Toolbar.view (Options.klarToolbar playground (List.concat [ Config.keep playground "Toolbar" "plain" Toolbar.plain, Config.keep playground "Toolbar" "small" Toolbar.small, Config.keep playground "Toolbar" "ariaLabel" (Toolbar.ariaLabel "Card actions") ]))
+                                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.refresh), Config.keep playground "Button" "onClick" (Button.onClick (Action "Refresh")) ])) "Refresh"
+                                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.download), Config.keep playground "Button" "onClick" (Button.onClick (Action "Export open orders")) ])) "Export"
+                                    ]
+                                ]
+                            )
                         ]
-                    ]
-                ]
+                    )
+                )
                 [ Text.paragraph "The actions in the header of this card are a toolbar without a frame of its own." ]
             )
         ]
 
 
-narrowToolbarItems : List (Html msg)
-narrowToolbarItems =
+narrowToolbarItems : Config.Config -> List (Html msg)
+narrowToolbarItems playground =
     [ Toolbar.group
-        [ Button.view [ Button.primary, Button.icon Icon.plus ] "New"
-        , Button.view [ Button.icon Icon.download ] "Export"
-        , Button.view [ Button.icon Icon.print ] "Print"
+        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "icon" (Button.icon Icon.plus) ])) "New"
+        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.download) ])) "Export"
+        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.print) ])) "Print"
         ]
     , Toolbar.separator
     , Toolbar.group
-        [ Button.view [ Button.ghost, Button.icon Icon.archive ] "Archive"
-        , Button.view [ Button.ghost, Button.icon Icon.trash ] "Delete"
+        [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.archive) ])) "Archive"
+        , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "ghost" Button.ghost, Config.keep playground "Button" "icon" (Button.icon Icon.trash) ])) "Delete"
         ]
     ]
 
@@ -494,41 +527,53 @@ descriptionItems =
     ]
 
 
-descriptionListSection : Locale -> Html msg
-descriptionListSection locale =
-    Doc.section "Description list"
+descriptionListSection : Config.Config -> Locale -> Html msg
+descriptionListSection playground locale =
+    Doc.configuredSection playground
+        [ "DescriptionList" ]
+        "Description list"
         "Names and values for detail views, as a semantic dl. The label sits above the value by default, or in a column on the left (labelBeside). The number of columns is a maximum: the grid drops to fewer columns when there is no room (a column is never narrower than 200 px). A missing value is shown as a muted dash with \"Not provided\" for screen readers, so a row never disappears without explanation."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "DescriptionList" ]
             { title = "One and two columns"
             , description = Just "Label above value. The delivery note uses the whole row. Phone and address are missing."
             , code = Just descriptionListCode
             }
-            (Layout.stack [ Layout.gap 6 ]
-                [ DescriptionList.view [ DescriptionList.locale locale ] (List.take 5 descriptionItems)
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
+                [ DescriptionList.view (Options.klarDescriptionList playground (List.concat [ Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale) ])) (List.take 5 descriptionItems)
                 , Layout.divider
-                , DescriptionList.view [ DescriptionList.columns 2, DescriptionList.locale locale ] descriptionItems
+                , DescriptionList.view (Options.klarDescriptionList playground (List.concat [ Config.keep playground "DescriptionList" "columns" (DescriptionList.columns 2), Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale) ])) descriptionItems
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "DescriptionList" ]
             { title = "Label beside, with lines"
             , description = Just "Above: labelBeside and bordered, with a narrower label column. Below: three columns (as many as there is room for), compact and bordered."
             , code = Just "DescriptionList.view\n    [ DescriptionList.labelBeside\n    , DescriptionList.bordered\n    , DescriptionList.labelWidth 120\n    ]\n    items"
             }
-            (Layout.stack [ Layout.gap 6 ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6) ]))
                 [ DescriptionList.view
-                    [ DescriptionList.labelBeside
-                    , DescriptionList.bordered
-                    , DescriptionList.labelWidth 120
-                    , DescriptionList.columns 1
-                    , DescriptionList.locale locale
-                    ]
+                    (Options.klarDescriptionList playground
+                        (List.concat
+                            [ Config.keep playground "DescriptionList" "labelBeside" DescriptionList.labelBeside
+                            , Config.keep playground "DescriptionList" "bordered" DescriptionList.bordered
+                            , Config.keep playground "DescriptionList" "labelWidth" (DescriptionList.labelWidth 120)
+                            , Config.keep playground "DescriptionList" "columns" (DescriptionList.columns 1)
+                            , Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale)
+                            ]
+                        )
+                    )
                     (List.take 6 descriptionItems)
                 , DescriptionList.view
-                    [ DescriptionList.columns 3
-                    , DescriptionList.density Theme.Compact
-                    , DescriptionList.bordered
-                    , DescriptionList.locale locale
-                    ]
+                    (Options.klarDescriptionList playground
+                        (List.concat
+                            [ Config.keep playground "DescriptionList" "columns" (DescriptionList.columns 3)
+                            , Config.keep playground "DescriptionList" "density" (DescriptionList.density Theme.Compact)
+                            , Config.keep playground "DescriptionList" "bordered" DescriptionList.bordered
+                            , Config.keep playground "DescriptionList" "locale" (DescriptionList.locale locale)
+                            ]
+                        )
+                    )
                     (List.take 6 descriptionItems)
                 ]
             )
@@ -560,34 +605,38 @@ steps =
     ]
 
 
-stepperSection : Locale -> Model -> Html Msg
-stepperSection locale model =
+stepperSection : Config.Config -> Locale -> Model -> Html Msg
+stepperSection playground locale model =
     let
         count =
             List.length steps
     in
-    Doc.section "Stepper"
+    Doc.configuredSection playground
+        [ "Stepper" ]
+        "Stepper"
         "The steps of a wizard, horizontal or vertical, with thin lines between them. A step is complete, current, upcoming, failed or disabled. The current step has aria-current=\"step\". With onSelect the steps up to the current one become buttons, so the user can go back but not skip ahead; nonLinear makes every step that is not disabled a button. progress gives the short text \"Step 2 of 5\"."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Stepper" ]
             { title = "Wizard"
             , description = Just "Click a step, or use the buttons. Completed steps are blue."
             , code = Just stepperCode
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Stepper.view [ Stepper.current model.step, Stepper.onSelect SetStep, Stepper.locale locale ] steps
-                , Layout.row [ Layout.gap 3, Layout.alignCenter ]
-                    [ Button.view [ Button.icon Icon.arrowLeft, Button.disabled (model.step <= 0), Button.onClick (SetStep (model.step - 1)) ] "Previous"
-                    , Button.view [ Button.primary, Button.iconRight Icon.arrowRight, Button.disabled (model.step >= count - 1), Button.onClick (SetStep (model.step + 1)) ] "Next"
-                    , Stepper.progress [ Stepper.current model.step, Stepper.locale locale ] steps
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Stepper.view (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "current" (Stepper.current model.step), Config.keep playground "Stepper" "onSelect" (Stepper.onSelect SetStep), Config.keep playground "Stepper" "locale" (Stepper.locale locale) ])) steps
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3), Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
+                    [ Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "icon" (Button.icon Icon.arrowLeft), Config.keep playground "Button" "disabled" (Button.disabled (model.step <= 0)), Config.keep playground "Button" "onClick" (Button.onClick (SetStep (model.step - 1))) ])) "Previous"
+                    , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary, Config.keep playground "Button" "iconRight" (Button.iconRight Icon.arrowRight), Config.keep playground "Button" "disabled" (Button.disabled (model.step >= count - 1)), Config.keep playground "Button" "onClick" (Button.onClick (SetStep (model.step + 1))) ])) "Next"
+                    , Stepper.progress (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "current" (Stepper.current model.step), Config.keep playground "Stepper" "locale" (Stepper.locale locale) ])) steps
                     ]
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Stepper" ]
             { title = "States"
             , description = Just "Complete, current, upcoming, with errors and unavailable."
             , code = Just stepperStatesCode
             }
-            (Stepper.view [ Stepper.current 2, Stepper.locale locale ]
+            (Stepper.view (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "current" (Stepper.current 2), Config.keep playground "Stepper" "locale" (Stepper.locale locale) ]))
                 [ Stepper.step "Complete"
                 , Stepper.step "Also complete"
                 , Stepper.step "Current"
@@ -596,25 +645,27 @@ stepperSection locale model =
                 , Stepper.step "Unavailable" |> Stepper.disabledStep
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Stepper" ]
             { title = "Vertical"
             , description = Just "For sidebars and long descriptions. On the right with small markers (small) and without onSelect."
             , code = Just "Stepper.view [ Stepper.vertical, Stepper.current 1 ] steps"
             }
-            (Layout.grid [ Layout.columns 2, Layout.gap 8, Layout.alignStart ]
-                [ Stepper.view [ Stepper.vertical, Stepper.current model.step, Stepper.onSelect SetStep, Stepper.locale locale ] steps
-                , Stepper.view [ Stepper.vertical, Stepper.small, Stepper.current model.step, Stepper.locale locale ] steps
+            (Layout.grid (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "columns" (Layout.columns 2), Config.keep playground "Layout" "gap" (Layout.gap 8), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                [ Stepper.view (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "vertical" Stepper.vertical, Config.keep playground "Stepper" "current" (Stepper.current model.step), Config.keep playground "Stepper" "onSelect" (Stepper.onSelect SetStep), Config.keep playground "Stepper" "locale" (Stepper.locale locale) ])) steps
+                , Stepper.view (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "vertical" Stepper.vertical, Config.keep playground "Stepper" "small" Stepper.small, Config.keep playground "Stepper" "current" (Stepper.current model.step), Config.keep playground "Stepper" "locale" (Stepper.locale locale) ])) steps
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "Stepper" ]
             { title = "Narrow space"
             , description = Just "Long names are cut. The text \"Step 2 of 3\" often suits small screens better."
             , code = Nothing
             }
-            (Layout.container [ Layout.maxWidth 420, Layout.alignStart ]
-                [ Layout.stack [ Layout.gap 3 ]
-                    [ Stepper.view [ Stepper.current 1, Stepper.locale locale ] narrowSteps
-                    , Stepper.progress [ Stepper.current 1, Stepper.locale locale ] narrowSteps
+            (Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 420), Config.keep playground "Layout" "alignStart" Layout.alignStart ]))
+                [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 3) ]))
+                    [ Stepper.view (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "current" (Stepper.current 1), Config.keep playground "Stepper" "locale" (Stepper.locale locale) ])) narrowSteps
+                    , Stepper.progress (Options.klarStepper playground (List.concat [ Config.keep playground "Stepper" "current" (Stepper.current 1), Config.keep playground "Stepper" "locale" (Stepper.locale locale) ])) narrowSteps
                     ]
                 ]
             )

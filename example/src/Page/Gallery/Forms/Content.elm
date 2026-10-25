@@ -17,7 +17,9 @@ import Klar.Text as Text
 import Klar.Validate as Validate
 import Page.Gallery.Forms.Common exposing (grid, narrow, readout, stack)
 import Process
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 import Task
 
 
@@ -216,11 +218,11 @@ fakeSave key fails saved =
 -- VIEW
 
 
-sections : Locale -> Model -> List (Html Msg)
-sections lang model =
-    [ tagInputs lang model
-    , fileDrops lang model
-    , inlineEdits lang model
+sections : Config.Config -> Locale -> Model -> List (Html Msg)
+sections playground lang model =
+    [ tagInputs playground lang model
+    , fileDrops playground lang model
+    , inlineEdits playground lang model
     ]
 
 
@@ -228,11 +230,14 @@ sections lang model =
 -- TAGS
 
 
-tagInputs : Locale -> Model -> Html Msg
-tagInputs lang model =
-    Doc.section "Tags"
+tagInputs : Config.Config -> Locale -> Model -> Html Msg
+tagInputs playground lang model =
+    Doc.configuredSection playground
+        [ "TagInput" ]
+        "Tags"
         "Free text that becomes small chips. Enter or comma adds a tag, Backspace in the empty field removes the last one, the crosses remove single tags, and pasting \"a, b, c\" gives three tags. Duplicates (ignoring case) and invalid tags are refused with a message, and their text stays in the field to be corrected. The chips are no Tab stops: arrow left at the start of the text moves to them, arrow left and right move between them, Backspace or Delete removes one, and arrow right past the last one or Escape goes back to the text."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "TagInput" ]
             { title = "Labels"
             , description = Just "At most six tags, at least two characters each. Try adding \"fragile\" twice."
             , code = Just """TagInput.view LabelsMsg
@@ -245,59 +250,86 @@ tagInputs lang model =
 
 TagInput.values model.labels -- List String"""
             }
-            (stack
+            (stack playground
                 [ TagInput.view (TagsMsg "tags-labels")
-                    [ TagInput.label "Labels"
-                    , TagInput.hint "Enter or comma adds a tag. Backspace removes the last one."
-                    , TagInput.placeholder "Type and press Enter"
-                    , TagInput.maxTags 6
-                    , TagInput.validate (Validate.run lang (Validate.minLength 2))
-                    , TagInput.locale lang
-                    ]
+                    (Options.klarTagInput playground
+                        (List.concat
+                            [ Config.keep playground "TagInput" "label" (TagInput.label "Labels")
+                            , Config.keep playground "TagInput" "hint" (TagInput.hint "Enter or comma adds a tag. Backspace removes the last one.")
+                            , Config.keep playground "TagInput" "placeholder" (TagInput.placeholder "Type and press Enter")
+                            , Config.keep playground "TagInput" "maxTags" (TagInput.maxTags 6)
+                            , Config.keep playground "TagInput" "validate" (TagInput.validate (Validate.run lang (Validate.minLength 2)))
+                            , Config.keep playground "TagInput" "locale" (TagInput.locale lang)
+                            ]
+                        )
+                    )
                     (tagsOf "tags-labels" model)
                 , readout ("Tags: " ++ String.join " | " (TagInput.values (tagsOf "tags-labels" model)))
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "TagInput" ]
             { title = "States"
             , description = Just "Many long tags wrap over several lines. Disabled, read-only, and with an error from the application."
             , code = Just """TagInput.view TagsMsg [ TagInput.label "Handling notes", TagInput.error "Add at least one note" ] state"""
             }
-            (grid 300
+            (grid playground
+                300
                 [ TagInput.view (TagsMsg "tags-notes")
-                    [ TagInput.label "Handling notes"
-                    , TagInput.hint "Long tags fit by wrapping to the next line."
-                    , TagInput.locale lang
-                    ]
+                    (Options.klarTagInput playground
+                        (List.concat
+                            [ Config.keep playground "TagInput" "label" (TagInput.label "Handling notes")
+                            , Config.keep playground "TagInput" "hint" (TagInput.hint "Long tags fit by wrapping to the next line.")
+                            , Config.keep playground "TagInput" "locale" (TagInput.locale lang)
+                            ]
+                        )
+                    )
                     (tagsOf "tags-notes" model)
                 , TagInput.view (always NoOp)
-                    [ TagInput.label "Disabled"
-                    , TagInput.disabled True
-                    , TagInput.locale lang
-                    ]
+                    (Options.klarTagInput playground
+                        (List.concat
+                            [ Config.keep playground "TagInput" "label" (TagInput.label "Disabled")
+                            , Config.keep playground "TagInput" "disabled" (TagInput.disabled True)
+                            , Config.keep playground "TagInput" "locale" (TagInput.locale lang)
+                            ]
+                        )
+                    )
                     (TagInput.setValues [ "Fragile", "Gift" ] (TagInput.init "tags-disabled"))
                 , TagInput.view (always NoOp)
-                    [ TagInput.label "Read-only"
-                    , TagInput.readOnly True
-                    , TagInput.locale lang
-                    ]
+                    (Options.klarTagInput playground
+                        (List.concat
+                            [ Config.keep playground "TagInput" "label" (TagInput.label "Read-only")
+                            , Config.keep playground "TagInput" "readOnly" (TagInput.readOnly True)
+                            , Config.keep playground "TagInput" "locale" (TagInput.locale lang)
+                            ]
+                        )
+                    )
                     (TagInput.setValues [ "Wholesale", "Spring sale" ] (TagInput.init "tags-readonly"))
                 , TagInput.view (TagsMsg "tags-error")
-                    [ TagInput.label "Delivery tags"
-                    , TagInput.required
-                    , TagInput.errorMaybe
-                        (if List.isEmpty (TagInput.values (tagsOf "tags-error" model)) then
-                            Just "Add at least one tag"
+                    (Options.klarTagInput playground
+                        (List.concat
+                            [ Config.keep playground "TagInput" "label" (TagInput.label "Delivery tags")
+                            , Config.keep playground "TagInput" "required" TagInput.required
+                            , Config.keep playground
+                                "TagInput"
+                                "errorMaybe"
+                                (TagInput.errorMaybe
+                                    (if List.isEmpty (TagInput.values (tagsOf "tags-error" model)) then
+                                        Just "Add at least one tag"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground "TagInput" "locale" (TagInput.locale lang)
+                            ]
                         )
-                    , TagInput.locale lang
-                    ]
+                    )
                     (tagsOf "tags-error" model)
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "TagInput" ]
             { title = "Delimiters and leaving the field"
             , description = Just "A semicolon ends a tag as well as a comma, and text that is still being typed when you leave the field is not added."
             , code = Just """TagInput.view CodesMsg
@@ -308,12 +340,16 @@ TagInput.values model.labels -- List String"""
     model.codes"""
             }
             (TagInput.view (TagsMsg "tags-codes")
-                [ TagInput.label "Product codes"
-                , TagInput.hint "Comma or semicolon ends a code. Enter adds it too."
-                , TagInput.delimiters [ ',', ';' ]
-                , TagInput.keepDraftOnBlur
-                , TagInput.locale lang
-                ]
+                (Options.klarTagInput playground
+                    (List.concat
+                        [ Config.keep playground "TagInput" "label" (TagInput.label "Product codes")
+                        , Config.keep playground "TagInput" "hint" (TagInput.hint "Comma or semicolon ends a code. Enter adds it too.")
+                        , Config.keep playground "TagInput" "delimiters" (TagInput.delimiters [ ',', ';' ])
+                        , Config.keep playground "TagInput" "keepDraftOnBlur" TagInput.keepDraftOnBlur
+                        , Config.keep playground "TagInput" "locale" (TagInput.locale lang)
+                        ]
+                    )
+                )
                 (tagsOf "tags-codes" model)
             )
         ]
@@ -323,15 +359,18 @@ TagInput.values model.labels -- List String"""
 -- FILE DROP
 
 
-fileDrops : Locale -> Model -> Html Msg
-fileDrops lang model =
+fileDrops : Config.Config -> Locale -> Model -> Html Msg
+fileDrops playground lang model =
     let
         attachments =
             filesOf "files-attachments" model
     in
-    Doc.section "File drop"
+    Doc.configuredSection playground
+        [ "FileDrop" ]
+        "File drop"
         "Drop files on the field, paste them (a screenshot with Ctrl+V while the focus is in the zone), or use \"Choose files\" (Tab to the button, Enter or Space opens the file dialog). The files are checked against the allowed types, the largest size, the number of files and duplicates. The contents of the files are not read or sent by the library: it hands the application the name, size and type (FileDrop.values) and the browser's own File values (FileDrop.rawFiles, or FileDrop.chosen for one request per file) for a request the application makes. What a choice did is announced once (\"2 files added, 1 refused\"), and a removed file hands the focus to the next one."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "FileDrop" ]
             { title = "Several files"
             , description = Just "PDF or images, at most 5 MB, up to three files. Try an .exe file or a large file to see the refusals. Refused files stay in the list with a message until you remove them."
             , code = Just """FileDrop.view AttachmentsMsg
@@ -344,14 +383,18 @@ fileDrops lang model =
 
 FileDrop.values model.attachments -- List FileInfo, only the accepted ones"""
             }
-            (stack
+            (stack playground
                 [ FileDrop.view (FilesMsg "files-attachments")
-                    [ FileDrop.label "Attachments"
-                    , FileDrop.accept [ ".pdf", "image/*" ]
-                    , FileDrop.maxSize 5000000
-                    , FileDrop.maxFiles 3
-                    , FileDrop.locale lang
-                    ]
+                    (Options.klarFileDrop playground
+                        (List.concat
+                            [ Config.keep playground "FileDrop" "label" (FileDrop.label "Attachments")
+                            , Config.keep playground "FileDrop" "accept" (FileDrop.accept [ ".pdf", "image/*" ])
+                            , Config.keep playground "FileDrop" "maxSize" (FileDrop.maxSize 5000000)
+                            , Config.keep playground "FileDrop" "maxFiles" (FileDrop.maxFiles 3)
+                            , Config.keep playground "FileDrop" "locale" (FileDrop.locale lang)
+                            ]
+                        )
+                    )
                     attachments
                 , readout
                     ("Accepted files: "
@@ -361,39 +404,57 @@ FileDrop.values model.attachments -- List FileInfo, only the accepted ones"""
                     )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "FileDrop" ]
             { title = "One file, compact and disabled"
             , description = Just "Without multiple a new choice replaces the old one, unless it is refused: then the good file stays. A file dropped on the disabled field is cancelled, not opened by the browser."
             , code = Just """FileDrop.view PhotoMsg [ FileDrop.label "Photo", FileDrop.accept [ "image/*" ], FileDrop.compact ] state"""
             }
-            (grid 300
+            (grid playground
+                300
                 [ FileDrop.view (FilesMsg "files-photo")
-                    [ FileDrop.label "Product photo"
-                    , FileDrop.accept [ "image/*" ]
-                    , FileDrop.maxSize 2000000
-                    , FileDrop.compact
-                    , FileDrop.locale lang
-                    ]
+                    (Options.klarFileDrop playground
+                        (List.concat
+                            [ Config.keep playground "FileDrop" "label" (FileDrop.label "Product photo")
+                            , Config.keep playground "FileDrop" "accept" (FileDrop.accept [ "image/*" ])
+                            , Config.keep playground "FileDrop" "maxSize" (FileDrop.maxSize 2000000)
+                            , Config.keep playground "FileDrop" "compact" FileDrop.compact
+                            , Config.keep playground "FileDrop" "locale" (FileDrop.locale lang)
+                            ]
+                        )
+                    )
                     (filesOf "files-photo" model)
                 , FileDrop.view (FilesMsg "files-disabled")
-                    [ FileDrop.label "Disabled"
-                    , FileDrop.disabled True
-                    , FileDrop.locale lang
-                    ]
+                    (Options.klarFileDrop playground
+                        (List.concat
+                            [ Config.keep playground "FileDrop" "label" (FileDrop.label "Disabled")
+                            , Config.keep playground "FileDrop" "disabled" (FileDrop.disabled True)
+                            , Config.keep playground "FileDrop" "locale" (FileDrop.locale lang)
+                            ]
+                        )
+                    )
                     (filesOf "files-disabled" model)
                 , FileDrop.view (FilesMsg "files-error")
-                    [ FileDrop.label "Documentation"
-                    , FileDrop.required
-                    , FileDrop.errorMaybe
-                        (if List.isEmpty (FileDrop.values (filesOf "files-error" model)) then
-                            Just "Attach at least one document"
+                    (Options.klarFileDrop playground
+                        (List.concat
+                            [ Config.keep playground "FileDrop" "label" (FileDrop.label "Documentation")
+                            , Config.keep playground "FileDrop" "required" FileDrop.required
+                            , Config.keep playground
+                                "FileDrop"
+                                "errorMaybe"
+                                (FileDrop.errorMaybe
+                                    (if List.isEmpty (FileDrop.values (filesOf "files-error" model)) then
+                                        Just "Attach at least one document"
 
-                         else
-                            Nothing
+                                     else
+                                        Nothing
+                                    )
+                                )
+                            , Config.keep playground "FileDrop" "accept" (FileDrop.accept [ ".pdf" ])
+                            , Config.keep playground "FileDrop" "locale" (FileDrop.locale lang)
+                            ]
                         )
-                    , FileDrop.accept [ ".pdf" ]
-                    , FileDrop.locale lang
-                    ]
+                    )
                     (filesOf "files-error" model)
                 ]
             )
@@ -404,11 +465,14 @@ FileDrop.values model.attachments -- List FileInfo, only the accepted ones"""
 -- INLINE EDIT
 
 
-inlineEdits : Locale -> Model -> Html Msg
-inlineEdits lang model =
-    Doc.section "Inline edit"
+inlineEdits : Config.Config -> Locale -> Model -> Html Msg
+inlineEdits playground lang model =
+    Doc.configuredSection playground
+        [ "InlineEdit" ]
+        "Inline edit"
         "Text that can be clicked to edit (Tab to the text, Enter or Space starts editing). Enter saves, Escape cancels, and leaving the field saves; switching to another window does not. After Enter or Escape the focus is back on the text; after Tab or a click elsewhere it stays where you put it. The save can take time or fail; then a spinner, a message and \"Try again\" are shown, and a click on the text opens the refused text again to correct it (leaving it unchanged sends nothing)."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "InlineEdit" ]
             { title = "Contact with validation and saving"
             , description = Just "The name is required and at most 30 characters. Turn on \"Simulate a failure when saving\" to see the failed state with \"Try again\"."
             , code = Just """InlineEdit.view ContactMsg
@@ -420,65 +484,91 @@ inlineEdits lang model =
 -- update: start the save when InlineEdit.isSaving turns True,
 -- then call InlineEdit.saved or InlineEdit.failed problem"""
             }
-            (stack
-                [ Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
+            (stack playground
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ Text.strong "Contact:"
                     , InlineEdit.view (InlineMsg contactKey)
-                        [ InlineEdit.ariaLabel "Contact"
-                        , InlineEdit.validate (Validate.run lang (Validate.all [ Validate.required, Validate.maxLength 30 ]))
-                        , InlineEdit.maxLength 40
-                        , InlineEdit.locale lang
-                        ]
+                        (Options.klarInlineEdit playground
+                            (List.concat
+                                [ Config.keep playground "InlineEdit" "ariaLabel" (InlineEdit.ariaLabel "Contact")
+                                , Config.keep playground "InlineEdit" "validate" (InlineEdit.validate (Validate.run lang (Validate.all [ Validate.required, Validate.maxLength 30 ])))
+                                , Config.keep playground "InlineEdit" "maxLength" (InlineEdit.maxLength 40)
+                                , Config.keep playground "InlineEdit" "locale" (InlineEdit.locale lang)
+                                ]
+                            )
+                        )
                         (inlineOf contactKey model)
                     ]
-                , Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ Text.strong "Reference:"
                     , InlineEdit.view (InlineMsg "inline-reference")
-                        [ InlineEdit.ariaLabel "Reference"
-                        , InlineEdit.emptyText "Add reference"
-                        , InlineEdit.placeholder "For example PO-2041"
-                        , InlineEdit.locale lang
-                        ]
+                        (Options.klarInlineEdit playground
+                            (List.concat
+                                [ Config.keep playground "InlineEdit" "ariaLabel" (InlineEdit.ariaLabel "Reference")
+                                , Config.keep playground "InlineEdit" "emptyText" (InlineEdit.emptyText "Add reference")
+                                , Config.keep playground "InlineEdit" "placeholder" (InlineEdit.placeholder "For example PO-2041")
+                                , Config.keep playground "InlineEdit" "locale" (InlineEdit.locale lang)
+                                ]
+                            )
+                        )
                         (inlineOf "inline-reference" model)
                     ]
-                , Layout.row [ Layout.gap 4, Layout.alignStart, Layout.wrap ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "alignStart" Layout.alignStart, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ Text.strong "Note:"
                     , InlineEdit.view (InlineMsg "inline-note")
-                        [ InlineEdit.ariaLabel "Delivery note"
-                        , InlineEdit.multiline
-                        , InlineEdit.emptyText "Add a delivery note (Enter is a new line, Ctrl+Enter saves)"
-                        , InlineEdit.locale lang
-                        ]
+                        (Options.klarInlineEdit playground
+                            (List.concat
+                                [ Config.keep playground "InlineEdit" "ariaLabel" (InlineEdit.ariaLabel "Delivery note")
+                                , Config.keep playground "InlineEdit" "multiline" InlineEdit.multiline
+                                , Config.keep playground "InlineEdit" "emptyText" (InlineEdit.emptyText "Add a delivery note (Enter is a new line, Ctrl+Enter saves)")
+                                , Config.keep playground "InlineEdit" "locale" (InlineEdit.locale lang)
+                                ]
+                            )
+                        )
                         (inlineOf "inline-note" model)
                     ]
-                , Layout.row [ Layout.gap 4, Layout.alignCenter, Layout.wrap ]
+                , Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                     [ Text.strong "Locked:"
                     , InlineEdit.view (always NoOp)
-                        [ InlineEdit.ariaLabel "Warehouse"
-                        , InlineEdit.disabled True
-                        , InlineEdit.locale lang
-                        ]
+                        (Options.klarInlineEdit playground
+                            (List.concat
+                                [ Config.keep playground "InlineEdit" "ariaLabel" (InlineEdit.ariaLabel "Warehouse")
+                                , Config.keep playground "InlineEdit" "disabled" (InlineEdit.disabled True)
+                                , Config.keep playground "InlineEdit" "locale" (InlineEdit.locale lang)
+                                ]
+                            )
+                        )
                         (InlineEdit.init "inline-disabled" "Rotterdam Hub")
                     ]
                 , Switch.view
-                    [ Switch.label "Simulate a failure when saving"
-                    , Switch.id "inline-fails"
-                    , Switch.checked model.inlineFails
-                    , Switch.onCheck InlineFailsToggled
-                    , Switch.locale lang
-                    ]
+                    (Options.klarSwitch playground
+                        (List.concat
+                            [ Config.keep playground "Switch" "label" (Switch.label "Simulate a failure when saving")
+                            , Config.keep playground "Switch" "id" (Switch.id "inline-fails")
+                            , Config.keep playground "Switch" "checked" (Switch.checked model.inlineFails)
+                            , Config.keep playground "Switch" "onCheck" (Switch.onCheck InlineFailsToggled)
+                            , Config.keep playground "Switch" "locale" (Switch.locale lang)
+                            ]
+                        )
+                    )
                 ]
             )
-        , Doc.example
+        , Doc.configuredExample playground
+            [ "InlineEdit" ]
             { title = "Long text in a narrow place"
             , description = Just "Long values wrap over several lines, also without spaces."
             , code = Nothing
             }
-            (narrow 340
+            (narrow playground
+                340
                 [ InlineEdit.view (InlineMsg "inline-long")
-                    [ InlineEdit.ariaLabel "Note"
-                    , InlineEdit.locale lang
-                    ]
+                    (Options.klarInlineEdit playground
+                        (List.concat
+                            [ Config.keep playground "InlineEdit" "ariaLabel" (InlineEdit.ariaLabel "Note")
+                            , Config.keep playground "InlineEdit" "locale" (InlineEdit.locale lang)
+                            ]
+                        )
+                    )
                     (inlineOf "inline-long" model)
                 ]
             )

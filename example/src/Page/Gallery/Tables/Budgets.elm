@@ -10,7 +10,9 @@ import Klar.Layout as Layout
 import Klar.Locale exposing (Locale)
 import Klar.Money as Money
 import Klar.Switch as Switch
+import Showcase.Config as Config
 import Showcase.Doc as Doc
+import Showcase.Options as Options
 
 
 type alias Model =
@@ -105,23 +107,26 @@ update msg model =
             ( init, Cmd.none )
 
 
-view : Locale -> Model -> Html Msg
-view locale model =
-    Doc.section "Budget sheet"
+view : Config.Config -> Locale -> Model -> Html Msg
+view playground locale model =
+    Doc.configuredSection playground
+        [ "Budget" ]
+        "Budget sheet"
         "An editable budget with three to six columns. Switch the schema without losing data, enter fractional quantities, add credits, and see exact line amounts and a grand total."
-        [ Doc.example
+        [ Doc.configuredExample playground
+            [ "Budget" ]
             { title = "Build a project budget"
             , description = Just "Choose the number of columns. Three columns use fixed costs; four to six use quantity × unit price. Prices and totals are in NOK."
             , code = Just "Budget.init \"project-budget\" Money.nok\n    |> Budget.setColumns\n        [ Budget.textColumn \"description\" \"Cost\"\n        , Budget.numberColumn \"quantity\" \"Hours\"\n        , Budget.moneyColumn \"price\" \"Hourly rate\"\n        ]\n    |> Budget.setFormula (Budget.multiply \"quantity\" (Budget.amount \"price\"))\n\n-- Budget.view BudgetMsg [ Budget.locale locale ] model.budget\n-- Budget.total locale model.budget"
             }
-            (Layout.stack [ Layout.gap 4 ]
-                [ Layout.row [ Layout.gap 2, Layout.wrap, Layout.alignCenter ]
+            (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 4) ]))
+                [ Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2), Config.keep playground "Layout" "wrap" Layout.wrap, Config.keep playground "Layout" "alignCenter" Layout.alignCenter ]))
                     (List.map
                         (\count ->
-                            Button.view
-                                ([ Button.small, Button.onClick (Columns count) ]
+                            Options.buttonView playground
+                                (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick (Columns count)) ])
                                     ++ (if count == model.count then
-                                            [ Button.primary ]
+                                            Options.klarButton playground (List.concat [ Config.keep playground "Button" "primary" Button.primary ])
 
                                         else
                                             []
@@ -130,11 +135,11 @@ view locale model =
                                 (String.fromInt count ++ " columns")
                         )
                         [ 3, 4, 5, 6 ]
-                        ++ [ Switch.view [ Switch.label "Read only", Switch.checked model.readOnly, Switch.onCheck ReadOnly, Switch.locale locale ]
-                           , Button.view [ Button.small, Button.onClick Reset ] "Reset example"
+                        ++ [ Switch.view (Options.klarSwitch playground (List.concat [ Config.keep playground "Switch" "label" (Switch.label "Read only"), Config.keep playground "Switch" "checked" (Switch.checked model.readOnly), Config.keep playground "Switch" "onCheck" (Switch.onCheck ReadOnly), Config.keep playground "Switch" "locale" (Switch.locale locale) ]))
+                           , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "small" Button.small, Config.keep playground "Button" "onClick" (Button.onClick Reset) ])) "Reset example"
                            ]
                     )
-                , Budget.view BudgetMsg [ Budget.title "Website project", Budget.locale locale, Budget.readOnly model.readOnly ] model.budget
+                , Budget.view BudgetMsg (Options.klarBudget playground (List.concat [ Config.keep playground "Budget" "title" (Budget.title "Website project"), Config.keep playground "Budget" "locale" (Budget.locale locale), Config.keep playground "Budget" "readOnly" (Budget.readOnly model.readOnly) ])) model.budget
                 ]
             )
         ]
