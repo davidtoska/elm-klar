@@ -293,7 +293,7 @@ permissionsExample : Locale -> Model -> Html Msg
 permissionsExample locale model =
     Doc.example
         { title = "Checkboxes with three states"
-        , description = Just "Checking a parent checks everything below it; a parent with some of its children checked shows a dash. Space toggles the check. The application reads the checked leaves with Tree.checkedIds."
+        , description = Just "Checking a parent checks everything below it; a parent with some of its children checked shows a dash. Space toggles the check. A disabled node (System settings) is passed by: checking Administration leaves it as it is, and the parent's checkbox does not count it. The application reads the checked leaves with Tree.checkedIds."
         , code = Just """Tree.view PermissionsMsg [ Tree.checkboxes, Tree.ariaLabel "Permissions" ] model.tree permissions
 
 (Tree.checkedIds Ids.string) model.tree -- [ "orders-read", "products-read" ]"""
