@@ -137,3 +137,7 @@ Execution notes for resuming a long run:
 - Next: Header.
 
 - Header: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit ef6b697: Header complete.
+- Next: Toolbar.
+
+- Toolbar: format, full check, byte-identical docs and 22 identical table roots passed.
