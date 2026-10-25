@@ -288,11 +288,11 @@ a zone (`Z` or `+02:00`) is a moment rather than a wall-clock time and gives
 fromIso : String -> Maybe DateTime
 fromIso raw =
     let
-        text =
+        trimmed =
             String.trim raw
     in
-    if List.member (String.slice 10 11 text) [ "T", "t", " " ] then
-        Maybe.map2 DateTime (Date.fromIso (String.left 10 text)) (isoTime (String.dropLeft 11 text))
+    if List.member (String.slice 10 11 trimmed) [ "T", "t", " " ] then
+        Maybe.map2 DateTime (Date.fromIso (String.left 10 trimmed)) (isoTime (String.dropLeft 11 trimmed))
 
     else
         Nothing

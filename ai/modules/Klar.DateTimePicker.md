@@ -423,12 +423,15 @@ zone: the form to store and send, transport neutral and sortable as text.
 fromIso : String -> Maybe DateTime
 ```
 
-Reads `YYYY-MM-DDTHH:MM`, the form `toIso` writes. Seconds (`T14:30:00`) are
-accepted and dropped. Text with a zone (`Z` or `+02:00`) is a moment rather than
-a wall-clock time and gives `Nothing`, and so does a date or a time that does
-not exist.
+Reads `YYYY-MM-DDTHH:MM`, the form `toIso` writes, and the forms backends
+often send: a lowercase `t` or a space in place of the `T`, and seconds with or
+without a fraction (`T14:30:00`, `T14:30:00.000`), which are dropped. Text with
+a zone (`Z` or `+02:00`) is a moment rather than a wall-clock time and gives
+`Nothing`, and so does a date or a time that does not exist.
 
     DateTimePicker.fromIso "2026-10-20T14:30" -- Just { date = 2026-10-20, time = 14:30 }
+
+    DateTimePicker.fromIso "2026-10-20 14:30:00.000" -- the same
 
     DateTimePicker.fromIso "2026-10-20T14:30Z" -- Nothing
 
