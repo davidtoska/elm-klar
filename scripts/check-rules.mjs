@@ -11,8 +11,9 @@
 //   refreshing data usually means other elements around it, so the content is replaced
 //   when a refresh starts or ends and the focus in it drops to `body`. `Freshness.wrap`
 //   draws the same elements in every state.
-// - A `Freshness.notice` that a component draws itself: the box around the content is then
-//   the component's, and must be the same element in every state (or use `Freshness.wrap`).
+// - A `Freshness.notice` (or `noticeSaying`) that a component draws itself: the box around
+//   the content is then the component's, and must be the same element in every state (or
+//   use `Freshness.wrap`).
 //
 //   node scripts/check-rules.mjs            report them (exit 0)
 //   node scripts/check-rules.mjs --strict   fail when there is one
@@ -203,7 +204,7 @@ for (const file of walk(path.join(root, 'src'))) {
       dropped.push(at(index));
     }
     if (/\bFreshness\.Fresh\s*\)?\s*->\s*$/.test(line)) freshBranches.push(at(index));
-    if (/\bFreshness\.notice\b/.test(line)) ownNotices.push(at(index));
+    if (/\bFreshness\.notice(Saying)?\b/.test(line)) ownNotices.push(at(index));
   });
 }
 

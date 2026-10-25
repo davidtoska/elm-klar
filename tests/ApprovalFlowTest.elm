@@ -96,7 +96,7 @@ auditTests =
         , test "the summary of an any step says how many rejected, so a rejection while others are pending is announced" <|
             \_ ->
                 Expect.all
-                    [ \_ -> viewIt [] (build [ anyOf [ P, P ] ]) |> Query.fromHtml |> Query.find [ H.attr "role" "status" ] |> Query.hasNot [ Selector.text "rejected" ]
+                    [ \_ -> viewIt [] (build [ anyOf [ P, P ] ]) |> Query.fromHtml |> Query.find [ Selector.class "klar-approval__summary", H.attr "role" "status" ] |> Query.hasNot [ Selector.text "rejected" ]
                     , \_ -> viewIt [] (build [ anyOf [ N, P ] ]) |> H.has [ H.attr "role" "status", Selector.text "In progress: step 1 of 1 (Step 0), 1 of 2 rejected" ]
                     ]
                     ()
@@ -202,10 +202,12 @@ auditTests =
                             [] ->
                                 ApprovalFlow.flow []
 
+                    -- The summary, a live region of its own; the slot of the marker of
+                    -- old data (Freshness) is the other one.
                     summary quorum decisions =
                         viewIt [] (board quorum decisions)
                             |> Query.fromHtml
-                            |> Query.find [ H.attr "role" "status" ]
+                            |> Query.find [ Selector.class "klar-approval__summary", H.attr "role" "status" ]
                 in
                 Expect.all
                     [ \_ -> viewIt [] (board (ApprovalFlow.atLeast 1) [ P, P, P ]) |> H.has [ Selector.text "Any one of 3 must approve" ]

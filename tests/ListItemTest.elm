@@ -66,7 +66,7 @@ suite =
                                         ]
                     )
             )
-        , test "a refresh marks the list busy, and not the element that holds the live regions" <|
+        , test "a refresh marks the list busy, and not the element that holds the live region" <|
             \_ ->
                 ListItem.viewRemote [] (Remote.refresh (Loaded rows))
                     |> Query.fromHtml
@@ -75,7 +75,7 @@ suite =
                         , Query.findAll [ Selector.attribute (Attr.attribute "aria-busy" "true") ] >> Query.count (Expect.equal 1)
                         , Query.find [ Selector.tag "ul" ] >> Query.has [ Selector.attribute (Attr.attribute "aria-busy" "true") ]
                         ]
-        , describe "every state is drawn inside the same element, with the id of listId and a status that is always there"
+        , describe "every state is drawn inside the same element, with the id of listId and one status that is always there, first, in the slot of the marker"
             ([ ( "not asked", NotAsked )
              , ( "loading", Loading )
              , ( "failed", Failed (Remote.problem Remote.server) )
@@ -96,26 +96,36 @@ suite =
                                             , Selector.id "orders"
                                             , Selector.attribute (Attr.tabindex -1)
                                             ]
-                                        , Query.children [ Selector.attribute (Attr.attribute "role" "status"), Selector.class "klar-sr-only" ]
+                                        , Query.findAll [ Selector.attribute (Attr.attribute "role" "status") ]
                                             >> Query.count (Expect.equal 1)
+                                        , Query.children []
+                                            >> Query.first
+                                            >> Expect.all
+                                                [ Query.has [ Selector.tag "div", Selector.class "klar-fresh__slot" ]
+                                                , Query.children [ Selector.tag "span", Selector.attribute (Attr.attribute "role" "status"), Selector.class "klar-sr-only" ]
+                                                    >> Query.count (Expect.equal 1)
+                                                ]
                                         ]
                     )
             )
-        , test "the status says Loading only while loading" <|
+        , test "the status says Loading only while loading, and old data once the data is old" <|
             \_ ->
                 Expect.all
                     [ \_ ->
                         ListItem.viewRemote [] Loading
                             |> Query.fromHtml
-                            |> Query.children [ Selector.class "klar-sr-only" ]
-                            |> Query.first
+                            |> Query.find [ Selector.attribute (Attr.attribute "role" "status") ]
                             |> Query.has [ Selector.text "Loading" ]
                     , \_ ->
                         ListItem.viewRemote [] (Loaded rows)
                             |> Query.fromHtml
-                            |> Query.children [ Selector.class "klar-sr-only" ]
-                            |> Query.first
+                            |> Query.find [ Selector.attribute (Attr.attribute "role" "status") ]
                             |> Query.hasNot [ Selector.text "Loading" ]
+                    , \_ ->
+                        ListItem.viewRemote [] (failedRefresh (Loaded rows))
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.attribute (Attr.attribute "role" "status") ]
+                            |> Query.has [ Selector.text "Old data. Refresh failed" ]
                     ]
                     ()
         , test "without listId the element has no id and takes no focus" <|

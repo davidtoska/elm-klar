@@ -1,6 +1,6 @@
 module Klar.Internal.Freshness exposing
     ( Freshness(..), settle, waiting
-    , Config, region, wrap, notice, announcement
+    , Config, region, wrap, notice, noticeSaying, announcement
     , busy, busyAttr, className, text
     )
 
@@ -48,7 +48,7 @@ the marker cannot draw that row for it.
 
 # Draw
 
-@docs Config, region, wrap, notice, announcement
+@docs Config, region, wrap, notice, noticeSaying, announcement
 
 
 # Parts
@@ -203,6 +203,17 @@ there before its text changes.
 -}
 notice : Config msg -> Freshness -> Html msg
 notice config freshness =
+    noticeSaying config (announcement config.locale config.settings freshness) freshness
+
+
+{-| The marker of `notice`, whose live region says the given text instead of the
+`announcement`: for a component whose one live region also says what the marker
+does not, such as "Loading" while there is no data yet. Give it the `announcement`
+once there is data, so that old data is still said. The elements are those of
+`notice` in every state, so the live region is there before its text changes.
+-}
+noticeSaying : Config msg -> String -> Freshness -> Html msg
+noticeSaying config spoken freshness =
     Html.div [ Internal.cls [ "klar-fresh__slot" ] ]
         [ if config.inline then
             Html.text ""
@@ -212,7 +223,7 @@ notice config freshness =
                 [ Internal.cls [ "klar-sr-only" ]
                 , Attr.attribute "role" "status"
                 ]
-                [ Html.text (announcement config.locale config.settings freshness) ]
+                [ Html.text spoken ]
         , case freshness of
             Stale value ->
                 marker config value

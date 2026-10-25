@@ -783,8 +783,10 @@ retry (`onRetry`) when the last refresh failed, also when it has no rows.
 
 Every state is drawn inside one element that stays (`listId` gives it an id), and
 the rows inside the same elements whether the data is fresh, refreshing or old, so
-a refresh that starts or ends never takes the focus from a row. "Loading" is said
-by a polite status that is always in the page, empty in the other states.
+a refresh that starts or ends never takes the focus from a row. One polite live
+region is always in the page, first in that element: it says "Loading" while
+there is no data, "Old data from 14:05" and the reason when the last refresh
+failed, and nothing in the other states.
 
 -}
 viewRemote : List (ListAttribute msg) -> Remote (List ( String, Html msg )) -> Html msg
@@ -801,17 +803,16 @@ viewRemote attributes data =
         , Internal.attrMaybe Attr.id config.listId
         , Internal.attrIf (config.listId /= Nothing) (Attr.tabindex -1)
         ]
-        [ Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
-            [ Html.text
-                (if Freshness.waiting settled then
-                    Locale.pick config.locale { nb = "Laster", en = "Loading" }
-
-                 else
-                    ""
-                )
-            ]
-        , Freshness.notice
+        [ -- The one live region, in the slot of the marker of old data: "Loading"
+          -- while there is no data, what the marker says once there is.
+          Freshness.noticeSaying
             { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+            (if Freshness.waiting settled then
+                Locale.pick config.locale { nb = "Laster", en = "Loading" }
+
+             else
+                Freshness.announcement config.locale config.settings freshness
+            )
             freshness
         , case settled of
             Remote.Loaded rows ->
@@ -830,7 +831,7 @@ viewRemote attributes data =
 
 
 {-| The frame of the empty and the failure state. `aria-busy` goes on it and on the
-list, never on the element around them, which holds the live regions.
+list, never on the element around them, which holds the live region.
 -}
 framed : List (Html.Attribute msg) -> ListConfig msg -> Html msg -> Html msg
 framed attributes config inner =
@@ -860,7 +861,7 @@ emptyView config =
 
 
 {-| The placeholder rows, hidden from screen readers, which hear "Loading" from the
-status beside them instead.
+live region above them instead.
 -}
 loadingView : ListConfig msg -> Html msg
 loadingView config =
