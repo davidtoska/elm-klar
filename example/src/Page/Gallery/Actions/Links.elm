@@ -135,9 +135,9 @@ section locale model =
                     [ Link.view [ Link.locale locale ] (Link.internal "#links/inline") "Inline"
                     , Link.view [ Link.standalone, Link.locale locale ] (Link.internal "#links/standalone") "Standalone"
                     , Link.view [ Link.standalone, Link.icon Icon.fileText ] (Link.internal "#links/invoice") "With an icon"
-                    , Tooltip.wrap [ Tooltip.id "actions-link-disabled-tip" ]
+                    , Tooltip.wrap [ Tooltip.focusable, Tooltip.id "actions-link-disabled-tip" ]
                         "Only the owner of the order can open the invoice"
-                        (Link.view [ Link.disabled True ] (Link.internal "#links/invoice") "Disabled")
+                        (\_ -> Link.view [ Link.disabled True ] (Link.internal "#links/invoice") "Disabled")
                     ]
                 , Layout.container [ Layout.maxWidth 260, Layout.alignStart ]
                     [ Link.view [ Link.standalone, Link.truncate ]
@@ -286,6 +286,7 @@ looksCode =
 Link.view [ Link.standalone ] target "Standalone"
 Link.view [ Link.standalone, Link.truncate ] target "Order 10001 for Harbor Supply, ..."
 
-Tooltip.wrap [ Tooltip.id "invoice-tip" ] "Only the owner of the order can open the invoice"
-    (Link.view [ Link.disabled True ] target "Invoice")
+-- a disabled link is not in the tab order: the wrapper takes focus for it
+Tooltip.wrap [ Tooltip.focusable, Tooltip.id "invoice-tip" ] "Only the owner of the order can open the invoice"
+    (\\_ -> Link.view [ Link.disabled True ] target "Invoice")
 """

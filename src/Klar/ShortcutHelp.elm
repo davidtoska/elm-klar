@@ -272,8 +272,7 @@ view toMsg attributes shortcuts (State state) =
             }
     in
     Modal.view (\inner -> toMsg (ModalMsg inner))
-        [ Modal.title (Maybe.withDefault language.title config.title)
-        , Modal.medium
+        [ Modal.medium
         , Modal.fullHeight
         , Modal.locale config.locale
         , Modal.lastFocus (closeButtonId state.id)
@@ -287,6 +286,7 @@ view toMsg attributes shortcuts (State state) =
             ]
         ]
         state.modal
+        (Maybe.withDefault language.title config.title)
         [ Html.div [ Internal.cls [ "klar-shortcuts" ] ]
             [ Html.div [ Internal.cls [ "klar-shortcuts__filter" ] ]
                 [ TextInput.view

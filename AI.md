@@ -68,6 +68,7 @@ import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Settings as Settings exposing (Settings)
 import Klar.SideNav as SideNav
 import Klar.Table as Table
+import Klar.Theme exposing (Tone(..))
 import Klar.Toast as Toast
 import Process
 import Task
@@ -126,7 +127,7 @@ init _ url key =
       , settings = Settings.default
       , table = Table.init "orders"
       , orders = Loading
-      , toasts = Toast.init
+      , toasts = Toast.init "toasts"
       }
     , Cmd.batch [ fetchOrders, Task.perform GotZone Time.here ]
     )
@@ -189,7 +190,7 @@ update msg model =
             -- a failed reload keeps the rows ("Old data from 14:05"); the table shows a failure itself
             case ( result, Remote.isRefreshing model.orders ) of
                 ( Ok _, True ) ->
-                    Toast.push [ Toast.success, Toast.message "Orders updated." ] model.toasts
+                    Toast.push [ Toast.tone Success, Toast.message "Orders updated." ] model.toasts
                         |> (\( toasts, cmd ) -> ( { model | orders = Remote.refreshWith model.orders result at, toasts = toasts }, Cmd.map ToastMsg cmd ))
 
                 _ ->

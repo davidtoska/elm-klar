@@ -2,7 +2,7 @@ module Klar.Drawer exposing
     ( view
     , State, Msg, init, update, isOpen
     , open, openWith, close, closeButtonId
-    , Attribute, title, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
+    , Attribute, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
     , small, medium, large, right, left
     , static, busy, onRequestClose
     , lastFocus
@@ -14,7 +14,7 @@ a list, a form with many filters, anything the user wants to see next to the
 page they came from.
 
 Use when: the user looks at details or a form next to the page they came from, such as the details of a row in a list.
-Do not use when: the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`) or the panel is small and next to a button (use `Klar.Popover`).
+Do not use when: the task must be finished first (use `Klar.Modal`), the question is yes-or-no (use `Klar.ConfirmDialog`), the panel is small and next to a button (use `Klar.Popover`), or the user keeps working in the page beside the panel, moving from row to row (use `Klar.Splitter`: a drawer makes the page behind it inert).
 Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     import Klar.Button as Button
@@ -39,11 +39,11 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     -- view
     Drawer.view DrawerMsg
-        [ Drawer.title "Order 1042"
-        , Drawer.subtitle "Last changed 12 October"
+        [ Drawer.subtitle "Last changed 12 October"
         , Drawer.footer [ Button.view [ Button.onClick CloseDrawer ] "Close" ]
         ]
         model.drawer
+        "Order 1042"
         [ orderDetails ]
 
 A drawer is a [Klar.Modal](Klar-Modal) shown along the right or left edge of
@@ -64,8 +64,9 @@ Focus that was on the retry button goes back into the drawer when the data
 arrives.
 
     Drawer.view DrawerMsg
-        [ Drawer.title "Order 1042" ]
+        []
         model.drawer
+        "Order 1042"
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 The drawer is as tall as the window. It is `medium` (480px) unless you say
@@ -91,7 +92,7 @@ everything else comes from your application.
 
 # Content
 
-@docs Attribute, title, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
+@docs Attribute, subtitle, footer, footerStart, flush, hideClose, ariaDescribedBy
 
 
 # Size and side
@@ -118,6 +119,7 @@ everything else comes from your application.
 import Html exposing (Html)
 import Klar.Locale exposing (Locale)
 import Klar.Modal as Modal
+import Klar.Modal.Config as Config exposing (Side(..))
 import Klar.Overlay exposing (Overlay)
 
 
@@ -213,23 +215,16 @@ update =
     Modal.update
 
 
-{-| The drawer, with `body` in its scrolling middle; it comes in from the right
-unless you say `left`. `toMsg` wraps the messages of the drawer. Renders nothing
+{-| The drawer titled `title`, with `body` in its scrolling middle; it comes in
+from the right unless you say `left`. The title is the heading of the drawer and
+its accessible name. `toMsg` wraps the messages of the drawer. Renders nothing
 while closed, so it can stay in your view all the time. It returns an
 [`Overlay`](Klar-Overlay#Overlay): put it in the list of overlays of
 [`Overlay.host`](Klar-Overlay#host) or `AppShell.overlays`.
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Overlay msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Overlay msg
 view toMsg attributes =
-    Modal.view toMsg (Modal.side Modal.Right :: attributes)
-
-
-{-| The heading of the drawer. It is also the accessible name of the drawer, so
-always set one.
--}
-title : String -> Attribute msg
-title =
-    Modal.title
+    Modal.view toMsg (right :: attributes)
 
 
 {-| A smaller line below the title, for context such as the date of the last
@@ -265,14 +260,14 @@ large =
 -}
 right : Attribute msg
 right =
-    Modal.side Modal.Right
+    Config.Attribute (\config -> { config | side = Just Right })
 
 
 {-| Slide in from the left edge.
 -}
 left : Attribute msg
 left =
-    Modal.side Modal.Left
+    Config.Attribute (\config -> { config | side = Just Left })
 
 
 {-| A click on the backdrop and `Escape` do not close the drawer; the close
@@ -344,8 +339,10 @@ ariaDescribedBy =
     Modal.ariaDescribedBy
 
 
-{-| The id of the last button in the drawer. When the user presses `Shift+Tab` on
-the first element, focus wraps around to this button instead of the footer.
+{-| The id of the element that `Shift+Tab` on the first element of the drawer
+wraps around to, usually the primary button. Without it focus lands at the end of
+the footer (or of the body when there is no footer), and the next `Shift+Tab`
+reaches the last button.
 -}
 lastFocus : String -> Attribute msg
 lastFocus =

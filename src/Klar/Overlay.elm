@@ -20,9 +20,9 @@ does the rest:
         { attributes = []
         , page = [ viewOrders model ]
         , overlays =
-            [ Modal.view EditDialogMsg [ Modal.title "Edit order" ] model.editDialog [ orderForm ]
-            , Drawer.view OrderDrawerMsg [ Drawer.title "Order 1042" ] model.orderDrawer [ details ]
-            , ConfirmDialog.view CancelDialogMsg [ ConfirmDialog.title "Cancel order?" ] model.cancelDialog
+            [ Modal.view EditDialogMsg [] model.editDialog "Edit order" [ orderForm ]
+            , Drawer.view OrderDrawerMsg [] model.orderDrawer "Order 1042" [ details ]
+            , ConfirmDialog.view CancelDialogMsg [] model.cancelDialog "Cancel order?"
             , Toast.view ToastMsg [] model.toasts
             ]
         }
@@ -53,9 +53,13 @@ forget one:
     the toasts and then back to the first element of the dialog.
 
 Keep every overlay in the list all the time, also while it is closed (a closed
-dialog draws nothing, but it is the one that remembers where focus was). The order
-of the list is the stacking order: put a dialog that another one opens after it,
-and the toasts anywhere; they are always drawn last.
+dialog draws nothing, but it is the one that remembers where focus was). A list
+that changes length does no harm to the page (it keeps its place in the DOM, with
+its focus, its typed text and its scroll positions), but a dialog that is not in
+the list cannot remember anything. Up to 12 closed dialogs remember where focus
+was; any further ones return focus to their opener, or to the start of the page.
+The order of the list is the stacking order: put a dialog that another one opens
+after it, and the toasts anywhere; they are always drawn last.
 
 
 # Page and overlays
@@ -65,9 +69,12 @@ and the toasts anywhere; they are always drawn last.
 
 # Making your own overlay
 
-The components of this package build their overlays with these; so can you, for a
-lightbox or a wizard that is not a `Modal`. A page that is not built with `host`
-or `AppShell` takes the same steps with `layer`.
+The components of this package build their overlays with these. A lightbox or a
+wizard is a [Klar.Modal](Klar-Modal) (with `flush` and `hideClose`, say), which
+brings the focus trap, the recovery of lost focus, the scroll lock and the way
+back. `dialog` is for a surface that does all of that itself, as the command
+palette does. A page that is not built with `host` or `AppShell` takes the same
+steps with `layer`.
 
 @docs dialog, toasts, layer
 
@@ -228,10 +235,15 @@ layer overlays =
             , trap = Maybe.andThen (\(Overlay data) -> data.entry) topDialog
             }
 
-        -- One wrapper for every dialog, open or not, so that the page keeps its
-        -- place in the DOM when a dialog opens; only a closed one listens.
+        -- Always the same number of wrappers, whatever the number of dialogs, so
+        -- that the page keeps its place in the DOM (and its focus, typed text and
+        -- scroll) when a dialog opens, or when the application adds one to the
+        -- list or takes one away. Only closed dialogs listen.
         watchers =
-            List.map (\(Overlay data) -> data.watch) dialogs
+            List.filterMap (\(Overlay data) -> data.watch) dialogs
+                |> List.take maxWatchers
+                |> List.map Just
+                |> (\listening -> listening ++ List.repeat (maxWatchers - List.length listening) Nothing)
     in
     { blocked = not (List.isEmpty openDialogs)
     , overlays =
@@ -240,6 +252,15 @@ layer overlays =
             ++ List.map (\(Overlay data) -> data.render (around False)) stacks
     , watch = \children -> List.foldl wrapWatcher children watchers
     }
+
+
+{-| How many closed dialogs listen to the focus on the page. The page is wrapped in
+this many elements whatever the list holds, so that its depth in the DOM never
+changes.
+-}
+maxWatchers : Int
+maxWatchers =
+    12
 
 
 wrapWatcher : Maybe (String -> msg) -> List (Html msg) -> List (Html msg)

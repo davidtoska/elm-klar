@@ -44,8 +44,9 @@ Quick path: `view` with `onRetry`; `id` for focus after a retry, `emptyState` fo
 
     -- the same for a drawer or a dialog
     Drawer.view DrawerMsg
-        [ Drawer.title "Order 1042" ]
+        []
         model.drawer
+        "Order 1042"
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 `NotAsked` and `Loading` show a skeleton, with a polite "Loading" for screen readers

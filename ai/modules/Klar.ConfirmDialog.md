@@ -10,7 +10,7 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Overlay.Overlay msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> Overlay.Overlay msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -30,16 +30,12 @@ close : State -> ( State, Cmd Msg )
 
 -- Content
 type Attribute msg  -- opaque: no constructors are exposed
-title : String -> Attribute msg
 message : String -> Attribute msg
 body : List (Html msg) -> Attribute msg
 consequences : List String -> Attribute msg
 
 -- Tone
 tone : Theme.Tone -> Attribute msg
-neutral : Attribute msg
-warning : Attribute msg
-danger : Attribute msg
 icon : Icon.Icon -> Attribute msg
 
 -- Buttons and typed confirmation
@@ -76,6 +72,7 @@ application keeps the thing being confirmed (a row, an id) in its own model, and
 decides when to close:
 
     import Klar.ConfirmDialog as ConfirmDialog
+    import Klar.Theme exposing (Tone(..))
 
     -- model:   dialog : ConfirmDialog.State   (ConfirmDialog.init "delete-dialog")
     --          pending : Maybe Order
@@ -118,8 +115,7 @@ decides when to close:
 
     -- view
     ConfirmDialog.view DialogMsg
-        [ ConfirmDialog.danger
-        , ConfirmDialog.title "Delete order?"
+        [ ConfirmDialog.tone Danger
         , ConfirmDialog.message "Order 1042 will be removed from all lists."
         , ConfirmDialog.consequences [ "3 open shipments are canceled" ]
         , ConfirmDialog.confirmLabel "Delete order"
@@ -128,6 +124,10 @@ decides when to close:
         , ConfirmDialog.onCancel CancelDelete
         ]
         model.dialog
+        "Delete order?"
+
+The last argument is the question. It is the title of the dialog and its
+accessible name, so it cannot be left out.
 
 While the request runs the confirm button shows a spinner and nothing can close
 the dialog (`Escape`, the backdrop and the close button are ignored). A failed
@@ -136,14 +136,18 @@ problem is worth retrying (see [`Remote.isRetryable`](Klar.Remote.md#isretryable
 the dialog stays open and can be dismissed.
 
 `onCancel` is sent for the cancel button, the close button, `Escape` and the
-backdrop. Without it the dialog closes itself; either way it forgets the typed
+backdrop. Give it whenever your model holds what is being confirmed (the
+`pending` order above), so that a cancel clears it. Without it the dialog closes
+itself and your model never hears of it. Either way the dialog forgets the typed
 text and the failure when it closes. While the request runs none of them sends
 it. (An event from the frame before the dialog re-rendered as busy can still
 slip through; if your `onCancel` handler closes the dialog, check
 `ConfirmDialog.isBusy` first.)
 
 Focus starts on the typed-confirmation field if there is one, otherwise on
-"Cancel", so that a stray `Enter` never confirms a destructive action. The
+"Cancel", so that a stray `Enter` never confirms a destructive action. Screen
+readers announce the dialog as an `alertdialog` and read the message and the
+consequences at once; the `body` is not part of that description. The
 built-in texts (the buttons, "Try again" and the label of the
 typed-confirmation field) follow `locale`.
 
@@ -152,11 +156,12 @@ typed-confirmation field) follow `locale`.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Overlay.Overlay msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> Overlay.Overlay msg
 ```
 
-The dialog. `toMsg` wraps the messages of the dialog. Renders nothing while
-closed, so it can stay in your view all the time. It returns an
+The dialog that asks `question` ("Delete order?"): the title of the dialog and
+its accessible name. `toMsg` wraps the messages of the dialog. Renders nothing
+while closed, so it can stay in your view all the time. It returns an
 [`Overlay`](Klar.Overlay.md#overlay) for [`Overlay.host`](Klar.Overlay.md#host) or
 `AppShell.overlays`.
 
@@ -303,14 +308,6 @@ type Attribute msg  -- opaque: no constructors are exposed
 A setting of the dialog. Make them with the functions below and pass a list
 to `view`; later attributes win over earlier ones.
 
-### `title`
-
-```elm
-title : String -> Attribute msg
-```
-
-The question: "Delete order?". It is also the accessible name of the dialog.
-
 ### `message`
 
 ```elm
@@ -345,35 +342,13 @@ message: "3 open shipments are canceled".
 tone : Theme.Tone -> Attribute msg
 ```
 
-The tone of the question: `Neutral` (the default), `Warning` or `Danger`. It
-sets the icon beside the text and its color, and `Danger` also makes the confirm
-button red. `neutral`, `warning` and `danger` are shorthands.
+The tone of the question (a [`Tone`](Klar.Theme.md#tone)): `Neutral`, the default,
+is a question with no risk (a blue help icon and a blue confirm button); `Warning`
+an action that is hard to undo or that affects others (a warning icon, the confirm
+button stays blue); `Danger` a destructive action (a red error icon and a red
+confirm button). `Info` and `Success` look like `Neutral`.
 
-### `neutral`
-
-```elm
-neutral : Attribute msg
-```
-
-A question with no risk: a blue help icon and a blue confirm button. This is
-the default.
-
-### `warning`
-
-```elm
-warning : Attribute msg
-```
-
-An action that is hard to undo or that affects others: a warning icon. The
-confirm button stays blue.
-
-### `danger`
-
-```elm
-danger : Attribute msg
-```
-
-A destructive action: a red error icon and a red confirm button.
+    ConfirmDialog.tone Danger
 
 ### `icon`
 
@@ -456,9 +431,10 @@ onCancel : msg -> Attribute msg
 ```
 
 The message sent when the user cancels in any way: with the cancel button,
-the close button, `Escape` or the backdrop. Your `update` then calls `close`;
-without `onCancel` the dialog closes itself. It is not sent while the request
-runs.
+the close button, `Escape` or the backdrop. Your `update` then calls `close` and
+clears what was being confirmed. Give it whenever your model keeps that (a pending
+order, an id): without `onCancel` the dialog closes itself, and your model would
+keep the stale value. It is not sent while the request runs.
 
 ## Texts
 

@@ -34,6 +34,7 @@ import Klar.Overlay as Overlay
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Table as Table
+import Klar.Theme exposing (Tone(..))
 import Klar.Toast as Toast
 import Process
 import Task
@@ -101,7 +102,7 @@ init =
     , pending = []
     , removed = []
     , attempts = 0
-    , toasts = Toast.init
+    , toasts = Toast.init "toasts"
     }
 
 
@@ -196,7 +197,7 @@ update msg model =
 
                 ( toasts, toastCmd ) =
                     Toast.push
-                        [ Toast.success
+                        [ Toast.tone Success
                         , Toast.message (String.fromInt (List.length gone) ++ " item(s) deleted.")
                         , Toast.action "Undo" Undo
                         ]
@@ -277,17 +278,16 @@ confirmDialog model =
             List.length model.pending
     in
     ConfirmDialog.view DialogMsg
-        [ ConfirmDialog.danger
-        , ConfirmDialog.title
-            (if count == 1 then
-                "Delete this item?"
-
-             else
-                "Delete " ++ String.fromInt count ++ " items?"
-            )
+        [ ConfirmDialog.tone Danger
         , ConfirmDialog.message "They disappear from every list. You can undo this for a few seconds."
         , ConfirmDialog.confirmLabel "Delete"
         , ConfirmDialog.onConfirm ConfirmDelete
         , ConfirmDialog.onCancel CancelDelete
         ]
         model.dialog
+        (if count == 1 then
+            "Delete this item?"
+
+         else
+            "Delete " ++ String.fromInt count ++ " items?"
+        )

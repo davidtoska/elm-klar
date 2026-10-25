@@ -2,8 +2,8 @@ module Klar.ConfirmDialog exposing
     ( view
     , State, Msg, init, update, isOpen, isBusy, problem
     , open, setBusy, setFailed, clearFailure, close
-    , Attribute, title, message, body, consequences
-    , tone, neutral, warning, danger, icon
+    , Attribute, message, body, consequences
+    , tone, icon
     , confirmLabel, cancelLabel, confirmDisabled, typeToConfirm, ignoreCase
     , onConfirm, onCancel
     , locale
@@ -26,6 +26,7 @@ application keeps the thing being confirmed (a row, an id) in its own model, and
 decides when to close:
 
     import Klar.ConfirmDialog as ConfirmDialog
+    import Klar.Theme exposing (Tone(..))
 
     -- model:   dialog : ConfirmDialog.State   (ConfirmDialog.init "delete-dialog")
     --          pending : Maybe Order
@@ -68,8 +69,7 @@ decides when to close:
 
     -- view
     ConfirmDialog.view DialogMsg
-        [ ConfirmDialog.danger
-        , ConfirmDialog.title "Delete order?"
+        [ ConfirmDialog.tone Danger
         , ConfirmDialog.message "Order 1042 will be removed from all lists."
         , ConfirmDialog.consequences [ "3 open shipments are canceled" ]
         , ConfirmDialog.confirmLabel "Delete order"
@@ -78,6 +78,10 @@ decides when to close:
         , ConfirmDialog.onCancel CancelDelete
         ]
         model.dialog
+        "Delete order?"
+
+The last argument is the question. It is the title of the dialog and its
+accessible name, so it cannot be left out.
 
 While the request runs the confirm button shows a spinner and nothing can close
 the dialog (`Escape`, the backdrop and the close button are ignored). A failed
@@ -86,14 +90,18 @@ problem is worth retrying (see [`Remote.isRetryable`](Klar-Remote#isRetryable));
 the dialog stays open and can be dismissed.
 
 `onCancel` is sent for the cancel button, the close button, `Escape` and the
-backdrop. Without it the dialog closes itself; either way it forgets the typed
+backdrop. Give it whenever your model holds what is being confirmed (the
+`pending` order above), so that a cancel clears it. Without it the dialog closes
+itself and your model never hears of it. Either way the dialog forgets the typed
 text and the failure when it closes. While the request runs none of them sends
 it. (An event from the frame before the dialog re-rendered as busy can still
 slip through; if your `onCancel` handler closes the dialog, check
 `ConfirmDialog.isBusy` first.)
 
 Focus starts on the typed-confirmation field if there is one, otherwise on
-"Cancel", so that a stray `Enter` never confirms a destructive action. The
+"Cancel", so that a stray `Enter` never confirms a destructive action. Screen
+readers announce the dialog as an `alertdialog` and read the message and the
+consequences at once; the `body` is not part of that description. The
 built-in texts (the buttons, "Try again" and the label of the
 typed-confirmation field) follow `locale`.
 
@@ -115,12 +123,12 @@ typed-confirmation field) follow `locale`.
 
 # Content
 
-@docs Attribute, title, message, body, consequences
+@docs Attribute, message, body, consequences
 
 
 # Tone
 
-@docs tone, neutral, warning, danger, icon
+@docs tone, icon
 
 
 # Buttons and typed confirmation
@@ -148,6 +156,7 @@ import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Modal as Modal
+import Klar.Modal.Config as Config
 import Klar.Overlay exposing (Overlay)
 import Klar.Remote as Remote exposing (Problem)
 import Klar.Text as Text
@@ -358,6 +367,11 @@ messageId id =
     id ++ "-message"
 
 
+consequencesId : String -> String
+consequencesId id =
+    id ++ "-consequences"
+
+
 
 -- ATTRIBUTES
 
@@ -370,8 +384,7 @@ type Attribute msg
 
 
 type alias Config msg =
-    { title : String
-    , message : Maybe String
+    { message : Maybe String
     , body : List (Html msg)
     , consequences : List String
     , tone : Tone
@@ -390,8 +403,7 @@ type alias Config msg =
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { title = ""
-        , message = Nothing
+        { message = Nothing
         , body = []
         , consequences = []
         , tone = Neutral
@@ -406,13 +418,6 @@ configure attributes =
         , locale = Locale.default
         }
         attributes
-
-
-{-| The question: "Delete order?". It is also the accessible name of the dialog.
--}
-title : String -> Attribute msg
-title value =
-    Attribute (\config -> { config | title = value })
 
 
 {-| A short explanation in plain text, below the question: "Order 1042 will be
@@ -438,36 +443,18 @@ consequences value =
     Attribute (\config -> { config | consequences = value })
 
 
-{-| The tone of the question: `Neutral` (the default), `Warning` or `Danger`. It
-sets the icon beside the text and its color, and `Danger` also makes the confirm
-button red. `neutral`, `warning` and `danger` are shorthands.
+{-| The tone of the question (a [`Tone`](Klar-Theme#Tone)): `Neutral`, the default,
+is a question with no risk (a blue help icon and a blue confirm button); `Warning`
+an action that is hard to undo or that affects others (a warning icon, the confirm
+button stays blue); `Danger` a destructive action (a red error icon and a red
+confirm button). `Info` and `Success` look like `Neutral`.
+
+    ConfirmDialog.tone Danger
+
 -}
 tone : Tone -> Attribute msg
 tone value =
     Attribute (\config -> { config | tone = value })
-
-
-{-| A question with no risk: a blue help icon and a blue confirm button. This is
-the default.
--}
-neutral : Attribute msg
-neutral =
-    tone Neutral
-
-
-{-| An action that is hard to undo or that affects others: a warning icon. The
-confirm button stays blue.
--}
-warning : Attribute msg
-warning =
-    tone Warning
-
-
-{-| A destructive action: a red error icon and a red confirm button.
--}
-danger : Attribute msg
-danger =
-    tone Danger
 
 
 {-| Replaces the icon of the tone with another one, for example
@@ -534,9 +521,10 @@ onConfirm msg =
 
 
 {-| The message sent when the user cancels in any way: with the cancel button,
-the close button, `Escape` or the backdrop. Your `update` then calls `close`;
-without `onCancel` the dialog closes itself. It is not sent while the request
-runs.
+the close button, `Escape` or the backdrop. Your `update` then calls `close` and
+clears what was being confirmed. Give it whenever your model keeps that (a pending
+order, an id): without `onCancel` the dialog closes itself, and your model would
+keep the stale value. It is not sent while the request runs.
 -}
 onCancel : msg -> Attribute msg
 onCancel msg =
@@ -557,13 +545,14 @@ locale value =
 -- VIEW
 
 
-{-| The dialog. `toMsg` wraps the messages of the dialog. Renders nothing while
-closed, so it can stay in your view all the time. It returns an
+{-| The dialog that asks `question` ("Delete order?"): the title of the dialog and
+its accessible name. `toMsg` wraps the messages of the dialog. Renders nothing
+while closed, so it can stay in your view all the time. It returns an
 [`Overlay`](Klar-Overlay#Overlay) for [`Overlay.host`](Klar-Overlay#host) or
 `AppShell.overlays`.
 -}
-view : (Msg -> msg) -> List (Attribute msg) -> State -> Overlay msg
-view toMsg attributes (State state) =
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> Overlay msg
+view toMsg attributes (State state) question =
     let
         config =
             configure attributes
@@ -629,11 +618,10 @@ view toMsg attributes (State state) =
                 (Maybe.withDefault texts.cancel config.cancelLabel)
     in
     Modal.view (\inner -> toMsg (ModalMsg inner))
-        ([ Modal.title config.title
-         , Modal.small
+        ([ Modal.small
+         , Config.Attribute (\modal -> { modal | role = Config.AlertDialog })
          , Modal.busy isBusy_
          , Modal.locale config.locale
-         , Modal.ariaDescribedBy (messageId state.id)
          , Modal.lastFocus
             (if confirmEnabled then
                 confirmId state.id
@@ -650,16 +638,18 @@ view toMsg attributes (State state) =
                     Nothing ->
                         []
                )
+            ++ describedBy state.id config
         )
         state.modal
+        question
         [ Html.div [ Internal.cls [ "klar-confirm" ] ]
             [ Html.span
                 [ Internal.cls [ "klar-confirm__icon", "klar-confirm__icon--" ++ Internal.toneSuffix config.tone ] ]
                 [ Icon.sized Icon.Large (Maybe.withDefault (defaultIcon config.tone) config.icon) ]
             , Html.div [ Internal.cls [ "klar-confirm__content" ] ]
-                [ Html.div [ Internal.cls [ "klar-confirm__text" ], Attr.id (messageId state.id) ]
+                [ Html.div [ Internal.cls [ "klar-confirm__text" ] ]
                     (List.filterMap identity
-                        [ Maybe.map (\text -> Html.p [ Internal.cls [ "klar-confirm__message" ] ] [ Html.text text ]) config.message
+                        [ Maybe.map (\text -> Html.p [ Internal.cls [ "klar-confirm__message" ], Attr.id (messageId state.id) ] [ Html.text text ]) config.message
                         , if List.isEmpty config.body then
                             Nothing
 
@@ -670,7 +660,7 @@ view toMsg attributes (State state) =
 
                           else
                             Just
-                                (Html.ul [ Internal.cls [ "klar-confirm__list" ] ]
+                                (Html.ul [ Internal.cls [ "klar-confirm__list" ], Attr.id (consequencesId state.id) ]
                                     (List.map (\text -> Html.li [] [ Html.text text ]) config.consequences)
                                 )
                         ]
@@ -708,6 +698,29 @@ view toMsg attributes (State state) =
                 ]
             ]
         ]
+
+
+{-| The message and the consequences describe the question. The rich `body` is left
+out: it may hold a select or radio buttons, whose labels and values would be read
+as the description. Only ids that exist are named.
+-}
+describedBy : String -> Config msg -> List (Modal.Attribute msg)
+describedBy id config =
+    case
+        List.filterMap identity
+            [ Maybe.map (\_ -> messageId id) config.message
+            , if List.isEmpty config.consequences then
+                Nothing
+
+              else
+                Just (consequencesId id)
+            ]
+    of
+        [] ->
+            []
+
+        ids ->
+            [ Modal.ariaDescribedBy (String.join " " ids) ]
 
 
 viewFailure : (Msg -> msg) -> String -> String -> Config msg -> Problem -> Html msg

@@ -15,11 +15,12 @@ view : (Msg -> msg) -> List (Attribute msg) -> State msg -> Overlay.Overlay msg
 -- State
 type State msg  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
-init : State msg
+init : String -> State msg
 update : Msg -> State msg -> ( State msg, Cmd Msg )
-maxVisible : Int -> State msg -> State msg
+setMaxVisible : Int -> State msg -> State msg
 count : State msg -> Int
 queued : State msg -> Int
+focus : State msg -> Cmd Msg
 
 -- Showing and removing toasts
 push : List (Attribute msg) -> State msg -> ( State msg, Cmd Msg )
@@ -35,10 +36,6 @@ key : String -> Attribute msg
 
 -- Tone and time
 tone : Theme.Tone -> Attribute msg
-info : Attribute msg
-success : Attribute msg
-warning : Attribute msg
-danger : Attribute msg
 duration : Int -> Attribute msg
 sticky : Attribute msg
 
@@ -55,14 +52,17 @@ Use when: the user needs feedback about something they just did, which needs no 
 Do not use when: a message must stay on the page (use `Klar.Alert`) or the user must answer a question (use `Klar.ConfirmDialog`).
 Quick path: `init`, `push`, `update`, `view`, `dismissAll`
 
-    -- model:   toasts : Toast.State Msg       (Toast.init)
+    import Klar.Theme exposing (Tone(..))
+    import Klar.Toast as Toast
+
+    -- model:   toasts : Toast.State Msg       (Toast.init "toasts")
 
     -- update
     OrderSaved ->
         let
             ( toasts, cmd ) =
                 Toast.push
-                    [ Toast.success
+                    [ Toast.tone Success
                     , Toast.title "Order saved"
                     , Toast.message "Order 1042 was updated."
                     ]
@@ -77,15 +77,26 @@ Quick path: `init`, `push`, `update`, `view`, `dismissAll`
         in
         ( { model | toasts = toasts }, Cmd.map ToastMsg cmd )
 
-    -- view (once, anywhere; it is fixed in the bottom right corner)
+    -- view (once, in the list of overlays; it is fixed in the bottom right corner)
     Toast.view ToastMsg [] model.toasts
 
 A toast can carry one action, typically "Undo". Clicking it sends the
 application's message and dismisses the toast:
 
-    Toast.push [ Toast.info, Toast.message "Order deleted.", Toast.action "Undo" UndoDelete ] model.toasts
+    Toast.push [ Toast.message "Order deleted.", Toast.action "Undo" UndoDelete ] model.toasts
 
 The state holds the application's messages, hence `State msg`.
+
+A keyboard user needs a quick way to the "Undo" before it goes away: bind a key to
+`focus` with [Klar.Shortcut](Klar.Shortcut.md) (`F6` or `Alt+T` are the usual ones).
+The timer of a toast stops while focus is in it.
+
+    -- shortcuts
+    Shortcut.shortcut (Shortcut.function 6) "General" "Go to the notifications" FocusToasts
+
+    -- update
+    FocusToasts ->
+        ( model, Cmd.map ToastMsg (Toast.focus model.toasts) )
 
 ## View
 
@@ -93,10 +104,14 @@ Render the stack once, always, near the root of the application: it is the live
 region that screen readers listen to. Put it in the list of overlays of
 [`Overlay.host`](Klar.Overlay.md#host), so that the toasts stay usable while a dialog
 is open: they move out of the corner (to the top of the window, or to the other side
-of a drawer) and `Tab` reaches them after the footer of the dialog. New toasts are announced politely, without interrupting what the screen
-reader is saying; a `danger` toast is announced at once (`role="alert"`). Every
-toast has a close button, and one with an action has a button for it; both can
-be reached with `Tab`.
+of a drawer) and `Tab` reaches them after the footer of the dialog. New toasts are
+announced politely, without interrupting what the screen reader is saying; a
+`Danger` toast is announced at once. A toast that goes away is not announced, and
+neither are the ones that stay. Every toast has a close button, and one with an
+action has a button for it; both can be reached with `Tab`. When the toast that has
+focus goes away (it was closed, its action ran, or the application dismissed it),
+focus moves to the next toast, or back to where it was before it came into the
+stack, never to the top of the page.
 
 ### `view`
 
@@ -118,9 +133,9 @@ close button of each) and then to the first element of the dialog again.
 
 ## State
 
-At most `maxVisible` (default 4) toasts are shown; the rest wait in a queue and
+At most `setMaxVisible` (default 4) toasts are shown; the rest wait in a queue and
 take their place, with a fresh timer, as toasts go away (or at once, when you
-raise `maxVisible`).
+raise the limit).
 
 ### `State`
 
@@ -145,10 +160,14 @@ such as `ToastMsg Toast.Msg`, and hand it to `update`.
 ### `init`
 
 ```elm
-init : State msg
+init : String -> State msg
 ```
 
-No toasts. Up to four are shown at once; change that with `maxVisible`.
+No toasts. The `String` is the DOM id of the stack: unique on the page, and the
+ids of the toasts start with it. Up to four toasts are shown at once; change that
+with `setMaxVisible`.
+
+    Toast.init "toasts"
 
 ### `update`
 
@@ -159,16 +178,16 @@ update : Msg -> State msg -> ( State msg, Cmd Msg )
 Handles timers, dismissing and the pause while a toast is hovered or focused.
 Map its command into your own message with `Cmd.map`.
 
-### `maxVisible`
+### `setMaxVisible`
 
 ```elm
-maxVisible : Int -> State msg -> State msg
+setMaxVisible : Int -> State msg -> State msg
 ```
 
 How many toasts are shown at once (at least 1; the default is 4). Set it when
-you create the state, for example `Toast.init |> Toast.maxVisible 3`. Raising it
-later moves the toasts that are waiting in the queue up at once, and their
-timers start with the next `push` or `update`; lowering it hides nothing.
+you create the state, for example `Toast.init "toasts" |> Toast.setMaxVisible 3`.
+Raising it later moves the toasts that are waiting in the queue up at once, and
+their timers start with the next `push` or `update`; lowering it hides nothing.
 
 ### `count`
 
@@ -184,8 +203,20 @@ The number of toasts on screen plus the ones in the queue.
 queued : State msg -> Int
 ```
 
-The number of toasts waiting in the queue because `maxVisible` toasts are
-already on screen.
+The number of toasts waiting in the queue because the most toasts that can be
+shown are already on screen.
+
+### `focus`
+
+```elm
+focus : State msg -> Cmd Msg
+```
+
+Moves focus to the newest toast on screen: to its action ("Undo") if it has
+one, else to its close button. Nothing happens when there is no toast. Bind it to a
+key with [Klar.Shortcut](Klar.Shortcut.md), so that a keyboard user reaches a toast
+before it goes away (its timer stops while focus is in it). When that toast goes
+away, focus returns to where it was.
 
 ## Showing and removing toasts
 
@@ -196,10 +227,11 @@ push : List (Attribute msg) -> State msg -> ( State msg, Cmd Msg )
 ```
 
 Adds a toast built from the attributes. The command starts its timer: map it
-into your own message. When `maxVisible` toasts are already on screen, the new
-one waits in the queue.
+into your own message. When the most toasts that can be shown are already on
+screen, the new one waits in the queue. A toast with the same `key` as one on
+screen or in the queue replaces it.
 
-    Toast.push [ Toast.warning, Toast.message "Stock is running low." ] model.toasts
+    Toast.push [ Toast.tone Warning, Toast.message "Stock is running low." ] model.toasts
 
 ### `dismiss`
 
@@ -214,13 +246,17 @@ when a retry succeeded and the failure toast of the first try is stale:
 
     Toast.dismiss "note-save" model.toasts
 
+If that toast had focus, focus moves to the next toast or back to where it was.
+
 ### `dismissAll`
 
 ```elm
 dismissAll : State msg -> State msg
 ```
 
-Removes every toast at once, the ones on screen and the ones in the queue.
+Removes every toast at once, the ones on screen and the ones in the queue. If
+one of them had focus, focus goes back to where it was before it came into the
+stack.
 
 ## Content
 
@@ -273,12 +309,12 @@ Names the toast, so that the application can take it away from `update` with
 `dismiss`, and so that a new toast with the same key replaces the old one instead of
 stacking next to it (a second failed save shows one toast, not two).
 
-    Toast.push [ Toast.danger, Toast.key "note-save", Toast.title "Could not save the note" ] model.toasts
+    Toast.push [ Toast.tone Danger, Toast.key "note-save", Toast.title "Could not save the note" ] model.toasts
 
 ## Tone and time
 
-An `info` toast (the default) goes away after 5 seconds, a `success` toast after
-4 and a `warning` toast after 8; a `danger` toast stays until it is closed. A
+An `Info` toast (the default) goes away after 5 seconds, a `Success` toast after
+4 and a `Warning` toast after 8; a `Danger` toast stays until it is closed. A
 toast with an action stays at least 8 seconds. Change it with `duration` or
 `sticky`. The timer stops while the pointer is over a toast or focus is inside
 it, and starts over when the pointer leaves.
@@ -289,45 +325,16 @@ it, and starts over when the pointer leaves.
 tone : Theme.Tone -> Attribute msg
 ```
 
-The tone of the toast: `Info` (the default), `Success`, `Warning` or `Danger`.
-It sets the icon, the color of the accent and how long the toast stays on
-screen. `info`, `success`, `warning` and `danger` are shorthands.
+The tone of the toast (a [`Tone`](Klar.Theme.md#tone)). It sets the icon, the
+color of the accent and how long the toast stays on screen: `Info`, the default,
+is a plain notice with a blue accent (5 seconds); `Success` something that went
+well, with a green accent and a check mark (4 seconds); `Warning` something that
+needs attention, with an amber accent and a warning sign (8 seconds); `Danger`
+something that went wrong, with a red accent and an error sign, which stays until
+the user closes it and is announced to screen readers at once. `Neutral` looks
+like `Info` with a gray accent.
 
-### `info`
-
-```elm
-info : Attribute msg
-```
-
-A plain notice with a blue accent. Goes away after 5 seconds. This is the
-default.
-
-### `success`
-
-```elm
-success : Attribute msg
-```
-
-Something went well: a green accent and a check mark. Goes away after 4
-seconds.
-
-### `warning`
-
-```elm
-warning : Attribute msg
-```
-
-Something needs attention: an amber accent and a warning sign. Goes away
-after 8 seconds.
-
-### `danger`
-
-```elm
-danger : Attribute msg
-```
-
-Something went wrong: a red accent and an error sign. Stays until the user
-closes it, and is announced to screen readers at once (`role="alert"`).
+    Toast.push [ Toast.tone Danger, Toast.message "Could not send the invoice." ] model.toasts
 
 ### `duration`
 

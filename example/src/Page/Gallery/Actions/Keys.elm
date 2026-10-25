@@ -187,9 +187,9 @@ section locale model =
             , code = Just contextCode
             }
             (Layout.row [ Layout.gap 5, Layout.alignCenter, Layout.wrap ]
-                [ Tooltip.wrap [ Tooltip.shortcut (text openPalette), Tooltip.id "actions-keys-tip" ]
+                [ Tooltip.wrap [ Tooltip.shortcut openPalette, Tooltip.platform platform, Tooltip.id "actions-keys-tip" ]
                     "Open the command palette"
-                    (Button.iconOnly [ Button.onClick (Did "Palette") ] Icon.search "Search")
+                    (\tip -> Button.iconOnly [ Button.onClick (Did "Palette"), Button.htmlAttrs tip ] Icon.search "Search")
                 , Menu.view MenuMsg
                     [ Menu.label "Order"
                     , Menu.platform platform
@@ -281,9 +281,9 @@ Text.paragraphWith
 contextCode : String
 contextCode =
     """-- a tooltip, with the shortcut as key caps
-Tooltip.wrap [ Tooltip.shortcut (Kbd.toString attributes openPalette) ]
+Tooltip.wrap [ Tooltip.shortcut openPalette, Tooltip.platform platform ]
     "Open the command palette"
-    (Button.iconOnly [] Icon.search "Search")
+    (\\tip -> Button.iconOnly [ Button.htmlAttrs tip ] Icon.search "Search")
 
 -- a menu item: the same Keys, drawn for the platform of the menu
 Menu.view MenuMsg

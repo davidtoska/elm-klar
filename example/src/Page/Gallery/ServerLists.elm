@@ -203,7 +203,7 @@ init =
             , zone = Time.utc
             , supplier = Loading
             , supplierFailing = True
-            , toasts = Toast.init
+            , toasts = Toast.init "server-list-toasts"
             }
     in
     follow step model
@@ -270,7 +270,7 @@ update msg model =
                     let
                         ( toasts, cmd ) =
                             Toast.push
-                                [ Toast.danger
+                                [ Toast.tone Danger
                                 , Toast.key "supplier"
                                 , Toast.title "Could not load the supplier"
                                 , Toast.message (Remote.title Klar.Locale.default problem)

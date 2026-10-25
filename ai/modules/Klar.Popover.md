@@ -10,36 +10,34 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Html msg
 
 -- State
 type State  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
 init : String -> State
+setInitialFocus : List String -> State -> State
 update : Msg -> State -> ( State, Cmd Msg )
 isOpen : State -> Bool
 
 -- Opening and closing
 open : State -> ( State, Cmd Msg )
-openFocusing : List String -> State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
 toggle : State -> ( State, Cmd Msg )
 
 -- The button
 type Attribute msg  -- opaque: no constructors are exposed
-label : String -> Attribute msg
 icon : Icon.Icon -> Attribute msg
+iconOnly : Attribute msg
 trigger : List (Button.Attribute msg) -> Attribute msg
 customTrigger : (List (Html.Attribute msg) -> Html msg) -> Attribute msg
 
 -- The panel
 title : String -> Attribute msg
-ariaLabel : String -> Attribute msg
 closeButton : Attribute msg
 width : Int -> Attribute msg
 alignEnd : Attribute msg
 noPadding : Attribute msg
-initialFocus : List String -> Attribute msg
 
 -- Texts
 locale : Locale.Locale -> Attribute msg
@@ -54,7 +52,8 @@ Use when: a small panel next to a button must hold any content, such as a quick 
 Do not use when: you only need a list of actions (use `Klar.Menu`) or the work needs the full attention of the user (use `Klar.Modal`).
 Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
 
-    -- model:   popover : Popover.State        (Popover.init "filter-popover")
+    -- model:   popover : Popover.State
+    --          (Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ])
 
     -- update
     PopoverMsg m ->
@@ -75,13 +74,12 @@ Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
 
     -- view
     Popover.view PopoverMsg
-        [ Popover.label "Filter"
-        , Popover.icon Icon.filter
+        [ Popover.icon Icon.filter
         , Popover.title "Quick filter"
         , Popover.closeButton
-        , Popover.initialFocus [ "filter-customer" ]
         ]
         model.popover
+        "Filter"
         [ TextInput.view
             [ TextInput.id "filter-customer"
             , TextInput.label "Customer"
@@ -98,11 +96,17 @@ there is no room below; other browsers get plain positioning. Clicks inside the
 panel do not close it. A click outside, `Escape` or the close button do, and
 focus returns to the button. `Tab` out of the panel closes it too, and focus
 goes where the user was heading. `Escape` pressed in a select or a menu that is
-open inside the panel closes only that popup. [Klar.Modal](Klar.Modal.md)
-describes these rules, shared by all popups and dialogs, in one place.
+open inside the panel closes only that popup, and so does an `Escape` that a
+control in the panel handled itself (a search field that cleared its text) or that
+ends an IME composition. If the element that has focus in the panel is removed or
+disabled (an "Apply" that becomes "Applying ..."), focus moves to the panel, so that
+`Escape` and `Tab` keep working. [Klar.Modal](Klar.Modal.md) describes these rules,
+shared by all popups and dialogs, in one place.
 
-The panel is announced as a dialog, named by its `title` or its `ariaLabel`.
-The only built-in text is the label of the close button; it follows `locale`.
+The label (`"Filter"` above) is a required argument of `view`: it is the text of
+the button, or the name of an `iconOnly` button, and it names the panel when the
+panel has no `title`. The panel is announced as a dialog. The only built-in text
+is the label of the close button; it follows `locale`.
 If a button in the panel opens a dialog, give the dialog to
 [`Overlay.host`](Klar.Overlay.md#host): the page is then `inert`, so closing the panel,
 which gives focus back to its button, cannot take focus away from the dialog.
@@ -112,12 +116,13 @@ which gives focus back to its button, cannot take focus away from the dialog.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg) -> Html msg
 ```
 
-The button and, while open, the panel with `content`. `toMsg` wraps the
-messages of the popover. The content is laid out in a column, one item below the
-other.
+The button labelled `label` and, while open, the panel with `content`. The
+label is the text of the button (its accessible name with `iconOnly`), and it
+names the panel when the panel has no `title`. `toMsg` wraps the messages of the
+popover. The content is laid out in a column, one item below the other.
 
 ## State
 
@@ -150,6 +155,19 @@ init : String -> State
 A closed popover. The id must be unique on the page; the ids of the button
 and of the panel start with it.
 
+### `setInitialFocus`
+
+```elm
+setInitialFocus : List String -> State -> State
+```
+
+The ids of elements inside the panel that get focus when it opens, the first
+one that exists: a search field, the first field of a short form. The button,
+`open` and `toggle` all use them. Without it (the default) the panel itself gets
+focus. Set it once, when you create the state:
+
+    Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ]
+
 ### `update`
 
 ```elm
@@ -180,18 +198,8 @@ keyboard shortcut.
 open : State -> ( State, Cmd Msg )
 ```
 
-Opens the panel and moves focus into it (to the panel itself; use
-`openFocusing` to focus a field). It ignores the `initialFocus` attribute, which
-applies when the user opens the panel with the button.
-
-### `openFocusing`
-
-```elm
-openFocusing : List String -> State -> ( State, Cmd Msg )
-```
-
-Opens the panel and focuses the first of these elements that exists (ids of
-fields inside the panel). If none exists, the panel itself gets focus.
+Opens the panel and moves focus into it, as the button does: to the first
+element of `setInitialFocus` that exists, or else to the panel itself.
 
 ### `close`
 
@@ -208,8 +216,8 @@ inside the panel when the work is done, such as "Apply".
 toggle : State -> ( State, Cmd Msg )
 ```
 
-Opens the panel if it is closed, closes it if it is open. Like `open`, it
-ignores the `initialFocus` attribute.
+Opens the panel if it is closed (focus moves in as with `open`), closes it if
+it is open (focus goes back to the button).
 
 ## The button
 
@@ -222,24 +230,24 @@ type Attribute msg  -- opaque: no constructors are exposed
 A setting of a popover. Make them with the functions below and pass a list to
 `view`; later attributes win over earlier ones.
 
-### `label`
-
-```elm
-label : String -> Attribute msg
-```
-
-Text on the button that opens the panel. Without a label (and without
-`customTrigger`) the button shows only an icon.
-
 ### `icon`
 
 ```elm
 icon : Icon.Icon -> Attribute msg
 ```
 
-An icon on the button, before the label. Without a `label` the button is an
-icon-only button (three dots if you give no icon), and `ariaLabel` is the only
-name it has, so always set it.
+An icon on the button, before the label.
+
+### `iconOnly`
+
+```elm
+iconOnly : Attribute msg
+```
+
+The button shows only its icon (three dots if you give no `icon`), and the
+label of `view` becomes its accessible name.
+
+    Popover.view HelpMsg [ Popover.icon Icon.help, Popover.iconOnly ] model.help "What is priority?" [ explanation ]
 
 ### `trigger`
 
@@ -260,7 +268,8 @@ customTrigger : (List (Html.Attribute msg) -> Html msg) -> Attribute msg
 Use your own element as the button. The function receives the attributes it
 must put on that element (`id`, `aria-haspopup`, `aria-expanded`, the click
 handler and the `ArrowDown` handler); without them the panel cannot open and
-focus cannot return to the element.
+focus cannot return to the element. Your element shows its own text; the label of
+`view` still names the panel when it has no `title`.
 
     Popover.customTrigger (\attrs -> Button.view [ Button.htmlAttrs attrs ] "Filter")
 
@@ -272,16 +281,8 @@ focus cannot return to the element.
 title : String -> Attribute msg
 ```
 
-A heading in the panel; it is also the accessible name of the panel.
-
-### `ariaLabel`
-
-```elm
-ariaLabel : String -> Attribute msg
-```
-
-An accessible name. It names the button when the button has no `label`, and
-it names the panel when the panel has no `title`.
+A heading in the panel; it is also the accessible name of the panel, instead
+of the label.
 
 ### `closeButton`
 
@@ -319,17 +320,6 @@ noPadding : Attribute msg
 
 No padding around the content, for lists and tables that go edge to edge.
 Content taller than 70% of the window (at most 520px) scrolls.
-
-### `initialFocus`
-
-```elm
-initialFocus : List String -> Attribute msg
-```
-
-Ids of elements inside the panel that should get focus when the user opens
-it with the button (the first one that exists). Without it the panel itself gets
-focus. `open` and `toggle` ignore this attribute; when you open the panel from
-your own code, use `openFocusing`.
 
 ## Texts
 

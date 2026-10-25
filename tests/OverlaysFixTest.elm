@@ -2,8 +2,8 @@ module OverlaysFixTest exposing (suite)
 
 {-| Regression tests for the fixes to the overlay modules:
 
-  - `Tooltip`: `aria-keyshortcuts` uses the key names of ARIA, and a wrapped tip
-    can be given an id of its own.
+  - `Tooltip`: `aria-keyshortcuts` uses the key names of ARIA, a wrapped tip
+    describes the control and can be given an id of its own.
   - `ConfirmDialog`: however the dialog closes, it forgets its failure.
   - `Toast`: raising `maxVisible` moves queued toasts up at once, and their
     timers start with the next `push` or `update`.
@@ -28,11 +28,13 @@ import Html.Attributes as Attr
 import Json.Encode as Encode
 import Klar.ConfirmDialog as ConfirmDialog
 import Klar.ContextMenu as ContextMenu
+import Klar.Kbd as Kbd
 import Klar.Locale as Locale
 import Klar.Menu as Menu
 import Klar.Menu.Scroll as Scroll
 import Klar.Overlay as Overlay
 import Klar.Remote as Remote
+import Klar.Shortcut as Shortcut
 import Klar.Toast as Toast
 import Klar.Tooltip as Tooltip
 import Test exposing (Test, describe, test)
@@ -124,45 +126,84 @@ tooltipTests : Test
 tooltipTests =
     describe "Klar.Tooltip"
         [ describe "aria-keyshortcuts uses the key names of ARIA"
-            [ announced "Ctrl K" "Control+K"
-            , announced "Ctrl+Shift+K" "Control+Shift+K"
-            , announced "ctrl k" "Control+K"
-            , announced "Cmd K" "Meta+K"
-            , announced "Command+K" "Meta+K"
-            , announced "⌘ K" "Meta+K"
-            , announced "Option Shift P" "Alt+Shift+P"
-            , announced "Alt K" "Alt+K"
-            , announced "Esc" "Escape"
-            , announced "Ctrl Enter" "Control+Enter"
-            , announced "Ctrl Del" "Control+Delete"
-            , announced "Ctrl Right" "Control+ArrowRight"
-            , announced "Alt Left" "Alt+ArrowLeft"
-            , announced "Shift PgDn" "Shift+PageDown"
-            , announced "Ctrl Space" "Control+Space"
-            , announced "Ctrl F5" "Control+F5"
-            , announced "Ctrl /" "Control+/"
-            , announced "Ctrl Home" "Control+Home"
-            , test "attrsWith announces it the same way" <|
+            [ announced (Shortcut.mod (Shortcut.char 'k')) "Control+K"
+            , announced (Shortcut.alt Shortcut.left) "Alt+ArrowLeft"
+            , announced Shortcut.escape "Escape"
+            , announced (Shortcut.mod Shortcut.enter) "Control+Enter"
+            , announced (Shortcut.mod Shortcut.delete) "Control+Delete"
+            , announced (Shortcut.shift Shortcut.pageDown) "Shift+PageDown"
+            , announced (Shortcut.mod Shortcut.space) "Control+Space"
+            , announced (Shortcut.mod (Shortcut.function 5)) "Control+F5"
+            , announced (Shortcut.mod (Shortcut.char '/')) "Control+/"
+            , announced (Shortcut.mod Shortcut.home) "Control+Home"
+            , test "on a Mac, mod is the Command key" <|
                 \_ ->
-                    Html.button (Tooltip.attrsWith [ Tooltip.shortcut "Cmd K" ] "Open search") []
+                    Html.button (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')), Tooltip.platform Kbd.mac ] "Open search") []
                         |> Query.fromHtml
                         |> Query.has [ Selector.attribute (Attr.attribute "aria-keyshortcuts" "Meta+K") ]
-            , test "the visible shortcut stays as it was written" <|
+            , test "a sequence is shown but not announced: ARIA has no words for one" <|
                 \_ ->
-                    shortcutButton "Cmd K"
+                    Html.button (Tooltip.attrs [ Tooltip.shortcut (Shortcut.sequence [ Shortcut.char 'g', Shortcut.char 'o' ]) ] "Go to orders") []
                         |> Query.fromHtml
-                        |> Query.has [ Selector.attribute (Attr.attribute "data-tip-key" "· Cmd K") ]
+                        |> Expect.all
+                            [ Query.has [ Selector.attribute (Attr.attribute "data-tip-key" "· G then O") ]
+                            , Query.hasNot [ Selector.attribute (Attr.attribute "aria-keyshortcuts" "G+Then+O") ]
+                            ]
+            , test "the visible shortcut is written for the keyboard" <|
+                \_ ->
+                    Html.div []
+                        [ Html.button (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')) ] "Open search") []
+                        , Html.button (Tooltip.attrs [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')), Tooltip.platform Kbd.mac ] "Open search") []
+                        ]
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ Selector.attribute (Attr.attribute "data-tip-key" "· Ctrl+K") ]
+                            , Query.has [ Selector.attribute (Attr.attribute "data-tip-key" "· ⌘ K") ]
+                            ]
+            , test "the text, no native title, and below when asked" <|
+                \_ ->
+                    Html.button (Tooltip.attrs [ Tooltip.below ] "Sort by date") []
+                        |> Query.fromHtml
+                        |> Query.has
+                            [ Selector.attribute (Attr.attribute "data-tip" "Sort by date")
+                            , Selector.attribute (Attr.title "")
+                            , Selector.attribute (Attr.attribute "data-tip-below" "")
+                            ]
+            , test "focusable lets the keyboard reach the element" <|
+                \_ ->
+                    Html.span (Tooltip.attrs [ Tooltip.focusable ] "The whole text") []
+                        |> Query.fromHtml
+                        |> Query.has [ Selector.attribute (Attr.tabindex 0) ]
             ]
-        , describe "the id of a wrapped tip"
-            [ test "an id of your own names the tip, and the wrapper points at it" <|
+        , describe "a wrapped tip describes the control"
+            [ test "the control the function draws refers to the tip" <|
                 \_ ->
                     wrapped [ Tooltip.id "delete-tip-1" ] "Delete order"
                         |> Query.fromHtml
                         |> Expect.all
-                            [ Query.has [ Selector.class "klar-tip-wrap", describedBy "delete-tip-1" ]
+                            [ Query.find [ Selector.tag "button" ] >> Query.has [ describedBy "delete-tip-1" ]
                             , Query.find [ role "tooltip" ] >> Query.has [ Selector.id "delete-tip-1", Selector.text "Delete order" ]
                             ]
-            , test "two tips with the same words get their own ids when asked" <|
+            , test "content that cannot take focus: the wrapper is the tab stop and is described" <|
+                \_ ->
+                    Tooltip.wrap [ Tooltip.focusable, Tooltip.id "locked-tip" ] "Only warehouse staff can do this" (\_ -> Html.span [] [ Html.text "Locked" ])
+                        |> Query.fromHtml
+                        |> Expect.all
+                            [ Query.has [ Selector.class "klar-tip-wrap", describedBy "locked-tip", Selector.attribute (Attr.tabindex 0) ]
+
+                            -- and the content inside is not described a second time
+                            , Query.findAll [ describedBy "locked-tip" ] >> Query.count (Expect.equal 0)
+                            ]
+            , test "the shortcut is drawn as key caps in the tip" <|
+                \_ ->
+                    Tooltip.wrap [ Tooltip.shortcut (Shortcut.mod (Shortcut.char 'k')), Tooltip.id "palette-tip" ] "Open the command palette" (\tip -> Html.button tip [])
+                        |> Query.fromHtml
+                        |> Query.find [ role "tooltip" ]
+                        |> Query.findAll [ Selector.class "klar-kbd" ]
+                        |> Query.count (Expect.equal 2)
+            ]
+        , describe "the id of a wrapped tip"
+            [ test "two tips with the same words get their own ids when asked" <|
                 \_ ->
                     Html.div []
                         [ wrapped [ Tooltip.id "delete-tip-1" ] "Delete order"
@@ -185,9 +226,9 @@ tooltipTests =
                             , Query.findAll [ Selector.id "second" ] >> Query.count (Expect.equal 1)
                             , Query.findAll [ Selector.id "first" ] >> Query.count (Expect.equal 0)
                             ]
-            , test "attrsWith has no tip to give an id to, so it ignores one" <|
+            , test "attrs has no tip to give an id to, so it ignores one" <|
                 \_ ->
-                    Html.button (Tooltip.attrsWith [ Tooltip.id "ignored" ] "Hint") []
+                    Html.button (Tooltip.attrs [ Tooltip.id "ignored" ] "Hint") []
                         |> Query.fromHtml
                         |> Expect.all
                             [ Query.hasNot [ Selector.id "ignored" ]
@@ -197,25 +238,18 @@ tooltipTests =
         ]
 
 
-{-| A button with a tip and a shortcut, for reading the attributes.
--}
-shortcutButton : String -> Html msg
-shortcutButton keys =
-    Html.button (Tooltip.attrs "Open search" |> Tooltip.withShortcut keys) [ Html.text "Search" ]
-
-
-announced : String -> String -> Test
-announced written expected =
-    test (written ++ " is announced as " ++ expected) <|
+announced : Shortcut.Keys -> String -> Test
+announced keys expected =
+    test (Kbd.toString [] keys ++ " is announced as " ++ expected) <|
         \_ ->
-            shortcutButton written
+            Html.button (Tooltip.attrs [ Tooltip.shortcut keys ] "Open search") [ Html.text "Search" ]
                 |> Query.fromHtml
                 |> Query.has [ Selector.attribute (Attr.attribute "aria-keyshortcuts" expected) ]
 
 
 wrapped : List Tooltip.Option -> String -> Html msg
 wrapped options text =
-    Tooltip.wrap options text (Html.button [] [ Html.text "Delete" ])
+    Tooltip.wrap options text (\tip -> Html.button tip [ Html.text "Delete" ])
 
 
 describedBy : String -> Selector
@@ -246,15 +280,14 @@ drawDialog withOnCancel state =
         , page = []
         , overlays =
             [ ConfirmDialog.view Dialog
-                (ConfirmDialog.title "Delete order?"
-                    :: (if withOnCancel then
-                            [ ConfirmDialog.onCancel Cancelled ]
+                (if withOnCancel then
+                    [ ConfirmDialog.onCancel Cancelled ]
 
-                        else
-                            []
-                       )
+                 else
+                    []
                 )
                 state
+                "Delete order?"
             ]
         }
 
@@ -440,8 +473,8 @@ wait in the queue.
 -}
 crowded : Stack
 crowded =
-    Toast.init
-        |> Toast.maxVisible 1
+    Toast.init "toasts"
+        |> Toast.setMaxVisible 1
         |> pushed "Toast 1"
         |> pushed "Toast 2"
         |> pushed "Toast 3"
@@ -463,7 +496,7 @@ toastTests =
         , describe "raising maxVisible moves queued toasts up at once"
             [ test "all of them, when there is room" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> Expect.all
                             [ shown 3
                             , Toast.queued >> Expect.equal 0
@@ -471,7 +504,7 @@ toastTests =
                             ]
             , test "just as many as there is room for" <|
                 \_ ->
-                    Toast.maxVisible 2 crowded
+                    Toast.setMaxVisible 2 crowded
                         |> Expect.all
                             [ shown 2
                             , Toast.queued >> Expect.equal 1
@@ -479,7 +512,7 @@ toastTests =
                             ]
             , test "in the order in which they were pushed" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> Expect.all
                             [ reads 0 "Toast 1"
                             , reads 1 "Toast 2"
@@ -487,7 +520,7 @@ toastTests =
                             ]
             , test "and the note about the toasts that wait goes away" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> drawStack
                         |> Expect.all
                             [ Query.hasNot [ Selector.text "more waiting" ]
@@ -500,7 +533,7 @@ toastTests =
                         |> Query.has [ Selector.text "+ 2 more waiting" ]
             , test "a toast pushed afterwards goes behind the ones that moved up" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
+                    Toast.setMaxVisible 3 crowded
                         |> pushed "Toast 4"
                         |> Expect.all
                             [ shown 3
@@ -509,7 +542,7 @@ toastTests =
                             ]
             , test "a limit below 1 counts as 1" <|
                 \_ ->
-                    Toast.maxVisible 0 crowded
+                    Toast.setMaxVisible 0 crowded
                         |> Expect.all
                             [ shown 1
                             , Toast.queued >> Expect.equal 2
@@ -518,8 +551,8 @@ toastTests =
         , describe "lowering maxVisible"
             [ test "hides nothing that is on screen, and sends the next ones to the queue" <|
                 \_ ->
-                    Toast.maxVisible 3 crowded
-                        |> Toast.maxVisible 1
+                    Toast.setMaxVisible 3 crowded
+                        |> Toast.setMaxVisible 1
                         |> pushed "Toast 4"
                         |> Expect.all
                             [ shown 3
@@ -529,17 +562,17 @@ toastTests =
         , describe "the timers"
             [ test "a toast that moved up gets its timer with the next update" <|
                 \_ ->
-                    Toast.maxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
+                    Toast.setMaxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
                         |> afterFirstToast Event.mouseEnter
                         |> expectOk (Tuple.second >> expectCommand)
             , test "once, not with every update" <|
                 \_ ->
-                    Toast.maxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
+                    Toast.setMaxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
                         |> afterFirstToast Event.mouseEnter
                         |> expectOk (\( stack, _ ) -> afterFirstToast Event.mouseEnter stack |> expectOk (Tuple.second >> expectNoCommand))
             , test "a toast that moved up gets its timer with the next push as well" <|
                 \_ ->
-                    Toast.maxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
+                    Toast.setMaxVisible 2 (stackOf [ "Toast 1", "Toast 2" ] 1)
                         |> Toast.push [ Toast.message "Toast 3" ]
                         |> Tuple.second
                         |> expectCommand
@@ -589,7 +622,7 @@ toastTests =
 -}
 stackOf : List String -> Int -> Stack
 stackOf texts limit =
-    List.foldl pushed (Toast.maxVisible limit Toast.init) texts
+    List.foldl pushed (Toast.setMaxVisible limit (Toast.init "toasts")) texts
 
 
 {-| Send the event to the first toast on screen and give the message to `update`.

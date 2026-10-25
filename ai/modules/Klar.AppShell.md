@@ -765,7 +765,7 @@ while one of them is open. See [Klar.Overlay](Klar.Overlay.md) for everything th
 list takes care of.
 
     AppShell.overlays
-        [ Modal.view ModalMsg [ Modal.title "Edit order" ] model.modal [ orderForm model ]
+        [ Modal.view ModalMsg [] model.modal "Edit order" [ orderForm model ]
         , Toast.view ToastMsg [] model.toasts
         ]
 

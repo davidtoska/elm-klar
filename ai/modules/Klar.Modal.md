@@ -4,13 +4,19 @@ A dialog on top of the page, for work that needs the user's full attention: edit
 
 Import: `import Klar.Modal as Modal` | Group: Overlays
 
-Types: `Msg`, `Side`, `State`, `Attribute`
+Types: `Msg`, `State`, `Attribute`
 
 ## Signatures
 
 ```elm
 -- View
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Overlay.Overlay msg
+view :
+    (Msg -> msg)
+    -> List (Attribute msg)
+    -> State
+    -> String
+    -> List (Html msg)
+    -> Overlay.Overlay msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -25,8 +31,7 @@ openWith : { opener : String, focus : List String } -> State -> ( State, Cmd Msg
 close : State -> ( State, Cmd Msg )
 
 -- Content
-type Attribute msg  -- opaque: no constructors are exposed
-title : String -> Attribute msg
+type alias Attribute msg = Modal.Config.Attribute msg
 subtitle : String -> Attribute msg
 footer : List (Html msg) -> Attribute msg
 footerStart : List (Html msg) -> Attribute msg
@@ -34,14 +39,12 @@ flush : Attribute msg
 hideClose : Attribute msg
 ariaDescribedBy : String -> Attribute msg
 
--- Size and placement
-type Side = Right | Left
+-- Size
 small : Attribute msg
 medium : Attribute msg
 large : Attribute msg
 size : Theme.Size -> Attribute msg
 fullHeight : Attribute msg
-side : Side -> Attribute msg
 
 -- Dismissing
 static : Attribute msg
@@ -87,19 +90,20 @@ Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
     -- view
     Modal.view EditDialogMsg
-        [ Modal.title "Edit order"
-        , Modal.large
+        [ Modal.large
         , Modal.footer
             [ Button.view [ Button.onClick CancelEdit ] "Cancel"
             , Button.view [ Button.primary, Button.onClick SaveOrder ] "Save"
             ]
         ]
         model.editDialog
+        "Edit order"
         [ orderForm ]
 
 The dialog has a fixed header (the title and a close button), a body that
-scrolls on its own and an optional fixed footer for the actions. Screen readers
-announce it as a modal dialog named by its title. In the example, `CancelEdit`
+scrolls on its own and an optional fixed footer for the actions. The title is a
+required argument of `view`: it is the heading and the accessible name, so screen
+readers announce a modal dialog called "Edit order". In the example, `CancelEdit`
 and a successful `SaveOrder` end by calling `Modal.close`; the close button,
 `Escape` and a click on the backdrop close the dialog without any code of yours.
 
@@ -115,8 +119,9 @@ review) takes its body from [Klar.RemoteView](Klar.RemoteView.md): the skeleton,
 failure with a retry, and old or refreshing data, without a `case` of your own.
 
     Modal.view ModalMsg
-        [ Modal.title "Order 1042" ]
+        []
         model.dialog
+        "Order 1042"
         (RemoteView.view [ RemoteView.onRetry ReloadOrder ] model.order viewOrder)
 
 ## View
@@ -124,14 +129,21 @@ failure with a retry, and old or refreshing data, without a `case` of your own.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List (Attribute msg) -> State -> List (Html msg) -> Overlay.Overlay msg
+view :
+    (Msg -> msg)
+    -> List (Attribute msg)
+    -> State
+    -> String
+    -> List (Html msg)
+    -> Overlay.Overlay msg
 ```
 
-The dialog, with `body` in its scrolling middle part. `toMsg` wraps the
-messages of the dialog (see the example at the top of this page). Renders
-nothing while the dialog is closed, so it can stay in your view all the time.
-It returns an [`Overlay`](Klar.Overlay.md#overlay): put it in the list of overlays
-of [`Overlay.host`](Klar.Overlay.md#host) or `AppShell.overlays`.
+The dialog titled `title`, with `body` in its scrolling middle part. The title
+is the heading of the dialog and its accessible name. `toMsg` wraps the messages
+of the dialog (see the example at the top of this page). Renders nothing while the
+dialog is closed, so it can stay in your view all the time. It returns an
+[`Overlay`](Klar.Overlay.md#overlay): put it in the list of overlays of
+[`Overlay.host`](Klar.Overlay.md#host) or `AppShell.overlays`.
 
 ## State
 
@@ -242,20 +254,12 @@ the backdrop close the dialog through `update`.
 ### `Attribute`
 
 ```elm
-type Attribute msg  -- opaque: no constructors are exposed
+type alias Attribute msg = Modal.Config.Attribute msg
 ```
 
 A setting of a dialog. Make them with the functions below and pass a list to
-`view`; later attributes win over earlier ones.
-
-### `title`
-
-```elm
-title : String -> Attribute msg
-```
-
-The heading of the dialog. It is also the accessible name of the dialog, so
-always set one.
+`view`; later attributes win over earlier ones. [Klar.Drawer](Klar.Drawer.md) and
+[Klar.ConfirmDialog](Klar.ConfirmDialog.md) use the same settings.
 
 ### `subtitle`
 
@@ -311,16 +315,9 @@ ariaDescribedBy : String -> Attribute msg
 The id of an element inside the dialog that describes it (a paragraph of
 explanation, say). Screen readers read it out after the title.
 
-## Size and placement
+## Size
 
-### `Side`
-
-```elm
-type Side = Right | Left
-```
-
-The edge of the window that a dialog shown as a side panel (see `side`) is
-attached to: `Right` or `Left`.
+A panel along the side of the window is a [Klar.Drawer](Klar.Drawer.md).
 
 ### `small`
 
@@ -354,7 +351,7 @@ size : Theme.Size -> Attribute msg
 
 Sets the width from a [`Size`](Klar.Theme.md#size): `Small` (400px), `Medium`
 (560px, the default) or `Large` (800px). `small`, `medium` and `large` are
-shorthands. A dialog shown with `side` is 360, 480 or 720px wide instead.
+shorthands. A [Klar.Drawer](Klar.Drawer.md) is 360, 480 or 720px wide instead.
 
 ### `fullHeight`
 
@@ -363,18 +360,8 @@ fullHeight : Attribute msg
 ```
 
 The dialog is as tall as the window (less a small margin) instead of only as
-tall as its content. For long forms and lists.
-
-### `side`
-
-```elm
-side : Side -> Attribute msg
-```
-
-Shows the dialog as a panel along one side of the window instead of a box in
-the middle: as tall as the window and 360, 480 or 720px wide. Use
-[Klar.Drawer](Klar.Drawer.md), which is this with the side set to `Right` by
-default, rather than calling `side` yourself.
+tall as its content. For long forms and lists. It stays in the middle of the
+window; a panel along its side is a [Klar.Drawer](Klar.Drawer.md).
 
 ## Dismissing
 
@@ -427,9 +414,10 @@ say). A `static` dialog sends `msg` only from its close button.
     that exists.
   - `Tab` and `Shift+Tab` stay inside: two invisible tab stops around the
     dialog send focus to the other end. Going forward past the last element
-    lands on the close button (or on the dialog itself when there is none);
-    going backward past the first lands on the footer, or on the element named
-    with `lastFocus`.
+    lands on the close button (or on the dialog itself when there is none).
+    Going backward past the first lands on the element named with `lastFocus`,
+    or else at the end of the footer (the footer shows a focus ring), so that the
+    next `Shift+Tab` reaches the last button of the footer.
   - On `close` focus returns to the opener. If that element is gone, or there was
     none (`""`), to the most recent element of the page that had focus before the
     dialog opened and still exists. A dialog opened by a route change or by a
@@ -438,8 +426,13 @@ say). A `static` dialog sends `msg` only from its close button.
     the page of an `Overlay.host`), so that the next `Tab` starts there and not
     at the top of the window.
   - If the element that has focus inside the dialog is removed or disabled (a
-    button replaced after an action), focus moves to the dialog itself. No call
-    is needed for that.
+    button replaced after an action), or focus never arrived (the element named in
+    `openWith` was disabled), focus moves to the dialog itself. No call is needed
+    for that.
+  - `Escape` is layered: a control inside the dialog that handles it (a field that
+    clears its text, a select or a menu that closes its list) keeps it, and the
+    dialog closes only on an `Escape` that nothing inside handled. The `Escape`
+    that cancels an IME composition never closes the dialog.
   - The toasts are the last stop of the loop: see [Klar.Overlay](Klar.Overlay.md).
 
 ### `lastFocus`
@@ -448,8 +441,10 @@ say). A `static` dialog sends `msg` only from its close button.
 lastFocus : String -> Attribute msg
 ```
 
-The id of the last button in the dialog. When the user presses `Shift+Tab`
-on the first element, focus wraps around to this button instead of the footer.
+The id of the element that `Shift+Tab` on the first element of the dialog
+wraps around to, usually the primary button. Without it focus lands at the end of
+the footer (or of the body when there is no footer), and the next `Shift+Tab`
+reaches the last button.
 
 ### `closeButtonId`
 

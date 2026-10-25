@@ -965,8 +965,7 @@ view toMsg attributes (Guard state) =
                 texts.save
     in
     Modal.view (\inner -> toMsg (ModalMsg inner))
-        [ Modal.title (Maybe.withDefault texts.title config.title)
-        , Modal.small
+        [ Modal.small
         , Modal.locale config.locale
         , Modal.onRequestClose (toMsg StayPressed)
         , Modal.ariaDescribedBy (messageId state.id)
@@ -986,6 +985,7 @@ view toMsg attributes (Guard state) =
             )
         ]
         state.modal
+        (Maybe.withDefault texts.title config.title)
         [ Html.p
             [ Internal.cls [ "klar-leave__message" ]
             , Attr.id (messageId state.id)

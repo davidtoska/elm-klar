@@ -131,7 +131,7 @@ init _ url key =
             , shell = AppShell.init { id = shellId, key = key } |> AppShell.setPage menu (routeKey route)
             , userMenu = Menu.init "user-menu"
             , shortcuts = Shortcut.init
-            , toasts = Toast.init |> Toast.maxVisible 3
+            , toasts = Toast.init "toasts" |> Toast.setMaxVisible 3
             , palette = CommandPalette.init "palette"
             , orderHits = Remote.NotAsked
             , hitTicket = 0
@@ -713,17 +713,11 @@ applyEffects effects model cmd =
 toneAttribute : Tone -> Toast.Attribute Msg
 toneAttribute tone =
     case tone of
-        Success ->
-            Toast.success
-
-        Warning ->
-            Toast.warning
-
-        Danger ->
-            Toast.danger
+        Neutral ->
+            Toast.tone Info
 
         _ ->
-            Toast.info
+            Toast.tone tone
 
 
 searchOrders : Int -> Model -> ( Model, Cmd Msg )
@@ -1246,14 +1240,14 @@ viewTools model =
             Api.simulation model.backend
     in
     Drawer.view ToolsMsg
-        [ Drawer.title "Developer tools"
-        , Drawer.subtitle "Control how the simulated network behaves"
+        [ Drawer.subtitle "Control how the simulated network behaves"
         , Drawer.medium
         , Drawer.locale model.locale
         , Drawer.onRequestClose CloseTools
         , Drawer.footer [ Button.view [ Button.onClick CloseTools ] "Close" ]
         ]
         model.tools
+        "Developer tools"
         [ Layout.stack [ Layout.gap 5 ]
             [ Alert.view [ Alert.tone Info, Alert.compact ]
                 "The backend is a synchronous dummy written in Elm. Every request still goes through a request/response layer with a delay, so you can see how the interface behaves when something goes wrong."
