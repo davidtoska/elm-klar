@@ -28,8 +28,9 @@ Execution notes for resuming a long run:
 - All logic groups through Processing are complete. The second pipeline (84947)
   stopped on syntax in the new ColumnLogic test; its second validation passed.
   The resumed pipeline (6175) completed Rows, Config, Window, Update and Processing.
-  Next is CsvRows followed by the rendering groups; inspect its active result
-  before further edits. Completion hashes are appended below.
+  CsvRows is complete. Rendering pipeline 11692 runs Popup, Layout, Keyboard,
+  Export, Bulk, HeaderFilters, Header, Toolbar, Body and Footer. Inspect its active
+  result before further edits. Completion hashes are appended below.
 - After that: CsvRows, Popup, Layout, Keyboard, Export, Bulk, HeaderFilters, Header,
   Toolbar, Body, Footer, then rename remaining Core composition to View and clean
   imports. Recheck dependencies before each move; Toolbar depends on HeaderFilters.
@@ -108,3 +109,7 @@ Execution notes for resuming a long run:
 - Next: inspect the remaining dependency groups before the next move.
 
 - CsvRows: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 07c2796: CsvRows complete.
+- Next: Popup.
+
+- Popup: format, full check, byte-identical docs and 22 identical table roots passed.
