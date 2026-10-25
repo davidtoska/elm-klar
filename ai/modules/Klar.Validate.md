@@ -79,9 +79,11 @@ The `field` of a `Problem` is the DOM id of the control, so
 The messages are built in; use `withMessage` to say it your way, and numbers in
 them are written as the locale writes them ("100 000" in Norwegian). The
 length, digit and number checks look at the text without the spaces around it,
-as a form saves it, and a length is counted in characters as people see them: an
-emoji or a letter with a mark counts as one, as a database counts it, not as the
-two UTF-16 units of `String.length`.
+as a form saves it, and a length is counted in Unicode code points, as most
+databases count a text column: a letter such as `é` or an emoji such as `📦`
+counts as one, not as the two UTF-16 units of `String.length`. (A flag, an emoji
+with a skin tone, or a letter written as a base letter and a separate mark is
+several code points, and counts as several.)
 
 ## Running validators
 
@@ -160,8 +162,8 @@ The value must not be empty. Spaces only count as empty.
 minLength : Int -> Validator
 ```
 
-At least this many characters, counted as people see them (an emoji is
-one), without the spaces around the text.
+At least this many characters, counted in Unicode code points (an emoji
+such as `📦` is one), without the spaces around the text.
 
 ### `maxLength`
 
@@ -169,8 +171,9 @@ one), without the spaces around the text.
 maxLength : Int -> Validator
 ```
 
-At most this many characters, counted as people see them (an emoji is one,
-as a database column counts it), without the spaces around the text.
+At most this many characters, counted in Unicode code points (an emoji such
+as `📦` is one, as most databases count a text column), without the spaces
+around the text.
 
 ### `email`
 

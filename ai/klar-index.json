@@ -1066,7 +1066,8 @@
       "quickPath": [],
       "mainFunctions": [
         "roundTrip",
-        "lostIds"
+        "lostIds",
+        "failingWhenHidden"
       ],
       "related": [],
       "keywords": [

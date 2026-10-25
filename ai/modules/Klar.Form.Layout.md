@@ -245,7 +245,7 @@ status with `Succeeded` or `Failed` when it comes back.
                 ( model, Cmd.none )
 
 `status` shows `Submitting` as a spinner with "Saving ...", `Succeeded` as a
-green message and `Failed` as a red one with the title and detail of the
+line with a green check mark and `Failed` as a red message with the title and detail of the
 `Remote.Problem` and, when `onRetry` is given and the problem is worth trying
 again, a "Try again" button. That button is replaced by "Saving ..." the moment
 it is pressed, which is why `Retry` moves the focus to the status line with
@@ -388,7 +388,8 @@ and start with `Idle`.
   - `Idle`: nothing to show, because nothing has been sent yet or the
     application cleared the message.
   - `Submitting`: the request is on its way.
-  - `Succeeded message`: it worked; the message is shown in green.
+  - `Succeeded message`: it worked; the message is shown with a green check
+    mark and read out by a screen reader.
   - `Failed problem`: it did not; the `Problem` from
     [Klar.Remote](Klar.Remote.md) is shown in red.
 
@@ -398,19 +399,20 @@ and start with `Idle`.
 status : List (Attribute msg) -> Status -> Html msg
 ```
 
-The state of the submit as one line or message: an empty line while `Idle`, a
-spinner with "Saving ..." while `Submitting`, a green message with the text of
-`Succeeded`, and a red message with the title, detail and code of the problem
-in `Failed` and, when `onRetry` is given and trying again could help, a "Try
-again" button. Put it in the button row (`actions`). Reads `id`, `onRetry`,
-`onDismiss` and `locale`.
+The state of the submit as one line or message: nothing while `Idle`, a
+spinner with "Saving ..." while `Submitting`, a line with a check mark and the
+text of `Succeeded` (and a close button with `onDismiss`), and a red message
+with the title, detail and code of the problem in `Failed` and, when `onRetry`
+is given and trying again could help, a "Try again" button. Put it in the button
+row (`actions`). Reads `id`, `onRetry`, `onDismiss` and `locale`.
 
 **Focus.** The message sits in a region that can take focus (`tabindex="-1"`,
 with the DOM id `<form id>-status`), and the region is always in the page, in
 every state, also `Idle`: when a save that had the focus on the region ends in
-`Idle`, the focus stays on it and does not fall to the page. "Saving ..." is
-written into a polite live line (`role="status"`) that is always there, so a
-screen reader announces it. The "Try again" button is replaced by "Saving ..."
+`Idle`, the focus stays on it and does not fall to the page. "Saving ..." and
+the text of `Succeeded` are written into a polite live line (`role="status"`)
+that is always there, so a screen reader announces them; the message of `Failed`
+is an alert (`role="alert"`), announced at once. The "Try again" button is replaced by "Saving ..."
 the moment it is pressed, so keyboard focus would fall back to the page: move it
 to the region with `focusStatus` in the same update, and a screen reader follows
 the retry from "Saving ..." to the result.

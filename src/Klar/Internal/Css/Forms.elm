@@ -1559,6 +1559,15 @@ css =
   color: var(--klar-text-secondary);
 }
 
+/* The live line while no save is going on: an empty block takes no room (an empty inline
+   box would leave a blank line above the message), and it stays in the page as the live region. */
+.klar-form-status:empty { display: block; }
+
+/* A save that worked: the text in the color of text, the check mark in green. */
+.klar-form-status--success { color: var(--klar-text); }
+
+.klar-form-status__icon { display: inline-flex; color: var(--klar-success); }
+
 .klar-form-status__code { font-family: var(--klar-font-mono); font-size: var(--klar-text-xs); color: var(--klar-text-muted); }
 
 /* "Unsaved changes" in a footer: a dot and a few words, no box. */

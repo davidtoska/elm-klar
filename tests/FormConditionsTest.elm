@@ -9,10 +9,13 @@ import Expect
 import Html exposing (Html)
 import Klar.Date as Date exposing (Date)
 import Klar.Form as Form
+import Klar.Form.Check as Check
 import Klar.Form.Spec as Spec
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.MaskedInput as MaskedInput
+import Klar.Money as Money exposing (Money)
+import Klar.Select as Select
 import Test exposing (Test, describe, test)
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
@@ -109,8 +112,10 @@ suite : Test
 suite =
     describe "conditions, rules that run at once, and handles"
         [ conditions
+        , hiddenForEveryone
         , liveRules
         , handleTests
+        , entries
         ]
 
 
@@ -299,4 +304,194 @@ handleTests =
                     |> Form.fillRows sf.contacts (\name row -> Form.set row.name name) [ "Ada", "Grace" ]
                     |> Form.toValues Locale.en supplier
                     |> Expect.equal (Ok { contacts = [ "Ada", "Grace" ], contactsNote = Just "Call before noon" })
+        ]
+
+
+
+-- A HIDDEN FIELD IS EMPTY FOR EVERYONE
+
+
+type alias ChainFields =
+    { kind : Form.Field (Maybe Kind)
+    , vat : Form.Field String
+    , vatNote : Form.Field String
+    }
+
+
+type alias ChainValues =
+    { kind : Kind
+    , vat : Maybe String
+    , vatNote : Maybe String
+    }
+
+
+hasVat : ChainFields -> Form.State () -> Bool
+hasVat handles state =
+    String.trim (Form.get handles.vat state) /= ""
+
+
+{-| The VAT note is shown, and required, when a VAT number is filled in; the VAT
+number is shown for a company only.
+-}
+chain : Form.Form () ChainFields ChainValues
+chain =
+    Spec.define "chain" ChainFields ChainValues
+        |> Spec.with (Spec.choice kindIds "Customer kind" |> Spec.required)
+        |> Spec.with (Spec.text "VAT number")
+        |> Spec.with (Spec.text "VAT note")
+        |> Spec.shownWhen (\handles state -> Form.get handles.kind state == Just Company) .vat
+        |> Spec.shownWhen hasVat .vatNote
+        |> Spec.requiredWhen hasVat .vatNote
+        |> Spec.build
+
+
+type alias ShipFields =
+    { elsewhere : Form.Field Bool
+    , address : Form.Field String
+    }
+
+
+type alias ShipValues =
+    { elsewhere : Bool
+    , address : String
+    }
+
+
+{-| The mistake the docs warn about: a field that can be hidden, declared with
+`required`.
+-}
+mistaken : Form.Form () ShipFields ShipValues
+mistaken =
+    Spec.define "ship" ShipFields ShipValues
+        |> Spec.with (Spec.toggle "Ship elsewhere")
+        |> Spec.with (Spec.text "Delivery address" |> Spec.required)
+        |> Spec.shownWhen (\handles state -> Form.get handles.elsewhere state) .address
+        |> Spec.build
+
+
+hiddenForEveryone : Test
+hiddenForEveryone =
+    let
+        cf =
+            Form.fields chain
+
+        typedAsCompany =
+            Form.init chain
+                |> Form.set cf.kind (Just Company)
+                |> Form.set cf.vat "NO974760673MVA"
+
+        chainProblems state =
+            Form.problems Locale.en chain state |> List.map (\p -> ( p.label, p.message ))
+    in
+    describe "a field that is not shown is empty for every reader"
+        [ test "a condition on a hidden field sees it empty: the field after it is hidden too" <|
+            \_ ->
+                typedAsCompany
+                    |> Form.set cf.kind (Just Person)
+                    |> Expect.all
+                        [ \state -> chainProblems state |> Expect.equal []
+                        , \state -> Form.toValues Locale.en chain state |> Expect.equal (Ok { kind = Person, vat = Nothing, vatNote = Nothing })
+                        , \state -> Form.textInput (Form.bind Locale.en identity chain state) cf.vatNote [] |> Query.fromHtml |> Query.hasNot [ Selector.tag "input" ]
+                        ]
+        , test "while the field it depends on is shown, the chained field is shown and required" <|
+            \_ ->
+                chainProblems typedAsCompany
+                    |> Expect.equal [ ( "VAT note", "Required" ) ]
+        , test "a hidden field whose own rule fails is never in the summary" <|
+            \_ ->
+                Form.init mistaken
+                    |> Form.reveal mistaken
+                    |> Tuple.first
+                    |> (\state -> Form.summary (Form.bind Locale.en identity mistaken state))
+                    |> Query.fromHtml
+                    |> Query.hasNot [ Selector.text "Delivery address" ]
+        , test "toValues still fails then, and names the field, so the mistake can be found" <|
+            \_ ->
+                Form.toValues Locale.en mistaken (Form.init mistaken)
+                    |> Result.mapError (List.map (\p -> ( p.label, p.message )))
+                    |> Expect.equal (Err [ ( "Delivery address", "Required" ) ])
+        , test "Check.failingWhenHidden finds the mistake, and nothing in a right declaration" <|
+            \_ ->
+                ( Check.failingWhenHidden mistaken, Check.failingWhenHidden form, Check.failingWhenHidden chain )
+                    |> Expect.equal ( [ "Delivery address" ], [], [] )
+        ]
+
+
+
+-- WHERE THE FOCUS GOES
+
+
+type alias EntryFields =
+    { due : Form.Field (Maybe Date)
+    , period : Form.Field (Maybe ( Date, Date ))
+    , limit : Form.Field (Maybe Money)
+    , orgnr : Form.Field (Maybe String)
+    , kind : Form.Field (Maybe Kind)
+    , terms : Form.Field Bool
+    }
+
+
+type alias EntryValues =
+    { due : Maybe Date
+    , period : ( Date, Date )
+    , limit : Maybe Money
+    , orgnr : Maybe String
+    , kind : Maybe Kind
+    , terms : Bool
+    }
+
+
+entryForm : Form.Form () EntryFields EntryValues
+entryForm =
+    Spec.define "entry" EntryFields EntryValues
+        |> Spec.with (Spec.date "Due date")
+        |> Spec.with (Spec.dateRange "Period" |> Spec.required)
+        |> Spec.with (Spec.money Money.nok "Credit limit")
+        |> Spec.with (Spec.masked MaskedInput.norwegianOrganisationNumber "Organisation number")
+        |> Spec.with (Spec.choice kindIds "Customer kind")
+        |> Spec.with (Spec.toggle "I accept the terms")
+        |> Spec.build
+
+
+{-| The element with the field's `domId` is an input of the drawn control (and
+there is exactly one element with that id).
+-}
+reachesInput : (Form.View Form.Msg -> Html Form.Msg) -> String -> Expect.Expectation
+reachesInput draw id =
+    draw (Form.bind Locale.en identity entryForm (Form.init entryForm))
+        |> Query.fromHtml
+        |> Query.find [ Selector.id id ]
+        |> Query.has [ Selector.tag "input" ]
+
+
+entries : Test
+entries =
+    let
+        ef =
+            Form.fields entryForm
+    in
+    describe "domId is the id of a real input for every kind"
+        [ test "date" <| \_ -> reachesInput (\v -> Form.datePicker v ef.due []) (Form.domId ef.due)
+        , test "period: the from date" <|
+            \_ ->
+                Expect.all
+                    [ \_ -> Form.domId ef.period |> Expect.equal "entry-period-from"
+                    , \_ -> reachesInput (\v -> Form.dateRangePicker v ef.period []) (Form.domId ef.period)
+                    ]
+                    ()
+        , test "money" <| \_ -> reachesInput (\v -> Form.moneyInput v ef.limit []) (Form.domId ef.limit)
+        , test "masked" <| \_ -> reachesInput (\v -> Form.maskedInput v ef.orgnr []) (Form.domId ef.orgnr)
+        , test "radio" <|
+            \_ ->
+                reachesInput (\v -> Form.radio v ef.kind [ Select.option Company "Company", Select.option Person "Person" ] [])
+                    (Form.domId ef.kind)
+        , test "checkbox" <| \_ -> reachesInput (\v -> Form.checkbox v ef.terms []) (Form.domId ef.terms)
+        , test "the summary line of a required period goes to the from date" <|
+            \_ ->
+                Form.init entryForm
+                    |> Form.reveal entryForm
+                    |> Tuple.first
+                    |> Form.problems Locale.en entryForm
+                    |> List.map .field
+                    |> Expect.equal [ "entry-period-from" ]
         ]

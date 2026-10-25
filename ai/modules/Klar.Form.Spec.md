@@ -337,7 +337,13 @@ it. What was typed is kept, so it comes back when the condition holds again.
 Declare such a field without `required`, so that its output can be empty, and add
 `requiredWhen` with the same condition to require it while it is shown. Put it
 after the `with` calls, like `check`; in the sub-form of `rows` it works row by
-row.
+row. A hidden field is empty for everyone, also for the conditions of other
+fields: a field shown only when a hidden field is filled in is hidden too.
+
+A field whose empty value breaks its own rules (`required`, `atLeast`, a `rule`
+that wants a ticked box) cannot be hidden: while it is, `toValues` fails with its
+problem, though the screen shows none. `Check.failingWhenHidden` finds such a
+field in a test.
 
     Spec.define "customer" Fields Values
         |> Spec.with (Spec.choice kindIds "Customer kind" |> Spec.required)

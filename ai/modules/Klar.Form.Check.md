@@ -13,6 +13,7 @@ roundTrip :
     -> values
     -> Result (List (Form.Problem step)) values
 lostIds : Ids.Ids id -> List id -> List id
+failingWhenHidden : Form.Form step fields values -> List String
 ```
 
 ## Documentation
@@ -33,6 +34,8 @@ Do not use when: you declare or draw a form (use `Klar.Form.Spec` and `Klar.Form
                 \_ -> Check.roundTrip form fill sample |> Expect.equal (Ok sample)
             , test "the ids survive their keys" <|
                 \_ -> Check.lostIds countryIds [ CountryId "no", CountryId "se" ] |> Expect.equal []
+            , test "every field that can be hidden can be empty" <|
+                \_ -> Check.failingWhenHidden form |> Expect.equal []
             ]
 
 `roundTrip` catches what the compiler cannot: two fields of the same type that
@@ -67,4 +70,20 @@ For a test: the values that do not survive `toKey` and `fromKey`. An empty
 list is what you want.
 
     Check.lostIds countryIds [ CountryId "no", CountryId "se" ]
+        |> Expect.equal []
+
+### `failingWhenHidden`
+
+```elm
+failingWhenHidden : Form.Form step fields values -> List String
+```
+
+For a test: the labels of the fields with a `Spec.shownWhen` whose empty
+value breaks their own rules (a `Spec.required`, a `Spec.atLeast`, a
+`Spec.rule` that wants a ticked box). While such a field is hidden, `toValues`
+fails with a problem that no field on the screen shows, so the user cannot
+save. Declare it without `required` and add `Spec.requiredWhen` with the same
+condition. An empty list is what you want.
+
+    Check.failingWhenHidden form
         |> Expect.equal []

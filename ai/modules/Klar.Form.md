@@ -94,15 +94,15 @@ radio :
     View msg
     -> Field (Maybe id)
     -> List (Select.Option id)
-    -> List (Radio.Attribute String msg)
+    -> List (Radio.Attribute msg)
     -> Html msg
 switch : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
 checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
-datePicker : View msg -> Field (Maybe Date.Date) -> List (DatePicker.Attribute msg) -> Html msg
+datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
 dateRangePicker :
     View msg
     -> Field (Maybe ( Date.Date, Date.Date ))
-    -> List (DateRangePicker.Attribute msg)
+    -> List DateRangePicker.Attribute
     -> Html msg
 moneyInput : View msg -> Field (Maybe Money.Money) -> List (MoneyInput.Attribute msg) -> Html msg
 maskedInput : View msg -> Field (Maybe String) -> List (MaskedInput.Attribute msg) -> Html msg
@@ -279,9 +279,11 @@ control:
         , Select.option (CountryId "se") "Sweden"
         ]
 
-The state also has no function in it, nor has the message, so the model can be
-compared, stored and tested. `Form.isDirty model.form` is the flag for
-`FormLayout.unsavedFlag` and for a leave guard.
+The state has no function in it, so the model can be compared, stored and
+tested. A `Msg` is not for comparing: the message of a `date` or `dateRange`
+field carries the rules of its picker, and `==` on it fails at run time.
+`Form.isDirty model.form` is the flag for `FormLayout.unsavedFlag` and for a
+leave guard.
 
 **When a problem shows.** A field that is typed into (a text, a number, an
 amount, an identifier) shows its problem once the user has left it, and from
@@ -312,9 +314,11 @@ types, so nothing is parsed twice:
 | `rows` | a list of a sub-form's values | `rowFields`, `addRow`, `removeRow` |
 
 **Fields that depend on others.** `Spec.shownWhen` keeps a field out of the form
-(not drawn, no problems, its empty value in the values) while a condition on the
-other fields does not hold, and `Spec.requiredWhen` requires it while one does: a
-VAT number for a company. `Spec.checkFields` is a rule over several fields that
+(not drawn, no problems, its empty value in the values and in the conditions of
+other fields) while a condition on the other fields does not hold, and
+`Spec.requiredWhen` requires it while one does: a VAT number for a company.
+Declare such a field without `required`, and test it with
+`Check.failingWhenHidden`. `Spec.checkFields` is a rule over several fields that
 runs at once ("the end date is after the start date"), on the step of its field;
 `Spec.check` waits for the whole record.
 
@@ -646,7 +650,7 @@ rows, the stepper and the lines of the summary, which is why it needs the form.
             ( state, cmd ) =
                 Form.update form inner model.form
         in
-        ( { model | form = form }, Cmd.map FormMsg cmd )
+        ( { model | form = state }, Cmd.map FormMsg cmd )
 
 ## Problems and focus
 
@@ -798,13 +802,13 @@ domId : Field c -> String
 ```
 
 The DOM id of the element that takes the focus for a field: its control, the
-add button of a group of rows, or the first button of a rule builder. It is for
-the places that take DOM ids, such as `Modal.setInitialFocus` and
-`Drawer.setInitialFocus` (the first field of a form in a drawer); to move the focus
-in an update, use `focus`.
+from date of a period, the add button of a group of rows, or the button of a
+rule builder that adds a condition to its root. It is for
+the places that take DOM ids, such as `Modal.openWith` and `Drawer.openWith`
+(the first field of a form in a drawer); to move the focus in an update, use
+`focus`.
 
-    Drawer.setInitialFocus [ Form.domId fields.name ] model.drawer
-        |> Drawer.open "edit-customer"
+    Drawer.openWith { opener = "edit-customer", focus = [ Form.domId fields.name ] } model.drawer
 
 ### `goToProblem`
 
@@ -970,7 +974,7 @@ radio :
     View msg
     -> Field (Maybe id)
     -> List (Select.Option id)
-    -> List (Radio.Attribute String msg)
+    -> List (Radio.Attribute msg)
     -> Html msg
 ```
 
@@ -1005,14 +1009,17 @@ checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
 
 A checkbox for a `toggle` field, for a yes or no that is saved with the form
 ("I accept the terms of delivery"). The label, the hint, the problem and the
-value are the form's. `Spec.rule identity` makes ticking it a must.
+value are the form's. `Spec.rule identity` makes ticking it a must. A checkbox
+has no `*` mark (`Klar.Checkbox` draws none), so `Spec.requiredWhen` on one only
+adds the problem "Required" while the box is not ticked: say in the label or the
+hint that it must be ticked.
 
     Form.checkbox v fields.acceptsTerms []
 
 ### `datePicker`
 
 ```elm
-datePicker : View msg -> Field (Maybe Date.Date) -> List (DatePicker.Attribute msg) -> Html msg
+datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
 ```
 
 A date picker for a `date` field. The limits of `Spec.minDate` and
@@ -1028,7 +1035,7 @@ are the application's attributes.
 dateRangePicker :
     View msg
     -> Field (Maybe ( Date.Date, Date.Date ))
-    -> List (DateRangePicker.Attribute msg)
+    -> List DateRangePicker.Attribute
     -> Html msg
 ```
 
@@ -1093,18 +1100,17 @@ ruleBuilder :
     -> Html msg
 ```
 
-A rule builder for a `conditions` field. The label, hint, required mark,
-language and DOM ids are set by the form; the fields (what a rule can talk about,
-now with the options the user chooses among) are an argument, so a rule builder
-without fields cannot be drawn. The other settings (`RuleBuilder.maxDepth`,
-`RuleBuilder.json`) are the application's attributes.
+A rule builder for a `conditions` field. The label, the language and the DOM
+ids are set by the form; the fields (what a rule can talk about, now with the
+options the user chooses among) are an argument, so a rule builder without fields
+cannot be drawn. The other settings (`RuleBuilder.maxDepth`, `RuleBuilder.json`)
+are the application's attributes.
 
     Form.ruleBuilder v row.conditions (priceFields options) []
 
 Issues of the rule show on the node that has them once the step has been tried
-(`advance`, `reveal`, `rejected`); a problem with the rule as a whole (a required
-rule without conditions) shows under the builder. The summary leads to the
-control that needs attention.
+(`advance`, `reveal`, `rejected`); the summary leads to the control that needs
+attention.
 
 ### `addRow`
 
