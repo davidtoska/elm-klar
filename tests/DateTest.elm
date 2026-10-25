@@ -213,10 +213,14 @@ calendar =
 range : Test
 range =
     describe "the supported range, years 1 to 9999"
-        [ test "fromParts gives Nothing outside it" <|
+        [ test "fromParts gives Nothing before year 1, and keeps a later year for day counting" <|
             \_ ->
-                Expect.equal [ Nothing, Nothing, Just "0001-01-01", Just "9999-12-31" ]
-                    (List.map (Maybe.map Date.toIso) [ Date.fromParts 0 12 31, Date.fromParts 10000 1 1, Date.fromParts 1 1 1, Date.fromParts 9999 12 31 ])
+                Expect.equal [ Nothing, Just "0001-01-01", Just "9999-12-31" ]
+                    (List.map (Maybe.map Date.toIso) [ Date.fromParts 0 12 31, Date.fromParts 1 1 1, Date.fromParts 9999 12 31 ])
+        , test "a day after the range still counts past its last day (the Recurrence engine stops on it)" <|
+            \_ ->
+                Expect.equal (Just True)
+                    (Date.fromParts 10000 1 1 |> Maybe.map (\d -> Date.toEpochDay d > Date.toEpochDay (date 9999 12 31)))
         , test "addDays stops at the first and the last day" <|
             \_ ->
                 Expect.equal [ "0001-01-01", "9999-12-31" ]

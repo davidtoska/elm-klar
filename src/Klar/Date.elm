@@ -30,9 +30,9 @@ and read the parts with `year`, `month` and `day`.
 
 All calculations are pure arithmetic on the proleptic Gregorian calendar and
 are exact. A `Date` lies between 1 January of year 1 and 31 December 9999, the
-range of the four-digit years of `toIso`: `fromParts` and `fromIso` give
-`Nothing` outside it, and arithmetic that would leave it (`addDays`,
-`addMonths`, `fromEpochDay`) stops at its first or last day. A `Time.Posix` is
+range of the four-digit years of `toIso`: `fromIso` gives `Nothing` outside it,
+and arithmetic that would leave it (`addDays`, `addMonths`, `fromEpochDay`)
+stops at its first or last day. A `Time.Posix` is
 only needed once, to get today's date with `fromPosix`.
 
 Store and send a date as the text of `toIso`, never as the moment of its
@@ -88,8 +88,9 @@ For reports and quick choices such as "This week" or "Last quarter".
 import Time
 
 
-{-| A calendar date: a day that exists, from year 1 to 9999. The type is
-opaque, so a date can never be 31 February or month 13. Make one with
+{-| A calendar date: a day that exists, in year 1 or later (the arithmetic stays
+within year 9999). The type is opaque, so a date can never be 31 February or
+month 13. Make one with
 `fromParts` or `fromIso`, and read it with `year`, `month` and `day`.
 -}
 type Date
@@ -152,9 +153,10 @@ daysInMonth y m =
             31
 
 
-{-| Builds a date from a year (1 to 9999), a month (1 to 12) and a day, or
-`Nothing` if that day does not exist (like 31 February) or lies outside the
-years 1 to 9999.
+{-| Builds a date from a year (1 or later), a month (1 to 12) and a day, or
+`Nothing` if that day does not exist (like 31 February, or a year before 1). A
+year after 9999 is accepted, for code that counts day numbers past the end of
+the range, but `toIso` writes it with five digits, which `fromIso` does not read.
 
     Date.fromParts 2026 2 30 -- Nothing
 
@@ -163,14 +165,14 @@ years 1 to 9999.
 -}
 fromParts : Int -> Int -> Int -> Maybe Date
 fromParts y m d =
-    if y >= 1 && y <= 9999 && m >= 1 && m <= 12 && d >= 1 && d <= daysInMonth y m then
+    if y >= 1 && m >= 1 && m <= 12 && d >= 1 && d <= daysInMonth y m then
         Just (Date { year = y, month = m, day = d })
 
     else
         Nothing
 
 
-{-| The year of a date, from 1 to 9999.
+{-| The year of a date, 1 or later.
 
     Date.fromIso "2026-10-20" |> Maybe.map Date.year -- Just 2026
 
