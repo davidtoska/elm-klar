@@ -5,6 +5,11 @@ adding is a minor release, changing or removing is a major one.
 
 ## Unreleased
 
+### Order workflow regression checks
+- Keep the previous order rows after a failed refresh by settling the request into the existing Remote value.
+- Add a one-request server failure in Developer tools for repeatable failed-save and retry walkthroughs, without losing the draft.
+- Add dependency-free headless Chromium tests to the full check, covering read and write failure, keyboard retry, stable row/input elements, validation, discard, empty results and focus recovery. Document the workflow and remaining API gaps in `example/ORDERS.md`.
+
 ### Calendar application integration
 - Embed the existing Google Calendar-style application in the Calendar component tab and application examples, with a full-page link, sidebar navigation and command search.
 - Build and serve the calendar with `npm start`, using a separate local demo store and scoped sessions. Local API requests and Google redirect URLs work under the showcase mount as well as in standalone mode.

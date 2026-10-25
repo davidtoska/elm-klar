@@ -1313,6 +1313,8 @@ viewTools model =
                         |> Radio.withDescription "The server does not answer in time."
                     , Radio.option "flaky" "Flaky"
                         |> Radio.withDescription "Every third request fails."
+                    , Radio.option "fail-next" "Fail next request"
+                        |> Radio.withDescription "One server error, then normal service. Use this before opening an order to try a failed save and retry without losing your draft."
                     ]
                 , Radio.selected (Just (modeKey sim.mode))
                 , Radio.onChange (\key -> SetMode (modeFromKey key))
@@ -1367,6 +1369,9 @@ modeKey mode =
         Api.Flaky ->
             "flaky"
 
+        Api.FailNext ->
+            "fail-next"
+
 
 modeFromKey : String -> Api.Mode
 modeFromKey key =
@@ -1382,6 +1387,9 @@ modeFromKey key =
 
         "flaky" ->
             Api.Flaky
+
+        "fail-next" ->
+            Api.FailNext
 
         _ ->
             Api.Normal

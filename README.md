@@ -271,6 +271,12 @@ npm start       # builds the showcase and serves it on http://localhost:8000
 
 Press `Ctrl K` for the command palette and `?` for the keyboard shortcuts.
 
+The [Orders walkthrough](example/ORDERS.md) exercises failed reads, retained remote
+data, editing, failed saves and keyboard retry. Run `npm run build:example` and
+`npm run test:browser` for its automated focus checks. These also run in
+`npm run check`; they require Node 22+ and Chromium, Chrome or Edge
+(`KLAR_BROWSER` selects an executable).
+
 ## Themes
 
 There are ten themes, each in a light and a dark mode, and an application picks one

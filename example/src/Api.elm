@@ -76,6 +76,7 @@ type Mode
     | ServerDown
     | Timeouts
     | Flaky
+    | FailNext
 
 
 type Latency
@@ -158,6 +159,9 @@ failureFor mode n =
         Offline ->
             Just NetworkDown
 
+        FailNext ->
+            Just (ServerFailed 503)
+
         ServerDown ->
             Just (ServerFailed 503)
 
@@ -225,8 +229,18 @@ send run toMsg (Backend state) =
 
                 Nothing ->
                     run state.db
+
+        sim =
+            state.sim
+
+        nextSimulation =
+            if sim.mode == FailNext then
+                { sim | mode = Normal }
+
+            else
+                sim
     in
-    ( Backend { state | db = db, requests = n }
+    ( Backend { state | db = db, requests = n, sim = nextSimulation }
     , Process.sleep (delayFor state.sim n failure)
         |> Task.perform (\_ -> toMsg result)
     )

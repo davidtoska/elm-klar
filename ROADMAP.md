@@ -106,8 +106,8 @@ mode, the AI documentation (`AI.md`, `ai/`) and seven example programs. Left bef
 |---|---|
 | Firefox and Safari, a screen reader, touch and pen, Windows high contrast and a Mac keyboard (only Chromium is tested) | M |
 | `NumberInput` reads a Norwegian `10.000` as 10000 while `Money` refuses it as unclear: one rule for both, an "unclear" problem with its own text | S |
-| A headless-browser focus test in `npm run check`: the lost-focus guards, toast recovery, AppShell focus after a page change, focus through a refresh. elm-test cannot see where focus goes | M |
-| `Remote` has no "failed, retrying" state: `Remote.refresh` on a `Failed` value gives `Loading`, so a focused "Try again" disappears and focus drops to `BODY` (`StatusPage.retrying` is a second `Bool` beside the `Remote`). Decide it together with one `Loaded` constructor that carries the freshness | L |
+| Extend the browser focus tests beyond the order workflow: lost-focus guards, toast recovery and AppShell focus after a page change. elm-test cannot see where focus goes | M |
+| `Remote` has no "failed, retrying" state: `Remote.refresh` on a `Failed` value gives `Loading`, so the initial retry control disappears. Table's stable focus target is now browser-tested, but retry progress still needs component handling (`StatusPage.retrying` is a second `Bool` beside the `Remote`). Decide it together with one `Loaded` constructor that carries the freshness | L |
 | `Klar.Settings` as the one source of the language, today, now and the keyboard platform: every `X.settings` reads them, and the per-component `platform` attributes of `Menu`, `CommandPalette`, `ShortcutHelp` and `Tooltip` go (only `AppShell.settings` reads the language today) | M |
 | Use the shared key helpers everywhere: popup layers use `Internal.onLayerKeys`, the decoders that read `key` themselves get the IME guard, and `check:rules` becomes strict (it still lists `Msg` or `State` types that hold functions and places that drop freshness) | M |
 | Records and unions that will grow are still exposed: `Select.Option` (it gained `meta`, which breaks record literals), `Field.Config` and the `Table` filter union. `DatePicker.invalid` and `TimePicker.invalid` exist only so that `DateTimePicker` can mark its inputs and should be internal | M |
@@ -115,7 +115,6 @@ mode, the AI documentation (`AI.md`, `ai/`) and seven example programs. Left bef
 | One tab stop with arrow keys where Tab now walks every item: chart categories with `onSelect` (365 stops for a year of days), `ListItem`, `ToggleGroup`, `MultiSelect` chips, and cells of `Table` | L |
 | `Klar.Form`: a submit state (submitting, saved, failed) with a double-submit guard and `aria-busy`, server problems addressed by the server's own key (the ones it cannot place are dropped today), and the controls' own refusal texts in the summary | M |
 | `Tree` is neither virtualized nor prepared: about 80 ms per ArrowDown with 1 206 open rows. `PermissionMatrix` still walks every cell on every render | M |
-| Split `Table.elm` (about 7 600 lines) and `Chart.elm` (about 3 300 lines) into internal modules | L |
 | 100 000 rows in `Table`, `Tree` and `Select` as a test in `npm run check` | M |
 | `Select.Popup` and `Picking.View` hold the same popup code twice | M |
 | `Rule.parseNumber` reads numbers without the locale: an English `1,234` becomes 1.234 | S |
@@ -128,6 +127,15 @@ Tour, `Menubar` and `NavigationMenu`. Also left for later: a right-to-left pass 
 the best-in-class extras named per module (`Menu` submenus and checkable items, a non-modal
 `Drawer`, a hoverable `Tooltip` that Escape hides, a time scale in `Chart`, a typing history of
 its own in `MarkdownEditor`).
+
+Completed foundations: `Table` and `Chart` are split into unexposed modules with
+their public APIs preserved. The Orders application is the first end-to-end browser
+regression workflow: initial request failure, retry, retained rows after a failed
+refresh, validation, draft preservation, failed save, successful retry and returning
+focus to the row. `npm run test:browser` runs headless Chromium at 1024 px and is part
+of `npm run check`. See `example/ORDERS.md` for the manual path and current API gaps.
+This strengthens the existing showcase; the independent AI.md-only application
+trial at the freeze point remains to be done.
 
 Built ahead of the plan: `CardList`, `WorkQueue`, `AuditLog`,
 `ConflictResolver` and `NotificationCenter`, exercised together in the ReviewDesk

@@ -340,7 +340,7 @@ update context msg backend model =
                 case result of
                     Ok page ->
                         ( { model
-                            | rows = Remote.Loaded page.rows
+                            | rows = Remote.settle model.rows (Ok page.rows)
                             , total = page.total
 
                             -- The server shows the last page when asked for one
@@ -353,7 +353,7 @@ update context msg backend model =
                         )
 
                     Err error ->
-                        ( { model | rows = Remote.Failed (Problem.toProblem error) }
+                        ( { model | rows = Remote.settle model.rows (Err (Problem.toProblem error)) }
                         , backend
                         , Cmd.none
                         )
