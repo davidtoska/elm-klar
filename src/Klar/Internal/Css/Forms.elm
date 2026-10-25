@@ -948,7 +948,7 @@ css =
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: var(--klar-space-1) var(--klar-space-2);
+  gap: calc(var(--klar-space-1) * 1.5) calc(var(--klar-space-1) * 2.5);
 }
 
 .klar-filedrop__title { font-weight: var(--klar-weight-medium); color: var(--klar-text); }
@@ -961,7 +961,7 @@ css =
   text-align: start;
 }
 
-.klar-filedrop--compact .klar-filedrop__icon { width: var(--klar-space-8); height: var(--klar-space-8); }
+.klar-filedrop--compact .klar-filedrop__icon { width: 28px; height: 28px; }
 
 .klar-filedrop__list {
   display: flex;
@@ -1048,7 +1048,7 @@ css =
 .klar-inline-edit__display {
   display: inline-flex;
   align-items: center;
-  gap: var(--klar-space-1);
+  gap: calc(var(--klar-space-1) * 1.5);
   position: relative;
   inset-inline-start: calc(-1 * var(--klar-space-1) - 1px);
   max-width: 100%;
@@ -1143,7 +1143,7 @@ css =
 .klar-inline-edit__saving {
   display: inline-flex;
   align-items: center;
-  gap: var(--klar-space-1);
+  gap: calc(var(--klar-space-1) * 1.5);
   font-size: var(--klar-text-sm);
   color: var(--klar-text-muted);
 }
@@ -1152,7 +1152,7 @@ css =
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--klar-space-1) var(--klar-space-2);
+  gap: calc(var(--klar-space-1) * 1.5) var(--klar-space-2);
   padding: var(--klar-space-1) var(--klar-space-2);
   background: var(--klar-danger-subtle);
   border: 1px solid var(--klar-danger-border);

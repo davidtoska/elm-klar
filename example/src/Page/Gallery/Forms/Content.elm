@@ -407,7 +407,7 @@ FileDrop.values model.attachments -- List FileInfo, only the accepted ones"""
 inlineEdits : Locale -> Model -> Html Msg
 inlineEdits lang model =
     Doc.section "Inline edit"
-        "Text that can be clicked to edit (Tab to the text, Enter or Space starts editing). Enter saves, Escape cancels, and leaving the field saves; switching to another window does not. The save can take time or fail; then a spinner, a message and \"Try again\" are shown, and a click on the text opens the refused text again to correct it."
+        "Text that can be clicked to edit (Tab to the text, Enter or Space starts editing). Enter saves, Escape cancels, and leaving the field saves; switching to another window does not. After Enter or Escape the focus is back on the text; after Tab or a click elsewhere it stays where you put it. The save can take time or fail; then a spinner, a message and \"Try again\" are shown, and a click on the text opens the refused text again to correct it (leaving it unchanged sends nothing)."
         [ Doc.example
             { title = "Contact with validation and saving"
             , description = Just "The name is required and at most 30 characters. Turn on \"Simulate a failure when saving\" to see the failed state with \"Try again\"."

@@ -262,9 +262,10 @@ rawFiles : State -> List File.File
 ```
 
 The browser's `File` values of the accepted files, in the order they were
-added, for reading them or sending them in a request. A file put in with
-`setValues` has none, so this list is the files the user chose here and can be
-shorter than `values`. Nothing is read or sent by this library.
+added, for one request with all of them. It is a shorthand for
+`List.map .file (FileDrop.chosen state)`; take `chosen` for one request per file. A
+file put in with `setValues` has none, so this list is the files the user chose here
+and can be shorter than `values`. Nothing is read or sent by this library.
 
     FileDrop.rawFiles model.attachments
         |> List.map (Http.filePart "attachment")
@@ -513,7 +514,7 @@ required : Attribute msg
 
 Marks the field as required: an asterisk after the label and
 `aria-required` on the file input. This does not validate anything; check
-`files` for an empty list yourself and show an `error`.
+`values` for an empty list yourself and show an `error`.
 
 ### `optionalText`
 
@@ -541,7 +542,9 @@ disabled : Bool -> Attribute msg
 ```
 
 While `True` the field is dimmed and the button and the drop zone do nothing.
-Default `False`.
+Default `False`. The file input stays focusable (`aria-disabled`, not the
+`disabled` attribute), so a zone that is disabled while the user is on it, such as
+during an upload that starts right after a choice, keeps the focus.
 
 ## Language
 

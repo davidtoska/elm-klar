@@ -483,7 +483,8 @@ like `fraction`.
 
     Money.convert { numerator = 117425, denominator = 10000 } Money.nok euros
 
-`Err` when the denominator is not above zero, or when a number is out of range.
+`Err` when the denominator or the rate is not above zero (a negative rate would
+silently turn the sign of the amount around), or when a number is out of range.
 
 ### `allocate`
 

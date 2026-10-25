@@ -109,7 +109,9 @@ The first `String` given to `init` is the DOM id of the input that is shown whil
 editing, so there is no `id` attribute; the second is the text to show.
 
 **Keyboard.** Enter saves, Escape cancels, leaving the field saves, and the text
-is a button: Tab reaches it and Space or Enter starts editing. A `multiline` text
+is a button: Tab reaches it and Space or Enter starts editing. After Enter or
+Escape the focus is back on the text; after leaving the field with Tab or a click
+it stays where the user put it. A `multiline` text
 is edited in a text area, where Enter starts a new line and Ctrl+Enter (Cmd+Enter on
 a Mac) saves. The Enter or
 Escape that ends an IME composition (Japanese, Chinese, Korean input) only picks
@@ -127,8 +129,9 @@ then shown with the problem, a "Try again" button (which makes `isSaving` `True`
 again; left out when `Remote.isRetryable` says the problem would fail the same
 way, such as a conflict or a validation problem) and a "Cancel" button (which
 goes back to the old value). A click on the text opens the editor again with the
-refused text and the problem under it, so the user can correct it. Confirming
-the text unchanged saves nothing. An answer that comes when no save is on its
+refused text and the problem under it, so the user can correct it. Leaving it
+unchanged brings the failure back and sends nothing; Enter on it sends it again
+only when "Try again" would. Confirming the saved text unchanged saves nothing. An answer that comes when no save is on its
 way (a late one, after a `setValue` or a "Cancel") changes nothing.
 
 **Validation.** `validate` is checked when the user confirms; a message keeps
