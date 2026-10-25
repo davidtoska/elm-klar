@@ -291,7 +291,7 @@ init =
       , menuModal = Modal.init "menu-modal"
       , menu = Menu.init "menu-in-modal"
       , menuLower = Menu.init "menu-in-modal-lower"
-      , nestedPopover = Popover.init "popover-in-modal"
+      , nestedPopover = Popover.init "popover-in-modal" |> Popover.setInitialFocus [ "nested-popover-input" ]
       , nestedName = ""
       , nestedShow = True
       , country = Select.init "country-in-modal"
@@ -315,7 +315,7 @@ init =
       , noteAdded = False
       , cancel = ConfirmDialog.init "cancel-order-dialog"
       , cancelAck = False
-      , filterPopover = Popover.init "filter-popover"
+      , filterPopover = Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ]
       , helpPopover = Popover.init "help-popover"
       , filterCustomer = ""
       , filterOpen = True
@@ -1320,7 +1320,6 @@ filterPopover locale model =
         , Popover.icon Icon.filter
         , Popover.title "Quick filter"
         , Popover.closeButton
-        , Popover.initialFocus [ "filter-customer" ]
         ]
         model.filterPopover
         "Filter"
@@ -1716,7 +1715,6 @@ menuModal locale model =
                     , Popover.icon Icon.sliders
                     , Popover.title "Settings"
                     , Popover.closeButton
-                    , Popover.initialFocus [ "nested-popover-input" ]
                     ]
                     model.nestedPopover
                     "Panel"
@@ -2258,13 +2256,15 @@ popoverCode =
     [ Popover.icon Icon.filter
     , Popover.title "Quick filter"
     , Popover.closeButton
-    , Popover.initialFocus [ "filter-customer" ]
     ]
     model.popover
     "Filter" -- the label of the button
     [ TextInput.view [ TextInput.id "filter-customer", TextInput.label "Customer" ]
     , Button.view [ Button.primary, Button.onClick ApplyFilter ] "Apply"
     ]
+
+-- focus on the field when it opens, with the button or with Popover.open
+Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ]
 
 -- an icon-only trigger: the label is its accessible name
 Popover.view HelpMsg [ Popover.icon Icon.help, Popover.iconOnly ] model.help "What is priority?" [ explanation ]"""

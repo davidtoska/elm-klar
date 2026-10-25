@@ -3108,10 +3108,10 @@
       "mainFunctions": [
         "view",
         "init",
+        "setInitialFocus",
         "update",
         "isOpen",
         "open",
-        "openFocusing",
         "close",
         "toggle"
       ],

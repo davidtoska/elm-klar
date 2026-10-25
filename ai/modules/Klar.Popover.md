@@ -16,12 +16,12 @@ view : (Msg -> msg) -> List (Attribute msg) -> State -> String -> List (Html msg
 type State  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
 init : String -> State
+setInitialFocus : List String -> State -> State
 update : Msg -> State -> ( State, Cmd Msg )
 isOpen : State -> Bool
 
 -- Opening and closing
 open : State -> ( State, Cmd Msg )
-openFocusing : List String -> State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
 toggle : State -> ( State, Cmd Msg )
 
@@ -38,7 +38,6 @@ closeButton : Attribute msg
 width : Int -> Attribute msg
 alignEnd : Attribute msg
 noPadding : Attribute msg
-initialFocus : List String -> Attribute msg
 
 -- Texts
 locale : Locale.Locale -> Attribute msg
@@ -53,7 +52,8 @@ Use when: a small panel next to a button must hold any content, such as a quick 
 Do not use when: you only need a list of actions (use `Klar.Menu`) or the work needs the full attention of the user (use `Klar.Modal`).
 Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
 
-    -- model:   popover : Popover.State        (Popover.init "filter-popover")
+    -- model:   popover : Popover.State
+    --          (Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ])
 
     -- update
     PopoverMsg m ->
@@ -77,7 +77,6 @@ Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
         [ Popover.icon Icon.filter
         , Popover.title "Quick filter"
         , Popover.closeButton
-        , Popover.initialFocus [ "filter-customer" ]
         ]
         model.popover
         "Filter"
@@ -156,6 +155,19 @@ init : String -> State
 A closed popover. The id must be unique on the page; the ids of the button
 and of the panel start with it.
 
+### `setInitialFocus`
+
+```elm
+setInitialFocus : List String -> State -> State
+```
+
+The ids of elements inside the panel that get focus when it opens, the first
+one that exists: a search field, the first field of a short form. The button,
+`open` and `toggle` all use them. Without it (the default) the panel itself gets
+focus. Set it once, when you create the state:
+
+    Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ]
+
 ### `update`
 
 ```elm
@@ -186,18 +198,8 @@ keyboard shortcut.
 open : State -> ( State, Cmd Msg )
 ```
 
-Opens the panel and moves focus into it (to the panel itself; use
-`openFocusing` to focus a field). It ignores the `initialFocus` attribute, which
-applies when the user opens the panel with the button.
-
-### `openFocusing`
-
-```elm
-openFocusing : List String -> State -> ( State, Cmd Msg )
-```
-
-Opens the panel and focuses the first of these elements that exists (ids of
-fields inside the panel). If none exists, the panel itself gets focus.
+Opens the panel and moves focus into it, as the button does: to the first
+element of `setInitialFocus` that exists, or else to the panel itself.
 
 ### `close`
 
@@ -214,8 +216,8 @@ inside the panel when the work is done, such as "Apply".
 toggle : State -> ( State, Cmd Msg )
 ```
 
-Opens the panel if it is closed, closes it if it is open. Like `open`, it
-ignores the `initialFocus` attribute.
+Opens the panel if it is closed (focus moves in as with `open`), closes it if
+it is open (focus goes back to the button).
 
 ## The button
 
@@ -318,17 +320,6 @@ noPadding : Attribute msg
 
 No padding around the content, for lists and tables that go edge to edge.
 Content taller than 70% of the window (at most 520px) scrolls.
-
-### `initialFocus`
-
-```elm
-initialFocus : List String -> Attribute msg
-```
-
-Ids of elements inside the panel that should get focus when the user opens
-it with the button (the first one that exists). Without it the panel itself gets
-focus. `open` and `toggle` ignore this attribute; when you open the panel from
-your own code, use `openFocusing`.
 
 ## Texts
 

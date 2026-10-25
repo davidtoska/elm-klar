@@ -1,9 +1,9 @@
 module Klar.Popover exposing
     ( view
-    , State, Msg, init, update, isOpen
-    , open, openFocusing, close, toggle
+    , State, Msg, init, setInitialFocus, update, isOpen
+    , open, close, toggle
     , Attribute, icon, iconOnly, trigger, customTrigger
-    , title, closeButton, width, alignEnd, noPadding, initialFocus
+    , title, closeButton, width, alignEnd, noPadding
     , locale
     )
 
@@ -14,7 +14,8 @@ Use when: a small panel next to a button must hold any content, such as a quick 
 Do not use when: you only need a list of actions (use `Klar.Menu`) or the work needs the full attention of the user (use `Klar.Modal`).
 Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
 
-    -- model:   popover : Popover.State        (Popover.init "filter-popover")
+    -- model:   popover : Popover.State
+    --          (Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ])
 
     -- update
     PopoverMsg m ->
@@ -38,7 +39,6 @@ Quick path: `init`, `update`, `view`, `open`, `close`, `isOpen`
         [ Popover.icon Icon.filter
         , Popover.title "Quick filter"
         , Popover.closeButton
-        , Popover.initialFocus [ "filter-customer" ]
         ]
         model.popover
         "Filter"
@@ -81,7 +81,7 @@ which gives focus back to its button, cannot take focus away from the dialog.
 
 # State
 
-@docs State, Msg, init, update, isOpen
+@docs State, Msg, init, setInitialFocus, update, isOpen
 
 
 # Opening and closing
@@ -90,7 +90,7 @@ The button opens and closes the panel by itself. These functions are for the
 rest: closing the panel when the work in it is done, or opening it from a
 keyboard shortcut.
 
-@docs open, openFocusing, close, toggle
+@docs open, close, toggle
 
 
 # The button
@@ -100,7 +100,7 @@ keyboard shortcut.
 
 # The panel
 
-@docs title, closeButton, width, alignEnd, noPadding, initialFocus
+@docs title, closeButton, width, alignEnd, noPadding
 
 
 # Texts
@@ -132,6 +132,9 @@ type State
     = State
         { id : String
         , open : Bool
+
+        -- Where focus goes when the panel opens (the first that exists).
+        , focus : List String
         }
 
 
@@ -140,7 +143,20 @@ and of the panel start with it.
 -}
 init : String -> State
 init id =
-    State { id = id, open = False }
+    State { id = id, open = False, focus = [] }
+
+
+{-| The ids of elements inside the panel that get focus when it opens, the first
+one that exists: a search field, the first field of a short form. The button,
+`open` and `toggle` all use them. Without it (the default) the panel itself gets
+focus. Set it once, when you create the state:
+
+    Popover.init "filter-popover" |> Popover.setInitialFocus [ "filter-customer" ]
+
+-}
+setInitialFocus : List String -> State -> State
+setInitialFocus ids (State state) =
+    State { state | focus = ids }
 
 
 {-| Is the panel open? It follows the user (the button, a click outside the panel,
@@ -156,7 +172,7 @@ constructor of your own message type, such as `PopoverMsg Popover.Msg`, and hand
 it to `update`.
 -}
 type Msg
-    = Toggle (List String)
+    = Toggle
     | Close
     | CloseQuiet
     | Lost
@@ -169,8 +185,8 @@ with `Cmd.map`.
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
-        Toggle focus ->
-            toggleWith focus current
+        Toggle ->
+            toggle current
 
         Close ->
             close current
@@ -193,22 +209,13 @@ update msg ((State state) as current) =
             ( current, Cmd.none )
 
 
-{-| Opens the panel and moves focus into it (to the panel itself; use
-`openFocusing` to focus a field). It ignores the `initialFocus` attribute, which
-applies when the user opens the panel with the button.
+{-| Opens the panel and moves focus into it, as the button does: to the first
+element of `setInitialFocus` that exists, or else to the panel itself.
 -}
 open : State -> ( State, Cmd Msg )
-open =
-    openFocusing []
-
-
-{-| Opens the panel and focuses the first of these elements that exists (ids of
-fields inside the panel). If none exists, the panel itself gets focus.
--}
-openFocusing : List String -> State -> ( State, Cmd Msg )
-openFocusing focus (State state) =
+open (State state) =
     ( State { state | open = True }
-    , Internal.focusFirst (focus ++ [ popupId state.id ]) Noop
+    , Internal.focusFirst (state.focus ++ [ popupId state.id ]) Noop
     )
 
 
@@ -226,21 +233,16 @@ close (State state) =
     )
 
 
-{-| Opens the panel if it is closed, closes it if it is open. Like `open`, it
-ignores the `initialFocus` attribute.
+{-| Opens the panel if it is closed (focus moves in as with `open`), closes it if
+it is open (focus goes back to the button).
 -}
 toggle : State -> ( State, Cmd Msg )
-toggle =
-    toggleWith []
-
-
-toggleWith : List String -> State -> ( State, Cmd Msg )
-toggleWith focus ((State state) as current) =
+toggle ((State state) as current) =
     if state.open then
         close current
 
     else
-        openFocusing focus current
+        open current
 
 
 maybeList : (a -> b) -> Maybe a -> List b
@@ -289,7 +291,6 @@ type alias Config msg =
     , alignEnd : Bool
     , width : Int
     , padding : Bool
-    , initialFocus : List String
     , locale : Locale
     }
 
@@ -306,7 +307,6 @@ configure attributes =
         , alignEnd = False
         , width = 320
         , padding = True
-        , initialFocus = []
         , locale = Locale.default
         }
         attributes
@@ -394,16 +394,6 @@ noPadding =
     Attribute (\config -> { config | padding = False })
 
 
-{-| Ids of elements inside the panel that should get focus when the user opens
-it with the button (the first one that exists). Without it the panel itself gets
-focus. `open` and `toggle` ignore this attribute; when you open the panel from
-your own code, use `openFocusing`.
--}
-initialFocus : List String -> Attribute msg
-initialFocus value =
-    Attribute (\config -> { config | initialFocus = value })
-
-
 {-| The language of the built-in text, which is the label of the close button
 ("Close" by default). The default language is
 [`Locale.default`](Klar-Locale#default), which is English.
@@ -439,8 +429,8 @@ view toMsg attributes (State state) label content =
                     "false"
                 )
             , Internal.attrIf state.open (Attr.attribute "aria-controls" (popupId state.id))
-            , Events.onClick (toMsg (Toggle config.initialFocus))
-            , Internal.onKeys [ ( "ArrowDown", toMsg (Toggle config.initialFocus) ) ]
+            , Events.onClick (toMsg Toggle)
+            , Internal.onKeys [ ( "ArrowDown", toMsg Toggle ) ]
             ]
 
         triggerView =
@@ -473,7 +463,7 @@ view toMsg attributes (State state) label content =
         ]
 
 
-viewPanel : (Msg -> msg) -> Config msg -> { id : String, open : Bool } -> String -> List (Html msg) -> Html msg
+viewPanel : (Msg -> msg) -> Config msg -> { id : String, open : Bool, focus : List String } -> String -> List (Html msg) -> Html msg
 viewPanel toMsg config state label content =
     let
         hasHeader =
