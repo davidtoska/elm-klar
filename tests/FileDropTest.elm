@@ -233,6 +233,26 @@ rowTests =
                                 ]
                         )
                     |> Result.withDefault (Expect.fail "the files were not taken")
+        , test "a second click on the remove button of a file that is gone removes nothing else" <|
+            \_ ->
+                let
+                    two =
+                        steps [ choose [ FileDrop.multiple ] [ file "a.pdf" 10 "application/pdf", file "b.pdf" 20 "application/pdf" ] ] empty
+                            |> Result.withDefault empty
+
+                    click state =
+                        FileDrop.view Files [ FileDrop.multiple ] two
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.id "attachments-remove-0" ]
+                            |> Event.simulate Event.click
+                            |> Event.toResult
+                            |> Result.map (\(Files inner) -> Tuple.first (FileDrop.update inner state))
+                in
+                -- both clicks come from the same render, before the next one
+                click two
+                    |> Result.andThen click
+                    |> names
+                    |> Expect.equal (Ok [ "b.pdf" ])
         , test "a file keeps its id when the one before it is removed" <|
             \_ ->
                 steps

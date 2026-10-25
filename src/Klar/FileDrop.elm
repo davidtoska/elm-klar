@@ -481,14 +481,20 @@ update msg (State state) =
             in
             case after of
                 removed :: rest ->
-                    ( State
-                        { state
-                            | entries = revalidate rules (before ++ rest)
-                            , touched = True
-                            , change = Removed removed.file.name
-                        }
-                    , Internal.focusFirst next Noop
-                    )
+                    if removed.key == key then
+                        ( State
+                            { state
+                                | entries = revalidate rules (before ++ rest)
+                                , touched = True
+                                , change = Removed removed.file.name
+                            }
+                        , Internal.focusFirst next Noop
+                        )
+
+                    else
+                        -- a second click on a button that is already gone: the file
+                        -- is not there any more, and the next one stays
+                        ( State state, Cmd.none )
 
                 [] ->
                     ( State state, Cmd.none )
