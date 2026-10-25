@@ -513,6 +513,7 @@ import Klar.Search as Search
 import Klar.Settings as Settings exposing (Settings)
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
+import Klar.Table.Columns as Columns
 import Klar.Table.Core as Core
 import Klar.Table.Csv as Csv
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
@@ -1062,7 +1063,7 @@ sorts last, and the column is at least 120 pixels wide (see `minWidth`).
 -}
 text : ColumnId -> String -> (row -> String) -> List (ColumnAttribute row msg) -> Column row msg
 text arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.text (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.text (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| A whole number: `Table.int (Table.columnId "items") "Items" .items []`. It is right-aligned
@@ -1073,7 +1074,7 @@ skips it unless you add `includeInSearch`.
 -}
 int : ColumnId -> String -> (row -> Int) -> List (ColumnAttribute row msg) -> Column row msg
 int arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.int (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.int (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| A decimal number with a fixed count of decimals:
@@ -1084,7 +1085,7 @@ decimal separator and no thousands separator, so a spreadsheet reads a number.
 -}
 float : ColumnId -> String -> Int -> (row -> Float) -> List (ColumnAttribute row msg) -> Column row msg
 float arg1 arg2 arg3 arg4 arg5 =
-    fromCoreColumn (Core.float (unwrapColumnId arg1) arg2 arg3 arg4 (List.map unwrapColumnAttribute arg5))
+    fromCoreColumn (Columns.float (unwrapColumnId arg1) arg2 arg3 arg4 (List.map unwrapColumnAttribute arg5))
 
 
 {-| An amount of money ([Klar.Money](Klar-Money)), exact to the minor unit:
@@ -1106,7 +1107,7 @@ for every amount of money.
 -}
 money : ColumnId -> String -> (row -> Money) -> List (ColumnAttribute row msg) -> Column row msg
 money arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.money (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.money (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| A calendar date ([Klar.Date](Klar-Date)), sorted by date and shown as
@@ -1118,7 +1119,7 @@ missing use `maybeDate`.
 -}
 date : ColumnId -> String -> (row -> Date) -> List (ColumnAttribute row msg) -> Column row msg
 date arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.date (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.date (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| Like `date`, for a date that may be missing: `Nothing` is shown as a dash
@@ -1126,7 +1127,7 @@ and sorts last, whichever way the column is sorted.
 -}
 maybeDate : ColumnId -> String -> (row -> Maybe Date) -> List (ColumnAttribute row msg) -> Column row msg
 maybeDate arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.maybeDate (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.maybeDate (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| A tone ([Klar.Theme](Klar-Theme)) and a label, shown as a
@@ -1141,7 +1142,7 @@ and `filterSelect`; the column is 124 pixels wide.
 -}
 badge : ColumnId -> String -> (row -> ( Tone, String )) -> List (ColumnAttribute row msg) -> Column row msg
 badge arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.badge (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.badge (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| Like `badge`, but drawn as a colored dot and text (`Badge.status` in
@@ -1149,7 +1150,7 @@ badge arg1 arg2 arg3 arg4 =
 -}
 status : ColumnId -> String -> (row -> ( Tone, String )) -> List (ColumnAttribute row msg) -> Column row msg
 status arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.status (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.status (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| A yes / no column: a check mark for yes and a dash for no. The words ("Yes"
@@ -1166,7 +1167,7 @@ the words of either language ("Yes", "Ja").
 -}
 bool : ColumnId -> String -> (row -> Bool) -> List (ColumnAttribute row msg) -> Column row msg
 bool arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.bool (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.bool (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| A column with your own HTML and no text: `render` draws the cell. Without
@@ -1180,7 +1181,7 @@ instead.
 -}
 custom : ColumnId -> String -> (row -> Html msg) -> List (ColumnAttribute row msg) -> Column row msg
 custom arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.custom (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.custom (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| Inline controls for each row, such as small icon buttons or links: `render`
@@ -1203,7 +1204,7 @@ here are a tab stop in every row (keep them few).
 -}
 actions : ColumnId -> String -> (row -> List (Html msg)) -> List (ColumnAttribute row msg) -> Column row msg
 actions arg1 arg2 arg3 arg4 =
-    fromCoreColumn (Core.actions (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
+    fromCoreColumn (Columns.actions (unwrapColumnId arg1) arg2 arg3 (List.map unwrapColumnAttribute arg4))
 
 
 {-| A fixed width in pixels (at least 24). Columns without a width share the
@@ -1212,7 +1213,7 @@ the title is not cut.
 -}
 width : Int -> ColumnAttribute row msg
 width arg1 =
-    fromCoreColumnAttribute (Core.width arg1)
+    fromCoreColumnAttribute (Columns.width arg1)
 
 
 {-| The column shares the remaining space but never gets narrower than this many
@@ -1222,7 +1223,7 @@ columns start with.
 -}
 minWidth : Int -> ColumnAttribute row msg
 minWidth arg1 =
-    fromCoreColumnAttribute (Core.minWidth arg1)
+    fromCoreColumnAttribute (Columns.minWidth arg1)
 
 
 {-| Aligns the header and the cells of the column to the right, as numbers
@@ -1231,7 +1232,7 @@ which are right-aligned.
 -}
 alignRight : ColumnAttribute row msg
 alignRight =
-    fromCoreColumnAttribute Core.alignRight
+    fromCoreColumnAttribute Columns.alignRight
 
 
 {-| Centers the header and the cells of the column. A `bool` column starts
@@ -1239,7 +1240,7 @@ centered.
 -}
 alignCenter : ColumnAttribute row msg
 alignCenter =
-    fromCoreColumnAttribute Core.alignCenter
+    fromCoreColumnAttribute Columns.alignCenter
 
 
 {-| Keeps the column in view while the table scrolls sideways. Only the first
@@ -1248,7 +1249,7 @@ selection and expand columns, if there are any, stay with it.
 -}
 pinned : ColumnAttribute row msg
 pinned =
-    fromCoreColumnAttribute Core.pinned
+    fromCoreColumnAttribute Columns.pinned
 
 
 {-| The column starts hidden. The user can show it in the column chooser (see
@@ -1256,7 +1257,7 @@ pinned =
 -}
 hiddenByDefault : ColumnAttribute row msg
 hiddenByDefault =
-    fromCoreColumnAttribute Core.hiddenByDefault
+    fromCoreColumnAttribute Columns.hiddenByDefault
 
 
 {-| The user cannot hide the column: its checkbox in the column chooser is
@@ -1264,7 +1265,7 @@ disabled. It also cancels `hiddenByDefault`.
 -}
 alwaysVisible : ColumnAttribute row msg
 alwaysVisible =
-    fromCoreColumnAttribute Core.alwaysVisible
+    fromCoreColumnAttribute Columns.alwaysVisible
 
 
 {-| Long values wrap onto more lines instead of being cut, so the row grows. There
@@ -1272,7 +1273,7 @@ is no tooltip then, as the whole value is visible.
 -}
 wrap : ColumnAttribute row msg
 wrap =
-    fromCoreColumnAttribute Core.wrap
+    fromCoreColumnAttribute Columns.wrap
 
 
 {-| Turns off the tooltip (the `title` attribute) that shows the full value of a
@@ -1280,7 +1281,7 @@ cell whose text is cut off.
 -}
 noTooltip : ColumnAttribute row msg
 noTooltip =
-    fromCoreColumnAttribute Core.noTooltip
+    fromCoreColumnAttribute Columns.noTooltip
 
 
 {-| Draws the cell yourself. The text accessor of the column is still used for
@@ -1292,7 +1293,7 @@ cell, and there is no tooltip.
 -}
 cell : (row -> Html msg) -> ColumnAttribute row msg
 cell arg1 =
-    fromCoreColumnAttribute (Core.cell arg1)
+    fromCoreColumnAttribute (Columns.cell arg1)
 
 
 {-| A short explanation of the column, shown as a tooltip on the header. It
@@ -1300,7 +1301,7 @@ replaces the default tooltip ("Click to sort").
 -}
 hint : String -> ColumnAttribute row msg
 hint arg1 =
-    fromCoreColumnAttribute (Core.hint arg1)
+    fromCoreColumnAttribute (Columns.hint arg1)
 
 
 {-| Sorts alphabetically (in the order of the table's `locale`) by another text
@@ -1308,7 +1309,7 @@ than the one shown.
 -}
 sortText : (row -> String) -> ColumnAttribute row msg
 sortText arg1 =
-    fromCoreColumnAttribute (Core.sortText arg1)
+    fromCoreColumnAttribute (Columns.sortText arg1)
 
 
 {-| Sorts by a number instead of the text. The number also makes `filterRange`,
@@ -1316,7 +1317,7 @@ sortText arg1 =
 -}
 sortNumber : (row -> Float) -> ColumnAttribute row msg
 sortNumber arg1 =
-    fromCoreColumnAttribute (Core.sortNumber arg1)
+    fromCoreColumnAttribute (Columns.sortNumber arg1)
 
 
 {-| Like `sortNumber`, for a number that may be missing: rows with `Nothing` go
@@ -1324,7 +1325,7 @@ last, whichever way the column is sorted.
 -}
 sortMaybeNumber : (row -> Maybe Float) -> ColumnAttribute row msg
 sortMaybeNumber arg1 =
-    fromCoreColumnAttribute (Core.sortMaybeNumber arg1)
+    fromCoreColumnAttribute (Columns.sortMaybeNumber arg1)
 
 
 {-| Sorts by a date instead of the text, for example when the column shows a
@@ -1335,7 +1336,7 @@ date in your own format.
 -}
 sortDate : (row -> Date) -> ColumnAttribute row msg
 sortDate arg1 =
-    fromCoreColumnAttribute (Core.sortDate arg1)
+    fromCoreColumnAttribute (Columns.sortDate arg1)
 
 
 {-| Sorts with your own comparison, written for the ascending order; the table
@@ -1346,7 +1347,7 @@ reverses it for `Descending`. Rows that compare equal keep their order.
 -}
 sortWith : (row -> row -> Order) -> ColumnAttribute row msg
 sortWith arg1 =
-    fromCoreColumnAttribute (Core.sortWith arg1)
+    fromCoreColumnAttribute (Columns.sortWith arg1)
 
 
 {-| Turns sorting off for the column: its header is a plain title instead of a
@@ -1354,14 +1355,14 @@ button.
 -}
 unsortable : ColumnAttribute row msg
 unsortable =
-    fromCoreColumnAttribute Core.unsortable
+    fromCoreColumnAttribute Columns.unsortable
 
 
 {-| The search box skips this column.
 -}
 notSearchable : ColumnAttribute row msg
 notSearchable =
-    fromCoreColumnAttribute Core.notSearchable
+    fromCoreColumnAttribute Columns.notSearchable
 
 
 {-| The search box looks in this column. Text, date, badge, status and yes / no
@@ -1370,7 +1371,7 @@ means an item count). Only visible columns are searched.
 -}
 includeInSearch : ColumnAttribute row msg
 includeInSearch =
-    fromCoreColumnAttribute Core.includeInSearch
+    fromCoreColumnAttribute Columns.includeInSearch
 
 
 {-| The value written to the CSV export, when it should differ from the text
@@ -1379,14 +1380,14 @@ such as a `custom` column.
 -}
 exportAs : (row -> String) -> ColumnAttribute row msg
 exportAs arg1 =
-    fromCoreColumnAttribute (Core.exportAs arg1)
+    fromCoreColumnAttribute (Columns.exportAs arg1)
 
 
 {-| Leaves the column out of the CSV export (see `exportCsv`).
 -}
 notExported : ColumnAttribute row msg
 notExported =
-    fromCoreColumnAttribute Core.notExported
+    fromCoreColumnAttribute Columns.notExported
 
 
 {-| Adds a "contains" text filter to the column: a filter button in the header
@@ -1394,7 +1395,7 @@ opens a popover with an input. Case and accents are ignored.
 -}
 filterText : ColumnAttribute row msg
 filterText =
-    fromCoreColumnAttribute Core.filterText
+    fromCoreColumnAttribute Columns.filterText
 
 
 {-| Adds a filter in the header where the user picks values with checkboxes. In
@@ -1407,7 +1408,7 @@ are more than eight.
 -}
 filterSelect : ColumnAttribute row msg
 filterSelect =
-    fromCoreColumnAttribute Core.filterSelect
+    fromCoreColumnAttribute Columns.filterSelect
 
 
 {-| The values offered by `filterSelect`, in this order, instead of the ones found
@@ -1428,7 +1429,7 @@ mode, give the options: the table only sees one page.
 -}
 filterOptions : List { value : String, label : String } -> ColumnAttribute row msg
 filterOptions arg1 =
-    fromCoreColumnAttribute (Core.filterOptions arg1)
+    fromCoreColumnAttribute (Columns.filterOptions arg1)
 
 
 {-| The stable value that a select filter keeps for a row, instead of the text the
@@ -1445,7 +1446,7 @@ filter keeps the column's text, and a yes / no column keeps `"true"` and
 -}
 filterValue : (row -> String) -> ColumnAttribute row msg
 filterValue arg1 =
-    fromCoreColumnAttribute (Core.filterValue arg1)
+    fromCoreColumnAttribute (Columns.filterValue arg1)
 
 
 {-| Adds a from / to number filter to the column; either bound can be left
@@ -1454,7 +1455,7 @@ without numbers there is no filter button.
 -}
 filterRange : ColumnAttribute row msg
 filterRange =
-    fromCoreColumnAttribute Core.filterRange
+    fromCoreColumnAttribute Columns.filterRange
 
 
 {-| A footer value computed from the rows: all rows that match the search and
@@ -1466,7 +1467,7 @@ when any visible column has a footer value and there are rows.
 -}
 footer : (List row -> String) -> ColumnAttribute row msg
 footer arg1 =
-    fromCoreColumnAttribute (Core.footer arg1)
+    fromCoreColumnAttribute (Columns.footer arg1)
 
 
 {-| The sum of a number column in the footer, as in "Sum 12,345". It adds up the
@@ -1474,7 +1475,7 @@ same rows as `footer`.
 -}
 footerSum : ColumnAttribute row msg
 footerSum =
-    fromCoreColumnAttribute Core.footerSum
+    fromCoreColumnAttribute Columns.footerSum
 
 
 {-| The average of a number column in the footer, as in "Avg 51.2". It is written
@@ -1484,7 +1485,7 @@ the same rows as `footer`; a dash is shown when there is nothing to average.
 -}
 footerAverage : ColumnAttribute row msg
 footerAverage =
-    fromCoreColumnAttribute Core.footerAverage
+    fromCoreColumnAttribute Columns.footerAverage
 
 
 {-| A setting of the table as a whole (`columns`, `remote`, `searchable` ...). Make

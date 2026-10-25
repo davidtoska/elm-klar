@@ -73,3 +73,7 @@ Execution notes for resuming a long run:
 - Next: Query.
 
 - Query: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 3f653c2: Query complete.
+- Next: Columns.
+
+- Columns: format, full check, byte-identical docs and 22 identical table roots passed.
