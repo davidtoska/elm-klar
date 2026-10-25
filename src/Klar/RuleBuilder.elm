@@ -59,10 +59,12 @@ is: `Loading` shows "Counting ...", `Remote.refresh` keeps the old count, dimmed
 while the new one is on its way, and a failed count offers `onRetry`.
 
 **The outcome is yours.** A rule is only the condition: what happens when it
-matches (a discount, a tag, a route) is neither in `Rule` nor in the builder. For
-"if the category is X and the quantity is above Y, take Z off" keep one builder
-per outcome, next to the control for the outcome, in a list of your own, and ask
-each rule about the row:
+matches (a discount, a tag, a route) is neither in `Rule` nor in the builder. In a
+form, declare the pair as a row: `Spec.conditions` and the outcome's own field in
+one sub-form, `Spec.rows` around it, and the form adds, removes, saves and checks
+the pairs (see [`Klar.Form`](Klar-Form)). Outside a form, keep one record per rule,
+with a key that stays with it when others are removed, give each builder an id
+made from that key, and ask each rule about the row:
 
     import Klar.Date exposing (Date)
     import Klar.Rule as Rule
@@ -72,7 +74,10 @@ each rule about the row:
         { category : String, quantity : Int }
 
     type alias PriceRule =
-        { when : RuleBuilder.State, discountPercent : Float }
+        { key : Int
+        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
+        , discountPercent : Float
+        }
 
     orderFields : List (Rule.Field Order)
     orderFields =
@@ -88,9 +93,10 @@ each rule about the row:
             |> List.maximum
             |> Maybe.withDefault 0
 
-Each `PriceRule` has its own `RuleBuilder.init` id, and the message of its builder
-carries the index of the rule. Rules kept outside a `Klar.Form` report their
-problems into it with `Form.outside`.
+Draw the discount next to `RuleBuilder.view` in the same card; the message of each
+builder carries the key of its rule. Focus the first unfinished builder with
+`focusIssue`. Rules kept outside a `Klar.Form` report their problems into it with
+`Form.outside`.
 
 **Editors**: the field picker is a searchable [Klar.Select](Klar-Select),
 grouped by the heading given with `Rule.inGroup`; the operators come from
@@ -114,23 +120,6 @@ when the user tries to save. `issues` lists them for the application, and
 needs attention, so that a Save that finds an incomplete rule never leaves the
 user looking at a button. `focusId` is the DOM id of that control, for a
 `Form.Problem` that points into the builder: nothing is read from the page.
-
-**A rule with an outcome.** The builder only says _when_; what happens then (a
-discount, a label, a route) is the application's. In a form, declare it as a
-row: `Spec.conditions` and the outcome's own field in one sub-form, `Spec.rows`
-around it, and the form adds, removes, saves and checks the pairs (see
-[`Klar.Form`](Klar-Form)). Outside a form, keep one record per rule, with a number
-that stays with it when others are removed, and give each builder an id made from
-that number:
-
-    type alias PriceRule =
-        { key : Int
-        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
-        , discount : Maybe Float
-        }
-
-Draw the discount next to `RuleBuilder.view` in the same card, and focus the
-first unfinished builder with `focusIssue`.
 
 **Keyboard**: every control is reached with `Tab`. The pickers open with
 `Enter`, `Space` or `ArrowDown` and search as you type; "All" and "Any" switch
@@ -1256,20 +1245,27 @@ view toMsg attributes (State s) =
 
                 Nothing ->
                     Attr.attribute "aria-label" (Maybe.withDefault t.builder config.ariaLabel)
+
+        builder =
+            Html.div
+                ([ Internal.cls [ "klar-rules" ]
+                 , Attr.id s.id
+                 , Attr.attribute "role" "group"
+                 , name
+                 , Attr.tabindex -1
+                 ]
+                    ++ Field.describedByAttributes field
+                )
+                [ viewGroup ctx 0 Nothing (rootGroup s.rule)
+                , viewFooter ctx
+                ]
     in
+    -- the label stands above the builder, as it does above any other field
     Field.viewGroup field
-        (Html.div
-            ([ Internal.cls [ "klar-rules" ]
-             , Attr.id s.id
-             , Attr.attribute "role" "group"
-             , name
-             , Attr.tabindex -1
-             ]
-                ++ Field.describedByAttributes field
-            )
-            [ case field.label of
-                Just text ->
-                    Html.div [ Internal.cls [ "klar-field__label", "klar-rules__label" ], Attr.id (Field.labelId field) ]
+        (case field.label of
+            Just text ->
+                Html.div []
+                    [ Html.div [ Internal.cls [ "klar-field__label" ], Attr.id (Field.labelId field) ]
                         [ Html.text text
                         , if field.required then
                             Html.span [ Internal.cls [ "klar-field__required" ], Attr.attribute "aria-hidden" "true" ] [ Html.text "*" ]
@@ -1282,12 +1278,11 @@ view toMsg attributes (State s) =
                                 Nothing ->
                                     Html.text ""
                         ]
+                    , builder
+                    ]
 
-                Nothing ->
-                    Html.text ""
-            , viewGroup ctx 0 Nothing (rootGroup s.rule)
-            , viewFooter ctx
-            ]
+            Nothing ->
+                builder
         )
 
 

@@ -26,7 +26,7 @@ clear : State -> State
 -- Issues and focus
 showIssues : State -> State
 hideIssues : State -> State
-issues : Locale.Locale -> List (Rule.Field row) -> State -> List Rule.Issue
+issues : Locale.Locale -> List (Rule.Field row) -> State -> List Rule.Problem
 focusId : List (Rule.Field row) -> State -> Int -> String
 focusNode : List (Rule.Field row) -> State -> Int -> Cmd Msg
 focusIssue : List (Rule.Field row) -> State -> Cmd Msg
@@ -36,13 +36,21 @@ type Attribute row msg  -- opaque: no constructors are exposed
 fields : List (Rule.Field row) -> Attribute row msg
 today : Date.Date -> Attribute row msg
 maxDepth : Int -> Attribute row msg
-label : String -> Attribute row msg
+ariaLabel : String -> Attribute row msg
 locale : Locale.Locale -> Attribute row msg
 
+-- In a form
+label : String -> Attribute row msg
+hint : String -> Attribute row msg
+error : String -> Attribute row msg
+errorMaybe : Maybe String -> Attribute row msg
+required : Attribute row msg
+optionalText : String -> Attribute row msg
+
 -- Match count
-matchCount : Maybe Int -> Attribute row msg
+matchCount : Remote.Remote Int -> Attribute row msg
 totalCount : Int -> Attribute row msg
-counting : Bool -> Attribute row msg
+onRetry : msg -> Attribute row msg
 
 -- Toolbar
 json : Attribute row msg
@@ -61,11 +69,12 @@ Quick path: `init`, `update`, `view`, `rule`
 
 It edits a [Klar.Rule](Klar.Rule.md) `Rule` and never sees your rows: the
 application runs the rule with `Rule.matches` and passes the number of matching
-rows with `matchCount`. Use it when users need the full power of nested "all
+rows with `matchCount`, as a [Klar.Remote](Klar.Remote.md). Use it when users need the full power of nested "all
 of" and "any of" groups. For a row of filter chips above a table,
 [Klar.FilterBar](Klar.FilterBar.md) is the lighter choice; both work on the same
 `Rule`.
 
+    import Klar.Remote as Remote
     import Klar.Rule as Rule
     import Klar.RuleBuilder as RuleBuilder
 
@@ -85,7 +94,7 @@ of" and "any of" groups. For a row of filter chips above a table,
     -- view
     RuleBuilder.view RulesMsg
         [ RuleBuilder.fields orderFields
-        , RuleBuilder.matchCount (Just (List.length matching))
+        , RuleBuilder.matchCount (Remote.Loaded (List.length matching))
         , RuleBuilder.today today
         , RuleBuilder.json
         ]
@@ -96,14 +105,17 @@ of" and "any of" groups. For a row of filter chips above a table,
         List.filter (Rule.matches today orderFields (RuleBuilder.rule model.rules)) model.orders
 
 `orderFields` is a `List (Rule.Field Order)` made with `Rule.textField` and
-friends. For a large data set the application can show `counting True` while it
-works out the count.
+friends. A count that takes time (a server, a large data set) is the `Remote` it
+is: `Loading` shows "Counting ...", `Remote.refresh` keeps the old count, dimmed,
+while the new one is on its way, and a failed count offers `onRetry`.
 
 **The outcome is yours.** A rule is only the condition: what happens when it
-matches (a discount, a tag, a route) is neither in `Rule` nor in the builder. For
-"if the category is X and the quantity is above Y, take Z off" keep one builder
-per outcome, next to the control for the outcome, in a list of your own, and ask
-each rule about the row:
+matches (a discount, a tag, a route) is neither in `Rule` nor in the builder. In a
+form, declare the pair as a row: `Spec.conditions` and the outcome's own field in
+one sub-form, `Spec.rows` around it, and the form adds, removes, saves and checks
+the pairs (see [`Klar.Form`](Klar.Form.md)). Outside a form, keep one record per rule,
+with a key that stays with it when others are removed, give each builder an id
+made from that key, and ask each rule about the row:
 
     import Klar.Date exposing (Date)
     import Klar.Rule as Rule
@@ -113,7 +125,10 @@ each rule about the row:
         { category : String, quantity : Int }
 
     type alias PriceRule =
-        { when : RuleBuilder.State, discountPercent : Float }
+        { key : Int
+        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
+        , discountPercent : Float
+        }
 
     orderFields : List (Rule.Field Order)
     orderFields =
@@ -129,22 +144,25 @@ each rule about the row:
             |> List.maximum
             |> Maybe.withDefault 0
 
-Each `PriceRule` has its own `RuleBuilder.init` id, and the message of its builder
-carries the index of the rule. Rules kept outside a `Klar.Form` report their
-problems into it with `Form.outside`.
+Draw the discount next to `RuleBuilder.view` in the same card; the message of each
+builder carries the key of its rule. Focus the first unfinished builder with
+`focusIssue`. Rules kept outside a `Klar.Form` report their problems into it with
+`Form.outside`.
 
 **Editors**: the field picker is a searchable [Klar.Select](Klar.Select.md),
 grouped by the heading given with `Rule.inGroup`; the operators come from
-`Rule.operatorsFor`. The value editor follows the field and the operator: a
+`Rule.fieldOperators` (the field's `Rule.withOperators`, or every operator that
+fits its kind). The value editor follows the field and the operator: a
 text input, a number input (read by `Rule.parseNumber`: a decimal comma or
 point and separators between the thousands, two inputs for "between"), a
 [Klar.DatePicker](Klar.DatePicker.md) (the operand is stored as ISO `YYYY-MM-DD`),
-a number of days for "in the last / next N days", a
-[Klar.Select](Klar.Select.md) for one choice and a
+a whole number of days for "in the last / next N days" and "more than N days
+ago / ahead", a select of periods for "is within" (this month, last quarter
+...), a [Klar.Select](Klar.Select.md) for one choice and a
 [Klar.MultiSelect](Klar.MultiSelect.md) for "is any of" and "is none of". Yes or
 no fields and "is empty" take no value.
 
-**Issues** (`Rule.validate`) are shown on the node that has them: a red line
+**Issues** (`Rule.validate`, one per node) are shown on the node that has them: a red line
 around the control and a short message. A node shows its issues once the user
 has tried to fill it in (typed, picked, or left a value field), so a fresh,
 empty condition is not red. `showIssues` shows every issue at once, for example
@@ -153,23 +171,6 @@ when the user tries to save. `issues` lists them for the application, and
 needs attention, so that a Save that finds an incomplete rule never leaves the
 user looking at a button. `focusId` is the DOM id of that control, for a
 `Form.Problem` that points into the builder: nothing is read from the page.
-
-**A rule with an outcome.** The builder only says _when_; what happens then (a
-discount, a label, a route) is the application's. In a form, declare it as a
-row: `Spec.conditions` and the outcome's own field in one sub-form, `Spec.rows`
-around it, and the form adds, removes, saves and checks the pairs (see
-[`Klar.Form`](Klar.Form.md)). Outside a form, keep one record per rule, with a number
-that stays with it when others are removed, and give each builder an id made from
-that number:
-
-    type alias PriceRule =
-        { key : Int
-        , when : RuleBuilder.State -- RuleBuilder.init ("price-rule-" ++ String.fromInt key)
-        , discount : Maybe Float
-        }
-
-Draw the discount next to `RuleBuilder.view` in the same card, and focus the
-first unfinished builder with `focusIssue`.
 
 **Keyboard**: every control is reached with `Tab`. The pickers open with
 `Enter`, `Space` or `ArrowDown` and search as you type; "All" and "Any" switch
@@ -263,8 +264,13 @@ setRule : Rule.Rule -> State -> State
 
 Replaces the rule, for example with a saved one. A rule that is a lone
 condition is put in a group, and the nodes are renumbered from 0 if the root
-does not have the id 0 or an id occurs twice. Collapsed groups and other state
-are kept for the nodes that still exist; an offer to undo is dropped.
+does not have the id 0 or an id occurs twice. An offer to undo is dropped.
+
+When the new rule says the same as the old one (the same conditions and groups,
+ids aside), collapsed groups, open pickers and the issues the user has already
+seen are kept. Another rule starts fresh: no node of it counts as touched, so
+its issues wait until the user works on it (or `showIssues`), and no group is
+collapsed.
 
 ### `clear`
 
@@ -298,14 +304,13 @@ successful save.
 ### `issues`
 
 ```elm
-issues : Locale.Locale -> List (Rule.Field row) -> State -> List Rule.Issue
+issues : Locale.Locale -> List (Rule.Field row) -> State -> List Rule.Problem
 ```
 
-Every issue the builder can show, for the fields given: the checks of
-`Rule.validate` and the two the builder adds (an operator that does not fit the
-field, a number of days that cannot be read). Each names the node it belongs to.
-It is what a form or a save button asks before it lets the rule through; the
-language is the one of the messages.
+Every issue the builder can show, for the fields given: `Rule.validate` of
+the rule, at most one for each node, in the order of the tree. Each names the
+node it belongs to. It is what a form or a save button asks before it lets the
+rule through; the language is the one of the messages.
 
     RuleBuilder.issues Locale.en orderFields model.rules
     -- [ { nodeId = 2, message = "Enter a valid number" } ]
@@ -397,13 +402,14 @@ default is 4, and values below 1 count as 1. Groups on the deepest level get no
 "Add group" button, and an imported rule that is deeper is refused. A rule that
 the application gives with `setRule` is shown as it is.
 
-### `label`
+### `ariaLabel`
 
 ```elm
-label : String -> Attribute row msg
+ariaLabel : String -> Attribute row msg
 ```
 
-The accessible name of the builder. The default is "Rule builder".
+The name of the builder for screen readers, when it has no visible `label`.
+The default is "Rule builder".
 
 ### `locale`
 
@@ -415,17 +421,87 @@ The language of the builder's own text: buttons, issue messages, the summary
 sentence. The default is `Locale.default`, which is `Locale.en`. Field labels and
 choices come from the application.
 
+## In a form
+
+A builder in a form has a visible label, a hint, a required mark and an error
+message, like the other fields; `Form.ruleBuilder` sets them from the declaration.
+Without a `label` the builder is named by `ariaLabel` alone.
+
+### `label`
+
+```elm
+label : String -> Attribute row msg
+```
+
+A visible label above the builder, as a form field has; it also names the
+builder for screen readers. The default is no label.
+
+### `hint`
+
+```elm
+hint : String -> Attribute row msg
+```
+
+A line of help under the label, read with the builder by screen readers.
+
+### `error`
+
+```elm
+error : String -> Attribute row msg
+```
+
+A problem with the rule as a whole, in red under the builder, such as "Add a
+condition" for a required rule. The problems of single conditions are the
+builder's own (see `issues`).
+
+### `errorMaybe`
+
+```elm
+errorMaybe : Maybe String -> Attribute row msg
+```
+
+Like `error`, with `Nothing` for no problem.
+
+### `required`
+
+```elm
+required : Attribute row msg
+```
+
+Marks the rule as required: a `*` after the label. The builder checks
+nothing itself.
+
+### `optionalText`
+
+```elm
+optionalText : String -> Attribute row msg
+```
+
+A text after the label of a rule that is not required, such as "(optional)".
+
 ## Match count
 
 ### `matchCount`
 
 ```elm
-matchCount : Maybe Int -> Attribute row msg
+matchCount : Remote.Remote Int -> Attribute row msg
 ```
 
-How many rows the rule matches, counted by the application (for example
-with `Rule.matches`). Shown next to the summary as "1,482 matches". `Nothing`,
-the default, shows no count.
+How many rows the rule matches, shown next to the summary as "1,482
+matches". Give `Remote.Loaded n` for a count you have (`Rule.matches`), or the
+`Remote` of a count that takes time:
+
+  - `Loading`: a spinner and "Counting ...".
+  - `Failed`: "The count failed", with a retry button when there is `onRetry`.
+  - Refreshing (`Remote.refresh` of a count): the old count stays, dimmed, with
+    a spinner.
+  - Old (`Remote.Kept` after a failed refresh): the old count, marked old, with
+    the retry.
+
+`NotAsked`, the default, shows no count. The count is in a polite live region, so
+a screen reader hears the new number.
+
+    RuleBuilder.matchCount (Remote.Loaded (List.length matching))
 
 ### `totalCount`
 
@@ -436,14 +512,14 @@ totalCount : Int -> Attribute row msg
 The number of rows before filtering. With a `matchCount` the count reads
 "1,482 of 3,000 matches". Without a `matchCount` nothing is shown.
 
-### `counting`
+### `onRetry`
 
 ```elm
-counting : Bool -> Attribute row msg
+onRetry : msg -> Attribute row msg
 ```
 
-While `True` the builder shows a spinner and "Running ..." instead of the
-count, for a large data set that takes time to filter. The default is `False`.
+The message of the retry button that a failed or old `matchCount` shows.
+Without it there is no retry button.
 
 ## Toolbar
 
@@ -454,7 +530,9 @@ json : Attribute row msg
 ```
 
 Adds a "Show JSON" button to the toolbar. It opens the rule as JSON
-(`Rule.encode`, indented) with a "Download" link that saves it as `rule.json`.
+(`Rule.encode`, indented) with a "Download" button that saves it as `rule.json`
+(`regel.json` in Norwegian) through `File.Download`, so `update` returns the
+command that does it.
 
 ### `importJson`
 

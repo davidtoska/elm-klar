@@ -45,11 +45,11 @@ Quick path: `init`, `update`, `view`, `rule`
     -- the presets are rules: "Status is Open" and "Total > 1000"
     unpaid : Rule.Rule
     unpaid =
-        Rule.ConditionRule { id = 0, field = "status", operator = Rule.Is, values = [ "open" ] }
+        Rule.is "status" "open"
 
     large : Rule.Rule
     large =
-        Rule.ConditionRule { id = 0, field = "total", operator = Rule.GreaterThan, values = [ "1000" ] }
+        Rule.when "total" Rule.GreaterThan [ "1000" ]
 
 `orderFields` is a `List (Rule.Field Order)` made with `Rule.textField` and
 friends. A count that takes time (a server, a large data set) is the `Remote` it

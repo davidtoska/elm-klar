@@ -4489,6 +4489,7 @@
         "Klar.FilterBar",
         "Klar.Form",
         "Klar.MultiSelect",
+        "Klar.Remote",
         "Klar.Rule"
       ],
       "keywords": [
