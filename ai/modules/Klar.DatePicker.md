@@ -10,7 +10,7 @@ Types: `Msg`, `State`, `Attribute`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -19,49 +19,50 @@ init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 
 -- The date
-date : State -> Maybe Date.Date
-isInvalid : State -> Bool
+value : State -> Maybe Date.Date
+isValid : State -> Bool
 text : State -> String
-setDate : Maybe Date.Date -> State -> State
+setValue : Maybe Date.Date -> State -> State
 clear : State -> State
 setText : String -> State -> State
-validate : List Attribute -> State -> State
+setLimits : List (Attribute msg) -> State -> State
 
 -- The calendar popup
 isOpen : State -> Bool
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
 visibleMonth : State -> { year : Int, month : Int }
 
 -- Limits and today
-type Attribute  -- opaque: no constructors are exposed
-today : Date.Date -> Attribute
-min : Date.Date -> Attribute
-max : Date.Date -> Attribute
-disabledWhen : (Date.Date -> Bool) -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+today : Date.Date -> Attribute msg
+min : Date.Date -> Attribute msg
+max : Date.Date -> Attribute msg
+disabledWhen : (Date.Date -> Bool) -> Attribute msg
 
 -- Calendar
-markers : List Calendar.Marker -> Attribute
-weekNumbers : Attribute
-alignEnd : Attribute
+markers : List Calendar.Marker -> Attribute msg
+weekNumbers : Attribute msg
+alignEnd : Attribute msg
 
 -- Label, hint and error
-label : String -> Attribute
-labelHidden : Attribute
-hint : String -> Attribute
-error : String -> Attribute
-errorMaybe : Maybe String -> Attribute
-required : Attribute
-optionalText : String -> Attribute
+label : String -> Attribute msg
+labelHidden : Attribute msg
+hint : String -> Attribute msg
+error : String -> Attribute msg
+errorMaybe : Maybe String -> Attribute msg
+invalid : Bool -> Attribute msg
+required : Attribute msg
+optionalText : String -> Attribute msg
 
 -- Look and behavior
-placeholder : String -> Attribute
-size : Theme.Size -> Attribute
-locale : Locale.Locale -> Attribute
-disabled : Bool -> Attribute
-readOnly : Bool -> Attribute
-clearable : Attribute
-name : String -> Attribute
+placeholder : String -> Attribute msg
+size : Theme.Size -> Attribute msg
+locale : Locale.Locale -> Attribute msg
+disabled : Bool -> Attribute msg
+readOnly : Bool -> Attribute msg
+clearable : Attribute msg
+name : String -> Attribute msg
 ```
 
 ## Documentation
@@ -70,7 +71,7 @@ A date field: type the date or pick it in a calendar.
 
 Use when: the user enters one date in a form (a due date, a delivery date).
 Do not use when: the user chooses a period (as `Klar.DateRangePicker`), a date with a time of day (as `Klar.DateTimePicker`) or the calendar should always be visible (as `Klar.Calendar`).
-Quick path: `init`, `update`, `view`, `date`
+Quick path: `init`, `update`, `view`, `value`
 
 See also [Klar.DateRangePicker](Klar.DateRangePicker.md),
 [Klar.DateTimePicker](Klar.DateTimePicker.md) and [Klar.Calendar](Klar.Calendar.md).
@@ -83,6 +84,11 @@ See also [Klar.DateRangePicker](Klar.DateRangePicker.md),
     -- msg
     DueDateMsg DatePicker.Msg
 
+    -- the limits of the field, in one place: view and setLimits use the same list
+    dueDateLimits : Date -> List (DatePicker.Attribute msg)
+    dueDateLimits today =
+        [ DatePicker.today today, DatePicker.min today ]
+
     -- update
     DueDateMsg m ->
         let
@@ -91,30 +97,40 @@ See also [Klar.DateRangePicker](Klar.DateRangePicker.md),
         in
         ( { model | dueDate = dueDate }, Cmd.map DueDateMsg cmd )
 
+    Submitted ->
+        let
+            dueDate =
+                DatePicker.setLimits (dueDateLimits model.today) model.dueDate
+        in
+        if DatePicker.isValid dueDate then
+            save (DatePicker.value dueDate) { model | dueDate = dueDate }
+
+        else
+            ( { model | dueDate = dueDate }, Cmd.none )
+
     -- view
     DatePicker.view DueDateMsg
-        [ DatePicker.label "Due date"
-        , DatePicker.today model.today
-        , DatePicker.min model.today
-        , DatePicker.clearable
-        ]
+        (dueDateLimits model.today
+            ++ [ DatePicker.label "Due date", DatePicker.clearable ]
+        )
         model.dueDate
 
     -- read
-    DatePicker.date model.dueDate   -- Maybe Date
+    DatePicker.value model.dueDate   -- Maybe Date
 
 Here `model.today` is a [Klar.Date](Klar.Date.md) value that the application keeps.
 The library never reads the clock: get the time with `Time.now` and turn it into
-a date with `Date.fromPosix`.
+a date with `Date.fromPosix`. Every real field needs `today`: without it the
+"Today" button and the short forms (`t`, `+3`, `20.10`) are missing.
 
 The state holds the chosen date, and there are no out-messages: compare
-`DatePicker.date` before and after `update` to react to a change. The date is
+`DatePicker.value` before and after `update` to react to a change. The date is
 accepted when the user leaves the field, presses `Enter`, types a complete
-date, or picks a day. Until then `date` keeps the last accepted value. When the
-text cannot be read, `date` is `Nothing`, `isInvalid` is `True`, and the field
+date, or picks a day. Until then `value` keeps the last accepted date. When the
+text cannot be read, `value` is `Nothing`, `isValid` is `False`, and the field
 shows a message such as "Invalid date" or "The date cannot be before
 2026-01-01". That message replaces an `error` of your own for as long as it
-lasts. A form should call `validate` when it is submitted, because the user may
+lasts. A form should call `setLimits` when it is submitted, because the user may
 never have left the field.
 
 Typed dates are read leniently. With the default English locale the field shows
@@ -154,7 +170,7 @@ messages, month and weekday names) comes from `locale`; the default is English.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 ```
 
 The field: a text input with a calendar button, and the calendar popup while
@@ -174,7 +190,7 @@ type State  -- opaque: no constructors are exposed
 
 The state of one date field: the accepted date, any text that is still
 being typed, whether the calendar is open, and the calendar itself. Make it with
-`init`, keep it in your model, and read it with `date`, `text` and `isInvalid`.
+`init`, keep it in your model, and read it with `value`, `text` and `isValid`.
 
 ### `Msg`
 
@@ -184,6 +200,10 @@ type Msg  -- opaque: no constructors are exposed
 
 The messages of a date field. Wrap them in one constructor of your own `Msg`,
 give that constructor to `view`, and pass what comes back to `update`.
+
+A message holds plain data only (the view reads the text with the field's
+rules and sends what it found), so messages can be compared with `==`, logged
+and kept in the history of the Elm debugger.
 
 ### `init`
 
@@ -216,29 +236,31 @@ the browser focus. Map the command with the constructor of your own `Msg`.
 
 ## The date
 
-### `date`
+### `value`
 
 ```elm
-date : State -> Maybe Date.Date
+value : State -> Maybe Date.Date
 ```
 
 The accepted date, or `Nothing` when the field is empty or its text could not
 be read. While the user is typing it keeps the previous value until the text is
 complete or confirmed (see the module documentation).
 
-### `isInvalid`
+### `isValid`
 
 ```elm
-isInvalid : State -> Bool
+isValid : State -> Bool
 ```
 
-`True` when the last attempt to read the field failed: the text is not a
+`False` when the last attempt to read the field failed: the text is not a
 date, the date is outside `min` and `max`, or the day is excluded by
-`disabledWhen`. The field then shows the matching message.
+`disabledWhen`. The field then shows the matching message. An empty field is
+valid; whether a date is required is for the application to say.
 
-Text is only tried when it looks complete (ten characters, such as `2026-10-20`
-or `20.10.2026`), when the user leaves the field or presses `Enter`, and when
-you call `validate`, so call `validate` first when you check this on submit.
+Text is only tried when it is complete (a day, a month and a four-digit year,
+such as `1.2.2026`, `20.10.2026` or `2026-10-20`), when the user leaves the
+field or presses `Enter`, and when you call `setLimits`, so call `setLimits`
+first when you check this on submit.
 
 ### `text`
 
@@ -248,21 +270,21 @@ text : State -> String
 
 The text in the field that has not been replaced by the formatted date yet:
 text the user is still typing, or text that could not be read. Together with
-`date` it tells an empty field from garbage: `date == Nothing && text /= ""`
-means there is text that is not a date (yet). Use `isInvalid` to ask whether the
+`value` it tells an empty field from garbage: `value == Nothing && text /= ""`
+means there is text that is not a date (yet). Use `isValid` to ask whether the
 text was tried and rejected.
 
-### `setDate`
+### `setValue`
 
 ```elm
-setDate : Maybe Date.Date -> State -> State
+setValue : Maybe Date.Date -> State -> State
 ```
 
 Sets the date, or empties the field with `Nothing`. The field shows the
 date formatted for the locale; text that was being typed is dropped. The date is
-not checked against `min`, `max` or `disabledWhen`.
+not checked against `min`, `max` or `disabledWhen` until `setLimits` is called.
 
-    DatePicker.setDate (Just invoice.dueDate) model.dueDate
+    DatePicker.setValue (Just invoice.dueDate) model.dueDate
 
 ### `clear`
 
@@ -270,7 +292,7 @@ not checked against `min`, `max` or `disabledWhen`.
 clear : State -> State
 ```
 
-Empties the field. The same as `setDate Nothing`.
+Empties the field. The same as `setValue Nothing`.
 
 ### `setText`
 
@@ -279,25 +301,29 @@ setText : String -> State -> State
 ```
 
 Fills the field with text as if the user had typed it. The text is read when
-the user leaves the field or presses `Enter`, or when you call `validate`; until
-then `date` keeps its old value.
+the user leaves the field or presses `Enter`, or when you call `setLimits`; until
+then `value` keeps its old date.
 
     DatePicker.setText "2026-10-20" model.dueDate
 
-### `validate`
+### `setLimits`
 
 ```elm
-validate : List Attribute -> State -> State
+setLimits : List (Attribute msg) -> State -> State
 ```
 
-Reads the pending text now, as if the user had left the field: readable text
-becomes the date and is shown formatted, text that cannot be read sets the
-problem that `isInvalid` reports. Pass the same attributes as to `view`, because
-`today`, the limits and the locale decide what is valid.
+Reads the field again with the limits of these attributes, as if the user
+had left it: pending text that can be read becomes the date and is shown
+formatted, and text that cannot sets the problem that `isValid` reports. A date
+that was accepted before (or set with `setValue`) and that the limits no longer
+allow keeps its text in the field, with the message, and `value` becomes
+`Nothing`; it is never moved into the limits. Pass the same attributes as to
+`view`, because `today`, the limits and the locale decide what is valid.
 
-Use it when a form is submitted: the user may never have left the field.
+Use it when a form is submitted, since the user may never have left the field,
+and after the limits change (a `min` that follows another field).
 
-    DatePicker.validate attributes model.dueDate
+    DatePicker.setLimits (dueDateLimits model.today) model.dueDate
 
 ## The calendar popup
 
@@ -313,13 +339,13 @@ isOpen : State -> Bool
 ### `open`
 
 ```elm
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 ```
 
 Opens the calendar and moves the focus into it, after reading any pending
 text. It opens on the chosen date, or else on the day given with `today`, kept
 inside `min` and `max`. Pass the same attributes as to `view`: the limits come
-from them.
+from them. A field that is `disabled` or `readOnly` stays closed.
 
 ### `close`
 
@@ -346,16 +372,16 @@ meaningful once the calendar has been opened; before that it is a placeholder.
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of a date field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 
 ### `today`
 
 ```elm
-today : Date.Date -> Attribute
+today : Date.Date -> Attribute msg
 ```
 
 Today, supplied by the application (the library never reads the clock). It
@@ -370,7 +396,7 @@ empty field opens its calendar on January 2000 (or on the nearest month inside
 ### `min`
 
 ```elm
-min : Date.Date -> Attribute
+min : Date.Date -> Attribute msg
 ```
 
 The earliest date that can be chosen or typed. A typed date before it shows
@@ -380,7 +406,7 @@ earlier days. Default: no limit.
 ### `max`
 
 ```elm
-max : Date.Date -> Attribute
+max : Date.Date -> Attribute msg
 ```
 
 The latest date that can be chosen or typed. A typed date after it shows
@@ -390,7 +416,7 @@ later days. Default: no limit.
 ### `disabledWhen`
 
 ```elm
-disabledWhen : (Date.Date -> Bool) -> Attribute
+disabledWhen : (Date.Date -> Bool) -> Attribute msg
 ```
 
 Dates that cannot be used, such as weekends or public holidays. The
@@ -404,7 +430,7 @@ Default: every date is allowed.
 ### `markers`
 
 ```elm
-markers : List Calendar.Marker -> Attribute
+markers : List Calendar.Marker -> Attribute msg
 ```
 
 Marks on days in the calendar, such as deliveries or deadlines. Make them
@@ -414,7 +440,7 @@ Default: none.
 ### `weekNumbers`
 
 ```elm
-weekNumbers : Attribute
+weekNumbers : Attribute msg
 ```
 
 Shows ISO 8601 week numbers in the calendar. Default: off.
@@ -422,7 +448,7 @@ Shows ISO 8601 week numbers in the calendar. Default: off.
 ### `alignEnd`
 
 ```elm
-alignEnd : Attribute
+alignEnd : Attribute msg
 ```
 
 Aligns the right edge of the calendar popup with the right edge of the
@@ -434,7 +460,7 @@ page, so that the popup does not run out of the window.
 ### `label`
 
 ```elm
-label : String -> Attribute
+label : String -> Attribute msg
 ```
 
 The label above the field, tied to the text input. Give every field a label,
@@ -443,7 +469,7 @@ or hide it with `labelHidden`: it is the name that screen readers announce.
 ### `labelHidden`
 
 ```elm
-labelHidden : Attribute
+labelHidden : Attribute msg
 ```
 
 Keeps the label for screen readers but does not show it, for a field in a
@@ -452,7 +478,7 @@ toolbar or a table row. Needs `label`.
 ### `hint`
 
 ```elm
-hint : String -> Attribute
+hint : String -> Attribute msg
 ```
 
 A short help text below the field. It is linked to the input with
@@ -461,7 +487,7 @@ A short help text below the field. It is linked to the input with
 ### `error`
 
 ```elm
-error : String -> Attribute
+error : String -> Attribute msg
 ```
 
 An error message from your application, shown below the field and announced
@@ -474,7 +500,7 @@ text ("Invalid date"), that message is shown instead.
 ### `errorMaybe`
 
 ```elm
-errorMaybe : Maybe String -> Attribute
+errorMaybe : Maybe String -> Attribute msg
 ```
 
 Like `error`, but takes a `Maybe`: `Nothing` means no error. Convenient when
@@ -482,20 +508,32 @@ the message lives in a `Maybe` in your model.
 
     DatePicker.errorMaybe model.dueDateError
 
+### `invalid`
+
+```elm
+invalid : Bool -> Attribute msg
+```
+
+Marks the field as invalid without a message of its own: `aria-invalid` on the
+input and the red border. For a field whose message is shown somewhere else, such
+as below a group of fields or in a summary of the form; to show a message below
+the field, use `error`. Takes a `Bool` so that it can come from your model.
+Default: `False`.
+
 ### `required`
 
 ```elm
-required : Attribute
+required : Attribute msg
 ```
 
 Marks the field as required: an asterisk after the label, and
 `aria-required` on the input. The picker does not enforce it; when the date is
-missing, test `date` for `Nothing` yourself and pass an `error`.
+missing, test `value` for `Nothing` yourself and pass an `error`.
 
 ### `optionalText`
 
 ```elm
-optionalText : String -> Attribute
+optionalText : String -> Attribute msg
 ```
 
 Text shown after the label of a field that is not `required`, such as
@@ -506,7 +544,7 @@ Text shown after the label of a field that is not `required`, such as
 ### `placeholder`
 
 ```elm
-placeholder : String -> Attribute
+placeholder : String -> Attribute msg
 ```
 
 The text shown in the empty field. Default: the format hint of the locale,
@@ -515,7 +553,7 @@ The text shown in the empty field. Default: the format hint of the locale,
 ### `size`
 
 ```elm
-size : Theme.Size -> Attribute
+size : Theme.Size -> Attribute msg
 ```
 
 The size of the field, a `Size` from [Klar.Theme](Klar.Theme.md).
@@ -524,7 +562,7 @@ Default: `Medium`.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text (placeholder, button labels, error
@@ -536,7 +574,7 @@ order is tried first for digits-only input such as `20102026`. The default is
 ### `disabled`
 
 ```elm
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 ```
 
 Disables the field and its calendar button: the text cannot be focused or
@@ -546,7 +584,7 @@ straight from your model, for example while a form is saving. Default: `False`.
 ### `readOnly`
 
 ```elm
-readOnly : Bool -> Attribute
+readOnly : Bool -> Attribute msg
 ```
 
 The date can be seen, selected and copied but not changed, and the calendar
@@ -556,7 +594,7 @@ does not open. Unlike `disabled`, the field can still be focused. Default:
 ### `clearable`
 
 ```elm
-clearable : Attribute
+clearable : Attribute msg
 ```
 
 Shows a small × button in the field while it has text; it empties the field
@@ -566,7 +604,7 @@ accessible name is "Clear field". Default: no button.
 ### `name`
 
 ```elm
-name : String -> Attribute
+name : String -> Attribute msg
 ```
 
 The `name` attribute of the text input, for a plain HTML `form`. The value

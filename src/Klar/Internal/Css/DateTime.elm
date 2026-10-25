@@ -482,14 +482,19 @@ css =
   width: 100%;
 }
 
-.klar-datepicker__button {
+/* The button that opens the popup, at the end of the field: the calendar
+   button of the date and period fields and the clock button of the time field. */
+
+.klar-datepicker__button,
+.klar-daterange__button,
+.klar-timepicker__button {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin-right: -4px;
+  margin-inline-end: -4px;
   padding: 0;
   border: 0;
   border-radius: var(--klar-radius);
@@ -497,18 +502,24 @@ css =
   color: var(--klar-text-secondary);
 }
 
-.klar-datepicker__button:hover {
+.klar-datepicker__button:hover,
+.klar-daterange__button:hover,
+.klar-timepicker__button:hover {
   background: var(--klar-gray-100);
   color: var(--klar-text);
 }
 
-.klar-datepicker__button:disabled {
+.klar-datepicker__button:disabled,
+.klar-daterange__button:disabled,
+.klar-timepicker__button:disabled {
   color: var(--klar-text-disabled);
   background: transparent;
   cursor: not-allowed;
 }
 
-.klar-datepicker__button:focus-visible {
+.klar-datepicker__button:focus-visible,
+.klar-daterange__button:focus-visible,
+.klar-timepicker__button:focus-visible {
   outline: 2px solid var(--klar-focus-color);
   outline-offset: -1px;
 }
@@ -572,9 +583,10 @@ css =
   flex-direction: column;
   gap: 2px;
   padding: var(--klar-space-2);
-  border-right: 1px solid var(--klar-border);
+  border-inline-end: 1px solid var(--klar-border);
   background: var(--klar-surface-subtle);
-  border-radius: var(--klar-radius-lg) 0 0 var(--klar-radius-lg);
+  border-start-start-radius: var(--klar-radius-lg);
+  border-end-start-radius: var(--klar-radius-lg);
 }
 
 .klar-daterange__presets .klar-button {
@@ -610,6 +622,16 @@ css =
   color: var(--klar-text-secondary);
   font-size: var(--klar-text-sm);
   font-variant-numeric: tabular-nums;
+}
+
+/* The pressed quick choice is shown by its background, which forced colors
+   remove: give it an edge. */
+
+@media (forced-colors: active) {
+  .klar-daterange__presets .klar-button[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 /* ---- Time picker ----------------------------------------------------- */
@@ -797,7 +819,7 @@ css =
     flex: none;
     flex-direction: row;
     flex-wrap: wrap;
-    border-right: 0;
+    border-inline-end: 0;
     border-bottom: 1px solid var(--klar-border);
     border-radius: var(--klar-radius-lg) var(--klar-radius-lg) 0 0;
   }

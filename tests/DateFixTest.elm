@@ -112,8 +112,8 @@ timeRecord =
         , test "the time of a time field is that record" <|
             \_ ->
                 TimePicker.init "cutoff"
-                    |> TimePicker.setTime (Just { hour = 8, minute = 5 })
-                    |> TimePicker.time
+                    |> TimePicker.setValue (Just { hour = 8, minute = 5 })
+                    |> TimePicker.value
                     |> Expect.equal (Just { hour = 8, minute = 5 })
         , test "a date and time is made of the two plain records" <|
             \_ ->
@@ -123,8 +123,8 @@ timeRecord =
                         { date = date 2026 10 20, time = { hour = 14, minute = 30 } }
                 in
                 DateTimePicker.init "pickup"
-                    |> DateTimePicker.setDateTime (Just pickup)
-                    |> DateTimePicker.dateTime
+                    |> DateTimePicker.setValue (Just pickup)
+                    |> DateTimePicker.value
                     |> Expect.equal (Just pickup)
         ]
 
@@ -139,14 +139,14 @@ type PeriodMsg
 
 {-| The field with its popup open, for these attributes.
 -}
-openPeriod : List DateRangePicker.Attribute -> DateRangePicker.State
+openPeriod : List (DateRangePicker.Attribute msg) -> DateRangePicker.State
 openPeriod attributes =
     DateRangePicker.init "period"
         |> DateRangePicker.open attributes
         |> Tuple.first
 
 
-periodView : List DateRangePicker.Attribute -> DateRangePicker.State -> Html PeriodMsg
+periodView : List (DateRangePicker.Attribute PeriodMsg) -> DateRangePicker.State -> Html PeriodMsg
 periodView attributes state =
     DateRangePicker.view PickerMsg attributes state
 
@@ -160,7 +160,7 @@ quickChoice label =
 
 {-| Press the quick choice and read the period that the field then holds.
 -}
-pick : String -> List DateRangePicker.Attribute -> Result String String
+pick : String -> List (DateRangePicker.Attribute PeriodMsg) -> Result String String
 pick label attributes =
     let
         state =
@@ -173,7 +173,7 @@ pick label attributes =
         |> Event.toResult
         |> Result.map
             (\(PickerMsg message) ->
-                case DateRangePicker.range (Tuple.first (DateRangePicker.update message state)) of
+                case DateRangePicker.value (Tuple.first (DateRangePicker.update message state)) of
                     Just ( from, to ) ->
                         Date.toIso from ++ " .. " ++ Date.toIso to
 
@@ -184,7 +184,7 @@ pick label attributes =
 
 {-| The quick choice is there, dimmed, says why in its tooltip, and sends nothing.
 -}
-dimmedWith : String -> String -> List DateRangePicker.Attribute -> Expectation
+dimmedWith : String -> String -> List (DateRangePicker.Attribute PeriodMsg) -> Expectation
 dimmedWith label reason attributes =
     allOf
         [ periodView attributes (openPeriod attributes)
@@ -200,7 +200,7 @@ dimmedWith label reason attributes =
         ]
 
 
-notDimmed : String -> List DateRangePicker.Attribute -> Expectation
+notDimmed : String -> List (DateRangePicker.Attribute PeriodMsg) -> Expectation
 notDimmed label attributes =
     periodView attributes (openPeriod attributes)
         |> Query.fromHtml
@@ -210,7 +210,7 @@ notDimmed label attributes =
 
 standardChoices : List String
 standardChoices =
-    [ "Today", "Last 7 days", "Last 30 days", "This month", "Last month", "This year" ]
+    [ "Today", "Last 7 days", "Last 30 days", "This week", "This month", "Last month", "This quarter", "Last quarter", "This year" ]
 
 
 wednesday : Date
@@ -223,7 +223,7 @@ sunday =
     date 2026 11 8
 
 
-weekdaysOnly : List DateRangePicker.Attribute
+weekdaysOnly : List (DateRangePicker.Attribute msg)
 weekdaysOnly =
     [ DateRangePicker.today wednesday, DateRangePicker.disabledWhen isWeekend ]
 
@@ -259,7 +259,19 @@ withoutDisabledDays =
             \_ -> Expect.equal (Ok "2026-10-01 .. 2026-10-31") (pick "Last month" attributes)
         , test "This year" <|
             \_ -> Expect.equal (Ok "2026-01-01 .. 2026-12-31") (pick "This year" attributes)
-        , test "none of the six is dimmed" <|
+        , test "This week: Monday to Sunday" <|
+            \_ -> Expect.equal (Ok "2026-11-02 .. 2026-11-08") (pick "This week" attributes)
+        , test "This quarter" <|
+            \_ -> Expect.equal (Ok "2026-10-01 .. 2026-12-31") (pick "This quarter" attributes)
+        , test "Last quarter" <|
+            \_ -> Expect.equal (Ok "2026-07-01 .. 2026-09-30") (pick "Last quarter" attributes)
+        , test "Last quarter in the first quarter is the last quarter of the year before" <|
+            \_ -> Expect.equal (Ok "2025-10-01 .. 2025-12-31") (pick "Last quarter" [ DateRangePicker.today (date 2026 2 10) ])
+        , test "the Norwegian names" <|
+            \_ ->
+                Expect.equal (Ok "2026-11-02 .. 2026-11-08")
+                    (pick "Denne uken" [ DateRangePicker.today wednesday, DateRangePicker.locale Locale.nb ])
+        , test "none of the nine is dimmed" <|
             \_ -> allOf (List.map (\label -> notDimmed label attributes) standardChoices)
         ]
 
@@ -292,8 +304,8 @@ cutInward =
                                     [ from, to ] ->
                                         DateRangePicker.init "period"
                                             |> DateRangePicker.setText { from = from, to = to }
-                                            |> DateRangePicker.validate weekdaysOnly
-                                            |> DateRangePicker.isInvalid
+                                            |> DateRangePicker.setLimits weekdaysOnly
+                                            |> (not << DateRangePicker.isValid)
                                             |> not
 
                                     _ ->
@@ -307,8 +319,8 @@ cutInward =
             \_ ->
                 DateRangePicker.init "period"
                     |> DateRangePicker.setText { from = "2026-11-01", to = "2026-11-30" }
-                    |> DateRangePicker.validate weekdaysOnly
-                    |> DateRangePicker.isInvalid
+                    |> DateRangePicker.setLimits weekdaysOnly
+                    |> (not << DateRangePicker.isValid)
                     |> Expect.equal True
         ]
 
@@ -350,7 +362,7 @@ dimmedChoices =
                 dimmedWith "Today"
                     "The date is not available"
                     [ DateRangePicker.today sunday, DateRangePicker.disabledWhen isWeekend ]
-        , test "every day disabled: all six are dimmed" <|
+        , test "every day disabled: all nine are dimmed" <|
             \_ ->
                 let
                     attributes =
@@ -397,9 +409,6 @@ customChoices =
     let
         sprint =
             DateRangePicker.preset "Sprint" (date 2026 11 1) (date 2026 11 9)
-
-        reversed =
-            { label = "Reversed", from = date 2026 11 9, to = date 2026 11 2 }
     in
     describe "custom quick choices"
         [ test "they are offered without today and follow the same rules" <|
@@ -413,10 +422,10 @@ customChoices =
         , test "preset puts the two days in order" <|
             \_ ->
                 Expect.equal sprint (DateRangePicker.preset "Sprint" (date 2026 11 9) (date 2026 11 1))
-        , test "a record with the days the wrong way round is read in order" <|
+        , test "a preset made with the days the wrong way round is read in order" <|
             \_ ->
                 Expect.equal (Ok "2026-11-02 .. 2026-11-09")
-                    (pick "Reversed" [ DateRangePicker.presets [ reversed ] ])
+                    (pick "Reversed" [ DateRangePicker.presets [ DateRangePicker.preset "Reversed" (date 2026 11 9) (date 2026 11 2) ] ])
         , test "noPresets draws no list" <|
             \_ ->
                 let
@@ -470,7 +479,7 @@ pressedChoice =
 -- DATE AND TIME: ACCESSIBILITY
 
 
-pickupView : List DateTimePicker.Attribute -> Query.Single DateTimePicker.Msg
+pickupView : List (DateTimePicker.Attribute DateTimePicker.Msg) -> Query.Single DateTimePicker.Msg
 pickupView attributes =
     DateTimePicker.view identity attributes (DateTimePicker.init "pickup")
         |> Query.fromHtml
@@ -584,7 +593,7 @@ dateTimeAccessibility =
 
 {-| The control drawn for this state: the query to look into it.
 -}
-pickupFor : List DateTimePicker.Attribute -> DateTimePicker.State -> Query.Single DateTimePicker.Msg
+pickupFor : List (DateTimePicker.Attribute DateTimePicker.Msg) -> DateTimePicker.State -> Query.Single DateTimePicker.Msg
 pickupFor attributes state =
     DateTimePicker.view identity attributes state
         |> Query.fromHtml
@@ -611,7 +620,7 @@ dateTimeText =
             DateTimePicker.init "pickup" |> DateTimePicker.setText texts
 
         read texts =
-            typed texts |> DateTimePicker.validate attributes
+            typed texts |> DateTimePicker.setLimits attributes
 
         afternoon =
             { date = today, time = { hour = 14, minute = 30 } }
@@ -626,11 +635,11 @@ dateTimeText =
         , test "setText only fills the inputs: dateTime keeps its old value until the text is read" <|
             \_ ->
                 Expect.equal [ Nothing, Just afternoon ]
-                    [ DateTimePicker.dateTime (typed { date = "2026-10-20", time = "14:30" })
+                    [ DateTimePicker.value (typed { date = "2026-10-20", time = "14:30" })
                     , DateTimePicker.init "pickup"
-                        |> DateTimePicker.setDateTime (Just afternoon)
+                        |> DateTimePicker.setValue (Just afternoon)
                         |> DateTimePicker.setText { date = "2026-10-21", time = "15:00" }
-                        |> DateTimePicker.dateTime
+                        |> DateTimePicker.value
                     ]
         , test "validate reads both texts" <|
             \_ ->
@@ -639,12 +648,12 @@ dateTimeText =
                         state =
                             read { date = "2026-10-20", time = "14:30" }
                      in
-                     ( DateTimePicker.dateTime state, DateTimePicker.isInvalid state )
+                     ( DateTimePicker.value state, (not << DateTimePicker.isValid) state )
                     )
         , test "validate reads the short forms like the fields do (today, a time without a colon)" <|
             \_ ->
                 Expect.equal (Just { date = today, time = { hour = 9, minute = 30 } })
-                    (DateTimePicker.dateTime (read { date = "t", time = "930" }))
+                    (DateTimePicker.value (read { date = "t", time = "930" }))
         , test "what is read is no longer pending text" <|
             \_ ->
                 Expect.equal noText (DateTimePicker.text (read { date = "20.10.2026", time = "1430" }))
@@ -664,7 +673,7 @@ dateTimeText =
                     norwegian =
                         DateTimePicker.locale Locale.nb :: attributes
                 in
-                pickupFor norwegian (typed { date = "2026-10-20", time = "14:30" } |> DateTimePicker.validate norwegian)
+                pickupFor norwegian (typed { date = "2026-10-20", time = "14:30" } |> DateTimePicker.setLimits norwegian)
                     |> Query.find [ Selector.id "pickup-date" ]
                     |> Query.has [ Selector.attribute (Attr.value "20.10.2026") ]
         , test "a date that is not a date: invalid, no value, the text stays and the date field says so" <|
@@ -674,7 +683,7 @@ dateTimeText =
                         read { date = "garbage", time = "14:30" }
                 in
                 allOf
-                    [ Expect.equal ( True, Nothing ) ( DateTimePicker.isInvalid state, DateTimePicker.dateTime state )
+                    [ Expect.equal ( True, Nothing ) ( (not << DateTimePicker.isValid) state, DateTimePicker.value state )
                     , Expect.equal { date = "garbage", time = "" } (DateTimePicker.text state)
                     , pickupFor attributes state |> Query.has [ Selector.text "Invalid date" ]
                     ]
@@ -685,7 +694,7 @@ dateTimeText =
                         read { date = "2026-10-20", time = "25:00" }
                 in
                 allOf
-                    [ Expect.equal ( True, Nothing ) ( DateTimePicker.isInvalid state, DateTimePicker.dateTime state )
+                    [ Expect.equal ( True, Nothing ) ( (not << DateTimePicker.isValid) state, DateTimePicker.value state )
                     , Expect.equal { date = "", time = "25:00" } (DateTimePicker.text state)
                     , pickupFor attributes state |> Query.has [ Selector.text "Invalid time" ]
                     ]
@@ -699,7 +708,7 @@ dateTimeText =
                         read { date = "2026-10-20", time = "16:30" }
                 in
                 allOf
-                    [ Expect.equal [ True, True ] [ DateTimePicker.isInvalid early, DateTimePicker.isInvalid late ]
+                    [ Expect.equal [ True, True ] [ (not << DateTimePicker.isValid) early, (not << DateTimePicker.isValid) late ]
                     , pickupFor attributes early |> Query.has [ Selector.text "The time cannot be before 08:00" ]
                     , pickupFor attributes late |> Query.has [ Selector.text "The time cannot be after 16:00" ]
                     ]
@@ -714,8 +723,8 @@ dateTimeText =
 
                     invalid text =
                         typed { date = text, time = "10:00" }
-                            |> DateTimePicker.validate limited
-                            |> DateTimePicker.isInvalid
+                            |> DateTimePicker.setLimits limited
+                            |> (not << DateTimePicker.isValid)
                 in
                 Expect.equal [ True, True, True, False ]
                     [ invalid "2026-09-30", invalid "2026-11-01", invalid "2026-10-31", invalid "2026-10-30" ]
@@ -726,31 +735,31 @@ dateTimeText =
                         typed { date = "t", time = "10:00" }
                 in
                 Expect.equal [ True, False ]
-                    [ DateTimePicker.isInvalid (DateTimePicker.validate [] state)
-                    , DateTimePicker.isInvalid (DateTimePicker.validate [ DateTimePicker.today today ] state)
+                    [ (not << DateTimePicker.isValid) (DateTimePicker.setLimits [] state)
+                    , (not << DateTimePicker.isValid) (DateTimePicker.setLimits [ DateTimePicker.today today ] state)
                     ]
         , test "a part without pending text is left as it is" <|
             \_ ->
                 DateTimePicker.init "pickup"
-                    |> DateTimePicker.setDateTime (Just afternoon)
-                    |> DateTimePicker.validate attributes
-                    |> DateTimePicker.dateTime
+                    |> DateTimePicker.setValue (Just afternoon)
+                    |> DateTimePicker.setLimits attributes
+                    |> DateTimePicker.value
                     |> Expect.equal (Just afternoon)
         , test "validate on an empty control leaves it empty and valid" <|
             \_ ->
                 let
                     state =
-                        DateTimePicker.validate attributes (DateTimePicker.init "pickup")
+                        DateTimePicker.setLimits attributes (DateTimePicker.init "pickup")
                 in
                 Expect.equal ( Nothing, False, noText )
-                    ( DateTimePicker.dateTime state, DateTimePicker.isInvalid state, DateTimePicker.text state )
+                    ( DateTimePicker.value state, (not << DateTimePicker.isValid) state, DateTimePicker.text state )
         , test "blank texts empty the control" <|
             \_ ->
                 DateTimePicker.init "pickup"
-                    |> DateTimePicker.setDateTime (Just afternoon)
+                    |> DateTimePicker.setValue (Just afternoon)
                     |> DateTimePicker.setText { date = "", time = "" }
-                    |> DateTimePicker.validate attributes
-                    |> DateTimePicker.dateTime
+                    |> DateTimePicker.setLimits attributes
+                    |> DateTimePicker.value
                     |> Expect.equal Nothing
         , test "the date part is read even when the time part is not, and the other way round" <|
             \_ ->
@@ -759,7 +768,7 @@ dateTimeText =
                         read { date = "2026-10-20", time = "nonsense" }
                 in
                 Expect.equal ( Nothing, True, { date = "", time = "nonsense" } )
-                    ( DateTimePicker.dateTime state, DateTimePicker.isInvalid state, DateTimePicker.text state )
+                    ( DateTimePicker.value state, (not << DateTimePicker.isValid) state, DateTimePicker.text state )
         ]
 
 
@@ -767,7 +776,7 @@ dateTimeText =
 -- DATE RANGE: THE INPUTS
 
 
-periodFor : List DateRangePicker.Attribute -> Query.Single PeriodMsg
+periodFor : List (DateRangePicker.Attribute PeriodMsg) -> Query.Single PeriodMsg
 periodFor attributes =
     DateRangePicker.view PickerMsg attributes (DateRangePicker.init "period")
         |> Query.fromHtml
@@ -1007,20 +1016,20 @@ calendarStart =
 -- NORWEGIAN SHORTCUTS
 
 
-readDate : List DatePicker.Attribute -> String -> Maybe Date
+readDate : List (DatePicker.Attribute msg) -> String -> Maybe Date
 readDate attributes text =
     DatePicker.init "d"
         |> DatePicker.setText text
-        |> DatePicker.validate attributes
-        |> DatePicker.date
+        |> DatePicker.setLimits attributes
+        |> DatePicker.value
 
 
-readTime : List TimePicker.Attribute -> String -> Maybe TimePicker.Time
+readTime : List (TimePicker.Attribute msg) -> String -> Maybe TimePicker.Time
 readTime attributes text =
     TimePicker.init "t"
         |> TimePicker.setText text
-        |> TimePicker.validate attributes
-        |> TimePicker.time
+        |> TimePicker.setLimits attributes
+        |> TimePicker.value
 
 
 norwegianShortcuts : Test

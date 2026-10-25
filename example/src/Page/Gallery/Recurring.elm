@@ -56,7 +56,7 @@ today =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { startDate = DatePicker.init "recurrence-start" |> DatePicker.setDate (Just today)
+    ( { startDate = DatePicker.init "recurrence-start" |> DatePicker.setValue (Just today)
       , picker = RecurrencePicker.init "recurrence-picker" today
       , norwegian =
             RecurrencePicker.init "recurrence-norwegian" today
@@ -90,7 +90,7 @@ update msg model =
                     DatePicker.update inner model.startDate
 
                 moved =
-                    case DatePicker.date startDate of
+                    case DatePicker.value startDate of
                         Just date ->
                             RecurrencePicker.setStart date model.picker
 

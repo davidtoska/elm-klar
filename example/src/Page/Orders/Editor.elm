@@ -134,7 +134,7 @@ init target =
     , warehouse = selectOf "order-warehouse" values.warehouse
     , owner = selectOf "order-owner" values.owner
     , priority = values.priority
-    , due = DatePicker.init "order-due" |> DatePicker.setDate values.due
+    , due = DatePicker.init "order-due" |> DatePicker.setValue values.due
     , lines = NumberInput.init "order-lines" |> NumberInput.setValue (Maybe.map toFloat values.lines)
     , total = NumberInput.init "order-total" |> NumberInput.setValue values.total
     , note = values.note
@@ -192,7 +192,7 @@ toInput editor =
     , priority = editor.priority
     , owner = Select.value editor.owner
     , warehouse = Select.value editor.warehouse
-    , due = DatePicker.date editor.due
+    , due = DatePicker.value editor.due
     , lines = Maybe.map round (NumberInput.value editor.lines)
     , total = NumberInput.value editor.total
     , note = editor.note
@@ -271,7 +271,7 @@ types another one, and the server accepts it too (it only refuses a past date
 for a new order).
 
 -}
-dueRules : Context -> List DatePicker.Attribute
+dueRules : Context -> List (DatePicker.Attribute msg)
 dueRules context =
     [ DatePicker.today context.today
     , DatePicker.min context.today
@@ -284,7 +284,7 @@ with the rules of the field. Call it before checking or sending the form.
 -}
 settle : Context -> Editor -> Editor
 settle context editor =
-    { editor | due = DatePicker.validate (dueRules context) editor.due }
+    { editor | due = DatePicker.setLimits (dueRules context) editor.due }
 
 
 {-| What the controls themselves object to: a date that is not a date, a number
@@ -299,7 +299,7 @@ server.
 localProblems : Editor -> List FieldError
 localProblems editor =
     List.filterMap identity
-        [ if DatePicker.isInvalid editor.due then
+        [ if not (DatePicker.isValid editor.due) then
             Just { field = "order-due", message = "Enter a valid due date, today or later." }
 
           else
@@ -417,7 +417,7 @@ update msg editor =
                     DatePicker.update inner editor.due
             in
             ( { editor | due = due }
-                |> forgetErrorIf (DatePicker.date due /= DatePicker.date editor.due) "order-due"
+                |> forgetErrorIf (DatePicker.value due /= DatePicker.value editor.due) "order-due"
             , Cmd.map DueMsg cmd
             )
 

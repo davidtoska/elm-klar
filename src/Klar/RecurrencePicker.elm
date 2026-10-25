@@ -336,7 +336,7 @@ endOf s =
                     Err NeedsCount
 
         EndOn ->
-            case DatePicker.date s.endDate of
+            case DatePicker.value s.endDate of
                 Just date ->
                     if Date.compare date s.start == LT then
                         Err EndBeforeStart
@@ -526,7 +526,7 @@ fill spec skipped s =
                     { s | end = EndAfter, count = NumberInput.setValue (Just (toFloat n)) s.count }
 
                 Spec.Until date ->
-                    { s | end = EndOn, endDate = DatePicker.setDate (Just date) s.endDate }
+                    { s | end = EndOn, endDate = DatePicker.setValue (Just date) s.endDate }
 
         common =
             { withEnd
@@ -1399,7 +1399,7 @@ visited s found =
             NumberInput.isTouched s.count && NumberInput.isValid s.count
 
         NeedsEndDate ->
-            s.endDateVisited && not (DatePicker.isInvalid s.endDate)
+            s.endDateVisited && DatePicker.isValid s.endDate
 
         EndBeforeStart ->
             True

@@ -1,8 +1,11 @@
 module Klar.Calendar.Popup exposing
     ( dialog
+    , dialogLabel
     , holdFocus
     , onBlurOutside
+    , onBlurValue
     , onEscape
+    , onFieldKeys
     , onFocusLeave
     , onKeys
     , onPressOutside
@@ -30,11 +33,13 @@ import Klar.Internal as Internal
 
 {-| The layer and the popup. `prefix` is the DOM id of the popup; every
 focusable element inside must have an id that starts with it, so the popup can
-tell when focus leaves.
+tell when focus leaves. `describedBy` is the id of a line inside that a screen
+reader reads when the popup opens (a live region is only read when it changes).
 -}
 dialog :
     { prefix : String
     , label : String
+    , describedBy : Maybe String
     , classes : List String
     , alignEnd : Bool
     , onClose : msg
@@ -66,6 +71,7 @@ dialog options content =
             , Attr.tabindex -1
             , Attr.attribute "role" "dialog"
             , Attr.attribute "aria-label" options.label
+            , Internal.attrMaybe (Attr.attribute "aria-describedby") options.describedBy
             , Internal.onClickStop options.noop
             , stopPress options.noop
             ]
@@ -111,7 +117,7 @@ Elm keeps one `keydown` handler per element: do not combine this with another
 onKeys : List ( String, msg ) -> Html.Attribute msg
 onKeys bindings =
     Events.custom "keydown"
-        (Internal.keyEvent
+        (plainKeyEvent
             |> Decode.andThen
                 (\event ->
                     case lookup (keyName event) bindings of
@@ -122,6 +128,62 @@ onKeys bindings =
                             Decode.fail "unhandled key"
                 )
         )
+
+
+{-| Keyboard bindings on a text field whose messages need the text in the field
+(a date field reads it with rules that only the view knows). Each binding gets
+the field's text at the moment of the key press, so a key that follows typing
+before the next render still sees the latest text. The default action of a
+matching key is prevented and the event bubbles, like `Internal.onKeys`.
+-}
+onFieldKeys : List ( String, String -> msg ) -> Html.Attribute msg
+onFieldKeys bindings =
+    Events.preventDefaultOn "keydown"
+        (Decode.map2 Tuple.pair plainKeyEvent Events.targetValue
+            |> Decode.andThen
+                (\( event, value ) ->
+                    case lookup (keyName event) bindings of
+                        Just toMsg ->
+                            Decode.succeed ( toMsg value, True )
+
+                        Nothing ->
+                            Decode.fail "unhandled key"
+                )
+        )
+
+
+{-| A `blur` handler that gets the text of the field as it is when focus
+leaves, like `onFieldKeys`.
+-}
+onBlurValue : (String -> msg) -> Html.Attribute msg
+onBlurValue toMsg =
+    Events.on "blur" (Decode.map toMsg Events.targetValue)
+
+
+{-| A key press that is not part of an IME composition: the `Enter` that
+confirms a composed word (`isComposing`, or `keyCode` 229) is never taken as a
+key of the popup.
+-}
+plainKeyEvent : Decode.Decoder Internal.KeyEvent
+plainKeyEvent =
+    composing
+        |> Decode.andThen
+            (\isComposing ->
+                if isComposing then
+                    Decode.fail "composing"
+
+                else
+                    Internal.keyEvent
+            )
+
+
+{-| `True` for a key press that belongs to an IME composition.
+-}
+composing : Decode.Decoder Bool
+composing =
+    Decode.map2 (\flag code -> flag || code == 229)
+        (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "keyCode" Decode.int, Decode.succeed 0 ])
 
 
 lookup : String -> List ( String, a ) -> Maybe a
@@ -167,16 +229,31 @@ keyName event =
         ]
 
 
-{-| The Escape key. It does not bubble, so an enclosing modal stays open.
+{-| The name of a field's popup: the label of the field and what the popup is
+for ("Due date, choose date"), so that a screen reader says which field it
+belongs to; the bare purpose without a label.
+-}
+dialogLabel : Maybe String -> String -> String
+dialogLabel fieldLabel purpose =
+    case fieldLabel of
+        Just name ->
+            name ++ ", " ++ String.toLower (String.left 1 purpose) ++ String.dropLeft 1 purpose
+
+        Nothing ->
+            purpose
+
+
+{-| The Escape key. It does not bubble and its default is prevented, so an
+enclosing modal or a page shortcut leaves it alone.
 -}
 onEscape : msg -> Html.Attribute msg
 onEscape msg =
-    Events.stopPropagationOn "keydown"
-        (Decode.field "key" Decode.string
+    Events.custom "keydown"
+        (Decode.map2 Tuple.pair (Decode.field "key" Decode.string) composing
             |> Decode.andThen
-                (\key ->
-                    if key == "Escape" then
-                        Decode.succeed ( msg, True )
+                (\( key, isComposing ) ->
+                    if key == "Escape" && not isComposing then
+                        Decode.succeed { message = msg, stopPropagation = True, preventDefault = True }
 
                     else
                         Decode.fail "not escape"

@@ -10,7 +10,7 @@ Types: `Msg`, `State`, `Attribute`, `Time`
 
 ```elm
 -- View
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -25,43 +25,44 @@ toMinutes : Time -> Int
 fromMinutes : Int -> Time
 
 -- The chosen time
-time : State -> Maybe Time
-isInvalid : State -> Bool
+value : State -> Maybe Time
+isValid : State -> Bool
 text : State -> String
-setTime : Maybe Time -> State -> State
+setValue : Maybe Time -> State -> State
 clear : State -> State
 setText : String -> State -> State
-validate : List Attribute -> State -> State
+setLimits : List (Attribute msg) -> State -> State
 
 -- The list popup
 isOpen : State -> Bool
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
 
 -- Limits and steps
-type Attribute  -- opaque: no constructors are exposed
-min : Time -> Attribute
-max : Time -> Attribute
-step : Int -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+min : Time -> Attribute msg
+max : Time -> Attribute msg
+step : Int -> Attribute msg
 
 -- Label, hint and error
-label : String -> Attribute
-labelHidden : Attribute
-hint : String -> Attribute
-error : String -> Attribute
-errorMaybe : Maybe String -> Attribute
-required : Attribute
-optionalText : String -> Attribute
+label : String -> Attribute msg
+labelHidden : Attribute msg
+hint : String -> Attribute msg
+error : String -> Attribute msg
+errorMaybe : Maybe String -> Attribute msg
+invalid : Bool -> Attribute msg
+required : Attribute msg
+optionalText : String -> Attribute msg
 
 -- Look and behavior
-placeholder : String -> Attribute
-size : Theme.Size -> Attribute
-locale : Locale.Locale -> Attribute
-disabled : Bool -> Attribute
-readOnly : Bool -> Attribute
-clearable : Attribute
-alignEnd : Attribute
-name : String -> Attribute
+placeholder : String -> Attribute msg
+size : Theme.Size -> Attribute msg
+locale : Locale.Locale -> Attribute msg
+disabled : Bool -> Attribute msg
+readOnly : Bool -> Attribute msg
+clearable : Attribute msg
+alignEnd : Attribute msg
+name : String -> Attribute msg
 ```
 
 ## Documentation
@@ -70,7 +71,7 @@ A 24-hour time field: type `14:30` or pick a time from a list.
 
 Use when: the user enters a time of day only, such as an order cut-off.
 Do not use when: the user enters a date and a time together (as `Klar.DateTimePicker`).
-Quick path: `init`, `update`, `view`, `time`
+Quick path: `init`, `update`, `view`, `value`
 
 It holds a time of day only. For a date and a time together see
 [Klar.DateTimePicker](Klar.DateTimePicker.md).
@@ -83,6 +84,14 @@ It holds a time of day only. For a date and a time together see
     -- msg
     CutoffMsg TimePicker.Msg
 
+    -- the limits of the field, in one place: view and setLimits use the same list
+    cutoffLimits : List (TimePicker.Attribute msg)
+    cutoffLimits =
+        [ TimePicker.step 15
+        , TimePicker.min { hour = 8, minute = 0 }
+        , TimePicker.max { hour = 16, minute = 0 }
+        ]
+
     -- update
     CutoffMsg m ->
         let
@@ -91,26 +100,25 @@ It holds a time of day only. For a date and a time together see
         in
         ( { model | cutoff = cutoff }, Cmd.map CutoffMsg cmd )
 
+    -- on submit: read the text the user has not left yet, then ask
+    TimePicker.setLimits cutoffLimits model.cutoff   -- then isValid and value
+
     -- view
     TimePicker.view CutoffMsg
-        [ TimePicker.label "Order cut-off"
-        , TimePicker.step 15
-        , TimePicker.min { hour = 8, minute = 0 }
-        , TimePicker.max { hour = 16, minute = 0 }
-        ]
+        (TimePicker.label "Order cut-off" :: cutoffLimits)
         model.cutoff
 
     -- read
-    TimePicker.time model.cutoff   -- Maybe { hour : Int, minute : Int }
+    TimePicker.value model.cutoff   -- Maybe { hour : Int, minute : Int }
 
 The state holds the chosen time, and there are no out-messages: compare
-`TimePicker.time` before and after `update` to react to a change. The time is
+`TimePicker.value` before and after `update` to react to a change. The time is
 accepted when the user leaves the field, presses `Enter`, types a full `hh:mm`,
-or picks a time from the list. Until then `time` keeps the last accepted value.
-When the text cannot be read, `time` is `Nothing`, `isInvalid` is `True`, and
+or picks a time from the list. Until then `value` keeps the last accepted time.
+When the text cannot be read, `value` is `Nothing`, `isValid` is `False`, and
 the field shows a message such as "Invalid time" or "The time cannot be before
-08:00". A form should call `validate` when it is submitted, because the user may
-never have left the field.
+08:00". A form should call `setLimits` when it is submitted, because the user
+may never have left the field.
 
 The list offers a time every `step` minutes (15 by default) between `min` and
 `max`. The field itself also accepts times between the steps, such as 09:37, as
@@ -139,7 +147,7 @@ built-in text (placeholder, button label and error messages) comes from
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 ```
 
 The field: a text input with a clock button, and the list of times while it
@@ -159,7 +167,7 @@ type State  -- opaque: no constructors are exposed
 
 The state of one time field: the accepted time, any text that is still being
 typed, whether the list is open, and the highlighted entry. Make it with `init`,
-keep it in your model, and read it with `time`, `text` and `isInvalid`.
+keep it in your model, and read it with `value`, `text` and `isValid`.
 
 ### `Msg`
 
@@ -251,29 +259,30 @@ directions.
 
 ## The chosen time
 
-### `time`
+### `value`
 
 ```elm
-time : State -> Maybe Time
+value : State -> Maybe Time
 ```
 
 The accepted time, or `Nothing` when the field is empty or its text could not
 be read. While the user is typing it keeps the previous value until the text is
 a full `hh:mm` or confirmed (see the module documentation).
 
-### `isInvalid`
+### `isValid`
 
 ```elm
-isInvalid : State -> Bool
+isValid : State -> Bool
 ```
 
-`True` when the last attempt to read the field failed: the text is not a
+`False` when the last attempt to read the field failed: the text is not a
 time, or the time is outside `min` and `max`. The field then shows the matching
-message.
+message. An empty field is valid; whether a time is required is for the
+application to say.
 
 Text is only tried when the user has typed a full `hh:mm`, leaves the field or
-presses `Enter`, and when you call `validate`, so call `validate` first when you
-check this on submit.
+presses `Enter`, and when you call `setLimits`, so call `setLimits` first when
+you check this on submit.
 
 ### `text`
 
@@ -283,21 +292,23 @@ text : State -> String
 
 The text in the field that has not been replaced by the formatted time yet:
 text the user is still typing, or text that could not be read. Together with
-`time` it tells an empty field from garbage: `time == Nothing && text /= ""`
-means there is text that is not a time (yet). Use `isInvalid` to ask whether the
+`value` it tells an empty field from garbage: `value == Nothing && text /= ""`
+means there is text that is not a time (yet). Use `isValid` to ask whether the
 text was tried and rejected; see also [DatePicker.text](Klar.DatePicker.md#text).
 
-### `setTime`
+### `setValue`
 
 ```elm
-setTime : Maybe Time -> State -> State
+setValue : Maybe Time -> State -> State
 ```
 
 Sets the time, or empties the field with `Nothing`. The field shows the time
 as `hh:mm`; text that was being typed is dropped. The time is not checked
-against `min` and `max`.
+against `min` and `max` until `setLimits` is called. A record that is not a
+time of day, such as `{ hour = 25, minute = 0 }`, is not taken: the field shows
+it with "Invalid time", `value` is `Nothing` and `isValid` is `False`.
 
-    TimePicker.setTime (Just { hour = 16, minute = 0 }) model.cutoff
+    TimePicker.setValue (Just { hour = 16, minute = 0 }) model.cutoff
 
 ### `clear`
 
@@ -305,7 +316,7 @@ against `min` and `max`.
 clear : State -> State
 ```
 
-Empties the field. The same as `setTime Nothing`.
+Empties the field. The same as `setValue Nothing`.
 
 ### `setText`
 
@@ -314,25 +325,29 @@ setText : String -> State -> State
 ```
 
 Fills the field with text as if the user had typed it. The text is read when
-the user leaves the field or presses `Enter`, or when you call `validate`; until
-then `time` keeps its old value.
+the user leaves the field or presses `Enter`, or when you call `setLimits`;
+until then `value` keeps its old time.
 
     TimePicker.setText "14:30" model.cutoff
 
-### `validate`
+### `setLimits`
 
 ```elm
-validate : List Attribute -> State -> State
+setLimits : List (Attribute msg) -> State -> State
 ```
 
-Reads the pending text now, as if the user had left the field: readable text
-becomes the time and is shown as `hh:mm`, text that cannot be read sets the
-problem that `isInvalid` reports. Pass the same attributes as to `view`, because
-`min` and `max` decide what is valid.
+Reads the field again with the limits of these attributes, as if the user
+had left it: pending text that can be read becomes the time and is shown as
+`hh:mm`, and text that cannot sets the problem that `isValid` reports. A time
+that was accepted before (or set with `setValue`) and that the limits no longer
+allow keeps its text in the field, with the message, and `value` becomes
+`Nothing`; it is never moved into the limits. Pass the same attributes as to
+`view`, because `min` and `max` decide what is valid.
 
-Use it when a form is submitted: the user may never have left the field.
+Use it when a form is submitted, since the user may never have left the field,
+and after the limits change.
 
-    TimePicker.validate attributes model.cutoff
+    TimePicker.setLimits cutoffLimits model.cutoff
 
 ## The list popup
 
@@ -348,13 +363,14 @@ isOpen : State -> Bool
 ### `open`
 
 ```elm
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 ```
 
 Opens the list and moves the focus to the text input, where it stays.
 Pending text is read first, and the list scrolls to the time closest to the
 chosen one (or to 08:00). The limits and the step come from the attributes, so
-pass the same list as to `view`.
+pass the same list as to `view`. A field that is `disabled` or `readOnly` stays
+closed.
 
 ### `close`
 
@@ -370,40 +386,42 @@ list is already closed.
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of a time field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 
 ### `min`
 
 ```elm
-min : Time -> Attribute
+min : Time -> Attribute msg
 ```
 
 The earliest time that can be chosen or typed. The list starts at the first
 time of its step at or after it, and a typed time before it shows "The time
-cannot be before" followed by the limit. Default: 00:00.
+cannot be before" followed by the limit. A record outside 00:00 to 23:59 is
+moved to the nearest time of day. Default: 00:00.
 
     TimePicker.min { hour = 8, minute = 0 }
 
 ### `max`
 
 ```elm
-max : Time -> Attribute
+max : Time -> Attribute msg
 ```
 
 The latest time that can be chosen or typed. The list stops at the last time
 of its step at or before it, and a typed time after it shows "The time cannot be
-after" followed by the limit. Default: 23:59.
+after" followed by the limit. A record outside 00:00 to 23:59 is moved to the
+nearest time of day. Default: 23:59.
 
     TimePicker.max { hour = 16, minute = 0 }
 
 ### `step`
 
 ```elm
-step : Int -> Attribute
+step : Int -> Attribute msg
 ```
 
 Minutes between the times in the list, from 1 to 60 (other numbers are cut to
@@ -418,7 +436,7 @@ between the steps are accepted whatever the step is.
 ### `label`
 
 ```elm
-label : String -> Attribute
+label : String -> Attribute msg
 ```
 
 The label above the field, tied to the text input. Give every field a label,
@@ -427,7 +445,7 @@ or hide it with `labelHidden`: it is the name that screen readers announce.
 ### `labelHidden`
 
 ```elm
-labelHidden : Attribute
+labelHidden : Attribute msg
 ```
 
 Keeps the label for screen readers but does not show it, for a field in a
@@ -436,7 +454,7 @@ toolbar or a table row. Needs `label`.
 ### `hint`
 
 ```elm
-hint : String -> Attribute
+hint : String -> Attribute msg
 ```
 
 A short help text below the field. It is linked to the input with
@@ -445,7 +463,7 @@ A short help text below the field. It is linked to the input with
 ### `error`
 
 ```elm
-error : String -> Attribute
+error : String -> Attribute msg
 ```
 
 An error message from your application, shown below the field and announced
@@ -458,7 +476,7 @@ text ("Invalid time"), that message is shown instead.
 ### `errorMaybe`
 
 ```elm
-errorMaybe : Maybe String -> Attribute
+errorMaybe : Maybe String -> Attribute msg
 ```
 
 Like `error`, but takes a `Maybe`: `Nothing` means no error. Convenient when
@@ -466,20 +484,32 @@ the message lives in a `Maybe` in your model.
 
     TimePicker.errorMaybe model.cutoffError
 
+### `invalid`
+
+```elm
+invalid : Bool -> Attribute msg
+```
+
+Marks the field as invalid without a message of its own: `aria-invalid` on the
+input and the red border. For a field whose message is shown somewhere else, such
+as below a group of fields or in a summary of the form; to show a message below
+the field, use `error`. Takes a `Bool` so that it can come from your model.
+Default: `False`.
+
 ### `required`
 
 ```elm
-required : Attribute
+required : Attribute msg
 ```
 
 Marks the field as required: an asterisk after the label, and
 `aria-required` on the input. The picker does not enforce it; when the time is
-missing, test `time` for `Nothing` yourself and pass an `error`.
+missing, test `value` for `Nothing` yourself and pass an `error`.
 
 ### `optionalText`
 
 ```elm
-optionalText : String -> Attribute
+optionalText : String -> Attribute msg
 ```
 
 Text shown after the label of a field that is not `required`, such as
@@ -490,7 +520,7 @@ Text shown after the label of a field that is not `required`, such as
 ### `placeholder`
 
 ```elm
-placeholder : String -> Attribute
+placeholder : String -> Attribute msg
 ```
 
 The text shown in the empty field. Default: the format hint of the locale,
@@ -499,7 +529,7 @@ The text shown in the empty field. Default: the format hint of the locale,
 ### `size`
 
 ```elm
-size : Theme.Size -> Attribute
+size : Theme.Size -> Attribute msg
 ```
 
 The size of the field, a `Size` from [Klar.Theme](Klar.Theme.md).
@@ -508,7 +538,7 @@ Default: `Medium`.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: placeholder, button and list labels, the
@@ -519,7 +549,7 @@ The language of the built-in text: placeholder, button and list labels, the
 ### `disabled`
 
 ```elm
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 ```
 
 Disables the field and its clock button: the text cannot be focused or
@@ -529,7 +559,7 @@ straight from your model, for example while a form is saving. Default: `False`.
 ### `readOnly`
 
 ```elm
-readOnly : Bool -> Attribute
+readOnly : Bool -> Attribute msg
 ```
 
 The time can be seen, selected and copied but not changed, and the list does
@@ -538,7 +568,7 @@ not open. Unlike `disabled`, the field can still be focused. Default: `False`.
 ### `clearable`
 
 ```elm
-clearable : Attribute
+clearable : Attribute msg
 ```
 
 Shows a small × button in the field while it has text; it empties the field
@@ -548,7 +578,7 @@ accessible name is "Clear field". Default: no button.
 ### `alignEnd`
 
 ```elm
-alignEnd : Attribute
+alignEnd : Attribute msg
 ```
 
 Aligns the right edge of the list with the right edge of the field, instead
@@ -558,7 +588,7 @@ the list does not run out of the window.
 ### `name`
 
 ```elm
-name : String -> Attribute
+name : String -> Attribute msg
 ```
 
 The `name` attribute of the text input, for a plain HTML `form`. The value

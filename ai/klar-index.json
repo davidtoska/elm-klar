@@ -2341,16 +2341,16 @@
         "init",
         "update",
         "view",
-        "date"
+        "value"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
-        "date",
-        "isInvalid",
+        "value",
+        "isValid",
         "text",
-        "setDate",
+        "setValue",
         "clear"
       ],
       "related": [
@@ -2390,17 +2390,17 @@
         "init",
         "update",
         "view",
-        "range"
+        "value"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
-        "range",
+        "value",
         "from",
         "to",
-        "isInvalid",
-        "setRange"
+        "isValid",
+        "text"
       ],
       "related": [
         "Klar.DatePicker",
@@ -2440,7 +2440,7 @@
         "init",
         "update",
         "view",
-        "time"
+        "value"
       ],
       "mainFunctions": [
         "view",
@@ -2449,8 +2449,8 @@
         "toString",
         "toMinutes",
         "fromMinutes",
-        "time",
-        "isInvalid"
+        "value",
+        "isValid"
       ],
       "related": [
         "Klar.DatePicker",
@@ -2486,21 +2486,21 @@
         "init",
         "update",
         "view",
-        "dateTime"
+        "value"
       ],
       "mainFunctions": [
         "view",
         "init",
         "update",
-        "dateTime",
-        "isInvalid",
+        "value",
+        "isValid",
         "text",
-        "setDateTime",
+        "setValue",
         "clear"
       ],
       "related": [
-        "Klar.TimePicker",
         "Klar.DatePicker",
+        "Klar.TimePicker",
         "Klar.Date",
         "Klar.Calendar",
         "Klar.Field",

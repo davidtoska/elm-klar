@@ -18,7 +18,7 @@ own source and its showcase, not guidance.
 
 - **A component is `State` + `Msg` + `update` + `view`**, wired like any child in the Elm Architecture:
   `Foo.State` in your model, a `FooMsg Foo.Msg` in your `Msg`, `Foo.update m model.foo` with `Cmd.map FooMsg`,
-  `Foo.view FooMsg [ attributes ] model.foo`. Read the value with the module's reader (`Select.value`, `DatePicker.date` ...) and compare before and
+  `Foo.view FooMsg [ attributes ] model.foo`. Read the value with the module's reader (`Select.value`, `DatePicker.value` ...) and compare before and
   after `update` to react. There are no out-messages.
 - **A view-only component is one function and a list of attributes**: `Button.view [ Button.primary, Button.onClick Save ] "Save"`.
   Attributes are opaque. Their order matters only when the same attribute is given twice: the last one wins (state flags such as `loading`, `failed` and `remote` add up instead).

@@ -4,13 +4,13 @@ A period field: a from date and a to date in one control, with one calendar that
 
 Import: `import Klar.DateRangePicker as DateRangePicker` | Group: Date and time
 
-Types: `Msg`, `State`, `Attribute`, `Preset`
+Types: `Msg`, `State`, `Preset`, `Attribute`
 
 ## Signatures
 
 ```elm
 -- View
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -19,55 +19,58 @@ init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 
 -- The period
-range : State -> Maybe ( Date.Date, Date.Date )
+value : State -> Maybe ( Date.Date, Date.Date )
 from : State -> Maybe Date.Date
 to : State -> Maybe Date.Date
-isInvalid : State -> Bool
-setRange : Maybe ( Date.Date, Date.Date ) -> State -> State
+isValid : State -> Bool
+text : State -> { from : String, to : String }
+setValue : Maybe ( Date.Date, Date.Date ) -> State -> State
 clear : State -> State
 setText : { from : String, to : String } -> State -> State
-validate : List Attribute -> State -> State
+setLimits : List (Attribute msg) -> State -> State
 
 -- The calendar popup
 isOpen : State -> Bool
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 close : State -> ( State, Cmd Msg )
 visibleMonth : State -> { year : Int, month : Int }
 
 -- Quick choices
-type alias Preset = { label : String, from : Date.Date, to : Date.Date }
+type Preset  -- opaque: no constructors are exposed
 preset : String -> Date.Date -> Date.Date -> Preset
-presets : List Preset -> Attribute
-noPresets : Attribute
+presets : List Preset -> Attribute msg
+noPresets : Attribute msg
 
 -- Limits and today
-type Attribute  -- opaque: no constructors are exposed
-today : Date.Date -> Attribute
-min : Date.Date -> Attribute
-max : Date.Date -> Attribute
-maxRangeDays : Int -> Attribute
-disabledWhen : (Date.Date -> Bool) -> Attribute
+type Attribute msg  -- opaque: no constructors are exposed
+today : Date.Date -> Attribute msg
+min : Date.Date -> Attribute msg
+max : Date.Date -> Attribute msg
+maxRangeDays : Int -> Attribute msg
+disabledWhen : (Date.Date -> Bool) -> Attribute msg
 
 -- Calendar
-markers : List Calendar.Marker -> Attribute
-weekNumbers : Attribute
-alignEnd : Attribute
+markers : List Calendar.Marker -> Attribute msg
+weekNumbers : Attribute msg
+alignEnd : Attribute msg
 
 -- Label, hint and error
-label : String -> Attribute
-labelHidden : Attribute
-hint : String -> Attribute
-error : String -> Attribute
-errorMaybe : Maybe String -> Attribute
-required : Attribute
-optionalText : String -> Attribute
+label : String -> Attribute msg
+labelHidden : Attribute msg
+hint : String -> Attribute msg
+error : String -> Attribute msg
+errorMaybe : Maybe String -> Attribute msg
+required : Attribute msg
+optionalText : String -> Attribute msg
 
 -- Look and behavior
-size : Theme.Size -> Attribute
-locale : Locale.Locale -> Attribute
-disabled : Bool -> Attribute
-readOnly : Bool -> Attribute
-clearable : Attribute
+placeholder : String -> Attribute msg
+size : Theme.Size -> Attribute msg
+locale : Locale.Locale -> Attribute msg
+disabled : Bool -> Attribute msg
+readOnly : Bool -> Attribute msg
+clearable : Attribute msg
+name : String -> Attribute msg
 ```
 
 ## Documentation
@@ -77,7 +80,7 @@ that shows two months and a list of quick choices.
 
 Use when: the user chooses a period, as in reports, filters and bookings.
 Do not use when: the user enters a single date (as `Klar.DatePicker`).
-Quick path: `init`, `update`, `view`, `range`
+Quick path: `init`, `update`, `view`, `value`
 
 For a single date see [Klar.DatePicker](Klar.DatePicker.md).
 
@@ -89,6 +92,11 @@ For a single date see [Klar.DatePicker](Klar.DatePicker.md).
     -- msg
     PeriodMsg DateRangePicker.Msg
 
+    -- the limits of the field, in one place: view and setLimits use the same list
+    periodLimits : Date -> List (DateRangePicker.Attribute msg)
+    periodLimits today =
+        [ DateRangePicker.today today, DateRangePicker.max today, DateRangePicker.maxRangeDays 90 ]
+
     -- update
     PeriodMsg m ->
         let
@@ -97,20 +105,20 @@ For a single date see [Klar.DatePicker](Klar.DatePicker.md).
         in
         ( { model | period = period }, Cmd.map PeriodMsg cmd )
 
+    -- on submit: read the text the user has not left yet, then ask
+    DateRangePicker.setLimits (periodLimits model.today) model.period   -- then isValid and value
+
     -- view
     DateRangePicker.view PeriodMsg
-        [ DateRangePicker.label "Report period"
-        , DateRangePicker.today model.today
-        , DateRangePicker.maxRangeDays 90
-        ]
+        (DateRangePicker.label "Report period" :: periodLimits model.today)
         model.period
 
     -- read
-    DateRangePicker.range model.period   -- Maybe ( Date, Date )
+    DateRangePicker.value model.period   -- Maybe ( Date, Date )
 
 Here `model.today` is a [Klar.Date](Klar.Date.md) value that the application keeps;
 the library never reads the clock. The state holds the period, and there are no
-out-messages: compare `range` before and after `update` to react to a change.
+out-messages: compare `value` before and after `update` to react to a change.
 
 Choose the period with two clicks in the calendar. The choice applies on the
 second click and the popup closes. Between the clicks the days from the first
@@ -118,9 +126,10 @@ day to the one under the mouse (or the keyboard focus) are highlighted, the
 first field shows the first day, and the second field is empty. `Escape` closes
 the popup and throws away a half-made choice.
 
-The quick choices ("Today", "Last 7 days", "Last 30 days", "This month", "Last
-month" and "This year" in English) are computed from the `today` the application
-supplies. Each one gives the part of its period that the user could choose by
+The quick choices ("Today", "Last 7 days", "Last 30 days", "This week", "This
+month", "Last month", "This quarter", "Last quarter" and "This year" in English;
+weeks start on the first day of the week of `locale`) are computed from the
+`today` the application supplies. Each one gives the part of its period that the user could choose by
 hand: it is cut to `min` and `max`, and then inward past the days that
 `disabledWhen` excludes, so it starts and ends on a day that is allowed (days in
 between may be disabled, as in the calendar). A quick choice is disabled when
@@ -129,19 +138,21 @@ tooltip then gives the reason. Without `today` the list is empty. Give your own
 with `presets`, or turn them off with `noPresets`.
 
 The two fields take typed dates like [Klar.DatePicker](Klar.DatePicker.md); the
-forms it understands are listed there. `range` is `Just` only when both dates
+forms it understands are listed there. `value` is `Just` only when both dates
 are valid and `from` is not after `to`; `from` and `to` give the single dates,
 also when the period as a whole is not valid yet. When a date or the period is
 not valid, the field shows a message such as "The start date cannot be after the
-end date" or "The period cannot be longer than 90 days", and `isInvalid` is
-`True`. A form should call `validate` when it is submitted, because the user may
-never have left the fields.
+end date" or "The period cannot be longer than 90 days", and `isValid` is
+`False`. A form should call `setLimits` when it is submitted, because the user
+may never have left the fields.
 
 Keyboard: `ArrowDown` or `Alt+ArrowDown` in either text field opens the
 calendar. So does `Enter`, unless the user has just typed something that was not
 taken yet: then `Enter` takes the text. The keys inside the calendar are those of
-[Klar.Calendar](Klar.Calendar.md). `Escape` closes the popup (inside the month and
-year choosers it goes back one step first), and `Tab` out of the popup closes it.
+[Klar.Calendar](Klar.Calendar.md). Only one quick choice is in the tab order (the
+pressed one, or else the first); the arrow keys, `Home` and `End` move between
+them. `Escape` closes the popup (inside the month and year choosers it goes back
+one step first), and `Tab` out of the popup closes it.
 
 The two inputs sit in a `role="group"` named by the label; the name of each input
 adds "from date" or "to date". The line below the calendar ("Choose the start
@@ -157,7 +168,7 @@ text comes from `locale`; the default is English.
 ### `view`
 
 ```elm
-view : (Msg -> msg) -> List Attribute -> State -> Html msg
+view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
 ```
 
 The field: two text inputs (from and to) with a calendar button, and the
@@ -181,7 +192,7 @@ type State  -- opaque: no constructors are exposed
 The state of one period field: the accepted from and to dates, any text
 still being typed in the two inputs, whether the calendar is open, and the
 calendar itself. Make it with `init`, keep it in your model, and read it with
-`range`, `from`, `to` and `isInvalid`.
+`value`, `from`, `to` and `isValid`.
 
 ### `Msg`
 
@@ -191,6 +202,10 @@ type Msg  -- opaque: no constructors are exposed
 
 The messages of a period field. Wrap them in one constructor of your own
 `Msg`, give that constructor to `view`, and pass what comes back to `update`.
+
+A message holds plain data only (the view reads the texts with the field's
+rules and sends what it found), so messages can be compared with `==`, logged
+and kept in the history of the Elm debugger.
 
 ### `init`
 
@@ -224,10 +239,10 @@ your own `Msg`.
 
 ## The period
 
-### `range`
+### `value`
 
 ```elm
-range : State -> Maybe ( Date.Date, Date.Date )
+value : State -> Maybe ( Date.Date, Date.Date )
 ```
 
 The accepted period as `( from, to )`, both days included. It is `Just` only
@@ -254,32 +269,47 @@ to : State -> Maybe Date.Date
 The accepted to date, or `Nothing` when that field is empty or unreadable.
 Like `from`, it is given even when the period as a whole is not valid yet.
 
-### `isInvalid`
+### `isValid`
 
 ```elm
-isInvalid : State -> Bool
+isValid : State -> Bool
 ```
 
-`True` when the last attempt to read the fields failed: a date is not a date,
-lies outside `min` and `max`, or is excluded by `disabledWhen`, or the period is
-reversed or longer than `maxRangeDays`. The field shows the first matching
-message.
+`False` when the last attempt to read the fields failed: a date is not a
+date, lies outside `min` and `max`, or is excluded by `disabledWhen`, or the
+period is reversed or longer than `maxRangeDays`. The field shows the first
+matching message. Empty fields are valid; whether a period is required is for
+the application to say.
 
-Text is only tried when it looks complete (ten characters, such as `2026-10-20`
-or `20.10.2026`), when the user leaves a field or presses `Enter`, and when you
-call `validate`, so call `validate` first when you check this on submit.
+Text is only tried when it is complete (a day, a month and a four-digit year,
+such as `1.2.2026`, `20.10.2026` or `2026-10-20`), when the user leaves a field
+or presses `Enter`, and when you call `setLimits`, so call `setLimits` first
+when you check this on submit.
 
-### `setRange`
+### `text`
 
 ```elm
-setRange : Maybe ( Date.Date, Date.Date ) -> State -> State
+text : State -> { from : String, to : String }
+```
+
+The text in the two inputs that has not been replaced by a formatted date
+yet: text the user is still typing, or text that could not be read. Each part
+is empty when its input shows an accepted date or nothing. Together with `from`
+and `to` it tells an empty input from garbage, as
+[DatePicker.text](Klar.DatePicker.md#text) does for one date.
+
+### `setValue`
+
+```elm
+setValue : Maybe ( Date.Date, Date.Date ) -> State -> State
 ```
 
 Sets the period, or empties both fields with `Nothing`. The two days may be
 given in either order, the earlier one becoming the from date. Text that was
-being typed is dropped, and the period is not checked against the limits.
+being typed is dropped, and the period is not checked against the limits until
+`setLimits` is called.
 
-    DateRangePicker.setRange (Just ( quarterStart, quarterEnd )) model.period
+    DateRangePicker.setValue (Just ( quarterStart, quarterEnd )) model.period
 
 ### `clear`
 
@@ -287,7 +317,7 @@ being typed is dropped, and the period is not checked against the limits.
 clear : State -> State
 ```
 
-Empties both fields. The same as `setRange Nothing`.
+Empties both fields. The same as `setValue Nothing`.
 
 ### `setText`
 
@@ -297,25 +327,28 @@ setText : { from : String, to : String } -> State -> State
 
 Fills the two fields with text as if the user had typed it. The texts are
 read when the user leaves a field or presses `Enter`, or when you call
-`validate`; until then `from`, `to` and `range` keep their old values.
+`setLimits`; until then `from`, `to` and `value` keep their old values.
 
     DateRangePicker.setText { from = "2026-10-01", to = "2026-10-31" } model.period
 
-### `validate`
+### `setLimits`
 
 ```elm
-validate : List Attribute -> State -> State
+setLimits : List (Attribute msg) -> State -> State
 ```
 
-Reads the pending text of both fields now, as if the user had left them:
-readable text becomes the date and is shown formatted, text that cannot be read
-sets the problem that `isInvalid` reports. Pass the same attributes as to
-`view`, because `today`, the limits, `maxRangeDays` and the locale decide what is
-valid.
+Reads both fields again with the limits of these attributes, as if the user
+had left them: pending text that can be read becomes the date and is shown
+formatted, and text that cannot sets the problem that `isValid` reports. A date
+that was accepted before (or set with `setValue`) and that the limits no longer
+allow keeps its text in its input, with the message; it is never moved into the
+limits. Pass the same attributes as to `view`, because `today`, the limits,
+`maxRangeDays` and the locale decide what is valid.
 
-Use it when a form is submitted: the user may never have left the fields.
+Use it when a form is submitted, since the user may never have left the fields,
+and after the limits change.
 
-    DateRangePicker.validate attributes model.period
+    DateRangePicker.setLimits periodLimits model.period
 
 ## The calendar popup
 
@@ -331,13 +364,13 @@ isOpen : State -> Bool
 ### `open`
 
 ```elm
-open : List Attribute -> State -> ( State, Cmd Msg )
+open : List (Attribute msg) -> State -> ( State, Cmd Msg )
 ```
 
 Opens the calendar and moves the focus into it, after reading any pending
 text. It opens on the from date, or else on the day given with `today`, kept
 inside `min` and `max`. Pass the same attributes as to `view`: the limits come
-from them.
+from them. A field that is `disabled` or `readOnly` stays closed.
 
 ### `close`
 
@@ -365,12 +398,12 @@ once the calendar has been opened; see
 ### `Preset`
 
 ```elm
-type alias Preset = { label : String, from : Date.Date, to : Date.Date }
+type Preset  -- opaque: no constructors are exposed
 ```
 
-A quick choice in the list beside the calendar: a `label` for its button and
-the period it selects, `from` and `to`. Make one with `preset`, which also puts
-the two days in order, and give a list of them to `presets`.
+A quick choice in the list beside the calendar: the label of its button and
+the period it selects. Make one with `preset`, which also puts the two days in
+order, and give a list of them to `presets`.
 
 ### `preset`
 
@@ -388,7 +421,7 @@ nothing is left or what is left is longer than `maxRangeDays`.
 ### `presets`
 
 ```elm
-presets : List Preset -> Attribute
+presets : List Preset -> Attribute msg
 ```
 
 Your own quick choices instead of the standard ones. They are shown even
@@ -403,7 +436,7 @@ when the field has no `today`, and follow the same rules as the standard ones
 ### `noPresets`
 
 ```elm
-noPresets : Attribute
+noPresets : Attribute msg
 ```
 
 No list of quick choices: only the calendar is shown.
@@ -413,16 +446,16 @@ No list of quick choices: only the calendar is shown.
 ### `Attribute`
 
 ```elm
-type Attribute  -- opaque: no constructors are exposed
+type Attribute msg  -- opaque: no constructors are exposed
 ```
 
 A setting of a period field. Make them with the functions below and pass a
-list to `view`, `validate` or `open`; later attributes win over earlier ones.
+list to `view`, `setLimits` or `open`; later attributes win over earlier ones.
 
 ### `today`
 
 ```elm
-today : Date.Date -> Attribute
+today : Date.Date -> Attribute msg
 ```
 
 Today, supplied by the application (the library never reads the clock). It
@@ -437,7 +470,7 @@ nearest month inside `min` and `max`).
 ### `min`
 
 ```elm
-min : Date.Date -> Attribute
+min : Date.Date -> Attribute msg
 ```
 
 The earliest date that can be chosen or typed. A typed date before it shows
@@ -448,7 +481,7 @@ disabled). Default: no limit.
 ### `max`
 
 ```elm
-max : Date.Date -> Attribute
+max : Date.Date -> Attribute msg
 ```
 
 The latest date that can be chosen or typed. A typed date after it shows
@@ -459,7 +492,7 @@ disabled). Default: no limit.
 ### `maxRangeDays`
 
 ```elm
-maxRangeDays : Int -> Attribute
+maxRangeDays : Int -> Attribute msg
 ```
 
 The longest period allowed, in days, counting both end days. In the calendar,
@@ -473,7 +506,7 @@ cut to the limits) are disabled. Default: no limit.
 ### `disabledWhen`
 
 ```elm
-disabledWhen : (Date.Date -> Bool) -> Attribute
+disabledWhen : (Date.Date -> Bool) -> Attribute msg
 ```
 
 Dates that cannot be used, such as weekends or public holidays. The calendar
@@ -488,7 +521,7 @@ and disabled when no day of it is allowed. Default: every date is allowed.
 ### `markers`
 
 ```elm
-markers : List Calendar.Marker -> Attribute
+markers : List Calendar.Marker -> Attribute msg
 ```
 
 Marks on days in the calendar, such as deliveries or deadlines. Make them
@@ -498,7 +531,7 @@ Default: none.
 ### `weekNumbers`
 
 ```elm
-weekNumbers : Attribute
+weekNumbers : Attribute msg
 ```
 
 Shows ISO 8601 week numbers in the calendar. Default: off.
@@ -506,7 +539,7 @@ Shows ISO 8601 week numbers in the calendar. Default: off.
 ### `alignEnd`
 
 ```elm
-alignEnd : Attribute
+alignEnd : Attribute msg
 ```
 
 Aligns the right edge of the calendar popup with the right edge of the
@@ -518,7 +551,7 @@ page, so that the popup does not run out of the window.
 ### `label`
 
 ```elm
-label : String -> Attribute
+label : String -> Attribute msg
 ```
 
 The label above the field. It also names the group that holds the two
@@ -529,7 +562,7 @@ period".
 ### `labelHidden`
 
 ```elm
-labelHidden : Attribute
+labelHidden : Attribute msg
 ```
 
 Keeps the label for screen readers but does not show it, for a field in a
@@ -538,7 +571,7 @@ toolbar or a table row. Needs `label`.
 ### `hint`
 
 ```elm
-hint : String -> Attribute
+hint : String -> Attribute msg
 ```
 
 A short help text below the field. It is linked to both inputs with
@@ -547,7 +580,7 @@ A short help text below the field. It is linked to both inputs with
 ### `error`
 
 ```elm
-error : String -> Attribute
+error : String -> Attribute msg
 ```
 
 An error message from your application, shown below the field and announced
@@ -561,7 +594,7 @@ message is shown instead.
 ### `errorMaybe`
 
 ```elm
-errorMaybe : Maybe String -> Attribute
+errorMaybe : Maybe String -> Attribute msg
 ```
 
 Like `error`, but takes a `Maybe`: `Nothing` means no error. Convenient when
@@ -572,17 +605,17 @@ the message lives in a `Maybe` in your model.
 ### `required`
 
 ```elm
-required : Attribute
+required : Attribute msg
 ```
 
 Marks the field as required: an asterisk after the label, and
 `aria-required` on both inputs. The picker does not enforce it; when the period
-is missing, test `range` for `Nothing` yourself and pass an `error`.
+is missing, test `value` for `Nothing` yourself and pass an `error`.
 
 ### `optionalText`
 
 ```elm
-optionalText : String -> Attribute
+optionalText : String -> Attribute msg
 ```
 
 Text shown after the label of a field that is not `required`, such as
@@ -590,10 +623,19 @@ Text shown after the label of a field that is not `required`, such as
 
 ## Look and behavior
 
+### `placeholder`
+
+```elm
+placeholder : String -> Attribute msg
+```
+
+The text shown in the two empty inputs. Default: the format hint of the
+locale, `yyyy-mm-dd` in English.
+
 ### `size`
 
 ```elm
-size : Theme.Size -> Attribute
+size : Theme.Size -> Attribute msg
 ```
 
 The size of the field, a `Size` from [Klar.Theme](Klar.Theme.md).
@@ -602,7 +644,7 @@ Default: `Medium`.
 ### `locale`
 
 ```elm
-locale : Locale.Locale -> Attribute
+locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text (placeholder, button labels, quick choices,
@@ -613,7 +655,7 @@ show a date: `2026-10-20` in English, `20.10.2026` in Norwegian. Default:
 ### `disabled`
 
 ```elm
-disabled : Bool -> Attribute
+disabled : Bool -> Attribute msg
 ```
 
 Disables the field and its calendar button: the two inputs cannot be focused
@@ -623,7 +665,7 @@ straight from your model, for example while a form is saving. Default: `False`.
 ### `readOnly`
 
 ```elm
-readOnly : Bool -> Attribute
+readOnly : Bool -> Attribute msg
 ```
 
 The period can be seen, selected and copied but not changed, and the
@@ -633,9 +675,19 @@ Default: `False`.
 ### `clearable`
 
 ```elm
-clearable : Attribute
+clearable : Attribute msg
 ```
 
 Shows a small × button in the field while one of the inputs has text; it
 empties both inputs and puts the focus back in the first. The button is not in
 the tab order, and its accessible name is "Clear field". Default: no button.
+
+### `name`
+
+```elm
+name : String -> Attribute msg
+```
+
+The `name` of the two inputs for a plain HTML `form`: `<name>-from` and
+`<name>-to`. The values sent are the texts in the inputs, formatted for the
+locale. Default: none.
