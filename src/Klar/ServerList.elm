@@ -1232,7 +1232,15 @@ a retry when it failed); give it `FilterBar.fields` and the rest.
 viewFilterBar : (Msg row -> msg) -> List (FilterBar.Attribute r msg) -> State id row -> Html msg
 viewFilterBar toMsg attributes (State inner) =
     FilterBar.view (FilterBarMsg >> toMsg)
-        ([ FilterBar.matchCount (Remote.map (\_ -> inner.total) inner.rows)
+        ([ FilterBar.matchCount
+            (case Remote.staleProblem inner.rows of
+                -- after a failed refresh the count would be the one of the rule before
+                Just why ->
+                    Remote.Failed why
+
+                Nothing ->
+                    Remote.map (\_ -> inner.total) inner.rows
+            )
          , FilterBar.onRetry (toMsg Refresh)
          ]
             ++ attributes
