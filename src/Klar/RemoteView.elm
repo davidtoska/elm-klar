@@ -44,8 +44,8 @@ data, and only its text changes, which is what screen readers announce reliably.
 
 The body is a list with that one node, so it fits wherever a list of children goes:
 the body of a `Card`, a `Modal` or a `Drawer`, or any `Html.div`. Inside, the content
-is a column with the small gap of the library. When the data replaces a failure, the
-"Try again" button that had focus is gone: inside a `Modal` or `Drawer` focus goes back
+is a column with the small gap of the library. When fresh data replaces a failure or
+the marker of old data, the "Try again" button that had focus is gone with it: inside a `Modal` or `Drawer` focus goes back
 into the dialog by itself; in a `Card` or on a page it falls to the page, unless the body
 has an `id` and you move focus to it when you start the new request:
 
