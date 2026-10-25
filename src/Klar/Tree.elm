@@ -1740,17 +1740,31 @@ code.
 -}
 encodeId : String -> String
 encodeId raw =
-    raw
-        |> String.toList
-        |> List.map
-            (\c ->
-                if (Char.isAlphaNum c && Char.toCode c < 128) || c == '-' then
-                    String.fromChar c
+    -- Every row needs it on every render: most ids are already safe, and
+    -- those cost one pass without building anything.
+    if String.all safeInId raw then
+        raw
+
+    else
+        String.foldr
+            (\c encoded ->
+                if safeInId c then
+                    String.cons c encoded
 
                 else
-                    "_" ++ String.fromInt (Char.toCode c) ++ "_"
+                    "_" ++ String.fromInt (Char.toCode c) ++ "_" ++ encoded
             )
-        |> String.concat
+            ""
+            raw
+
+
+safeInId : Char -> Bool
+safeInId c =
+    let
+        code =
+            Char.toCode c
+    in
+    (code >= 97 && code <= 122) || (code >= 65 && code <= 90) || (code >= 48 && code <= 57) || code == 45
 
 
 
@@ -2154,6 +2168,16 @@ viewNode env depth parent index total ((Node n) as node) =
         s =
             env.state
 
+        -- The node id is written into two DOM ids: encode it once.
+        encoded =
+            encodeId n.id
+
+        itemDomId =
+            s.id ++ "-n-" ++ encoded
+
+        labelDomId =
+            s.id ++ "-l-" ++ encoded
+
         config =
             env.config
 
@@ -2344,7 +2368,7 @@ viewNode env depth parent index total ((Node n) as node) =
                       else
                         ""
                     ]
-                 , Attr.id (nameDomId s.id n.id)
+                 , Attr.id labelDomId
                  , Internal.styleVars [ ( "--klar-level", String.fromInt depth ) ]
                  , Events.on "click" clickDecoder
                  ]
@@ -2378,12 +2402,12 @@ viewNode env depth parent index total ((Node n) as node) =
     in
     Html.li
         ([ Internal.cls [ "klar-tree__item" ]
-         , Attr.id (rowDomId s.id n.id)
+         , Attr.id itemDomId
          , Attr.attribute "role" "treeitem"
 
          -- The name of a node is its own row (label, count, badge), not the
          -- text of everything below it.
-         , Attr.attribute "aria-labelledby" (nameDomId s.id n.id)
+         , Attr.attribute "aria-labelledby" labelDomId
          , Attr.tabindex
             (if isTabStop then
                 0
