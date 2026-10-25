@@ -377,6 +377,18 @@ enter from stack =
         |> Result.map Tuple.first
 
 
+{-| The stack after this event on the element found with the selectors.
+-}
+fire : List Selector.Selector -> ( String, Encode.Value ) -> Stack -> Result String Stack
+fire selectors event stack =
+    drawn stack
+        |> Query.find selectors
+        |> Event.simulate event
+        |> Event.toResult
+        |> settle stack
+        |> Result.map Tuple.first
+
+
 fromSave : Encode.Value
 fromSave =
     Encode.object [ ( "id", Encode.string "save-button" ), ( "tagName", Encode.string "BUTTON" ) ]
@@ -417,6 +429,22 @@ focusTests =
                 enter fromSave two
                     |> Result.andThen (enter Encode.null)
                     |> Expect.equal (Ok two)
+        , test "focus that the stack itself brings back from the body keeps the origin" <|
+            \_ ->
+                -- in from the save button, the toast with focus closed, focus fell to
+                -- the body and the guard sends it to the next toast
+                case
+                    enter fromSave two
+                        |> Result.map focusedFirst
+                        |> Result.andThen (fire [ Selector.id "toasts-1-close" ] Event.click)
+                        |> Result.andThen (fire [ Selector.class "klar-modal__guard" ] (lostFocus "BODY"))
+                of
+                    Ok returning ->
+                        enter Encode.null returning
+                            |> Expect.equal (Ok returning)
+
+                    Err problem ->
+                        Expect.fail problem
         , test "a move inside the stack is not where focus came from" <|
             \_ ->
                 drawn two

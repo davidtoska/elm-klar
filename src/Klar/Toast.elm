@@ -75,7 +75,9 @@ neither are the ones that stay. Every toast has a close button, and one with an
 action has a button for it; both can be reached with `Tab`. When the toast that has
 focus goes away (it was closed, its action ran, or the application dismissed it),
 focus moves to the next toast, or back to where it was before it came into the
-stack, never to the top of the page.
+stack (to the start of the page content when that element has no id), never to the
+top of the page. If something else takes focus at that moment (the action opened a
+dialog, or moved focus with `Klar.focus`), focus stays there.
 
 @docs view
 
@@ -156,6 +158,10 @@ type State msg
         -- of the stack brings focus back (to a toast or to `cameFrom`) if it fell
         -- to the page.
         , recover : Maybe Int
+
+        -- The stack is bringing focus back from the body: that entry "from
+        -- nowhere" is its own, and keeps `cameFrom`.
+        , returning : Bool
         }
 
 
@@ -187,7 +193,7 @@ with `setMaxVisible`.
 -}
 init : String -> State msg
 init id =
-    State { id = id, visible = [], waiting = [], nextId = 1, max = 4, cameFrom = "", recover = Nothing }
+    State { id = id, visible = [], waiting = [], nextId = 1, max = 4, cameFrom = "", recover = Nothing, returning = False }
 
 
 {-| How many toasts are shown at once (at least 1; the default is 4). Set it when
@@ -219,7 +225,7 @@ queued (State state) =
 one, else to its close button. Nothing happens when there is no toast. Bind it to a
 key with [Klar.Shortcut](Klar-Shortcut), so that a keyboard user reaches a toast
 before it goes away (its timer stops while focus is in it). When that toast goes
-away, focus returns to where it was.
+away, focus returns to where it was, if that element has an id.
 -}
 focus : State msg -> Cmd Msg
 focus (State state) =
@@ -316,9 +322,10 @@ type Msg
     | Dismiss Int
     | Hover Int Bool
     | Focused Int Bool
-    | Entered String
+    | Entered (Maybe String)
     | Lost
     | Found
+    | Returned
     | FocusChain (List String)
     | Noop
 
@@ -334,19 +341,40 @@ update msg ((State state) as current) =
             ( current, Internal.focusFirst ids Noop )
 
         Entered from ->
-            ( State { state | cameFrom = from }, Cmd.none )
+            -- Focus came in from outside: from this element (`""` when it has no
+            -- id), or from nowhere, which forgets the old place, unless it is the
+            -- stack itself that brings focus back from the body.
+            ( State
+                { state
+                    | cameFrom =
+                        case from of
+                            Just id ->
+                                id
+
+                            Nothing ->
+                                if state.returning then
+                                    state.cameFrom
+
+                                else
+                                    ""
+                }
+            , Cmd.none
+            )
 
         Lost ->
             -- The toast that had focus went away and focus fell to the page: to the
             -- toast that took its place, the one before it, or where focus came from.
             case state.recover of
                 Just place ->
-                    ( State { state | recover = Nothing }
-                    , Internal.focusFirst (recoverTargets place (State state)) Noop
+                    ( State { state | recover = Nothing, returning = True }
+                    , Internal.focusFirst (recoverTargets place (State state)) Returned
                     )
 
                 Nothing ->
                     ( current, Cmd.none )
+
+        Returned ->
+            ( State { state | returning = False }, Cmd.none )
 
         Found ->
             -- Focus went somewhere on its own (the action opened a dialog, the
@@ -419,6 +447,9 @@ step msg ((State state) as current) =
             current
 
         Found ->
+            current
+
+        Returned ->
             current
 
         FocusChain _ ->
@@ -883,11 +914,12 @@ viewStack toMsg attributes (State state) trap =
 
 
 {-| Where focus came from when it comes into the stack from outside: the id of the
-element it left, or `""` when that element has no id or focus came from nowhere (the
-body), so that a toast that goes away never sends focus to a place the user left
-long ago. A move from one toast to another is no entry and changes nothing.
+element it left (`""` when that element has no id), or `Nothing` when it came from
+nowhere (the body). Either way the old place is replaced, so that a toast that goes
+away never sends focus to a place the user left long ago. A move from one toast to
+another is no entry and changes nothing.
 -}
-cameFromDecoder : String -> Decode.Decoder String
+cameFromDecoder : String -> Decode.Decoder (Maybe String)
 cameFromDecoder stackId =
     Decode.maybe
         (Decode.field "relatedTarget"
@@ -905,10 +937,10 @@ cameFromDecoder stackId =
                         Decode.fail "a move inside the stack"
 
                     Just ( False, from ) ->
-                        Decode.succeed from
+                        Decode.succeed (Just from)
 
                     Nothing ->
-                        Decode.succeed ""
+                        Decode.succeed Nothing
             )
 
 

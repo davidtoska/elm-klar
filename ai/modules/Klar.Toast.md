@@ -112,7 +112,9 @@ neither are the ones that stay. Every toast has a close button, and one with an
 action has a button for it; both can be reached with `Tab`. When the toast that has
 focus goes away (it was closed, its action ran, or the application dismissed it),
 focus moves to the next toast, or back to where it was before it came into the
-stack, never to the top of the page.
+stack (to the start of the page content when that element has no id), never to the
+top of the page. If something else takes focus at that moment (the action opened a
+dialog, or moved focus with `Klar.focus`), focus stays there.
 
 ### `view`
 
@@ -217,7 +219,7 @@ Moves focus to the newest toast on screen: to its action ("Undo") if it has
 one, else to its close button. Nothing happens when there is no toast. Bind it to a
 key with [Klar.Shortcut](Klar.Shortcut.md), so that a keyboard user reaches a toast
 before it goes away (its timer stops while focus is in it). When that toast goes
-away, focus returns to where it was.
+away, focus returns to where it was, if that element has an id.
 
 ## Showing and removing toasts
 
