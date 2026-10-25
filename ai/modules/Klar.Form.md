@@ -94,15 +94,15 @@ radio :
     View msg
     -> Field (Maybe id)
     -> List (Select.Option id)
-    -> List (Radio.Attribute msg)
+    -> List (Radio.Attribute String msg)
     -> Html msg
 switch : View msg -> Field Bool -> List (Switch.Attribute msg) -> Html msg
 checkbox : View msg -> Field Bool -> List (Checkbox.Attribute msg) -> Html msg
-datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
+datePicker : View msg -> Field (Maybe Date.Date) -> List (DatePicker.Attribute msg) -> Html msg
 dateRangePicker :
     View msg
     -> Field (Maybe ( Date.Date, Date.Date ))
-    -> List DateRangePicker.Attribute
+    -> List (DateRangePicker.Attribute msg)
     -> Html msg
 moneyInput : View msg -> Field (Maybe Money.Money) -> List (MoneyInput.Attribute msg) -> Html msg
 maskedInput : View msg -> Field (Maybe String) -> List (MaskedInput.Attribute msg) -> Html msg
@@ -803,12 +803,12 @@ domId : Field c -> String
 
 The DOM id of the element that takes the focus for a field: its control, the
 from date of a period, the add button of a group of rows, or the button of a
-rule builder that adds a condition to its root. It is for
-the places that take DOM ids, such as `Modal.openWith` and `Drawer.openWith`
-(the first field of a form in a drawer); to move the focus in an update, use
-`focus`.
+rule builder that adds a condition to its root. It is for the places that take
+DOM ids, such as `Modal.setInitialFocus` and `Drawer.setInitialFocus` (the first
+field of a form in a drawer); to move the focus in an update, use `focus`.
 
-    Drawer.openWith { opener = "edit-customer", focus = [ Form.domId fields.name ] } model.drawer
+    Drawer.setInitialFocus [ Form.domId fields.name ] model.drawer
+        |> Drawer.open "edit-customer"
 
 ### `goToProblem`
 
@@ -974,7 +974,7 @@ radio :
     View msg
     -> Field (Maybe id)
     -> List (Select.Option id)
-    -> List (Radio.Attribute msg)
+    -> List (Radio.Attribute String msg)
     -> Html msg
 ```
 
@@ -1019,7 +1019,7 @@ hint that it must be ticked.
 ### `datePicker`
 
 ```elm
-datePicker : View msg -> Field (Maybe Date.Date) -> List DatePicker.Attribute -> Html msg
+datePicker : View msg -> Field (Maybe Date.Date) -> List (DatePicker.Attribute msg) -> Html msg
 ```
 
 A date picker for a `date` field. The limits of `Spec.minDate` and
@@ -1035,7 +1035,7 @@ are the application's attributes.
 dateRangePicker :
     View msg
     -> Field (Maybe ( Date.Date, Date.Date ))
-    -> List DateRangePicker.Attribute
+    -> List (DateRangePicker.Attribute msg)
     -> Html msg
 ```
 
@@ -1100,17 +1100,18 @@ ruleBuilder :
     -> Html msg
 ```
 
-A rule builder for a `conditions` field. The label, the language and the DOM
-ids are set by the form; the fields (what a rule can talk about, now with the
-options the user chooses among) are an argument, so a rule builder without fields
-cannot be drawn. The other settings (`RuleBuilder.maxDepth`, `RuleBuilder.json`)
-are the application's attributes.
+A rule builder for a `conditions` field. The label, hint, required mark,
+language and DOM ids are set by the form; the fields (what a rule can talk about,
+now with the options the user chooses among) are an argument, so a rule builder
+without fields cannot be drawn. The other settings (`RuleBuilder.maxDepth`,
+`RuleBuilder.json`) are the application's attributes.
 
     Form.ruleBuilder v row.conditions (priceFields options) []
 
 Issues of the rule show on the node that has them once the step has been tried
-(`advance`, `reveal`, `rejected`); the summary leads to the control that needs
-attention.
+(`advance`, `reveal`, `rejected`); a problem with the rule as a whole (a required
+rule without conditions) shows under the builder. The summary leads to the
+control that needs attention.
 
 ### `addRow`
 
