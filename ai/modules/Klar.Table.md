@@ -509,19 +509,22 @@ checkbox, the rows from the one picked last; Ctrl+A or Cmd+A every row of the
 page), ArrowRight and ArrowLeft expand and collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
 only takes part in the movement. Controls you put in an `actions` column stay tab
 stops in every row. Filter popovers and menus close with Escape, and Escape in
-the search box clears it; a dialog or drawer around the table stays open then, and
-only an Escape in the empty box closes it. When an action removes the control that had focus (a
+the search box clears it. Both use the key up (its default is prevented), so a
+dialog or drawer that closes only on an Escape that nothing inside took stays open;
+an Escape in the empty box is left to it. When an action removes the control that had focus (a
 bulk action that deletes the selected rows takes the bulk bar with it), give the
 table focus again with `focus`.
 
 **Accessibility.** Sortable headers carry `aria-sort`, the table has
 `aria-rowcount`, `aria-colcount` and, while it loads, `aria-busy`, and a polite
 live region announces loading, refreshing, the range shown and the sort order.
-When the rows take focus (clickable, selectable, expandable or with a menu) the
-table is a `grid`, or a `treegrid` with `expandedRow`: screen readers leave the
-arrow keys to the rows, the first cell of a row is its row header, a selectable
-grid is `aria-multiselectable` with `aria-selected` on its rows, and an expandable
-row says `aria-expanded` itself. A table that only shows data stays a plain table.
+A table stays a plain `table`, also when its rows take focus, so that a screen
+reader can read it cell by cell; a selectable row says `aria-selected`, and its
+checkbox whether it is checked. With `expandedRow` the table is a `treegrid` (focus
+on rows, ArrowRight and ArrowLeft expand and collapse, as in the ARIA pattern):
+screen readers leave the arrow keys to the rows, the first cell of a row is its row
+header, a selectable tree grid is `aria-multiselectable`, a row that can open its
+details says `aria-expanded`, and the details are a row one level down.
 Name the table with `ariaLabel`; the page controls in its footer are named after it
 too ("Pages of Orders"), so that two tables on a page can be told apart.
 `rowLabel` names a row for screen readers ("Select Ada Lovelace" on its checkbox).
@@ -984,7 +987,7 @@ setSelectedIds : Ids.Ids id -> List id -> State id -> State id
 
 Makes the selection exactly these rows, as a whole: to restore a selection, or
 to keep only the rows that are still there. It also ends an "all matching"
-selection.
+selection. To deselect everything use `clearSelection`.
 
 ### `clearSelection`
 
@@ -1050,8 +1053,9 @@ Collapses the row with this id.
 toggle : Ids.Ids id -> id -> State id -> State id
 ```
 
-Expands the row with this id when it is collapsed, and collapses it when it is
-expanded, as its arrow button does.
+Toggles the details of a row (`expandedRow`), not its selection: expands the
+row with this id when it is collapsed, and collapses it when it is expanded, as its
+arrow button does. To toggle a selection use `select` and `deselect`.
 
 ### `setExpandedIds`
 
@@ -1061,6 +1065,7 @@ setExpandedIds : Ids.Ids id -> List id -> State id -> State id
 
 Makes these rows, and no others, the expanded ones: to restore the rows that
 were open, or to expand every row (`setExpandedIds orderIds (List.map .id orders)`).
+To collapse every row use `collapseAll`.
 
 ### `collapseAll`
 
@@ -1237,8 +1242,9 @@ searchable : Attribute id row msg
 
 Adds a search box to the toolbar. Every word the user types must be found in
 one of the visible, searchable columns (case and accents are ignored), and the
-match is highlighted. Escape clears the box (and a dialog around the table stays
-open; an Escape in the empty box goes on to the dialog); in server mode the table
+match is highlighted. Escape clears the box and is used up (its default is
+prevented, so a dialog that closes only on an Escape nothing inside took stays
+open); an Escape in the empty box is left to the dialog. In server mode the table
 only records the text (see `query`).
 
 ### `searchPlaceholder`
@@ -1341,7 +1347,8 @@ Buttons for the bar that covers the toolbar while rows are selected, next to
 the count, the export menu and a Cancel button that clears the selection. Your
 buttons send plain messages: read `selection` in your update, which is
 `AllMatching { except }` after "Select all N matching" in server mode (then
-`selectedIds` is `[]`). Use small buttons; it also turns on `selectable`.
+`selectedIds` is `[]`). Use small buttons; it also turns on `selectable`, and like
+it needs `rowId`: without it the table draws no checkboxes and no bar.
 
     Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
 
@@ -1757,11 +1764,14 @@ currency code in the format of the table's locale (`NOK 1,234.50` in English,
 
 It sorts by amount, `filterRange` filters by the amount in whole units of the
 currency (100 is 100 kroner), and the CSV export writes the plain amount with the
-locale's decimal separator (`1234.50`, `1234,50`). `footerSum` and `footerAverage`
-add the amounts exactly, as `Money` and not as `Float`, with one total for each
-currency when the column holds several (`NOK 1,250.00 · EUR 300.00`). The search
-box skips it unless you add `includeInSearch`. Use it instead of `float` for every
-amount of money.
+locale's decimal separator (`1234.50`, `1234,50`). Sorting and the range filter
+compare the amounts without their currency, so they are meant for a column of one
+currency: in a column of several, 100 EUR and 100 NOK sort as equal. `footerSum`
+and `footerAverage` add the amounts exactly, as `Money` and not as `Float`, with one
+total for each currency in the order of their codes when the column holds several
+(`EUR 300.00 · NOK 1,250.00`); prepared rows (`remotePrepared`) work them out once.
+The search box skips it unless you add `includeInSearch`. Use it instead of `float`
+for every amount of money.
 
 ### `date`
 

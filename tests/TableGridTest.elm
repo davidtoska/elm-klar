@@ -2,14 +2,15 @@ module TableGridTest exposing (suite)
 
 {-| What `Klar.Table` tells assistive technology and the other surfaces around it:
 
-  - a table whose rows take focus is a `grid` (a `treegrid` when rows expand),
-    and a table that only shows data stays a plain table;
+  - a table whose rows expand is a `treegrid`; every other table, also one whose
+    rows take focus, stays a plain table;
   - the row whose details are open elsewhere is marked (`currentRow`);
   - a money column sorts, filters, adds up and exports exactly (`money`);
   - Escape in the search box is used up only while there is text to clear.
 
 -}
 
+import Array
 import Expect exposing (Expectation)
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -298,35 +299,51 @@ gridTests =
     let
         clickable =
             [ Table.onRowClick Opened ]
+
+        expandable =
+            [ Table.expandedRow (\order -> Html.text order.city) ]
     in
-    describe "grid semantics"
+    describe "table and tree grid semantics"
         [ test "a table that only shows data has no role of its own" <|
             \_ -> table [] start |> Query.hasNot [ role "grid" ]
         , test "and its cells have none either" <|
             \_ -> firstRow [] start |> Query.findAll [ role "gridcell" ] |> Query.count (Expect.equal 0)
-        , test "rows that can be clicked make it a grid" <|
-            \_ -> table clickable start |> Query.has [ role "grid" ]
-        , test "every row of the grid is a row" <|
-            \_ -> firstRow clickable start |> Query.has [ role "row" ]
+        , test "rows that can be clicked keep a plain table, to be read cell by cell" <|
+            \_ -> table clickable start |> Expect.all [ Query.hasNot [ role "grid" ], Query.hasNot [ role "treegrid" ] ]
+        , test "and its cells keep the roles of a table" <|
+            \_ -> firstRow clickable start |> Query.findAll [ role "gridcell" ] |> Query.count (Expect.equal 0)
+        , test "a selectable table says on each row whether it is selected" <|
+            \_ -> firstRow [ Table.selectable ] start |> Query.has [ aria "aria-selected" "false" ]
+        , test "but does not claim a role that allows several to be selected" <|
+            \_ -> table [ Table.selectable ] start |> Expect.all [ Query.hasNot [ role "grid" ], Query.hasNot [ aria "aria-multiselectable" "true" ] ]
+        , test "rows that expand make it a tree grid" <|
+            \_ -> table expandable start |> Query.has [ role "treegrid" ]
+        , test "every row of the tree grid is a row" <|
+            \_ -> firstRow expandable start |> Query.has [ role "row" ]
         , test "the header row is a row with column headers" <|
             \_ ->
-                render clickable start
+                render expandable start
                     |> Query.fromHtml
                     |> Query.find [ Selector.tag "thead" ]
                     |> Query.findAll [ role "columnheader" ]
-                    |> Query.count (Expect.equal 8)
-        , test "the first cell of a row is its row header" <|
-            \_ -> firstRow clickable start |> Query.findAll [ role "rowheader" ] |> Query.first |> Query.has [ Selector.text "ORD-2001" ]
+                    |> Query.count (Expect.equal 9)
+        , test "the first data cell of a row is its row header" <|
+            \_ -> firstRow expandable start |> Query.findAll [ role "rowheader" ] |> Query.first |> Query.has [ Selector.text "ORD-2001" ]
         , test "the other cells are grid cells" <|
-            \_ -> firstRow clickable start |> Query.findAll [ role "gridcell" ] |> Query.count (Expect.equal 7)
-        , test "a selectable grid allows several rows to be selected" <|
-            \_ -> table [ Table.selectable ] start |> Query.has [ role "grid", aria "aria-multiselectable" "true" ]
-        , test "a grid that cannot select does not say it can" <|
-            \_ -> table clickable start |> Query.hasNot [ aria "aria-multiselectable" "true" ]
-        , test "rows that expand make it a tree grid" <|
-            \_ -> table [ Table.expandedRow (\order -> Html.text order.city) ] start |> Query.has [ role "treegrid" ]
+            \_ -> firstRow expandable start |> Query.findAll [ role "gridcell" ] |> Query.count (Expect.equal 8)
+        , test "a selectable tree grid allows several rows to be selected" <|
+            \_ -> table (Table.selectable :: expandable) start |> Query.has [ role "treegrid", aria "aria-multiselectable" "true" ]
+        , test "a tree grid that cannot select does not say it can" <|
+            \_ -> table expandable start |> Query.hasNot [ aria "aria-multiselectable" "true" ]
         , test "a closed row of the tree grid says so itself" <|
-            \_ -> firstRow [ Table.expandedRow (\order -> Html.text order.city) ] start |> Query.has [ aria "aria-expanded" "false", aria "aria-level" "1" ]
+            \_ -> firstRow expandable start |> Query.has [ aria "aria-expanded" "false", aria "aria-level" "1" ]
+        , test "a disabled row, which cannot open its details, does not say it is closed" <|
+            \_ ->
+                firstRow (Table.rowDisabled (\order -> order.number == "ORD-2001") :: expandable) start
+                    |> Expect.all
+                        [ Query.hasNot [ aria "aria-expanded" "false" ]
+                        , Query.has [ aria "aria-level" "1" ]
+                        ]
         , test "an open row says it is open, and its details are a row one level down" <|
             \_ ->
                 let
@@ -351,9 +368,9 @@ gridTests =
                             |> Query.count (Expect.equal 1)
                     ]
                     ()
-        , test "the empty state of a grid is a row with one cell" <|
+        , test "the empty state of a tree grid is a row with one cell" <|
             \_ ->
-                render (Table.remote (Loaded []) :: clickable) start
+                render (Table.remote (Loaded []) :: expandable) start
                     |> Query.fromHtml
                     |> Query.find [ Selector.class "klar-table__state-row" ]
                     |> Query.has [ role "row" ]
@@ -456,6 +473,22 @@ en =
     Money.toString Locale.en
 
 
+{-| The sales as prepared rows, shown with the columns of `saleTable` (the same
+ids, so the prepared rows are used) whose amounts come from `shown`.
+-}
+preparedSales : (Sale -> Money) -> List (Table.Attribute String Sale Table.Msg)
+preparedSales shown =
+    let
+        columns toMoney =
+            [ Table.text (Table.columnId "id") "Sale" .id []
+            , Table.money (Table.columnId "amount") "Amount" toMoney [ Table.filterRange, Table.footerSum ]
+            ]
+    in
+    [ Table.columns (columns shown)
+    , Table.remotePrepared (Loaded (Table.prepareRows Locale.en (columns .amount) (Array.fromList sales)))
+    ]
+
+
 moneyTests : Test
 moneyTests =
     let
@@ -483,9 +516,19 @@ moneyTests =
                     [ Table.remote (Loaded [ { id = "a", amount = nok 4503599627370495 }, { id = "b", amount = nok 4503599627370495 } ]) ]
                     start
                     (en (nok 9007199254740990))
-        , test "each currency has a total of its own, in the order they first appear" <|
+        , test "each currency has a total of its own, in the order of their codes" <|
             \_ ->
                 footerHas [ Table.remote (Loaded ({ id = "S-5", amount = eur 30000 } :: sales)) ] start (en (eur 30000) ++ " · " ++ en (nok 122980))
+        , test "and the order does not follow the rows, so that a sort never moves the totals" <|
+            \_ ->
+                footerHas [ Table.remote (Loaded (sales ++ [ { id = "S-5", amount = eur 30000 } ])) ] start (en (eur 30000) ++ " · " ++ en (nok 122980))
+        , test "prepared rows keep the totals: while no row is left out, the footer reads them" <|
+            \_ ->
+                -- the view is given other amounts than prepareRows saw, so the
+                -- total shown can only be the one prepareRows worked out
+                footerHas (preparedSales (\_ -> nok 1)) start (en (nok 122980))
+        , test "when a row is left out, the footer adds up the rows that match" <|
+            \_ -> footerHas (Table.searchable :: preparedSales (\_ -> nok 1)) (Table.setSearch "S-3" start) (en (nok 1))
         , test "the average is exact to the minor unit" <|
             \_ ->
                 footerHas

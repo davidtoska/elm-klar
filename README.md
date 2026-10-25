@@ -31,7 +31,8 @@ Table.view TableMsg
   resizable panes, diffs, a safe Markdown renderer and the frame of an application.
 * **Plain Elm, plain CSS.** The package depends only on official `elm/*` packages:
   `core`, `html`, `browser`, `json`, `time`, `url` and `file` (`file` only for
-  `Klar.FileDrop` and the file fields of `Klar.Form`). No ports, no JavaScript, no `elm/svg`, no `elm/http`, no external
+  `Klar.FileDrop`, the file fields of `Klar.Form` and the CSV export of
+  `Klar.Table`). No ports, no JavaScript, no `elm/svg`, no `elm/http`, no external
   fonts, no CDN.
 * **Zero setup.** The stylesheet is part of the package: put `Klar.stylesheet` in your
   view and you are done.
