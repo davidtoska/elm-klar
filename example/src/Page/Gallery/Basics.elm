@@ -903,19 +903,22 @@ viewRemote locale model =
                     [ EmptyState.view [ EmptyState.compact, EmptyState.icon Icon.database, EmptyState.title "Nothing requested yet" ] ]
 
                 _ ->
-                    -- loading, failure with a retry, and the data: no `case` of ours
+                    -- loading, failure with a retry, empty and the data: no `case` of ours
                     RemoteView.view
-                        [ RemoteView.onRetry Retried, RemoteView.locale locale, RemoteView.loadingLabel "Loading orders" ]
+                        [ RemoteView.onRetry Retried
+                        , RemoteView.locale locale
+                        , RemoteView.loadingLabel "Loading orders"
+                        , RemoteView.emptyState
+                            [ EmptyState.icon Icon.inbox
+                            , EmptyState.title "No orders to show"
+                            , EmptyState.description "There are no orders yet."
+                            , EmptyState.action (Button.view [ Button.onClick (Requested Works) ] "Load orders")
+                            ]
+                        ]
                         model.orders
                         (\orders ->
                             if List.isEmpty orders then
-                                [ EmptyState.view
-                                    [ EmptyState.icon Icon.inbox
-                                    , EmptyState.title "No orders to show"
-                                    , EmptyState.description "There are no orders yet."
-                                    , EmptyState.action (Button.view [ Button.onClick (Requested Works) ] "Load orders")
-                                    ]
-                                ]
+                                []
 
                             else
                                 [ Layout.stack [ Layout.gap 0 ]
@@ -1421,21 +1424,20 @@ remoteCode : String
 remoteCode =
     """-- model:   orders : Remote (List Order)
 
-case model.orders of
-    Remote.NotAsked ->
-        Text.muted "Nothing requested yet"
+-- loading, failure with a retry, empty, refreshing and old data: no `case` of ours
+RemoteView.view
+    [ RemoteView.onRetry Retry
+    , RemoteView.loadingLabel "Loading orders"
+    , RemoteView.emptyState [ EmptyState.title "No orders to show" ]
+    ]
+    model.orders
+    (\\orders ->
+        if List.isEmpty orders then
+            []
 
-    Remote.Loading ->
-        Spinner.panel "Loading orders ..."
-
-    Remote.Failed problem ->
-        ErrorState.view [ ErrorState.onRetry Retry ] problem
-
-    Remote.Loaded [] ->
-        EmptyState.view [ EmptyState.title "No orders to show" ]
-
-    Remote.Loaded orders ->
-        viewOrders orders
+        else
+            [ viewOrders orders ]
+    )
 
 -- update: a ticket makes the answer to an old request count for nothing
 Retry ->

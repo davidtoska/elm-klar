@@ -574,7 +574,9 @@ redoKeys =
 convention) for redo; `Cmd` instead of `Ctrl` on a Mac. They are listed in the group
 "Edit" of the shortcut sheet, redo twice, once for each pair of keys. Add them to the
 list you give to [Klar.Shortcut](Klar-Shortcut); see the top of this section for the
-fields that are typed in. The attributes are those of `controls`; `locale` names them.
+fields that are typed in. The attributes are those of `controls`, and only `locale`
+applies here: it names the shortcuts and their group (`showShortcuts` is about the
+buttons of `controls`, so it changes nothing in this list).
 
     History.shortcuts [ History.locale model.locale ] { onUndo = UndoPressed, onRedo = RedoPressed }
 
