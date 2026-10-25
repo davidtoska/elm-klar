@@ -27,6 +27,11 @@ For a single date see [Klar.DatePicker](Klar-DatePicker).
     -- msg
     PeriodMsg DateRangePicker.Msg
 
+    -- the limits of the field, in one place: view and setLimits use the same list
+    periodLimits : Date -> List (DateRangePicker.Attribute msg)
+    periodLimits today =
+        [ DateRangePicker.today today, DateRangePicker.max today, DateRangePicker.maxRangeDays 90 ]
+
     -- update
     PeriodMsg m ->
         let
@@ -35,12 +40,12 @@ For a single date see [Klar.DatePicker](Klar-DatePicker).
         in
         ( { model | period = period }, Cmd.map PeriodMsg cmd )
 
+    -- on submit: read the text the user has not left yet, then ask
+    DateRangePicker.setLimits (periodLimits model.today) model.period   -- then isValid and value
+
     -- view
     DateRangePicker.view PeriodMsg
-        [ DateRangePicker.label "Report period"
-        , DateRangePicker.today model.today
-        , DateRangePicker.maxRangeDays 90
-        ]
+        (DateRangePicker.label "Report period" :: periodLimits model.today)
         model.period
 
     -- read

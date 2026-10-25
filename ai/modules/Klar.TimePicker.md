@@ -84,6 +84,14 @@ It holds a time of day only. For a date and a time together see
     -- msg
     CutoffMsg TimePicker.Msg
 
+    -- the limits of the field, in one place: view and setLimits use the same list
+    cutoffLimits : List (TimePicker.Attribute msg)
+    cutoffLimits =
+        [ TimePicker.step 15
+        , TimePicker.min { hour = 8, minute = 0 }
+        , TimePicker.max { hour = 16, minute = 0 }
+        ]
+
     -- update
     CutoffMsg m ->
         let
@@ -92,13 +100,12 @@ It holds a time of day only. For a date and a time together see
         in
         ( { model | cutoff = cutoff }, Cmd.map CutoffMsg cmd )
 
+    -- on submit: read the text the user has not left yet, then ask
+    TimePicker.setLimits cutoffLimits model.cutoff   -- then isValid and value
+
     -- view
     TimePicker.view CutoffMsg
-        [ TimePicker.label "Order cut-off"
-        , TimePicker.step 15
-        , TimePicker.min { hour = 8, minute = 0 }
-        , TimePicker.max { hour = 16, minute = 0 }
-        ]
+        (TimePicker.label "Order cut-off" :: cutoffLimits)
         model.cutoff
 
     -- read

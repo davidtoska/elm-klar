@@ -48,6 +48,7 @@ suite =
         , dateTimeNames
         , dateTimePopups
         , invalidAndNames
+        , rangeTyping
         ]
 
 
@@ -757,4 +758,65 @@ invalidAndNames =
                     |> Event.simulate (Event.custom "keydown" (Encode.object [ ( "key", Encode.string "Escape" ), ( "isComposing", Encode.bool True ) ]))
                     |> Event.toResult
                     |> Expect.err
+        ]
+
+
+rangeTyping : Test
+rangeTyping =
+    let
+        attributes =
+            [ DateRangePicker.today today, DateRangePicker.maxRangeDays 7 ]
+
+        typeInto id text state =
+            DateRangePicker.view identity attributes state
+                |> Query.fromHtml
+                |> Query.find [ Selector.id id ]
+                |> Event.simulate (Event.input text)
+                |> Event.toResult
+                |> Result.map (\message -> Tuple.first (DateRangePicker.update message state))
+                |> Result.withDefault state
+
+        typed from to =
+            DateRangePicker.init "period"
+                |> typeInto "period-from" from
+                |> typeInto "period-to" to
+
+        shows message state =
+            DateRangePicker.view identity attributes state
+                |> Query.fromHtml
+                |> Query.has [ Selector.text message ]
+    in
+    describe "typing a period"
+        [ test "a period in order is taken while typing" <|
+            \_ ->
+                typed "2026-10-20" "2026-10-23"
+                    |> DateRangePicker.value
+                    |> Expect.equal (Just ( date 2026 10 20, date 2026 10 23 ))
+        , test "a to date before the from date is refused, and the field says so" <|
+            \_ ->
+                let
+                    state =
+                        typed "2026-10-20" "2026-10-10"
+                in
+                allOf
+                    [ Expect.equal ( Nothing, False ) ( DateRangePicker.value state, DateRangePicker.isValid state )
+                    , Expect.equal ( Just (date 2026 10 20), Just (date 2026 10 10) ) ( DateRangePicker.from state, DateRangePicker.to state )
+                    , shows "The start date cannot be after the end date" state
+                    ]
+        , test "a period longer than maxRangeDays is refused" <|
+            \_ ->
+                let
+                    state =
+                        typed "2026-10-01" "2026-10-31"
+                in
+                allOf
+                    [ Expect.equal ( Nothing, False ) ( DateRangePicker.value state, DateRangePicker.isValid state )
+                    , shows "The period cannot be longer than 7 days" state
+                    ]
+        , test "correcting the to date makes the period valid again" <|
+            \_ ->
+                typed "2026-10-20" "2026-10-10"
+                    |> typeInto "period-to" "2026-10-22"
+                    |> (\state -> ( DateRangePicker.value state, DateRangePicker.isValid state ))
+                    |> Expect.equal ( Just ( date 2026 10 20, date 2026 10 22 ), True )
         ]
