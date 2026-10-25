@@ -453,9 +453,10 @@ type alias KeyEvent =
 {-| Reads a `keydown` (or `keyup`) event. It fails, so the handler sends nothing and
 the browser default happens, for a key that belongs to the composition of an input
 method (Japanese, Chinese, Korean and others): while the user composes, Enter
-confirms the text and Escape cancels it, and neither may save, close or pick. Every
-key decoder of the library starts here, so `onKeys` and `onKeysPassive` have the
-same guard.
+confirms the text and Escape cancels it, and neither may save, close or pick.
+`onKeys`, `onKeysPassive`, `onLayerKeys` and every component decoder built on this
+one have the guard; a decoder that reads `key` itself does not, so build key
+decoders on this one.
 -}
 keyEvent : Decoder KeyEvent
 keyEvent =
