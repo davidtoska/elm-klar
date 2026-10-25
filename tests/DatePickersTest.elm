@@ -50,6 +50,7 @@ suite =
         , invalidAndNames
         , rangeTyping
         , presetKeyboard
+        , presetAtTheEnd
         , rangeName
         ]
 
@@ -102,18 +103,25 @@ blur text =
     Event.custom "blur" (Encode.object [ ( "target", Encode.object [ ( "value", Encode.string text ) ] ) ])
 
 
-{-| Every message is `Ok` and can be compared with `==`: comparing a value that
-holds a function would crash the test.
+{-| Every message is `Ok`, and the messages of two separate renders compare
+equal with `==`. The two renders get two different functions for the disabled
+days (`isWeekend` and a new closure around it), so a message that held the
+function, or anything built from it, would make `==` meet two different
+functions and crash the test.
 -}
-expectPlainData : Int -> List (Result String msg) -> Expectation
-expectPlainData count messages =
+expectPlainData : Int -> ((Date -> Bool) -> List (Result String msg)) -> Expectation
+expectPlainData count messagesWith =
     let
-        found =
-            List.filterMap Result.toMaybe messages
+        first =
+            List.filterMap Result.toMaybe (messagesWith isWeekend)
+
+        second =
+            List.filterMap Result.toMaybe (messagesWith (\d -> isWeekend d))
     in
     allOf
-        [ Expect.equal count (List.length found)
-        , Expect.equal True (found == List.reverse (List.reverse found))
+        [ Expect.equal count (List.length first)
+        , Expect.equal count (List.length second)
+        , Expect.equal True (List.all identity (List.map2 (==) first second))
         ]
 
 
@@ -159,53 +167,65 @@ plainMessages =
 
                     opened =
                         DatePicker.open dueAttributes (DatePicker.init "due") |> Tuple.first
+
+                    sendWith disabled id event drawn =
+                        DatePicker.view identity [ DatePicker.today today, DatePicker.min today, DatePicker.disabledWhen disabled ] drawn
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.id id ]
+                            |> Event.simulate event
+                            |> Event.toResult
                 in
                 expectPlainData 6
-                    [ dueSend "due" (Event.input "2026-10-24") state
-                    , dueSend "due" (blur "2026-10-24") state
-                    , dueSend "due" (key "Enter" "2026-10-24") state
-                    , dueSend "due" (key "ArrowDown" "2026-10-24") state
-                    , dueSend "due-button" Event.click state
-                    , dueSend "due-popup-cal-d-2026-10-21" Event.click opened
-                    ]
+                    (\disabled ->
+                        [ sendWith disabled "due" (Event.input "2026-10-24") state
+                        , sendWith disabled "due" (blur "2026-10-24") state
+                        , sendWith disabled "due" (key "Enter" "2026-10-24") state
+                        , sendWith disabled "due" (key "ArrowDown" "2026-10-24") state
+                        , sendWith disabled "due-button" Event.click state
+                        , sendWith disabled "due-popup-cal-d-2026-10-21" Event.click opened
+                        ]
+                    )
         , test "the period field: typing, leaving and keys in both inputs, and the button" <|
             \_ ->
                 let
-                    attributes =
-                        [ DateRangePicker.today today, DateRangePicker.disabledWhen isWeekend, DateRangePicker.maxRangeDays 30 ]
-
-                    send id event =
-                        DateRangePicker.view identity attributes (DateRangePicker.init "period")
+                    send disabled id event =
+                        DateRangePicker.view identity
+                            [ DateRangePicker.today today, DateRangePicker.disabledWhen disabled, DateRangePicker.maxRangeDays 30 ]
+                            (DateRangePicker.init "period")
                             |> Query.fromHtml
                             |> Query.find [ Selector.id id ]
                             |> Event.simulate event
                             |> Event.toResult
                 in
                 expectPlainData 7
-                    [ send "period-from" (Event.input "2026-10-20")
-                    , send "period-to" (Event.input "2026-10-23")
-                    , send "period-from" (blur "2026-10-20")
-                    , send "period-to" (blur "2026-10-23")
-                    , send "period-from" (key "Enter" "2026-10-20")
-                    , send "period-to" (key "ArrowDown" "2026-10-23")
-                    , send "period-button" Event.click
-                    ]
+                    (\disabled ->
+                        [ send disabled "period-from" (Event.input "2026-10-20")
+                        , send disabled "period-to" (Event.input "2026-10-23")
+                        , send disabled "period-from" (blur "2026-10-20")
+                        , send disabled "period-to" (blur "2026-10-23")
+                        , send disabled "period-from" (key "Enter" "2026-10-20")
+                        , send disabled "period-to" (key "ArrowDown" "2026-10-23")
+                        , send disabled "period-button" Event.click
+                        ]
+                    )
         , test "the date and time field" <|
             \_ ->
                 let
-                    send id event =
-                        DateTimePicker.view identity [ DateTimePicker.today today, DateTimePicker.disabledWhen isWeekend ] (DateTimePicker.init "pickup")
+                    send disabled id event =
+                        DateTimePicker.view identity [ DateTimePicker.today today, DateTimePicker.disabledWhen disabled ] (DateTimePicker.init "pickup")
                             |> Query.fromHtml
                             |> Query.find [ Selector.id id ]
                             |> Event.simulate event
                             |> Event.toResult
                 in
                 expectPlainData 4
-                    [ send "pickup-date" (Event.input "2026-10-21")
-                    , send "pickup-date" (blur "2026-10-21")
-                    , send "pickup-time" (Event.input "14:30")
-                    , send "pickup-date-button" Event.click
-                    ]
+                    (\disabled ->
+                        [ send disabled "pickup-date" (Event.input "2026-10-21")
+                        , send disabled "pickup-date" (blur "2026-10-21")
+                        , send disabled "pickup-time" (Event.input "14:30")
+                        , send disabled "pickup-date-button" Event.click
+                        ]
+                    )
         ]
 
 
@@ -439,6 +459,25 @@ timePickerAria =
                     [ html |> Query.find [ Selector.id "cutoff" ] |> Query.hasNot [ attributeIs "aria-controls" "cutoff-popup-list" ]
                     , html |> Query.has [ Selector.text "No times to choose" ]
                     ]
+        , test "a field made disabled while its list is open names no highlighted option" <|
+            \_ ->
+                let
+                    opened =
+                        TimePicker.init "cutoff"
+                            |> TimePicker.setValue (Just { hour = 9, minute = 0 })
+                            |> TimePicker.open []
+                            |> Tuple.first
+
+                    input attributes =
+                        TimePicker.view identity attributes opened
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.id "cutoff" ]
+                in
+                allOf
+                    [ input [] |> Query.has [ attributeIs "aria-activedescendant" "cutoff-popup-opt-540" ]
+                    , input [ TimePicker.disabled True ] |> Query.hasNot [ attributeIs "aria-activedescendant" "cutoff-popup-opt-540" ]
+                    , input [ TimePicker.readOnly True ] |> Query.hasNot [ attributeIs "aria-activedescendant" "cutoff-popup-opt-540" ]
+                    ]
         ]
 
 
@@ -543,6 +582,21 @@ dateTimeText =
             \_ -> Expect.equal (Just afternoon) (DateTimePicker.fromIso "2026-10-20T14:30")
         , test "seconds are accepted and dropped" <|
             \_ -> Expect.equal (Just afternoon) (DateTimePicker.fromIso "2026-10-20T14:30:59")
+        , test "what backends send: a fraction of a second, a lowercase t, a space" <|
+            \_ ->
+                Expect.equal [ Just afternoon, Just afternoon, Just afternoon, Just afternoon ]
+                    [ DateTimePicker.fromIso "2026-10-20T14:30:00.000"
+                    , DateTimePicker.fromIso "2026-10-20t14:30"
+                    , DateTimePicker.fromIso "2026-10-20 14:30"
+                    , DateTimePicker.fromIso "2026-10-20 14:30:05.123456"
+                    ]
+        , test "a fraction with a zone, or no digits, is not taken" <|
+            \_ ->
+                Expect.equal [ Nothing, Nothing, Nothing ]
+                    [ DateTimePicker.fromIso "2026-10-20T14:30:00.000Z"
+                    , DateTimePicker.fromIso "2026-10-20T14:30:00."
+                    , DateTimePicker.fromIso "2026-10-20X14:30"
+                    ]
         , test "a zone makes it a moment, not a wall-clock time" <|
             \_ ->
                 Expect.equal [ Nothing, Nothing ]
@@ -553,7 +607,7 @@ dateTimeText =
                     [ DateTimePicker.fromIso "2026-02-30T10:00"
                     , DateTimePicker.fromIso "2026-10-20T24:00"
                     , DateTimePicker.fromIso "2026-10-20T9:00"
-                    , DateTimePicker.fromIso "2026-10-20 14:30"
+                    , DateTimePicker.fromIso "2026-10-20T14:30:60"
                     ]
         ]
 
@@ -821,6 +875,33 @@ rangeTyping =
                     |> typeInto "period-to" "2026-10-22"
                     |> (\state -> ( DateRangePicker.value state, DateRangePicker.isValid state ))
                     |> Expect.equal ( Just ( date 2026 10 20, date 2026 10 22 ), True )
+        ]
+
+
+{-| A quick choice whose days are all disabled is drawn dimmed, also when it
+ends on 31 December 9999 (an "until further notice" date) or later: finding its
+first allowed day must end.
+-}
+presetAtTheEnd : Test
+presetAtTheEnd =
+    let
+        dimmed start finish =
+            DateRangePicker.open [ DateRangePicker.today today ] (DateRangePicker.init "period")
+                |> Tuple.first
+                |> DateRangePicker.view identity
+                    [ DateRangePicker.today today
+                    , DateRangePicker.disabledWhen (\_ -> True)
+                    , DateRangePicker.presets [ DateRangePicker.preset "Until further notice" start finish ]
+                    ]
+                |> Query.fromHtml
+                |> Query.find [ Selector.class "klar-daterange__preset" ]
+                |> Query.has [ Selector.disabled True ]
+    in
+    describe "a quick choice at the end of the calendar"
+        [ test "ending on 31 December 9999" <|
+            \_ -> dimmed (date 9999 12 31) (date 9999 12 31)
+        , test "in year 10000" <|
+            \_ -> dimmed (date 10000 1 1) (date 10000 1 3)
         ]
 
 

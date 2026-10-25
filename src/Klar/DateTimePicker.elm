@@ -272,24 +272,30 @@ toIso local =
     Date.toIso local.date ++ "T" ++ TimePicker.toString local.time
 
 
-{-| Reads `YYYY-MM-DDTHH:MM`, the form `toIso` writes. Seconds (`T14:30:00`) are
-accepted and dropped. Text with a zone (`Z` or `+02:00`) is a moment rather than
-a wall-clock time and gives `Nothing`, and so does a date or a time that does
-not exist.
+{-| Reads `YYYY-MM-DDTHH:MM`, the form `toIso` writes, and the forms backends
+often send: a lowercase `t` or a space in place of the `T`, and seconds with or
+without a fraction (`T14:30:00`, `T14:30:00.000`), which are dropped. Text with
+a zone (`Z` or `+02:00`) is a moment rather than a wall-clock time and gives
+`Nothing`, and so does a date or a time that does not exist.
 
     DateTimePicker.fromIso "2026-10-20T14:30" -- Just { date = 2026-10-20, time = 14:30 }
+
+    DateTimePicker.fromIso "2026-10-20 14:30:00.000" -- the same
 
     DateTimePicker.fromIso "2026-10-20T14:30Z" -- Nothing
 
 -}
 fromIso : String -> Maybe DateTime
 fromIso raw =
-    case String.split "T" (String.trim raw) of
-        [ datePart, timePart ] ->
-            Maybe.map2 DateTime (Date.fromIso datePart) (isoTime timePart)
+    let
+        trimmed =
+            String.trim raw
+    in
+    if List.member (String.slice 10 11 trimmed) [ "T", "t", " " ] then
+        Maybe.map2 DateTime (Date.fromIso (String.left 10 trimmed)) (isoTime (String.dropLeft 11 trimmed))
 
-        _ ->
-            Nothing
+    else
+        Nothing
 
 
 isoTime : String -> Maybe Time
@@ -314,7 +320,23 @@ isoTime raw =
             Maybe.map2 build (twoDigits h) (twoDigits m) |> Maybe.andThen identity
 
         [ h, m, sec ] ->
-            if twoDigits sec /= Nothing && Maybe.withDefault 60 (twoDigits sec) <= 59 then
+            let
+                whole =
+                    case String.split "." sec of
+                        [ seconds ] ->
+                            twoDigits seconds
+
+                        [ seconds, fraction ] ->
+                            if fraction /= "" && String.all Char.isDigit fraction then
+                                twoDigits seconds
+
+                            else
+                                Nothing
+
+                        _ ->
+                            Nothing
+            in
+            if Maybe.withDefault 60 whole <= 59 then
                 Maybe.map2 build (twoDigits h) (twoDigits m) |> Maybe.andThen identity
 
             else

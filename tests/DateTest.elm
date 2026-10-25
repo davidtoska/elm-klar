@@ -47,12 +47,15 @@ dayNumbers =
             \_ -> Expect.equal "1969-12-31" (Date.toIso (Date.fromEpochDay -1))
         , test "year 1" <|
             \_ -> Expect.equal -719162 (Date.toEpochDay (date 1 1 1))
-        , fuzz (Fuzz.intRange -719162 2932896) "a day number survives the round trip" <|
+        , fuzz (Fuzz.intRange -719162 6000000) "a day number survives the round trip, past year 9999 too" <|
             \n -> Expect.equal n (Date.toEpochDay (Date.fromEpochDay n))
         , fuzz (Fuzz.intRange -3000000 6000000) "every day number gives a valid date" <|
             \n -> Expect.equal True (isValid (Date.fromEpochDay n))
-        , fuzz (Fuzz.intRange -719162 2932895) "consecutive days are consecutive dates" <|
+        , fuzz (Fuzz.intRange -719162 6000000) "consecutive days are consecutive dates" <|
             \n -> Expect.equal 1 (Date.diffDays (Date.fromEpochDay n) (Date.fromEpochDay (n + 1)))
+        , fuzz2 (Fuzz.intRange -719162 6000000) (Fuzz.intRange -1000000 1000000) "addDays moves every date by exactly that many days, stopping only at year 1" <|
+            \n k ->
+                Expect.equal (max -719162 (n + k)) (Date.toEpochDay (Date.addDays k (Date.fromEpochDay n)))
         ]
 
 
@@ -148,20 +151,26 @@ parsing =
             \_ -> Expect.equal "Nothing" (iso (Date.fromIso ""))
         , test "writing pads the year" <|
             \_ -> Expect.equal "0042-03-05" (Date.toIso (date 42 3 5))
-        , fuzz (Fuzz.intRange -3000000 6000000) "writing and reading agree for every date" <|
+        , fuzz (Fuzz.intRange -3000000 2932896) "writing and reading agree for every date up to 31 December 9999" <|
             \n ->
                 let
                     d =
                         Date.fromEpochDay n
                 in
                 Expect.equal (Just d) (Date.fromIso (Date.toIso d))
-        , fuzz2 (Fuzz.intRange -719162 2932896) (Fuzz.intRange -200000 200000) "addMonths always gives a date that toIso can write" <|
+        , test "a year after 9999 is written with all its digits, which fromIso does not read" <|
+            \_ ->
+                Expect.equal [ Just "10000-01-01", Nothing ]
+                    [ Date.fromParts 10000 1 1 |> Maybe.map Date.toIso
+                    , Date.fromIso "10000-01-01" |> Maybe.map Date.toIso
+                    ]
+        , fuzz2 (Fuzz.intRange -719162 2932896) (Fuzz.intRange -200000 200000) "addMonths always gives a date that exists" <|
             \n k ->
                 let
                     d =
                         Date.addMonths k (Date.fromEpochDay n)
                 in
-                Expect.equal (Just d) (Date.fromIso (Date.toIso d))
+                Expect.equal (Just d) (Date.fromParts (Date.year d) (Date.month d) (Date.day d))
         , test "fromParts rejects what does not exist" <|
             \_ -> Expect.equal [ Nothing, Nothing, Just (date 2024 2 29) ] [ Date.fromParts 2026 2 29, Date.fromParts 2026 0 1, Date.fromParts 2024 2 29 ]
         ]
@@ -212,32 +221,60 @@ calendar =
 
 range : Test
 range =
-    describe "the supported range, years 1 to 9999"
-        [ test "fromParts gives Nothing outside it" <|
+    describe "the range: from year 1, with no last day"
+        [ test "fromParts gives Nothing before year 1, and keeps a later year for day counting" <|
             \_ ->
-                Expect.equal [ Nothing, Nothing, Just "0001-01-01", Just "9999-12-31" ]
-                    (List.map (Maybe.map Date.toIso) [ Date.fromParts 0 12 31, Date.fromParts 10000 1 1, Date.fromParts 1 1 1, Date.fromParts 9999 12 31 ])
-        , test "addDays stops at the first and the last day" <|
+                Expect.equal [ Nothing, Just "0001-01-01", Just "9999-12-31" ]
+                    (List.map (Maybe.map Date.toIso) [ Date.fromParts 0 12 31, Date.fromParts 1 1 1, Date.fromParts 9999 12 31 ])
+        , test "a day after the range still counts past its last day (the Recurrence engine stops on it)" <|
             \_ ->
-                Expect.equal [ "0001-01-01", "9999-12-31" ]
-                    [ Date.toIso (Date.addDays -1 (date 1 1 1)), Date.toIso (Date.addDays 1 (date 9999 12 31)) ]
-        , test "addMonths stops at January of year 1 and December 9999, keeping the day" <|
+                Expect.equal (Just True)
+                    (Date.fromParts 10000 1 1 |> Maybe.map (\d -> Date.toEpochDay d > Date.toEpochDay (date 9999 12 31)))
+        , test "addDays stops at the first day and counts on past 9999" <|
             \_ ->
-                Expect.equal [ "0001-01-20", "9999-12-20", "0001-01-15" ]
+                Expect.equal [ "0001-01-01", "10000-01-01", "10000-01-06" ]
+                    [ Date.toIso (Date.addDays -1 (date 1 1 1))
+                    , Date.toIso (Date.addDays 1 (date 9999 12 31))
+                    , Date.fromParts 10000 1 5 |> Maybe.map (Date.addDays 1 >> Date.toIso) |> Maybe.withDefault ""
+                    ]
+        , test "addMonths stops at January of year 1, keeping the day, and counts on past 9999" <|
+            \_ ->
+                Expect.equal [ "0001-01-20", "10360-02-20", "0001-01-15" ]
                     [ Date.toIso (Date.addMonths -30000 (date 2026 10 20))
                     , Date.toIso (Date.addMonths 100000 (date 2026 10 20))
                     , Date.toIso (Date.addMonths -1 (date 1 1 15))
                     ]
-        , test "fromEpochDay stops at the edges" <|
+        , test "fromEpochDay stops at the first day only" <|
             \_ ->
-                Expect.equal [ "0001-01-01", "9999-12-31" ]
-                    [ Date.toIso (Date.fromEpochDay -800000), Date.toIso (Date.fromEpochDay 3000000) ]
-        , test "a moment outside the range gives the first or the last day" <|
+                Expect.equal ( "0001-01-01", 3000000 )
+                    ( Date.toIso (Date.fromEpochDay -800000), Date.toEpochDay (Date.fromEpochDay 3000000) )
+        , test "a moment before year 1 gives the first day; a later one its own day" <|
             \_ ->
-                Expect.equal [ "0001-01-01", "9999-12-31" ]
-                    [ Date.toIso (Date.fromPosix Time.utc (Time.millisToPosix -70000000000000))
-                    , Date.toIso (Date.fromPosix Time.utc (Time.millisToPosix 300000000000000))
+                Expect.equal [ Date.fromEpochDay -719162, Date.fromEpochDay 3472222 ]
+                    [ Date.fromPosix Time.utc (Time.millisToPosix -70000000000000)
+                    , Date.fromPosix Time.utc (Time.millisToPosix 300000000000000)
                     ]
+        , test "monthGrid of December 9999 has 42 different days, the last ones in year 10000" <|
+            \_ ->
+                let
+                    cells =
+                        List.concat (Date.monthGrid 1 9999 12)
+                in
+                Expect.equal ( 42, Just "10000-01-09" )
+                    ( List.length
+                        (List.foldl
+                            (\d seen ->
+                                if List.member d seen then
+                                    seen
+
+                                else
+                                    d :: seen
+                            )
+                            []
+                            cells
+                        )
+                    , List.reverse cells |> List.head |> Maybe.map Date.toIso
+                    )
         , test "monthGrid moves a month outside 1 to 12 inside, so every day is a real date" <|
             \_ ->
                 Expect.equal True (List.all isValid (List.concat (Date.monthGrid 1 2026 13)))
