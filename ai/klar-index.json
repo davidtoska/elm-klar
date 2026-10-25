@@ -4200,6 +4200,8 @@
         "update",
         "matrix",
         "onChange",
+        "saved",
+        "unsavedChanges",
         "viewRemote"
       ],
       "mainFunctions": [
@@ -4249,7 +4251,7 @@
         "withDue",
         "all",
         "any",
-        "approver"
+        "atLeast"
       ],
       "related": [
         "Klar.Stepper",

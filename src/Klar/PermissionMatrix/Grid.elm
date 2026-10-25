@@ -139,12 +139,32 @@ layout options items =
         filtering =
             not (List.isEmpty words)
 
+        -- the places of the permissions that match, worked out once (without a filter, all of them)
+        matched =
+            if filtering then
+                items
+                    |> List.filter
+                        (\item ->
+                            let
+                                haystack =
+                                    Internal.normalize (Maybe.withDefault "" item.group ++ " " ++ item.label)
+                            in
+                            List.all (\word -> String.contains word haystack) words
+                        )
+                    |> List.map .index
+
+            else
+                List.map .index items
+
+        matchedSet =
+            if filtering then
+                Set.fromList matched
+
+            else
+                Set.empty
+
         matching item =
-            let
-                haystack =
-                    Internal.normalize (Maybe.withDefault "" item.group ++ " " ++ item.label)
-            in
-            List.all (\word -> String.contains word haystack) words
+            not filtering || Set.member item.index matchedSet
 
         sections =
             gather items
@@ -180,7 +200,7 @@ layout options items =
             capRows (max 0 options.maxRows) rows
     in
     { rows = shown
-    , matches = List.filter matching items |> List.map .index
+    , matches = matched
     , total = List.length items
     , truncated = truncated
     , cutRows = permissionRows rows - permissionRows shown
@@ -196,17 +216,19 @@ gather items =
         key item =
             Maybe.withDefault "" item.group
 
+        -- the groups in the order of their first permission, with a set of the ones seen
         order =
             List.foldl
-                (\item seen ->
-                    if List.member (key item) seen then
-                        seen
+                (\item ( seen, found ) ->
+                    if Set.member (key item) seen then
+                        ( seen, found )
 
                     else
-                        key item :: seen
+                        ( Set.insert (key item) seen, key item :: found )
                 )
-                []
+                ( Set.empty, [] )
                 items
+                |> Tuple.second
                 |> List.reverse
 
         byKey : Dict String (List Item)

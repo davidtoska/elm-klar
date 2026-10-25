@@ -42,13 +42,22 @@ css =
   font-size: var(--_font);
 }
 
+/* The frame takes focus (Klar.focus with the id of init) when "Try again" goes away. */
+.klar-permissions:focus { outline: none; }
+
+.klar-permissions:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: 2px;
+}
+
+/* An explicit density (a modifier) wins over the density of the application. */
 .klar-permissions--normal {
   --_row-h: var(--klar-row);
   --_cell-px: var(--klar-space-3);
 }
 
 .klar-permissions--compact,
-:where([data-klar-density="compact"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
+:where([data-klar-density="compact"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--normal, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-compact);
   --_cell-px: var(--klar-space-2);
   --_font: var(--klar-text-sm);
@@ -57,10 +66,14 @@ css =
 }
 
 .klar-permissions--comfortable,
-:where([data-klar-density="comfortable"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--comfortable)) {
+:where([data-klar-density="comfortable"]) .klar-permissions:where(:not(.klar-permissions--compact, .klar-permissions--normal, .klar-permissions--comfortable)) {
   --_row-h: var(--klar-row-comfortable);
   --_cell-px: var(--klar-space-4);
 }
+
+/* A failure or an empty matrix sits in the frame with some room around it. */
+.klar-permissions--failed,
+.klar-permissions--empty { padding: var(--klar-space-2); }
 
 /* ---- Toolbar and notes -------------------------------------------------- */
 
@@ -444,6 +457,26 @@ css =
     color: HighlightText;
   }
 
+  /* inherited and granted: a dashed box with the check, in the same system colour */
+  .klar-permissions__cell--inherited.klar-permissions__cell--granted .klar-permissions__mark {
+    forced-color-adjust: none;
+    background: Canvas;
+    border-color: Highlight;
+    color: Highlight;
+  }
+
+  /* the corner mark of an own value over an inherited one */
+  .klar-permissions__cell--override::before {
+    forced-color-adjust: none;
+    border-top-color: CanvasText;
+  }
+
+  /* an unsaved change keeps more than its dot: a frame around the cell */
+  .klar-permissions__cell--changed {
+    outline: 1px dashed Highlight;
+    outline-offset: -3px;
+  }
+
   .klar-permissions__dot { forced-color-adjust: none; background: Highlight; }
 }
 
@@ -475,7 +508,9 @@ css =
   min-width: 0;
 }
 
-/* Focused by ApprovalFlow.focus after the buttons that had focus are gone. */
+/* Focused by Klar.focus with the ApprovalFlow.id, after the buttons that had focus are gone. */
+.klar-approval:focus { outline: none; }
+
 .klar-approval:focus-visible {
   outline: 2px solid var(--klar-focus-color);
   outline-offset: 2px;
@@ -608,9 +643,13 @@ css =
   gap: 2px var(--klar-space-3);
 }
 
+/* A heading (ApprovalFlow.headingLevel) that reads as the line it is. */
 .klar-approval__title {
+  margin: 0;
   color: var(--klar-text);
+  font-size: inherit;
   font-weight: var(--klar-weight-bold);
+  line-height: inherit;
 }
 
 .klar-approval__step--waiting .klar-approval__title,
@@ -683,6 +722,9 @@ css =
 .klar-approval__person--approved .klar-approval__decision { color: var(--klar-success); }
 .klar-approval__person--rejected .klar-approval__decision { color: var(--klar-danger); }
 
+/* Not asked on this step: not needed any more, not asked yet, or not reached. */
+.klar-approval__person--idle .klar-approval__decision { color: var(--klar-text-muted); }
+
 .klar-approval__when {
   color: var(--klar-text-muted);
   font-size: var(--klar-text-sm);
@@ -713,6 +755,15 @@ css =
   padding: 4px 4px 8px;
   margin: -4px;
   overflow-x: auto;
+  border-radius: var(--klar-radius);
+}
+
+/* The strip is a tab stop of its own, so it can be scrolled with the arrow keys. */
+.klar-approval--horizontal .klar-approval__steps:focus { outline: none; }
+
+.klar-approval--horizontal .klar-approval__steps:focus-visible {
+  outline: 2px solid var(--klar-focus-color);
+  outline-offset: -2px;
 }
 
 .klar-approval--horizontal .klar-approval__step {
@@ -736,9 +787,13 @@ css =
 
 .klar-approval--horizontal .klar-approval__step--current .klar-approval__body { margin-left: 0; }
 
-/* ---- Skeleton ---------------------------------------------------------------- */
+/* ---- Skeleton, failure, empty --------------------------------------------------- */
 
 .klar-approval--skeleton { gap: var(--klar-space-4); }
+
+/* The failure and the empty state sit in the same root, under an old data marker if any. */
+.klar-approval--failed,
+.klar-approval--empty { gap: var(--klar-space-2); }
 
 .klar-approval__skeleton-step {
   display: flex;
@@ -758,5 +813,9 @@ css =
   .klar-approval__marker { forced-color-adjust: none; border-color: CanvasText; }
   .klar-approval__step--approved .klar-approval__marker,
   .klar-approval__step--rejected .klar-approval__marker { background: Highlight; color: HighlightText; }
+
+  /* the step being decided: its ring is a box-shadow, which forced colours remove */
+  .klar-approval__step--in-progress .klar-approval__marker { outline: 2px solid Highlight; outline-offset: 1px; }
+  .klar-approval__step--current .klar-approval__body { border-color: Highlight; }
 }
 """

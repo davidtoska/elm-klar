@@ -50,6 +50,10 @@ type Change role permission  -- opaque: no constructors are exposed
 changedRole : Change role permission -> role
 changedPermission : Change role permission -> permission
 newAccess : Change role permission -> Maybe Access
+unsavedChanges :
+    (role -> permission -> Cell)
+    -> Matrix role permission
+    -> List (Change role permission)
 
 -- State
 type State  -- opaque: no constructors are exposed
@@ -70,6 +74,7 @@ density : Theme.Density -> Attribute role permission msg
 ariaLabel : String -> Attribute role permission msg
 maxHeight : Int -> Attribute role permission msg
 onRetry : msg -> Attribute role permission msg
+settings : Settings.Settings -> Attribute role permission msg
 locale : Locale.Locale -> Attribute role permission msg
 ```
 
@@ -80,14 +85,17 @@ administrator change it: the classic screen of an application with users.
 
 Use when: an administrator sets which roles may do what, in a grid of roles and permissions.
 Do not use when: only a list of options is chosen for one user, use `Klar.CheckboxGroup`.
-Quick path: `init`, `update`, `matrix`, `onChange`, `viewRemote`
+Quick path: `init`, `update`, `matrix`, `onChange`, `saved`, `unsavedChanges`, `viewRemote`
 
+    import Klar
+    import Klar.Button as Button
     import Klar.PermissionMatrix as PermissionMatrix
     import Klar.Remote as Remote
 
     -- model
     { access : PermissionMatrix.State -- PermissionMatrix.init "role-matrix"
-    , grants : Remote Grants
+    , grants : Remote Grants -- what the grid shows, with the changes not saved yet
+    , savedGrants : Grants -- what the server has: set it when the grants load and when a save succeeds
     }
 
     -- update
@@ -100,6 +108,29 @@ Quick path: `init`, `update`, `matrix`, `onChange`, `viewRemote`
 
     CellsChanged changes ->
         ( { model | grants = Remote.map (applyChanges changes) model.grants }, Cmd.none )
+
+    Save ->
+        let
+            changes =
+                PermissionMatrix.unsavedChanges (cellOf model.savedGrants)
+                    (toMatrix (Remote.withDefault model.savedGrants model.grants))
+        in
+        ( model, Api.saveGrants changes GrantsSaved )
+
+    Reload ->
+        -- "Try again" goes away while the grants load: the matrix takes the focus
+        ( { model | grants = Remote.refresh model.grants }
+        , Cmd.batch [ Api.loadGrants GrantsLoaded, Klar.focus "role-matrix" NoOp ]
+        )
+
+    GrantsLoaded (Ok fromServer) ->
+        -- the unsaved changes stay on top of what the server has now
+        let
+            unsaved =
+                PermissionMatrix.unsavedChanges (cellOf model.savedGrants)
+                    (toMatrix (Remote.withDefault model.savedGrants model.grants))
+        in
+        ( { model | grants = Remote.Loaded (applyChanges unsaved fromServer), savedGrants = fromServer }, Cmd.none )
 
     applyChanges changes grants =
         List.foldl store grants changes
@@ -115,8 +146,11 @@ Quick path: `init`, `update`, `matrix`, `onChange`, `viewRemote`
     -- view
     PermissionMatrix.viewRemote MatrixMsg
         [ PermissionMatrix.onChange CellsChanged
-        , PermissionMatrix.saved (cellOf savedGrants)
+        , PermissionMatrix.saved (cellOf model.savedGrants)
+        , PermissionMatrix.toolbarActions
+            [ Button.view [ Button.primary, Button.small, Button.onClick Save ] "Save" ]
         , PermissionMatrix.onRetry Reload
+        , PermissionMatrix.settings model.settings
         ]
         model.access
         (Remote.map toMatrix model.grants)
@@ -181,8 +215,21 @@ so no application has to work out inheritance to undo an override.
 **Unsaved changes.** Give `saved` the values as they were last saved, and the cells where
 the role's own access differs are marked with a dot (and "unsaved change" for screen
 readers) and counted above the grid, next to your own buttons (`toolbarActions`), for
-Save and Discard. Nothing is kept inside the matrix: load a new baseline by giving a new
-`saved`.
+Save and Discard. `unsavedChanges` gives the same cells as a list of `Change`, which is
+what a Save request sends. Nothing is kept inside the matrix: load a new baseline by giving
+a new `saved`.
+
+**Remote data and focus.** `viewRemote` draws a skeleton while the matrix loads, the
+problem with "Try again" (`onRetry`) when it failed, and the matrix when it is there. Data
+that is `Kept` stays on the screen and editable: dimmed and busy while it is refreshed, and
+with "Old data from 14:05" and a retry above the grid when the last refresh failed (the time
+in the zone of `settings`). The grid is the same element while it refreshes, so the focus
+stays on the cell it was on. The id given to `init` is on the frame of the matrix in every
+state, and the frame can take focus: "Try again" goes away while the data loads, so call
+`Klar.focus` with that id in the update branch of the retry message. The matrix keeps no
+values of its own: data that loads replaces the grid, and with it the unsaved changes the
+toolbar counts, so a reload while there are some should keep them (or ask first) in your
+`update`, as the example does.
 
 **Keyboard.** The grid is one tab stop. The arrow keys move between cells, `Home` and
 `End` to the first and last cell of the row, `Ctrl+Home` and `Ctrl+End` to the first
@@ -200,20 +247,26 @@ Header checkboxes skip a locked column.
 
 **Accessibility.** The grid is a `grid` with sticky headers. A cell is read as "Supervisor,
 Cancel orders, granted", with ", inherited from Dispatcher", ", overrides inherited denied
-from Dispatcher", ", locked" (read-only) and ", unsaved change" when that is so. There is one
-polite region. What a person does is announced in it ("Cancel orders granted to Supervisor.
-2 unsaved changes"), from the value that `cell` gives afterwards, so a change you refuse is
-not announced as made; while the filter is used it says how many permissions match.
-Headers and the filter have names; the state is never colour alone.
+from Dispatcher", ", locked" (read-only) and ", unsaved change" when that is so. An editable
+grid is described by a short instruction ("Space or Enter changes a cell") and every cell that
+can change names its keys in `aria-keyshortcuts`. There is one polite region. What a person
+does is announced in it ("Cancel orders granted to Supervisor. 2 unsaved changes"), from the
+value that `cell` gives afterwards, so a change you refuse is not announced as made. The
+number is said only while the matrix is the one the change leads to (not when you refused
+the change, have not made it yet or changed other cells with it), and a save does not change
+it, so the change is not said again. The announcement is cleared after five seconds, so a
+refresh later does not say it either. While the filter is used the region says how many
+permissions match, until the next change. Headers and the filter have names;
+the state is never colour alone.
 
 **Size.** Only the permissions that are shown are turned into HTML, up to 500 rows (a
 note says how many were cut: use the filter or the groups). Events are caught once on
-the grid, so no cell has handlers of its own: 200 permissions and 25 roles are 5 000 cells
-and stay responsive. Every message (a key that moves the focus, a toggle) builds the whole
-grid again, as in any Elm view: the cells cannot be skipped with `Html.Lazy`, because the
-roles, the permissions and the `cell` function are new values on every render. Header
-checkboxes act on every permission that matches the filter, folded groups and rows beyond
-the cap included.
+the grid, so no cell has handlers of its own, and each cell is drawn from a few plain values
+with `Html.Lazy`: a key that moves the focus redraws only the two cells that changed, and a
+toggle the cells it changed. The matrix is still walked once per render (your `cell` is
+called for every cell, and the row headers are built again), so a key costs about as much as
+one pass over the cells: in a grid of 200 permissions and 25 roles (5 000 cells) a few frames. Header checkboxes act
+on every permission that matches the filter, folded groups and rows beyond the cap included.
 
 The built-in text follows `locale` (English by default). Names come from you.
 
@@ -245,9 +298,11 @@ viewRemote :
     -> Html msg
 ```
 
-The same for a matrix that comes from the backend. `Success` shows the matrix, `Failure` shows
-the problem with a "Try again" button (`onRetry`), and `NotAsked` and `Loading` show a skeleton of
-a grid.
+The same for a matrix that comes from the backend. `Loaded` shows the matrix, `Failed`
+shows the problem with a "Try again" button (`onRetry`), and `NotAsked` and `Loading` show a
+skeleton of a grid. `Kept` shows the matrix it keeps, editable as `Loaded`: dimmed and
+`aria-busy` while it is refreshed, and with "Old data from 14:05" and a retry above the grid
+when the last refresh failed. The frame of the matrix has the id of `init` in every state.
 
     PermissionMatrix.viewRemote MatrixMsg [ PermissionMatrix.onRetry Reload ] model.access (Remote.map toMatrix model.grants)
 
@@ -493,6 +548,25 @@ inherit again, which means that what you stored for the pair is removed.
         Nothing ->
             Dict.remove key decisions
 
+### `unsavedChanges`
+
+```elm
+unsavedChanges :
+    (role -> permission -> Cell)
+    -> Matrix role permission
+    -> List (Change role permission)
+```
+
+The unsaved changes of a matrix, for the request that saves them: one `Change` for every
+role and permission whose own access in the matrix differs from the saved one, with the own
+access the role has now as `newAccess` (`Nothing`: it inherits now, remove what was stored).
+Give it the same function as `saved`. These are the cells that the matrix marks with a dot
+and counts above the grid, by the same rule (what is inherited does not count), in the order
+of the permissions and then of the roles; a role or a permission whose key was seen before
+is left out, as in the grid.
+
+    PermissionMatrix.unsavedChanges (cellOf model.savedGrants) (toMatrix grants)
+
 ## State
 
 ### `State`
@@ -522,8 +596,9 @@ init : String -> State
 ```
 
 A matrix with an empty filter, no group folded and the focus at the first cell. The
-`String` is a DOM id that must be unique on the page: it is the id of the matrix and the
-prefix of the ids of its cells.
+`String` is a DOM id that must be unique on the page: it is the id of the frame of the
+matrix, which can take focus with `Klar.focus` in every state (loading, failed, loaded), and
+the prefix of the ids of its cells.
 
 ### `update`
 
@@ -532,7 +607,7 @@ update : Msg -> State -> ( State, Cmd Msg )
 ```
 
 Applies a message. The `Cmd` moves the browser's focus to the cell that an arrow key
-reached, so map it with your message constructor.
+reached, and clears an announcement after a while, so map it with your message constructor.
 
 ### `query`
 
@@ -620,9 +695,10 @@ next to the number of unsaved changes. The default is none.
 density : Theme.Density -> Attribute role permission msg
 ```
 
-The height of the rows: `Compact`, `Normal` (the default) or `Comfortable`, the same as
+The height of the rows: `Compact`, `Normal` or `Comfortable`, the same as
 [Klar.Table](Klar.Table.md) (see [Klar.Theme](Klar.Theme.md)). Without it the rows follow the
-density of the application (`Klar.Settings`).
+density of the application (`Klar.Settings`), which is `Normal` unless it says otherwise;
+with it the matrix has this density whatever the application's is.
 
 ### `ariaLabel`
 
@@ -650,7 +726,23 @@ onRetry : msg -> Attribute role permission msg
 ```
 
 The message sent by the "Try again" button when `viewRemote` shows a failure that is
-worth retrying.
+worth retrying, or old data whose refresh failed. Without it there is no such button. The
+button goes away while the data loads: in the update branch of this message, call
+`Klar.focus` with the id given to `init`.
+
+    PermissionMatrix.onRetry Reload
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute role permission msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of "Old data from
+14:05" when `viewRemote` shows data whose refresh failed. Without it the time is written in
+UTC and says so.
+
+    PermissionMatrix.settings model.settings
 
 ### `locale`
 

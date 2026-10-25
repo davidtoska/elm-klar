@@ -1,11 +1,11 @@
 module Klar.ApprovalFlow exposing
     ( view, viewRemote
-    , Flow, flow, Step, step, withDue, Quorum, all, any
+    , Flow, flow, Step, step, withDue, Quorum, all, any, atLeast
     , Approver, approver, Decision, pending, approved, rejected
     , Status, status, isInProgress, isApproved, isRejected
     , StepStatus, stepStatuses, stepIsWaiting, stepIsInProgress, stepIsApproved, stepIsRejected, stepIsSkipped
     , currentStep, pendingApprovers
-    , Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale, id
+    , Attribute, viewer, onApprove, onReject, deciding, now, settings, horizontal, headingLevel, ariaLabel, onRetry, locale, id
     )
 
 {-| The approval process of one item: an ordered list of steps, each with one or
@@ -14,39 +14,87 @@ several approvers and a decision from each, and where the item stands.
 Use when: an invoice, a credit note or a request needs sign-off and the page shows who has decided and who is next.
 Do not use when: only a history of what happened is shown, use `Klar.Timeline`, or the steps of a wizard, use `Klar.Stepper`.
 
+    import Klar
     import Klar.ApprovalFlow as ApprovalFlow
     import Klar.Avatar as Avatar
+    import Klar.Locale as Locale
+    import Klar.Remote as Remote
+    import Klar.Toast as Toast
 
-    creditNoteFlow : Time.Posix -> ApprovalFlow.Flow UserId
-    creditNoteFlow deadline =
-        ApprovalFlow.flow
-            [ ApprovalFlow.step "Team lead"
-                ApprovalFlow.all
-                (ApprovalFlow.approver ada
-                    (ApprovalFlow.approved { at = Just twelfthOfMarch, comment = Just "Matches the return." })
-                )
-                []
-            , ApprovalFlow.step "Finance"
-                ApprovalFlow.any
-                (ApprovalFlow.approver grace ApprovalFlow.pending)
-                [ ApprovalFlow.approver alan ApprovalFlow.pending ]
-                |> ApprovalFlow.withDue deadline
-            , ApprovalFlow.step "Director"
-                ApprovalFlow.all
-                (ApprovalFlow.approver edsger ApprovalFlow.pending)
-                []
-            ]
+    -- model
+    { approval : Remote Approval -- the decisions, from your server
+    , deciding : Bool -- a decision is on its way
+    , toasts : Toast.State Msg
+    }
 
-    -- view: who is shown how, and who is looking
-    ApprovalFlow.view personOf
-        [ ApprovalFlow.viewer (Just model.me)
+    -- update
+    Approve ->
+        ( { model | deciding = True }, Api.approve model.creditNote DecisionSent )
+
+    DecisionSent (Err problem) ->
+        -- not recorded: the buttons stay, with the focus on them, so the viewer can try again
+        let
+            ( toasts, cmd ) =
+                Toast.push [ Toast.danger, Toast.key "approval", Toast.title "Your decision was not saved", Toast.message (Remote.title Locale.en problem) ] model.toasts
+        in
+        ( { model | deciding = False, toasts = toasts }, Cmd.map ToastMsg cmd )
+
+    DecisionSent (Ok ()) ->
+        -- recorded: the buttons stay busy until the flow is reloaded, then leave with the
+        -- decision, so the flow takes the focus
+        ( { model | approval = Remote.refresh model.approval }
+        , Cmd.batch [ Api.loadApproval model.creditNote ApprovalLoaded, Klar.focus "credit-note-approval" NoOp ]
+        )
+
+    ApprovalLoaded result ->
+        ( { model | deciding = False, approval = Remote.refreshWith model.approval result model.now }, Cmd.none )
+
+    -- view
+    ApprovalFlow.viewRemote personOf
+        [ ApprovalFlow.id "credit-note-approval"
+        , ApprovalFlow.viewer (Just model.me)
         , ApprovalFlow.onApprove Approve
         , ApprovalFlow.onReject AskWhyRejected
+        , ApprovalFlow.deciding model.deciding
+        , ApprovalFlow.onRetry ReloadApproval
         , ApprovalFlow.now model.now
         , ApprovalFlow.settings model.settings
         ]
-        (creditNoteFlow model.deadline)
+        (Remote.map (creditNoteFlow model.deadline) model.approval)
 
+    -- your decisions, in the shape of the flow (decisionOf turns a stored answer into a Decision)
+    creditNoteFlow : Time.Posix -> Approval -> ApprovalFlow.Flow UserId
+    creditNoteFlow deadline approval =
+        ApprovalFlow.flow
+            [ ApprovalFlow.step "Team lead"
+                ApprovalFlow.all
+                (ApprovalFlow.approver ada (decisionOf approval ada))
+                []
+            , ApprovalFlow.step "Finance"
+                ApprovalFlow.any
+                (ApprovalFlow.approver grace (decisionOf approval grace))
+                [ ApprovalFlow.approver alan (decisionOf approval alan) ]
+                |> ApprovalFlow.withDue deadline
+            , ApprovalFlow.step "Director"
+                ApprovalFlow.all
+                (ApprovalFlow.approver edsger (decisionOf approval edsger))
+                []
+            ]
+
+    decisionOf : Approval -> UserId -> ApprovalFlow.Decision
+    decisionOf approval who =
+        case Approval.answerOf who approval of
+            Just answer ->
+                if answer.approved then
+                    ApprovalFlow.approved { at = Just answer.at, comment = answer.comment }
+
+                else
+                    ApprovalFlow.rejected { at = Just answer.at, comment = answer.comment }
+
+            Nothing ->
+                ApprovalFlow.pending
+
+    -- who is shown how
     personOf : UserId -> Avatar.Entry
     personOf id =
         Avatar.entry (User.name id)
@@ -63,8 +111,9 @@ flow stands follow from the decisions and the rules, in one place, so a screen
 cannot contradict its own data. The steps are taken in order:
 
   - A step is met when its `Quorum` is satisfied: with `all` every approver
-    approved, with `any` at least one did. It fails when it can no longer be met:
-    with `all` as soon as one approver rejected, with `any` when all of them did.
+    approved, with `any` at least one did, with `atLeast 2` two did. It fails when it
+    can no longer be met: with `all` as soon as one approver rejected, with `any` when
+    all of them did, with `atLeast 2` when so many rejected that two cannot approve.
     A rejection in an `all` step wins over approvals; an approval in an `any` step
     wins over rejections.
   - Going from the first step, the steps that are met are approved. The first step
@@ -88,13 +137,18 @@ the like, so that states such as "withdrawn" or "returned for changes" can be ad
 without breaking an application.
 
 **What is shown.** The steps form an ordered list, connected by a line. Each step
-shows its status as an icon and in words (never in colour alone), its rule ("All
-must approve", "Any one of 2 must approve", "1 of 2 approved"), its approvers with
-their decision, the time and the comment, and a due time. The current step is
-marked with `aria-current="step"` and drawn stronger. A line above the steps
-says where the flow stands and is a polite live region, so a decision that arrives
-while the page is open is announced. The layout is vertical, or `horizontal` for a
-wide, short strip.
+shows its title as a heading (`headingLevel`, `h3` by default), its status as an icon
+and in words (never in colour alone), its rule ("All must approve", "Any one of 2 must
+approve", "1 of 2 approved"), its approvers with their decision, the time and the comment,
+and a due time. Only the approvers of the step being decided are "Pending": on a step that
+is decided the others are "Not needed", on a step that waits they are "Not asked yet", and
+on a step that is not reached "Not reached". The current step is marked with
+`aria-current="step"` and drawn stronger. A line above the steps says where the flow stands,
+with how far the current step is ("In progress: step 2 of 3 (Finance), 1 of 2 approved"),
+and is a polite live region, so every decision that arrives while the page is open is
+announced. The layout is vertical, or `horizontal` for a wide, short strip, which can be
+scrolled with the keyboard. A person listed twice in a step counts once: the first entry
+is kept.
 
 **Overdue.** Give the step a due time (`withDue`) and the flow the current time
 (`now`), and an unfinished current step past its due time says "Overdue". The
@@ -106,10 +160,20 @@ current step, the step shows "Approve" and "Reject" buttons, as far as you gave
 `onApprove` and `onReject`. They only send your message: the dialog that asks for
 the reason of a rejection, the request to the server and the new decision are
 yours. A reject message is the place to open a comment field; when the answer
-comes back, put it in the decision (`rejected { at = ..., comment = ... }`). The buttons
-leave with the decision, and the focus with them (it falls to the page body and a screen
-reader says nothing): give the flow an `id` and call `Klar.focus` with it in the same `update`
-that records the decision.
+comes back, put it in the decision (`rejected { at = ..., comment = ... }`). While the
+request is on its way say `deciding True`: the buttons show that they are busy, keep the
+focus and cannot send the decision twice (a refresh of the flow does not make them busy).
+When the answer is an error, set `deciding False` and say what went wrong (a toast): the
+buttons are still there with the focus on them, so the viewer can try again. When it is a
+success, reload the flow: the buttons leave with the new decision, and the focus with them
+(it would fall to the page body and a screen reader would say nothing), so give the flow an
+`id` and call `Klar.focus` with it in the same `update`.
+
+**Remote data.** `viewRemote` draws a skeleton while the flow loads and the problem with
+"Try again" (`onRetry`) when it failed. Data that is `Kept` stays: dimmed and `aria-busy`
+while it is refreshed, and with "Old data from 14:05" and a retry above the steps when the
+last refresh failed, so nobody decides on an old state without knowing it. The `id` is on
+the flow in every state, and the flow can take focus.
 
 **Times** are shown in the zone of the `settings` you give (`Klar.Settings`, UTC and marked as such if you give none) and in the format of `locale`, with
 [Klar.Format](Klar-Format). The built-in text (statuses, rules, "Overdue", the
@@ -123,7 +187,7 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 
 # The flow
 
-@docs Flow, flow, Step, step, withDue, Quorum, all, any
+@docs Flow, flow, Step, step, withDue, Quorum, all, any, atLeast
 
 
 # Approvers and decisions
@@ -142,7 +206,7 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 
 # Attributes
 
-@docs Attribute, viewer, onApprove, onReject, now, settings, horizontal, ariaLabel, onRetry, locale, id
+@docs Attribute, viewer, onApprove, onReject, deciding, now, settings, horizontal, headingLevel, ariaLabel, onRetry, locale, id
 
 -}
 
@@ -158,7 +222,7 @@ import Klar.ErrorState as ErrorState
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
-import Klar.Internal.Freshness as Freshness
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Remote)
 import Klar.Settings as Settings exposing (Settings)
@@ -196,13 +260,14 @@ type alias StepData approver =
     }
 
 
-{-| How many of the approvers of a step have to approve: `all` of them, or `any`
-one of them. Opaque, so that a rule such as "at least two" can be added later
+{-| How many of the approvers of a step have to approve: `all` of them, `any` one of
+them, or `atLeast` a number of them. Opaque, so that other rules can be added later
 without breaking anyone.
 -}
 type Quorum
     = Everyone
     | AnyOne
+    | AtLeast Int
 
 
 {-| One person who has to decide on a step, with the decision so far. Make it with
@@ -251,14 +316,49 @@ error) before you call this; the type does not let you guess.
         (ApprovalFlow.approver grace ApprovalFlow.pending)
         [ ApprovalFlow.approver alan ApprovalFlow.pending ]
 
-List every person once per step. The title is the name of the role or the
+A person counts once per step: when the same person (by `==`) is listed again, the
+first entry is kept and the others are left out, so a duplicate cannot keep an `all`
+step open or make "1 of 3 approved" wrong. The title is the name of the role or the
 department ("Team lead", "Finance"), not the number: the steps are numbered by
 their place in the flow.
 
 -}
 step : String -> Quorum -> Approver approver -> List (Approver approver) -> Step approver
-step title quorum first rest =
-    Step { title = title, quorum = quorum, first = first, rest = rest, due = Nothing }
+step title quorum ((Approver firstWho _) as first) rest =
+    let
+        ( _, kept ) =
+            List.foldl
+                (\((Approver who _) as person) ( seen, found ) ->
+                    if List.member who seen then
+                        ( seen, found )
+
+                    else
+                        ( who :: seen, person :: found )
+                )
+                ( [ firstWho ], [] )
+                rest
+    in
+    Step { title = title, quorum = settle quorum (1 + List.length kept), first = first, rest = List.reverse kept, due = Nothing }
+
+
+{-| A number of approvals that is one, or all of them, is the rule `any` or `all`, with
+its texts: "1 of 3 must approve" is "Any one of 3 must approve".
+-}
+settle : Quorum -> Int -> Quorum
+settle quorum total =
+    case quorum of
+        AtLeast count ->
+            if count <= 1 then
+                AnyOne
+
+            else if count >= total then
+                Everyone
+
+            else
+                quorum
+
+        _ ->
+            quorum
 
 
 {-| The time by which the step should be decided. It is shown on a step that is
@@ -283,6 +383,35 @@ only rejected when every approver has rejected.
 any : Quorum
 any =
     AnyOne
+
+
+{-| This many approvals approve the step ("2 of 3 must approve"). The step is rejected
+as soon as so many have rejected that the number can no longer be reached. The number
+is taken between 1 and the number of approvers of the step: `atLeast 1` (or less) is
+`any`, and a number of at least all the approvers is `all`, with their rule, progress
+and summary texts ("Any one of 3 must approve", "All must approve").
+
+    ApprovalFlow.step "Board" (ApprovalFlow.atLeast 2) (ApprovalFlow.approver ada ApprovalFlow.pending) [ ApprovalFlow.approver grace ApprovalFlow.pending, ApprovalFlow.approver alan ApprovalFlow.pending ]
+
+-}
+atLeast : Int -> Quorum
+atLeast count =
+    AtLeast count
+
+
+{-| How many approvals a step needs, from its rule and its number of approvers.
+-}
+needed : Quorum -> Int -> Int
+needed quorum total =
+    case quorum of
+        Everyone ->
+            total
+
+        AnyOne ->
+            1
+
+        AtLeast count ->
+            clamp 1 (max 1 total) count
 
 
 {-| A person and what they have decided. `who` is your own type, the same one you
@@ -495,6 +624,21 @@ outcome data =
             else
                 Open
 
+        AtLeast _ ->
+            let
+                enough =
+                    needed data.quorum total
+            in
+            if yes >= enough then
+                Met
+
+            else if total - no < enough then
+                -- too many rejected: the number can no longer be reached
+                Failed
+
+            else
+                Open
+
 
 type Phase
     = Walking
@@ -624,6 +768,8 @@ type alias Config approver msg =
     , viewer : Maybe approver
     , onApprove : Maybe msg
     , onReject : Maybe msg
+    , deciding : Bool
+    , headingLevel : Int
     , onRetry : Maybe msg
     , id : Maybe String
     }
@@ -640,6 +786,8 @@ configure attributes =
         , viewer = Nothing
         , onApprove = Nothing
         , onReject = Nothing
+        , deciding = False
+        , headingLevel = 3
         , onRetry = Nothing
         , id = Nothing
         }
@@ -674,6 +822,32 @@ onReject msg =
     Attribute (\config -> { config | onReject = Just msg })
 
 
+{-| Whether a decision of the viewer is on its way: set it to `True` when you send the
+request (in the branch of the `onApprove` or `onReject` message, or when the reason of a
+rejection is sent) and back to `False` when the answer comes. While it is `True` the
+"Approve" and "Reject" buttons show a spinner, say `aria-busy`, ignore clicks and keep the
+focus, so a slow request is not sent twice. The default is `False`. Only this makes the
+buttons busy: while `viewRemote` shows a flow that is being refreshed (a poll, a reload)
+the flow is dimmed and `aria-busy`, but the buttons stay as they are.
+
+    ApprovalFlow.deciding model.deciding
+
+-}
+deciding : Bool -> Attribute approver msg
+deciding value =
+    Attribute (\config -> { config | deciding = value })
+
+
+{-| The level, 1 to 6, of the heading of each step's title (`h3` by default; other
+numbers are moved into that range), so a screen reader can go from step to step. The
+headings must follow the ones of the page: a flow in a card with an `h2` title keeps 3,
+one directly under the `h1` of a page takes 2. The same as `Timeline.headingLevel`.
+-}
+headingLevel : Int -> Attribute approver msg
+headingLevel level =
+    Attribute (\config -> { config | headingLevel = clamp 1 6 level })
+
+
 {-| The current time. It decides whether a step is overdue and lets the times
 carry a tooltip such as "3 days ago". Without it nothing is marked overdue. The
 viewer does not read the clock: keep the value in your model and update it.
@@ -697,15 +871,18 @@ settings given =
 
 {-| Lays the steps out side by side, for a wide and short strip. The default is
 vertical, one step below the other, which suits a side panel and long comments. A
-row with many steps scrolls sideways.
+row with many steps scrolls sideways; so that it can be scrolled from the keyboard, the
+strip is a tab stop of its own (named like the flow), also when it fits.
 -}
 horizontal : Attribute approver msg
 horizontal =
     Attribute (\config -> { config | horizontal = True })
 
 
-{-| The accessible name of the flow, such as "Approval of credit note 2024-117".
-The default is "Approval steps" in the language of `locale`.
+{-| The accessible name of the flow, such as "Approval of credit note 2024-117". The
+flow is a named group (not a landmark, so a page with many flows does not get many
+regions), and this is what a screen reader says when the flow takes the focus. The
+default is "Approval steps" in the language of `locale`.
 -}
 ariaLabel : String -> Attribute approver msg
 ariaLabel text =
@@ -713,7 +890,12 @@ ariaLabel text =
 
 
 {-| The message sent by the "Try again" button when `viewRemote` shows a failure
-that is worth retrying.
+that is worth retrying, or old data whose refresh failed. Without it there is no such
+button. The button goes away while the flow loads: in the update branch of this
+message, call `Klar.focus` with the `id` of the flow.
+
+    ApprovalFlow.onRetry ReloadApproval
+
 -}
 onRetry : msg -> Attribute approver msg
 onRetry msg =
@@ -729,8 +911,10 @@ locale value =
     Attribute (\config -> { config | locale = value })
 
 
-{-| The DOM id of the flow, which must be unique on the page. It lets `Klar.focus` find
-the flow. There is no id by default.
+{-| The DOM id of the flow, which must be unique on the page. It is on the flow in every
+state (loading, failed, empty, the steps), and the flow can then take focus
+(`tabindex` -1), so `Klar.focus` finds it after "Try again" and after a decision, when the
+buttons that had the focus are gone. There is no id by default.
 -}
 id : String -> Attribute approver msg
 id value =
@@ -764,6 +948,10 @@ type alias Texts =
     , summaryApproved : String
     , summaryRejected : Int -> String -> String
     , summaryInProgress : Int -> Int -> String -> String
+    , notNeeded : String
+    , notAskedYet : String
+    , countRejected : Int -> Int -> String
+    , atLeast : Int -> Int -> String
     }
 
 
@@ -798,6 +986,10 @@ texts loc =
     , summaryApproved = pick "Godkjent" "Approved"
     , summaryRejected = \n title -> pick ("Avvist i steg " ++ number n ++ " (" ++ title ++ ")") ("Rejected at step " ++ number n ++ " (" ++ title ++ ")")
     , summaryInProgress = \n total title -> pick ("Pågår: steg " ++ number n ++ " av " ++ number total ++ " (" ++ title ++ ")") ("In progress: step " ++ number n ++ " of " ++ number total ++ " (" ++ title ++ ")")
+    , notNeeded = pick "Ikke nødvendig" "Not needed"
+    , notAskedYet = pick "Ikke spurt ennå" "Not asked yet"
+    , countRejected = \no total -> pick (number no ++ " av " ++ number total ++ " avvist") (number no ++ " of " ++ number total ++ " rejected")
+    , atLeast = \n total -> pick (number n ++ " av " ++ number total ++ " må godkjenne") (number n ++ " of " ++ number total ++ " must approve")
     }
 
 
@@ -816,28 +1008,14 @@ A flow without steps shows "No approval is required".
 -}
 view : (approver -> Avatar.Entry) -> List (Attribute approver msg) -> Flow approver -> Html msg
 view person attributes theFlow =
-    let
-        config =
-            configure attributes
-
-        t =
-            texts config.locale
-    in
-    case theFlow of
-        Flow [] ->
-            EmptyState.view
-                [ EmptyState.compact
-                , EmptyState.icon Icon.shieldCheck
-                , EmptyState.title t.empty
-                ]
-
-        Flow steps ->
-            viewSteps person config t theFlow steps
+    viewFlow person (configure attributes) Freshness.Fresh theFlow
 
 
-{-| The same for a flow that comes from the backend. `Success` shows the flow,
-`Failure` shows the problem with a "Try again" button (`onRetry`), and `NotAsked`
-and `Loading` show a skeleton of steps.
+{-| The same for a flow that comes from the backend. `Loaded` shows the flow, `Failed`
+shows the problem with a "Try again" button (`onRetry`), and `NotAsked` and `Loading`
+show a skeleton of steps. `Kept` shows the flow it keeps: dimmed and `aria-busy` while it
+is refreshed (the decide buttons stay as they are: only `deciding` makes them busy), and with "Old data from 14:05" and a retry
+above the steps when the last refresh failed. The `id` is on the flow in every state.
 
     ApprovalFlow.viewRemote personOf [ ApprovalFlow.onRetry Reload ] (Remote.map toFlow model.approval)
 
@@ -850,26 +1028,30 @@ viewRemote person attributes data =
 
         t =
             texts config.locale
+
+        ( settled, freshness ) =
+            Freshness.settle data
     in
-    case Tuple.first (Freshness.settle data) of
+    case settled of
         Remote.Loaded theFlow ->
-            view person attributes theFlow
+            viewFlow person config freshness theFlow
 
         Remote.Failed problem ->
-            ErrorState.view
-                (List.filterMap identity
-                    [ Just ErrorState.compact
-                    , Just (ErrorState.locale config.locale)
-                    , Maybe.map ErrorState.onRetry config.onRetry
-                    ]
-                )
-                problem
+            wrap config
+                { modifiers = [ "klar-approval--failed" ], freshness = freshness, busy = False }
+                [ ErrorState.view
+                    (List.filterMap identity
+                        [ Just ErrorState.compact
+                        , Just (ErrorState.locale config.locale)
+                        , Maybe.map ErrorState.onRetry config.onRetry
+                        ]
+                    )
+                    problem
+                ]
 
         _ ->
-            Html.div
-                [ Internal.cls [ "klar-approval", "klar-approval--skeleton" ]
-                , Attr.attribute "aria-busy" "true"
-                ]
+            wrap config
+                { modifiers = [ "klar-approval--skeleton" ], freshness = freshness, busy = True }
                 (Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ] [ Html.text t.loading ]
                     :: List.map
                         (\width ->
@@ -883,6 +1065,64 @@ viewRemote person attributes data =
                 )
 
 
+{-| The root of the flow, the same element in every state: a named group with the `id`,
+which can then take focus, so `Klar.focus` finds the flow while it loads, after a failure,
+when it is empty and when it has steps.
+-}
+wrap : Config approver msg -> { modifiers : List String, freshness : Freshness, busy : Bool } -> List (Html msg) -> Html msg
+wrap config options children =
+    Html.div
+        [ Internal.cls
+            ("klar-approval"
+                :: (if config.horizontal then
+                        "klar-approval--horizontal"
+
+                    else
+                        "klar-approval--vertical"
+                   )
+                :: Freshness.className options.freshness
+                :: options.modifiers
+            )
+        , Attr.attribute "role" "group"
+        , Attr.attribute "aria-label" (Maybe.withDefault (texts config.locale).label config.label)
+        , Internal.attrMaybe Attr.id config.id
+        , Internal.attrIf (config.id /= Nothing) (Attr.tabindex -1)
+        , if options.busy then
+            Attr.attribute "aria-busy" "true"
+
+          else
+            Freshness.busyAttr options.freshness
+        ]
+        children
+
+
+viewFlow : (approver -> Avatar.Entry) -> Config approver msg -> Freshness -> Flow approver -> Html msg
+viewFlow person config freshness theFlow =
+    let
+        t =
+            texts config.locale
+
+        notice =
+            Freshness.notice { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False } freshness
+    in
+    case theFlow of
+        Flow [] ->
+            wrap config
+                { modifiers = [ "klar-approval--empty" ], freshness = freshness, busy = False }
+                [ notice
+                , EmptyState.view
+                    [ EmptyState.compact
+                    , EmptyState.icon Icon.shieldCheck
+                    , EmptyState.title t.empty
+                    ]
+                ]
+
+        Flow steps ->
+            wrap config
+                { modifiers = [], freshness = freshness, busy = False }
+                (notice :: viewSteps person config t freshness theFlow steps)
+
+
 type alias Env approver msg =
     { config : Config approver msg
     , t : Texts
@@ -890,11 +1130,14 @@ type alias Env approver msg =
     , current : Maybe Int
     , total : Int
     , canDecide : Bool
+
+    -- the decide buttons are busy: a decision of the viewer is on its way
+    , busy : Bool
     }
 
 
-viewSteps : (approver -> Avatar.Entry) -> Config approver msg -> Texts -> Flow approver -> List (Step approver) -> Html msg
-viewSteps person config t theFlow steps =
+viewSteps : (approver -> Avatar.Entry) -> Config approver msg -> Texts -> Freshness -> Flow approver -> List (Step approver) -> List (Html msg)
+viewSteps person config t freshness theFlow steps =
     let
         current =
             currentStep theFlow
@@ -912,14 +1155,59 @@ viewSteps person config t theFlow steps =
 
                     Nothing ->
                         False
+            , busy = config.deciding
             }
 
-        titleOf index =
+        currentData =
             steps
-                |> List.drop index
+                |> List.drop (Maybe.withDefault 0 current)
                 |> List.head
-                |> Maybe.map (\(Step data) -> data.title)
-                |> Maybe.withDefault ""
+                |> Maybe.map (\(Step data) -> data)
+
+        titleOf =
+            currentData |> Maybe.map .title |> Maybe.withDefault ""
+
+        -- how far the current step is, so that every decision that counts changes the text
+        progressOf =
+            case currentData of
+                Just data ->
+                    let
+                        total =
+                            1 + List.length data.rest
+
+                        yes =
+                            countWhere isApproval data
+
+                        no =
+                            countWhere isRejection data
+                    in
+                    if total < 2 then
+                        ""
+
+                    else
+                        case data.quorum of
+                            Everyone ->
+                                ", " ++ t.countApproved yes total
+
+                            AtLeast _ ->
+                                ", "
+                                    ++ t.countApproved yes total
+                                    ++ (if no > 0 then
+                                            ", " ++ t.countRejected no total
+
+                                        else
+                                            ""
+                                       )
+
+                            AnyOne ->
+                                if no > 0 then
+                                    ", " ++ t.countRejected no total
+
+                                else
+                                    ""
+
+                Nothing ->
+                    ""
 
         summaryText =
             case status theFlow of
@@ -927,10 +1215,10 @@ viewSteps person config t theFlow steps =
                     t.summaryApproved
 
                 FlowRejected ->
-                    t.summaryRejected (Maybe.withDefault 0 current + 1) (titleOf (Maybe.withDefault 0 current))
+                    t.summaryRejected (Maybe.withDefault 0 current + 1) titleOf
 
                 _ ->
-                    t.summaryInProgress (Maybe.withDefault 0 current + 1) env.total (titleOf (Maybe.withDefault 0 current))
+                    t.summaryInProgress (Maybe.withDefault 0 current + 1) env.total titleOf ++ progressOf
 
         summaryIcon =
             case status theFlow of
@@ -943,31 +1231,26 @@ viewSteps person config t theFlow steps =
                 _ ->
                     Icon.clock
     in
-    Html.section
-        [ Internal.cls
-            [ "klar-approval"
-            , if config.horizontal then
-                "klar-approval--horizontal"
+    [ Html.p
+        [ Internal.cls [ "klar-approval__summary", "klar-approval__summary--" ++ flowSuffix (status theFlow) ]
+        , Attr.attribute "role" "status"
+        ]
+        [ Icon.view summaryIcon
+        , Html.span [] [ Html.text summaryText ]
+        ]
+    , Html.ol
+        [ Internal.cls [ "klar-approval__steps" ]
+        , Attr.attribute "role" "list"
 
-              else
-                "klar-approval--vertical"
-            ]
-        , Attr.attribute "aria-label" (Maybe.withDefault t.label config.label)
-        , Internal.attrMaybe Attr.id config.id
-        , Internal.attrIf (config.id /= Nothing) (Attr.tabindex -1)
+        -- a strip that scrolls sideways can be scrolled from the keyboard, also without a button
+        -- in it; a stop needs a name
+        , Internal.attrIf config.horizontal (Attr.tabindex 0)
+        , Internal.attrIf config.horizontal (Attr.attribute "aria-label" (Maybe.withDefault t.label config.label))
         ]
-        [ Html.p
-            [ Internal.cls [ "klar-approval__summary", "klar-approval__summary--" ++ flowSuffix (status theFlow) ]
-            , Attr.attribute "role" "status"
-            ]
-            [ Icon.view summaryIcon
-            , Html.span [] [ Html.text summaryText ]
-            ]
-        , Html.ol [ Internal.cls [ "klar-approval__steps" ], Attr.attribute "role" "list" ]
-            (List.map2 Tuple.pair steps (stepStatuses theFlow)
-                |> List.indexedMap (\index ( each, state ) -> viewStep env index each state)
-            )
-        ]
+        (List.map2 Tuple.pair steps (stepStatuses theFlow)
+            |> List.indexedMap (\index ( each, state ) -> viewStep env index each state)
+        )
+    ]
 
 
 flowSuffix : Status -> String
@@ -1078,10 +1361,21 @@ viewStep env index (Step data) state =
 
                         AnyOne ->
                             t.anyOne total
+
+                        AtLeast _ ->
+                            t.atLeast (needed data.quorum total) total
                     )
 
+        counts =
+            case data.quorum of
+                AnyOne ->
+                    False
+
+                _ ->
+                    True
+
         progress =
-            if total > 1 && data.quorum == Everyone && (state == StepInProgress || state == StepApproved) then
+            if total > 1 && counts && (state == StepInProgress || state == StepApproved) then
                 Just (t.countApproved yes total)
 
             else
@@ -1151,7 +1445,8 @@ viewStep env index (Step data) state =
         [ marker
         , Html.div [ Internal.cls [ "klar-approval__body" ] ]
             [ Html.div [ Internal.cls [ "klar-approval__head" ] ]
-                [ Html.span [ Internal.cls [ "klar-approval__title" ] ]
+                [ Internal.heading env.config.headingLevel
+                    [ Internal.cls [ "klar-approval__title" ] ]
                     [ Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text (t.stepNumber (index + 1) ++ ": ") ]
                     , Html.text data.title
                     ]
@@ -1165,7 +1460,7 @@ viewStep env index (Step data) state =
             , Internal.viewIf (not (List.isEmpty notes))
                 (Html.p [ Internal.cls [ "klar-approval__meta" ] ] notes)
             , Html.ul [ Internal.cls [ "klar-approval__people" ], Attr.attribute "role" "list" ]
-                (List.map (viewPerson env) people)
+                (List.map (viewPerson env state) people)
             , viewActions env state isCurrent data.title
             ]
         ]
@@ -1225,8 +1520,12 @@ isoTime posix =
         ++ "Z"
 
 
-viewPerson : Env approver msg -> Approver approver -> Html msg
-viewPerson env (Approver who decision) =
+{-| One approver. No decision yet is "Pending" only on the step being decided: on a step
+that is decided nobody asks the others any more ("Not needed"), a step that waits has not
+asked anyone yet ("Not asked yet"), and a step that is not reached never will.
+-}
+viewPerson : Env approver msg -> StepStatus -> Approver approver -> Html msg
+viewPerson env stepState (Approver who decision) =
     let
         t =
             env.t
@@ -1237,10 +1536,24 @@ viewPerson env (Approver who decision) =
         isViewer =
             env.config.viewer == Just who
 
+        idle text =
+            { suffix = "idle", glyph = Icon.minus, text = text, details = Nothing }
+
         shown =
             case decision of
                 DecisionPending ->
-                    { suffix = "pending", glyph = Icon.clock, text = t.pending, details = Nothing }
+                    case stepState of
+                        StepInProgress ->
+                            { suffix = "pending", glyph = Icon.clock, text = t.pending, details = Nothing }
+
+                        StepWaiting ->
+                            idle t.notAskedYet
+
+                        StepSkipped ->
+                            idle t.notReached
+
+                        _ ->
+                            idle t.notNeeded
 
                 DecisionApproved d ->
                     { suffix = "approved", glyph = Icon.check, text = t.approved, details = Just d }
@@ -1285,10 +1598,12 @@ viewActions env state isCurrent title =
         t =
             env.t
 
+        -- busy while the viewer's decision is on its way: the buttons stay, keep the focus and
+        -- ignore a second click (a refresh of the flow does not make them busy)
         buttons =
             List.filterMap identity
-                [ Maybe.map (\msg -> Button.view [ Button.small, Button.primary, Button.icon Icon.check, Button.onClick msg ] t.approve) env.config.onApprove
-                , Maybe.map (\msg -> Button.view [ Button.small, Button.danger, Button.icon Icon.close, Button.onClick msg ] t.reject) env.config.onReject
+                [ Maybe.map (\msg -> Button.view [ Button.small, Button.primary, Button.icon Icon.check, Button.loading env.busy, Button.onClick msg ] t.approve) env.config.onApprove
+                , Maybe.map (\msg -> Button.view [ Button.small, Button.danger, Button.icon Icon.close, Button.loading env.busy, Button.onClick msg ] t.reject) env.config.onReject
                 ]
     in
     if state == StepInProgress && isCurrent && env.canDecide && not (List.isEmpty buttons) then
