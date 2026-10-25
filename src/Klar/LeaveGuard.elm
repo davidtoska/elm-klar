@@ -1,6 +1,6 @@
 module Klar.LeaveGuard exposing
     ( Guard, init, initAt, setDirty, isDirty, dirtySources
-    , request, Answer(..), onUrlChange, dismiss
+    , request, Answer(..), onUrlChange, Change(..), dismiss
     , Msg, update, Decision, destination, savesFirst, follow, view, isOpen, pending
     , Attribute, title, message, saveAndLeave, locale
     )
@@ -14,15 +14,17 @@ Quick path: `initAt`, `setDirty`, `request`, `onUrlChange`, `update` with `follo
 
 **The quick path.** Six functions, in this order:
 
-  - `initAt` in `init`, with the `Key` and the `Url`;
+  - `initAt` in `init`, with the `Key`, what an address means to you and the `Url`;
   - `setDirty` in the branch of each message that edits a form, with the comparison itself
     (`draft /= saved`); not in a wrapper that runs after every message (see "After Leave" below);
   - `request` for every link and every navigation of your own: `Proceed` and you
     push the address, `Hold` and the dialog is open;
   - `onUrlChange` in your `onUrlChange`: it answers the Back and Forward buttons, and it
-    tells you which page to show;
+    tells you which page to show (`Enter`), that the page you show has a new address
+    (`SamePage`), or that there is nothing to do (`Unchanged`);
   - `update` for the buttons of the dialog: on "Leave" you get a decision, reset the work
-    the user gave up, and go there with `follow`;
+    the user gave up, and go there with `follow` (on "Save and leave", `savesFirst`,
+    save first);
   - `view` once, in the overlays.
 
 The whole application, as it compiles:
@@ -33,7 +35,7 @@ The whole application, as it compiles:
     import Html.Attributes as Attr
     import Html.Events as Events
     import Klar
-    import Klar.LeaveGuard as LeaveGuard exposing (Answer(..))
+    import Klar.LeaveGuard as LeaveGuard exposing (Answer(..), Change(..))
     import Klar.Overlay as Overlay
     import Url exposing (Url)
 
@@ -74,7 +76,7 @@ The whole application, as it compiles:
         ( { key = key
           , route = fromUrl url
           , draft = ""
-          , guard = LeaveGuard.initAt "leave-dialog" key url
+          , guard = LeaveGuard.initAt "leave-dialog" key fromUrl url
           }
         , Cmd.none
         )
@@ -112,7 +114,7 @@ The whole application, as it compiles:
 
             UrlChanged url ->
                 case LeaveGuard.onUrlChange fromUrl url model.guard of
-                    ( guard, cmd, Just route ) ->
+                    ( guard, cmd, Enter route ) ->
                         ( { model | guard = guard, route = route }
                         , Cmd.batch
                             [ Cmd.map GuardMsg cmd
@@ -120,7 +122,12 @@ The whole application, as it compiles:
                             ]
                         )
 
-                    ( guard, cmd, Nothing ) ->
+                    ( guard, cmd, SamePage _ ) ->
+                        -- the page that is shown, at another address: a page with a sort
+                        -- or a tab in the query reads it from the address here
+                        ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+                    ( guard, cmd, Unchanged ) ->
                         ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
             Typed text ->
@@ -138,7 +145,8 @@ The whole application, as it compiles:
                 in
                 case decision of
                     Just answer ->
-                        -- "Leave": the draft is given up here, whichever way the user left
+                        -- "Leave", whichever way the user left: the draft is given up here.
+                        -- (With saveAndLeave, check LeaveGuard.savesFirst first: see follow.)
                         ( { model | guard = guard, draft = "" }
                         , Cmd.batch [ Cmd.map GuardMsg cmd, LeaveGuard.follow toPath answer guard ]
                         )
@@ -179,7 +187,9 @@ there is no way to hold a request and forget to open the dialog. The dialog is a
 backdrop and the close button mean "Stay". `Leave` and `Stay` are messages of the
 dialog; `update` resolves them. On "Leave" you get the held value back in a `Decision`
 and the guard forgets everything that was dirty, since the user gave those changes up:
-reset what was given up in that branch, and go with `follow`. Every "Leave" gives a
+reset what was given up in that branch, and go with `follow` (with `saveAndLeave`
+the same branch gets "Save and leave" too: check `savesFirst` before you reset
+anything, see `follow`). Every "Leave" gives a
 decision, whether the question came from a link or from the Back button, so that branch
 is the one place for it. On "Stay" nothing is left for you to do. `update` returns the decision next to the new
 guard, and not as something to read from the guard afterwards, because a decision is
@@ -193,7 +203,7 @@ position in the history nor tell the two buttons apart. The guard therefore does
 try to undo the move. With something dirty it leaves the page as it is, opens the
 question, and the address bar is already at the page the user wanted. "Leave" shows
 that page (the guard replaces the address with itself, which adds no entry to the
-history, and `onUrlChange` then tells you to show it; `follow` knows that and pushes
+history, and `onUrlChange` then answers `Enter`; `follow` knows that and pushes
 nothing); "Stay" pushes the address of the page that is shown. One consequence is worth knowing: after "Stay" the entries
 that were ahead of the page are gone, and when the user pressed Forward there is one
 entry more than before. Never undo a Back with `Nav.forward 1` yourself: the browser
@@ -250,13 +260,15 @@ a value that is unchanged from one that is new: both are "dirty".
 
 **The same page at another address.** A page often keeps its sort, its filter or its tab
 in the query. Such a change is no departure when the target of the new address is the
-target of the page that is shown: `onUrlChange` takes the address as the page's own,
-asks nothing, and returns `Nothing` while something is dirty (the page and its unsaved
-work stay as they are; `Just` the target, as for any address, when nothing is). A
-`request` for the page that is shown is answered with `Proceed`. So the target decides
-what a page is: leave out of it what does not make another page. Targets are compared
-with `==`, so they are plain data. The guard learns what the page means at the first
-change of the address; before it, a link to the page you started on asks like any other.
+target of the page that is shown: `onUrlChange` asks nothing and answers `SamePage url`,
+dirty or not. Apply the address to the page you show (read its sort or its tab from
+`url`) and keep its work, as the address bar now says. A `request` for the page that
+is shown is answered with `Proceed`: push the link's own `Url` then
+(`Nav.pushUrl model.key (Url.toString url)`), since a target that leaves the query out
+cannot write it back. So the target decides what a page is: leave out of it what does
+not make another page. Targets are compared with `==`, so they are plain data.
+`initAt` reads the target of the address the application starts on, so `request`
+and `onUrlChange` agree from the first click.
 
 **A new request while the question is open** replaces the held one: the latest thing
 the user asked for is what "Leave" does. A request is never held when everything is
@@ -322,11 +334,16 @@ its drawer and reset the scroll, which does no harm when the page stays):
                 AppShell.update m model.shell
         in
         case Maybe.map (\url -> LeaveGuard.onUrlChange pageFromUrl url model.guard) address of
-            Just ( guard, guardCmd, Just page ) ->
+            Just ( guard, guardCmd, Enter page ) ->
                 enter page { model | shell = shell, guard = guard }
                     |> addCmd (Cmd.batch [ Cmd.map ShellMsg cmd, Cmd.map GuardMsg guardCmd ])
 
-            Just ( guard, guardCmd, Nothing ) ->
+            Just ( guard, guardCmd, SamePage url ) ->
+                ( applyQuery url { model | shell = shell, guard = guard }
+                , Cmd.batch [ Cmd.map ShellMsg cmd, Cmd.map GuardMsg guardCmd ]
+                )
+
+            Just ( guard, guardCmd, Unchanged ) ->
                 ( { model | shell = shell, guard = guard }
                 , Cmd.batch [ Cmd.map ShellMsg cmd, Cmd.map GuardMsg guardCmd ]
                 )
@@ -348,7 +365,7 @@ example at the top.
 
 # Asking
 
-@docs request, Answer, onUrlChange, dismiss
+@docs request, Answer, onUrlChange, Change, dismiss
 
 
 # The dialog
@@ -410,25 +427,27 @@ init id =
 
 
 {-| The same, for an application with URLs: give it the `Key` and the `Url` that
-`Browser.application` gives your `init`. The guard keeps the address of the page
-that is shown, and uses the key to put the address right after "Stay".
+`Browser.application` gives your `init`, and what an address means to you (the same
+function you give to `onUrlChange`). The guard keeps the address of the page that is
+shown and its target, so a link to the page you started on is no departure from the
+first click on, and it uses the key to put the address right after "Stay".
 
     init _ url key =
         ( { key = key
           , route = Route.fromUrl url
-          , guard = LeaveGuard.initAt "leave-dialog" key url
+          , guard = LeaveGuard.initAt "leave-dialog" key Route.fromUrl url
           }
         , Cmd.none
         )
 
 -}
-initAt : String -> Nav.Key -> Url -> Guard source target
-initAt id key url =
+initAt : String -> Nav.Key -> (Url -> target) -> Url -> Guard source target
+initAt id key toTarget url =
     Guard
         { id = id
         , modal = Modal.init id
         , key = Just key
-        , state = Leave.watch (Url.toString url) Leave.init
+        , state = Leave.watch (Url.toString url) (toTarget url) Leave.init
         }
 
 
@@ -516,27 +535,17 @@ did not ask first, and it takes the place of the code that enters the page.
 
     UrlChanged url ->
         case LeaveGuard.onUrlChange Route.fromUrl url model.guard of
-            ( guard, cmd, Just route ) ->
+            ( guard, cmd, Enter route ) ->
                 enter route { model | guard = guard } |> addCmd (Cmd.map GuardMsg cmd)
 
-            ( guard, cmd, Nothing ) ->
+            ( guard, cmd, SamePage address ) ->
+                ( applyQuery address { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+            ( guard, cmd, Unchanged ) ->
                 ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
-`Just route` means: show this page. Nothing is dirty, or the user has just left. The
-first argument says what an address means to you (the same `target` you give to
-`request`); it is called for the new address and for the address of the page that is
-shown, to tell another page from another address of the same page. `Nothing` means: do nothing, the guard has
-dealt with it. That is one of
-
-  - the page you show is already at this address (your own `Nav.pushUrl` came back,
-    or the guard put the address right after "Stay");
-  - something is dirty and the user pressed Back or Forward. The page stays as it
-    is, the question is open, and the address bar is already at the place the user
-    wanted. "Leave" shows that page; "Stay" pushes the address of the page that is
-    shown;
-  - something is dirty and the address is another address of the page that is shown
-    (the same target: a query that your target leaves out). The page stays as it is
-    and nothing is asked.
+The first argument says what an address means to you (the same `target` you give to
+`request` and to `initAt`); the answer is a `Change`, which says what the page does.
 
 The guard never moves in the history by itself. `Nav.back` and `Nav.forward` call
 `onUrlChange` twice (at once with the address they leave, later with the new one),
@@ -549,32 +558,55 @@ A guard made with `init` has no address to compare with and never holds: every
 change of the address is entered.
 
 -}
-onUrlChange : (Url -> target) -> Url -> Guard source target -> ( Guard source target, Cmd Msg, Maybe target )
+onUrlChange : (Url -> target) -> Url -> Guard source target -> ( Guard source target, Cmd Msg, Change target )
 onUrlChange toTarget url (Guard guard) =
     let
         target =
             toTarget url
 
-        -- what the page that is shown means, from its address
-        shownTarget =
-            guard.state.shown
-                |> Maybe.andThen Url.fromString
-                |> Maybe.map toTarget
-
-        ( state, effects, entered ) =
-            Leave.changed (Url.toString url) target shownTarget guard.state
+        ( state, effects, change ) =
+            Leave.changed (Url.toString url) target guard.state
 
         ( modal, cmd ) =
             perform guard.key effects guard.id guard.modal
     in
     ( Guard { guard | modal = modal, state = state }
     , cmd
-    , if entered then
-        Just target
+    , case change of
+        Leave.Enter ->
+            Enter target
 
-      else
-        Nothing
+        Leave.Same ->
+            SamePage url
+
+        Leave.Ignore ->
+            Unchanged
     )
+
+
+{-| What the page does with a new address, the answer of `onUrlChange`.
+
+  - `Enter target`: show this page. It is another page and nothing is dirty, or the
+    user has just left it ("Leave" after Back), or the guard was made with `init`.
+  - `SamePage url`: the page you show, at another address. The target is the same
+    (`==`) and only what the target leaves out has changed: a sort, a filter or a tab
+    in the query. Apply `url` to the page you show and keep its work. This is no
+    departure, dirty or not, so nothing was asked.
+  - `Unchanged`: nothing to do, the guard has dealt with it. Your own `Nav.pushUrl`
+    came back to the address the page shows, the guard put the address right after
+    "Stay", or something is dirty and the user pressed Back or Forward: the page stays
+    as it is, the question is open, and the address bar is already at the place the
+    user wanted ("Leave" shows that page, "Stay" pushes the address of the page that is
+    shown).
+
+A union with exactly these three cases, because the page does something different in
+each.
+
+-}
+type Change target
+    = Enter target
+    | SamePage Url
+    | Unchanged
 
 
 {-| Carries out what the state machine decided, in order: the dialog opens or
@@ -725,15 +757,22 @@ held link (with the `Key` of `initAt`), and does nothing when the Back or Forwar
 button already took the address bar there (the guard has made it the page's address,
 and `onUrlChange` enters it). The function writes your target as an address, the
 same one your links use. Call it in the branch that gets the decision, next to the
-reset of the work the user gave up:
+reset of the work the user gave up. With `saveAndLeave` that branch also gets "Save and
+leave", which keeps the work: check `savesFirst` before you reset anything.
 
     Just answer ->
-        ( { model | guard = guard, draft = model.saved }
-        , Cmd.batch [ Cmd.map GuardMsg cmd, LeaveGuard.follow Route.toPath answer guard ]
-        )
+        if LeaveGuard.savesFirst answer then
+            -- "Save and leave": save, and go on when the save has succeeded
+            save (SavedThenGo (LeaveGuard.destination answer)) { model | guard = guard }
+                |> addCmd (Cmd.map GuardMsg cmd)
 
-For "Save and leave" (`savesFirst`) it does nothing: save first, and go to the
-`destination` when the save has succeeded. A guard made with `init` has no address to
+        else
+            -- "Leave": the draft is given up
+            ( { model | guard = guard, draft = model.saved }
+            , Cmd.batch [ Cmd.map GuardMsg cmd, LeaveGuard.follow Route.toPath answer guard ]
+            )
+
+For "Save and leave" `follow` does nothing. A guard made with `init` has no address to
 move: show the `destination` yourself.
 
 -}

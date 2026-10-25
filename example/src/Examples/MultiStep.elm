@@ -189,7 +189,7 @@ init _ url key =
       , route = routeFromUrl url
       , order = Form.init form
       , status = FormLayout.Idle
-      , guard = LeaveGuard.initAt "leave-dialog" key url
+      , guard = LeaveGuard.initAt "leave-dialog" key routeFromUrl url
       , toasts = Toast.init
       }
     , Cmd.none
@@ -217,10 +217,14 @@ update msg model =
         UrlChanged url ->
             -- also the browser's Back and Forward: with unsaved input the guard keeps the page and asks
             case LeaveGuard.onUrlChange routeFromUrl url model.guard of
-                ( guard, cmd, Just route ) ->
+                ( guard, cmd, LeaveGuard.Enter route ) ->
                     ( { model | route = route, guard = guard }, Cmd.map GuardMsg cmd )
 
-                ( guard, cmd, Nothing ) ->
+                ( guard, cmd, LeaveGuard.SamePage _ ) ->
+                    -- the page that is shown, at another address: nothing here reads the query
+                    ( { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+                ( guard, cmd, LeaveGuard.Unchanged ) ->
                     ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
         FormMsg inner ->
@@ -292,7 +296,8 @@ update msg model =
                     ( next, Cmd.map GuardMsg cmd )
 
                 Just answer ->
-                    -- "Leave", from a link or from the Back button: the changes are given up
+                    -- "Leave" (this dialog has no saveAndLeave, so never "Save and leave"),
+                    -- from a link or from the Back button: the changes are given up
                     -- here, and follow goes there (it pushes a link; after Back the address is there)
                     ( { next | order = Form.init form, status = FormLayout.Idle }
                     , Cmd.batch

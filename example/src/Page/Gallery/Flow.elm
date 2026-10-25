@@ -1107,7 +1107,7 @@ guardBrowserCode =
 init _ url key =
     ( { key = key
       , route = Route.fromUrl url
-      , guard = LeaveGuard.initAt "leave-dialog" key url
+      , guard = LeaveGuard.initAt "leave-dialog" key Route.fromUrl url
       }
     , Cmd.none
     )
@@ -1124,12 +1124,16 @@ LinkClicked (Browser.Internal url) ->
 -- every change of the address, the Back and Forward buttons included
 UrlChanged url ->
     case LeaveGuard.onUrlChange Route.fromUrl url model.guard of
-        ( guard, cmd, Just route ) ->
+        ( guard, cmd, Enter route ) ->
             -- show this page, and move focus to its content
             enter route { model | guard = guard }
                 |> addCmd (Cmd.map GuardMsg cmd)
 
-        ( guard, cmd, Nothing ) ->
+        ( guard, cmd, SamePage address ) ->
+            -- the page that is shown, at another address (a sort, a tab): apply it, keep the work
+            ( applyQuery address { model | guard = guard }, Cmd.map GuardMsg cmd )
+
+        ( guard, cmd, Unchanged ) ->
             -- asked, or nothing to do
             ( { model | guard = guard }, Cmd.map GuardMsg cmd )
 
@@ -1138,6 +1142,7 @@ UrlChanged url ->
 GuardMsg inner ->
     case LeaveGuard.update inner model.guard of
         ( guard, cmd, Just answer ) ->
+            -- this dialog has no saveAndLeave; with it, check LeaveGuard.savesFirst first
             ( { model | guard = guard, note = model.noteSaved }
             , Cmd.batch [ Cmd.map GuardMsg cmd, LeaveGuard.follow Route.toPath answer guard ]
             )
