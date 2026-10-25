@@ -136,7 +136,11 @@ the whole top level comes from the backend, give it to `viewRemote`.
 
 Large trees: only open branches are rendered (with keyed nodes), and a branch
 with more than `maxChildren` children (default 300) shows the first ones and a
-"Show 300 more" row.
+"Show 300 more" row. Every row on the screen is drawn again after each message, so
+keep the number of open rows in the hundreds; when the nodes of a big tree are kept
+in your model, draw it with `Html.Lazy.lazy2` on the state and the nodes: a message
+that changes nothing gives back the very same state, so the tree is then not drawn
+again for it.
 
 The built-in text (the filter box, "Loading ...", "No matches" and so on) is
 English unless you set `locale`. Labels, descriptions, counts and badges come from you.
@@ -834,11 +838,24 @@ child. To react to what the user did, compare the state before and after, and
 read `loadRequests` from the new state.
 -}
 update : Msg -> State id -> ( State id, Cmd Msg )
-update msg (State before) =
+update msg ((State before) as original) =
     let
         -- The requests of a message are those of that message only.
         s =
-            { before | requests = [] }
+            if List.isEmpty before.requests then
+                before
+
+            else
+                { before | requests = [] }
+
+        -- A message that changes nothing gives back the very same state, so
+        -- that a view of the tree inside `Html.Lazy` is not drawn again.
+        same =
+            if List.isEmpty before.requests then
+                original
+
+            else
+                State s
     in
     case msg of
         SetOpen request ->
@@ -862,7 +879,7 @@ update msg (State before) =
             ( State { s | selected = Set.fromList ids }, Cmd.none )
 
         Refocus domId ->
-            ( State s, Internal.focus domId Noop )
+            ( same, Internal.focus domId Noop )
 
         Click id mode visible ->
             focusRow id (applyClick id mode visible s)
@@ -888,21 +905,21 @@ update msg (State before) =
                     else
                         -- The browser is still catching up with a focus the
                         -- model has moved past: do not move the model back.
-                        ( State s, Cmd.none )
+                        ( same, Cmd.none )
 
                 Nothing ->
-                    ( State { s | focused = Just id }, Cmd.none )
+                    if s.focused == Just id then
+                        ( same, Cmd.none )
+
+                    else
+                        ( State { s | focused = Just id }, Cmd.none )
 
         FocusDone id ->
-            ( State
-                (if s.pendingFocus == Just id then
-                    { s | pendingFocus = Nothing }
+            if s.pendingFocus == Just id then
+                ( State { s | pendingFocus = Nothing }, Cmd.none )
 
-                 else
-                    s
-                )
-            , Cmd.none
-            )
+            else
+                ( same, Cmd.none )
 
         MoveFocus id ->
             focusRow id s
@@ -912,10 +929,10 @@ update msg (State before) =
         -- dropped instead of acting on the wrong row.
         Guard id inner ->
             if s.focused == Just id || s.focused == Nothing then
-                update inner (State s)
+                update inner same
 
             else
-                ( State s, Cmd.none )
+                ( same, Cmd.none )
 
         -- The arrow keys move relative to where the focus is in the model, not
         -- relative to the row that had it when the page was last drawn: keys
@@ -926,7 +943,7 @@ update msg (State before) =
                     focusRow id s
 
                 Nothing ->
-                    ( State s, Cmd.none )
+                    ( same, Cmd.none )
 
         StepRange delta visible selectable ->
             case stepTarget s delta visible of
@@ -934,7 +951,7 @@ update msg (State before) =
                     focusRow id (extendRange id visible selectable s)
 
                 Nothing ->
-                    ( State s, Cmd.none )
+                    ( same, Cmd.none )
 
         QueryChanged text ->
             ( State { s | query = text, flips = Set.empty, extra = Dict.empty, wait = s.wait + 1 }
@@ -946,7 +963,7 @@ update msg (State before) =
                 ( State { s | searched = s.query }, Cmd.none )
 
             else
-                ( State s, Cmd.none )
+                ( same, Cmd.none )
 
         ClearQuery ->
             ( State { s | query = "", searched = "", flips = Set.empty, extra = Dict.empty }, Cmd.none )
@@ -1004,16 +1021,14 @@ update msg (State before) =
                     ( State { s | typeahead = "", typeaheadSeq = sequence }, Cmd.none )
 
         ClearTypeahead sequence ->
-            ( if sequence == s.typeaheadSeq then
-                State { s | typeahead = "" }
+            if sequence == s.typeaheadSeq then
+                ( State { s | typeahead = "" }, Cmd.none )
 
-              else
-                State s
-            , Cmd.none
-            )
+            else
+                ( same, Cmd.none )
 
         Noop ->
-            ( State s, Cmd.none )
+            ( same, Cmd.none )
 
 
 {-| Move the keyboard focus to a row from the program. The model says at once

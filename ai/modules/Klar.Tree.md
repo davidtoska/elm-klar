@@ -214,7 +214,11 @@ the whole top level comes from the backend, give it to `viewRemote`.
 
 Large trees: only open branches are rendered (with keyed nodes), and a branch
 with more than `maxChildren` children (default 300) shows the first ones and a
-"Show 300 more" row.
+"Show 300 more" row. Every row on the screen is drawn again after each message, so
+keep the number of open rows in the hundreds; when the nodes of a big tree are kept
+in your model, draw it with `Html.Lazy.lazy2` on the state and the nodes: a message
+that changes nothing gives back the very same state, so the tree is then not drawn
+again for it.
 
 The built-in text (the filter box, "Loading ...", "No matches" and so on) is
 English unless you set `locale`. Labels, descriptions, counts and badges come from you.
