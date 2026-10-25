@@ -9,15 +9,21 @@
 - Test-file inventory saved alongside the baseline.
 - DOM baseline: 22 tables on 36 showcase/example pages, saved in dom-before/.
 - f999e2f: Harness and plan committed.
-- Identity extraction is green: format and full check passed (11,359 tests), docs
+- dcb2f9a: Identity extraction is green: format and full check passed (11,359 tests), docs
   byte-identical, all 22 table roots identical on the eight routes with tables.
-- Next: establish the documented public boundary, then move its internal groups
-  in dependency order.
+- Public boundary is green: 11,359 tests, byte-identical docs, 22 identical table
+  roots. Original union constructor/payload shapes are retained, including Msg.
+- Next: extract Types, Numeric, Filter, Selection and DomIds in dependency order.
 
 ## Decisions
 
 - Preserve opaque public unions rather than replacing them with aliases, because the
   required byte-identical documentation JSON distinguishes these representations.
+- Preserve their original payload shapes too: existing CSV tests stringify opaque
+  messages, so Msg maps constructor-for-constructor rather than adding a wrapper.
+- Subsequent full checks limit elm-test to four workers through an external Node
+  preload, retaining all tests and the default 100 fuzz runs; this avoids spawning
+  28 large test workers on this machine. No repository check scripts are changed.
 - No user changes copied from the main checkout; its unrelated work stays there.
 - Chrome can fast-forward its virtual clock before Elm's final animation frame.
   The harness holds page load open for three real seconds, then extracts table
