@@ -778,6 +778,7 @@ css =
 }
 
 .klar-slider__thumb:focus-visible { outline: none; box-shadow: var(--klar-focus-ring); }
+.klar-slider--readonly .klar-slider__thumb { cursor: default; }
 
 .klar-slider__body:has(.klar-slider__thumb:focus-visible) .klar-slider__bubble { opacity: 1; }
 
@@ -786,7 +787,7 @@ css =
 @media (forced-colors: active) {
   .klar-slider {
     --_color: Highlight;
-    --klar-gray-200: GrayText;
+    --klar-gray-200: CanvasText;
     --klar-gray-400: CanvasText;
     --klar-surface: Canvas;
     --klar-focus-ring: 0 0 0 2px Canvas, 0 0 0 4px CanvasText;
