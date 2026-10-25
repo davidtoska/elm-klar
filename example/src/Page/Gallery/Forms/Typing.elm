@@ -256,7 +256,7 @@ textAreas lang model =
             ]
     in
     Doc.section "Text area"
-        "Multi-line text. The height is either fixed or grows with the content between a minimum and a maximum (CSS field-sizing, with a fallback for older browsers). A field with a limit shows a counter that turns amber near the end and red when the text is too long. Tab moves in and out of the field; Enter inserts a new line."
+        "Multi-line text. The height is either fixed or grows with the content between a minimum and a maximum (CSS field-sizing, with a fallback for older browsers). A field with a limit shows a counter that turns amber near the end and red when the text is too long; nothing is ever cut, so paste a long text into \"Description\" and it stays, marked red. Tab moves in and out of the field; Enter inserts a new line, and Ctrl+Enter (Cmd+Enter) sends the message of onCtrlEnter."
         [ Doc.example
             { title = "Fixed and growing height"
             , description = Just "On the left four lines that can be dragged larger. On the right: starts at two lines, grows to six and scrolls after that."
@@ -379,7 +379,7 @@ numbers lang model =
             readout ("Value: " ++ showNumber (NumberInput.value (numberOf key model)))
     in
     Doc.section "Number field"
-        "The number field remembers the text you type and turns it into a number. Comma and point both work as the decimal separator, spaces are ignored. Arrow up and down change the value by one step (Shift or Page Up/Down: ten steps), and the + and − buttons do the same with the mouse. Leaving the field rounds the number to the decimals and formats it. A number outside min and max is never moved into the range behind your back: it stays as typed and the field says \"Must be between ...\"; only stepping stops at the limits. Text that is not a number gives the error \"Must be a number\"."
+        "The number field remembers the text you type and turns it into a number. Comma and point both work as the decimal separator, spaces are ignored. Arrow up and down change the value by one step (Shift or Page Up/Down: ten steps), and the + and − buttons do the same with the mouse. Leaving the field rounds the number to the decimals (1.005 with two decimals is 1.01, as Klar.Format rounds) and formats it, and Escape brings back the number from before the typing. In Norwegian \"10.000\" is ten thousand, and a pasted \"12 kg\" in a field with the unit kg is 12. A number outside min and max is never moved into the range behind your back: it stays as typed and the field says \"Must be between ...\"; only stepping stops at the limits. Text that is not a number gives the error \"Must be a number\"."
         [ Doc.example
             { title = "Total, discount and quantity"
             , description = Just "Try \"1 234,5\", \"1.234,50\" or \"1,234.5\" and press Tab. Try the arrow keys with and without Shift. Type 55 as the discount and press Tab: the field keeps 55 and shows the error, it is not changed to 50 for you."
@@ -559,7 +559,7 @@ NumberInput.parse "abc" -- Nothing"""
 passwords : Locale -> Model -> Html Msg
 passwords lang model =
     Doc.section "Password"
-        "A password field with a \"show password\" button (Tab to the button, Enter or Space toggles it) and a simple strength meter. The meter looks at the length, the mix of characters and obvious patterns; it is a guide, not a security guarantee."
+        "A password field with a \"show password\" button (Tab to the button, Enter or Space toggles it), a Caps Lock warning (type a capital without Shift) and a simple strength meter. The state holds the password: read it with PasswordInput.value. The meter looks at the length first (a long passphrase is strong without digits), the mix of characters and obvious patterns; it is a guide, not a security guarantee."
         [ Doc.example
             { title = "Sign in and new password"
             , description = Just "On the right with a strength meter. Try \"password123\", \"Summer2026\" and \"Summer-2026!\": from weak to strong."
@@ -666,7 +666,7 @@ searches lang model =
             searchOf "search-slow" model
     in
     Doc.section "Search field"
-        "The search field waits until you have stopped typing (300 ms) before the text becomes a search. Enter searches at once, Escape or the cross clears the field and searches. The application compares committed before and after each update to know when to start a search."
+        "The search field waits until you have stopped typing (300 ms) before the text becomes a search. Enter searches at once, Escape or the cross clears the field and searches (and Escape in a field with text is kept from closing a dialog around it). A space at the end starts no new search, and a word that an input method is still composing is not searched for. The application compares committed before and after each update to know when to start a search."
         [ Doc.example
             { title = "Search with a delay"
             , description = Just "Count keystrokes against started searches: type \"logistics\" quickly and only one search starts. The hits come from a search through the customer names of 3,000 orders. The \"/\" in the field is only a hint for a shortcut; the application binds the key itself with Klar.Shortcut."

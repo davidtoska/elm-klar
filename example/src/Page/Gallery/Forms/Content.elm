@@ -244,7 +244,7 @@ sections lang model =
 tagInputs : Locale -> Model -> Html Msg
 tagInputs lang model =
     Doc.section "Tags"
-        "Free text that becomes small chips. Enter or comma adds a tag, Backspace in the empty field removes the last one, the crosses remove single tags, and pasting \"a, b, c\" gives three tags. Duplicates (ignoring case) and invalid tags are refused with a message."
+        "Free text that becomes small chips. Enter or comma adds a tag, Backspace in the empty field removes the last one, the crosses remove single tags, and pasting \"a, b, c\" gives three tags. Duplicates (ignoring case) and invalid tags are refused with a message, and their text stays in the field to be corrected. The chips are no Tab stops: arrow left at the start of the text moves to them, arrow left and right move between them, Backspace or Delete removes one, and arrow right past the last one or Escape goes back to the text."
         [ Doc.example
             { title = "Labels"
             , description = Just "At most six tags, at least two characters each. Try adding \"fragile\" twice."
