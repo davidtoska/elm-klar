@@ -1998,10 +1998,11 @@ setOption (Field field) choice_ (State data) =
 
 {-| The DOM id of the element that takes the focus for a field: its control, the
 add button of a group of rows, or the first button of a rule builder. For
-`Modal.openWith` and `Drawer.openWith`, which take the DOM ids to focus when they
-open; to move the focus in an update, `focus` does it for you.
+`Modal.setInitialFocus` and `Drawer.setInitialFocus`, which take the DOM ids to
+focus when they open; to move the focus in an update, `focus` does it for you.
 
-    Drawer.openWith { opener = "edit-customer", focus = [ Fm.domId fields.name ] } model.drawer
+    Drawer.setInitialFocus [ Fm.domId fields.name ] model.drawer
+        |> Drawer.open "edit-customer"
 
 -}
 domId : Field c -> String

@@ -713,11 +713,12 @@ focus =
 
 {-| The DOM id of the element that takes the focus for a field: its control, the
 add button of a group of rows, or the first button of a rule builder. It is for
-the places that take DOM ids, such as `Modal.openWith` and `Drawer.openWith`
-(the first field of a form in a drawer); to move the focus in an update, use
-`focus`.
+the places that take DOM ids, such as `Modal.setInitialFocus` and
+`Drawer.setInitialFocus` (the first field of a form in a drawer); to move the focus
+in an update, use `focus`.
 
-    Drawer.openWith { opener = "edit-customer", focus = [ Form.domId fields.name ] } model.drawer
+    Drawer.setInitialFocus [ Form.domId fields.name ] model.drawer
+        |> Drawer.open "edit-customer"
 
 -}
 domId : Field c -> String
