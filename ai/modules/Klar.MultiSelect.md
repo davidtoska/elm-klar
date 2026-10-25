@@ -116,13 +116,13 @@ Under the list are the buttons "Select all" (or "Select all filtered" while a
 search is active) and "Clear all", and a status line such as "12 of 40 matches ·
 3 selected". `maxSelected` limits how many values can be chosen.
 
-Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
-character open the list, and Backspace removes the last chip; the × of every chip
+Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp, Alt+ArrowDown or a
+printable character open the list, and Backspace removes the last chip; the × of every chip
 is a button. In the open list ArrowUp and ArrowDown, and PageUp and PageDown move
 the highlight; Home and End go to the first and the last option while the search
 box is empty (with text in it they move the caret), and Ctrl+Home and Ctrl+End
 always do. Enter checks or unchecks the highlighted option, Backspace in an empty
-search box removes the last chip, Escape closes the list, and Tab moves on to
+search box removes the last chip, Escape (or Alt+ArrowUp) closes the list, and Tab moves on to
 "Try again" of old options (when it is shown), "Select all" and "Clear all", and
 then out of the list. Backspace removes a chip only on a fresh key press, so
 holding it down to delete search text never eats the chips. Keys that belong to

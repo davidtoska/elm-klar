@@ -136,14 +136,14 @@ indexed once and the result is kept between keystrokes, and only the visible row
 are rendered (see [Klar.VirtualList](Klar.VirtualList.md)), so a list with several
 thousand options stays responsive.
 
-Keyboard: on the closed field Enter, Space, ArrowDown and ArrowUp open the list,
+Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp and Alt+ArrowDown open the list,
 a printable character opens it and starts the search, and Backspace or Delete
 clears a `clearable` field. In the open list ArrowUp and ArrowDown, and PageUp and
 PageDown move the highlight; Home and End go to the first and the last option
 while the search box is empty (with text in it they move the caret), and Ctrl+Home
 and Ctrl+End always do. Enter chooses (and never submits a surrounding form),
-Escape closes the list and returns to the field, and Tab closes it and moves on
-(to "Try again" first, when old or failed options offer it). Keys that belong to
+Escape (or Alt+ArrowUp) closes the list and returns to the field, and Tab closes it
+and moves on (to "Try again" first, when old or failed options offer it). Keys that belong to
 an input method composition (Japanese, Chinese, Korean ...) are left to it: the
 Enter that confirms the composed text does not choose an option.
 

@@ -336,6 +336,37 @@ homeEndTests =
                     , \view -> view |> pressOn search (withCtrl "End") |> expectHandled
                     ]
                     (selectView [ Select.options countries ] openSelect)
+        , test "Select: Alt+ArrowUp closes the list, Alt+ArrowDown opens it (as in the APG combobox)" <|
+            \_ ->
+                let
+                    altKey name =
+                        Event.custom "keydown"
+                            (Encode.object
+                                [ ( "key", Encode.string name )
+                                , ( "ctrlKey", Encode.bool False )
+                                , ( "metaKey", Encode.bool False )
+                                , ( "altKey", Encode.bool True )
+                                , ( "shiftKey", Encode.bool False )
+                                ]
+                            )
+
+                    closedAfterAltUp =
+                        selectView [ Select.options countries ] openSelect
+                            |> Query.fromHtml
+                            |> Query.find search
+                            |> Event.simulate (altKey "ArrowUp")
+                            |> Event.toResult
+                            |> Result.map (\msg -> Select.isOpen (selectAfter [ msg ] openSelect))
+
+                    openedAfterAltDown =
+                        selectView [ Select.options countries ] (Select.init "country")
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.id "country" ]
+                            |> Event.simulate (altKey "ArrowDown")
+                            |> Event.toResult
+                            |> Result.map (\msg -> Select.isOpen (selectAfter [ msg ] (Select.init "country")))
+                in
+                Expect.equal ( Ok False, Ok True ) ( closedAfterAltUp, openedAfterAltDown )
         , test "MultiSelect: Home with text in the box moves the caret" <|
             \_ ->
                 multiView [ MultiSelect.options countries ] openMulti
