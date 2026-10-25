@@ -113,3 +113,7 @@ Execution notes for resuming a long run:
 - Next: Popup.
 
 - Popup: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 038ce88: Popup complete.
+- Next: Layout.
+
+- Layout: format, full check, byte-identical docs and 22 identical table roots passed.
