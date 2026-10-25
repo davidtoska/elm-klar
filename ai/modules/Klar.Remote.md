@@ -81,7 +81,7 @@ Components that show remote data (`Klar.Table`, `Klar.Select`, `Klar.ListItem`,
 with a retry button and the empty state themselves, so a screen is correct in every
 state without you writing the cases each time.
 
-    Table.rows model.orders
+    Table.remote model.orders
 
 **The two lines of every request.** After the first load most of what a screen shows
 is data you already have: it is refreshed, or the refresh failed and what is on the

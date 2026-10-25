@@ -67,7 +67,7 @@ rangeTextTests =
                 Query.fromHtml
                     (Table.view TableMsg
                         [ Table.columns columns
-                        , Table.rows (Loaded [])
+                        , Table.remote (Loaded [])
                         , Table.rowId Ids.strings .number
                         , Table.rangeText (\_ _ _ -> "never")
                         ]
@@ -127,9 +127,9 @@ render : List (Table.Attribute String Order Msg) -> Table.State String -> Html M
 render attributes state =
     Table.view TableMsg
         ([ Table.columns columns
-         , Table.rows (Loaded orders)
+         , Table.remote (Loaded orders)
          , Table.rowId Ids.strings .number
-         , Table.label "Orders"
+         , Table.ariaLabel "Orders"
          ]
             ++ attributes
         )
@@ -470,8 +470,8 @@ keyTests =
 
         bothOpen =
             start
-                |> Table.setExpanded Ids.strings "A-1" True
-                |> Table.setExpanded Ids.strings "A-2" True
+                |> Table.expand Ids.strings "A-1"
+                |> Table.expand Ids.strings "A-2"
 
         moves attributes index key =
             test (key ++ " on row " ++ String.fromInt index) <|
@@ -716,7 +716,7 @@ resetButtonTests =
                 \_ ->
                     let
                         server =
-                            [ Table.server { total = 0 }, Table.rows (Loaded []), Table.onResetFilters FiltersReset ]
+                            [ Table.server { total = 0 }, Table.remote (Loaded []), Table.onResetFilters FiltersReset ]
                     in
                     afterClicking server (Table.setSearch "zzz" start) (buttonSaying "Clear search and filters")
                         |> expectCleared { search = "", filters = [] }
@@ -862,7 +862,7 @@ choiceListTests =
                 |> Result.map (page attributes)
 
         filterOptionsOf values =
-            Table.columns [ Table.text (Table.columnId "city") "City" .city [ Table.filterOptions values ] ]
+            Table.columns [ Table.text (Table.columnId "city") "City" .city [ Table.filterOptions (List.map (\v -> { value = v, label = v }) values) ] ]
     in
     describe "the values of filterSelect"
         [ test "client mode: the distinct values of all rows in alphabetical order, with the rows each would add" <|
@@ -883,13 +883,13 @@ choiceListTests =
                     blank =
                         { number = "A-5", customer = "Hooli", city = "  ", items = 2, weight = Nothing, locked = False }
                 in
-                popover [ Table.rows (Loaded (orders ++ [ blank ])) ] start
+                popover [ Table.remote (Loaded (orders ++ [ blank ])) ] start
                     |> expectOk (expectOptions [ ( "Bergen", Just "1" ), ( "Oslo", Just "2" ), ( "Trondheim", Just "1" ) ])
         , test "server mode, without filterOptions: only the values on the current page, and no counts" <|
             \_ ->
                 let
                     server =
-                        [ Table.server { total = 40 }, Table.rows (Loaded (List.take 2 orders)) ]
+                        [ Table.server { total = 40 }, Table.remote (Loaded (List.take 2 orders)) ]
                 in
                 popover server start
                     |> expectOk (expectOptions [ ( "Bergen", Nothing ), ( "Oslo", Nothing ) ])
@@ -902,7 +902,7 @@ choiceListTests =
                 let
                     server =
                         [ Table.server { total = 40 }
-                        , Table.rows (Loaded (List.take 2 orders))
+                        , Table.remote (Loaded (List.take 2 orders))
                         , filterOptionsOf [ "Oslo", "Trondheim" ]
                         ]
                 in
@@ -954,7 +954,7 @@ pageTests =
             \_ ->
                 let
                     server =
-                        [ Table.server { total = 4 }, Table.rows (Loaded (List.take 1 orders)) ]
+                        [ Table.server { total = 4 }, Table.remote (Loaded (List.take 1 orders)) ]
                 in
                 Expect.all
                     [ \_ -> currentPage server |> Query.has [ Selector.attribute (Attr.attribute "aria-label" "Page 2") ]

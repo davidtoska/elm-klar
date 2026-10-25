@@ -3,20 +3,20 @@ module Klar.Table exposing
     , State, init, Msg, update, focus
     , ColumnId, columnId, columnName
     , Query, Direction(..), Filter(..), query, setQuery, encodeQuery, queryDecoder, sort, setSort, page, setPage, pageSize, setPageSize, search, setSearch, filters, setFilter, clearFilters
-    , Selection(..), selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection, dropAllMatching
-    , expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
-    , Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
+    , Selection(..), selection, selectedIds, selectedCount, isSelected, select, deselect, setSelectedIds, clearSelection, dropAllMatching
+    , expandedIds, isExpanded, expand, collapse, toggle, setExpandedIds, collapseAll, isColumnVisible, setColumnVisible, density, setDensity
+    , Attribute, columns, remote, rowId, rowLabel, server, ariaLabel, locale, settings
     , searchable, searchPlaceholder, searchDebounce, rowFilter, activeExternalFilters, onResetFilters, multiSort
-    , selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
+    , selectable, bulkActions, rowActions, onRowClick, currentRow, expandedRow, rowTone, rowDisabled
     , onRefresh, onRetry, emptyState
     , toolbarActions, exportCsv, csvSeparator, columnChooser, densityToggle
     , pageSizes, rangeText, unpaged, virtual, zebra, maxHeight, fillHeight
-    , Rows, prepareRows, rowsArray, preparedRows
-    , Column, text, int, float, date, maybeDate, badge, status, bool, custom, actions
+    , Rows, prepareRows, rowsArray, remotePrepared
+    , Column, text, int, float, money, date, maybeDate, badge, status, bool, custom, actions
     , ColumnAttribute, width, minWidth, alignRight, alignCenter, pinned, hiddenByDefault, alwaysVisible, wrap, noTooltip, cell, hint
     , sortText, sortNumber, sortMaybeNumber, sortDate, sortWith, unsortable
     , notSearchable, includeInSearch, exportAs, notExported
-    , filterText, filterSelect, filterOptions, filterRange
+    , filterText, filterSelect, filterOptions, filterValue, filterRange
     , footer, footerSum, footerAverage
     )
 
@@ -25,27 +25,31 @@ bulk actions, row actions, expandable rows, CSV export and pagination.
 
 Use when: people have to find, compare and act on many rows of the same kind: orders, customers, shipments.
 Do not use when: you show a short list of things to open (as `Klar.ListItem`) or a long, plain list of equal rows (as `Klar.VirtualList`).
-Quick path: `init`, `update`, `view`, `columns`, `rows`, `rowId`; in server mode also `server`, `query`, `searchable`, `onRowClick`, `selectable`, `bulkActions`, `exportCsv`, `onRetry`
+Quick path: `init`, `update`, `view`, `columns`, `remote`, `rowId`, `ariaLabel`; in server mode also `server`, `query`, `searchable`, `onRowClick`, `selectable`, `bulkActions` (read `selection`), `exportCsv`, `onRetry`
 
 **Quick path: a client table.** All rows are in the browser; the table searches,
 filters, sorts and pages them. In this order:
 
   - `init "orders"` in your `init` (the string is the DOM id), a `Table.State String` in the model;
-  - `update` for a `TableMsg Table.Msg`, mapped back with `Cmd.map TableMsg`;
+  - `update` for a `TableMsg Table.Msg`, mapped back with `Cmd.map TableMsg` (the `Cmd`
+    moves focus and saves the CSV export);
   - `Table.view TableMsg [ ... ] model.table` with the attributes `columns` (made with
-    `Table.text`, `int`, `float`, `date`, each with a `Table.columnId` named once), `rows`
-    (a `Remote (List row)`, which draws the skeleton, the failure and the empty state) and `rowId`
-    (a [Klar.Ids](Klar-Ids): `Ids.string`, `Ids.int`, or `Ids.make` for your own id type);
+    `Table.text`, `int`, `float`, `money`, `date`, each with a `Table.columnId` named once),
+    `remote` (a `Remote (List row)`, which draws the skeleton, the failure and the empty
+    state), `rowId` (a [Klar.Ids](Klar-Ids): `Ids.string`, `Ids.int`, or `Ids.make` for your
+    own id type) and `ariaLabel` (the name screen readers hear);
   - when you need them: `searchable`, `selectable`, `bulkActions`, `rowActions`, `onRetry`.
 
 The view of the whole table is one function:
 
     import Html exposing (Html)
+    import Klar.Ids as Ids
+    import Klar.Money exposing (Money)
     import Klar.Remote exposing (Remote)
     import Klar.Table as Table
 
     type alias Order =
-        { id : String, customer : String, total : Float }
+        { id : String, customer : String, total : Money }
 
     ordersTable : (Table.Msg -> msg) -> msg -> Remote (List Order) -> Table.State String -> Html msg
     ordersTable toMsg retry orders state =
@@ -53,10 +57,11 @@ The view of the whole table is one function:
             [ Table.columns
                 [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
                 , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
-                , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
+                , Table.money (Table.columnId "total") "Total" .total [ Table.filterRange, Table.footerSum ]
                 ]
-            , Table.rows orders
+            , Table.remote orders
             , Table.rowId Ids.string .id
+            , Table.ariaLabel "Orders"
             , Table.searchable
             , Table.onRetry retry
             ]
@@ -67,27 +72,31 @@ of them and the number of matches, and it only records what the user asked for. 
 with a filter bar or saved views is [Klar.ServerList](Klar-ServerList), which does every step
 below for you (`example/src/Examples/Inbox.elm`). A server table on its own needs, in order:
 
-  - `Table.server { total = model.total }` and `Table.rows model.page` (a `Remote` of the
+  - `Table.server { total = model.total }` and `Table.remote model.page` (a `Remote` of the
     current page only);
   - `Table.query` before and after `update`: when it differs, ask the server. The search
     box and the filter fields already wait 350 ms (`searchDebounce`); a sort click and a page change
     arrive at once, so **write no debounce of your own**. Give each request a ticket and drop an
     answer that is not for the latest one;
-  - `searchable` for the search box, `onRowClick` for the row that opens a drawer or a page,
-    `selectable` with `Table.selectedIds` and `bulkActions` for "assign these 12", `exportCsv`
-    for the download;
+  - `searchable` for the search box, `onRowClick` for the row that opens a drawer or a page
+    (`Drawer.open ""`, and `currentRow` to mark it), `selectable` and `bulkActions` for
+    "assign these 12", `exportCsv` for the download;
+  - in the bulk action's branch of your `update`, read `Table.selection`, not `selectedIds`:
+    after "Select all N matching" it is `AllMatching { except }`, every row of the query but
+    the exceptions, and `selectedIds` is `[]`. Send the query and the exceptions to the server;
   - `onRetry` for a failure with no rows to keep, and `Table.setPage 1` whenever the filter that
     you keep outside the table (a `FilterBar` rule) changed.
 
-The view with all of it, and the comparison that decides whether to ask:
+The view with all of it, the comparison that decides whether to ask, and the bulk action:
 
     import Html exposing (Html)
     import Klar.Button as Button
+    import Klar.Ids as Ids
     import Klar.Remote exposing (Remote)
     import Klar.Table as Table
 
     type alias Order =
-        { id : String, customer : String, total : Float }
+        { id : String, customer : String }
 
     inbox : (Table.Msg -> msg) -> { retry : msg, open : Order -> msg, assign : msg } -> Int -> Remote (List Order) -> Table.State String -> Html msg
     inbox toMsg on total page state =
@@ -97,12 +106,13 @@ The view with all of it, and the comparison that decides whether to ask:
                 , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
                 ]
             , Table.server { total = total }
-            , Table.rows page
+            , Table.remote page
             , Table.rowId Ids.string .id
+            , Table.ariaLabel "Orders"
             , Table.searchable
             , Table.onRowClick on.open
             , Table.selectable
-            , Table.bulkActions [ Button.view [ Button.onClick on.assign ] "Assign" ]
+            , Table.bulkActions [ Button.view [ Button.small, Button.onClick on.assign ] "Assign" ]
             , Table.exportCsv "orders.csv"
             , Table.onRetry on.retry
             ]
@@ -117,14 +127,25 @@ The view with all of it, and the comparison that decides whether to ask:
         in
         ( after, cmd, Table.query after /= Table.query before )
 
+    -- what "Assign" acts on: some ids, or every row of the query but some
+    assignTarget : Table.State String -> { query : Table.Query, ids : List String, allBut : Maybe (List String) }
+    assignTarget state =
+        case Table.selection Ids.string state of
+            Table.Selected ids ->
+                { query = Table.query state, ids = ids, allBut = Nothing }
+
+            Table.AllMatching { except } ->
+                { query = Table.query state, ids = [], allBut = Just except }
+
 **Quick path: many rows.** Tens of thousands of rows in client mode: prepare them once,
 when they arrive, with `prepareRows`, keep the `Rows` in the model and give them to
-`preparedRows` instead of `rows`; add `virtual` when people read the table by scrolling.
+`remotePrepared` instead of `remote`; add `virtual` when people read the table by scrolling.
 
 The columns are given twice, once to `prepareRows` and once to the view:
 
     import Array
     import Html exposing (Html)
+    import Klar.Ids as Ids
     import Klar.Locale as Locale
     import Klar.Remote exposing (Remote)
     import Klar.Table as Table
@@ -146,8 +167,9 @@ The columns are given twice, once to `prepareRows` and once to the view:
     bigTable toMsg rows state =
         Table.view toMsg
             [ Table.columns columns
-            , Table.preparedRows rows
+            , Table.remotePrepared rows
             , Table.rowId Ids.string .id
+            , Table.ariaLabel "Orders"
             , Table.searchable
             , Table.virtual
             ]
@@ -204,7 +226,7 @@ the rows are prepared (see "Many rows" below).
             , Table.text (Table.columnId "city") "City" .city [ Table.width 140, Table.filterSelect ]
             , Table.int (Table.columnId "items") "Items" .items [ Table.filterRange, Table.footerSum ]
             ]
-        , Table.rows model.orders
+        , Table.remote model.orders
         , Table.rowId orderIds .id
         , Table.searchable
         , Table.selectable
@@ -234,7 +256,7 @@ that match, and the table only records what the user asks for. Compare
     Table.view TableMsg
         [ Table.columns columns
         , Table.server { total = model.total }
-        , Table.rows model.page -- Remote (List Order): the current page only
+        , Table.remote model.page -- Remote (List Order): the current page only
         , Table.onRetry Retry
         ]
         model.table
@@ -251,7 +273,7 @@ options are not part of the state, `view` gets them on every call. What is not a
 state change (a row click, a row action, a bulk action, refresh, retry) is a
 message of your own.
 
-**Remote data.** `rows` takes a `Remote` ([Klar.Remote](Klar-Remote)). The table
+**Remote data.** `remote` takes a `Remote` ([Klar.Remote](Klar-Remote)). The table
 draws the loading skeleton, the failure with a retry button and the empty state
 itself; you give it the current value and the message for the retry button
 (`onRetry`).
@@ -282,21 +304,31 @@ multi-column sort, see `multiSort`). The rows are one tab stop, not fifty: when
 rows are clickable, selectable, expandable or have a menu, Tab reaches the row
 that last had focus, and from it that row's checkbox and menu button. ArrowUp,
 ArrowDown, PageUp, PageDown, Home and End move to other rows (which then get the
-tab stops of their own controls), Enter opens the row (or its menu, when the row
-does nothing else), Space selects it, ArrowRight and ArrowLeft expand and
-collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
+tab stops of their own controls), also from the row's checkbox and menu button (where
+ArrowDown opens the menu), Enter opens the row (or its menu, when the row
+does nothing else), Space selects it (Shift+Space, or Shift and a click on a
+checkbox, the rows from the one picked last; Ctrl+A or Cmd+A every row of the
+page), ArrowRight and ArrowLeft expand and collapse it, and Shift+F10 or the menu key opens its menu; a `rowDisabled` row
 only takes part in the movement. Controls you put in an `actions` column stay tab
 stops in every row. Filter popovers and menus close with Escape, and Escape in
-the search box clears it. When an action removes the control that had focus (a
+the search box clears it; a dialog or drawer around the table stays open then, and
+only an Escape in the empty box closes it. When an action removes the control that had focus (a
 bulk action that deletes the selected rows takes the bulk bar with it), give the
 table focus again with `focus`.
 
 **Accessibility.** Sortable headers carry `aria-sort`, the table has
 `aria-rowcount`, `aria-colcount` and, while it loads, `aria-busy`, and a polite
 live region announces loading, refreshing, the range shown and the sort order.
-Name the table with `label`; the page controls in its footer are named after it
+When the rows take focus (clickable, selectable, expandable or with a menu) the
+table is a `grid`, or a `treegrid` with `expandedRow`: screen readers leave the
+arrow keys to the rows, the first cell of a row is its row header, a selectable
+grid is `aria-multiselectable` with `aria-selected` on its rows, and an expandable
+row says `aria-expanded` itself. A table that only shows data stays a plain table.
+Name the table with `ariaLabel`; the page controls in its footer are named after it
 too ("Pages of Orders"), so that two tables on a page can be told apart.
 `rowLabel` names a row for screen readers ("Select Ada Lovelace" on its checkbox).
+In Windows high contrast the focused, selected, current and toned rows are drawn
+with system colors.
 
 **Many rows.** Client mode searches, filters and sorts inside `view`: sort keys
 are made once per row, a missing sort or filter costs nothing, and only the
@@ -308,7 +340,7 @@ model instead of the `List`:
     Loaded orders ->
         { model | orders = Loaded (Table.prepareRows locale columns (Array.fromList orders)) }
 
-    Table.preparedRows model.orders
+    Table.remotePrepared model.orders
 
 The table then has, for every row, the text that the search looks in and, for every
 sortable column, the rows in order, and for the columns with a footer sum their numbers.
@@ -370,17 +402,17 @@ a saved view.
 
 # Selection
 
-@docs Selection, selection, selectedIds, selectedCount, isSelected, setSelected, clearSelection, dropAllMatching
+@docs Selection, selection, selectedIds, selectedCount, isSelected, select, deselect, setSelectedIds, clearSelection, dropAllMatching
 
 
 # Expanded rows, columns and density
 
-@docs expandedIds, isExpanded, setExpanded, isColumnVisible, setColumnVisible, density, setDensity
+@docs expandedIds, isExpanded, expand, collapse, toggle, setExpandedIds, collapseAll, isColumnVisible, setColumnVisible, density, setDensity
 
 
 # Basic attributes
 
-@docs Attribute, columns, rows, rowId, rowLabel, server, label, locale, settings
+@docs Attribute, columns, remote, rowId, rowLabel, server, ariaLabel, locale, settings
 
 
 # Search, filters and sorting
@@ -390,7 +422,7 @@ a saved view.
 
 # Selection and rows
 
-@docs selectable, bulkActions, rowActions, onRowClick, expandedRow, rowTone, rowDisabled
+@docs selectable, bulkActions, rowActions, onRowClick, currentRow, expandedRow, rowTone, rowDisabled
 
 
 # Loading and empty states
@@ -413,12 +445,12 @@ a saved view.
 Prepared rows are made once for a list of rows that arrives or changes (see "Many
 rows" at the top).
 
-@docs Rows, prepareRows, rowsArray, preparedRows
+@docs Rows, prepareRows, rowsArray, remotePrepared
 
 
 # Columns
 
-@docs Column, text, int, float, date, maybeDate, badge, status, bool, custom, actions
+@docs Column, text, int, float, money, date, maybeDate, badge, status, bool, custom, actions
 
 
 # Column layout and content
@@ -438,7 +470,7 @@ rows" at the top).
 
 # Column filters
 
-@docs filterText, filterSelect, filterOptions, filterRange
+@docs filterText, filterSelect, filterOptions, filterValue, filterRange
 
 
 # Column footers
@@ -450,6 +482,7 @@ rows" at the top).
 import Array exposing (Array)
 import Browser.Dom as Dom
 import Dict exposing (Dict)
+import File.Download as Download
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
@@ -470,6 +503,7 @@ import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Internal.Window as Window
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
+import Klar.Money as Money exposing (Money)
 import Klar.Pagination as Pagination
 import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Search as Search
@@ -505,8 +539,9 @@ type Direction
 
   - `Contains text` - the column text contains `text` as one piece, ignoring case
     and accents (the search box, in contrast, looks for each word separately)
-  - `OneOf values` - the column text is exactly one of `values`, case included
-    (see `bool` for yes / no columns)
+  - `OneOf values` - the value the column keeps for the row is exactly one of
+    `values`, case included: its `filterValue` (a stable code) when it has one,
+    otherwise its text (`"true"` or `"false"` for a `bool` column)
   - `Between from to` - the column number is within the bounds (inclusive); a
     `Nothing` bound is open. A row without a number does not match, and on a
     column that has no numbers at all every row matches.
@@ -615,6 +650,9 @@ type alias Model =
     , rowMenu : Maybe ( String, Menu.State )
     , activeRow : Int
     , scroll : Float
+
+    -- the row the user last selected or deselected by itself: where a Shift range starts
+    , anchor : Maybe String
     }
 
 
@@ -666,6 +704,7 @@ init tableId =
         , rowMenu = Nothing
         , activeRow = 0
         , scroll = 0
+        , anchor = Nothing
         }
 
 
@@ -1035,13 +1074,33 @@ isSelected ids id (State model) =
     isPicked model.selection (Ids.toKey ids id)
 
 
-{-| Selects (`True`) or deselects (`False`) the rows with these ids, as the
-checkboxes do. After "Select all N matching" selecting removes ids from the
-exceptions and deselecting adds them.
+{-| Selects the rows with these ids, as their checkboxes do, and keeps the rest of
+the selection. After "Select all N matching" it takes them out of the exceptions.
+
+    Table.select orderIds failedIds model.table
+
 -}
-setSelected : Ids id -> List id -> Bool -> State id -> State id
-setSelected ids values checked (State model) =
-    State { model | selection = pick (keysOf ids values) checked model.selection }
+select : Ids id -> List id -> State id -> State id
+select ids values (State model) =
+    State { model | selection = pick (keysOf ids values) True model.selection }
+
+
+{-| Deselects the rows with these ids and keeps the rest of the selection, for
+example the rows a bulk action has done its work on. After "Select all N
+matching" it adds them to the exceptions.
+-}
+deselect : Ids id -> List id -> State id -> State id
+deselect ids values (State model) =
+    State { model | selection = pick (keysOf ids values) False model.selection }
+
+
+{-| Makes the selection exactly these rows, as a whole: to restore a selection, or
+to keep only the rows that are still there. It also ends an "all matching"
+selection.
+-}
+setSelectedIds : Ids id -> List id -> State id -> State id
+setSelectedIds ids values (State model) =
+    State { model | selection = Picked (Set.fromList (keysOf ids values)) }
 
 
 {-| Deselects everything, including an "all matching" selection. Call it when a
@@ -1096,24 +1155,54 @@ isExpanded ids id (State model) =
     Set.member (Ids.toKey ids id) model.expanded
 
 
-{-| Expands (`True`) or collapses (`False`) the row with this id, for example to
-open the first row when the table appears.
--}
-setExpanded : Ids id -> id -> Bool -> State id -> State id
-setExpanded ids id value (State model) =
-    let
-        key =
-            Ids.toKey ids id
-    in
-    State
-        { model
-            | expanded =
-                if value then
-                    Set.insert key model.expanded
+{-| Expands the row with this id, for example to open the first row when the table
+appears.
 
-                else
-                    Set.remove key model.expanded
-        }
+    Table.expand orderIds firstOrder.id model.table
+
+-}
+expand : Ids id -> id -> State id -> State id
+expand ids id (State model) =
+    State { model | expanded = Set.insert (Ids.toKey ids id) model.expanded }
+
+
+{-| Collapses the row with this id.
+-}
+collapse : Ids id -> id -> State id -> State id
+collapse ids id (State model) =
+    State { model | expanded = Set.remove (Ids.toKey ids id) model.expanded }
+
+
+{-| Expands the row with this id when it is collapsed, and collapses it when it is
+expanded, as its arrow button does.
+-}
+toggle : Ids id -> id -> State id -> State id
+toggle ids id (State model) =
+    State { model | expanded = toggled (Ids.toKey ids id) model.expanded }
+
+
+toggled : String -> Set String -> Set String
+toggled key set =
+    if Set.member key set then
+        Set.remove key set
+
+    else
+        Set.insert key set
+
+
+{-| Makes these rows, and no others, the expanded ones: to restore the rows that
+were open, or to expand every row (`setExpandedIds orderIds (List.map .id orders)`).
+-}
+setExpandedIds : Ids id -> List id -> State id -> State id
+setExpandedIds ids values (State model) =
+    State { model | expanded = Set.fromList (keysOf ids values) }
+
+
+{-| Collapses every row.
+-}
+collapseAll : State id -> State id
+collapseAll (State model) =
+    State { model | expanded = Set.empty }
 
 
 {-| Whether the user chose to show (`Just True`) or hide (`Just False`) the
@@ -1166,6 +1255,7 @@ type Msg
     | RowMenuOpened String String (List String)
     | RowSelected String Bool
     | RowsSelected (List String) Bool
+    | RangeSelected (List String) Bool String
     | MatchingSelected (List String)
     | AllMatchingPicked
     | SelectionCleared String
@@ -1179,11 +1269,13 @@ type Msg
     | Scrolled Float
     | RetryClicked
     | FirstPageClicked
+    | ExportClicked String String
 
 
 {-| Applies a message from the table to its state. The `Cmd` moves keyboard
-focus (into a popup, back to its button) and runs the timer behind the search
-debounce, so map it back with your own constructor: `Cmd.map TableMsg cmd`.
+focus (into a popup, back to its button), runs the timer behind the search
+debounce and saves the file of the CSV export, so map it back with your own
+constructor: `Cmd.map TableMsg cmd`.
 -}
 update : Msg -> State id -> ( State id, Cmd Msg )
 update msg (State model) =
@@ -1379,7 +1471,11 @@ step msg model =
             )
 
         RowSelected key checked ->
-            ( { model | selection = pick [ key ] checked model.selection }, Cmd.none )
+            ( { model | selection = pick [ key ] checked model.selection, anchor = Just key }, Cmd.none )
+
+        RangeSelected keys checked target ->
+            -- Shift: the rows from the anchor to this one get the state of this one
+            ( { model | selection = pick keys checked model.selection, anchor = Just target }, Cmd.none )
 
         RowsSelected keys checked ->
             ( { model | selection = pick keys checked model.selection }, Cmd.none )
@@ -1395,16 +1491,7 @@ step msg model =
             ( { model | selection = Picked Set.empty }, Internal.focus focusId NoOp )
 
         ExpandToggled key ->
-            ( { model
-                | expanded =
-                    if Set.member key model.expanded then
-                        Set.remove key model.expanded
-
-                    else
-                        Set.insert key model.expanded
-              }
-            , Cmd.none
-            )
+            ( { model | expanded = toggled key model.expanded }, Cmd.none )
 
         DensityChanged value ->
             ( { model | density = value }, Cmd.none )
@@ -1447,6 +1534,19 @@ step msg model =
             -- the same for "Go to the first page" in the empty page: rows replace it
             ( { model | page = 1, activeRow = 0, scroll = 0, rowMenu = Nothing }, Internal.focus (scrollDomId model.id) NoOp )
 
+        ExportClicked filename csv ->
+            -- a byte order mark first, so that Excel reads æ, ø and å as UTF-8
+            ( { model | popup = NoPopup }
+            , Cmd.batch
+                [ Download.string filename "text/csv;charset=utf-8" ("\u{FEFF}" ++ csv)
+                , if model.popup == NoPopup then
+                    Cmd.none
+
+                  else
+                    Internal.focus (triggerDomId model.id model.popup) NoOp
+                ]
+            )
+
 
 {-| Where focus goes after a filter was removed. The control that removed it
 is often gone or disabled now (a chip, "Reset", the reset button next to
@@ -1458,8 +1558,19 @@ the next filter.
 afterClear : Maybe String -> Model -> Model -> ( Model, Cmd Msg )
 afterClear removed before after =
     let
+        -- Every target takes focus when it is there: the search box, "N filters
+        -- active", the filter button in the header of a column whose filter was
+        -- removed, and last the scroll area, which can take focus whenever the
+        -- table has a filter button. A row is not on the list: it cannot take
+        -- focus unless the rows are interactive, and focus would fall to the page.
+        clearedColumns =
+            Maybe.withDefault [] (Maybe.map List.singleton removed)
+                ++ List.map Tuple.first (activeDrafts before)
+
         outside =
-            [ after.id ++ "-search", triggerDomId after.id FiltersPopup, rowDomId after.id 0 ]
+            [ after.id ++ "-search", triggerDomId after.id FiltersPopup ]
+                ++ List.map (\colId -> triggerDomId after.id (FilterPopup colId)) clearedColumns
+                ++ [ scrollDomId after.id ]
 
         lastChip =
             activeDrafts before |> List.reverse |> List.head |> Maybe.map Tuple.first
@@ -1784,6 +1895,66 @@ localChoice loc col value =
         value
 
 
+{-| The value a select filter keeps for a row: its `filterValue`, or the text of
+the column (`"true"` or `"false"` for a yes / no column).
+-}
+choiceOf : Locale -> ColumnConfig row msg -> row -> String
+choiceOf loc col row =
+    case col.filterValue of
+        Just toValue ->
+            toValue row
+
+        Nothing ->
+            canonicalChoice col (col.value loc row)
+
+
+{-| How a select filter shows the values it keeps: the label of `filterOptions`,
+"Yes" and "No" for a yes / no column, and for a column with a `filterValue` the
+text of a row with that value. A value that nothing names is shown as it is.
+-}
+choiceLabels : Locale -> ColumnConfig row msg -> List row -> String -> String
+choiceLabels loc col someRows =
+    let
+        given =
+            Maybe.withDefault [] col.filterOptions
+                |> List.map (\option -> ( option.value, option.label ))
+                |> Dict.fromList
+
+        found =
+            case col.filterValue of
+                Just toValue ->
+                    List.foldl
+                        (\row dict ->
+                            let
+                                value =
+                                    toValue row
+                            in
+                            if Dict.member value dict then
+                                dict
+
+                            else
+                                Dict.insert value (col.value loc row) dict
+                        )
+                        Dict.empty
+                        someRows
+
+                Nothing ->
+                    Dict.empty
+    in
+    \value ->
+        case Dict.get value given of
+            Just label_ ->
+                label_
+
+            Nothing ->
+                case Dict.get value found of
+                    Just label_ ->
+                        label_
+
+                    Nothing ->
+                        localChoice loc col value
+
+
 {-| Does a row pass a column filter?
 -}
 filterTest : Locale -> ColumnConfig row msg -> Filter -> (row -> Bool)
@@ -1801,7 +1972,7 @@ filterTest loc col f =
                 allowed =
                     Set.fromList (List.map (canonicalChoice col) values)
             in
-            \row -> Set.member (canonicalChoice col (col.value loc row)) allowed
+            \row -> Set.member (choiceOf loc col row) allowed
 
         Between low high ->
             case col.number of
@@ -1941,12 +2112,16 @@ type alias ColumnConfig row msg =
     , searchable : Bool
     , exported : Bool
     , filter : Maybe FilterKind
-    , filterOptions : Maybe (List String)
+    , filterOptions : Maybe (List { value : String, label : String })
+    , filterValue : Maybe (row -> String)
     , footer : Maybe (Footer row)
     , hint : Maybe String
     , controls : Bool
     , numeric : Bool
     , boolean : Bool
+
+    -- a money column: its footers add the amounts exactly, per currency
+    , money : Maybe (row -> Money)
     }
 
 
@@ -1998,11 +2173,13 @@ baseColumn colId title value =
     , exported = True
     , filter = Nothing
     , filterOptions = Nothing
+    , filterValue = Nothing
     , footer = Nothing
     , hint = Nothing
     , controls = False
     , numeric = False
     , boolean = False
+    , money = Nothing
     }
 
 
@@ -2080,6 +2257,86 @@ float (ColumnId colId) title decimals toNumber attributes =
             , tooltip = False
         }
         attributes
+
+
+{-| An amount of money ([Klar.Money](Klar-Money)), exact to the minor unit:
+`Table.money (Table.columnId "total") "Total" .total []`. It is shown with its
+currency code in the format of the table's locale (`NOK 1,234.50` in English,
+`1 234,50 NOK` in Norwegian), right-aligned with tabular digits and 136 pixels wide.
+
+It sorts by amount, `filterRange` filters by the amount in whole units of the
+currency (100 is 100 kroner), and the CSV export writes the plain amount with the
+locale's decimal separator (`1234.50`, `1234,50`). `footerSum` and `footerAverage`
+add the amounts exactly, as `Money` and not as `Float`, with one total for each
+currency when the column holds several (`NOK 1,250.00 · EUR 300.00`). The search
+box skips it unless you add `includeInSearch`. Use it instead of `float` for every
+amount of money.
+
+-}
+money : ColumnId -> String -> (row -> Money) -> List (ColumnAttribute row msg) -> Column row msg
+money (ColumnId colId) title toMoney attributes =
+    let
+        base =
+            baseColumn colId title (\loc row -> Money.toString loc (toMoney row))
+
+        amount row =
+            Just (majorAmount (toMoney row))
+    in
+    build
+        { base
+            | sortBy = SortByNumber amount
+            , number = Just amount
+            , decimals = 2
+            , money = Just toMoney
+            , export = Just (\loc row -> String.replace "." (Locale.decimalSeparator loc) (Money.toDecimalString (toMoney row)))
+            , align = AlignRight
+            , width = Just 136
+            , searchable = False
+            , numeric = True
+            , tooltip = False
+        }
+        attributes
+
+
+{-| An amount in whole units of its currency (12.5 for 12,50 kroner), for sorting
+and the range filter.
+-}
+majorAmount : Money -> Float
+majorAmount amount =
+    toFloat (Money.toMinor amount) / toFloat (10 ^ Money.decimals (Money.currencyOf amount))
+
+
+{-| The amounts of a money column added up exactly, one total for each currency in
+the order the currencies first appear, with the number of amounts in each. A total
+beyond the range of `Money` is `Nothing`.
+-}
+moneyTotals : (row -> Money) -> List row -> List { total : Maybe Money, count : Int }
+moneyTotals toMoney someRows =
+    let
+        add row groups =
+            let
+                amount =
+                    toMoney row
+
+                code =
+                    Money.currencyCode (Money.currencyOf amount)
+            in
+            case Dict.get code groups of
+                Just group ->
+                    Dict.insert code
+                        { group
+                            | total = group.total |> Maybe.andThen (\running -> Result.toMaybe (Money.add running amount))
+                            , count = group.count + 1
+                        }
+                        groups
+
+                Nothing ->
+                    Dict.insert code { place = Dict.size groups, total = Just amount, count = 1 } groups
+    in
+    List.foldl add Dict.empty someRows
+        |> Dict.values
+        |> List.sortBy .place
+        |> List.map (\group -> { total = group.total, count = group.count })
 
 
 {-| A calendar date ([Klar.Date](Klar-Date)), sorted by date and shown as
@@ -2495,17 +2752,41 @@ filterSelect =
 
 
 {-| The values offered by `filterSelect`, in this order, instead of the ones found
-in the rows (client mode still counts the rows of each). They must equal the
-column's text for the rows they should match, and a chosen value that is not in
-the list stays in it. It also turns the select filter on, so `filterSelect` is
-not needed next to it.
+in the rows (client mode still counts the rows of each), each with the label the
+user sees. The `value` is what the filter keeps and what a `Query` carries: the
+column's `filterValue` of the rows it should match, or the column's text when the
+column has none. A chosen value that is not in the list stays in it. It also
+turns the select filter on, so `filterSelect` is not needed next to it. In server
+mode, give the options: the table only sees one page.
 
-    Table.text (Table.columnId "status") "Status" .statusLabel [ Table.filterOptions [ "Open", "Shipped", "Cancelled" ] ]
+    Table.badge (Table.columnId "status")
+        "Status"
+        statusBadge
+        [ Table.filterValue (.status >> statusCode)
+        , Table.filterOptions (List.map (\s -> { value = statusCode s, label = statusLabel s }) allStatuses)
+        ]
 
 -}
-filterOptions : List String -> ColumnAttribute row msg
-filterOptions values =
-    ColumnAttribute (\config -> { config | filter = Just SelectFilter, filterOptions = Just values })
+filterOptions : List { value : String, label : String } -> ColumnAttribute row msg
+filterOptions options =
+    ColumnAttribute (\config -> { config | filter = Just SelectFilter, filterOptions = Just options })
+
+
+{-| The stable value that a select filter keeps for a row, instead of the text the
+column shows: a code such as `"shipped"` for a row shown as "Shipped" in English
+and "Sendt" in Norwegian. The filter, a saved view and the `Query` you send to a
+backend then hold codes, which stay right when the language or a label changes and
+tell two values with the same label apart. The filter popover still shows the
+labels (the column's text, or the labels of `filterOptions`). Without it a select
+filter keeps the column's text, and a yes / no column keeps `"true"` and
+`"false"`.
+
+    Table.filterValue (.status >> statusCode)
+
+-}
+filterValue : (row -> String) -> ColumnAttribute row msg
+filterValue toValue =
+    ColumnAttribute (\config -> { config | filterValue = Just toValue })
 
 
 {-| Adds a from / to number filter to the column; either bound can be left
@@ -2551,7 +2832,7 @@ footerAverage =
 -- TABLE ATTRIBUTES
 
 
-{-| A setting of the table as a whole (`columns`, `rows`, `searchable` ...). Make
+{-| A setting of the table as a whole (`columns`, `remote`, `searchable` ...). Make
 them with the functions below and pass a list to `view`; later attributes win
 over earlier ones.
 -}
@@ -2581,6 +2862,7 @@ type alias Config row msg =
     , expandedRow : Maybe (row -> Html msg)
     , rowTone : Maybe (row -> Maybe Tone)
     , rowDisabled : Maybe (row -> Bool)
+    , currentRow : Maybe (row -> Bool)
     , toolbarActions : List (Html msg)
     , onRefresh : Maybe msg
     , refreshing : Bool
@@ -2626,6 +2908,7 @@ configure attributes =
         , expandedRow = Nothing
         , rowTone = Nothing
         , rowDisabled = Nothing
+        , currentRow = Nothing
         , toolbarActions = []
         , onRefresh = Nothing
         , refreshing = False
@@ -2678,7 +2961,7 @@ columns value =
 shows skeleton rows under the header, `Failed` shows the error with a retry
 button (see `onRetry`), and `Loaded []` shows the empty state (see
 `emptyState`). In server mode these are the rows of the current page only.
-Without `rows` the table shows the loading skeleton.
+Without `remote` the table shows the loading skeleton.
 
 Rows that are `Kept` stay on the screen. While they are refreshed (the next page
 in server mode, a refresh button: `Remote.refresh`) they are dimmed, with a
@@ -2686,9 +2969,11 @@ progress line under the header, and screen readers hear "Refreshing ...". When t
 last refresh failed they carry the marker "Old data from 14:05" with a retry
 button (`onRetry`).
 
+    Table.remote model.orders
+
 -}
-rows : Remote (List row) -> Attribute id row msg
-rows value =
+remote : Remote (List row) -> Attribute id row msg
+remote value =
     Attribute
         (\config ->
             let
@@ -2700,11 +2985,15 @@ rows value =
 
 
 {-| The rows of a client-mode table that has thousands of them, as `Rows` made
-once with `prepareRows` (see "Performance" at the top). It does what `rows` does,
-and the search and the sorting no longer format every value again on each message.
+once with `prepareRows` (see "Many rows" at the top), instead of `remote`. It
+does what `remote` does, and the search and a sort by one column no longer format
+every value again on each message.
+
+    Table.remotePrepared model.orders -- Remote (Table.Rows Order)
+
 -}
-preparedRows : Remote (Rows row) -> Attribute id row msg
-preparedRows value =
+remotePrepared : Remote (Rows row) -> Attribute id row msg
+remotePrepared value =
     Attribute
         (\config ->
             let
@@ -2718,14 +3007,14 @@ preparedRows value =
 {-| Rows that the table has worked on in advance: for each row the text the search
 looks in, and for each sortable column the rows in order. Make them once, when the
 rows arrive or change, and keep them in your model instead of the `Array`; give
-them to the table with `preparedRows`.
+them to the table with `remotePrepared`.
 
     Loaded orders ->
-        { model | orders = Loaded (Table.prepareRows locale columns orders) }
+        { model | orders = Loaded (Table.prepareRows locale columns (Array.fromList orders)) }
 
 They are made for one locale and one list of columns. A table that is given other
 columns or another locale shows the right rows all the same, but works them out
-again on every message, as `rows` does.
+again on every message, as `remote` does.
 
 -}
 type Rows row
@@ -2746,8 +3035,9 @@ type Source row
 {-| Prepares the rows for a table with these columns in this locale (the `Locale`
 you give to `locale`). Take the same columns you give to `columns`. Every sortable
 column is sorted once here, so this takes about as long as sorting by each column
-would, a few hundred milliseconds for 50 000 rows, and a table that is given
-the result never has to sort again.
+would, a few hundred milliseconds for 50 000 rows. A table given the result reads
+a sort by one column from it and does not sort again; a sort by several columns
+(`multiSort`) and a `sortWith` column are still sorted on every message.
 -}
 prepareRows : Locale -> List (Column row msg) -> Array row -> Rows row
 prepareRows loc givenColumns array =
@@ -2779,11 +3069,12 @@ prepareRows loc givenColumns array =
                 , totals =
                     List.filterMap
                         (\col ->
-                            case ( col.footer, col.number ) of
-                                ( Just FooterSum, Just toNumber ) ->
+                            -- a money column adds its amounts exactly in the footer instead
+                            case ( col.footer, col.number, col.money ) of
+                                ( Just FooterSum, Just toNumber, Nothing ) ->
                                     Just ( col.id, toNumber )
 
-                                ( Just FooterAverage, Just toNumber ) ->
+                                ( Just FooterAverage, Just toNumber, Nothing ) ->
                                     Just ( col.id, toNumber )
 
                                 _ ->
@@ -2863,7 +3154,7 @@ rowLabel toLabel =
     Attribute (\config -> { config | rowLabel = Just toLabel })
 
 
-{-| Switches to server mode: `rows` is the current page and `total` the number
+{-| Switches to server mode: `remote` is the current page and `total` the number
 of rows that match the query. The table does not search, filter, sort or slice
 the rows itself; it shows the pagination for `total` and records what the user
 asks for, which you read with `query`. Without this attribute the table is in
@@ -2874,11 +3165,14 @@ server options =
     Attribute (\config -> { config | server = Just (max 0 options.total) })
 
 
-{-| The accessible name of the table, such as "Orders". It is also what makes the
-scrolling area a labelled region for screen readers.
+{-| The name of the table that screen readers hear, such as "Orders" (it is not
+shown: a visible title is a heading of your own above the table). It also makes
+the scrolling area a labelled region and names the page controls in the footer
+("Pages of Orders"), so that two tables on a page can be told apart. Give every
+table one.
 -}
-label : String -> Attribute id row msg
-label value =
+ariaLabel : String -> Attribute id row msg
+ariaLabel value =
     Attribute (\config -> { config | label = Just value })
 
 
@@ -2905,8 +3199,9 @@ locale value =
 
 {-| Adds a search box to the toolbar. Every word the user types must be found in
 one of the visible, searchable columns (case and accents are ignored), and the
-match is highlighted. Escape clears the box; in server mode the table only
-records the text (see `query`).
+match is highlighted. Escape clears the box (and a dialog around the table stays
+open; an Escape in the empty box goes on to the dialog); in server mode the table
+only records the text (see `query`).
 -}
 searchable : Attribute id row msg
 searchable =
@@ -2970,9 +3265,14 @@ onResetFilters msg =
 
 {-| Adds a checkbox column, a "select all on this page" checkbox in the header,
 and a bar that covers the toolbar while something is selected (see
-`bulkActions`). Needs `rowId`; Space selects the focused row, and rows that are
-`rowDisabled` cannot be selected. When a whole page is selected and more rows
-match, the bar offers "Select all N matching".
+`bulkActions`). Needs `rowId`: without it there are no checkboxes at all, because a
+selection kept by position would point at other rows after a sort. Space selects the focused row, and rows that are
+`rowDisabled` cannot be selected. Shift and a click on a checkbox, or Shift+Space,
+give the rows from the one picked last to this one the state this one gets (as in a
+mail client), and Ctrl+A (Cmd+A) on a row selects every row of the page (of all
+matching rows in a `virtual` client table). When a whole page is selected and more
+rows match, the bar offers "Select all N matching". Screen readers hear the number
+of selected rows when it changes.
 -}
 selectable : Attribute id row msg
 selectable =
@@ -2981,8 +3281,9 @@ selectable =
 
 {-| Buttons for the bar that covers the toolbar while rows are selected, next to
 the count, the export menu and a Cancel button that clears the selection. Your
-buttons send plain messages: read `selectedIds` in your update. Use small
-buttons; it also turns on `selectable`.
+buttons send plain messages: read `selection` in your update, which is
+`AllMatching { except }` after "Select all N matching" in server mode (then
+`selectedIds` is `[]`). Use small buttons; it also turns on `selectable`.
 
     Table.bulkActions [ Button.view [ Button.small, Button.onClick DeleteSelected ] "Delete" ]
 
@@ -3014,10 +3315,31 @@ rowActions toItems =
 {-| The message to send for a row, when the user clicks it (outside its own
 controls) or presses Enter on it. The function gets the row. A row that is
 `rowDisabled` does not send it.
+
+A row that opens a [Klar.Drawer](Klar-Drawer) or a dialog opens it with
+`Drawer.open ""`: the row has the focus (a click and Enter both give it), and the
+drawer gives it back to the row when it closes. Mark the row whose details are
+open with `currentRow`.
+
+    Table.onRowClick (\order -> OpenOrder order.id)
+
 -}
 onRowClick : (row -> msg) -> Attribute id row msg
 onRowClick toMsg =
     Attribute (\config -> { config | onRowClick = Just toMsg })
+
+
+{-| Marks the row whose details are shown elsewhere, such as the order open in a
+drawer next to the table: it gets a bar at its start and a darker background, and
+screen readers hear it as the current row (`aria-current`). Return `True` for at
+most one row; without this attribute no row is marked.
+
+    Table.currentRow (\order -> Just order.id == model.openOrder)
+
+-}
+currentRow : (row -> Bool) -> Attribute id row msg
+currentRow isCurrent =
+    Attribute (\config -> { config | currentRow = Just isCurrent })
 
 
 {-| Lets rows expand to show more under them: adds an arrow button at the start
@@ -3025,7 +3347,7 @@ of each row and draws `render row` in a full-width cell below an open row.
 ArrowRight and ArrowLeft expand and collapse the focused row, and without
 `onRowClick` a click on the row toggles it too; a `rowDisabled` row does none of
 this. Which rows are open is part of the state (see `expandedIds` and
-`setExpanded`).
+`expand`). Needs `rowId`: without it no row expands.
 -}
 expandedRow : (row -> Html msg) -> Attribute id row msg
 expandedRow render =
@@ -3046,7 +3368,7 @@ disabled, so Tab skips them, and it is left out of "select all". A click, Enter,
 Space, ArrowRight, ArrowLeft, Shift+F10 or the menu key on the row does nothing,
 but the keys that move between rows (ArrowUp, ArrowDown, PageUp, PageDown, Home,
 End) still reach it, so that its text can be read. Selection and expansion that a
-row already has stay until you change them with `setSelected` or `setExpanded`,
+row already has stay until you change them with `deselect` or `collapse`,
 and controls you draw yourself (`actions`, `cell`, `custom`) are yours to
 disable.
 -}
@@ -3072,7 +3394,7 @@ onRefresh msg =
 
 
 {-| The message to send when the user clicks "Try again" in the error state, which
-shows when `rows` is a `Failed`. Without it there is no button, and the button
+shows when `remote` is a `Failed`. Without it there is no button, and the button
 only appears for problems worth retrying (see `Remote.isRetryable` in
 [Klar.Remote](Klar-Remote)). Keyboard focus stays in the table while the new rows
 load.
@@ -3088,13 +3410,19 @@ file name, used as given (`"orders.csv"`).
 
 The menu offers all matching rows (client mode), the selected rows and the
 current page, the last two with a suffix in the file name (`orders-selected.csv`,
-`orders-page-2.csv`). In server mode only the current page is known, so the
-selected rows are offered only while every selected row is on the page; when some
-are selected on other pages the menu says how many and offers the page only. Build
-that file from your backend (the ids are in `selectedIds`). Hidden
-columns and `notExported` columns are left out, and so are `custom` and
-`actions` columns unless they have `exportAs`. Text that a spreadsheet could run
-as a formula is made safe. See `csvSeparator` for the field separator.
+`orders-page-2.csv`). In server mode only the current page is known (all of it,
+also in a `virtual` table that draws part of it), so the selected rows are
+offered only while every selected row is on the page; when some are selected on
+other pages the menu says how many and offers the page only. Build that file from
+your backend (read `selection`, which can be `AllMatching`). Hidden columns and
+`notExported` columns are left out, and so are `custom` and `actions` columns
+unless they have `exportAs`. Text that a spreadsheet could run as a formula is
+made safe. See `csvSeparator` for the field separator.
+
+The file is written when the user picks a choice, not while the menu is drawn, and
+`update` saves it with `File.Download.string` (a UTF-8 file with a byte order mark,
+so that Excel reads æ, ø and å). There is no size limit, so 50 000 rows are one
+file: map the `Cmd` of `update` back, as always.
 
 -}
 exportCsv : String -> Attribute id row msg
@@ -3846,7 +4174,7 @@ wraps the table's own messages, usually the constructor you handle in `update`.
 The attributes describe the table (columns, rows, options) and are given on every
 call; the `State` only holds what the user changed.
 
-    Table.view TableMsg [ Table.columns columns, Table.rows model.orders ] model.table
+    Table.view TableMsg [ Table.columns columns, Table.remote model.orders ] model.table
 
 -}
 view : (Msg -> msg) -> List (Attribute id row msg) -> State id -> Html msg
@@ -3888,11 +4216,15 @@ view toMsg attributes (State model) =
                         [] ->
                             ""
 
+        -- Selection and open rows are kept by row id. Without `rowId` they would
+        -- be kept by position and follow the place, not the row, after a sort or
+        -- a filter (and a bulk action would act on other rows), so the table
+        -- draws no checkboxes and no details at all: the mistake shows at once.
         hasSelect =
-            config.selectable
+            config.selectable && isJust config.rowId
 
         hasExpand =
-            isJust config.expandedRow
+            isJust config.expandedRow && isJust config.rowId
 
         hasMenu =
             isJust config.rowActions
@@ -4027,6 +4359,20 @@ view toMsg attributes (State model) =
         , viewFooter ctx
         , Html.div [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status", Attr.attribute "aria-live" "polite" ]
             [ Html.text (liveSummary ctx) ]
+
+        -- "3 selected" when the selection changes; always there, so that the first
+        -- selection is announced too, and empty when nothing is selected
+        , Internal.viewIf hasSelect
+            (Html.div [ Internal.cls [ "klar-sr-only" ], Attr.attribute "aria-live" "polite", Attr.id (model.id ++ "-selection-status") ]
+                [ Html.text
+                    (if selectionTotal ctx > 0 then
+                        ctx.t.selected (selectionTotal ctx)
+
+                     else
+                        ""
+                    )
+                ]
+            )
         ]
 
 
@@ -4086,7 +4432,7 @@ its band so the rows do not jump down when the first one is selected.
 -}
 hasToolbar : Ctx row msg -> Bool
 hasToolbar ctx =
-    hasTools ctx || ctx.config.selectable || activeFilterCount ctx > 0
+    hasTools ctx || ctx.hasSelect || activeFilterCount ctx > 0
 
 
 {-| Search, refresh, density, columns, export or the application's own buttons.
@@ -4197,7 +4543,12 @@ viewSearch : Ctx row msg -> Html msg
 viewSearch ctx =
     Html.div
         [ Internal.cls [ "klar-table__search" ]
-        , Internal.onKeysPassive [ ( "Escape", ctx.toMsg (SearchChanged "" 0) ) ]
+
+        -- Escape clears the text and is used up (its default is prevented, so a
+        -- dialog or drawer around the table leaves it alone); in an empty box it
+        -- is left to the dialog, which then closes.
+        , Internal.attrIf (ctx.model.searchInput /= "")
+            (Internal.onKeys [ ( "Escape", ctx.toMsg (SearchChanged "" 0) ) ])
         ]
         [ TextInput.view
             [ TextInput.id (ctx.model.id ++ "-search")
@@ -4320,8 +4671,16 @@ describeDraft ctx col draft =
 
         ChoiceDraft values ->
             let
+                labelOf =
+                    case col.filterValue of
+                        Just _ ->
+                            choiceLabels ctx.loc col (loadedRows ctx)
+
+                        Nothing ->
+                            choiceLabels ctx.loc col []
+
                 list =
-                    values |> Set.toList |> List.map (localChoice ctx.loc col)
+                    values |> Set.toList |> List.map (canonicalChoice col >> labelOf)
 
                 shown =
                     List.take 3 list
@@ -4523,26 +4882,23 @@ viewExportMenu ctx popup filename =
         ]
 
 
-{-| The download links. Only built while the menu is open, so the CSV text is
-never computed on an ordinary render.
+{-| The download buttons. The CSV text of a choice is written only when its
+button is clicked (in the click decoder), never on a render, and the file is
+saved from `update` with `File.Download.string`, which has no size limit (a
+`data:` link stops at the length of a URL, a few megabytes).
 -}
 exportOptions : Ctx row msg -> Popup -> String -> List (Html msg)
 exportOptions ctx popup filename =
     let
-        loc =
-            ctx.loc
-
         separator =
-            Maybe.withDefault (Locale.pick loc { nb = ';', en = ',' }) ctx.config.csvSeparator
+            csvSeparatorOf ctx
 
         exported =
             List.filter .exported ctx.visible
 
-        csvOf someRows =
-            Csv.encode separator
-                (List.map .title exported
-                    :: List.map (\row -> List.map (\col -> exportValue loc col row) exported) someRows
-                )
+        -- the whole page in server mode, also when `virtual` draws only part of it
+        pageRows =
+            ctx.data.pageAll
 
         selectedRows =
             case ( ctx.config.rows, ctx.config.server ) of
@@ -4554,27 +4910,30 @@ exportOptions ctx popup filename =
                         |> sortRows ctx.config ctx.model ctx.allColumns
 
                 _ ->
-                    ctx.data.pageRows
+                    pageRows
                         |> List.indexedMap Tuple.pair
                         |> List.filter (\( index, row ) -> isPicked ctx.model.selection (ctx.keyOf (ctx.data.offset + index) row))
                         |> List.map Tuple.second
 
-        option index title suffix someRows =
-            Html.a
+        option index title suffix choice =
+            Html.button
                 [ Internal.cls [ "klar-table__export-option" ]
+                , Attr.type_ "button"
                 , Attr.id (popupDomId ctx.model.id popup ++ "-option-" ++ String.fromInt index)
-                , Attr.href (Csv.dataUrl (csvOf someRows))
-                , Attr.download (withSuffix suffix filename)
-                , Events.onClick (ctx.toMsg PopupClosed)
+                , Events.on "click"
+                    (Decode.succeed ()
+                        |> Decode.map
+                            (\_ -> ctx.toMsg (ExportClicked (withSuffix suffix filename) (csvText separator exported ctx.loc (choice.rows ()))))
+                    )
                 ]
                 [ Icon.view Icon.download
                 , Html.span [ Internal.cls [ "klar-table__export-label" ] ] [ Html.text title ]
-                , Html.span [ Internal.cls [ "klar-table__export-count", "klar-tabular" ] ] [ Html.text (ctx.t.rowCount (List.length someRows)) ]
+                , Html.span [ Internal.cls [ "klar-table__export-count", "klar-tabular" ] ] [ Html.text (ctx.t.rowCount choice.count) ]
                 ]
 
         allChoice =
             if ctx.config.server == Nothing then
-                Just ( ctx.t.exportAll, "", ctx.data.matchingRows () )
+                Just ( ctx.t.exportAll, "", { count = ctx.data.total, rows = ctx.data.matchingRows } )
 
             else
                 Nothing
@@ -4591,36 +4950,39 @@ exportOptions ctx popup filename =
 
         selectedChoice =
             if ctx.hasSelect && not (List.isEmpty selectedRows) && offPage == 0 then
-                Just ( ctx.t.exportSelected, ctx.t.fileSelected, selectedRows )
+                Just ( ctx.t.exportSelected, ctx.t.fileSelected, { count = List.length selectedRows, rows = \_ -> selectedRows } )
 
             else
                 Nothing
 
         pageChoice =
+            { count = List.length pageRows, rows = \_ -> pageRows }
+
+        pageOption =
             if ctx.config.paged && ctx.data.pageCount > 1 then
-                Just ( ctx.t.exportPage, ctx.t.filePage ctx.data.page, ctx.data.pageRows )
+                Just ( ctx.t.exportPage, ctx.t.filePage ctx.data.page, pageChoice )
 
             else
                 Nothing
 
         choices =
             (if popup == BulkExportPopup then
-                [ selectedChoice, allChoice, pageChoice ]
+                [ selectedChoice, allChoice, pageOption ]
 
              else
-                [ allChoice, selectedChoice, pageChoice ]
+                [ allChoice, selectedChoice, pageOption ]
             )
                 |> List.filterMap identity
                 |> (\list ->
                         if List.isEmpty list then
-                            [ ( ctx.t.exportPage, "", ctx.data.pageRows ) ]
+                            [ ( ctx.t.exportPage, "", pageChoice ) ]
 
                         else
                             list
                    )
     in
     [ Html.div [ Internal.cls [ "klar-table__popover-body", "klar-table__popover-body--flush" ] ]
-        (List.indexedMap (\index ( title, suffix, someRows ) -> option index title suffix someRows) choices)
+        (List.indexedMap (\index ( title, suffix, choice ) -> option index title suffix choice) choices)
     , Internal.viewIf (ctx.hasSelect && offPage > 0)
         (Html.p [ Internal.cls [ "klar-table__popover-note" ] ]
             [ Html.text (ctx.t.selectionOffPage offPage (selectionTotal ctx)) ]
@@ -4628,6 +4990,25 @@ exportOptions ctx popup filename =
     , Html.p [ Internal.cls [ "klar-table__popover-note", "klar-table__popover-note--foot" ] ]
         [ Html.text (ctx.t.exportNote (List.length exported) separator) ]
     ]
+
+
+{-| The field separator of the export: `csvSeparator`, or a comma in English and a
+semicolon in Norwegian.
+-}
+csvSeparatorOf : Ctx row msg -> Char
+csvSeparatorOf ctx =
+    Maybe.withDefault (Locale.pick ctx.loc { nb = ';', en = ',' }) ctx.config.csvSeparator
+
+
+{-| The CSV text of some rows: a line of titles, then a line per row with the
+exported values of these columns.
+-}
+csvText : Char -> List (ColumnConfig row msg) -> Locale -> List row -> String
+csvText separator exported loc someRows =
+    Csv.encode separator
+        (List.map .title exported
+            :: List.map (\row -> List.map (\col -> exportValue loc col row) exported) someRows
+        )
 
 
 {-| "orders.csv" + "-selected" = "orders-selected.csv" (the suffix is "-valgte" in
@@ -4730,13 +5111,18 @@ viewBulkBar ctx =
                 [ note (t.allOnPage (List.length ctx.pageKeys))
                 , Button.view
                     [ Button.link
-                    , Button.onClick
-                        (if clientMode then
-                            ctx.toMsg (MatchingSelected (selectableKeys ctx))
+                    , if clientMode then
+                        -- the keys of every matching row are found when the button is
+                        -- clicked, not on every render while it is shown
+                        Button.htmlAttrs
+                            [ Events.on "click"
+                                (Decode.succeed ()
+                                    |> Decode.map (\_ -> ctx.toMsg (MatchingSelected (selectableKeys ctx)))
+                                )
+                            ]
 
-                         else
-                            ctx.toMsg AllMatchingPicked
-                        )
+                      else
+                        Button.onClick (ctx.toMsg AllMatchingPicked)
                     ]
                     (t.selectAllMatching selectableTotal)
                 ]
@@ -4874,7 +5260,9 @@ viewPopup ctx popup options content =
         -- middle of the click, which resets checkboxes before their change
         -- event fires.
         , Events.on "click" (outsideClick popupId (ctx.toMsg PopupClosed))
-        , Internal.onKeysPassive [ ( "Escape", ctx.toMsg PopupClosed ) ]
+
+        -- Escape closes the popup and is used up, so that a dialog around the table stays open
+        , Internal.onKeys [ ( "Escape", ctx.toMsg PopupClosed ) ]
         ]
         [ Html.div
             [ Internal.cls
@@ -5062,6 +5450,22 @@ viewFrame ctx =
                 tableAttributes =
                     [ Internal.cls [ "klar-table__table" ]
                     , Internal.styleVars [ ( "min-width", Internal.px (tableMinWidth ctx) ) ]
+
+                    -- Rows that take focus and keys make a grid (a tree grid when rows
+                    -- expand): screen readers then leave the arrow keys to the rows
+                    -- and announce selection. A table that only shows data stays a table.
+                    , if ctx.interactiveRows then
+                        Attr.attribute "role"
+                            (if ctx.hasExpand then
+                                "treegrid"
+
+                             else
+                                "grid"
+                            )
+
+                      else
+                        Internal.noAttr
+                    , Internal.attrIf (ctx.interactiveRows && ctx.hasSelect) (Attr.attribute "aria-multiselectable" "true")
                     , Internal.attrMaybe (Attr.attribute "aria-label") config.label
                     , Attr.attribute "aria-rowcount"
                         (if ctx.data.status == Ready then
@@ -5377,12 +5781,13 @@ viewHead ctx =
                 ( all, not all && not (List.isEmpty pageSelected) )
     in
     Html.thead [ Internal.cls [ "klar-table__head" ] ]
-        [ Html.tr [ Attr.attribute "aria-rowindex" "1" ]
+        [ Html.tr [ Attr.attribute "aria-rowindex" "1", gridPart ctx "row" ]
             (List.concat
                 [ if ctx.hasSelect then
                     [ Html.th
                         [ Internal.cls [ "klar-table__th", "klar-table__th--select", pinClass ]
                         , Attr.scope "col"
+                        , gridPart ctx "columnheader"
                         , systemPinStyle ctx 0
                         ]
                         [ Checkbox.view
@@ -5418,6 +5823,7 @@ viewHead ctx =
                     [ Html.th
                         [ Internal.cls [ "klar-table__th", "klar-table__th--expand", pinClass ]
                         , Attr.scope "col"
+                        , gridPart ctx "columnheader"
                         , systemPinStyle ctx
                             (if ctx.hasSelect then
                                 selectWidth
@@ -5433,7 +5839,7 @@ viewHead ctx =
                     []
                 , List.indexedMap (viewHeaderCell ctx) ctx.visible
                 , if ctx.hasMenu then
-                    [ Html.th [ Internal.cls [ "klar-table__th", "klar-table__th--menu" ], Attr.scope "col" ]
+                    [ Html.th [ Internal.cls [ "klar-table__th", "klar-table__th--menu" ], Attr.scope "col", gridPart ctx "columnheader" ]
                         [ Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text t.actions ] ]
                     ]
 
@@ -5587,6 +5993,7 @@ viewHeaderCell ctx index col =
                 ""
             ]
         , Attr.scope "col"
+        , gridPart ctx "columnheader"
         , if pinnedHere then
             Internal.styleVars [ ( "--_pin-left", Internal.px (pinLeft ctx) ) ]
 
@@ -5828,38 +6235,43 @@ viewFilterContent ctx col =
             []
 
 
-{-| The values a select filter offers: the column's `filterOptions`, or the
-distinct values in the rows (client mode), plus anything already chosen.
+{-| The rows of the table as they came (all rows in client mode, the page in
+server mode), or none while they load.
 -}
-filterValues : Ctx row msg -> ColumnConfig row msg -> List String
-filterValues ctx col =
+loadedRows : Ctx row msg -> List row
+loadedRows ctx =
+    case ctx.config.rows of
+        Remote.Loaded rowSource ->
+            sourceList rowSource
+
+        _ ->
+            []
+
+
+{-| The values a select filter offers (what it keeps, see `choiceOf`): the
+column's `filterOptions`, or the distinct values in the rows, in the order of
+their labels, plus anything already chosen.
+-}
+filterValues : Ctx row msg -> ColumnConfig row msg -> (String -> String) -> List String
+filterValues ctx col labelOf =
     let
         chosen =
-            choicesOf col.id ctx.model.inputs
+            choicesOf col.id ctx.model.inputs |> Set.map (canonicalChoice col)
 
         base =
             case col.filterOptions of
                 Just options ->
-                    options
+                    List.map .value options
 
                 Nothing ->
-                    let
-                        source =
-                            case ctx.config.rows of
-                                Remote.Loaded rowSource ->
-                                    sourceList rowSource
-
-                                _ ->
-                                    []
-                    in
-                    source
-                        |> List.map (col.value ctx.loc)
-                        |> List.filter (\value -> not (String.isEmpty (String.trim value)))
+                    loadedRows ctx
+                        |> List.filter (\row -> not (String.isEmpty (String.trim (col.value ctx.loc row))))
+                        |> List.map (choiceOf ctx.loc col)
                         |> Set.fromList
                         |> Set.toList
-                        |> List.sortBy (Sorting.collationKey ctx.loc)
+                        |> List.sortBy (labelOf >> Sorting.collationKey ctx.loc)
     in
-    base ++ List.filter (\value -> not (List.member value base)) (List.map (localChoice ctx.loc col) (Set.toList chosen))
+    base ++ List.filter (\value -> not (List.member value base)) (Set.toList chosen)
 
 
 viewChoiceFilter : Ctx row msg -> ColumnConfig row msg -> List (Html msg)
@@ -5868,22 +6280,25 @@ viewChoiceFilter ctx col =
         t =
             ctx.t
 
+        labelOf =
+            choiceLabels ctx.loc col (loadedRows ctx)
+
         values =
-            filterValues ctx col
+            filterValues ctx col labelOf
 
         chosen =
             choicesOf col.id ctx.model.inputs
                 |> Set.map (canonicalChoice col)
 
         isChosen value =
-            Set.member (canonicalChoice col value) chosen
+            Set.member value chosen
 
         showSearch =
             List.length values > 8
 
         shown =
             if showSearch && String.trim ctx.model.optionQuery /= "" then
-                List.filter (Search.matches ctx.model.optionQuery) values
+                List.filter (labelOf >> Search.matches ctx.model.optionQuery) values
 
             else
                 values
@@ -5896,7 +6311,7 @@ viewChoiceFilter ctx col =
                         |> keepMatching ctx.config ctx.model ctx.allColumns ctx.visible (Just col.id)
                         |> List.foldl
                             (\row dict ->
-                                Dict.update (col.value ctx.loc row) (\c -> Just (Maybe.withDefault 0 c + 1)) dict
+                                Dict.update (choiceOf ctx.loc col row) (\c -> Just (Maybe.withDefault 0 c + 1)) dict
                             )
                             Dict.empty
                         |> Just
@@ -5923,7 +6338,7 @@ viewChoiceFilter ctx col =
             [ Button.view
                 [ Button.link
                 , Button.disabled (List.all isChosen shown)
-                , Button.onClick (ctx.toMsg (FilterChoicesSet col.id (Set.toList chosen ++ List.map (canonicalChoice col) shown)))
+                , Button.onClick (ctx.toMsg (FilterChoicesSet col.id (Set.toList chosen ++ shown)))
                 ]
                 t.selectAll
             , Button.view
@@ -5943,9 +6358,9 @@ viewChoiceFilter ctx col =
                         Html.div [ Internal.cls [ "klar-table__option" ] ]
                             [ Checkbox.view
                                 [ Checkbox.id (filterInputId ctx.model.id col.id ("option-" ++ String.fromInt index))
-                                , Checkbox.label value
+                                , Checkbox.label (labelOf value)
                                 , Checkbox.checked (isChosen value)
-                                , Checkbox.onCheck (\checked -> ctx.toMsg (FilterChoiceToggled col.id (canonicalChoice col value) checked))
+                                , Checkbox.onCheck (\checked -> ctx.toMsg (FilterChoiceToggled col.id value checked))
                                 ]
                             , Internal.viewMaybe
                                 (\dict ->
@@ -6083,8 +6498,8 @@ retryClicked ctx =
 
 stateRow : Ctx row msg -> Html msg -> Html msg
 stateRow ctx content =
-    Html.tr [ Internal.cls [ "klar-table__state-row" ] ]
-        [ Html.td [ Internal.cls [ "klar-table__state-cell" ], Attr.colspan ctx.colCount ]
+    Html.tr [ Internal.cls [ "klar-table__state-row" ], gridPart ctx "row" ]
+        [ Html.td [ Internal.cls [ "klar-table__state-cell" ], Attr.colspan ctx.colCount, gridPart ctx "gridcell" ]
             [ Html.div [ Internal.cls [ "klar-table__state" ] ] [ content ] ]
         ]
 
@@ -6203,13 +6618,14 @@ systemCells ctx content =
     in
     List.concat
         [ if ctx.hasSelect then
-            [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--select", pinClass ], systemPinStyle ctx 0 ] (content "select") ]
+            [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--select", pinClass ], systemPinStyle ctx 0, gridPart ctx "gridcell" ] (content "select") ]
 
           else
             []
         , if ctx.hasExpand then
             [ Html.td
                 [ Internal.cls [ "klar-table__td", "klar-table__td--expand", pinClass ]
+                , gridPart ctx "gridcell"
                 , systemPinStyle ctx
                     (if ctx.hasSelect then
                         selectWidth
@@ -6253,6 +6669,19 @@ dataCellClasses ctx index col =
     ]
 
 
+{-| The role of a row or cell in the grid of a table whose rows take focus
+(`row`, `columnheader`, `rowheader`, `gridcell`). A table that only shows data
+is a plain table, where the elements have their roles already.
+-}
+gridPart : Ctx row msg -> String -> Html.Attribute msg
+gridPart ctx role =
+    if ctx.interactiveRows then
+        Attr.attribute "role" role
+
+    else
+        Internal.noAttr
+
+
 pinStyle : Ctx row msg -> Int -> Html.Attribute msg
 pinStyle ctx index =
     if index == 0 && ctx.pinnedFirst then
@@ -6278,9 +6707,17 @@ viewRowAndDetail ctx index row =
         ( True, Just render ) ->
             [ ( "row-" ++ key, rowHtml )
             , ( "detail-" ++ key
-              , Html.tr [ Internal.cls [ "klar-table__detail-row" ], Attr.id (detailDomId ctx.model.id index) ]
+              , Html.tr
+                    [ Internal.cls [ "klar-table__detail-row" ]
+                    , Attr.id (detailDomId ctx.model.id index)
+                    , gridPart ctx "row"
+
+                    -- in the tree grid the details are the child of their row
+                    , Internal.attrIf ctx.interactiveRows (Attr.attribute "aria-level" "2")
+                    ]
                     [ Html.td
                         [ Internal.cls [ "klar-table__detail" ]
+                        , gridPart ctx "gridcell"
                         , Attr.colspan ctx.colCount
                         , Internal.styleVars [ ( "--_indent", Internal.px (pinLeft ctx) ) ]
                         ]
@@ -6310,6 +6747,14 @@ viewRow ctx index row key expanded =
 
         selected =
             ctx.hasSelect && isPicked model.selection key
+
+        current =
+            case config.currentRow of
+                Just isCurrent ->
+                    isCurrent row
+
+                Nothing ->
+                    False
 
         tone =
             config.rowTone |> Maybe.andThen (\toTone -> toTone row)
@@ -6386,6 +6831,7 @@ viewRow ctx index row key expanded =
 
                 else
                     Just (ctx.toMsg (RowMenuOpened key menuId fallback))
+            , menuTrigger = menuId ++ "-trigger"
             }
 
         pinClass =
@@ -6397,7 +6843,16 @@ viewRow ctx index row key expanded =
 
         selectCell =
             if ctx.hasSelect then
-                [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--select", "klar-table__td--control", pinClass ], systemPinStyle ctx 0 ]
+                [ Html.td
+                    [ Internal.cls [ "klar-table__td", "klar-table__td--select", "klar-table__td--control", pinClass ]
+                    , systemPinStyle ctx 0
+                    , gridPart ctx "gridcell"
+                    , if disabled then
+                        Internal.noAttr
+
+                      else
+                        rangeClick ctx key selected
+                    ]
                     [ Checkbox.view
                         (List.filterMap identity
                             [ Just (Checkbox.ariaLabel (t.selectRow name))
@@ -6421,6 +6876,7 @@ viewRow ctx index row key expanded =
             if ctx.hasExpand then
                 [ Html.td
                     [ Internal.cls [ "klar-table__td", "klar-table__td--expand", "klar-table__td--control", pinClass ]
+                    , gridPart ctx "gridcell"
                     , systemPinStyle ctx
                         (if ctx.hasSelect then
                             selectWidth
@@ -6490,7 +6946,7 @@ viewRow ctx index row key expanded =
                                 Nothing ->
                                     Menu.init menuId
                     in
-                    [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--menu", "klar-table__td--control" ] ]
+                    [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--menu", "klar-table__td--control" ], gridPart ctx "gridcell" ]
                         [ if List.isEmpty menuItems then
                             Html.text ""
 
@@ -6547,6 +7003,11 @@ viewRow ctx index row key expanded =
 
                           else
                             ""
+                        , if current then
+                            "klar-table__row--current"
+
+                          else
+                            ""
                         , case tone of
                             Just value ->
                                 "klar-table__row--tone klar-table__row--" ++ Internal.toneSuffix value
@@ -6566,6 +7027,20 @@ viewRow ctx index row key expanded =
                             )
                         )
                   , Internal.attrIf disabled (Attr.attribute "aria-disabled" "true")
+                  , Internal.attrIf current (Attr.attribute "aria-current" "true")
+                  , gridPart ctx "row"
+
+                  -- a tree grid tells on the row whether its details are open
+                  , Internal.attrIf (ctx.interactiveRows && ctx.hasExpand) (Attr.attribute "aria-level" "1")
+                  , Internal.attrIf (ctx.interactiveRows && ctx.hasExpand)
+                        (Attr.attribute "aria-expanded"
+                            (if expanded then
+                                "true"
+
+                             else
+                                "false"
+                            )
+                        )
                   ]
                 , if ctx.interactiveRows then
                     [ Attr.tabindex
@@ -6628,9 +7103,89 @@ viewCell ctx row index col =
     Html.td
         [ Internal.cls (dataCellClasses ctx index col)
         , pinStyle ctx index
+        , gridPart ctx
+            (if index == 0 then
+                "rowheader"
+
+             else
+                "gridcell"
+            )
         , Internal.attrIf (col.tooltip && not blank && not (isJust col.cell)) (Attr.title value)
         ]
         [ Html.div [ Internal.cls [ "klar-table__cell" ] ] content ]
+
+
+{-| The keys a Shift range runs over, in the order of the table: the rows of the
+page that can be selected, or every matching one in a client table that scrolls.
+Only asked for when the user makes a range.
+-}
+rangeKeys : Ctx row msg -> List String
+rangeKeys ctx =
+    if isLongClientTable ctx then
+        selectableKeys ctx
+
+    else
+        ctx.pageKeys
+
+
+{-| The keys from one key to the other, both included, in the order of the list;
+`Nothing` when one of them is not in it (the anchor is on another page).
+-}
+keysBetween : String -> String -> List String -> Maybe (List String)
+keysBetween from to keys =
+    let
+        place key =
+            keys
+                |> List.indexedMap Tuple.pair
+                |> List.filter (\( _, k ) -> k == key)
+                |> List.head
+                |> Maybe.map Tuple.first
+    in
+    case ( place from, place to ) of
+        ( Just a, Just b ) ->
+            Just (keys |> List.drop (min a b) |> List.take (abs (a - b) + 1))
+
+        _ ->
+            Nothing
+
+
+{-| The message of a Shift range that ends on this row, which gets the state the
+row is about to get (`checked`), as in a mail client; `Nothing` without an anchor
+on this page.
+-}
+rangeMsg : Ctx row msg -> String -> Bool -> Maybe msg
+rangeMsg ctx key checked =
+    ctx.model.anchor
+        |> Maybe.andThen (\anchorKey -> keysBetween anchorKey key (rangeKeys ctx))
+        |> Maybe.map (\keys -> ctx.toMsg (RangeSelected keys checked key))
+
+
+{-| Shift+click on the checkbox of a row (or its cell): the rows from the anchor
+to this one take the state this one is about to get. The checkbox itself sends the
+same state for its own row right after.
+-}
+rangeClick : Ctx row msg -> String -> Bool -> Html.Attribute msg
+rangeClick ctx key selected =
+    if ctx.model.anchor == Nothing || ctx.model.anchor == Just key then
+        Internal.noAttr
+
+    else
+        Events.on "click"
+            (Decode.field "shiftKey" Decode.bool
+                |> Decode.andThen
+                    (\shift ->
+                        if shift then
+                            case rangeMsg ctx key (not selected) of
+                                Just msg ->
+                                    Decode.succeed msg
+
+                                Nothing ->
+                                    Decode.fail "the anchor is not among these rows"
+
+                        else
+                            Decode.fail "not a range"
+                    )
+            )
 
 
 type alias RowInfo msg =
@@ -6642,26 +7197,57 @@ type alias RowInfo msg =
     , expanded : Bool
     , click : Maybe msg
     , menu : Maybe msg
+    , menuTrigger : String
     }
 
 
-{-| Keys on a focused row (not on the controls inside it).
+{-| Keys on a focused row, and the keys that move between rows on its checkbox
+and its menu button.
 -}
 rowKeys : Ctx row msg -> RowInfo msg -> Decoder ( msg, Bool )
 rowKeys ctx info =
-    Decode.map4 (\key targetId modified shift -> { key = key, targetId = targetId, modified = modified, shift = shift })
+    Decode.map5 (\key targetId command alt shift -> { key = key, targetId = targetId, command = command, alt = alt, shift = shift })
         (Decode.field "key" Decode.string)
         (Decode.oneOf [ Decode.at [ "target", "id" ] Decode.string, Decode.succeed "" ])
-        (Decode.map3 (\a b c -> a || b || c)
+        (Decode.map2 (||)
             (Decode.field "ctrlKey" Decode.bool)
             (Decode.field "metaKey" Decode.bool)
-            (Decode.field "altKey" Decode.bool)
         )
+        (Decode.field "altKey" Decode.bool)
         (Decode.field "shiftKey" Decode.bool)
         |> Decode.andThen
             (\event ->
-                if event.targetId /= info.domId || event.modified then
-                    Decode.fail "not on the row"
+                if event.targetId /= info.domId then
+                    -- On the row's checkbox or menu button the keys that move to other
+                    -- rows still work, unless the control used the key itself (the
+                    -- menu button opens its menu with ArrowDown).
+                    if List.member event.key [ "ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp" ] && not event.command && not event.alt then
+                        Decode.map2 Tuple.pair
+                            (Decode.oneOf [ Decode.at [ "target", "type" ] Decode.string, Decode.succeed "" ])
+                            (Decode.oneOf [ Decode.field "defaultPrevented" Decode.bool, Decode.succeed False ])
+                            |> Decode.andThen
+                                (\( targetType, prevented ) ->
+                                    if not prevented && (targetType == "checkbox" || event.targetId == info.menuTrigger) then
+                                        case rowKeyMsg ctx info event.key event.shift of
+                                            Just msg ->
+                                                Decode.succeed ( msg, True )
+
+                                            Nothing ->
+                                                Decode.fail "unhandled key"
+
+                                    else
+                                        Decode.fail "not on a control of the row"
+                                )
+
+                    else
+                        Decode.fail "not on the row"
+
+                else if event.command && not event.alt && String.toLower event.key == "a" && ctx.hasSelect then
+                    -- Ctrl+A (Cmd+A): every row of the page, or every matching row of a table that scrolls
+                    Decode.succeed ( ctx.toMsg (RowsSelected (rangeKeys ctx) True), True )
+
+                else if event.command || event.alt then
+                    Decode.fail "a key with Ctrl, Cmd or Alt"
 
                 else
                     case rowKeyMsg ctx info event.key event.shift of
@@ -6760,7 +7346,19 @@ rowKeyMsg ctx info key shift =
 
         " " ->
             if ctx.hasSelect && not info.disabled then
-                Just (ctx.toMsg (RowSelected info.key (not info.selected)))
+                -- Shift+Space: the rows from the anchor to this one
+                case
+                    if shift then
+                        rangeMsg ctx info.key (not info.selected)
+
+                    else
+                        Nothing
+                of
+                    Just msg ->
+                        Just msg
+
+                    Nothing ->
+                        Just (ctx.toMsg (RowSelected info.key (not info.selected)))
 
             else
                 Nothing
@@ -6836,17 +7434,17 @@ viewFoot ctx =
                 ctx.data.matchingRows
         in
         Html.tfoot [ Internal.cls [ "klar-table__foot" ] ]
-            [ Html.tr []
+            [ Html.tr [ gridPart ctx "row" ]
                 (List.concat
                     [ systemCells ctx (\_ -> [])
                     , List.indexedMap
                         (\index col ->
-                            Html.td [ Internal.cls (dataCellClasses ctx index col), pinStyle ctx index ]
+                            Html.td [ Internal.cls (dataCellClasses ctx index col), pinStyle ctx index, gridPart ctx "gridcell" ]
                                 [ Html.div [ Internal.cls [ "klar-table__cell" ] ] (footerContent ctx matched index col) ]
                         )
                         ctx.visible
                     , if ctx.hasMenu then
-                        [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--menu" ] ] [] ]
+                        [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--menu" ], gridPart ctx "gridcell" ] [] ]
 
                       else
                         []
@@ -6886,12 +7484,31 @@ footerContent ctx matched index col =
             [ Html.span [ Internal.cls [ "klar-table__aggregate-label" ] ] [ Html.text name ]
             , Html.span [ Internal.cls [ "klar-table__aggregate" ] ] [ Html.text value ]
             ]
+
+        -- a money column: exact totals, one for each currency
+        moneyAggregate name toValue toMoney =
+            case moneyTotals toMoney (matched ()) of
+                [] ->
+                    aggregate name "–"
+
+                groups ->
+                    aggregate name
+                        (groups
+                            |> List.map (\group -> Maybe.withDefault "–" (Maybe.map (Money.toString ctx.loc) (Maybe.andThen (toValue group.count) group.total)))
+                            |> String.join " · "
+                        )
     in
-    case col.footer of
-        Just FooterSum ->
+    case ( col.footer, col.money ) of
+        ( Just FooterSum, Just toMoney ) ->
+            moneyAggregate t.sum (\_ total -> Just total) toMoney
+
+        ( Just FooterAverage, Just toMoney ) ->
+            moneyAggregate t.average (\count total -> Result.toMaybe (Money.fraction 1 count total)) toMoney
+
+        ( Just FooterSum, Nothing ) ->
             aggregate t.sum (formatNumber ctx.loc col.decimals (totals ()).sum)
 
-        Just FooterAverage ->
+        ( Just FooterAverage, Nothing ) ->
             let
                 kept =
                     totals ()
@@ -6902,10 +7519,10 @@ footerContent ctx matched index col =
             else
                 aggregate t.average (Format.decimal ctx.loc (max 1 col.decimals) (kept.sum / toFloat kept.count))
 
-        Just (FooterCustom summarize) ->
+        ( Just (FooterCustom summarize), _ ) ->
             [ Html.text (summarize (matched ())) ]
 
-        Nothing ->
+        ( Nothing, _ ) ->
             if index == 0 then
                 [ Html.span [ Internal.cls [ "klar-table__aggregate-label" ] ] [ Html.text t.total ] ]
 

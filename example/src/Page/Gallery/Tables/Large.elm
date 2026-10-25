@@ -271,10 +271,10 @@ columns =
 rowsAttribute : Model -> Table.Attribute Int Item msg
 rowsAttribute model =
     if model.useRows then
-        Table.preparedRows model.items
+        Table.remotePrepared model.items
 
     else
-        Table.rows model.list
+        Table.remote model.list
 
 
 view : Locale -> Model -> Html Msg
@@ -305,7 +305,7 @@ view locale model =
                 , rowsAttribute model
                 , Table.rowId itemIds .id
                 , Table.searchable
-                , Table.label "Items, in pages"
+                , Table.ariaLabel "Items, in pages"
                 , Table.locale locale
                 ]
                 model.paged
@@ -323,7 +323,7 @@ view locale model =
                 , Table.searchable
                 , Table.selectable
                 , Table.densityToggle
-                , Table.label "Items, scrolling"
+                , Table.ariaLabel "Items, scrolling"
                 , Table.locale locale
                 ]
                 model.scrolling
@@ -382,14 +382,14 @@ loadCode =
     ( { model | items = Loaded (Table.prepareRows locale columns (Array.fromList items)) }, Cmd.none )
 
 -- view
-Table.preparedRows model.items"""
+Table.remotePrepared model.items"""
 
 
 scrollingCode : String
 scrollingCode =
     """Table.view TableMsg
     [ Table.columns columns
-    , Table.preparedRows model.items
+    , Table.remotePrepared model.items
     , Table.rowId itemIds .id
     , Table.virtual
     , Table.searchable

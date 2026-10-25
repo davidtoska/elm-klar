@@ -463,10 +463,10 @@ new value every time.
 viewTable : Locale -> Maybe Category -> Remote (List Product) -> Table.State String -> Html Msg
 viewTable locale category products table =
     Table.view TableMsg
-        ([ Table.label "Products"
+        ([ Table.ariaLabel "Products"
          , Table.locale locale
          , Table.columns (columns locale)
-         , Table.rows products
+         , Table.remote products
          , Table.rowId Ids.string .sku
          , Table.rowLabel (\product -> product.name ++ " (" ++ product.sku ++ ")")
          , Table.searchable

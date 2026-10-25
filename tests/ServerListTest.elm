@@ -344,7 +344,7 @@ selectionTests =
                 Expect.equal (ServerList.target Ids.string loaded) Nothing
         , test "rows picked one by one are a Picked target" <|
             \_ ->
-                ServerList.mapTable (Table.setSelected Ids.string [ "a", "b" ] True) loaded
+                ServerList.mapTable (Table.select Ids.string [ "a", "b" ]) loaded
                     |> ServerList.target Ids.string
                     |> Expect.equal (Just (ServerList.Picked [ "a", "b" ]))
         ]

@@ -1455,7 +1455,7 @@ tableTests =
                             , Table.rowActions (\order -> [ Menu.item "Open" (Orders.Opened order) ])
                             , Table.onRefresh Orders.Refreshed
                             ]
-                            (start |> Table.setSelected Ids.strings [ "ORD-2001" ] True |> Table.setExpanded Ids.strings "ORD-2002" True)
+                            (start |> Table.select Ids.strings [ "ORD-2001" ] |> Table.expand Ids.strings "ORD-2002")
                         )
             , test "with a filter popup open everything is still wired" <|
                 \_ ->
@@ -1484,15 +1484,15 @@ tableTests =
             ]
         , describe "without rows"
             [ test "the empty state says there is no data" <|
-                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No data", Selector.text "There are no rows to show." ] (table [ Table.rows (Loaded []) ])
+                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No data", Selector.text "There are no rows to show." ] (table [ Table.remote (Loaded []) ])
             , test "it takes the whole width of the table" <|
-                \_ -> inTable [ Selector.class "klar-table__state-cell" ] [ Selector.attribute (Attr.colspan 8) ] (table [ Table.rows (Loaded []) ])
+                \_ -> inTable [ Selector.class "klar-table__state-cell" ] [ Selector.attribute (Attr.colspan 8) ] (table [ Table.remote (Loaded []) ])
             , test "the application can change it" <|
-                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No orders yet" ] (table [ Table.rows (Loaded []), Table.emptyState [ EmptyState.title "No orders yet" ] ])
+                \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No orders yet" ] (table [ Table.remote (Loaded []), Table.emptyState [ EmptyState.title "No orders yet" ] ])
             , test "there is no pagination and no totals" <|
-                \_ -> table [ Table.rows (Loaded []) ] |> Expect.all [ noneInTable [ Selector.tag "nav" ], noneInTable [ Selector.tag "tfoot" ] ]
+                \_ -> table [ Table.remote (Loaded []) ] |> Expect.all [ noneInTable [ Selector.tag "nav" ], noneInTable [ Selector.tag "tfoot" ] ]
             , test "the table says it has one row, the header" <|
-                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-rowcount" "1" ] (table [ Table.rows (Loaded []) ])
+                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-rowcount" "1" ] (table [ Table.remote (Loaded []) ])
             , test "a search without results says 'No matches'" <|
                 \_ -> inTable [ Selector.class "klar-state" ] [ Selector.text "No matches" ] (Orders.render [] (Table.setSearch "nothing like this" start))
             , test "and offers a way out" <|
@@ -1500,92 +1500,92 @@ tableTests =
             , test "the pagination stays when a search has no results" <|
                 \_ -> inTable [ Selector.tag "nav" ] [ Selector.text "0 of 0" ] (Orders.render [] (Table.setSearch "nothing like this" start))
             , test "everything that is named exists" <|
-                \_ -> expectWellWired (table [ Table.rows (Loaded []) ])
+                \_ -> expectWellWired (table [ Table.remote (Loaded []) ])
             ]
         , describe "while loading"
             [ test "shows skeleton rows, as many as a page" <|
-                \_ -> countInTable 25 [ Selector.class "klar-table__row--skeleton" ] (table [ Table.rows Loading ])
+                \_ -> countInTable 25 [ Selector.class "klar-table__row--skeleton" ] (table [ Table.remote Loading ])
             , test "as many as the page size says" <|
-                \_ -> countInTable 7 [ Selector.class "klar-table__row--skeleton" ] (Orders.render [ Table.rows Loading ] (Table.setPageSize 7 start))
+                \_ -> countInTable 7 [ Selector.class "klar-table__row--skeleton" ] (Orders.render [ Table.remote Loading ] (Table.setPageSize 7 start))
             , test "at most a hundred" <|
-                \_ -> countInTable 100 [ Selector.class "klar-table__row--skeleton" ] (Orders.render [ Table.rows Loading ] (Table.setPageSize 500 start))
+                \_ -> countInTable 100 [ Selector.class "klar-table__row--skeleton" ] (Orders.render [ Table.remote Loading ] (Table.setPageSize 500 start))
             , test "the skeleton is hidden from screen readers" <|
                 \_ ->
-                    table [ Table.rows Loading ]
+                    table [ Table.remote Loading ]
                         |> Query.fromHtml
                         |> Query.findAll [ Selector.class "klar-table__row--skeleton" ]
                         |> Query.each (Query.has [ attr "aria-hidden" "true" ])
             , test "the table is busy and does not know how many rows it has" <|
-                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-busy" "true", attr "aria-rowcount" "-1" ] (table [ Table.rows Loading ])
+                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-busy" "true", attr "aria-rowcount" "-1" ] (table [ Table.remote Loading ])
             , test "a live region says it is loading" <|
-                \_ -> inTable [ attr "role" "status" ] [ Selector.text "Loading ..." ] (table [ Table.rows Loading ])
+                \_ -> inTable [ attr "role" "status" ] [ Selector.text "Loading ..." ] (table [ Table.remote Loading ])
             , test "NotAsked looks the same" <|
-                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-busy" "true" ] (table [ Table.rows NotAsked ])
+                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-busy" "true" ] (table [ Table.remote NotAsked ])
             , test "so does a table that was never given rows" <|
                 \_ -> Table.view Orders.TableMsg [ Table.columns Orders.columns ] start |> inTable [ Selector.tag "table" ] [ attr "aria-busy" "true" ]
             , test "there are no rows of data" <|
-                \_ -> noneInTable [ Selector.id "orders-row-0" ] (table [ Table.rows Loading ])
+                \_ -> noneInTable [ Selector.id "orders-row-0" ] (table [ Table.remote Loading ])
             , test "a table that is not loading is not busy" <|
                 \_ -> noneInTable [ attr "aria-busy" "true" ] (table [])
             , test "a table that is refreshing keeps its rows and is busy" <|
                 \_ ->
-                    table [ Table.rows (Remote.refresh (Loaded Orders.curated)) ]
+                    table [ Table.remote (Remote.refresh (Loaded Orders.curated)) ]
                         |> Expect.all
                             [ inTable [ Selector.tag "table" ] [ attr "aria-busy" "true", attr "aria-rowcount" "9" ]
                             , inTable [ Selector.id "orders-row-0" ] [ Selector.text "ORD-2001" ]
                             ]
             , test "and shows a progress line, and says so" <|
                 \_ ->
-                    table [ Table.rows (Remote.refresh (Loaded Orders.curated)) ]
+                    table [ Table.remote (Remote.refresh (Loaded Orders.curated)) ]
                         |> Expect.all
                             [ inTable [ Selector.class "klar-table__progress" ] [ attr "aria-hidden" "true" ]
                             , inTable [ attr "role" "status" ] [ Selector.text "Refreshing ..." ]
                             ]
             , test "refreshing is ignored while the first rows are loading" <|
-                \_ -> noneInTable [ Selector.class "klar-table__progress" ] (table [ Table.rows (Remote.refresh Loading) ])
+                \_ -> noneInTable [ Selector.class "klar-table__progress" ] (table [ Table.remote (Remote.refresh Loading) ])
             , test "the refresh button is busy while loading" <|
-                \_ -> inTable [ attr "aria-label" "Refresh" ] [ attr "aria-busy" "true" ] (table [ Table.rows Loading, Table.onRefresh Orders.Refreshed ])
+                \_ -> inTable [ attr "aria-label" "Refresh" ] [ attr "aria-busy" "true" ] (table [ Table.remote Loading, Table.onRefresh Orders.Refreshed ])
             , test "everything that is named exists" <|
-                \_ -> expectWellWired (table [ Table.rows Loading ])
+                \_ -> expectWellWired (table [ Table.remote Loading ])
             ]
         , describe "when the rows could not be fetched"
             [ test "shows the problem as an alert" <|
-                \_ -> inTable [ Selector.class "klar-state--error" ] [ attr "role" "alert" ] (table [ Table.rows (failure Remote.network), withRetry ])
+                \_ -> inTable [ Selector.class "klar-state--error" ] [ attr "role" "alert" ] (table [ Table.remote (failure Remote.network), withRetry ])
             , test "with its title and its detail" <|
                 \_ ->
                     let
                         problem =
                             Remote.problem Remote.network
                     in
-                    table [ Table.rows (failure Remote.network) ]
+                    table [ Table.remote (failure Remote.network) ]
                         |> inTable [ Selector.class "klar-state--error" ] [ Selector.text (Remote.title Locale.en problem), Selector.text (Maybe.withDefault "?" (Remote.detail Locale.en problem)) ]
             , test "offers to try again, when the application listens" <|
-                \_ -> inTable (button "Try again") [] (table [ Table.rows (failure Remote.network), withRetry ])
+                \_ -> inTable (button "Try again") [] (table [ Table.remote (failure Remote.network), withRetry ])
             , test "the retry button sends the message of the application" <|
                 \_ ->
-                    table [ Table.rows (failure Remote.timeout), withRetry ]
+                    table [ Table.remote (failure Remote.timeout), withRetry ]
                         |> Query.fromHtml
                         |> Query.find (button "Try again")
                         |> Event.simulate Event.click
                         |> Event.toResult
                         |> Expect.equal (Ok Orders.Retried)
             , test "there is no button without a message to send" <|
-                \_ -> noneInTable (button "Try again") (table [ Table.rows (failure Remote.network) ])
+                \_ -> noneInTable (button "Try again") (table [ Table.remote (failure Remote.network) ])
             , test "or for a problem that trying again would not help" <|
-                \_ -> noneInTable (button "Try again") (table [ Table.rows (failure Remote.notFound), withRetry ])
+                \_ -> noneInTable (button "Try again") (table [ Table.remote (failure Remote.notFound), withRetry ])
             , test "nor for a missing permission" <|
-                \_ -> noneInTable (button "Try again") (table [ Table.rows (failure Remote.forbidden), withRetry ])
+                \_ -> noneInTable (button "Try again") (table [ Table.remote (failure Remote.forbidden), withRetry ])
             , test "the button is in the language of the table" <|
-                \_ -> inTable (button "Prøv igjen") [] (table [ Table.rows (failure Remote.network), withRetry, Table.locale Locale.nb ])
+                \_ -> inTable (button "Prøv igjen") [] (table [ Table.remote (failure Remote.network), withRetry, Table.locale Locale.nb ])
             , test "the table does not know its row count" <|
-                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-rowcount" "-1" ] (table [ Table.rows (failure Remote.network) ])
+                \_ -> inTable [ Selector.tag "table" ] [ attr "aria-rowcount" "-1" ] (table [ Table.remote (failure Remote.network) ])
             , test "there are no rows and no totals" <|
-                \_ -> table [ Table.rows (failure Remote.network) ] |> Expect.all [ noneInTable [ Selector.id "orders-row-0" ], noneInTable [ Selector.tag "tfoot" ] ]
+                \_ -> table [ Table.remote (failure Remote.network) ] |> Expect.all [ noneInTable [ Selector.id "orders-row-0" ], noneInTable [ Selector.tag "tfoot" ] ]
             , test "in client mode there is no pagination" <|
-                \_ -> noneInTable [ Selector.tag "nav" ] (table [ Table.rows (failure Remote.network) ])
+                \_ -> noneInTable [ Selector.tag "nav" ] (table [ Table.remote (failure Remote.network) ])
             , test "in server mode the pagination stays, so that another page can be tried" <|
-                \_ -> inTable [ Selector.tag "nav" ] [ attr "aria-label" "Pages of Orders" ] (table [ Table.server { total = 120 }, Table.rows (failure Remote.network) ])
+                \_ -> inTable [ Selector.tag "nav" ] [ attr "aria-label" "Pages of Orders" ] (table [ Table.server { total = 120 }, Table.remote (failure Remote.network) ])
             , test "everything that is named exists" <|
-                \_ -> expectWellWired (table [ Table.rows (failure Remote.network), withRetry ])
+                \_ -> expectWellWired (table [ Table.remote (failure Remote.network), withRetry ])
             ]
         ]

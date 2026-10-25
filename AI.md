@@ -24,7 +24,7 @@ own source and its showcase, not guidance.
   Attributes are opaque. Their order matters only when the same attribute is given twice: the last one wins (state flags such as `loading`, `failed` and `remote` add up instead).
 - **The `String` you give to `init` is the DOM id**, unique on the page. Keep them as named values in one place.
 - **Backend data is a `Remote a`** (`NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`; `Kept` is old data during or after a refresh, see the traps). Give it to
-  `Table.rows`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
+  `Table.remote`, `Stat.remote`, `Chart.remote`, `Tree.viewRemote`, `Select.remote` ...: they draw the skeleton, the failure
   with retry and the empty state. Klar never sends a request: `Remote.refresh` when it leaves, `Remote.settle model.orders result` when the answer comes (a failed refresh keeps the data, marked old).
 - **Your ids are your own types**, written as text once per type as a `Klar.Ids` (`Ids.make { toKey, fromKey }`; `Ids.list` for a closed set such as your pages; `Ids.string`, `Ids.int`) and given to every component that holds them: `Table.rowId`, `Tree.leaf`, `Picking.leaf`, `Sortable.view`, `SideNav.item`, `Spec.choice`, `Rule.choiceFieldOf`.
   A table column is a `Table.columnId "total"`, named once.
@@ -62,6 +62,7 @@ import Klar.AppShell as AppShell
 import Klar.Button as Button
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
+import Klar.Money as Money exposing (Money)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Settings as Settings exposing (Settings)
@@ -80,7 +81,7 @@ type Page
 
 
 type alias Order =
-    { id : String, customer : String, total : Float }
+    { id : String, customer : String, total : Money }
 
 
 type alias Model =
@@ -135,9 +136,14 @@ fetchOrders : Cmd Msg
 fetchOrders =
     -- stands for a request (Http.task, then Task.mapError toProblem); the answer comes with its time
     Process.sleep 600
-        |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics" 1250.5, Order "1043" "Fjord Foods" 310 ])
+        |> Task.map (\_ -> Ok [ Order "1042" "Aurora Logistics" (kroner 125050), Order "1043" "Fjord Foods" (kroner 31000) ])
         |> Task.andThen (\result -> Task.map (GotOrders result) Time.now)
         |> Task.perform identity
+
+
+kroner : Int -> Money
+kroner ore =
+    Money.fromMinor Money.nok ore |> Maybe.withDefault (Money.zero Money.nok)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -221,10 +227,11 @@ viewPage model =
                     [ Table.columns
                         [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
                         , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
-                        , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
+                        , Table.money (Table.columnId "total") "Total" .total [ Table.footerSum ]
                         ]
-                    , Table.rows model.orders
+                    , Table.remote model.orders
                     , Table.rowId Ids.string .id
+                    , Table.ariaLabel "Orders"
                     , Table.onRetry Reload
                     , Table.settings model.settings
                     ]
@@ -296,11 +303,11 @@ pageFromUrl url =
 
 Each is checked against the current source; the ones the library has fixed are gone.
 
-- **Give a component its data once.** `Chart.remote`, `Stat.remote`, `Table.rows` take a `Remote`, including its old data; do not add `loading` or `failed` next to them.
+- **Give a component its data once.** `Chart.remote`, `Stat.remote`, `Table.remote` take a `Remote`, including its old data; do not add `loading` or `failed` next to them.
 - **`Remote` has a fifth constructor, `Kept`** (old data while a refresh runs, or after it failed). A `case` of your own needs a branch for it, or use `Remote.toMaybe` / `RemoteView.view`. Start a request with `Remote.refresh`, finish it with `Remote.settle old result` (`Remote.refreshWith old result at` when you have the time of the answer); never write a failed refresh over good data with `Remote.fromResult`.
 - **A `Modal` with a text field opens with focus on the dialog.** Use `Modal.openWith { opener = id, focus = [ fieldId ] }`.
 - **Focus returns to an opener only if it has an id** (`Button.id`, a `SideNav` link, a field). Without one it goes to the last element that had an id, which may be elsewhere (`LeaveGuard` "Stay" too).
-- **A `ConfirmDialog` may hold one or two controls in `body`** (a reason, a target); a real form is a `Modal`. **Server-mode `Table.exportCsv`** offers the selection only while every selected row is on the page; export from the backend for a selection that spans pages.
+- **A `ConfirmDialog` may hold one or two controls in `body`** (a reason, a target); a real form is a `Modal`. **Server-mode `Table.exportCsv`** offers the selection only while every selected row is on the page; export from the backend for a selection that spans pages. A bulk action of a server table reads `Table.selection`: after "Select all N matching" it is `AllMatching { except }` and `selectedIds` is `[]`.
 - **`Table.activeExternalFilters n`** tells "no matches" from "no data" for filters outside the table; wire `onResetFilters` once to clear the filter bar and the table's own filters.
 - **The first type parameter of `Form` and `Form.State` is the step type** (`()` for a form without steps). Declare the form in `Klar.Form.Spec` once, at the top of a file.
 - **`Rule.choiceField` values are `String`s.** For your own id type use `Rule.choiceFieldOf` with `Klar.Ids`.

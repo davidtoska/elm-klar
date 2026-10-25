@@ -224,7 +224,7 @@ beyond that when its content cannot be squeezed.
     AppShell.view attributes
         [ Layout.stack [ Layout.fillRest ]
             [ PageHeader.view [ PageHeader.title "Inbox" ]
-            , Table.view TableMsg [ Table.fillHeight, Table.columns columns, Table.rows model.orders ] model.table
+            , Table.view TableMsg [ Table.fillHeight, Table.columns columns, Table.remote model.orders ] model.table
             ]
         ]
 

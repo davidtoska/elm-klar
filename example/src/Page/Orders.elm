@@ -235,8 +235,33 @@ takeEffects =
     Effect.take
 
 
+{-| The code of a status that the status filter of the table keeps: it stays the
+same whatever the label says.
+-}
+statusCode : OrderStatus -> String
+statusCode status =
+    case status of
+        Draft ->
+            "draft"
+
+        Confirmed ->
+            "confirmed"
+
+        Picking ->
+            "picking"
+
+        Shipped ->
+            "shipped"
+
+        Delivered ->
+            "delivered"
+
+        Cancelled ->
+            "cancelled"
+
+
 {-| What the table asked for, as the server wants it. The status filter holds
-status labels.
+status codes (`statusCode`).
 -}
 toOrderQuery : Table.Query -> OrderQuery
 toOrderQuery query =
@@ -247,8 +272,8 @@ toOrderQuery query =
             |> List.concatMap
                 (\( _, filter ) ->
                     case filter of
-                        Table.OneOf labels ->
-                            List.filter (\status -> List.member (Types.orderStatusLabel status) labels) Types.allOrderStatuses
+                        Table.OneOf codes ->
+                            List.filter (\status -> List.member (statusCode status) codes) Types.allOrderStatuses
 
                         _ ->
                             []
@@ -740,7 +765,7 @@ update context msg backend model =
 
                 -- A deleted order cannot stay selected.
                 table =
-                    Table.setSelected orderRows [ id ] False model.table
+                    Table.deselect orderRows [ id ] model.table
 
                 ( fetched, backend1, fetchCmd ) =
                     fetch backend { model | confirm = confirm, pending = Nothing, table = table }
@@ -835,7 +860,7 @@ finishCancelling context batch backend model =
                 table =
                     model.table
                         |> Table.clearSelection
-                        |> Table.setSelected orderRows (List.map Tuple.first failed) True
+                        |> Table.select orderRows (List.map Tuple.first failed)
 
                 ( fetched, backend1, fetchCmd ) =
                     fetch backend { model | confirm = confirm, pending = Nothing, table = table }
@@ -1220,11 +1245,11 @@ view context model =
                 ]
             , viewLookupsProblem context model
             , Table.view TableMsg
-                [ Table.label "Orders"
+                [ Table.ariaLabel "Orders"
                 , Table.locale context.locale
                 , Table.settings context.settings
                 , Table.columns (columns context lookups)
-                , Table.rows model.rows
+                , Table.remote model.rows
                 , Table.server { total = model.total }
                 , Table.rowId orderRows .id
                 , Table.rowLabel (rowLabel context)
@@ -1307,9 +1332,11 @@ columns context lookups =
         (\order -> ( Labels.statusTone order.status, Types.orderStatusLabel order.status ))
         [ Table.width 120
 
-        -- The table only sees one page, so it cannot know the values in the
-        -- column: it is told them.
-        , Table.filterOptions (List.map Types.orderStatusLabel Types.allOrderStatuses)
+        -- The filter keeps a code per status, so the query carries codes and
+        -- not labels. The table only sees one page, so it cannot know the
+        -- values in the column: it is told them, with their labels.
+        , Table.filterValue (.status >> statusCode)
+        , Table.filterOptions (List.map (\status -> { value = statusCode status, label = Types.orderStatusLabel status }) Types.allOrderStatuses)
         ]
     , Table.status (Table.columnId "priority")
         "Priority"

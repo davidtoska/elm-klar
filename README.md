@@ -13,9 +13,9 @@ Table.view TableMsg
     [ Table.columns
         [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
         , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
-        , Table.float (Table.columnId "total") "Total" 2 .total [ Table.footerSum ]
+        , Table.money (Table.columnId "total") "Total" .total [ Table.footerSum ] -- a Klar.Money: exact sums
         ]
-    , Table.rows model.orders -- a Remote (List Order): loading, failure and empty are drawn for you
+    , Table.remote model.orders -- a Remote (List Order): loading, failure and empty are drawn for you
     , Table.rowId orderIds .id -- your own OrderId, written as text once with Klar.Ids
     , Table.searchable
     , Table.selectable

@@ -1,16 +1,14 @@
 module Klar.Table.Csv exposing
-    ( dataUrl
-    , encode
+    ( encode
     , field
     )
 
-{-| CSV text for spreadsheet export, and a `data:` URL to download it
-without JavaScript.
+{-| CSV text for spreadsheet export. The table saves it with
+`File.Download.string`, which has no size limit, after a UTF-8 byte order mark
+so that Excel reads accented letters (æ, ø, å, é, ü ...) correctly.
 
     Csv.encode ';' [ [ "Name", "City" ], [ "Ada \"A\" Lovelace", "London" ] ]
     --> "Name;City\r\n\"Ada \"\"A\"\" Lovelace\";London"
-
-    Html.a [ Attr.href (Csv.dataUrl text), Attr.download "orders.csv" ] [ ... ]
 
 Rules (RFC 4180):
 
@@ -21,13 +19,10 @@ Rules (RFC 4180):
     `-`, `@`, tab or carriage return and is not a plain number) gets a
     leading apostrophe, so exported data can never execute ("CSV injection")
 
-`dataUrl` adds a UTF-8 byte order mark so Excel reads accented letters (æ, ø,
-å, é, ü ...) correctly. Use `;` as separator for Excel in a locale where the
-comma is the decimal separator (Norwegian, German ...) and `,` for English.
+Use `;` as separator for Excel in a locale where the comma is the decimal
+separator (Norwegian, German ...) and `,` for English.
 
 -}
-
-import Klar.Internal as Internal
 
 
 {-| Rows of fields to CSV text.
@@ -73,14 +68,6 @@ field separator raw =
 
     else
         value
-
-
-{-| `data:text/csv` URL with a UTF-8 byte order mark, percent-encoded, ready
-for `<a href=... download=...>`.
--}
-dataUrl : String -> String
-dataUrl csv =
-    "data:text/csv;charset=utf-8," ++ Internal.percentEncode ("\u{FEFF}" ++ csv)
 
 
 guardFormula : String -> String

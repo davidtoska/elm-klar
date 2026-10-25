@@ -147,8 +147,11 @@ when to make the page inert and where focus goes back. A closed dialog stays in 
 - `Internal.styleVars [ ( "--klar-w", "120px" ) ]` sets custom properties (one `style` per
   element; never mixed with `Html.Attributes.style`). `Internal.attrIf`, `Internal.attrMaybe`.
 - `Internal.focus id NoOp` waits one frame, so it works on an element made in the same update.
-- Download without JavaScript: a `data:` link with `download`, encoded with
-  `Internal.percentEncode` (never `Url.percentEncode`, which throws on half of an emoji).
+- Download without JavaScript: `File.Download.string` from `update` (elm/file), with the
+  text built in the click decoder, not on every render; it has no size limit (as
+  `Table.exportCsv`). A `data:` link with `download` is only for small files (Chromium stops
+  at a 2 MB URL); encode it with `Internal.percentEncode` (never `Url.percentEncode`, which
+  throws on half of an emoji).
 - Timers: `Process.sleep ms |> Task.perform`, with a counter to drop stale ones.
 - Graphics without `elm/svg`: icons and chart lines are SVG written as a `data:` URI and used
   as a CSS mask; never `Html.Attributes.property "innerHTML"`.

@@ -525,6 +525,48 @@ css =
 .klar-table__row--warning { --_tone: var(--klar-amber-500); }
 .klar-table__row--danger { --_tone: var(--klar-red-500); }
 
+/* The row whose details are open elsewhere (Table.currentRow): under the
+   selection, over hover and zebra, with a bar at its start. */
+.klar-table__row--current > .klar-table__td { background: var(--klar-surface-active); }
+.klar-table__row--current > .klar-table__td:first-child { box-shadow: inset 3px 0 0 var(--klar-primary); }
+.klar-table__row--current.klar-table__row--selected > .klar-table__td { background: var(--klar-primary-subtle-hover); }
+
+/* Windows high contrast drops backgrounds and box-shadows: the focused,
+   selected, current and toned rows and the active sort and filter are drawn
+   with system colors instead (the progress line is below). */
+@media (forced-colors: active) {
+  .klar-table__row:focus-visible > .klar-table__td {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .klar-table__row--selected > .klar-table__td {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .klar-table__row--selected:focus-visible > .klar-table__td { outline-color: CanvasText; }
+  .klar-table__row--tone > .klar-table__td:first-child { border-inline-start: 3px solid CanvasText; }
+  .klar-table__row--current > .klar-table__td:first-child { border-inline-start: 3px solid Highlight; }
+  .klar-table__row--disabled > .klar-table__td { color: GrayText; }
+
+  .klar-table__sort-icon--active {
+    color: Highlight;
+    opacity: 1;
+  }
+
+  .klar-table__filter-button--active {
+    outline: 1px solid Highlight;
+    outline-offset: -1px;
+  }
+
+  .klar-table__filter-button--active::after {
+    forced-color-adjust: none;
+    background: Highlight;
+    box-shadow: none;
+  }
+}
+
 /* ---- Pinned first column ------------------------------------------------ */
 
 .klar-table__cell--pinned {
@@ -737,6 +779,15 @@ css =
     width: 100%;
     opacity: 0.5;
     animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .klar-table__progress { background: Canvas; }
+
+  .klar-table__progress::after {
+    forced-color-adjust: none;
+    background: Highlight;
   }
 }
 
@@ -1002,11 +1053,17 @@ css =
   display: flex;
   align-items: center;
   gap: var(--klar-space-2);
+  width: 100%;
   height: 34px;
   padding: 0 var(--klar-space-2);
+  border: 0;
   border-radius: var(--klar-radius);
+  background: transparent;
   color: var(--klar-text);
+  font: inherit;
+  text-align: start;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .klar-table__export-option:hover,

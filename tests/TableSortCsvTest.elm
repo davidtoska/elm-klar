@@ -9,7 +9,6 @@ import Klar.Table.Csv as Csv
 import Klar.Table.Sort as Sort exposing (Key(..), Level(..))
 import Support.Orders as Orders exposing (expectRows, render)
 import Test exposing (Test, describe, fuzz, fuzz2, test)
-import Url
 
 
 suite : Test
@@ -23,7 +22,6 @@ suite =
         , csvFormulaTests
         , csvEncodeTests
         , csvRoundTripTests
-        , dataUrlTests
         , unpairedSurrogateTests
         ]
 
@@ -556,38 +554,6 @@ csvRoundTripTests =
         ]
 
 
-dataUrlTests : Test
-dataUrlTests =
-    let
-        prefix =
-            "data:text/csv;charset=utf-8,"
-    in
-    describe "Csv.dataUrl"
-        [ check "starts as a data URL for CSV in UTF-8" True (String.startsWith prefix (Csv.dataUrl "a,b"))
-        , check "the file starts with a byte order mark, so that Excel reads æ, ø and å" True (String.startsWith (prefix ++ "%EF%BB%BF") (Csv.dataUrl "a,b"))
-        , check "the empty CSV is only the mark" (prefix ++ "%EF%BB%BF") (Csv.dataUrl "")
-        , check "plain text follows the mark" (prefix ++ "%EF%BB%BFa%2Cb") (Csv.dataUrl "a,b")
-        , check "line breaks are encoded" (prefix ++ "%EF%BB%BFa%0D%0Ab") (Csv.dataUrl "a\u{000D}\nb")
-        , check "letters outside ASCII are encoded as UTF-8" (prefix ++ "%EF%BB%BF%C3%A6%C3%B8%C3%A5") (Csv.dataUrl "æøå")
-        , check "a hash would cut the URL, so it is encoded" True (String.contains "%23" (Csv.dataUrl "a#b") && not (String.contains "#" (Csv.dataUrl "a#b")))
-        , check "a percent sign is encoded" True (String.contains "%25" (Csv.dataUrl "100%"))
-        , check "quotes and spaces are encoded" (prefix ++ "%EF%BB%BF%22a%20b%22") (Csv.dataUrl "\"a b\"")
-        , check "emoji are encoded" (prefix ++ "%EF%BB%BF%F0%9F%93%A6") (Csv.dataUrl "📦")
-        , fuzz Fuzz.string "decoding gives the mark and the text back" <|
-            \csv ->
-                Csv.dataUrl (String.filter (\c -> not (isLoneSurrogate c)) csv)
-                    |> String.dropLeft (String.length prefix)
-                    |> Url.percentDecode
-                    |> Expect.equal (Just ("\u{FEFF}" ++ String.filter (\c -> not (isLoneSurrogate c)) csv))
-        , fuzz Fuzz.string "nothing in the URL needs escaping in an attribute: no quote, space, angle bracket, hash or line break" <|
-            \csv ->
-                Csv.dataUrl (String.filter (\c -> not (isLoneSurrogate c)) csv)
-                    |> String.dropLeft (String.length prefix)
-                    |> String.any (\c -> List.member c [ '"', ' ', '<', '>', '#', '\n', '\u{000D}' ])
-                    |> Expect.equal False
-        ]
-
-
 
 -- TEXT THAT IS NOT VALID UTF-16
 
@@ -624,17 +590,17 @@ unpairedSurrogateTests =
           test "a table sorted by a column with such a value" <|
             \_ ->
                 render
-                    [ Table.rows (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
+                    [ Table.remote (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
                     (Table.setSort [ ( Table.columnId "customer", Table.Ascending ) ] (Table.init "orders"))
                     |> expectRows [ "ORD-2", "ORD-1" ]
         , -- And through the search of a table (Table.fold used Url.percentEncode too).
           test "a table searched for a word, with such a value in a row" <|
             \_ ->
                 render
-                    [ Table.rows (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
+                    [ Table.remote (Loaded [ oneOrder halfAnEmoji "ORD-1", oneOrder "Acme" "ORD-2" ]) ]
                     (Table.setSearch "acme" (Table.init "orders"))
                     |> expectRows [ "ORD-2" ]
-        , -- And the CSV download, which the export menu builds when it is opened.
-          test "dataUrl" <|
-            \_ -> Expect.equal True (String.startsWith "data:text/csv" (Csv.dataUrl halfAnEmoji))
+        , -- And the CSV text of the export, which is written when an export option is clicked.
+          test "the CSV text" <|
+            \_ -> Expect.equal True (String.startsWith "Order" (Csv.encode ',' [ [ halfAnEmoji ] ]))
         ]
