@@ -146,10 +146,10 @@ import Html.Attributes as Attr
 import Html.Events as Events
 import Klar.Chart.Bar as Bar
 import Klar.Chart.Config as Config
-import Klar.Chart.Core as Core
 import Klar.Chart.Data as Data
 import Klar.Chart.Donut as Donut
 import Klar.Chart.Line as Line
+import Klar.Chart.RemoteView as RemoteView
 import Klar.Chart.Scalar as Scalar
 import Klar.Chart.Sparkline as Sparkline
 import Klar.Chart.Types as Types
@@ -750,7 +750,7 @@ to move focus there with `Klar.focus` when "Try again" goes away.
 -}
 lineRemote : List (Attribute msg) -> Remote Data -> Html msg
 lineRemote arg1 arg2 =
-    Core.lineRemote (List.map unwrapAttribute arg1) (Remote.map unwrapData arg2)
+    RemoteView.lineRemote (List.map unwrapAttribute arg1) (Remote.map unwrapData arg2)
 
 
 {-| A bar chart from a `Remote`, with every state of `lineRemote`.
@@ -764,7 +764,7 @@ lineRemote arg1 arg2 =
 -}
 barRemote : List (Attribute msg) -> Remote Data -> Html msg
 barRemote arg1 arg2 =
-    Core.barRemote (List.map unwrapAttribute arg1) (Remote.map unwrapData arg2)
+    RemoteView.barRemote (List.map unwrapAttribute arg1) (Remote.map unwrapData arg2)
 
 
 {-| The data of a line or bar chart from a `Remote` (`lineRemote`, `barRemote`):
@@ -810,7 +810,7 @@ byDate arg1 arg2 =
 -}
 donutRemote : List (Attribute msg) -> Remote (List Segment) -> Html msg
 donutRemote arg1 arg2 =
-    Core.donutRemote (List.map unwrapAttribute arg1) (Remote.map (List.map unwrapSegment) arg2)
+    RemoteView.donutRemote (List.map unwrapAttribute arg1) (Remote.map (List.map unwrapSegment) arg2)
 
 
 {-| A gauge from a `Remote`: the skeleton while it loads, the problem with "Try
@@ -823,7 +823,7 @@ from 14:05" when the last refresh failed).
 -}
 gaugeRemote : List (Attribute msg) -> Remote Float -> Html msg
 gaugeRemote arg1 arg2 =
-    Core.gaugeRemote (List.map unwrapAttribute arg1) arg2
+    RemoteView.gaugeRemote (List.map unwrapAttribute arg1) arg2
 
 
 {-| A meter from a `Remote`, with every state of `gaugeRemote`.
@@ -834,7 +834,7 @@ gaugeRemote arg1 arg2 =
 -}
 meterRemote : List (Attribute msg) -> Remote Float -> Html msg
 meterRemote arg1 arg2 =
-    Core.meterRemote (List.map unwrapAttribute arg1) arg2
+    RemoteView.meterRemote (List.map unwrapAttribute arg1) arg2
 
 
 {-| A sparkline from a `Remote`: a skeleton line while it loads, a dash with the
@@ -847,7 +847,7 @@ dimmed while it is refreshed. Old data says so in its name.
 -}
 sparklineRemote : List (Attribute msg) -> Remote (List Float) -> Html msg
 sparklineRemote arg1 arg2 =
-    Core.sparklineRemote (List.map unwrapAttribute arg1) arg2
+    RemoteView.sparklineRemote (List.map unwrapAttribute arg1) arg2
 
 
 unwrapSeries : Series -> Types.Series

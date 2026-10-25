@@ -1,39 +1,19 @@
-module Klar.Chart.Core exposing (..)
+module Klar.Chart.RemoteView exposing (..)
 
-{-| Chart implementations behind the representation-stable public documentation facade.
+{-| Remote-data adapters that keep chart data and category labels together.
 -}
 
-import Array exposing (Array)
 import Html exposing (Html)
-import Html.Attributes as Attr
-import Html.Events as Events
-import Klar.Chart.Axis exposing (axisFor, buildAxis, niceNum, verticalTicks, widen, xPos, yPos)
 import Klar.Chart.Bar exposing (bar, barBody, barPlot)
-import Klar.Chart.Colors exposing (colorClass, toneClass, toneClassFor)
 import Klar.Chart.Config exposing (area, ariaLabel, categories, centerCaption, centerLabel, configure, dates, description, emptyText, height, heightOf, hideLegend, horizontal, id, includeZero, legend, locale, maxLabels, onRetry, onSelect, pointsOnHover, range, selectable, settings, showLegend, stacked, thresholds, title, tone, unit, valueFormat, valueLabels, width, yMax, yMin, zoneToneFor)
 import Klar.Chart.Data exposing (byCategory, byDate, dashed, noData, segment, segmentSlot, segmentTone, series, seriesMaybe, withSlot, withTone)
 import Klar.Chart.Donut exposing (donut, donutBody)
 import Klar.Chart.Line exposing (line, lineBody, linePlot)
-import Klar.Chart.Masks exposing (maskUrl, polygonShape, polylineShape, ringPolygon)
-import Klar.Chart.Numbers exposing (compact, dropTrailingZeros, firstJust, formatLabel, formatTick, formatValue, isWhole, missingOr, num, pct, percentText, roundTo, sanitize, smartFormat, stepDecimals, tickGutter, trimFraction)
-import Klar.Chart.Preparation exposing (barTableRows, barTip, categoryAt, hasAnyValue, horizontalHeight, labelledIndexes, piecesOf, prepare, runs, shortAt, slotTip, tableRows, valueAt)
 import Klar.Chart.Scalar exposing (gauge, meter)
-import Klar.Chart.Shared exposing (categoryElement, dataTable, gridLine, header, legendIfWanted, legendView, maskLayer, plotFrame, shell, stateOf, withState, withStateInside, xLabel, xTick, yLabel)
 import Klar.Chart.Sparkline exposing (sparkline)
-import Klar.Chart.Texts exposing (summaryLine, texts)
 import Klar.Chart.Types exposing (Attribute(..), Axis, Config, Data(..), LegendItem, PSeries, Piece, Prepared, Segment(..), Series(..), Slice, State(..), Texts)
-import Klar.Date exposing (Date)
-import Klar.EmptyState as EmptyState
-import Klar.ErrorState as ErrorState
-import Klar.Format as Format
-import Klar.Icon as Icon
-import Klar.Internal as Internal
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
-import Klar.Locale as Locale exposing (Locale)
 import Klar.Remote as Remote exposing (Problem, Remote)
-import Klar.Settings as Settings exposing (Settings)
-import Klar.Skeleton as Skeleton
-import Klar.Theme as Theme exposing (Tone(..))
 
 
 {-| The state of a chart drawn from a `Remote`, and the data to draw when there is
