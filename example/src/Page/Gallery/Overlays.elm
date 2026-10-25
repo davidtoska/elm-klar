@@ -1518,7 +1518,15 @@ overlays locale model =
     , drawerRightView locale model
     , cancelDialog locale model
     , drawerLeftView locale model
-    , ShortcutHelp.view HelpMsg [ ShortcutHelp.locale locale ] sheetShortcuts model.help
+    , ShortcutHelp.view HelpMsg
+        [ ShortcutHelp.locale locale
+
+        -- keys of the components on this page, listed but not listened to
+        , ShortcutHelp.extra
+            [ { group = "Lists", label = "Open the menu of the focused row", keys = Shortcut.shift (Shortcut.function 10) } ]
+        ]
+        sheetShortcuts
+        model.help
     , CommandPalette.view PaletteMsg
         [ CommandPalette.locale locale
         , CommandPalette.sections (paletteSections model)

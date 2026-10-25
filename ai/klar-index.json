@@ -3272,7 +3272,7 @@
       "group": "Overlays",
       "purpose": "The cheat sheet of keyboard shortcuts: a dialog that lists every shortcut of the application, grouped, with key caps and a small filter box.",
       "whenToUse": "the user needs a cheat sheet of the keyboard shortcuts the application listens to.",
-      "whenNot": "you only need to show one shortcut next to a control (use `Klar.Tooltip`).",
+      "whenNot": "you only need to show one shortcut next to a control (use `Klar.Kbd`, or the shortcut of a `Klar.Tooltip`).",
       "state": [
         "State"
       ],

@@ -32,6 +32,7 @@ isOpen : State -> Bool
 type Attribute msg  -- opaque: no constructors are exposed
 title : String -> Attribute msg
 platform : Kbd.Platform -> Attribute msg
+extra : List { group : String, label : String, keys : Shortcut.Keys } -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 ```
 
@@ -41,7 +42,7 @@ The cheat sheet of keyboard shortcuts: a dialog that lists every shortcut of
 the application, grouped, with key caps and a small filter box.
 
 Use when: the user needs a cheat sheet of the keyboard shortcuts the application listens to.
-Do not use when: you only need to show one shortcut next to a control (use `Klar.Tooltip`).
+Do not use when: you only need to show one shortcut next to a control (use `Klar.Kbd`, or the shortcut of a `Klar.Tooltip`).
 Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
 It is built from the same list of [Klar.Shortcut](Klar.Shortcut.md) shortcuts that
@@ -214,6 +215,22 @@ default: Ctrl, Alt, Shift) or `Kbd.mac` (⌘, ⌥, ⇧ in the order a Mac writes
 Read it once from the user agent with `Kbd.platformFromUserAgent`.
 
     ShortcutHelp.platform (Kbd.platformFromUserAgent flags.userAgent)
+
+### `extra`
+
+```elm
+extra : List { group : String, label : String, keys : Shortcut.Keys } -> Attribute msg
+```
+
+Keys worth knowing that are not shortcuts of the application: the keys of
+Klar's own components (`Shift+F10` for the menu of a row, `Enter` to edit a cell)
+or of your own widgets. They are listed under their group like the shortcuts,
+after them, and found by the filter, but never listened to. The default is none.
+
+    ShortcutHelp.extra
+        [ { group = "Tables", label = "Open the menu of the row", keys = Shortcut.shift (Shortcut.function 10) }
+        , { group = "Tables", label = "Edit the cell", keys = Shortcut.enter }
+        ]
 
 ### `locale`
 

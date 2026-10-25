@@ -1243,6 +1243,17 @@ helpSheetTests =
                     |> Query.fromHtml
                     |> Query.findAll [ Selector.class "klar-shortcuts__row" ]
                     |> Query.count (Expect.equal 1)
+        , test "extra keys are listed under their group, after the shortcuts, and found by the filter" <|
+            \_ ->
+                helpSheetWith
+                    [ ShortcutHelp.extra [ { group = "Navigation", label = "Open the menu of the row", keys = Shortcut.shift (Shortcut.function 10) } ] ]
+                    [ palette, help ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ Query.findAll [ Selector.tag "h3" ] >> Query.count (Expect.equal 2)
+                        , Query.findAll [ Selector.class "klar-shortcuts__row" ] >> Query.index 1 >> Query.has [ Selector.text "Open the menu of the row" ]
+                        , Query.findAll [ Selector.class "klar-shortcuts__row" ] >> Query.index 1 >> Query.has [ Selector.text "F10" ]
+                        ]
         , test "a polite status says how many shortcuts the filter matches" <|
             \_ ->
                 helpSheetFiltered "cmd" [ palette, help ]

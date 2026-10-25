@@ -2,14 +2,14 @@ module Klar.ShortcutHelp exposing
     ( view
     , State, init, Msg, update
     , open, close, isOpen
-    , Attribute, title, platform, locale
+    , Attribute, title, platform, extra, locale
     )
 
 {-| The cheat sheet of keyboard shortcuts: a dialog that lists every shortcut of
 the application, grouped, with key caps and a small filter box.
 
 Use when: the user needs a cheat sheet of the keyboard shortcuts the application listens to.
-Do not use when: you only need to show one shortcut next to a control (use `Klar.Tooltip`).
+Do not use when: you only need to show one shortcut next to a control (use `Klar.Kbd`, or the shortcut of a `Klar.Tooltip`).
 Quick path: `init`, `open`, `update`, `view`, `close`, `isOpen`
 
 It is built from the same list of [Klar.Shortcut](Klar-Shortcut) shortcuts that
@@ -79,7 +79,7 @@ labels come from your shortcuts.
 
 # Attributes
 
-@docs Attribute, title, platform, locale
+@docs Attribute, title, platform, extra, locale
 
 -}
 
@@ -212,6 +212,7 @@ type Attribute msg
 type alias Config =
     { title : Maybe String
     , platform : Kbd.Platform
+    , extra : List { group : String, label : String, keys : Shortcut.Keys }
     , locale : Locale
     }
 
@@ -219,7 +220,7 @@ type alias Config =
 configure : List (Attribute msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { title = Nothing, platform = Kbd.pc, locale = Locale.default }
+        { title = Nothing, platform = Kbd.pc, extra = [], locale = Locale.default }
         attributes
 
 
@@ -241,6 +242,22 @@ Read it once from the user agent with `Kbd.platformFromUserAgent`.
 platform : Kbd.Platform -> Attribute msg
 platform value =
     Attribute (\config -> { config | platform = value })
+
+
+{-| Keys worth knowing that are not shortcuts of the application: the keys of
+Klar's own components (`Shift+F10` for the menu of a row, `Enter` to edit a cell)
+or of your own widgets. They are listed under their group like the shortcuts,
+after them, and found by the filter, but never listened to. The default is none.
+
+    ShortcutHelp.extra
+        [ { group = "Tables", label = "Open the menu of the row", keys = Shortcut.shift (Shortcut.function 10) }
+        , { group = "Tables", label = "Edit the cell", keys = Shortcut.enter }
+        ]
+
+-}
+extra : List { group : String, label : String, keys : Shortcut.Keys } -> Attribute msg
+extra value =
+    Attribute (\config -> { config | extra = value })
 
 
 {-| The language of the built-in texts: the heading, the filter box, the notes,
@@ -273,8 +290,12 @@ view toMsg attributes shortcuts (State state) =
         words =
             String.trim state.filter
 
+        rows =
+            List.map rowOf shortcuts
+                ++ List.map (\known -> { group = known.group, label = known.label, keys = known.keys, inFields = False }) config.extra
+
         matching =
-            List.filter (matches words) shortcuts
+            List.filter (matches words) rows
 
         groups =
             groupsOf matching
@@ -355,10 +376,29 @@ view toMsg attributes shortcuts (State state) =
         ]
 
 
+{-| One line of the sheet: a shortcut of the application, or a key of `extra`.
+-}
+type alias Row =
+    { group : String
+    , label : String
+    , keys : Shortcut.Keys
+    , inFields : Bool
+    }
+
+
+rowOf : Shortcut a -> Row
+rowOf entry =
+    { group = Shortcut.groupOf entry
+    , label = Shortcut.labelOf entry
+    , keys = Shortcut.keysOf entry
+    , inFields = Shortcut.firesInInputs entry
+    }
+
+
 {-| A group: its name is a heading (the title of the dialog is the `h2`) that
 names the list under it.
 -}
-viewGroup : Config -> String -> { a | inFields : String } -> Int -> ( String, List (Shortcut b) ) -> Html msg
+viewGroup : Config -> String -> { a | inFields : String } -> Int -> ( String, List Row ) -> Html msg
 viewGroup config sheetId language index ( name, members ) =
     let
         headingId =
@@ -371,16 +411,16 @@ viewGroup config sheetId language index ( name, members ) =
         ]
 
 
-viewShortcut : Config -> { a | inFields : String } -> Shortcut b -> Html msg
+viewShortcut : Config -> { a | inFields : String } -> Row -> Html msg
 viewShortcut config language entry =
     Html.li [ Internal.cls [ "klar-shortcuts__row" ] ]
         [ Html.span [ Internal.cls [ "klar-shortcuts__label" ] ]
-            [ Html.text (Shortcut.labelOf entry)
-            , Internal.viewIf (Shortcut.firesInInputs entry)
+            [ Html.text entry.label
+            , Internal.viewIf entry.inFields
                 (Html.span [ Internal.cls [ "klar-shortcuts__note" ] ] [ Html.text language.inFields ])
             ]
         , Html.span [ Internal.cls [ "klar-shortcuts__keys" ] ]
-            [ Kbd.view [ Kbd.platform config.platform, Kbd.locale config.locale ] (Shortcut.keysOf entry) ]
+            [ Kbd.view [ Kbd.platform config.platform, Kbd.locale config.locale ] entry.keys ]
         ]
 
 
@@ -404,25 +444,25 @@ countText language count =
 
 {-| Group by `group`, in the order the groups first appear.
 -}
-groupsOf : List (Shortcut a) -> List ( String, List (Shortcut a) )
+groupsOf : List Row -> List ( String, List Row )
 groupsOf shortcuts =
     let
         names =
             List.foldl
                 (\entry seen ->
-                    if List.member (Shortcut.groupOf entry) seen then
+                    if List.member entry.group seen then
                         seen
 
                     else
-                        seen ++ [ Shortcut.groupOf entry ]
+                        seen ++ [ entry.group ]
                 )
                 []
                 shortcuts
     in
-    List.map (\name -> ( name, List.filter (\entry -> Shortcut.groupOf entry == name) shortcuts )) names
+    List.map (\name -> ( name, List.filter (\entry -> entry.group == name) shortcuts )) names
 
 
-matches : String -> Shortcut a -> Bool
+matches : String -> Row -> Bool
 matches words entry =
     if words == "" then
         True
@@ -430,9 +470,9 @@ matches words entry =
     else
         Search.matches words
             (String.join " "
-                (Shortcut.labelOf entry
-                    :: Shortcut.groupOf entry
-                    :: List.concatMap (List.concatMap keyNames) (Notation.words (Shortcut.keysOf entry))
+                (entry.label
+                    :: entry.group
+                    :: List.concatMap (List.concatMap keyNames) (Notation.words entry.keys)
                 )
             )
 
