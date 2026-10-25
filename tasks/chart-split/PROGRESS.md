@@ -38,3 +38,7 @@
 - Commit bcbebf7: public facade complete.
 
 - Types: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 114310f: Types complete.
+- Next: Numbers.
+
+- Numbers: format, full check, byte-identical docs and identical chart/sparkline roots passed.
