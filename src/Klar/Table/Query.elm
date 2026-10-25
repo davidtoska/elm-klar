@@ -8,18 +8,6 @@ import Json.Encode as Encode
 import Klar.Table.Types exposing (ColumnId(..), Direction(..), Filter(..), Query)
 
 
-{-| A query as JSON, to keep it where the application keeps its things (a saved
-view, the address, a setting): `Encode.encode 0 (Table.encodeQuery q)`. The library
-stores nothing itself. The object has a version, `"v": 1`, and the columns are
-written by their name (`columnName`):
-
-    {"v":1,"search":"acme","sort":[{"column":"total","descending":true}],
-     "filters":[{"column":"status","oneOf":["open","late"]}],"page":1,"pageSize":25}
-
-A filter is written as `contains` (text), `oneOf` (a list of texts) or `between`
-(`[from, to]`, a missing bound is `null`).
-
--}
 encodeQuery : Query -> Encode.Value
 encodeQuery q =
     Encode.object
@@ -59,16 +47,6 @@ encodeQuery q =
         ]
 
 
-{-| Reads what `encodeQuery` wrote. It is made for text that has been kept for a long
-time or written by another version: a field that is missing takes the value of an
-empty query (no search, no sort, no filters, page 1, 25 rows), a field it does not
-know is ignored, a filter it does not know is left out (a restored view is better with
-one filter less than not at all), and a version newer than 1 is refused, because
-reading it as version 1 could be wrong. A page or page size below 1 becomes 1.
-
-    Decode.decodeString Table.queryDecoder text
-
--}
 queryDecoder : Decoder Query
 queryDecoder =
     Decode.oneOf [ Decode.field "v" Decode.int, Decode.succeed 1 ]

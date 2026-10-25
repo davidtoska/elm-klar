@@ -18,19 +18,6 @@ import Klar.Remote as Remote exposing (Problem, Remote)
 import Klar.Skeleton as Skeleton
 
 
-{-| A tiny trend line without axes, for a table cell or a tile (see
-[Klar.Stat](Klar-Stat)). The last value gets a dot. It needs no categories; give it
-an `ariaLabel` that says what it shows, because a sparkline has no title.
-
-    Chart.sparkline
-        [ Chart.ariaLabel "Orders, last 7 days", Chart.area, Chart.height 32 ]
-        [ 3, 5, 4, 8, 7, 9, 12 ]
-
-Values that are not numbers are left out. With one value there is only the dot,
-with none a dash. The default height is 28px and the width fills the container
-(see `width`).
-
--}
 sparkline : List (Attribute msg) -> List Float -> Html msg
 sparkline attributes rawValues =
     let

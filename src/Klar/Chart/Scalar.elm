@@ -15,17 +15,6 @@ import Klar.Internal as Internal
 import Klar.Theme as Theme exposing (Tone(..))
 
 
-{-| A half-circle gauge for one value against a scale (see `range`; the default
-is 0 to 100). The zone the value falls in (see `thresholds`) decides the color.
-
-    Chart.gauge [ Chart.centerCaption "of capacity", Chart.unit "%" ] 82
-
-The value is written in the middle unless `centerLabel` says otherwise. A value
-outside the scale fills the arc completely or not at all but is written as it is.
-A value that is not a number (NaN, infinity) is a missing measurement: the arc
-stays empty, the middle shows a dash and screen readers hear "No value".
-
--}
 gauge : List (Attribute msg) -> Float -> Html msg
 gauge attributes rawValue =
     let
@@ -130,22 +119,6 @@ gauge attributes rawValue =
         )
 
 
-{-| A horizontal meter: the value as a marker on a scale with zones.
-
-    Chart.meter
-        [ Chart.range 0 100
-        , Chart.title "Warehouse fill"
-        , Chart.thresholds [ ( 70, Success ), ( 90, Warning ), ( 100, Danger ) ]
-        ]
-        84
-
-The title and the value are written above the track, and the two ends of the
-scale below it. A meter is flat and as wide as its container, so it fits where
-a gauge would take too much room. A value that is not a number is a missing
-measurement: the value is a dash, the track has no marker and screen readers hear
-"No value".
-
--}
 meter : List (Attribute msg) -> Float -> Html msg
 meter attributes rawValue =
     let

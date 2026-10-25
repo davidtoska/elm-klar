@@ -28,11 +28,10 @@ module Klar.Picking.View exposing
     , whenEmptyFresh
     )
 
-{-| The parts of a popup that the picking components share with the select
-family, written out here so that they do not depend on the select's internals:
-the click-away layer, the search box, the footer, the states of a list that
-loads, and the keyboard handlers with the conditions a tree needs (the arrow
-keys that move the caret in the search box while there is text to move it in).
+{-| Tree-picker keyboard handling, retry focus and freshness notices. The select
+and tree families share DOM primitives through `Klar.Internal.ChoicePopup`;
+tree navigation stays here, including arrow keys that move the caret while the
+search box has text to move it in.
 
 They use the CSS classes of the select family, so a tree field looks like a
 select.
@@ -45,17 +44,15 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Json.Decode as Decode exposing (Decoder)
-import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.ChoicePopup as Popup
 import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Internal.Window as Window
 import Klar.Locale exposing (Locale)
 import Klar.Remote as Remote
 import Klar.Settings exposing (Settings)
-import Klar.Skeleton as Skeleton
-import Klar.Spinner as Spinner
 import Klar.VirtualList as VirtualList
 
 
@@ -465,61 +462,26 @@ onWindowKeys bindings =
 -- PARTS
 
 
-{-| The transparent click-away layer around a popup. A click outside the popup
-lands here (`close`); Escape anywhere inside sends `close` too and does not
-reach a surrounding dialog.
--}
 viewLayer : msg -> Html msg -> Html msg
 viewLayer close popup =
-    Html.div
-        [ Internal.cls [ "klar-layer" ]
-        , Events.onClick close
-        , onKeydown { handled = [ ( "Escape", close ) ], passive = [] }
-        ]
-        [ popup ]
+    Popup.viewLayer (onKeydown { handled = [ ( "Escape", close ) ], passive = [] }) close popup
 
 
-{-| A mouse press anywhere in the popup except on its search box keeps keyboard
-focus in the search box.
--}
 holdSearchFocus : msg -> Html.Attribute msg
-holdSearchFocus msg =
-    Events.preventDefaultOn "mousedown"
-        (Decode.at [ "target", "tagName" ] Decode.string
-            |> Decode.andThen
-                (\tag ->
-                    if tag == "INPUT" then
-                        Decode.fail "the search box takes the press itself"
-
-                    else
-                        Decode.succeed ( msg, True )
-                )
-        )
+holdSearchFocus =
+    Popup.holdSearchFocus
 
 
 viewChevron : Html msg
 viewChevron =
-    Html.span [ Internal.cls [ "klar-select__chevron" ], Attr.attribute "aria-hidden" "true" ] [ Icon.view Icon.chevronDown ]
+    Popup.viewChevron
 
 
-{-| The small x inside a trigger. Its click does not reach the trigger.
--}
 viewClearButton : String -> msg -> Html msg
-viewClearButton text msg =
-    Html.button
-        [ Internal.cls [ "klar-input__clear", "klar-select__clear" ]
-        , Attr.type_ "button"
-        , Attr.tabindex -1
-        , Attr.attribute "aria-label" text
-        , Attr.title text
-        , Internal.onClickStop msg
-        ]
-        [ Icon.view Icon.close ]
+viewClearButton =
+    Popup.viewClearButton
 
 
-{-| The search box at the top of a popup. It keeps the keyboard focus while the
-user moves through the rows (`aria-activedescendant`).
--}
 viewSearch :
     { id : String
     , controls : Maybe String
@@ -538,119 +500,45 @@ viewSearch :
     }
     -> Html msg
 viewSearch config =
-    Html.div [ Internal.cls [ "klar-select__search" ] ]
-        [ Html.span [ Internal.cls [ "klar-select__search-icon" ] ] [ Icon.view Icon.search ]
-        , Html.input
-            [ Internal.cls [ "klar-select__search-input" ]
-            , Events.onFocus config.onFocus
-            , Attr.id config.id
-            , Attr.type_ "text"
-            , Attr.value config.query
-            , Attr.placeholder config.placeholder
-            , Attr.attribute "role" "combobox"
-            , Attr.attribute "aria-expanded" "true"
-            , Attr.attribute "aria-haspopup" config.popup
-            , Internal.attrMaybe (Attr.attribute "aria-controls") config.controls
-            , Attr.attribute "aria-autocomplete" "list"
-            , Attr.attribute "aria-label" config.label
-            , Internal.attrMaybe (Attr.attribute "aria-activedescendant") config.activeDescendant
-            , Attr.attribute "autocomplete" "off"
-            , Attr.spellcheck False
-            , Events.onInput config.onInput
-            , config.keys
-            ]
-            []
-        , -- Always in the page, so that its live region is there before the
-          -- text "Loading" is (an idle slot is out of sight and takes no room).
-          Html.span
-            [ Internal.cls
-                [ if config.loading then
-                    "klar-select__search-spinner"
-
-                  else
-                    "klar-sr-only"
-                ]
-            ]
-            [ Spinner.view [ Spinner.label config.loadingLabel, Spinner.loading config.loading ] ]
-        , if config.loading then
-            Html.text ""
-
-          else if config.query /= "" then
-            Html.button
-                [ Internal.cls [ "klar-input__clear" ]
-                , Attr.type_ "button"
-                , Attr.tabindex -1
-                , Attr.attribute "aria-label" config.clearLabel
-                , Attr.title config.clearLabel
-                , Internal.onMouseDownPrevent config.noop
-                , Events.onClick (config.onInput "")
-                ]
-                [ Icon.view Icon.close ]
-
-          else
-            Html.text ""
+    Popup.search config
+        [ Internal.cls [ "klar-select__search-input" ]
+        , Events.onFocus config.onFocus
+        , Attr.id config.id
+        , Attr.type_ "text"
+        , Attr.value config.query
+        , Attr.placeholder config.placeholder
+        , Attr.attribute "role" "combobox"
+        , Attr.attribute "aria-expanded" "true"
+        , Attr.attribute "aria-haspopup" config.popup
+        , Internal.attrMaybe (Attr.attribute "aria-controls") config.controls
+        , Attr.attribute "aria-autocomplete" "list"
+        , Attr.attribute "aria-label" config.label
+        , Internal.attrMaybe (Attr.attribute "aria-activedescendant") config.activeDescendant
+        , Attr.attribute "autocomplete" "off"
+        , Attr.spellcheck False
+        , Events.onInput config.onInput
+        , config.keys
         ]
 
 
-{-| The status line under a list: counts on the left (announced politely to
-screen readers), optional actions on the right.
--}
 viewFooter : String -> List (Html msg) -> Html msg
-viewFooter status actions =
-    Html.div [ Internal.cls [ "klar-select__footer" ] ]
-        [ Html.span
-            [ Internal.cls [ "klar-select__status", "klar-tabular", "klar-truncate" ]
-            , Attr.attribute "role" "status"
-            , Attr.attribute "aria-live" "polite"
-            ]
-            [ Html.text status ]
-        , if List.isEmpty actions then
-            Html.text ""
-
-          else
-            Html.div [ Internal.cls [ "klar-select__actions" ] ] actions
-        ]
+viewFooter =
+    Popup.viewFooter
 
 
-{-| Placeholder rows while the data loads.
--}
 viewSkeleton : Int -> Html msg
-viewSkeleton count =
-    Html.div [ Internal.cls [ "klar-select__skeleton" ], Attr.attribute "aria-hidden" "true" ]
-        (List.range 0 (max 1 count - 1)
-            |> List.map
-                (\i ->
-                    Html.div [ Internal.cls [ "klar-select__skeleton-row" ] ]
-                        [ Skeleton.line (Maybe.withDefault 60 (List.head (List.drop (modBy 5 i) [ 72, 48, 84, 60, 40 ]))) ]
-                )
-        )
+viewSkeleton =
+    Popup.viewSkeleton
 
 
 viewEmpty : Icon -> String -> Maybe String -> Html msg
-viewEmpty icon title description =
-    Html.div [ Internal.cls [ "klar-select__state" ] ]
-        [ EmptyState.view
-            (List.filterMap identity
-                [ Just EmptyState.compact
-                , Just (EmptyState.icon icon)
-                , Just (EmptyState.title title)
-                , Maybe.map EmptyState.description description
-                ]
-            )
-        ]
+viewEmpty =
+    Popup.viewEmpty
 
 
-{-| The message that retries a failed load, when a "Try again" button is on
-screen: the problem must be worth retrying and the application must have said
-what retrying means.
--}
 retryFor : Remote.Problem -> Maybe msg -> Maybe msg
-retryFor problem onRetry =
-    if Remote.isRetryable problem then
-        onRetry
-
-    else
-        Nothing
+retryFor =
+    Popup.retryFor
 
 
 {-| Data that failed to load: a compact `ErrorState`, with "try again" when there

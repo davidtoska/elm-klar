@@ -20,30 +20,11 @@ import Set exposing (Set)
 import Task
 
 
-{-| Moves keyboard focus to the table (its scroll area; Tab goes on to the
-header from there). Use it when whatever had focus is gone: a bulk action that
-removed the selected rows takes the bulk bar and its buttons with it, and focus
-would fall back to the page.
-
-    DeleteSelected ->
-        ( { model
-            | orders = withoutOrders (Table.selectedIds orderIds model.table) model.orders
-            , table = Table.clearSelection model.table
-          }
-        , Cmd.map TableMsg (Table.focus model.table)
-        )
-
--}
 focus : State id -> Cmd Msg
 focus (State model) =
     Internal.focus (scrollDomId model.id) NoOp
 
 
-{-| Applies a message from the table to its state. The `Cmd` moves keyboard
-focus (into a popup, back to its button), runs the timer behind the search
-debounce and saves the file of the CSV export, so map it back with your own
-constructor: `Cmd.map TableMsg cmd`.
--}
 update : Msg -> State id -> ( State id, Cmd Msg )
 update msg (State model) =
     let

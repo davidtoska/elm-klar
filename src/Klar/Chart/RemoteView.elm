@@ -61,43 +61,11 @@ remoteWith draw nothing attributes data =
     draw (attributes ++ [ state ]) (Maybe.withDefault nothing payload)
 
 
-{-| A line chart from a `Remote`: the skeleton while it loads, the problem with
-"Try again" (`onRetry`) when it failed, the empty state, the chart, and the
-chart dimmed while it is refreshed or with "Old data from 14:05" when the last
-refresh failed. Shape the data with `Remote.map` into a `Data`: the categories
-(`byCategory`) or days (`byDate`) and the series together, so they come from the
-same response. `categories` and `dates` in the attributes are replaced by those of
-the `Data`.
-
-    Chart.lineRemote
-        [ Chart.title "Orders per day"
-        , Chart.onRetry ReloadOrders
-        , Chart.settings model.settings
-        ]
-        (Remote.map
-            (\days -> Chart.byDate (List.map .day days) [ Chart.series "Orders" (List.map .count days) ])
-            model.orders
-        )
-
-The chart keeps the same elements around it in every state with data, so the
-keyboard focus on a category (`onSelect`) survives a refresh. Give it an `id`
-to move focus there with `Klar.focus` when "Try again" goes away.
-
--}
 lineRemote : List (Attribute msg) -> Remote Data -> Html msg
 lineRemote =
     remoteWith (withData line) noData
 
 
-{-| A bar chart from a `Remote`, with every state of `lineRemote`.
-
-    Chart.barRemote [ Chart.horizontal, Chart.onRetry ReloadWarehouses ]
-        (Remote.map
-            (\rows -> Chart.byCategory (List.map .name rows) [ Chart.series "Late orders" (List.map .late rows) ])
-            model.warehouses
-        )
-
--}
 barRemote : List (Attribute msg) -> Remote Data -> Html msg
 barRemote =
     remoteWith (withData bar) noData
@@ -113,49 +81,21 @@ withData draw attributes (Data value) =
         value.series
 
 
-{-| A donut from a `Remote`, with every state of `lineRemote`.
-
-    Chart.donutRemote [ Chart.centerCaption "orders", Chart.onRetry ReloadStatuses ]
-        (Remote.map (List.map (\s -> Chart.segment s.name s.count)) model.statuses)
-
--}
 donutRemote : List (Attribute msg) -> Remote (List Segment) -> Html msg
 donutRemote =
     remoteWith donut []
 
 
-{-| A gauge from a `Remote`: the skeleton while it loads, the problem with "Try
-again" when it failed, and the value (dimmed while it is refreshed, with "Old data
-from 14:05" when the last refresh failed).
-
-    Chart.gaugeRemote [ Chart.centerCaption "of capacity", Chart.onRetry Reload ]
-        (Remote.map .utilization model.warehouse)
-
--}
 gaugeRemote : List (Attribute msg) -> Remote Float -> Html msg
 gaugeRemote =
     remoteWith gauge 0
 
 
-{-| A meter from a `Remote`, with every state of `gaugeRemote`.
-
-    Chart.meterRemote [ Chart.title "Warehouse fill", Chart.onRetry Reload ]
-        (Remote.map .fill model.warehouse)
-
--}
 meterRemote : List (Attribute msg) -> Remote Float -> Html msg
 meterRemote =
     remoteWith meter 0
 
 
-{-| A sparkline from a `Remote`: a skeleton line while it loads, a dash with the
-problem as its name when it failed (there is no room for "Try again"), and the line,
-dimmed while it is refreshed. Old data says so in its name.
-
-    Chart.sparklineRemote [ Chart.ariaLabel "Orders, last 7 days" ]
-        (Remote.map .lastWeek model.orders)
-
--}
 sparklineRemote : List (Attribute msg) -> Remote (List Float) -> Html msg
 sparklineRemote =
     remoteWith sparkline []

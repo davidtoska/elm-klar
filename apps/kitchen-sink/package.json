@@ -1,0 +1,20 @@
+{
+  "name": "klar-kitchen-sink",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "elm make src/Main.elm --optimize --output=public/main.js",
+    "format": "elm-format src --yes",
+    "generate": "node scripts/generate.cjs && npm run format",
+    "check": "node scripts/check.cjs && elm-format src --validate && npm run build",
+    "start": "npm run build && node scripts/go.cjs run ./server",
+    "test:server": "node scripts/go.cjs test ./server",
+    "test:browser": "node scripts/browser-test.cjs",
+    "verify": "npm run check && npm run test:server && node scripts/verify.cjs"
+  },
+  "devDependencies": {
+    "elm": "0.19.3-0",
+    "elm-format": "0.8.8",
+    "playwright": "1.62.1"
+  }
+}

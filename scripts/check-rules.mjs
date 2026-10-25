@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Reports code that breaks a rule of CLAUDE.md that the compiler cannot see:
+// Reports code that breaks a rule of AGENTS.md that the compiler cannot see:
 //
 // - A `Msg` or a `State` of an exposed module that can hold a function ("No functions in a
 //   State or a Msg"): the application keeps them in its model and compares them with ==,

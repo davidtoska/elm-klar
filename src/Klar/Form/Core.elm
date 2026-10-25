@@ -49,11 +49,6 @@ import Set exposing (Set)
 -- TYPES
 
 
-{-| A form declaration: the fields in order with their rules. It is a constant
-(`form`), never part of the model or of a message. The three parameters are the
-application's own step type (`()` for a form without steps), the record of
-field handles (`Fields`) and the record the form produces (`Values`).
--}
 type Form step fields values
     = Form
         { prefix : String
@@ -87,12 +82,6 @@ type alias StepInfo step =
     }
 
 
-{-| Everything the form keeps while it is being edited: the value of every field
-(and the open list of a select), the rows of every repeating group, the baseline
-for `isDirty`, which fields were left, the problems the server gave and the
-current step. It is data only: there is no function in it. Make it with `init`
-and keep it in the model.
--}
 type State step
     = State Data
 
@@ -118,9 +107,6 @@ type alias Outside =
     }
 
 
-{-| What the controls of the form send. Wrap it in one constructor of the
-application's message type and pass what comes back to `update`.
--}
 type Msg
     = Typed String String
     | Left String
@@ -161,28 +147,10 @@ type Field control
         }
 
 
-{-| The control of a repeating group (`rows`): the handles of the rows it has
-now. It has no constructor, so a rows field cannot be given a value with `set`;
-read the handles of the rows with `rowFields` and load them with `fillRows`.
--}
 type Rows rowFields
     = Rows (List rowFields)
 
 
-{-| A message tied to a field: the DOM id of the control (`field`), the label
-the user knows the field by (`label`), what to tell the user (`message`) and,
-in a form with steps, the step the field is on. `problems` lists them all.
-
-Write one by hand for something the form model does not hold, such as the
-rule builder of a price rule, and hand it to `outside`:
-
-    { field = "price-rule-1"
-    , label = "Price rule 1"
-    , message = "Add at least one condition."
-    , step = Just Pricing
-    }
-
--}
 type alias Problem step =
     { field : String
     , label : String
@@ -199,11 +167,6 @@ type alias Found =
     }
 
 
-{-| One field's kind, label and rules, as built by `text`, `number`, `choice`
-and the others and changed by the rules. `control` is the type of the value
-while it is edited, `output` the type the form produces: `required` turns a
-`Maybe a` output into `a`.
--}
 type Spec control output
     = Spec (SpecData control output)
 
@@ -242,9 +205,6 @@ type alias Limits =
     }
 
 
-{-| The declaration while it is being built with `with`. Start it with `define`
-and finish it with `build`.
--}
 type Builder step fields values
     = Builder
         { prefix : String
@@ -259,9 +219,6 @@ type Builder step fields values
         }
 
 
-{-| A form, a state and a message wrapper, bound once per view with `bind`.
-Every control of the form is drawn from it.
--}
 type View msg
     = View
         { toMsg : Msg -> msg
@@ -397,11 +354,6 @@ define prefix fieldsConstructor valuesConstructor =
         }
 
 
-{-| Adds the next field. It fills the next argument of `Fields` with its handle
-and the next argument of `Values` with its output. The DOM id is made from the
-form's prefix and the label (`Legal name` becomes `supplier-legal-name`); a
-repeated label gets `-2`, `-3` ... so two ids never clash.
--}
 with : Spec control output -> Builder step (Field control -> f) (output -> v) -> Builder step f v
 with (Spec spec) (Builder b) =
     let
@@ -615,10 +567,6 @@ checkFields verdict (Builder b) =
         }
 
 
-{-| Finishes the declaration. The result only has the type
-`Form step Fields Values` when every `with` matched an argument of both records;
-a field missing from one of them is a compile error.
--}
 build : Builder step fields values -> Form step fields values
 build (Builder b) =
     Form
@@ -632,9 +580,6 @@ build (Builder b) =
         }
 
 
-{-| The handles of the form's fields, as the `Fields` record. A constant: bind
-it once at the top level of the module.
--}
 fields : Form step fields values -> fields
 fields (Form form) =
     form.fieldsAt form.prefix
@@ -696,10 +641,6 @@ rowPrefix key id =
 -- KINDS
 
 
-{-| A line of text. Blank is `Nothing` in the output, and the output is trimmed
-(the display is not: nothing is changed behind the user's back). Add `required`
-to get a `String`. Draw it with `textInput`, or with `textArea` for a long note.
--}
 text : String -> Spec String (Maybe String)
 text label =
     make label
@@ -1894,10 +1835,6 @@ putRaw raw slot =
 -- VALUES
 
 
-{-| A form with every field empty, nothing touched, the first step, a group of
-rows with its minimum number of empty rows, and that state as the baseline. Each
-field's component gets its DOM id here.
--}
 init : Form step fields values -> State step
 init (Form form) =
     let
@@ -1934,9 +1871,6 @@ set (Field field) value (State data) =
     State { data | slots = Dict.update field.key (Maybe.map (putRaw (field.toRaw value))) data.slots }
 
 
-{-| The value of a field as it is edited: `Nothing` for an empty select, `[]` for
-an empty multi select, the text as typed.
--}
 get : Field c -> State step -> c
 get (Field field) (State data) =
     field.fromData data
@@ -2142,11 +2076,6 @@ toValues locale ((Form form) as declared) (State data) =
         Err (List.map (asProblem declared) standing_)
 
 
-{-| `True` when the values differ from the baseline, rows added and removed
-included. Typing a letter and deleting it again is clean again. Only values
-count: an open list, a search text or a server problem do not. It covers every
-field of every step and every row, so one flag is enough for the leave guard.
--}
 isDirty : State step -> Bool
 isDirty (State data) =
     Dict.map (\_ slot -> stable (rawOf slot)) data.slots /= data.baseline
@@ -2159,9 +2088,6 @@ markClean (State data) =
     State { data | baseline = Dict.map (\_ slot -> stable (rawOf slot)) data.slots }
 
 
-{-| Every field goes back to the baseline, removed rows come back and added rows
-go. Problems and what was touched are forgotten.
--}
 revert : Form step fields values -> State step -> State step
 revert (Form form) (State data) =
     State
@@ -2712,7 +2638,22 @@ diagnose locale ((Form form) as declared) data defs =
                         { field = o.field, target = o.field, label = o.label, message = o.message, step = Maybe.withDefault 0 o.step, origin = FromOutside }
                     )
     in
-    client ++ conditional ++ bounded ++ live ++ server ++ submissionProblems data defs ++ fromOutside
+    client
+        ++ conditional
+        ++ bounded
+        ++ live
+        ++ server
+        ++ (submissionProblems data defs
+                |> List.map
+                    (\d ->
+                        if Set.member d.field hidden then
+                            { d | field = "", target = "" }
+
+                        else
+                            d
+                    )
+           )
+        ++ fromOutside
 
 
 submissionProblems : Data -> List Def -> List Diagnosis
@@ -3110,9 +3051,6 @@ problems locale declared current =
             found
 
 
-{-| `True` when `problems` is not empty. Use it to keep a Save button quiet or to
-colour a step: the language does not matter for the answer.
--}
 hasProblems : Form step fields values -> State step -> Bool
 hasProblems declared current =
     not (List.isEmpty (problems Locale.default declared current))
@@ -3187,22 +3125,6 @@ problemInRow group position pick message state =
             |> Maybe.map (\row -> problem (pick row) message)
 
 
-{-| Gives the form the problems of a failed save. Each is shown at its field
-and in the summary until that field is edited, and counts as a problem
-(`problems`, `toValues`) for as long. Every problem of the form shows from now
-on, the form moves to the step of the first problem (so that its summary is the
-one on screen), and the focus goes to the summary. On the review step (the last
-step, when it has no fields) the form stays: its summary lists every problem of
-every step, each with a button that goes there. A problem for a field the form
-does not have is ignored.
-
-The problems are stored whether or not the form is on screen. The `Cmd` focuses
-the summary of this form; when the summary is not on screen (the form is on
-another page, or not drawn yet) it finds nothing and does nothing, so it is safe
-to batch or to drop. Two forms rejected in one reply each focus their own
-summary, and the last one wins: keep the `Cmd` of the one the user is looking at.
-
--}
 rejected : List (Problem step) -> Form step fields values -> State step -> ( State step, Cmd Msg )
 rejected found ((Form form) as declared) (State data) =
     let
@@ -3247,11 +3169,6 @@ rejected found ((Form form) as declared) (State data) =
     )
 
 
-{-| Shows every problem now, also for fields the user has not been in, and moves
-the focus to the summary. Call it when the user presses Save and `toValues`
-returned problems (`advance` does it for you in a form with steps). Fields and
-rows added later start quiet again.
--}
 reveal : Form step fields values -> State step -> ( State step, Cmd Msg )
 reveal ((Form form) as declared) (State data) =
     ( State (revealSteps (allSteps declared) (expandedDefs declared data) data)
@@ -3301,11 +3218,6 @@ focus handle =
     focusOn (domId handle)
 
 
-{-| Goes to the element a problem is about, for a review list you draw yourself
-(the summary does this by itself): the form changes to the step of the problem,
-and the focus moves to its element once that step is on screen. The problem is
-one of `problems`, or one you gave to `outside`.
--}
 goToProblem : Form step fields values -> Problem step -> State step -> ( State step, Cmd Msg )
 goToProblem declared p (State data) =
     case p.step |> Maybe.andThen (stepIndex declared) of
@@ -3351,10 +3263,6 @@ currentStep declared (State data) =
     stepAt declared data.current
 
 
-{-| `True` when the user has tried to leave this step (with `advance`) or the
-problems were revealed (`reveal`, `rejected`). Something you draw yourself that
-shows problems only after a try, such as the rule builder, asks it.
--}
 attempted : Form step fields values -> step -> State step -> Bool
 attempted declared value (State data) =
     case stepIndex declared value of
@@ -3434,9 +3342,6 @@ advance ((Form form) as declared) ((State data) as current) =
                 }
 
 
-{-| The Back button: one step back, without checking anything, and the focus goes
-to the first field of that step. On the first step it does nothing.
--}
 back : Form step fields values -> State step -> ( State step, Cmd Msg )
 back declared (State data) =
     if data.current <= 0 then
@@ -3446,10 +3351,6 @@ back declared (State data) =
         enter declared (data.current - 1) data |> Tuple.mapFirst State
 
 
-{-| Goes to a step, for the "Edit" buttons of a review page. Going back is free.
-Going forward checks every step on the way, as the stepper does: it stops at the
-first one with problems, shows them and puts the focus on the summary.
--}
 goTo : Form step fields values -> step -> State step -> ( State step, Cmd Msg )
 goTo declared value ((State _) as current) =
     case stepIndex declared value of
@@ -3549,10 +3450,6 @@ isEmptyStep index defs =
 -- VIEWS
 
 
-{-| Binds the form, the state, the language and the message wrapper for one
-view. The result carries everything the controls need, so each control is one
-call.
--}
 bind : Locale -> (Msg -> msg) -> Form step fields values -> State step -> View msg
 bind locale toMsg ((Form form) as declared) (State data) =
     let
@@ -3699,11 +3596,6 @@ mismatchText (View view) (Field field) wanted =
         ]
 
 
-{-| A text input for a `text` field. The id, label, hint, required mark, value,
-error and messages are set by the form and win over the application's
-attributes; the others (a placeholder, `TextInput.url`, a suffix) are the
-application's.
--}
 textInput : View msg -> Field String -> List (TextInput.Attribute msg) -> Html msg
 textInput ((View view) as bound) field attributes =
     case fieldDef bound field of
@@ -3726,10 +3618,6 @@ textInput ((View view) as bound) field attributes =
             mismatch bound field "text"
 
 
-{-| A multi-line text area for a `text` field: the same field as `textInput`,
-drawn for a long note. Give the number of rows and the maximum length as
-attributes (`TextArea.rows`, `TextArea.maxLength`).
--}
 textArea : View msg -> Field String -> List (TextArea.Attribute msg) -> Html msg
 textArea ((View view) as bound) field attributes =
     case fieldDef bound field of
@@ -3752,9 +3640,6 @@ textArea ((View view) as bound) field attributes =
             mismatch bound field "text"
 
 
-{-| A number input for a `number` field. The limits of `range` and the decimals
-of `whole` are applied for you.
--}
 numberInput : View msg -> Field (Maybe Float) -> List (NumberInput.Attribute msg) -> Html msg
 numberInput ((View view) as bound) field attributes =
     case fieldDef bound field of
@@ -3776,9 +3661,6 @@ numberInput ((View view) as bound) field attributes =
             mismatch bound field "a number"
 
 
-{-| A select for a `choice` field. The options are an argument, not an
-attribute, so a select without options cannot be drawn.
--}
 select : View msg -> Field (Maybe id) -> Remote (List (Select.Option id)) -> List (Select.Attribute String msg) -> Html msg
 select ((View view) as bound) ((Field field) as handle) options attributes =
     case fieldDef bound handle of
@@ -3846,10 +3728,6 @@ keyOf toRaw value =
             ""
 
 
-{-| A tag field for a `tags` field. The label, hint, required mark, error and
-messages are set by the form; the delimiters, the limit, the placeholder and
-a rule for a single tag are the application's attributes.
--}
 tagInput : View msg -> Field (List String) -> List (TagInput.Attribute msg) -> Html msg
 tagInput ((View view) as bound) field attributes =
     case fieldDef bound field of
@@ -3869,10 +3747,6 @@ tagInput ((View view) as bound) field attributes =
             mismatch bound field "tags"
 
 
-{-| A drop zone for a `files` field. The type and size limits and the number of
-files are the application's attributes (`FileDrop.accept`, `FileDrop.maxSize`,
-`FileDrop.maxFiles`); `one` does not limit the zone by itself.
--}
 fileDrop : View msg -> Field (List FileDrop.FileInfo) -> List (FileDrop.Attribute msg) -> Html msg
 fileDrop ((View view) as bound) field attributes =
     case fieldDef bound field of
@@ -3959,6 +3833,7 @@ checkbox ((View view) as bound) field attributes =
         Just ( def, SToggle value ) ->
             Checkbox.view
                 (attributes
+                    ++ locking bound Checkbox.readOnly
                     ++ List.filterMap identity
                         [ Maybe.map Checkbox.hint def.hint
                         , Maybe.map Checkbox.error (problemOf bound def)
@@ -4045,11 +3920,6 @@ datePicker ((View view) as bound) field attributes =
             mismatch bound field "a date"
 
 
-{-| A date range picker for a `dateRange` field. The earliest and latest day, the
-longest period and the presets are the application's attributes
-(`DateRangePicker.min`, `DateRangePicker.maxRangeDays`, `DateRangePicker.today`);
-a period the picker refuses is a problem of the form until it is fixed.
--}
 dateRangePicker : View msg -> Field (Maybe ( Date, Date )) -> List (DateRangePicker.Attribute msg) -> Html msg
 dateRangePicker ((View view) as bound) field attributes =
     case fieldDef bound field of
@@ -4132,6 +4002,7 @@ addRow ((View view) as bound) (Field field) attributes label =
                     (Button.icon Icon.plus
                         :: attributes
                         ++ [ Button.id def.key
+                           , Button.disabled view.submitting
                            , Button.onClick (view.toMsg (AddRow def.key))
                            ]
                     )
@@ -4148,11 +4019,6 @@ addRow ((View view) as bound) (Field field) attributes label =
             Html.text ""
 
 
-{-| The button that removes the row at this position (counted from 0, as in
-`List.indexedMap` over `rowFields`): an icon button named "Remove contact 2"
-from the group's `item`. The focus goes to the next row's first field, or the
-previous one, or the add button when no row is left.
--}
 removeRow : View msg -> Field (Rows rowFields) -> Int -> List (Button.Attribute msg) -> Html msg
 removeRow (View view) (Field field) position attributes =
     case
@@ -4182,12 +4048,6 @@ removeRow (View view) (Field field) position attributes =
             Html.text ""
 
 
-{-| The steps of the form as a stepper, with the step the form is on and a red
-mark on every step that has problems showing. A click on a step goes there; going
-forward checks the steps on the way and stops at the first one with problems.
-Nothing is drawn for a form without steps. The attributes are the stepper's own
-(`Stepper.ariaLabel`, `Stepper.small`).
--}
 stepper : View msg -> List (Stepper.Attribute msg) -> Html msg
 stepper (View view) attributes =
     if List.isEmpty view.stepInfo then
@@ -4237,16 +4097,6 @@ stepKeys (View view) children =
         children
 
 
-{-| The list of problems that are showing, with the labels of the declaration,
-as `FormLayout.errorSummary`: the form's own and those given to `outside`. Each line
-moves the focus to its element, on another step if need be. On a step it lists
-the problems of that step; on the review step (a step with no fields) it lists
-every problem of every step, shown or not, with the step in brackets. Nothing
-is drawn while there is nothing to list, except on a step with no fields of the
-form (a review step, or a step whose fields you draw yourself): there an empty
-region named by the step is drawn, because the focus lands there when the form
-moves to the step. Put `summary` at the top of every step.
--}
 summary : View msg -> Html msg
 summary (View view) =
     if List.isEmpty view.listed then
@@ -4320,12 +4170,19 @@ submit locale declared ((State data) as current) =
     let
         attempt =
             Submission.begin
-                (toValues locale declared current |> Result.mapError (List.map (\p -> { field = p.field, message = p.message })))
+                (toValues locale declared (State { data | server = Dict.empty, submission = Submission.reset data.submission })
+                    |> Result.mapError (List.map (\p -> { field = p.field, message = p.message }))
+                )
                 data.submission
 
         next =
             { data
-                | submission = attempt.state
+                | submission =
+                    if attempt.request == Nothing && Submission.status attempt.state /= FormLayout.Submitting then
+                        Submission.reset attempt.state
+
+                    else
+                        attempt.state
                 , submitted =
                     case attempt.request of
                         Just _ ->

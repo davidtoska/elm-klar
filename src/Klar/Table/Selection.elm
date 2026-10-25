@@ -19,9 +19,6 @@ dropAllMatchingOf picked =
             other
 
 
-{-| What is selected, as a `Selection`. In client mode `selectedIds` is enough; in
-server mode check this one for `AllMatching`.
--}
 selection : Ids id -> State id -> Selection id
 selection ids (State model) =
     case model.selection of
@@ -32,9 +29,6 @@ selection ids (State model) =
             AllMatching { except = idsOf ids except }
 
 
-{-| The ids (see `rowId`) of the selected rows. After "Select all N matching" in
-server mode this is empty: check `selection` for `AllMatching`.
--}
 selectedIds : Ids id -> State id -> List id
 selectedIds ids (State model) =
     case model.selection of
@@ -45,11 +39,6 @@ selectedIds ids (State model) =
             []
 
 
-{-| How many rows are selected. Pass the number of rows that match the current
-query (the `total` you give to `server`). It is only used after "Select all N
-matching", where the count is that number minus the exceptions, so in client
-mode any number will do.
--}
 selectedCount : Int -> State id -> Int
 selectedCount matching (State model) =
     case model.selection of
@@ -60,56 +49,31 @@ selectedCount matching (State model) =
             max 0 (matching - Set.size except)
 
 
-{-| Is the row with this id selected? After "Select all N matching" every id
-counts as selected except the exceptions.
--}
 isSelected : Ids id -> id -> State id -> Bool
 isSelected ids id (State model) =
     isPicked model.selection (Ids.toKey ids id)
 
 
-{-| Selects the rows with these ids, as their checkboxes do, and keeps the rest of
-the selection. After "Select all N matching" it takes them out of the exceptions.
-
-    Table.select orderIds failedIds model.table
-
--}
 select : Ids id -> List id -> State id -> State id
 select ids values (State model) =
     State { model | selection = pick (keysOf ids values) True model.selection }
 
 
-{-| Deselects the rows with these ids and keeps the rest of the selection, for
-example the rows a bulk action has done its work on. After "Select all N
-matching" it adds them to the exceptions.
--}
 deselect : Ids id -> List id -> State id -> State id
 deselect ids values (State model) =
     State { model | selection = pick (keysOf ids values) False model.selection }
 
 
-{-| Makes the selection exactly these rows, as a whole: to restore a selection, or
-to keep only the rows that are still there. It also ends an "all matching"
-selection. To deselect everything use `clearSelection`.
--}
 setSelectedIds : Ids id -> List id -> State id -> State id
 setSelectedIds ids values (State model) =
     State { model | selection = Picked (Set.fromList (keysOf ids values)) }
 
 
-{-| Deselects everything, including an "all matching" selection. Call it when a
-bulk action has done its work.
--}
 clearSelection : State id -> State id
 clearSelection (State model) =
     State { model | selection = Picked Set.empty }
 
 
-{-| Drops an "all matching" selection (see `Selection`) and keeps the rows that were
-picked one by one. The table does it by itself when its own search or filters change; call
-it when something else changes what "all matching" means, such as a filter bar next to
-the table.
--}
 dropAllMatching : State id -> State id
 dropAllMatching (State model) =
     State { model | selection = dropAllMatchingOf model.selection }

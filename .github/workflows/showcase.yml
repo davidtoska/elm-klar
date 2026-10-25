@@ -41,6 +41,7 @@ jobs:
           mkdir _site
           cp example/index.html example/showcase.css example/main.js _site/
           cp -r example/examples _site/examples
+          cp -r example/reference _site/reference
 
       - uses: actions/upload-pages-artifact@v3
         with:

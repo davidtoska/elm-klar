@@ -20,57 +20,21 @@ import Klar.Theme as Theme exposing (Density(..), Tone)
 import Set exposing (Set)
 
 
-{-| The direction of a sort: `Ascending` (A to Z, smallest or earliest first)
-or `Descending`. Used in `Query` and `setSort`.
--}
 type Direction
     = Ascending
     | Descending
 
 
-{-| A column filter, as the user set it in the header or as you restore it with
-`setFilter`.
-
-  - `Contains text` - the column text contains `text` as one piece, ignoring case
-    and accents (the search box, in contrast, looks for each word separately)
-  - `OneOf values` - the value the column keeps for the row is exactly one of
-    `values`, case included: its `filterValue` (a stable code) when it has one,
-    otherwise its text (`"true"` or `"false"` for a `bool` column)
-  - `Between from to` - the column number is within the bounds (inclusive); a
-    `Nothing` bound is open. A row without a number does not match, and on a
-    column that has no numbers at all every row matches.
-
--}
 type Filter
     = Contains String
     | OneOf (List String)
     | Between (Maybe Float) (Maybe Float)
 
 
-{-| The id of a column, which sort, filters, column choices and a `Query` refer to.
-Make it once with `columnId`, keep it as a value of your own, and give it to the
-column and to the functions that talk about the column, so that a misspelled id
-cannot happen:
-
-    customer : Table.ColumnId
-    customer =
-        Table.columnId "customer"
-
-    Table.text customer "Customer" .customer []
-
-    Table.setSort [ ( customer, Table.Ascending ) ] state
-
--}
 type ColumnId
     = ColumnId String
 
 
-{-| Everything a backend needs to produce the rows the user asked for: the
-search text, the sort levels (primary first), the column filters (ordered by
-column id), the page (the first is 1) and the page size. It is plain data, so
-you can compare two queries with `==` and fetch only when it changed, or keep
-one in the URL or in a saved view (see `setQuery`).
--}
 type alias Query =
     { search : String
     , sort : List ( ColumnId, Direction )
@@ -80,23 +44,11 @@ type alias Query =
     }
 
 
-{-| What is selected: `Selected ids`, a list of row ids, or
-`AllMatching { except }`. The second only happens in server mode, after the user
-chose "Select all N matching": every row that matches the current `query` is
-selected, except the ids in `except` (the table cannot list rows it never
-received). A new search or filter drops it, because it would then mean other
-rows.
--}
 type Selection id
     = Selected (List id)
     | AllMatching { except : List id }
 
 
-{-| What the table remembers: sort, page, page size, search, filters, selection,
-expanded rows, hidden columns and density, and which popup and row are open or
-focused. Make one with `init`, keep it in your model, change it with `update`
-(or the setters in this module) and pass it to `view`.
--}
 type State id
     = State Model
 
@@ -148,10 +100,6 @@ type Popup
     | FiltersPopup
 
 
-{-| A message from the table's own controls: sorting, paging, typing in a filter,
-opening a popup and so on. You never make one. Give `view` a constructor of your
-own that wraps it (`TableMsg`), and hand the `m` in `TableMsg m` to `update`.
--}
 type Msg
     = NoOp
     | SortClicked String Bool
@@ -191,18 +139,10 @@ type Msg
     | ExportClicked String String
 
 
-{-| One column of the table. Make it with `text`, `int`, `float`, `date`,
-`maybeDate`, `badge`, `status`, `bool`, `custom` or `actions`, and give a list of
-them to `columns`.
--}
 type Column row msg
     = Column (ColumnConfig row msg)
 
 
-{-| A setting of one column. Make them with the functions below and pass a list
-as the last argument of `text`, `int` and the other column helpers; later
-attributes win over earlier ones.
--}
 type ColumnAttribute row msg
     = ColumnAttribute (ColumnConfig row msg -> ColumnConfig row msg)
 
@@ -275,10 +215,6 @@ type alias MoneyTotal =
     }
 
 
-{-| A setting of the table as a whole (`columns`, `remote`, `searchable` ...). Make
-them with the functions below and pass a list to `view`; later attributes win
-over earlier ones.
--}
 type Attribute id row msg
     = Attribute (Config row msg -> Config row msg)
 
@@ -327,19 +263,6 @@ type alias Config row msg =
     }
 
 
-{-| Rows that the table has worked on in advance: for each row the text the search
-looks in, and for each sortable column the rows in order. Make them once, when the
-rows arrive or change, and keep them in your model instead of the `Array`; give
-them to the table with `remotePrepared`.
-
-    Loaded orders ->
-        { model | orders = Loaded (Table.prepareRows locale columns (Array.fromList orders)) }
-
-They are made for one locale and one list of columns. A table that is given other
-columns or another locale shows the right rows all the same, but works them out
-again on every message, as `remote` does.
-
--}
 type Rows row
     = Rows
         { array : Array row

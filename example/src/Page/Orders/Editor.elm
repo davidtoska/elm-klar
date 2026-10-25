@@ -87,7 +87,7 @@ type alias Editor =
     , total : NumberInput.State
     , note : String
 
-    -- What the server said was wrong with the last submit, by field id.
+    -- Shared save status, field problems and request tickets.
     , submission : Submission.State
     }
 
@@ -522,7 +522,14 @@ view config editor =
         , FormLayout.view formAttributes
             [ FormLayout.errorSummary formAttributes
                 (Submission.problems editor.submission
-                    |> List.map (\p -> if List.any (\( key, _ ) -> key == p.field) fieldLabels then p else { p | field = "" })
+                    |> List.map
+                        (\p ->
+                            if List.any (\( key, _ ) -> key == p.field) fieldLabels then
+                                p
+
+                            else
+                                { p | field = "" }
+                        )
                     |> List.sortBy (\error -> formOrder error.field)
                 )
             , FormLayout.section "Customer"
@@ -645,6 +652,7 @@ view config editor =
                         , SegmentedControl.selected (Types.priorityLabel editor.priority)
                         , SegmentedControl.onChange (PriorityChosen >> toMsg)
                         , SegmentedControl.disabled (not (isEditable editor))
+                        , SegmentedControl.readOnly locked
                         ]
                     , Select.view (OwnerMsg >> toMsg)
                         [ Select.label "Owner"

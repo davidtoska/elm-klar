@@ -114,12 +114,8 @@ colors playground =
             )
         , Doc.example
             { title = "Semantic tokens: surfaces and text"
-            , description = Just "What the components actually use. Each token points at a color of the palette, shown under its name. To restyle the library, put your own CSS after the library's stylesheet and redefine tokens on :root for the whole page, or on a container for part of it."
-            , code = Just """:root {
-  --klar-primary: #0b7285;
-  --klar-primary-hover: #095c6b;
-  --klar-font: "Inter", system-ui, sans-serif;
-}"""
+            , description = Just "The surface and text tokens used by the components. Select a checked palette with Settings.withTheme; the swatches here are for inspection."
+            , code = Nothing
             }
             (swatches playground surfaceTokens)
         , Doc.example

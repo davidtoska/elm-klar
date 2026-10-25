@@ -71,8 +71,13 @@ the one before. A key that is a shortcut by itself cannot also start a sequence.
                 ( next, Cmd.none )
 
 `listen` is an attribute of an element, so that it can stop the browser's own
-action for the keys (Ctrl+K, `/`); with the `host` of [Klar.Modal](Klar-Modal)
-put it in the `attributes` of the host, which can take focus already.
+action for the keys (Ctrl+K, `/`). With [Klar.AppShell](Klar-AppShell), give
+`AppShell.shortcuts` this attribute:
+
+    AppShell.shortcuts (Shortcut.listen ShortcutMsg shortcuts model.shortcuts)
+
+With [Klar.Overlay](Klar-Overlay), put it in the `attributes` of `Overlay.host`,
+which can take focus already. Keep `subscription` in either setup as well:
 `subscription` catches the key presses that happen while nothing has focus, so
 that shortcuts keep working after a dialog has closed.
 

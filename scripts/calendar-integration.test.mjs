@@ -1,32 +1,26 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { once } from 'node:events';
 import { test } from 'node:test';
-import { createCalendarHandler } from '../calendar/server/server.mjs';
+import { buildCalendar, startCalendar } from './lib/calendar.mjs';
 
 test('mounted calendar supports demo sign-in, event writes, persistence and isolated stores', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'klar-calendar-integration-'));
   const servers = [];
+  const build = buildCalendar();
   t.after(async () => {
-    await Promise.all(servers.map(server => new Promise(resolve => server.close(resolve))));
+    await Promise.all(servers.map(server => server.close()));
+    build.dispose();
     const resolved = path.resolve(directory);
     assert.ok(resolved.startsWith(path.join(os.tmpdir(), 'klar-calendar-integration-')));
     fs.rmSync(resolved, { recursive: true, force: true });
   });
   async function host(dataFile, mounted = true) {
     const prefix = mounted ? '/calendar-app' : '';
-    const handler = createCalendarHandler({ dataFile, demoMode: true, cookiePath: `${prefix}/` });
-    const server = http.createServer((request, response) => {
-      if (prefix) request.url = request.url.slice(prefix.length);
-      return handler(request, response);
-    });
+    const server = await startCalendar({ binary: build.binary, db: dataFile, prefix });
     servers.push(server);
-    server.listen(0, '127.0.0.1');
-    await once(server, 'listening');
-    const base = `http://127.0.0.1:${server.address().port}${prefix}`;
+    const base = server.url.replace(/\/$/, '');
     return async (url, { cookie, body, method = 'GET' } = {}) => {
       const response = await fetch(base + url, {
         method,
@@ -36,7 +30,7 @@ test('mounted calendar supports demo sign-in, event writes, persistence and isol
       return { response, data: await response.json() };
     };
   }
-  const dataFile = path.join(directory, 'showcase.json');
+  const dataFile = path.join(directory, 'showcase.sqlite');
   const request = await host(dataFile);
   const config = await request('/config.json');
   assert.equal(config.data.demo.length, 3);
@@ -60,7 +54,7 @@ test('mounted calendar supports demo sign-in, event writes, persistence and isol
   const restarted = await host(dataFile);
   const restored = await restarted(`/calendar/v3/calendars/primary/events/${created.data.id}`, { cookie });
   assert.equal(restored.data.summary, 'Showcase integration check');
-  const standalone = await host(path.join(directory, 'standalone.json'), false);
+  const standalone = await host(path.join(directory, 'standalone.sqlite'), false);
   assert.equal((await standalone('/auth/me', { cookie })).response.status, 401);
   const standaloneLogin = await standalone('/auth/demo', { method: 'POST', body: { email: 'bob@example.com' } });
   assert.equal(standaloneLogin.response.status, 200);

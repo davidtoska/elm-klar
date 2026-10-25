@@ -15,6 +15,7 @@ import Klar.Button as Button
 import Klar.Form as Form
 import Klar.Form.Layout as FormLayout
 import Klar.Form.Spec as Spec
+import Klar.Form.Submission as Submission
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
@@ -234,7 +235,6 @@ fromBackend p =
 
 type alias Model =
     { form : Form.State ()
-    , status : FormLayout.Status
     , saved : Maybe Account
     , wizard : Wizard.Model
     , terms : Terms.Model
@@ -252,7 +252,7 @@ type Msg
 
 init : ( Model, Cmd Msg )
 init =
-    ( { form = Form.init form, status = FormLayout.Idle, saved = Nothing, wizard = Wizard.init, terms = Terms.init }, Cmd.none )
+    ( { form = Form.init form, saved = Nothing, wizard = Wizard.init, terms = Terms.init }, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -270,24 +270,46 @@ update msg model =
             Form.update form inner model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
 
         Load ->
-            ( { model | form = Form.init form |> fill savedAccount |> Form.markClean, status = FormLayout.Idle }, Cmd.none )
+            ( { model | form = Form.init form |> fill savedAccount |> Form.markClean }, Cmd.none )
 
         Revert ->
-            ( { model | form = Form.revert form model.form, status = FormLayout.Idle }, Cmd.none )
+            ( { model | form = Form.revert form model.form }, Cmd.none )
 
         Save ->
-            case Form.toValues Locale.default form model.form of
-                Err _ ->
-                    Form.reveal form model.form |> Tuple.mapBoth (\s -> { model | form = s }) (Cmd.map FormMsg)
+            let
+                attempt =
+                    Form.submit Locale.default form model.form
+            in
+            case attempt.request of
+                Nothing ->
+                    ( { model | form = attempt.state }, Cmd.map FormMsg attempt.cmd )
 
-                Ok values ->
-                    case save values of
-                        [] ->
-                            ( { model | form = Form.markClean model.form, status = FormLayout.Succeeded "Saved.", saved = Just (toAccount values) }, Cmd.none )
+                Just request ->
+                    let
+                        found =
+                            List.map fromBackend (save request.values)
 
-                        problems ->
-                            Form.rejected (List.map fromBackend problems) form model.form
-                                |> Tuple.mapBoth (\s -> { model | form = s, status = FormLayout.Idle }) (Cmd.map FormMsg)
+                        result =
+                            if List.isEmpty found then
+                                Ok "Saved."
+
+                            else
+                                Err (Submission.Rejected (List.map (\p -> { field = p.field, message = p.message }) found))
+
+                        ( state, cmd ) =
+                            Form.finish request.ticket result form attempt.state
+                    in
+                    ( { model
+                        | form = state
+                        , saved =
+                            if List.isEmpty found then
+                                Just (toAccount request.values)
+
+                            else
+                                model.saved
+                      }
+                    , Cmd.batch [ Cmd.map FormMsg attempt.cmd, Cmd.map FormMsg cmd ]
+                    )
 
 
 subscriptions : Model -> Sub Msg
@@ -316,7 +338,7 @@ accountForm playground locale model =
                 ]
             ]
         , FormLayout.actions
-            [ FormLayout.status (Options.klarFormLayout playground (List.concat [ Config.keep playground "Form.Layout" "locale" (FormLayout.locale locale) ])) model.status
+            [ Submission.view [ FormLayout.locale locale ] (Form.submission model.form)
             , Layout.spacer
             , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Revert), Config.keep playground "Button" "disabled" (Button.disabled (not (Form.isDirty model.form))) ])) "Revert"
             , Options.buttonView playground (Options.klarButton playground (List.concat [ Config.keep playground "Button" "onClick" (Button.onClick Load) ])) "Load saved account"
@@ -336,10 +358,10 @@ view playground locale model =
         , description = "A form declared once: the values of every field live in one state that knows when it is dirty, loads and returns a record, takes the server's problems per field, owns the steps and the repeating rows, and lists every problem with a way to go to it. Try the flat form first: press Save on the empty form (every problem shows and the focus moves to the summary), type the name Acme Trading and the registration number 00000000, then Save (the server refuses and its words show at the fields until you edit them), or Load a saved account and type a letter and delete it again (clean again)."
         }
         [ Doc.configuredSection playground
-            [ "Form", "Form.Spec", "Form.Check", "Ids" ]
+            [ "Form", "Form.Spec", "Form.Check", "Form.Submission", "Ids" ]
             "A flat form"
             "A customer account: texts, a country, several segments, the server's problems, the mark for unsaved changes."
-            [ Doc.configuredExample playground [ "Form.Spec", "Form", "Form.Check", "Ids" ] { title = "A customer account", description = Nothing, code = Nothing } (accountForm playground locale model)
+            [ Doc.configuredExample playground [ "Form.Spec", "Form", "Form.Check", "Form.Submission", "Ids" ] { title = "A customer account", description = Nothing, code = Nothing } (accountForm playground locale model)
             , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
                 [ Text.caption
                     ("Unsaved changes: "

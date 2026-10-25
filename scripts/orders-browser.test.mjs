@@ -9,7 +9,7 @@ import { browser } from './lib/browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../example');
 
-test('orders: server results, drafts and keyboard focus survive failure and retry', { timeout: 120000 }, async t => {
+test('forms: server results, drafts and keyboard focus survive failure and retry', { timeout: 150000 }, async t => {
   assert.ok(fs.existsSync(path.join(root, 'main.js')), 'Run npm run build:example first.');
   const server = http.createServer((request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
@@ -152,6 +152,51 @@ test('orders: server results, drafts and keyboard focus survive failure and retr
     assert.equal(await b.evaluate('document.querySelector("#orders-table-search") === window.searchInput'), true);
     assert.equal(await active(), 'orders-table-search');
     assert.match(await b.evaluate('document.querySelector("#orders-table-row-0").innerText'), /Dune/);
+  });
+
+  await t.test('customer form maps server keys, preserves unknown problems and submits corrected input', async () => {
+    await b.navigate(base + '/examples/edit-form.html?visit=server-keys');
+    await b.wait('!!document.querySelector("#customer-email")');
+    await b.evaluate('window.emailInput = document.querySelector("#customer-email")');
+    await b.text('#customer-email', 'taken@example.com');
+    await b.click('#customer button', 'Save');
+    await b.wait('document.activeElement.id === "customer-summary"');
+    assert.equal(await b.evaluate('document.querySelector("#customer-email").getAttribute("aria-invalid")'), 'true');
+    assert.match(await b.evaluate('document.querySelector("#customer-summary").innerText'), /belongs to another customer/);
+    await tabTo('#customer-summary button');
+    await b.key('Enter');
+    await b.wait('document.activeElement.id === "customer-email"');
+    await b.text('#customer-email', 'unknown@example.com');
+    await b.click('#customer button', 'Save');
+    await b.wait('document.querySelector("#customer-summary")?.innerText.includes("billing account is suspended")');
+    assert.equal(await b.evaluate('document.querySelectorAll("#customer-summary button, #customer-summary a").length'), 0);
+    assert.equal(await active(), 'customer-summary');
+    await b.text('#customer-email', 'corrected@aurora.example');
+    await b.evaluate('window.busyStates = []; window.formSampler = setInterval(() => window.busyStates.push({ busy: document.querySelector("#customer")?.getAttribute("aria-busy"), readOnly: document.querySelector("#customer-email")?.readOnly }), 10)');
+    await b.click('#customer button', 'Save');
+    await b.wait('document.querySelector("#customer-status")?.innerText.includes("Customer saved.")');
+    const busyStates = await b.evaluate('(clearInterval(window.formSampler), window.busyStates)');
+    assert.ok(busyStates.some(state => state.busy === 'true' && state.readOnly), JSON.stringify(busyStates));
+    assert.equal(await b.evaluate('document.querySelector("#customer-email") === window.emailInput'), true);
+    assert.equal(await b.evaluate('document.querySelector("#customer-email").value'), 'corrected@aurora.example');
+    assert.equal(await b.evaluate('!!document.querySelector("#customer-summary")'), false);
+    assert.deepEqual(await b.evaluate('Array.from(document.querySelectorAll("[id]")).map(e => e.id).filter((id, i, ids) => ids.indexOf(id) !== i)'), []);
+  });
+
+  await t.test('customer save failure and keyboard retry use the same stable status region', async () => {
+    await b.navigate(base + '/examples/edit-form.html?visit=retry');
+    await b.wait('!!document.querySelector("#customer-name")');
+    await b.text('#customer-name', 'Crash');
+    await b.click('#customer button', 'Save');
+    await b.wait('document.querySelector("#customer-status")?.innerText.includes("Try again")');
+    await b.evaluate('window.customerStatus = document.querySelector("#customer-status")');
+    await b.text('#customer-name', 'Aurora updated');
+    await retry('#customer-status');
+    await b.wait('document.activeElement.id === "customer-status"');
+    await b.wait('document.querySelector("#customer-status")?.innerText.includes("Customer saved.")');
+    assert.equal(await active(), 'customer-status');
+    assert.equal(await b.evaluate('document.querySelector("#customer-status") === window.customerStatus'), true);
+    assert.equal(await b.evaluate('document.querySelector("#customer-name").value'), 'Aurora updated');
   });
   assert.deepEqual(b.errors, [], 'No browser runtime or console errors');
 });

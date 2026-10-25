@@ -667,21 +667,8 @@ tabsSection playground locale model =
                     model.overflowTabs
                 ]
             )
-        , Doc.props tabsProps
+        , Doc.reference [ "Klar.Tabs" ]
         ]
-
-
-tabsProps : List { name : String, type_ : String, description : String }
-tabsProps =
-    [ { name = "tab", type_ = "key -> String -> Tab key msg", description = "A value of your own type and the text. The key identifies the tab, compared with ==." }
-    , { name = "withPanel", type_ = "(() -> Html msg) -> Tab key msg -> Tab key msg", description = "The content under the strip while the tab is active. The function is only called then. Without panels the strip claims none (route tabs)." }
-    , { name = "withIcon, withCount, withTitle", type_ = "Tab key msg -> Tab key msg", description = "An icon, a count (grouped by the locale) and a tooltip (useful for saying why a tab is disabled)." }
-    , { name = "disabledTab", type_ = "Tab key msg -> Tab key msg", description = "Visible but cannot be selected. The arrow keys skip it." }
-    , { name = "tabs, ariaLabel, locale", type_ = "List (Tab key msg), String, Locale", description = "The tabs, the name of the tab list for screen readers, and the language of the counts." }
-    , { name = "boxed, small, fill, vertical", type_ = "Attribute key msg", description = "Boxed tabs, lower tabs, tabs that share the width equally, and tabs stacked beside their panel." }
-    , { name = "manual", type_ = "Attribute key msg", description = "The arrow keys only move focus. Enter or Space selects." }
-    , { name = "init, active, setActive", type_ = "String -> key -> State key, State key -> key, key -> State key -> State key", description = "A unique id and the first active tab; read and set the active tab from the application." }
-    ]
 
 
 tabsCode : String

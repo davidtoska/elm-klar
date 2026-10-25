@@ -26,7 +26,12 @@ type alias Example =
 
 examples : List Example
 examples =
-    [ { file = "Inbox"
+    [ { file = "Application"
+      , page = "application"
+      , title = "Application starter"
+      , task = "The standard shell, settings, routing, table, simulated requests and overlays. This is the executable starting point linked from AI.md."
+      }
+    , { file = "Inbox"
       , page = "inbox"
       , title = "Inbox: a list on the server"
       , task = "Orders that live on the server, with search, sorting, paging, a filter bar and saved views, all in one ServerList. Type \"fail\" in the search box to see the failure."

@@ -17,18 +17,6 @@ import Klar.Chart.Types exposing (Attribute(..), Axis, Config, Data(..), LegendI
 import Klar.Internal as Internal
 
 
-{-| Parts of a whole. It is best with up to six slices: when there are more than
-eight, the seven largest are kept and the rest are folded into one slice called
-"Other".
-
-    Chart.donut [ Chart.centerCaption "orders" ]
-        [ Chart.segment "Shipped" 420, Chart.segment "Pending" 310 ]
-
-The total is written in the middle unless `centerLabel` says otherwise, and the
-legend lists every slice with its value and its share of the total. The legend is
-shown unless you say `hideLegend`. Slices with a value of 0 are left out.
-
--}
 donut : List (Attribute msg) -> List Segment -> Html msg
 donut attributes segments =
     let

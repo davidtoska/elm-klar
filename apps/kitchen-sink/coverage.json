@@ -1,0 +1,1210 @@
+[
+  {
+    "module": "Klar",
+    "group": "Start here",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Theme",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Color",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Settings",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Locale",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Layout",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Card",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Text",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon",
+    "group": "Foundations",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Button",
+    "group": "Actions",
+    "scenario": "Actions",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Menu",
+    "group": "Actions",
+    "scenario": "Actions",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.ButtonGroup",
+    "group": "Actions",
+    "scenario": "Actions",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.ToggleGroup",
+    "group": "Actions",
+    "scenario": "Actions",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.SplitButton",
+    "group": "Actions",
+    "scenario": "Actions",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Link",
+    "group": "Actions",
+    "scenario": "Actions",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Kbd",
+    "group": "Actions",
+    "scenario": "Actions",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Badge",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Tag",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Alert",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Spinner",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Skeleton",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Progress",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.EmptyState",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.ErrorState",
+    "group": "Status and feedback",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.NotificationCenter",
+    "group": "Status and feedback",
+    "scenario": "Collaboration",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Form",
+    "group": "Forms",
+    "scenario": "Forms",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Form.Spec",
+    "group": "Forms",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Form.Layout",
+    "group": "Forms",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Form.Submission",
+    "group": "Forms",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Form.Check",
+    "group": "Forms",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Field",
+    "group": "Forms",
+    "scenario": "Forms",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Validate",
+    "group": "Forms",
+    "scenario": "Forms",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.TextInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.TextArea",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.NumberInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.PasswordInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.SearchInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.TagInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.FileDrop",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.InlineEdit",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Checkbox",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.CheckboxGroup",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Radio",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Switch",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Slider",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.SegmentedControl",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.MaskedInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Money",
+    "group": "Inputs",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.MoneyInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.QuantityInput",
+    "group": "Inputs",
+    "scenario": "Inputs",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Select",
+    "group": "Choosing",
+    "scenario": "Choosing",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Ids",
+    "group": "Choosing",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.MultiSelect",
+    "group": "Choosing",
+    "scenario": "Choosing",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Autocomplete",
+    "group": "Choosing",
+    "scenario": "Choosing",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.VirtualList",
+    "group": "Choosing",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Picking",
+    "group": "Choosing",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.TreeSelect",
+    "group": "Choosing",
+    "scenario": "Choosing",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Cascader",
+    "group": "Choosing",
+    "scenario": "Choosing",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Transfer",
+    "group": "Choosing",
+    "scenario": "Choosing",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Date",
+    "group": "Date and time",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.DatePicker",
+    "group": "Date and time",
+    "scenario": "Dates",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.DateRangePicker",
+    "group": "Date and time",
+    "scenario": "Dates",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.TimePicker",
+    "group": "Date and time",
+    "scenario": "Dates",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.DateTimePicker",
+    "group": "Date and time",
+    "scenario": "Dates",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Calendar",
+    "group": "Date and time",
+    "scenario": "Dates",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Recurrence",
+    "group": "Date and time",
+    "scenario": "Dates",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.RecurrencePicker",
+    "group": "Date and time",
+    "scenario": "Dates",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Table",
+    "group": "Tables and lists",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Budget",
+    "group": "Tables and lists",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Pagination",
+    "group": "Tables and lists",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.ListItem",
+    "group": "Tables and lists",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Tree",
+    "group": "Tables and lists",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.CardList",
+    "group": "Tables and lists",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.WorkQueue",
+    "group": "Tables and lists",
+    "scenario": "Data",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Overlay",
+    "group": "Overlays",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Modal",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.ConfirmDialog",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Drawer",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Toast",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Popover",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Tooltip",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.ContextMenu",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.CommandPalette",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.ShortcutHelp",
+    "group": "Overlays",
+    "scenario": "Overlays",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.AppShell",
+    "group": "Navigation",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.SideNav",
+    "group": "Navigation",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.PageHeader",
+    "group": "Navigation",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Breadcrumbs",
+    "group": "Navigation",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Tabs",
+    "group": "Navigation",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Stepper",
+    "group": "Navigation",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Accordion",
+    "group": "Structure",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Toolbar",
+    "group": "Structure",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.DescriptionList",
+    "group": "Structure",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Sortable",
+    "group": "Arranging",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Splitter",
+    "group": "Arranging",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Kanban",
+    "group": "Arranging",
+    "scenario": "Collaboration",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.StatusPage",
+    "group": "Pages and flow",
+    "scenario": "Feedback",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.BulkBar",
+    "group": "Pages and flow",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.LeaveGuard",
+    "group": "Pages and flow",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.History",
+    "group": "Pages and flow",
+    "scenario": "Structure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Markdown",
+    "group": "Text and change",
+    "scenario": "Content",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.MarkdownEditor",
+    "group": "Text and change",
+    "scenario": "Content",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Diff",
+    "group": "Text and change",
+    "scenario": "Content",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Compare",
+    "group": "Text and change",
+    "scenario": "Content",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.AuditLog",
+    "group": "Text and change",
+    "scenario": "Collaboration",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.ConflictResolver",
+    "group": "Text and change",
+    "scenario": "Collaboration",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.CodeBlock",
+    "group": "Text and change",
+    "scenario": "Content",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.CommentThread",
+    "group": "Text and change",
+    "scenario": "Collaboration",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.PermissionMatrix",
+    "group": "Access and approval",
+    "scenario": "Access",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.ApprovalFlow",
+    "group": "Access and approval",
+    "scenario": "Access",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Stat",
+    "group": "Data display",
+    "scenario": "Dashboard",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Chart",
+    "group": "Data display",
+    "scenario": "Dashboard",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Timeline",
+    "group": "Data display",
+    "scenario": "Dashboard",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Avatar",
+    "group": "Data display",
+    "scenario": "Dashboard",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.JsonViewer",
+    "group": "Data display",
+    "scenario": "Content",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Rule",
+    "group": "Rules and filters",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.RuleBuilder",
+    "group": "Rules and filters",
+    "scenario": "Rules",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.FilterBar",
+    "group": "Rules and filters",
+    "scenario": "Rules",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.SavedViews",
+    "group": "Rules and filters",
+    "scenario": "Rules",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.ServerList",
+    "group": "Rules and filters",
+    "scenario": "Rules",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Remote",
+    "group": "Data and utilities",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.RemoteView",
+    "group": "Data and utilities",
+    "scenario": "Dashboard",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Search",
+    "group": "Data and utilities",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Format",
+    "group": "Data and utilities",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Shortcut",
+    "group": "Data and utilities",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Icon.Library",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Arrows",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Business",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Calendar",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Communication",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Data",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Developer",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Devices",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Documents",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Editor",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Interface",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Logistics",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Media",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Nature",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.People",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Icon.Science",
+    "group": "Icon library",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.AiReview",
+    "group": "AI",
+    "scenario": "AI",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.AiChat",
+    "group": "AI",
+    "scenario": "AI",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.UploadQueue",
+    "group": "Files and media",
+    "scenario": "Files",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Workflow",
+    "group": "Processes and state",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.Workflow.Engine",
+    "group": "Processes and state",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.Workflow.Codec",
+    "group": "Processes and state",
+    "scenario": "Shared scenarios / infrastructure",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.WorkflowNode",
+    "group": "Processes and state",
+    "scenario": "Processes",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.WorkflowBuilder",
+    "group": "Processes and state",
+    "scenario": "Processes",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  },
+  {
+    "module": "Klar.WorkflowRun",
+    "group": "Processes and state",
+    "scenario": "Processes",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": true
+  },
+  {
+    "module": "Klar.StateMachine",
+    "group": "Processes and state",
+    "scenario": "Processes",
+    "implemented": true,
+    "browserRenderVerified": true,
+    "interactionVerified": false
+  }
+]

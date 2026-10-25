@@ -1459,52 +1459,11 @@ api playground =
         "API"
         "The rule builder and the filter bar are stateful components (init, update, view) that hold the rule; the application reads it with rule and reacts by comparing before and after update. There are no out-messages."
         [ Doc.example { title = "Klar.Rule", description = Just "The rule as plain data, with no HTML: the components edit it and the application runs it.", code = Nothing }
-            (Doc.props
-                [ { name = "textField / numberField / dateField / boolField / choiceField", type_ = "String -> String -> (row -> value) -> Field row", description = "A field: its id (what saved rules refer to), its label and how to read the value from a row. A choice field also takes its choices, and the getter of a number or date field returns a Maybe." }
-                , { name = "inGroup", type_ = "String -> Field row -> Field row", description = "Lists the field under a heading in the field picker." }
-                , { name = "matches", type_ = "Date -> List (Field row) -> Rule -> row -> Bool", description = "Does the row satisfy the rule? Incomplete conditions and conditions on unknown fields are ignored, so an empty rule matches every row." }
-                , { name = "validate", type_ = "Locale -> List (Field row) -> Rule -> List Problem", description = "What is missing or wrong, for each node, in the language of the locale." }
-                , { name = "describe", type_ = "Locale -> List (Field row) -> Rule -> String", description = "The rule as a sentence: “Status is Confirmed and (Priority is Urgent or Total > 5000)”." }
-                , { name = "encode / decoder", type_ = "Rule -> Value / Decoder Rule", description = "The rule as JSON, to store it or send it to a backend." }
-                , { name = "settled", type_ = "List (Field row) -> Rule -> Rule", description = "The rule for a server: only what matches uses, numbers written plainly, ends low first, choices sorted. A server then needs none of the forgiveness of matches." }
-                , { name = "emptyGroup", type_ = "Rule", description = "A group with nothing in it: the usual starting point, and it matches every row." }
-                ]
-            )
+            (Doc.reference [ "Klar.Rule" ])
         , Doc.example { title = "Klar.RuleBuilder", description = Nothing, code = Nothing }
-            (Doc.props
-                [ { name = "init", type_ = "String -> State", description = "An empty rule. The string is the DOM id and must be unique on the page." }
-                , { name = "rule / setRule", type_ = "State -> Rule / Rule -> State -> State", description = "The rule being built. setRule puts a lone condition in a group and numbers the nodes again if an id occurs twice." }
-                , { name = "clear", type_ = "State -> State", description = "An empty rule, without an offer to undo." }
-                , { name = "showIssues / hideIssues", type_ = "State -> State", description = "Show all issues now (for example when saving), or hide them until the user touches a condition again." }
-                , { name = "fields", type_ = "List (Rule.Field row) -> Attribute", description = "The fields a rule can use. The first one is the field a new condition starts with." }
-                , { name = "matchCount / totalCount / onRetry", type_ = "Remote Int / Int / msg", description = "The number of matches, in every state: “Counting ...”, “1,482 of 3,000 matches”, the old count dimmed while it is refreshed, a failure with a retry." }
-                , { name = "json / importJson", type_ = "Attribute", description = "“Show JSON” with a download button, and “Import JSON” with an error message and undo." }
-                , { name = "label / hint / error / required", type_ = "Attribute", description = "A visible label, a hint, an error for the rule as a whole and a required mark, as in a form (Form.ruleBuilder sets them)." }
-                , { name = "maxDepth", type_ = "Int", description = "How deep groups may nest (4 by default)." }
-                , { name = "today / locale / ariaLabel / actions", type_ = "Attribute", description = "Today's date for the date pickers, the language, the name for screen readers and your own buttons in the toolbar." }
-                ]
-            )
+            (Doc.reference [ "Klar.RuleBuilder" ])
         , Doc.example { title = "Klar.FilterBar", description = Nothing, code = Nothing }
-            (Doc.props
-                [ { name = "rule", type_ = "State -> Rule", description = "The filters as a Rule, for Rule.matches. Compare it before and after update to find out whether the filters changed." }
-                , { name = "setRule / clear", type_ = "Rule -> State -> State / State -> State", description = "Show these filters, or remove them all. setRule also shows rules from the rule builder: conditions become chips and groups become chips that can only be removed." }
-                , { name = "isOpen / close", type_ = "State -> Bool / State -> ( State, Cmd Msg )", description = "Is the editor open; close it without applying, with focus back on the chip or the add button." }
-                , { name = "fields", type_ = "List (Rule.Field row) -> Attribute", description = "The fields that can be filtered on." }
-                , { name = "quick", type_ = "List ( String, Rule ) -> Attribute", description = "Ready-made filters as toggle pills." }
-                , { name = "matchCount / totalCount / onRetry", type_ = "Remote Int / Int / msg", description = "The number of matches at the end of the bar, in every state of the Remote." }
-                , { name = "today / locale / ariaLabel / addLabel", type_ = "Attribute", description = "Today's date, the language, the name for screen readers and the text of the add button." }
-                ]
-            )
+            (Doc.reference [ "Klar.FilterBar" ])
         , Doc.example { title = "Klar.SavedViews", description = Nothing, code = Nothing }
-            (Doc.props
-                [ { name = "views / setViews", type_ = "State -> List SavedView / List SavedView -> State -> State", description = "All views: name, rule, note and whether it is the default. The application stores them." }
-                , { name = "active / setActive", type_ = "State -> Maybe SavedView / Maybe String -> State -> State", description = "The view the user applied last." }
-                , { name = "revision", type_ = "State -> Int", description = "Goes up every time the user applies a view or resets. Compare it before and after update." }
-                , { name = "isOpen", type_ = "State -> Bool", description = "Is the list open?" }
-                , { name = "defaultView", type_ = "State -> Maybe SavedView", description = "The view “Reset” returns to." }
-                , { name = "current", type_ = "Rule -> Attribute", description = "The rule on show now: what “Save current view” saves, and what the active view is compared with (“modified”)." }
-                , { name = "savedView / withNote / asDefault", type_ = "SavedView", description = "Make views, for example from stored data." }
-                , { name = "size / alignEnd / label / locale", type_ = "Attribute", description = "The size of the button, which way the list opens, the text of the button and the language." }
-                ]
-            )
+            (Doc.reference [ "Klar.SavedViews" ])
         ]

@@ -52,16 +52,7 @@ view playground locale model =
             [ "Progress" ]
             { title = "Bar"
             , description = Just "The value is a percentage. outOf 3 5 sets the value and the text to “3 of 5”."
-            , code = Just """Progress.view [ Progress.label "Upload", Progress.value 62, Progress.showValue ]
-
-Progress.view [ Progress.label "Importing orders", Progress.indeterminate ]
-
-Progress.view
-    [ Progress.label "Checkout"
-    , Progress.outOf 3 5
-    , Progress.segments 5
-    , Progress.showValue
-    ]"""
+            , code = Nothing
             }
             (Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 5) ]))
                 [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
@@ -97,7 +88,7 @@ Progress.view
             [ "Progress" ]
             { title = "Ring"
             , description = Just "The text in the middle is the value, and a short label when there is room for it."
-            , code = Just "Progress.ring [ Progress.value 80, Progress.tone Success, Progress.label \"Done\" ]"
+            , code = Nothing
             }
             (Layout.row (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 6), Config.keep playground "Layout" "alignCenter" Layout.alignCenter, Config.keep playground "Layout" "wrap" Layout.wrap ]))
                 [ ring (Options.klarProgress playground (List.concat [ Config.keep playground "Progress" "value" (Progress.value model.value), Config.keep playground "Progress" "size" (Progress.size Small) ]))

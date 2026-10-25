@@ -18,7 +18,7 @@ application never writes a DOM id, a component state per field, a dirty test, a
 
 Use when: you edit a record in a form and want the values, rules, steps and server problems kept in one state.
 Do not use when: the form is hand-wired or only needs a frame (use `Klar.Form.Layout`), or one value saves by itself (use `Klar.InlineEdit`).
-Quick path: `init`, `bind`, `update`, `toValues`, `summary`, `rejected`
+Quick path: `init`, `bind`, `update`, `submit`, `finish`, `summary`
 
 Use it for an edit form, a sign-up, a wizard with a review step, a form with a
 repeating group (the contacts of a supplier). For one value that saves by itself
@@ -38,10 +38,11 @@ a hand-written form can use alone.
 
 # Quick path
 
-Six functions cover a form: `init` (the state), `bind` (once per view), `update`
-(one branch for every control), `toValues` (the record, or the problems),
-`summary` (the list of problems) and `rejected` (what the server refused).
-`reveal` shows the problems after a Save that found some. A form with steps adds
+`init`, `bind` and `update` wire the controls. `submit` validates and returns one
+optional request, `finish` settles its matching reply, and `summary` lists problems.
+`submission` exposes the shared status for [`Klar.Form.Submission`](Klar-Form-Submission)
+to draw; there is no separate save status in the model. `toValues`, `reveal` and
+`rejected` remain available for applications that manage submission themselves. A form with steps adds
 `advance` and `stepper`; one with repeating groups adds `rowFields`, `addRow` and
 `removeRow`.
 
@@ -49,6 +50,10 @@ A customer form with a text, a country, a long note and a switch, a save that
 the server can refuse, and the mark for unsaved changes. The model keeps one
 `Form.State`, the message has one `Form.Msg`, and the view is one call for each
 control:
+
+    import Klar.Form.Layout as FormLayout
+    import Klar.Form.Submission as Submission
+
 
     -- THE DECLARATION
     type CountryId
@@ -87,18 +92,16 @@ control:
 
     -- THE MODEL AND THE UPDATE
     type alias Model =
-        { form : Form.State ()
-        , status : FormLayout.Status
-        }
+        { form : Form.State () }
 
     type Msg
         = FormMsg Form.Msg
         | Save
-        | Replied (List (Form.Problem ()))
+        | Replied Submission.Ticket (Result Submission.Error String)
 
     init : Model
     init =
-        { form = Form.init form, status = FormLayout.Idle }
+        { form = Form.init form }
 
     update : Msg -> Model -> ( Model, Cmd Msg )
     update msg model =
@@ -108,29 +111,24 @@ control:
                     |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
             Save ->
-                if model.status == FormLayout.Submitting then
-                    -- Enter in a field submits too: one request at a time
-                    ( model, Cmd.none )
+                let
+                    attempt =
+                        Form.submit Locale.default form model.form
+                in
+                ( { model | form = attempt.state }
+                , Cmd.batch
+                    [ Cmd.map FormMsg attempt.cmd
+                    , Maybe.map (\request -> send request.ticket request.values) attempt.request |> Maybe.withDefault Cmd.none
+                    ]
+                )
 
-                else
-                    case Form.toValues Locale.default form model.form of
-                        Ok values ->
-                            ( { model | status = FormLayout.Submitting }, send values )
-
-                        Err _ ->
-                            Form.reveal form model.form
-                                |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
-
-            Replied [] ->
-                ( { model | form = Form.markClean model.form, status = FormLayout.Succeeded "Saved." }, Cmd.none )
-
-            Replied found ->
-                Form.rejected found form model.form
-                    |> Tuple.mapBoth (\state -> { model | form = state, status = FormLayout.Idle }) (Cmd.map FormMsg)
+            Replied ticket result ->
+                Form.finish ticket result form model.form
+                    |> Tuple.mapBoth (\state -> { model | form = state }) (Cmd.map FormMsg)
 
     -- your request to the server; this package has no HTTP
-    send : Values -> Cmd Msg
-    send _ =
+    send : Submission.Ticket -> Values -> Cmd Msg
+    send _ _ =
         Cmd.none
 
     -- THE VIEW
@@ -139,8 +137,11 @@ control:
         let
             v =
                 Form.bind Locale.default FormMsg form model.form
+
+            saving =
+                Submission.status (Form.submission model.form) == FormLayout.Submitting
         in
-        FormLayout.view [ FormLayout.id "customer", FormLayout.onSubmit Save ]
+        FormLayout.view [ FormLayout.id "customer", FormLayout.onSubmit Save, FormLayout.saving saving ]
             [ Form.summary v
             , FormLayout.section "Customer"
                 "Who the invoice is for."
@@ -153,9 +154,9 @@ control:
                 ]
             , FormLayout.unsavedFlag [] (Form.isDirty model.form)
             , FormLayout.actions
-                [ FormLayout.status [ FormLayout.id "customer" ] model.status
+                [ Submission.view [ FormLayout.onRetry Save ] (Form.submission model.form)
                 , Layout.spacer
-                , Button.view [ Button.primary, Button.submit ] "Save"
+                , Button.view [ Button.primary, Button.submit, Button.loading saving ] "Save"
                 ]
             ]
 
@@ -164,6 +165,14 @@ control:
         [ Select.option (CountryId "no") "Norway"
         , Select.option (CountryId "se") "Sweden"
         ]
+
+Server field keys default to the label's local key (`Email` becomes `email`).
+Use `Spec.serverKey` for a different backend name. `finish` keeps unknown keys in
+the summary as plain text, and carries known keys to their fields. Success marks
+the submitted snapshot clean; newer programmatic changes remain dirty. Bound
+inputs become read-only during submission, and `update` ignores control changes.
+Keep the state across attempts; the application must still correlate replies
+when switching records or replacing the editor with a new `init`.
 
 The state has no function in it, so the model can be compared, stored and
 tested. A `Msg` is not for comparing: the message of a `date` or `dateRange`
@@ -385,6 +394,7 @@ type alias View msg =
 and send only the optional `request`, carrying its ticket into the response.
 Duplicate submissions produce no request. Invalid input reveals and focuses the
 summary; retrying a request failure focuses the stable submission status region.
+Previous server problems do not prevent a new validated request.
 -}
 submit : Locale -> Form step fields values -> State step -> { state : State step, cmd : Cmd Msg, request : Maybe { ticket : Submission.Ticket, values : values } }
 submit =
@@ -393,7 +403,8 @@ submit =
 
 {-| Settles the matching save. `Ok` carries the success text; a
 `Submission.Rejected` carries server field keys and messages, and
-`Submission.Failed` a transport problem. Field keys are the handles' `domId`.
+`Submission.Failed` a transport problem. Field keys use `Spec.serverKey` (by
+default the label's local key); a handle's `domId` also addresses that field.
 Unrecognized keys stay visible in the summary without a broken focus link.
 Success marks only the submitted values clean. Older or duplicate replies are
 ignored within this state; the application still correlates record/editor sessions.
@@ -635,8 +646,9 @@ problems =
     Core.problems
 
 
-{-| `True` when `problems` is not empty. Use it to keep a Save button quiet or to
-colour a step: the language does not matter for the answer.
+{-| `True` when `problems` is not empty. Use it to mark a step or report problems;
+the language does not matter for the answer. Keep Save available except while
+submitting: a server problem may need another request to be resolved.
 -}
 hasProblems : Form step fields values -> State step -> Bool
 hasProblems =

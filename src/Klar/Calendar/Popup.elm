@@ -12,7 +12,7 @@ module Klar.Calendar.Popup exposing
     )
 
 {-| The popup shell shared by the date pickers: a click-away layer around a
-`role="dialog"` popup (see "Popups and focus" in `CLAUDE.md`).
+`role="dialog"` popup (see "Popups and focus" in `AGENTS.md`).
 
 Closing:
 

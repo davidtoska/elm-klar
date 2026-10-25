@@ -16,18 +16,6 @@ import Klar.Chart.Types exposing (Attribute(..), Axis, Config, Data(..), LegendI
 import Klar.Internal as Internal
 
 
-{-| A line chart with one or more series: a trend over categories, usually time.
-
-    Chart.line [ Chart.title "Orders per month", Chart.categories months ]
-        [ Chart.series "2025" [ 12, 18, 9, 22 ]
-        , Chart.series "2026" [ 14, 20, 15, 25 ]
-        ]
-
-The value axis follows the data; add `includeZero` to start it at zero. A
-missing value (see `seriesMaybe`) leaves a gap in the line. The legend shows for
-two or more series, and each category has a tooltip with its values.
-
--}
 line : List (Attribute msg) -> List Series -> Html msg
 line attributes seriesList =
     let

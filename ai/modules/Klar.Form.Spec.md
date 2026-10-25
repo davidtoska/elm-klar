@@ -69,6 +69,7 @@ maxDate : Date.Date -> Spec (Maybe Date.Date) o -> Spec (Maybe Date.Date) o
 minMoney : Money.Money -> Spec (Maybe Money.Money) o -> Spec (Maybe Money.Money) o
 maxMoney : Money.Money -> Spec (Maybe Money.Money) o -> Spec (Maybe Money.Money) o
 hint : String -> Spec c o -> Spec c o
+serverKey : String -> Spec c o -> Spec c o
 withMessage : (Locale.Locale -> String) -> Spec c o -> Spec c o
 ```
 
@@ -736,6 +737,18 @@ hint : String -> Spec c o -> Spec c o
 ```
 
 A short help text under the field. A later `withMessage` keeps it.
+
+### `serverKey`
+
+```elm
+serverKey : String -> Spec c o -> Spec c o
+```
+
+The server's field key for save rejections. Defaults to the label's local
+key, without the form prefix (`Email` becomes `email`). It changes no DOM id.
+Use it when the backend calls a field something else, such as `email_address`.
+`Form.finish` matches only an unambiguous key; unknown or ambiguous keys remain
+in the summary. Repeated rows can be addressed by their handles' `Form.domId`.
 
 ### `withMessage`
 

@@ -334,8 +334,17 @@ update context msg backend model =
         NoOp ->
             ( model, backend, Cmd.none )
 
-        SubmissionMsg _ ->
-            ( model, backend, Cmd.none )
+        SubmissionMsg inner ->
+            case model.editing of
+                Nothing ->
+                    ( model, backend, Cmd.none )
+
+                Just editor ->
+                    let
+                        ( submission, cmd ) =
+                            Submission.update inner editor.submission
+                    in
+                    ( { model | editing = Just { editor | submission = submission } }, backend, Cmd.map SubmissionMsg cmd )
 
         Loaded ticket result ->
             if ticket /= model.ticket then
@@ -905,7 +914,12 @@ submit context backend editor model =
 
             attempt =
                 Submission.begin
-                    (if List.isEmpty found then Ok (Editor.toInput settled) else Err found)
+                    (if List.isEmpty found then
+                        Ok (Editor.toInput settled)
+
+                     else
+                        Err found
+                    )
                     editor.submission
 
             ( backend1, requestCmd ) =
@@ -947,7 +961,11 @@ saved order backend model =
             closeEditor model
 
         table =
-            if created then Table.setPage 1 closed.table else closed.table
+            if created then
+                Table.setPage 1 closed.table
+
+            else
+                closed.table
 
         ( fetched, backend1, fetchCmd ) =
             fetch backend { closed | table = table }
@@ -955,6 +973,7 @@ saved order backend model =
         notice =
             if created then
                 Notify Success "Order created" (Types.orderIdText order.id ++ " was added as a draft for " ++ order.customer ++ ".")
+
             else
                 Notify Success "Order saved" (Types.orderIdText order.id ++ " was updated.")
     in
@@ -1008,14 +1027,6 @@ isEditing model =
 
         Nothing ->
             False
-
-
-{-| A change by the user to the editor's state that is not a field (the status of
-the submit, the server's complaints).
--}
-editWith : (Editor.Editor -> Editor.Editor) -> Model -> Model
-editWith change model =
-    { model | editing = Maybe.map change model.editing }
 
 
 {-| What to tell the user about a failed request: the server's own words when it

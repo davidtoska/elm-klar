@@ -28,14 +28,6 @@ import Klar.Table.Types exposing (Attribute(..), Column(..), Ctx, DataStatus(..)
 import Klar.Table.Window exposing (virtualGeometry)
 
 
-{-| Draws the table: toolbar, header, rows, totals row and pagination. `toMsg`
-wraps the table's own messages, usually the constructor you handle in `update`.
-The attributes describe the table (columns, rows, options) and are given on every
-call; the `State` only holds what the user changed.
-
-    Table.view TableMsg [ Table.columns columns, Table.remote model.orders ] model.table
-
--}
 view : (Msg -> msg) -> List (Attribute id row msg) -> State id -> Html msg
 view toMsg attributes (State model) =
     let

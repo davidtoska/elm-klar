@@ -9,6 +9,7 @@ node_modules/
 /example/main.js
 /example/examples/*.js
 /example/docs.json
+/example/reference/
 
 # Editors and OS
 .idea/
@@ -16,9 +17,5 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Calendar application build output and data
-/calendar/main.js
-/calendar/server/data.json
-/calendar/server/data.json.tmp
-/calendar/server/showcase-data.json
-/calendar/server/showcase-data.json.tmp
+# Legacy calendar JSON backups; the application now lives in apps/calendar.
+/calendar/

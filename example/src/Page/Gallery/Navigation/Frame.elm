@@ -281,34 +281,8 @@ shellSection playground locale model =
                 , shell playground locale model
                 ]
             )
-        , Doc.props shellProps
+        , Doc.reference [ "Klar.AppShell" ]
         ]
-
-
-shellProps : List { name : String, type_ : String, description : String }
-shellProps =
-    [ { name = "brand, brandLink", type_ = "Html msg, { name, href, logo } -> Html msg", description = "The product name or logo at the top left. brandLink makes a link to the start page; give it a logo, because below 430 px only the logo is left." }
-    , { name = "sidebar", type_ = "Html msg", description = "The content of the sidebar, usually SideNav.view. Without a sidebar there is no column and no menu button." }
-    , { name = "sidebarCollapsed", type_ = "Bool", description = "Icons only on wide screens. Owned by the application." }
-    , { name = "onToggleSidebar", type_ = "msg", description = "Sent by the button in the top bar on wide screens." }
-    , { name = "drawerOpen", type_ = "Bool", description = "Is the drawer open on narrow screens? Owned by the application." }
-    , { name = "onToggleDrawer", type_ = "msg", description = "Sent by the menu button on narrow screens (onToggleSidebar is used when this is missing)." }
-    , { name = "onCloseDrawer", type_ = "msg", description = "A click on the backdrop, and Escape. Close the drawer when the address changes too." }
-    , { name = "onSearch", type_ = "msg", description = "Shows the search field in the middle of the top bar. The shortcut (Ctrl K) belongs to the application." }
-    , { name = "searchPlaceholder, searchShortcut", type_ = "String, List String", description = "The text and the key caps in the search field. An empty list hides the shortcut." }
-    , { name = "actions", type_ = "List (Html msg)", description = "Buttons at the right of the top bar, before the user: language, help, notifications." }
-    , { name = "userName, userRole, userAvatar", type_ = "String, String, Html msg", description = "Name and role next to a circle with the initials. userAvatar replaces the circle (an Avatar, a photo)." }
-    , { name = "userMenu", type_ = "Html msg", description = "A Menu.view after the name: my profile, sign out." }
-    , { name = "banner", type_ = "Html msg", description = "A message above the top bar, for example Alert.banner." }
-    , { name = "contentMaxWidth, contentPadding", type_ = "Int", description = "The largest width in pixels, and the space around the content (the 4px scale, default 6)." }
-    , { name = "overlays", type_ = "List (Overlay msg)", description = "Dialogs, drawers, the palette and toasts, as their views return them. They are placed outside the part that becomes inert while one of them is open." }
-    , { name = "onSkipToContent", type_ = "msg", description = "\"Skip to main content\". Answer it with AppShell.focusContent (a plain #link would change the route)." }
-    , { name = "onStrayDrop", type_ = "msg", description = "Cancels a file dropped outside a drop zone, which would make the browser replace the whole application with the file." }
-    , { name = "shortcuts", type_ = "Html.Attribute msg", description = "The place for Shortcut.listen: the global keyboard shortcuts of the application." }
-    , { name = "height, width", type_ = "Int", description = "Draw the shell as a framed box instead of filling the window. Used by this page." }
-    , { name = "id, locale", type_ = "String, Locale", description = "The DOM id (default klar-app-shell) and the language of the built-in text." }
-    , { name = "focusContent, focusMenuButton, resetScroll", type_ = "String -> msg -> Cmd msg", description = "Move focus to the content or to the menu button, and scroll the content to the top (the page itself never scrolls, so do it when the route changes)." }
-    ]
 
 
 shell : Config.Config -> Locale -> Model -> Html Msg
@@ -663,7 +637,7 @@ sideNavSection playground locale model =
                     )
                 ]
             )
-        , Doc.props sideNavProps
+        , Doc.reference [ "Klar.SideNav" ]
         ]
 
 
@@ -674,23 +648,6 @@ navPreview playground caption nav =
         , Card.view (Options.klarCard playground (List.concat [ Config.keep playground "Card" "flush" Card.flush ]))
             [ Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "padding" (Layout.padding 2), Config.keep playground "Layout" "gap" (Layout.gap 0) ])) [ nav ] ]
         ]
-
-
-sideNavProps : List { name : String, type_ : String, description : String }
-sideNavProps =
-    [ { name = "item", type_ = "{ key, label, href } -> Entry msg", description = "A link. The key says which link is the current page." }
-    , { name = "group", type_ = "{ key, label } -> List (Entry msg) -> Entry msg", description = "A group that opens and closes. Groups can contain groups." }
-    , { name = "section, rule", type_ = "String -> List (Entry msg) -> Entry msg, Entry msg", description = "A block with a heading, and a thin line between entries." }
-    , { name = "withIcon, withCount, withBadge", type_ = "Entry msg -> Entry msg", description = "An icon, a count (99+ above 99) and any badge. In the collapsed menu the count becomes a dot and the badge is hidden." }
-    , { name = "disabledItem", type_ = "Entry msg -> Entry msg", description = "Visible but not clickable. Skipped by Tab and the arrow keys." }
-    , { name = "entries, current", type_ = "List (Entry msg), String", description = "The menu, and the key of the current page (aria-current)." }
-    , { name = "collapsed", type_ = "Bool", description = "Icons only. Give the same value to AppShell.sidebarCollapsed." }
-    , { name = "onSelect", type_ = "String -> msg", description = "A plain left click on a link (not with Ctrl, Cmd or Shift). The link still navigates." }
-    , { name = "ariaLabel, locale", type_ = "String, Locale", description = "The name of the nav landmark (default \"Main menu\") and the language of the built-in text." }
-    , { name = "init, reveal", type_ = "String -> State, String -> List (Entry msg) -> State -> State", description = "An empty state with a unique id, and opening the groups that hold a link so that it is not hidden." }
-    , { name = "expandGroup, collapseGroup, isExpanded", type_ = "String -> State -> ...", description = "Open and close groups from the application." }
-    , { name = "focusLink", type_ = "String -> State -> msg -> Cmd msg", description = "Moves keyboard focus to a link, for example when the drawer opens." }
-    ]
 
 
 sideNavCode : String

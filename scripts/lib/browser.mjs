@@ -21,6 +21,7 @@ export async function browser() {
   }
   const child = spawn(executable, ['--headless=new', '--disable-gpu', '--no-first-run',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
+    '--disable-backgrounding-occluded-windows',
     '--no-default-browser-check', '--remote-debugging-address=127.0.0.1',
     '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
   { stdio: 'ignore', windowsHide: true });
@@ -122,6 +123,7 @@ export async function browser() {
       },
       async navigate(url) {
         await send('Page.navigate', { url });
+        await send('Page.bringToFront');
         await wait(`location.href === ${JSON.stringify(url)} && document.readyState === "complete"`);
       },
     };

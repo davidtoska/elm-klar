@@ -266,7 +266,7 @@ view : List (Attribute msg) -> List (Html msg) -> Html msg
 
 The `form` element around the sections, the error summary and the button row.
 It has `novalidate`, so the browser shows none of its own validation bubbles.
-Reads `id`, `ariaLabel`, `onSubmit` and `stacked`.
+Reads `id`, `ariaLabel`, `onSubmit`, `stacked` and `saving`.
 
     FormLayout.view [ FormLayout.id "order-form", FormLayout.onSubmit Submit ]
         [ FormLayout.section "Customer" "Who the invoice is for." [ customerFields ]
@@ -627,7 +627,9 @@ saving : Bool -> Attribute msg
 
 While `True` the "Save" button of the banner shows a spinner and ignores
 clicks, and the "Discard" button is disabled (`unsavedChanges`). Pass a field of
-your model that is `True` while the request is running. The default is `False`.
+your model that is `True` while the request is running. It also sets `aria-busy`
+on the form drawn by `view`. Derive it from `Submission.status` for the shared
+save lifecycle; no separate busy flag is needed. The default is `False`.
 
 ### `sticky`
 

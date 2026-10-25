@@ -11,18 +11,20 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createCompiler, describe } from './playground-compiler.mjs';
-import { createCalendarHandler } from '../calendar/server/server.mjs';
+import { startCalendar, calendarDir } from './lib/calendar.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'example');
 const port = Number(process.argv[2] || 8000);
 const playground = createCompiler(root);
-const calendar = createCalendarHandler({ demoMode: true, dataFile: path.join(root, 'calendar/server/showcase-data.json'), cookiePath: '/calendar-app/' });
 
 if (!process.argv.includes('--no-build')) {
   const build = spawnSync(process.execPath, [path.join(root, 'scripts', 'build-example.mjs')], { stdio: 'inherit' });
   if (build.status !== 0) process.exit(build.status ?? 1);
 }
+
+const legacyStore = [path.join(root, 'calendar/server/showcase-data.json'), path.join(calendarDir, 'server/showcase-data.json')].find(file => fs.existsSync(file)) || '';
+const calendar = await startCalendar({ prefix: '/calendar-app', db: process.env.KLAR_CALENDAR_SHOWCASE_DB, legacy: process.env.KLAR_CALENDAR_LEGACY_JSON ?? legacyStore });
 
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -36,13 +38,25 @@ const server = http
   .createServer(async (request, response) => {
     const json = (status, value) => { response.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); response.end(JSON.stringify(value)); };
     const requestUrl = new URL(request.url || '/', 'http://localhost');
+    if (request.method === 'GET' && requestUrl.pathname === '/favicon.ico') {
+      response.writeHead(204); response.end(); return;
+    }
     if (requestUrl.pathname === '/calendar-app') {
       response.writeHead(302, { Location: '/calendar-app/' });
       return response.end();
     }
     if (requestUrl.pathname.startsWith('/calendar-app/')) {
-      request.url = request.url.slice('/calendar-app'.length);
-      return calendar(request, response);
+      const target = new URL(request.url, calendar.url);
+      const upstream = http.request(target, { method: request.method, headers: { ...request.headers, host: target.host } }, result => {
+        response.writeHead(result.statusCode, result.headers);
+        result.pipe(response);
+      });
+      upstream.on('error', () => {
+        if (!response.headersSent) response.writeHead(502, { 'Content-Type': 'text/plain' });
+        response.end('Calendar server unavailable. Restart npm start.');
+      });
+      request.pipe(upstream);
+      return;
     }
     if (requestUrl.pathname.startsWith('/__playground/')) {
       try {
@@ -77,12 +91,18 @@ const server = http
     response.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     fs.createReadStream(file).pipe(response);
   })
-  .listen(port, '127.0.0.1', () => console.log(`Klar showcase: http://localhost:${port}/`));
+  .listen(port, '127.0.0.1', () => {
+    const url = `http://127.0.0.1:${server.address().port}/`;
+    console.log(`Klar showcase: ${url}`);
+    process.send?.({ type: 'ready', url });
+  });
 
 async function shutdown() {
   server.close();
+  await calendar.close();
   await playground.close();
   process.exit(0);
 }
 process.once('SIGINT', shutdown);
 process.once('SIGTERM', shutdown);
+if (process.send) process.on('message', message => { if (message?.type === 'shutdown') shutdown(); });

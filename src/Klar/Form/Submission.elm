@@ -1,26 +1,79 @@
 module Klar.Form.Submission exposing
-    ( State, Msg, Ticket, Error(..), Problem, init, update
+    ( view
+    , State, Msg, Ticket, Error(..), Problem, init, update
     , begin, finish, edited, reset, status, problems
-    , view
     )
 
 {-| A transport-neutral save lifecycle, shared by declared and hand-wired forms.
 
-Use when: a hand-wired form needs validation, one request at a time, server field errors and retry focus.
-Do not use when: the form uses `Klar.Form` (use its `submit`, `finish` and `submission`), or you are loading records (use `Klar.Remote`).
+Use when: a hand-wired form needs a save lifecycle, or you draw the submission status kept inside a declared form.
+Do not use when: you are loading records (use `Klar.Remote`), or adding a second state to a declared form (use `Klar.Form.submit`, `finish` and `submission`).
 Quick path: `init`, `begin`, send the returned request, `finish`, `view`.
 
+    import Klar.Form.Layout as FormLayout
 
-    save =
-        Submission.begin (Ok draft) model.submission
+    type alias Model =
+        { draft : String, submission : Submission.State }
 
-    -- Keep save.state and map save.cmd through your SubmissionMsg constructor.
-    -- Send only save.request, carrying its ticket into the server reply.
-    -- Submission.finish ticket (Ok "Saved.") model.submission acknowledges it.
+    type Msg
+        = Save
+        | SubmissionMsg Submission.Msg
+        | Replied Submission.Ticket (Result Submission.Error String)
+
+    initial : Model
+    initial =
+        { draft = "", submission = Submission.init "order-form" }
+
+    -- In your Save branch:
+    save : Model -> ( Model, Cmd Msg )
+    save model =
+        let
+            attempt =
+                Submission.begin (Ok model.draft) model.submission
+        in
+        ( { model | submission = attempt.state }
+        , Cmd.batch
+            [ Cmd.map SubmissionMsg attempt.cmd
+            , attempt.request |> Maybe.map (\request -> send request.ticket request.values) |> Maybe.withDefault Cmd.none
+            ]
+        )
+
+    update : Msg -> Model -> ( Model, Cmd Msg )
+    update msg model =
+        case msg of
+            Save ->
+                save model
+
+            SubmissionMsg inner ->
+                Submission.update inner model.submission
+                    |> Tuple.mapBoth (\state -> { model | submission = state }) (Cmd.map SubmissionMsg)
+
+            Replied ticket result ->
+                Submission.finish ticket result model.submission
+                    |> Tuple.mapBoth (\state -> { model | submission = state }) (Cmd.map SubmissionMsg)
+
+    -- The application supplies its transport here:
+    send : Submission.Ticket -> String -> Cmd Msg
+    send _ _ =
+        Cmd.none
+
+    -- In the view, keep this region even when idle:
+    viewStatus : Model -> Html.Html Msg
+    viewStatus model =
+        Submission.view [ FormLayout.onRetry Save ] model.submission
+
+`SubmissionMsg` wraps `Msg`, and `send` is the application's request function.
+`Error` is a closed distinction between field rejection and request failure;
+additional server error kinds belong in `Remote.Problem`, not more constructors.
 
 Tickets reject duplicate and older replies within a state. Keep the state when
 starting another attempt. The application must also correlate replies with the
 record or editor session when it replaces that state with a new `init`.
+
+
+# Display
+
+@docs view
 
 
 # State
@@ -32,15 +85,10 @@ record or editor session when it replaces that state with a new `init`.
 
 @docs begin, finish, edited, reset, status, problems
 
-
-# Display
-
-@docs view
-
 -}
 
 import Html exposing (Html)
-import Klar.Form.Layout as Layout
+import Klar.Form.Layout as FormLayout
 import Klar.Remote as Remote
 
 
@@ -51,7 +99,7 @@ type State
         { id : String
         , serial : Int
         , pending : Maybe Ticket
-        , status : Layout.Status
+        , status : FormLayout.Status
         , problems : List Problem
         }
 
@@ -86,7 +134,7 @@ type alias Problem =
 -}
 init : String -> State
 init id =
-    State { id = id, serial = 0, pending = Nothing, status = Layout.Idle, problems = [] }
+    State { id = id, serial = 0, pending = Nothing, status = FormLayout.Idle, problems = [] }
 
 
 {-| Handles focus acknowledgements; does not change values or issue requests.
@@ -109,8 +157,8 @@ begin validation ((State state) as current) =
     else
         case validation of
             Err found ->
-                { state = State { state | status = Layout.Idle, problems = found }
-                , cmd = Layout.focusSummary state.id NoOp
+                { state = State { state | status = FormLayout.Idle, problems = found }
+                , cmd = FormLayout.focusSummary state.id NoOp
                 , request = Nothing
                 }
 
@@ -119,11 +167,11 @@ begin validation ((State state) as current) =
                     ticket =
                         Ticket state.id (state.serial + 1)
                 in
-                { state = State { state | serial = state.serial + 1, pending = Just ticket, status = Layout.Submitting, problems = [] }
+                { state = State { state | serial = state.serial + 1, pending = Just ticket, status = FormLayout.Submitting, problems = [] }
                 , cmd =
                     case state.status of
-                        Layout.Failed _ ->
-                            Layout.focusStatus state.id NoOp
+                        FormLayout.Failed _ ->
+                            FormLayout.focusStatus state.id NoOp
 
                         _ ->
                             Cmd.none
@@ -143,13 +191,13 @@ finish ticket result ((State state) as current) =
     else
         case result of
             Ok message ->
-                ( State { state | pending = Nothing, status = Layout.Succeeded message, problems = [] }, Cmd.none )
+                ( State { state | pending = Nothing, status = FormLayout.Succeeded message, problems = [] }, Cmd.none )
 
             Err (Failed problem) ->
-                ( State { state | pending = Nothing, status = Layout.Failed problem, problems = [] }, Cmd.none )
+                ( State { state | pending = Nothing, status = FormLayout.Failed problem, problems = [] }, Cmd.none )
 
             Err (Rejected found) ->
-                ( State { state | pending = Nothing, status = Layout.Idle, problems = found }, Layout.focusSummary state.id NoOp )
+                ( State { state | pending = Nothing, status = FormLayout.Idle, problems = found }, FormLayout.focusSummary state.id NoOp )
 
 
 {-| Clears only this field's problems after its value changes, preserving all others.
@@ -169,13 +217,13 @@ reusing tickets. Use for an explicit discard or when loading another record.
 -}
 reset : State -> State
 reset (State state) =
-    State { state | pending = Nothing, status = Layout.Idle, problems = [] }
+    State { state | pending = Nothing, status = FormLayout.Idle, problems = [] }
 
 
 {-| Current presentation status, initially `Form.Layout.Idle`.
 Compare with `Form.Layout.Submitting` for read-only controls and `aria-busy`.
 -}
-status : State -> Layout.Status
+status : State -> FormLayout.Status
 status (State state) =
     state.status
 
@@ -191,6 +239,6 @@ problems (State state) =
 Its id comes from `init`; the caller supplies `Form.Layout.onRetry` to request
 another attempt. Keep this region in the view even while idle.
 -}
-view : List (Layout.Attribute msg) -> State -> Html msg
+view : List (FormLayout.Attribute msg) -> State -> Html msg
 view attributes (State state) =
-    Layout.status (attributes ++ [ Layout.id state.id ]) state.status
+    FormLayout.status (attributes ++ [ FormLayout.id state.id ]) state.status

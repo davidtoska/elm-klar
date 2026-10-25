@@ -1,6 +1,4 @@
-// Shared helpers for the scripts that read the documentation of the package
-// (gen-ai-docs.mjs, check-doc-examples.mjs): build docs.json in a private workspace and
-// parse the documentation comments.
+// Shared compilation and parsing for the package documentation checks/generator.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -24,15 +22,19 @@ export function moduleGroups() {
   return groups;
 }
 
-// The output of `elm make --docs` for the whole package, built in a private workspace in the
-// OS temp directory so that it never shares an elm-stuff directory with another run.
-export function loadDocs() {
-  const key = crypto.createHash('sha1').update('ai-docs' + root).digest('hex').slice(0, 10);
+// check-documentation.mjs supplies one freshly compiled snapshot to its children.
+// Standalone checks compile current sources; targeted checks use their own workspace.
+export function loadDocs(modules) {
+  const shared = process.argv.find(arg => arg.startsWith('--docs-file='));
+  if (shared && !modules) return JSON.parse(fs.readFileSync(shared.slice('--docs-file='.length), 'utf8'));
+  const outline = readElmJson();
+  if (modules) outline['exposed-modules'] = modules;
+  const key = crypto.createHash('sha1').update('ai-docs' + root + JSON.stringify(outline)).digest('hex').slice(0, 10);
   const workspace = path.join(os.tmpdir(), 'klar-ai-docs-ws', key);
   fs.mkdirSync(workspace, { recursive: true });
   const srcLink = path.join(workspace, 'src');
   if (!fs.existsSync(srcLink)) fs.symlinkSync(path.join(root, 'src'), srcLink, 'junction');
-  fs.copyFileSync(path.join(root, 'elm.json'), path.join(workspace, 'elm.json'));
+  fs.writeFileSync(path.join(workspace, 'elm.json'), JSON.stringify(outline, null, 4));
   const out = path.join(workspace, 'docs.json');
   const run = spawnSync(`elm make --docs="${out}"`, { cwd: workspace, encoding: 'utf8', shell: true });
   if (run.status !== 0) {

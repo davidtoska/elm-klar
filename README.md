@@ -1,22 +1,37 @@
 # Klar
 
-**Precise, data-dense interface components for data-intensive Elm applications.**
+**Precise, data-dense UI components for data-intensive Elm applications.**
 
-*Klar* is Norwegian for "clear" and "ready". The idea is a user interface for
-applications where people work with a lot of data all day: tables with thousands of
-rows, searchable lists with thousands of options, filters, rules, dates, forms,
-dialogs. It is calm, small-typed and exact, and it never makes the user wonder what
-state the data is in.
+*Klar* is Norwegian for "clear" and "ready". It is a toolkit for applications
+where people work with tables, filters, forms, dates, dialogs and dashboards all
+day. Complexity belongs inside the components; applications keep their own data,
+identities and business logic.
+
+The package is in active development before its first publication. The public
+API may change until then. See [ROADMAP.md](ROADMAP.md) for remaining work.
+
+## Start here
+
+- Building an application: [AI.md](AI.md).
+- Full module reference: [generated documentation](ai/modules/README.md).
+- Complete programs: [example/src/Examples/](example/src/Examples/).
+- Developing the library: [AGENTS.md](AGENTS.md).
+
+After publication, install with `elm install davidtoska/elm-klar`. For now,
+use the source-directory setup in [AI.md](AI.md#getting-klar-into-a-project).
+Klar supports Elm 0.19.x and is developed with 0.19.3.
+
+## A small example
 
 ```elm
 Table.view TableMsg
     [ Table.columns
         [ Table.text (Table.columnId "id") "Order" .id [ Table.pinned ]
         , Table.text (Table.columnId "customer") "Customer" .customer [ Table.filterText ]
-        , Table.money (Table.columnId "total") "Total" .total [ Table.footerSum ] -- a Klar.Money: exact sums
+        , Table.money (Table.columnId "total") "Total" .total [ Table.footerSum ]
         ]
-    , Table.remote model.orders -- a Remote (List Order): loading, failure and empty are drawn for you
-    , Table.rowId orderIds .id -- your own OrderId, written as text once with Klar.Ids
+    , Table.remote model.orders
+    , Table.rowId orderIds .id
     , Table.searchable
     , Table.selectable
     , Table.onRetry Reload
@@ -24,325 +39,72 @@ Table.view TableMsg
     model.table
 ```
 
-* **A complete toolkit.** More than a hundred components: a data table (client and server
-  mode), searchable selects and tree pickers, date, time and recurrence pickers, exact
-  money and checksum-checked identifiers, a rule builder and filter bar, dialogs and
-  drawers, toasts, a command palette, charts, trees, timelines, drag-to-reorder lists,
-  resizable panes, diffs, a safe Markdown renderer and the frame of an application.
-* **Plain Elm, plain CSS.** The package depends only on official `elm/*` packages:
-  `core`, `html`, `browser`, `json`, `time`, `url` and `file` (`file` only for
-  `Klar.FileDrop`, the file fields of `Klar.Form` and the CSV export of
-  `Klar.Table`). No ports, no JavaScript, no `elm/svg`, no `elm/http`, no external
-  fonts, no CDN.
-* **Zero setup.** The stylesheet is part of the package: put `Klar.stylesheet` in your
-  view and you are done.
-* **Every state, always.** Components that show data from a backend take a `Remote`
-  and draw loading, failure (with retry), empty and data themselves.
-* **Keyboard first, accessible by design.** Roles, `aria-*` wiring, focus that never
-  disappears, announcements for async changes.
-* **Honest with input.** A number outside its range is shown with an error, never
-  quietly changed. Formatting rounds the way a person would by hand.
-* **Built-in text in English and Norwegian Bokmål** (`Klar.Locale`).
+The application owns the rows and requests. `Table.remote` presents loading,
+failure, empty, refreshing and retained old data. Stateful components follow the
+Elm Architecture with `State`, `Msg`, `update` and `view`.
+The [application starter](example/src/Examples/Application.elm) shows complete
+wiring for the shell, settings, table, requests and overlays.
 
-## Install
+## What Klar provides
 
-```bash
-elm install davidtoska/elm-klar
-```
+The toolkit includes tables and server lists, searchable and hierarchical
+pickers, forms and validation, exact money, dates and recurrence, charts,
+overlays, keyboard navigation, Markdown, diffs and review workflows.
+Use the [generated module index](ai/modules/README.md) for the complete catalog.
 
-Klar works with Elm 0.19.x (developed and tested with 0.19.3). To use it before it
-is published, see "Getting Klar into a project" in [AI.md](AI.md).
+- **Plain Elm.** The library depends only on official `elm/*` packages. It has
+  no ports, JavaScript, external fonts, CDN or transport dependency.
+- **Styles included.** Put `Klar.stylesheet` in the view, or use
+  `Klar.stylesheetFor model.settings` for a theme and density. Layout comes from
+  typed components rather than application CSS.
+- **Honest data and input.** Remote state travels with the data; invalid input
+  remains visible rather than being silently changed.
+- **Localized built-in text.** English and Norwegian Bokmål through `Klar.Locale`.
+- **Application-owned integration.** Applications may use HTTP, ports and
+  JavaScript adapters for persistence and external data at their boundary.
 
-An AI that builds the application starts with [AI.md](AI.md): the mental model, the ten
-rules, which module to use for what, and seven complete programs in
-[example/src/Examples/](example/src/Examples).
-
-## A first program
-
-```elm
-module Main exposing (main)
-
-import Browser
-import Html exposing (Html)
-import Klar
-import Klar.Button as Button
-import Klar.Card as Card
-import Klar.Icon as Icon
-import Klar.Layout as Layout
-import Klar.TextInput as TextInput
-
-
-type alias Model =
-    { customer : String }
-
-
-type Msg
-    = CustomerChanged String
-    | Save
-
-
-main : Program () Model Msg
-main =
-    Browser.sandbox
-        { init = { customer = "" }
-        , update = update
-        , view = view
-        }
-
-
-update : Msg -> Model -> Model
-update msg model =
-    case msg of
-        CustomerChanged customer ->
-            { model | customer = customer }
-
-        Save ->
-            model
-
-
-view : Model -> Html Msg
-view model =
-    Layout.stack [ Layout.gap 4 ]
-        [ -- once, anywhere in the view: the stylesheet of the package
-          Klar.stylesheet
-        , Card.view [ Card.title "New order" ]
-            [ TextInput.view
-                [ TextInput.label "Customer"
-                , TextInput.value model.customer
-                , TextInput.onInput CustomerChanged
-                , TextInput.required
-                ]
-            , Button.view [ Button.primary, Button.icon Icon.save, Button.onClick Save ] "Save"
-            ]
-        ]
-```
-
-This program is mounted with `Elm.Main.init({ node: document.getElementById("app") })`,
-because `Browser.sandbox` and `Browser.element` need a node. A whole application with
-the `AppShell` is a `Browser.application` (or `Browser.document`) and is mounted with
-plain `Elm.Main.init()`; it also needs `elm/url` as a direct dependency. The shell keeps
-its sidebar, drawer, side menu and skip link in one `AppShell.State`, so the wiring in
-your `update` is one `ShellMsg` branch that tells you when the route changed. The complete
-program, with `index.html`, is "The standard application" in [AI.md](AI.md).
-
-Components are configured with a list of attributes, like `Html`. A component that
-has state of its own (a select that is open, a table that is sorted) comes with
-`State`, `Msg`, `update` and `view`, and is wired like any child in the Elm
-Architecture. The conventions are described in the [`Klar`
-module](https://package.elm-lang.org/packages/davidtoska/elm-klar/latest/Klar) and
-every module has an example.
-
-## What is in it
-
-| | Modules |
-| --- | --- |
-| **Foundations** | `Theme`, `Color`, `Settings`, `Locale`, `Layout`, `Card`, `Text`, `Icon` |
-| **Icon library** | 500 icons in one style: `Icon` and `Icon.Library`, plus `Icon.Arrows`, `Icon.Business`, `Icon.Data`, `Icon.Documents`, `Icon.Logistics` and more |
-| **Actions** | `Button`, `Menu`, `ButtonGroup`, `ToggleGroup`, `SplitButton`, `Link`, `Kbd` |
-| **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
-| **Forms** | `Form` (the form model), `Form.Spec` (declaring a form), `Form.Layout` (the frame), `Form.Check` (tests), `Field`, `Validate` |
-| **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `QuantityInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
-| **Choosing** | `Select` (and `Select.Option`, the option type of `Select`, `MultiSelect`, `Autocomplete` and `Transfer`), `Ids` (your id type as text, once), `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
-| **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
-| **Tables and lists** | `Table`, `Budget`, `Pagination`, `ListItem`, `Tree`, `CardList`, `WorkQueue` |
-| **Overlays** | `Overlay`, `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
-| **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
-| **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
-| **Arranging** | `Sortable`, `Splitter`, `Kanban` (validated moves and work-in-progress limits) |
-| **Pages and flow** | `StatusPage`, `BulkBar`, `LeaveGuard`, `History` |
-| **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare`, `AuditLog`, `ConflictResolver`, `CodeBlock`, `CommentThread` |
-| **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
-| **Processes and state** | `Workflow`, `Workflow.Engine`, `Workflow.Codec`, `WorkflowNode`, `WorkflowBuilder`, `WorkflowRun`, `StateMachine` |
-| **AI** | `AiReview` (sources, before/after, version-bound approval and statement discussion), `AiChat` (streaming, cancellation, safe Markdown and preserved drafts) |
-| **Data display** | `Stat`, `Chart` (line, bar, donut, gauge, meter, sparkline), `Timeline`, `Avatar`, `JsonViewer` |
-| **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews`, `ServerList` (a server-side list with all three) |
-| **Data and utilities** | `Remote`, `RemoteView`, `Search`, `Format`, `Shortcut` |
-| **Persistent notifications** | `NotificationCenter` (unread filtering, explicit read and dismiss, loaded-item bulk actions) |
-| **Files and media** | `UploadQueue` (validated file staging and transport-neutral byte progress) |
-
-All of them are under `Klar.`, for example `Klar.Table`. The API reference is on
-[package.elm-lang.org](https://package.elm-lang.org/packages/davidtoska/elm-klar/latest/).
-
-Some of the pure modules are useful on their own:
-
-* `Klar.Date`: calendar dates without a time zone, exact arithmetic.
-* `Klar.Format`: numbers, currency, percentages, sizes, durations and relative times.
-  Rounding works on the shortest decimal text, so `Format.decimal Locale.en 2 1.005` is
-  `"1.01"`, not `"1.00"`.
-* `Klar.Search`: search that ignores case and diacritics and ranks results.
-* `Klar.Validate`: composable validators with messages in two languages.
-* `Klar.Rule`: a tree of conditions, evaluated against your own records, with JSON.
-* `Klar.Remote`: `NotAsked | Loading | Loaded a | Failed Problem | Kept (Kept a)`.
-
-## The showcase
-
-The **Calendar** component tab (`#/components/calendar`) includes the complete
-Google Calendar-style application, with day, week, month and agenda views, shared
-calendars, recurring events and invitations. `npm start` builds and serves it
-alongside the component gallery. It also appears under Application examples
-(`#/applications/google-calendar`). Choose Ada, Bob or Cleo to explore local demo
-data, or open the calendar in its own tab. See `calendar/README.md` for import
-and standalone usage.
-
-Each component and supporting module has its own gallery page,
-for example `#/components/button`, `#/components/text-input` and
-`#/components/ai-chat`. The options inspector changes the real examples, including
-sizes, states, text, icons and composed content. Options are kept per component
-while navigating; **Original states** temporarily shows the untouched examples.
-The index, grouped sidebar and command palette link directly to component pages.
-The icon groups are browsable separately, for example `#/components/icon-arrows`;
-`#/components/icon-library` searches the entire icon collection. Supporting modules
-such as `Picking` and `Field` also have live examples.
-
-The inspector is generated from the exposed Elm attributes. After changing the
-public API, run `npm run gen:gallery`; `npm run check:gallery` checks that it is
-current, and `npm run test:gallery` tests the routes, examples and configuration.
-The gallery check also compares every exposed module with the page catalog, so a
-new helper or icon module cannot silently disappear from the demo.
-
-With `npm start`, every attribute also has an **Elm expression** editor. Choose a
-target example, write the complete attribute (including callbacks, typed records,
-lists or render functions), and press **Apply Elm expressions**. Add imports and
-helper definitions in **Scope, imports and helper definitions** for data and
-functions of your own. **Trace callback** supplies an editable message that reports
-the callback's arguments in the event log. Elm type errors appear in the panel;
-the last successful preview stays visible. Editing or resetting invalidates older
-compilation responses, and configurations remain independent per component.
-**View data, state and event mapping** also edits the view's positional arguments,
-including conversation/message records and component state passed outside the
-attribute list.
-
-The compiler uses a temporary copy of the example sources and never edits the
-working tree. Each preview compiles its component domain independently of the
-rest of the application. Static hosting retains the quick controls; custom Elm
-expressions require the local development server. `npm run test:compiler` checks
-real compilation of callbacks and custom typed data, as well as rejected types.
-
-The **Process studio** (`#/applications/process-studio`) builds and runs vertical
-workflows with AI work, manual tasks, approval, branches and bounded returns.
-Four templates cover character sheets, document triage, editorial review and
-membership admission through an interviewer, coordinator, managing director and
-registrar. Edit per-step JSON state, instructions, bindings and assigned roles;
-inspect outputs, attempts and decision identities while the Elm server simulator
-runs. Definitions import/export as JSON. Every component has its own gallery page
-under **Processes & state**. See [WORKFLOWS.md](WORKFLOWS.md) for the API boundary.
-
-The gallery's **AI workspace** (`#/components/ai`) combines statement-level review,
-sources, revision-specific comments and streaming chat. Its local server simulation
-lets you try failed saves, revision conflicts, stale data and interrupted responses.
-Klar stays transport neutral: your application server holds provider credentials,
-retrieves evidence, authorizes tool calls and applies approved proposals only after
-checking their proposal and target-record revisions. AI output never applies itself.
-
-[`example/`](example) is a complete application built only with this package: an
-operations console with a dashboard, orders (a server-mode table with a drawer
-editor), products, and a gallery with live examples of every component and state.
-Its backend is a dummy written in Elm, behind a request/response layer, with
-developer tools that make the pretend network fail so you can see how the interface
-behaves. Its Examples page opens seven small complete applications (an inbox, an edit
-form, delete with confirmation, a dashboard, a multi-step flow, a command palette and a review desk),
-each one Elm file in `example/src/Examples/`.
-
-The **Application examples** menu adds nine larger screens for connected AI apps:
-Google/Microsoft sign-in, account creation and password recovery, connected-app
-settings, GitHub repository permissions, Drive and Calendar imports, AI provider
-credentials and a JEV classification queue with human review. They use reusable
-Klar compositions with no extra CSS. All provider responses are simulated; secrets
-are cleared and never persisted. See [the application-pattern guide](example/APPLICATIONS.md)
-for routes, copying the patterns, extending the registry and server integration.
-
-The **Data workbench** gallery page connects five components in an order review desk:
-review a queue with j/k or arrow keys, select records as cards, resolve concurrent
-field edits, inspect audit diffs and manage notifications. The complete standalone
-program is [`ReviewDesk.elm`](example/src/Examples/ReviewDesk.elm), opened at
-`examples/review-desk.html` on the showcase server. Its controls exercise loading,
-failure, empty, refreshing and stale data for all five panels.
-
-The **Workflow toolkit** gallery page adds `Kanban`, `CommentThread`, `UploadQueue`,
-`CodeBlock` and `QuantityInput`. Move cards subject to WIP limits, post replies while
-keeping a newer draft, inspect exact byte progress, download unmodified source and
-enter a number with your own typed units. All five use the existing dependencies;
-the application still owns persistence, permissions and transport.
+## Run the showcase
 
 ```bash
-npm install     # once; installs elm-test and elm-format, nothing else
-npm start       # builds the showcase and serves it on http://localhost:8000
+npm install
+npm start
 ```
 
-Press `Ctrl K` for the command palette and `?` for the keyboard shortcuts.
+Open `http://localhost:8000`. The showcase has live component examples, an
+attribute inspector, complete programs and simulated backend failures.
+Component pages link to the generated API reference instead of separate API tables.
+Press `Ctrl K` for the command palette and `?` for shortcuts.
 
-The [Orders walkthrough](example/ORDERS.md) exercises failed reads, retained remote
-data, editing, failed saves and keyboard retry. Run `npm run build:example` and
-`npm run test:browser` for its automated focus checks. These also run in
-`npm run check`; they require Node 22+ and Chromium, Chrome or Edge
-(`KLAR_BROWSER` selects an executable).
+Useful walkthroughs:
 
-## Themes
+- [Orders: failure, editing, retry and focus](example/ORDERS.md).
+- [Connected application patterns](example/APPLICATIONS.md).
+- [Real Elm/Go/SQLite consumer and its findings](apps/kitchen-sink/README.md).
+- [Go HTTP query and upload contracts](example/HTTP.md).
+- [Process studio and its simulated server](example/WORKFLOWS.md).
+- [Calendar application and its Go/SQLite backend](apps/calendar/README.md).
 
-There are ten themes, each in a light and a dark mode, and an application picks one
-(an internal application usually picks one for the company and leaves it):
+Run `npm run check` for the repository checks, tests and builds. Browser checks
+require Node 22+ and Chromium, Chrome or Edge; `KLAR_BROWSER` selects the executable.
+The calendar backend also needs Go 1.26+ on PATH (or `KLAR_GO` pointing to Go).
 
-```elm
-Klar.stylesheetFor
-    (Settings.default
-        |> Settings.withTheme Theme.ocean
-        |> Settings.withMode Theme.System -- Light, Dark, or what the operating system says
-    )
-```
+## Styling, browsers and accessibility
 
-Klar, Ocean, Teal, Indigo, Violet, Plum, Slate, Graphite, Sand and Contrast (high
-contrast). None is green, amber or red, so an accent is never mistaken for success,
-a warning or an error. The colors are computed in Elm, and a test checks WCAG AA
-contrast for the pairs of the library with the colors that are on the page, in every
-theme and mode (the default light look, which is the stylesheet itself, included). There
-are no colors of your own on purpose: a color picked by hand cannot be promised to keep
-the contrast. `Theme.name` and `Theme.modeName` give the names for a picker in both
-languages, `Theme.key` and `Theme.modeKey` the text to store a choice with.
+The stylesheet includes a small page reset, so Klar assumes it owns the page.
+With a content security policy that requires a nonce, put `Klar.css` in a style
+element with your nonce. Themes, modes and design tokens are documented in
+[Klar.Theme](ai/modules/Klar.Theme.md).
 
-## Styling
+Klar targets current evergreen browsers. Popups use CSS anchor positioning where
+available, with a positioning fallback. Development and browser regression tests
+use Chromium. Firefox, Safari, touch, screen readers and Windows high contrast
+have not been tested systematically.
 
-`Klar.stylesheet` renders a `<style>` element with every rule of the library. It
-includes a small reset (box sizing, the page font and background, links, tables,
-focus rings), so Klar assumes that it owns the page. If your content security policy
-forbids inline styles without a nonce, draw `Klar.css` in a `<style>` element with your
-own `nonce`.
-
-The look is made of design tokens, CSS custom properties that components use instead
-of fixed colors, sizes and radii, listed in the documentation of `Klar.Theme`. An
-application picks a theme and writes no CSS; a token redefined by hand is outside the
-contrast that the themes are checked for.
-
-## Browsers
-
-Klar is built for current evergreen browsers. Popups (selects, menus, date pickers)
-use CSS anchor positioning where the browser has it, so they are never clipped by a
-scrolling parent and flip when there is no room, and fall back to plain positioning
-where it does not. It was developed and tested in Chromium, with real key presses and
-pointer events. Firefox and Safari, touch screens, screen readers, high-contrast mode
-and the dark modes have not been tested systematically (only in Chromium, on the showcase).
-
-## Accessibility
-
-Components follow the WAI-ARIA authoring practices: roles and properties, keyboard
-operation, focus that goes back to where it came from, live regions for changes that
-arrive later. The colors of the default look meet the WCAG 2.2 AA contrast ratios, and
-the application pages of the showcase pass the automated
-[axe-core](https://github.com/dequelabs/axe-core) checks for WCAG 2.2 AA. Automated
-checks find only a part of the problems, and the library has not been tested with
-screen readers yet; reports are welcome.
-
-## Stability
-
-Elm checks the version number of every release against its public API. Klar keeps the
-API small on purpose: sets that will grow, such as the icons and the languages, are
-values of an opaque type, so adding to them is never a breaking change.
-
-## Contributing
-
-[CLAUDE.md](CLAUDE.md) has the conventions, the documentation style, the checks
-(`npm run check`) and how a version is published.
+Components include keyboard handling, ARIA wiring, focus management and live
+regions. Theme color pairs have automated contrast tests. These checks do not
+replace testing with assistive technology; see the remaining accessibility work
+in [ROADMAP.md](ROADMAP.md).
 
 ## License
 
-[BSD 3-Clause](LICENSE). The icons are based on [Feather](https://feathericons.com)
-and [Lucide](https://lucide.dev); their license texts are at the end of [LICENSE](LICENSE).
+BSD-3-Clause. Feather and Lucide icon license texts are included in [LICENSE](LICENSE).

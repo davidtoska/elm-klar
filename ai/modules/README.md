@@ -40,6 +40,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Form](Klar.Form.md): A form as one value: the text and choices of every field, which fields the user has left, what the server refused, the rows of a repeating group, the step the user is on, and whether anything has ...
 - [Klar.Form.Spec](Klar.Form.Spec.md): The declaration of a form: its fields in order, each with a label and its rules, grouped in steps.
 - [Klar.Form.Layout](Klar.Form.Layout.md): The layout of a form and the parts around it.
+- [Klar.Form.Submission](Klar.Form.Submission.md): A transport-neutral save lifecycle, shared by declared and hand-wired forms.
 - [Klar.Form.Check](Klar.Form.Check.md): Tests for a form: what an `elm-test` file needs to be sure that a declaration is right, in one line each.
 - [Klar.Field](Klar.Field.md): The wrapper around a form control: a label, a required or optional mark, a hint and an error message, joined to the control for screen readers.
 - [Klar.Validate](Klar.Validate.md): Pure, composable validators for text values.

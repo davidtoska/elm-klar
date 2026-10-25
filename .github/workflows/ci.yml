@@ -19,11 +19,16 @@ jobs:
       # elm, elm-test and elm-format are pinned in package.json
       - run: npm ci
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/calendar/go.mod
+          cache-dependency-path: apps/calendar/go.sum
+
       - name: Cache Elm packages
         uses: actions/cache@v4
         with:
           path: ~/.elm
-          key: elm-${{ hashFiles('elm.json', 'example/elm.json') }}
+          key: elm-${{ hashFiles('elm.json', 'example/elm.json', 'apps/calendar/elm.json') }}
 
       # stylesheet, icons, docs, API, formatting, tests, the showcase
       - run: npm run check

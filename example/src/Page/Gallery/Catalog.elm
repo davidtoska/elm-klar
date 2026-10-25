@@ -438,7 +438,7 @@ components section =
             [ "TextArea", "NumberInput", "PasswordInput", "Radio", "CheckboxGroup", "Switch", "Slider", "SegmentedControl", "SearchInput", "TagInput", "FileDrop", "InlineEdit", "Form.Layout", "Field", "Validate", "Search" ]
 
         FormModel ->
-            [ "Form", "Form.Spec", "Form.Check", "Ids" ]
+            [ "Form", "Form.Spec", "Form.Check", "Form.Submission", "Ids" ]
 
         DateTime ->
             [ "Date", "DatePicker", "DateRangePicker", "TimePicker", "DateTimePicker", "Calendar" ]

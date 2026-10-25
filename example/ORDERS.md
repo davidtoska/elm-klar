@@ -39,17 +39,18 @@ the database. This workflow does not contact a real HTTP server or persist acros
 page reloads. A real application replaces the transport in `Api`, keeps the server
 validation, and maps its failures to `Remote.Problem`. Klar remains transport neutral.
 
-The page sends `Remote.refresh model.rows` when fetching and settles **both**
-successful and failed results with `Remote.settle`. It never extracts rows into
-an unrelated loading/stale flag. `Table.remote` owns the loading, failed, empty,
-refreshing, old and successful presentation. Request tickets reject late list
-responses. Typed row ids keep table elements stable across refreshes.
+The page owns request tickets and typed row ids. Reading rows and saving an order
+are separate operations. Closing the editor is blocked during submission; failed
+writes preserve the draft. Public lifecycle contracts live in
+[Remote](../ai/modules/Klar.Remote.md), [Table](../ai/modules/Klar.Table.md) and
+[Form.Submission](../ai/modules/Klar.Form.Submission.md).
 
-The editor keeps its draft in its controls. Its write status is `Form.Layout.Status`,
-separate from the list's `Remote`: reading a list and saving an order are different
-operations. Submitting blocks duplicate writes and closing the drawer. Server field
-errors go to the fields and summary. A rejected transport request leaves the draft
-available for correction or retry.
+The second application, `examples/edit-form.html`, uses the lifecycle inside
+`Form.State`. Try `taken@example.com` for a server field
+rejection, `unknown@example.com` for a problem without a matching field, and the
+name `Crash` for a failed request. Correct the input and retry. `Spec.serverKey`
+maps `email_address` to the email field; the unknown billing-account problem stays
+in the summary as plain text. An accepted save marks only submitted values clean.
 
 ## Automated checks and limits
 
@@ -66,9 +67,6 @@ to an absolute executable path for another Chromium installation. Missing browse
 fail the check explicitly. Firefox, Safari and screen-reader verification remain
 release work.
 
-Observed API gaps remain in the roadmap: an initial failed request becomes Loading
-on retry, so the disappearing retry needs the component's stable focus target;
-write guarding and connecting server field errors still need application wiring.
-The workflow uses the current public API without adding another loading attribute
-or exposing freshness internals. It is not the independent trial where an AI builds
-a new application from AI.md alone.
+Outstanding library decisions are tracked only in [ROADMAP.md](../ROADMAP.md).
+This regression workflow is separate from the independent AI-documentation-only
+application trial.

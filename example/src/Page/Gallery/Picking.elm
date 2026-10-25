@@ -773,7 +773,7 @@ Transfer.values model.products -- List ProductNo"""
                 [ "Transfer", "Ids" ]
                 { title = "In the order they were moved"
                 , description = Just "For lists where the order means something, such as the columns of an export, the chosen ids keep the order of moving. The buttons in the header of “Exported” move the marked columns (or the highlighted one) up, down, to the top or to the bottom, and so do Alt+Up and Alt+Down in the list."
-                , code = Just "Transfer.order Transfer.movedOrder"
+                , code = Nothing
                 }
                 (Transfer.view OrderedMsg
                     (Options.klarTransfer playground

@@ -963,9 +963,9 @@
         "init",
         "bind",
         "update",
-        "toValues",
-        "summary",
-        "rejected"
+        "submit",
+        "finish",
+        "summary"
       ],
       "mainFunctions": [
         "fields",
@@ -981,6 +981,7 @@
         "Klar.Date",
         "Klar.Form.Layout",
         "Klar.Form.Spec",
+        "Klar.Form.Submission",
         "Klar.InlineEdit",
         "Klar.Money",
         "Klar.Rule"
@@ -1086,6 +1087,50 @@
         "around"
       ],
       "reference": "ai/modules/Klar.Form.Layout.md"
+    },
+    {
+      "name": "Klar.Form.Submission",
+      "import": "import Klar.Form.Submission as Submission",
+      "group": "Forms",
+      "purpose": "A transport-neutral save lifecycle, shared by declared and hand-wired forms.",
+      "whenToUse": "a hand-wired form needs a save lifecycle, or you draw the submission status kept inside a declared form.",
+      "whenNot": "you are loading records (use `Klar.Remote`), or adding a second state to a declared form (use `Klar.Form.submit`, `finish` and `submission`).",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "init",
+        "begin",
+        "finish",
+        "view"
+      ],
+      "mainFunctions": [
+        "view",
+        "init",
+        "update",
+        "begin",
+        "finish",
+        "edited",
+        "reset",
+        "status"
+      ],
+      "related": [],
+      "keywords": [
+        "submission",
+        "form",
+        "forms",
+        "transport",
+        "neutral",
+        "lifecycle",
+        "shared",
+        "declared"
+      ],
+      "reference": "ai/modules/Klar.Form.Submission.md"
     },
     {
       "name": "Klar.Form.Check",
@@ -5343,10 +5388,12 @@
       ],
       "related": [
         "Klar.Kbd",
-        "Klar.Modal",
         "Klar.ShortcutHelp",
+        "Klar.AppShell",
         "Klar.CommandPalette",
-        "Klar.Drawer"
+        "Klar.Drawer",
+        "Klar.Modal",
+        "Klar.Overlay"
       ],
       "keywords": [
         "shortcut",

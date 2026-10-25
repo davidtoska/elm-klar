@@ -2670,7 +2670,7 @@ paginationSection playground locale pagers =
             [ "Pagination" ]
             { title = "Compact"
             , description = Just "For cards and side panels."
-            , code = Just "Pagination.view [ Pagination.compact, Pagination.onPage PageChanged ] { page = model.page, pageSize = 25, total = 3000 }"
+            , code = Nothing
             }
             (Pagination.view
                 (Options.klarPagination playground
@@ -2756,19 +2756,7 @@ paginationSection playground locale pagers =
             )
         , Layout.stack (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "gap" (Layout.gap 2) ]))
             [ Text.subheading "Attributes"
-            , Doc.props
-                [ { name = "onPage", type_ = "Int -> msg", description = "The page the user chose, counted from 1 and always valid. Sent by the page buttons, first / previous / next / last and “Go to page”." }
-                , { name = "onPageSize", type_ = "Int -> msg", description = "Shows “Rows per page” and sends the new size. Set the page again too, usually back to 1." }
-                , { name = "pageSizes", type_ = "List Int", description = "The sizes on offer. The default is 10, 25, 50 and 100; the current size is always there." }
-                , { name = "compact", type_ = "Attribute msg", description = "Only the range and previous / next." }
-                , { name = "jumpToPage", type_ = "Attribute msg", description = "Adds “Go to page”: type a number and press Enter." }
-                , { name = "siblings", type_ = "Int", description = "How many page numbers to show on each side of the current page. The default is 1." }
-                , { name = "summary", type_ = "List (Html msg)", description = "Replaces the range, for example with “Loading ...”. An empty list shows nothing." }
-                , { name = "disabled", type_ = "Bool", description = "Disables every control, for example while a page loads." }
-                , { name = "id", type_ = "String", description = "The DOM id of the navigation. Give every pagination on a page its own." }
-                , { name = "label", type_ = "String", description = "The accessible name of the navigation, for pages with more than one." }
-                , { name = "locale", type_ = "Locale", description = "The language of the built-in text. The default is English." }
-                ]
+            , Doc.reference [ "Klar.Pagination" ]
             ]
         ]
 

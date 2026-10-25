@@ -4,7 +4,7 @@ module Showcase.Doc exposing
     , configuredSection
     , example
     , page
-    , props
+    , reference
     , section
     , swatch
     )
@@ -42,7 +42,7 @@ configuredPage config options sections =
         page options sections
 
     else
-        Html.div [ Attr.class "showcase-doc" ] sections
+        Html.div [ Attr.class "showcase-doc" ] (reference [ config.component ] :: sections)
 
 
 configuredSection : Config -> List String -> String -> String -> List (Html msg) -> Html msg
@@ -113,30 +113,34 @@ example options content =
         ]
 
 
-{-| A table of the options a component accepts: name, type, description.
+{-| Open the generated module reference. These links use build output from ai/,
+so signatures and descriptions are not maintained again in the gallery.
 -}
-props : List { name : String, type_ : String, description : String } -> Html msg
-props rows =
-    Html.table [ Attr.class "showcase-doc__props" ]
-        [ Html.thead []
-            [ Html.tr []
-                [ Html.th [] [ Html.text "Name" ]
-                , Html.th [] [ Html.text "Type" ]
-                , Html.th [] [ Html.text "Description" ]
-                ]
-            ]
-        , Html.tbody []
-            (List.map
-                (\row ->
-                    Html.tr []
-                        [ Html.td [] [ Html.code [] [ Html.text row.name ] ]
-                        , Html.td [] [ Html.code [] [ Html.text row.type_ ] ]
-                        , Html.td [] [ Html.text row.description ]
-                        ]
+reference : List String -> Html msg
+reference modules =
+    Html.p [ Attr.class "showcase-doc__description" ]
+        (Html.text "API reference: "
+            :: List.intersperse (Html.text " · ")
+                (List.map
+                    (\name ->
+                        let
+                            moduleName =
+                                if String.startsWith "Klar" name then
+                                    name
+
+                                else
+                                    "Klar." ++ name
+                        in
+                        Html.a
+                            [ Attr.href ("reference/" ++ moduleName ++ ".html")
+                            , Attr.target "_blank"
+                            , Attr.rel "noopener"
+                            ]
+                            [ Html.text moduleName ]
+                    )
+                    modules
                 )
-                rows
-            )
-        ]
+        )
 
 
 {-| A color swatch with its token name and value. `textOnColor` says the color is

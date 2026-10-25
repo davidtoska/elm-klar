@@ -500,7 +500,7 @@ editorSection playground locale model =
             [ "MarkdownEditor" ]
             { title = "Narrow: tabs"
             , description = Just "The same editor in a column of 380 pixels. Write and Preview are tabs; the arrow keys move between them."
-            , code = Just "MarkdownEditor.view DescriptionMsg [ MarkdownEditor.label \"Description\" ] model.description"
+            , code = Nothing
             }
             (Layout.container (Options.klarLayout playground (List.concat [ Config.keep playground "Layout" "maxWidth" (Layout.maxWidth 380) ]))
                 [ MarkdownEditor.view NarrowMsg (editorAttributes playground locale) model.narrow ]
@@ -563,46 +563,5 @@ optionsSection playground =
         [ "Markdown" ]
         "Options"
         ""
-        [ Doc.props
-            [ { name = "Markdown.view"
-              , type_ = "List Attribute -> String -> Html msg"
-              , description = "The text as HTML. Parse once with Markdown.parse and show with viewDocument when the text is shown again and again."
-              }
-            , { name = "Markdown.headings"
-              , type_ = "Document -> List Heading"
-              , description = "Level, text and id of every heading, for a table of contents. Ids are unique in the document and start with the idPrefix: md-intro, md-intro-1."
-              }
-            , { name = "Markdown.plainText"
-              , type_ = "Document -> String"
-              , description = "The text without markup, for search and previews."
-              }
-            , { name = "Markdown.headingOffset"
-              , type_ = "Int -> Attribute"
-              , description = "Moves every heading down, 0 to 5 levels; never past h6 and never with a gap."
-              }
-            , { name = "Markdown.images / imagesFrom"
-              , type_ = "Attribute / List String -> Attribute"
-              , description = "Load images from anywhere, or from the hosts made with imageHost. Default: an image is a link with its description."
-              }
-            , { name = "Markdown.idPrefix"
-              , type_ = "String -> Attribute"
-              , description = "Text before every heading id (default md-), for a page with several documents. Text from others cannot make an element with an id of the page."
-              }
-            , { name = "MarkdownEditor.maxLength"
-              , type_ = "Int -> Attribute msg"
-              , description = "A counter and an error when the text is longer. Nothing is cut."
-              }
-            , { name = "MarkdownEditor.tabbed / sideBySide"
-              , type_ = "Attribute msg"
-              , description = "Fix the layout. Default: it follows the width of the container."
-              }
-            , { name = "MarkdownEditor.preview"
-              , type_ = "List (Markdown.Attribute msg) -> Attribute msg"
-              , description = "Attributes of the preview, such as images."
-              }
-            , { name = "MarkdownEditor.setValue"
-              , type_ = "String -> State -> State"
-              , description = "Replace the text, for example after a save."
-              }
-            ]
+        [ Doc.reference [ "Klar.Markdown" ]
         ]

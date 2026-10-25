@@ -12,20 +12,9 @@
 // constructors are public: adding a constructor to one is a breaking change, so there
 // should be few of them and they should be small, closed vocabularies.
 
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { loadDocs } from './lib/klar-docs.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const docsFile = path.join(os.tmpdir(), 'klar-api-docs.json');
-const run = spawnSync('elm', ['make', `--docs=${docsFile}`], { cwd: root, encoding: 'utf8', shell: true });
-if (run.status !== 0) {
-  console.log((run.stdout || '') + (run.stderr || ''));
-  process.exit(1);
-}
-const docs = JSON.parse(fs.readFileSync(docsFile, 'utf8'));
+const docs = loadDocs();
 
 // every type that an exposed module defines: "Module.Name"
 const defined = new Set();

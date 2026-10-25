@@ -15,13 +15,9 @@
 // Exit code 0 means both passed.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { loadDocs, root } from './lib/klar-docs.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outline = JSON.parse(fs.readFileSync(path.join(root, 'elm.json'), 'utf8'));
 
 const exposedAll = Array.isArray(outline['exposed-modules'])
@@ -143,7 +139,7 @@ if (staticProblems.length > 0) {
 // Mistakes that were once found in the docs, as text patterns that can only be wrong:
 // a column id is a `Table.ColumnId` (never a string), a `SideNav` entry needs its
 // `Ids` first, and `Remote` has `Loaded` and `Failed` (`Success` is a `Theme.Tone`).
-// Compiling every example is a later task (ROADMAP A1).
+// Complete examples are also compiled by check-doc-examples.mjs.
 const KNOWN_BAD = [
   {
     pattern: /\bTable\.(text|int|float|date|maybeDate|badge|status|bool|custom|actions)\s+"/,
@@ -170,7 +166,7 @@ function knownBad(file) {
   return problems;
 }
 
-const guideFiles = requested.length > 0 ? [] : ['README.md', 'AI.md', 'CLAUDE.md'].map((f) => path.join(root, f));
+const guideFiles = requested.length > 0 ? [] : ['README.md', 'AI.md', 'AGENTS.md'].map((f) => path.join(root, f));
 const badProblems = [...modules.map(fileOf).filter((f) => fs.existsSync(f)), ...guideFiles].flatMap(knownBad);
 if (badProblems.length > 0) {
   failed = true;
@@ -182,28 +178,6 @@ if (badProblems.length > 0) {
 
 // ------------------------------------------------------------ compiler check
 
-const key = crypto.createHash('sha1').update(modules.join(',') + root).digest('hex').slice(0, 10);
-const workspace = path.join(os.tmpdir(), 'klar-docs-ws', key);
-fs.mkdirSync(workspace, { recursive: true });
-const srcLink = path.join(workspace, 'src');
-if (!fs.existsSync(srcLink)) fs.symlinkSync(path.join(root, 'src'), srcLink, 'junction');
-const wsOutline = { ...outline, 'exposed-modules': modules };
-fs.writeFileSync(path.join(workspace, 'elm.json'), JSON.stringify(wsOutline, null, 4));
-
-const run = spawnSync('elm', ['make', '--docs=docs.json'], { cwd: workspace, encoding: 'utf8', shell: true });
-const text = ((run.stdout || '') + (run.stderr || ''))
-  .replace(/\u001b\[[0-9;]*m/g, '')
-  .split('\n')
-  .filter((l) => !/^Compiling \(\d+\)/.test(l))
-  .join('\n')
-  .trim();
-if (run.status !== 0) {
-  failed = true;
-  console.log('\nelm make --docs failed:\n');
-  const lines = text.split('\n');
-  console.log(lines.slice(0, 120).join('\n'));
-  if (lines.length > 120) console.log(`\n... ${lines.length - 120} more line(s). Fix these first, then run again.`);
-} else {
-  console.log('elm make --docs: ok');
-}
+loadDocs(requested.length > 0 ? modules : undefined);
+console.log('elm make --docs: ok');
 process.exit(failed ? 1 : 0);

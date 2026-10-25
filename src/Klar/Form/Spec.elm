@@ -151,8 +151,6 @@ import Klar.Date exposing (Date)
 import Klar.FileDrop as FileDrop
 import Klar.Form as Form
 import Klar.Form.Core as Core
-
-
 import Klar.Ids exposing (Ids)
 import Klar.Locale exposing (Locale)
 import Klar.MaskedInput as MaskedInput

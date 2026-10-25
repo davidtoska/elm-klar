@@ -14,13 +14,6 @@ import Klar.Table.State exposing (init, search)
 import Klar.Table.Types exposing (Column(..), ColumnConfig, Footer(..), Rows(..), Source(..), State(..))
 
 
-{-| Prepares the rows for a table with these columns in this locale (the `Locale`
-you give to `locale`). Take the same columns you give to `columns`. Every sortable
-column is sorted once here, so this takes about as long as sorting by each column
-would, a few hundred milliseconds for 50 000 rows. A table given the result reads
-a sort by one column from it and does not sort again; a sort by several columns
-(`multiSort`) and a `sortWith` column are still sorted on every message.
--}
 prepareRows : Locale -> List (Column row msg) -> Array row -> Rows row
 prepareRows loc givenColumns array =
     let
@@ -82,9 +75,6 @@ prepareRows loc givenColumns array =
         }
 
 
-{-| The rows of prepared rows, to give to other parts of the page that want an
-`Array` too, such as [Klar.VirtualList](Klar-VirtualList). It costs nothing.
--}
 rowsArray : Rows row -> Array row
 rowsArray (Rows prep) =
     prep.array

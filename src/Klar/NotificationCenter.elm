@@ -214,7 +214,7 @@ view attributes data =
                                     Html.strong [] [ Html.text item.title ]
                             , Html.p [ Internal.cls [ "klar-workbench__prose" ] ] [ Html.text item.body ]
                             , Html.div [ Internal.cls [ "klar-workbench__meta" ] ]
-                                [ Html.text (Settings.dateTime (Settings.withLocale c.locale c.settings) item.at)
+                                [ Html.text (Settings.dateTime (Settings.withLocale c.locale c.settings) item.at ++ " ")
                                 , if item.unread then
                                     Html.strong [] [ Html.text (pick "Unread" "Ulest") ]
 

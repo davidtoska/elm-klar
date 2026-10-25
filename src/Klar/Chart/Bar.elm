@@ -15,18 +15,6 @@ import Klar.Chart.Types exposing (Attribute(..), Axis, Config, Data(..), LegendI
 import Klar.Internal as Internal
 
 
-{-| Vertical or horizontal bars, grouped or stacked: one group of bars per
-category, one bar per series.
-
-    Chart.bar [ Chart.categories months, Chart.stacked ]
-        [ Chart.series "Shipped" [ 40, 52, 47 ]
-        , Chart.series "Returned" [ 3, 5, 2 ]
-        ]
-
-The value axis always includes zero, so a bar is read by its length. A value of 0
-draws no bar.
-
--}
 bar : List (Attribute msg) -> List Series -> Html msg
 bar attributes seriesList =
     let

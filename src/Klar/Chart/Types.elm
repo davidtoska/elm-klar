@@ -12,10 +12,6 @@ import Klar.Settings as Settings exposing (Settings)
 import Klar.Theme as Theme exposing (Tone(..))
 
 
-{-| A named row of values, one per category: the data of a line or bar chart.
-Make one with `series` or `seriesMaybe`, adjust it with `withSlot`, `withTone`
-and `dashed`, and pass a list of them to `line` or `bar`.
--}
 type Series
     = Series
         { name : String
@@ -26,9 +22,6 @@ type Series
         }
 
 
-{-| One slice of a donut. Make one with `segment`, adjust it with
-`segmentSlot` and `segmentTone`, and pass a list of them to `donut`.
--}
 type Segment
     = Segment
         { label : String
@@ -38,9 +31,6 @@ type Segment
         }
 
 
-{-| A setting of a chart. Make them with the functions below and pass a list to a
-chart function (`line`, `bar` and so on); later attributes win over earlier ones.
--}
 type Attribute msg
     = Attribute (Config msg -> Config msg)
 
@@ -170,9 +160,5 @@ type alias Slice =
     }
 
 
-{-| The data of a line or bar chart from a `Remote` (`lineRemote`, `barRemote`):
-its categories and its series in one value, made in the `Remote.map` that shapes
-the response, so the labels can never come from another request than the values.
--}
 type Data
     = Data { categories : List String, dates : List Date, series : List Series }
