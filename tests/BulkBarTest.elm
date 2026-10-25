@@ -521,7 +521,35 @@ localeTests =
             \_ -> bar [ BulkBar.locale Locale.nb ] 3 |> H.inside [ theBar ] [ H.attr "aria-label" "Handlinger, 3 valgt" ]
         , test "English is the default and uses commas" <|
             \_ -> bar [ everything 12340 25 ] 25 |> H.inside [ live ] [ Selector.exactText "25 of 12,340 selected" ]
+        , describe "with a name for the items" itemNameTests
         ]
+
+
+itemNameTests : List Test
+itemNameTests =
+    let
+        orders =
+            BulkBar.itemName { one = "order", other = "orders" }
+    in
+    [ test "one and several" <|
+        \_ ->
+            Expect.all
+                [ \_ -> bar [ orders ] 1 |> H.inside [ live ] [ Selector.exactText "1 order selected" ]
+                , \_ -> bar [ orders ] 12 |> H.inside [ live ] [ Selector.exactText "12 orders selected" ]
+                , \_ -> bar [ orders ] 12 |> H.inside [ Selector.class "klar-bulk__count" ] [ Selector.exactText "12 orders selected" ]
+                ]
+                ()
+    , test "of a total, named after the total" <|
+        \_ -> bar [ orders, everything 12340 25 ] 25 |> H.inside [ live ] [ Selector.exactText "25 of 12,340 orders selected" ]
+    , test "all of them, heard by a screen reader" <|
+        \_ -> bar [ orders, everything 12340 25 ] 12340 |> H.inside [ live ] [ Selector.exactText "All 12,340 orders selected" ]
+    , test "the name of the group says it too" <|
+        \_ -> bar [ orders ] 2 |> H.inside [ theBar ] [ H.attr "aria-label" "Actions, 2 orders selected" ]
+    , test "in Norwegian, with the words given" <|
+        \_ ->
+            bar [ BulkBar.locale Locale.nb, BulkBar.itemName { one = "ordre", other = "ordrer" } ] 3
+                |> H.inside [ live ] [ Selector.exactText "3 ordrer valgt" ]
+    ]
 
 
 

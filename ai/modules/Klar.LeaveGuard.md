@@ -484,7 +484,9 @@ address.
     LeaveGuard.request (Route.fromUrl url) model.guard
 
 When a question is already open, the new `target` replaces the old one and the
-dialog stays open (see the top of this page).
+dialog stays open (see the top of this page). A `target` equal (`==`) to the page that
+is shown is answered with `Proceed`, even with something dirty: the user stays on the
+page.
 
 ### `onUrlChange`
 
@@ -510,7 +512,8 @@ did not ask first, and it takes the place of the code that enters the page.
 
 `Just route` means: show this page. Nothing is dirty, or the user has just left. The
 first argument says what an address means to you (the same `target` you give to
-`request`); it is called once per change. `Nothing` means: do nothing, the guard has
+`request`); it is called for the new address and for the address of the page that is
+shown, to tell another page from another address of the same page. `Nothing` means: do nothing, the guard has
 dealt with it. That is one of
 
   - the page you show is already at this address (your own `Nav.pushUrl` came back,

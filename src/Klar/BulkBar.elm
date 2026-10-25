@@ -1,6 +1,6 @@
 module Klar.BulkBar exposing
     ( view
-    , Attribute, selectAllMatching, id, locale
+    , Attribute, selectAllMatching, itemName, id, locale
     )
 
 {-| The bar of actions for the items the user has selected: "12 selected: Export,
@@ -17,6 +17,7 @@ Quick path: `view` with the toolbar, the count and the message of Clear selectio
 
     BulkBar.view
         [ BulkBar.id "orders-bulk"
+        , BulkBar.itemName { one = "order", other = "orders" }
         , BulkBar.selectAllMatching
             { total = model.matching, onPage = List.length model.page, onSelectAll = SelectAllOrders }
         ]
@@ -108,7 +109,7 @@ reaches the bar.
 
 # Attributes
 
-@docs Attribute, selectAllMatching, id, locale
+@docs Attribute, selectAllMatching, itemName, id, locale
 
 -}
 
@@ -130,6 +131,7 @@ type Attribute msg
 
 type alias Config msg =
     { all : Maybe (Everything msg)
+    , itemName : Maybe { one : String, other : String }
     , id : Maybe String
     , locale : Locale
     }
@@ -145,7 +147,7 @@ type alias Everything msg =
 configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { all = Nothing, id = Nothing, locale = Locale.default }
+        { all = Nothing, itemName = Nothing, id = Nothing, locale = Locale.default }
         attributes
 
 
@@ -176,6 +178,19 @@ Without `selectAllMatching` the bar says "12 selected" and offers nothing.
 selectAllMatching : { total : Int, onPage : Int, onSelectAll : msg } -> Attribute msg
 selectAllMatching options =
     Attribute (\config -> { config | all = Just options })
+
+
+{-| What the items are called, in the language of the page, one and several: the bar
+then says "12 orders selected", "200 of 12,340 orders selected" and "1 order selected",
+and so does the name of the group and what a screen reader is told. The default is no
+name: "12 selected". Give the words in the language you give to `locale`.
+
+    BulkBar.itemName { one = "order", other = "orders" }
+
+-}
+itemName : { one : String, other : String } -> Attribute msg
+itemName forms =
+    Attribute (\config -> { config | itemName = Just forms })
 
 
 {-| The DOM id of the box that the toolbar and the bar share, which must be unique on
@@ -234,7 +249,7 @@ view attributes options actions =
                 reservedCount config
 
         texts =
-            countTexts config.locale shownCount (knownTotal shownCount config)
+            countTexts config.locale config.itemName shownCount (knownTotal shownCount config)
     in
     -- The three children keep their places whether or not something is selected, so
     -- that Elm updates them in place: the toolbar keeps its state and the live
@@ -410,14 +425,23 @@ selected", and, when everything is selected, "12,340 selected" in the bar (the b
 beside it says "All matching selected") and "All 12,340 selected" to a screen reader,
 which is not looking at the button.
 -}
-countTexts : Locale -> Int -> Maybe Int -> { shown : String, heard : String }
-countTexts language count total =
+countTexts : Locale -> Maybe { one : String, other : String } -> Int -> Maybe Int -> { shown : String, heard : String }
+countTexts language name count total =
     let
         n =
             Format.int language count
 
+        -- " orders" after a number, when the items have a name
+        named k =
+            case name of
+                Just forms ->
+                    " " ++ Format.plural language k forms
+
+                Nothing ->
+                    ""
+
         plain =
-            Locale.pick language { nb = n ++ " valgt", en = n ++ " selected" }
+            Locale.pick language { nb = n ++ named count ++ " valgt", en = n ++ named count ++ " selected" }
     in
     case total of
         Just known ->
@@ -425,15 +449,15 @@ countTexts language count total =
                 let
                     ofTotal =
                         Locale.pick language
-                            { nb = n ++ " av " ++ Format.int language known ++ " valgt"
-                            , en = n ++ " of " ++ Format.int language known ++ " selected"
+                            { nb = n ++ " av " ++ Format.int language known ++ named known ++ " valgt"
+                            , en = n ++ " of " ++ Format.int language known ++ named known ++ " selected"
                             }
                 in
                 { shown = ofTotal, heard = ofTotal }
 
             else if count > 1 then
                 { shown = plain
-                , heard = Locale.pick language { nb = "Alle " ++ n ++ " valgt", en = "All " ++ n ++ " selected" }
+                , heard = Locale.pick language { nb = "Alle " ++ n ++ named count ++ " valgt", en = "All " ++ n ++ named count ++ " selected" }
                 }
 
             else

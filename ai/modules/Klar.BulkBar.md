@@ -19,6 +19,7 @@ view :
 -- Attributes
 type Attribute msg  -- opaque: no constructors are exposed
 selectAllMatching : { total : Int, onPage : Int, onSelectAll : msg } -> Attribute msg
+itemName : { one : String, other : String } -> Attribute msg
 id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 ```
@@ -39,6 +40,7 @@ Quick path: `view` with the toolbar, the count and the message of Clear selectio
 
     BulkBar.view
         [ BulkBar.id "orders-bulk"
+        , BulkBar.itemName { one = "order", other = "orders" }
         , BulkBar.selectAllMatching
             { total = model.matching, onPage = List.length model.page, onSelectAll = SelectAllOrders }
         ]
@@ -177,6 +179,19 @@ about everything. It never says "12 of 3 selected" or "All 12 selected" on such 
 number.
 
 Without `selectAllMatching` the bar says "12 selected" and offers nothing.
+
+### `itemName`
+
+```elm
+itemName : { one : String, other : String } -> Attribute msg
+```
+
+What the items are called, in the language of the page, one and several: the bar
+then says "12 orders selected", "200 of 12,340 orders selected" and "1 order selected",
+and so does the name of the group and what a screen reader is told. The default is no
+name: "12 selected". Give the words in the language you give to `locale`.
+
+    BulkBar.itemName { one = "order", other = "orders" }
 
 ### `id`
 

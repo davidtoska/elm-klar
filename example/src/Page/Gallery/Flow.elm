@@ -654,13 +654,14 @@ bulkSection locale model =
         "Appears when a selection is not empty: the count, the actions for it and Clear selection. It does not push anything: the bar takes the place of the toolbar, in the same box, and the toolbar underneath keeps its state (type in the search field, then select a row). The count is announced politely by one region that is always on the page. It never takes focus by itself, and Escape does nothing here: whether Escape clears is the application's decision."
         [ Doc.example
             { title = "A selectable list of orders"
-            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 selected. Select all stays in its place as an inactive button, so focus is never lost. Clear selection and Delete take the bar away with the button that has focus, and the update calls Klar.focus with the id of the bar: focus goes to the toolbar box, and Tab reaches its first control."
+            , description = Just "Tick a row, then the box in the header. When the whole page is selected and more orders match, the bar offers Select all 1,240 matching and says 8 of 1,240 orders selected (itemName names the items). Select all stays in its place as an inactive button, so focus is never lost. Clear selection and Delete take the bar away with the button that has focus, and the update calls Klar.focus with the id of the bar: focus goes to the toolbar box, and Tab reaches its first control."
             , code = Just bulkCode
             }
             (Layout.stack [ Layout.gap 3 ]
                 [ BulkBar.view
                     [ BulkBar.id "flow-bulk"
                     , BulkBar.locale locale
+                    , BulkBar.itemName (Locale.pick locale { en = { one = "order", other = "orders" }, nb = { one = "ordre", other = "ordrer" } })
                     , BulkBar.selectAllMatching { total = matching, onPage = List.length pageOrders, onSelectAll = SelectEverything }
                     ]
                     { toolbar =
@@ -1022,6 +1023,7 @@ bulkCode : String
 bulkCode =
     """BulkBar.view
     [ BulkBar.id "orders-bulk"
+    , BulkBar.itemName { one = "order", other = "orders" }
     , BulkBar.selectAllMatching { total = 1240, onPage = 8, onSelectAll = SelectEverything }
     ]
     { toolbar = Toolbar.view [ Toolbar.ariaLabel "Orders" ] [ searchField, newOrderButton ]
