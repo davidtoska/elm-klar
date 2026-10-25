@@ -88,6 +88,30 @@ settle =
             \before ->
                 Remote.settle before (Err other)
                     |> Expect.equal (Remote.refreshWith before (Err other) (at 1))
+        , fuzz remoteFuzzer "Ok of refreshWith is Kept with the time: fresh, read as settle reads it" <|
+            \before ->
+                let
+                    timed =
+                        Remote.refreshWith before (Ok 7) (at 5)
+
+                    plain =
+                        Remote.settle before (Ok 7)
+
+                    read remote =
+                        { data = Remote.toMaybe remote, refreshing = Remote.isRefreshing remote, stale = Remote.isStale remote, loaded = Remote.isLoaded remote }
+                in
+                Expect.equal
+                    { isKept =
+                        case timed of
+                            Kept _ ->
+                                True
+
+                            _ ->
+                                False
+                    , at = Remote.loadedAt timed
+                    , read = read timed
+                    }
+                    { isKept = True, at = Just (at 5), read = read plain }
         , test "fromResult is settle Loading" <|
             \_ ->
                 Expect.equal
@@ -167,7 +191,7 @@ texts =
         , test "a rejected request does not speak of a form" <|
             \_ ->
                 Expect.equal
-                    [ "The request was rejected", "Forespørselen ble avvist", "The data changed in the meantime", "Dataene er endret i mellomtiden" ]
+                    [ "The request was rejected", "Forespørselen ble avvist", "This conflicts with the current data", "Dette er i konflikt med dataene slik de er nå" ]
                     [ Remote.title Locale.en (Remote.problem Remote.validation)
                     , Remote.title Locale.nb (Remote.problem Remote.validation)
                     , Remote.title Locale.en (Remote.problem Remote.conflict)
