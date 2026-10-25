@@ -1,5 +1,7 @@
 # Chart split plan
 
+Completed; see REPORT.md for module jobs, sizes, dependency order and final evidence.
+
 Pure refactor on codex/chart-split in its own worktree, based on the completed
 Table split at 103db76. Follow the same constraints as tasks/codex-split-table.md
 in the main checkout: no public API/docs/default/markup/event/CSS changes, no

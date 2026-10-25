@@ -1,5 +1,9 @@
 # Chart split progress
 
+Status: COMPLETE. Final code validation commit: 250ad91. Both the Table and Chart
+tasks are complete; REPORT.md records the Chart module map and verification.
+No active process remains. Branches are committed locally; no merge/push/tag/publication.
+
 ## Baseline
 
 - Branch codex/chart-split, separate managed worktree, base 103db76.
@@ -22,13 +26,11 @@
   split.mjs moves named groups and redirects public forwards; validate.mjs runs
   format/check/docs/DOM; verify-original.mjs audits original implementations and
   dependencies; cleanup-imports.mjs removes unneeded imports at completion.
-- Active extraction pipeline: exec session 41660. All groups through Sparkline are
-  complete; the final RemoteView extraction is running. Inspect its result
-  before additional edits. It stops on any validation failure and records that
-  stop at the top of this file. RemoteView retires the now-empty Core as part of
-  its extraction. This is the final code state; omit a separate optional import-only
-  cleanup/check cycle. Run the source/size/dependency audit and report after its
-  complete validation. Final report reads check-remoteview.log and dom-remoteview/.
+- Extraction pipeline 41660 completed all groups. RemoteView retired the empty
+  Core and passed final validation: 11,383 tests, byte-identical documentation,
+  all 71 diagram/sparkline roots identical. No additional import-only code changes
+  were made after that validated final state. Report evidence is in
+  check-remoteview.log, dom-remoteview/ and source-audit-final.log.
 - Limit later elm-test checks to four workers via the external preload, retaining
   every test and the default 100 fuzz runs. Baseline used the unmodified command.
 - No agent delegation. No main-checkout or Table-source edits. No new dependency.
@@ -105,3 +107,11 @@
 - Next: RemoteView.
 
 - RemoteView: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 250ad91: RemoteView complete.
+- Next: inspect the remaining dependency groups before the next move.
+- Final audit passed: all 141 original declarations have one unchanged internal
+  implementation; dependency graph acyclic; nine pure modules do not import Html.
+- Final sizes: public facade 890 lines; 16 internal modules, largest 448 lines.
+- Test inventory: 164 original files unchanged; eight new files add ten cases.
+- Completed Table sources and all protected files are unchanged from 103db76.
+- Next: none. Commit this completion report and leave both branches for review.
