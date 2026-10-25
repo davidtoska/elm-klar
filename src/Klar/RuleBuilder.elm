@@ -196,7 +196,6 @@ import Klar.Date exposing (Date)
 import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Internal as Internal
-import Klar.Link as Link
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Menu as Menu
 import Klar.Remote exposing (Remote(..))
