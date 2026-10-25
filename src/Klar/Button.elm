@@ -458,9 +458,15 @@ render isIconOnly config label =
         isLink =
             config.href /= Nothing
 
-        -- a link opens a new tab when it is asked to, or when it leads to another site
+        -- A link opens a new tab when it is asked to, or when it leads to another
+        -- site; a button (no href) and a file to save never do.
         opensTab =
-            not inactive && (config.newTab || Maybe.withDefault False (Maybe.map Destination.opensInNewTab config.href))
+            case config.href of
+                Just target ->
+                    not inactive && Destination.fileName target == Nothing && (config.newTab || Destination.opensInNewTab target)
+
+                Nothing ->
+                    False
 
         newTabText =
             Locale.pick config.locale { nb = "(åpnes i en ny fane)", en = "(opens in a new tab)" }
@@ -546,7 +552,11 @@ render isIconOnly config label =
 
                         else
                             [ Attr.href (Destination.href target)
-                            , Internal.attrMaybe Attr.download (Destination.fileName target)
+
+                            -- an attribute, not the property: a property that is taken
+                            -- away again leaves download="" behind, and the link would save
+                            -- the page instead of opening it
+                            , Internal.attrMaybe (Attr.attribute "download") (Destination.fileName target)
                             , Internal.attrIf opensTab (Attr.target "_blank")
                             , Internal.attrIf opensTab (Attr.rel "noopener noreferrer")
                             ]

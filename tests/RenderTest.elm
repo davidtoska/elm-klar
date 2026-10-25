@@ -557,7 +557,19 @@ buttonTests =
             , test "a download is a data address with the file name" <|
                 \_ ->
                     Button.view [ Button.href (Link.download { fileName = "orders.csv", mimeType = "text/csv", content = "id" }) ] "Export"
-                        |> rootHas [ Selector.attribute (Attr.href "data:text/csv;charset=utf-8,id"), Selector.attribute (Attr.download "orders.csv") ]
+                        |> rootHas [ Selector.attribute (Attr.href "data:text/csv;charset=utf-8,id"), attr "download" "orders.csv" ]
+            , test "a button without href and a file to save never say they open a tab" <|
+                \_ ->
+                    Expect.all
+                        [ \_ -> Button.view [ Button.newTab ] "Save" |> rootLacks [ Selector.class "klar-sr-only" ]
+                        , \_ ->
+                            Button.view [ Button.newTab, Button.href (Link.download { fileName = "a.csv", mimeType = "text/csv", content = "a" }) ] "Export"
+                                |> Expect.all
+                                    [ rootLacks [ Selector.attribute (Attr.target "_blank") ]
+                                    , rootLacks [ Selector.class "klar-sr-only" ]
+                                    ]
+                        ]
+                        ()
             , test "a link is never pressed or expanded" <|
                 \_ ->
                     Button.view [ Button.href orders, Button.pressed True, Button.expanded True ] "Orders"

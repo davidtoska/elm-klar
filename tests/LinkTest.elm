@@ -508,7 +508,7 @@ attributeTests =
                         |> Query.fromHtml
                         |> Expect.all
                             [ Query.has [ href "data:text/csv;charset=utf-8,id%2Ctotal%0A1%2C%232%20%F0%9F%98%80" ]
-                            , Query.has [ Selector.attribute (Attr.download "orders.csv") ]
+                            , Query.has [ attribute "download" "orders.csv" ]
                             , Query.hasNot [ attribute "target" "_blank" ]
                             , ActionsQuery.absent [ Selector.class "klar-link__external" ]
                             ]
@@ -518,7 +518,7 @@ attributeTests =
                         |> Query.fromHtml
                         |> Expect.all
                             [ Query.has [ href "data:application/octet-stream;charset=utf-8,x" ]
-                            , Query.has [ Selector.attribute (Attr.download "download") ]
+                            , Query.has [ attribute "download" "download" ]
                             ]
             , test "is left to the browser: onClick does not take it over" <|
                 \_ ->

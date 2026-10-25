@@ -399,7 +399,9 @@ view attributes destination label =
             , Attr.href (Destination.href destination)
             , Internal.attrIf newTab (Attr.target "_blank")
             , Internal.attrIf newTab (Attr.rel "noopener noreferrer")
-            , Internal.attrMaybe Attr.download file
+
+            -- an attribute, not the property, which leaves download="" behind when it goes
+            , Internal.attrMaybe (Attr.attribute "download") file
             , Internal.attrIf config.current (Attr.attribute "aria-current" "page")
             , Internal.attrIf config.truncate (Attr.title label)
             , Internal.attrMaybe Attr.id config.id
