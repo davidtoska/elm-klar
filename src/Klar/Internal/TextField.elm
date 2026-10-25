@@ -229,7 +229,7 @@ generatedId : String -> List (Maybe String) -> String
 generatedId prefix seeds =
     case List.filterMap (Maybe.andThen Internal.nonEmpty) seeds of
         seed :: _ ->
-            prefix ++ Internal.sanitizeId (String.toLower (String.trim seed))
+            prefix ++ Internal.sanitizeId (String.join "-" (String.words (String.toLower seed)))
 
         [] ->
             ""

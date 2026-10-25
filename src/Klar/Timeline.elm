@@ -754,9 +754,9 @@ view attributes events =
 
         Ready ->
             if List.isEmpty events then
+                -- the notice of old data carries the live region here (Freshness)
                 wrap
-                    [ status ""
-                    , notice
+                    [ notice
                     , EmptyState.view
                         (List.filterMap identity
                             [ Just EmptyState.compact
@@ -771,9 +771,9 @@ view attributes events =
                 -- The days sit in one element of their own, so the footer is
                 -- always the next child: it keeps its place (and the focus of
                 -- the button in it) when a page of events is added above it.
+                -- the notice of old data carries the live region here (Freshness)
                 wrap
-                    [ status ""
-                    , notice
+                    [ notice
                     , if config.grouped then
                         -- Keyed by day: a new day at the top does not reuse the
                         -- elements of the days below it, so open details and the

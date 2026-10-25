@@ -704,7 +704,7 @@ textInputTests =
                         , expectWellWired
                         ]
         , test "without a label the id is made from the placeholder" <|
-            \_ -> inside input [ Selector.id "klar-input-search__orders" ] (TextInput.view [ TextInput.placeholder "Search orders", TextInput.hint "h" ])
+            \_ -> inside input [ Selector.id "klar-input-search-orders" ] (TextInput.view [ TextInput.placeholder "Search orders", TextInput.hint "h" ])
         , test "without a label or a placeholder the id is made from the hint" <|
             \_ -> inside input [ Selector.id "klar-input-h" ] (TextInput.view [ TextInput.hint "h" ])
         , test "an input with nothing to say is inside the field too, so that it does not move when an error comes" <|

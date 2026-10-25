@@ -122,8 +122,8 @@ suite =
                 rules
                     |> List.filter (\r -> r.media == "" && ownDuration r)
                     |> List.concatMap selectors
-                    -- the focus guard of a dialog is not motion: its start is a message
-                    |> List.filter (\selector -> not (String.contains "klar-modal__guard" selector))
+                    -- the focus guard of a dialog and the autoload of a tree are not motion: their start is a message
+                    |> List.filter (\selector -> not (String.contains "klar-modal__guard" selector || String.contains "klar-tree__autoload" selector))
                     |> List.filter (\selector -> not (covered reducedMotion selector))
                     |> Expect.equal []
         , test "the reduced-motion list wins over the rules of every component" <|

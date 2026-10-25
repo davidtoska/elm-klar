@@ -303,6 +303,16 @@ table {
     animation: none !important;
   }
 
+  /* The load button of a lazy tree node waits a second before it shows; here it
+     shows at once. A delayed spinner panel still waits, without its fade. */
+  .klar-tree__load {
+    animation: none !important;
+  }
+
+  .klar-spinner-panel--delayed > * {
+    animation-duration: 1ms !important;
+  }
+
   .klar-spinner,
   .klar-switch--loading .klar-switch__thumb::after,
   .klar-progress-ring__arc {

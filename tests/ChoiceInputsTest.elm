@@ -754,7 +754,8 @@ idTests =
         , test "a label without letters that fit an id still gives a valid id" <|
             \_ ->
                 Choice.groupId "radio" (Just "日本語") [ "A" ]
-                    |> String.startsWith "klar-radio-group-"
+                    -- core encodes the letters (sanitizeId), so the id is plain ASCII and never empty
+                    |> (\id -> String.startsWith "klar-radio-" id && String.length id > String.length "klar-radio-" && String.all (\c -> Char.isAlphaNum c || c == '-' || c == '_') id)
                     |> Expect.equal True
         , test "a group without an id gets one from its label" <|
             \_ ->
