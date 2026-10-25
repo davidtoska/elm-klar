@@ -20,8 +20,8 @@ init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
 
 -- Reading and setting the tags
-tags : State -> List String
-setTags : List String -> State -> State
+values : State -> List String
+setValues : List String -> State -> State
 draft : State -> String
 clear : State -> State
 isTouched : State -> Bool
@@ -30,7 +30,7 @@ isTouched : State -> Bool
 delimiters : List Char -> Attribute msg
 maxTags : Int -> Attribute msg
 validate : (String -> Maybe String) -> Attribute msg
-addOnBlur : Bool -> Attribute msg
+keepDraftOnBlur : Attribute msg
 
 -- Label, hint and error
 label : String -> Attribute msg
@@ -57,7 +57,7 @@ Free-form tags: type a word, press Enter or comma, get a chip.
 
 Use when: the user enters a list of free words, such as keywords or e-mail addresses.
 Do not use when: the tags come from a fixed list (use `Klar.MultiSelect`).
-Quick path: `init`, `update`, `view`, `tags`
+Quick path: `init`, `update`, `view`, `values`
 
     import Klar.Locale as Locale
     import Klar.TagInput as TagInput
@@ -88,26 +88,39 @@ Quick path: `init`, `update`, `view`, `tags`
         model.keywords
 
     -- read them
-    TagInput.tags model.keywords -- List String
+    TagInput.values model.keywords -- List String
 
 The `String` given to `init` is the DOM id of the text input, so there is no
 `id` attribute.
 
   - **Enter or comma** adds the text as a tag (also `;` if you ask for it with
-    `delimiters`). The Enter key never submits a surrounding form.
+    `delimiters`). The Enter key never submits a surrounding form. The comma and
+    semicolon that an input method for Chinese or Japanese types (`，` `、`
+    `；`) count as `,` and `;`, and the Enter that confirms a composed word adds
+    nothing.
   - **Backspace** in the empty field removes the last tag (a fresh press, so
-    holding Backspace to delete the text stops at the tags); every chip also
-    has a remove button.
-  - **Pasting** `a, b, c` adds three tags. Tags are trimmed, and empty ones are
+    holding Backspace to delete the text stops at the tags).
+  - **The chips** are not Tab stops: Tab goes straight to the text input and on
+    out of the field. Arrow left at the start of the text moves to the last
+    chip; there, arrow left and right move between the chips, Home goes to the
+    first, Backspace or Delete (or Enter or Space) removes the chip and keeps the
+    focus on the chips, and arrow right past the last chip, End or Escape go back
+    to the text. A click on a chip's × removes it and puts the cursor in the text.
+  - **Pasting** `a, b, c` adds three tags; a tab between the pieces (a row copied
+    from a spreadsheet) splits them too. Tags are trimmed, and empty ones are
     ignored.
-  - **Duplicates** (ignoring case) and tags that fail `validate` are refused
-    with a message under the field; `maxTags` refuses the rest.
+  - **Duplicates** (ignoring case), tags that fail `validate` and tags over
+    `maxTags` are refused with a message under the field, and their text stays in
+    the field (all of it, also after a paste) so that it can be corrected and
+    added with Enter.
   - Leaving the field adds the text that is still being typed
-    (`addOnBlur False` turns that off).
+    (`keepDraftOnBlur` keeps it as text instead).
   - A click anywhere in the field puts the cursor in the text input.
 
-Changes to the tags are read with `tags`; compare before and after `update` to
-react. A hidden live region tells screen readers about added and removed tags.
+Changes to the tags are read with `values`; compare before and after `update` to
+react. The chips are a list for screen readers, the text input tells how many
+tags there are and which ("2 values: red, blue"), and a hidden live region tells
+about added and removed tags.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and
 `optionalText` are the common field attributes. They come with the field
@@ -166,8 +179,9 @@ type Msg  -- opaque: no constructors are exposed
 ```
 
 The messages a tag field sends: typing, pasting, Enter, Backspace, the
-remove buttons and leaving the field. `view` wraps them with the function you
-give it; hand them to `update` when they come back.
+chips and their remove buttons, and leaving the field. `view` wraps them with
+the function you give it; hand them to `update` when they come back. They hold
+data only, so they can be compared and stored.
 
 ### `init`
 
@@ -176,7 +190,8 @@ init : String -> State
 ```
 
 A field without tags. The `String` is the DOM id of the text input; it must
-be unique on the page, because the label, hint and error point at it.
+be unique on the page, because the label, hint and error point at it (and the
+chips' remove buttons get ids made from it).
 
 ### `update`
 
@@ -184,25 +199,26 @@ be unique on the page, because the label, hint and error point at it.
 update : Msg -> State -> ( State, Cmd Msg )
 ```
 
-Moves the field on after one of its messages. The `Cmd` moves the focus to
-the text input after a click in the field or on a chip's remove button, so pass
-it on with `Cmd.map`.
+Moves the field on after one of its messages. The `Cmd` moves the keyboard
+focus: to the text input after a click in the field or on a chip's remove
+button, and between the chips when they are used with the keyboard. Pass it on
+with `Cmd.map`.
 
 ## Reading and setting the tags
 
-### `tags`
+### `values`
 
 ```elm
-tags : State -> List String
+values : State -> List String
 ```
 
 The tags in the field, in the order they were added. Compare it before and
 after `update` to react to a change.
 
-### `setTags`
+### `setValues`
 
 ```elm
-setTags : List String -> State -> State
+setValues : List String -> State -> State
 ```
 
 Replaces all tags, for example with the values from the server, and clears
@@ -215,7 +231,8 @@ duplicates, `maxTags` and `validate` are not checked.
 draft : State -> String
 ```
 
-The text being typed, not yet a tag.
+The text being typed, not yet a tag. After a refusal it holds the refused
+text, so that the user can correct it.
 
 ### `clear`
 
@@ -244,9 +261,10 @@ delimiters : List Char -> Attribute msg
 ```
 
 The characters that end a tag when they are typed or pasted. Default
-`[ ',' ]`; add `';'` to accept semicolons too. Enter always ends a tag. With an
-empty list only Enter (and leaving the field, see `addOnBlur`) adds tags, and a
-comma becomes part of the tag.
+`[ ',' ]`; add `';'` to accept semicolons too. Enter always ends a tag, and a
+pasted tab or line break always splits. With an empty list only Enter (and
+leaving the field) adds tags, and a comma becomes part of the tag. The comma and
+semicolon of Chinese and Japanese input (`，` `、` `；`) count as `,` and `;`.
 
     TagInput.delimiters [ ',', ';' ]
 
@@ -256,10 +274,10 @@ comma becomes part of the tag.
 maxTags : Int -> Attribute msg
 ```
 
-At most this many tags. The field then shows a counter such as `3/8`, and
-when the limit is reached the text input becomes read-only. A tag over the limit,
-for example from pasting a long list, is refused with a message ("You can only
-add 8 values" in English). Default: no limit.
+At most this many tags. The field then shows a counter such as `3/8`. Once
+the limit is reached the user can still type, but a new tag is refused with a
+message ("You can only add 8 values" in English) and its text stays in the
+field; so are the tags over the limit in a pasted list. Default: no limit.
 
 ### `validate`
 
@@ -269,22 +287,21 @@ validate : (String -> Maybe String) -> Attribute msg
 
 A check that runs on each new tag (trimmed, and after the checks for
 duplicates and `maxTags`). Return `Just message` to refuse the tag: the message
-is shown under the field and a typed word stays in the field so that the user
-can correct it. Return `Nothing` to accept the tag. Default: every tag is
-accepted.
+is shown under the field and the text of the tag stays in the field so that the
+user can correct it. Return `Nothing` to accept the tag. Default: every tag is
+accepted. The check runs in the view, so the messages of the field hold its
+verdict and never the function.
 
     TagInput.validate (Validate.run Locale.en (Validate.maxLength 20))
 
-### `addOnBlur`
+### `keepDraftOnBlur`
 
 ```elm
-addOnBlur : Bool -> Attribute msg
+keepDraftOnBlur : Attribute msg
 ```
 
-Whether leaving the field turns the text still being typed into a tag.
-Default `True`.
-
-    TagInput.addOnBlur False
+Leaving the field keeps the text that is still being typed as text instead
+of turning it into a tag. By default leaving the field adds it, as Enter does.
 
 ## Label, hint and error
 
@@ -296,7 +313,8 @@ label : String -> Attribute msg
 
 The label shown above the field. It is connected to the text input, so
 clicking it focuses the input and screen readers read it as the name of the
-input. Give every field a label, or hide it with `labelHidden`.
+input (and of the list of chips). Give every field a label, or hide it with
+`labelHidden`.
 
 ### `labelHidden`
 
@@ -345,7 +363,7 @@ required : Attribute msg
 
 Marks the field as required: an asterisk after the label and
 `aria-required` on the text input. This does not validate anything; check
-`tags` for an empty list yourself and show an `error`.
+`values` for an empty list yourself and show an `error`.
 
 ### `optionalText`
 
@@ -374,8 +392,9 @@ size : Theme.Size -> Attribute msg
 ```
 
 The size of the field and of its chips: `Small`, `Medium` or `Large`, from
-[Klar.Theme](Klar.Theme.md). The field is at least 26px, 32px or 40px high, and
-grows when the chips wrap onto more lines. Default `Medium`.
+[Klar.Theme](Klar.Theme.md). The field is at least 26px, 32px or 40px high at the
+default density (see `Klar.Theme` for the others), and grows when the chips
+wrap onto more lines. Default `Medium`.
 
 ### `disabled`
 
@@ -393,7 +412,7 @@ readOnly : Bool -> Attribute msg
 ```
 
 While `True` the user can focus the field but not add or remove tags: the
-chips lose their remove buttons. Default `False`.
+chips lose their remove buttons, and Backspace removes nothing. Default `False`.
 
 ## Language
 
@@ -404,7 +423,7 @@ locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the refusal messages ("... has already
-been added", "You can only add 8 values"), what screen readers are told when a
-tag is added or removed ("... added", "... removed") and the name of each remove
-button ("Remove ..."). Default `Locale.default`, which is English. Texts you pass
-in yourself are shown as they are.
+been added", "You can only add 8 values"), what screen readers are told ("...
+added", "... removed", "2 values: red, blue") and the name of each remove button
+("Remove ..."). Default `Locale.default`, which is English. Texts you pass in
+yourself are shown as they are.

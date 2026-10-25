@@ -993,6 +993,18 @@ css =
   font-variant-numeric: tabular-nums;
 }
 
+/* Forced colors (Windows high contrast) drop the box-shadow of the focus ring and
+   paint every border in one color: the focus becomes an outline, an invalid field
+   a thicker dashed border. Every control built on the shell gets it. */
+@media (forced-colors: active) {
+  .klar-input { border-color: CanvasText; }
+  .klar-input:focus-within { outline: 2px solid Highlight; outline-offset: 1px; border-color: Highlight; }
+  .klar-input--invalid,
+  .klar-input--invalid:hover { border-style: dashed; border-width: 2px; }
+  .klar-input--disabled { border-color: GrayText; color: GrayText; }
+  .klar-input__clear:hover { background: transparent; color: Highlight; }
+}
+
 /* ---- Checkbox -------------------------------------------------------- */
 
 .klar-check {

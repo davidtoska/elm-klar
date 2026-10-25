@@ -1,8 +1,8 @@
 module Klar.TagInput exposing
     ( view, Attribute
     , State, Msg, init, update
-    , tags, setTags, draft, clear, isTouched
-    , delimiters, maxTags, validate, addOnBlur
+    , values, setValues, draft, clear, isTouched
+    , delimiters, maxTags, validate, keepDraftOnBlur
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, size, disabled, readOnly
     , locale
@@ -12,7 +12,7 @@ module Klar.TagInput exposing
 
 Use when: the user enters a list of free words, such as keywords or e-mail addresses.
 Do not use when: the tags come from a fixed list (use `Klar.MultiSelect`).
-Quick path: `init`, `update`, `view`, `tags`
+Quick path: `init`, `update`, `view`, `values`
 
     import Klar.Locale as Locale
     import Klar.TagInput as TagInput
@@ -43,26 +43,39 @@ Quick path: `init`, `update`, `view`, `tags`
         model.keywords
 
     -- read them
-    TagInput.tags model.keywords -- List String
+    TagInput.values model.keywords -- List String
 
 The `String` given to `init` is the DOM id of the text input, so there is no
 `id` attribute.
 
   - **Enter or comma** adds the text as a tag (also `;` if you ask for it with
-    `delimiters`). The Enter key never submits a surrounding form.
+    `delimiters`). The Enter key never submits a surrounding form. The comma and
+    semicolon that an input method for Chinese or Japanese types (`，` `、`
+    `；`) count as `,` and `;`, and the Enter that confirms a composed word adds
+    nothing.
   - **Backspace** in the empty field removes the last tag (a fresh press, so
-    holding Backspace to delete the text stops at the tags); every chip also
-    has a remove button.
-  - **Pasting** `a, b, c` adds three tags. Tags are trimmed, and empty ones are
+    holding Backspace to delete the text stops at the tags).
+  - **The chips** are not Tab stops: Tab goes straight to the text input and on
+    out of the field. Arrow left at the start of the text moves to the last
+    chip; there, arrow left and right move between the chips, Home goes to the
+    first, Backspace or Delete (or Enter or Space) removes the chip and keeps the
+    focus on the chips, and arrow right past the last chip, End or Escape go back
+    to the text. A click on a chip's × removes it and puts the cursor in the text.
+  - **Pasting** `a, b, c` adds three tags; a tab between the pieces (a row copied
+    from a spreadsheet) splits them too. Tags are trimmed, and empty ones are
     ignored.
-  - **Duplicates** (ignoring case) and tags that fail `validate` are refused
-    with a message under the field; `maxTags` refuses the rest.
+  - **Duplicates** (ignoring case), tags that fail `validate` and tags over
+    `maxTags` are refused with a message under the field, and their text stays in
+    the field (all of it, also after a paste) so that it can be corrected and
+    added with Enter.
   - Leaving the field adds the text that is still being typed
-    (`addOnBlur False` turns that off).
+    (`keepDraftOnBlur` keeps it as text instead).
   - A click anywhere in the field puts the cursor in the text input.
 
-Changes to the tags are read with `tags`; compare before and after `update` to
-react. A hidden live region tells screen readers about added and removed tags.
+Changes to the tags are read with `values`; compare before and after `update` to
+react. The chips are a list for screen readers, the text input tells how many
+tags there are and which ("2 values: red, blue"), and a hidden live region tells
+about added and removed tags.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and
 `optionalText` are the common field attributes. They come with the field
@@ -89,12 +102,12 @@ name of each remove button) follow `locale`.
 
 # Reading and setting the tags
 
-@docs tags, setTags, draft, clear, isTouched
+@docs values, setValues, draft, clear, isTouched
 
 
 # What counts as a tag
 
-@docs delimiters, maxTags, validate, addOnBlur
+@docs delimiters, maxTags, validate, keepDraftOnBlur
 
 
 # Label, hint and error
@@ -117,11 +130,12 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
 import Html.Keyed as Keyed
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Decoder)
 import Klar.Field as Field
+import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.TextField as TextField
 import Klar.Locale as Locale exposing (Locale)
-import Klar.Tag as Tag
 import Klar.Theme as Theme exposing (Size(..))
 
 
@@ -151,12 +165,13 @@ type alias Fields =
 -}
 type Announcement
     = Silent
-    | Added String
+    | Added (List String)
     | Removed String
 
 
 {-| A field without tags. The `String` is the DOM id of the text input; it must
-be unique on the page, because the label, hint and error point at it.
+be unique on the page, because the label, hint and error point at it (and the
+chips' remove buttons get ids made from it).
 -}
 init : String -> State
 init id =
@@ -166,8 +181,8 @@ init id =
 {-| The tags in the field, in the order they were added. Compare it before and
 after `update` to react to a change.
 -}
-tags : State -> List String
-tags (State state) =
+values : State -> List String
+values (State state) =
     state.tags
 
 
@@ -175,12 +190,13 @@ tags (State state) =
 the text being typed and any refusal message. The tags are taken as they are:
 duplicates, `maxTags` and `validate` are not checked.
 -}
-setTags : List String -> State -> State
-setTags values (State state) =
-    State { state | tags = values, draft = "", message = Nothing }
+setValues : List String -> State -> State
+setValues tags (State state) =
+    State { state | tags = tags, draft = "", message = Nothing }
 
 
-{-| The text being typed, not yet a tag.
+{-| The text being typed, not yet a tag. After a refusal it holds the refused
+text, so that the user can correct it.
 -}
 draft : State -> String
 draft (State state) =
@@ -207,57 +223,122 @@ isTouched (State state) =
 -- UPDATE
 
 
+{-| What `update` must know of the attributes of the view. Data only: the
+`validate` of the application runs in the view, and its verdict comes in each
+`Piece`.
+-}
 type alias Rules =
-    { delimiters : List Char
-    , maxTags : Maybe Int
-    , validate : String -> Maybe String
-    , addOnBlur : Bool
+    { maxTags : Maybe Int
+    , keepDraft : Bool
+    , joiner : String
     , lang : Locale
     }
 
 
-type Origin
-    = Typing
-    | Pasting
+{-| A piece of typed or pasted text (trimmed), with what `validate` said of it.
+-}
+type alias Piece =
+    { text : String
+    , problem : Maybe String
+    }
+
+
+type Toward
+    = Back
+    | Forward
 
 
 {-| The messages a tag field sends: typing, pasting, Enter, Backspace, the
-remove buttons and leaving the field. `view` wraps them with the function you
-give it; hand them to `update` when they come back.
+chips and their remove buttons, and leaving the field. `view` wraps them with
+the function you give it; hand them to `update` when they come back. They hold
+data only, so they can be compared and stored.
 -}
 type Msg
-    = Changed Rules Origin String
-    | Add Rules
+    = Typed Rules (List Piece) String
+    | Pasted Rules (List Piece)
+    | Composed String
+    | Entered Rules (List Piece)
+    | Left Rules (List Piece)
     | RemoveAt Int
+    | RemoveFocused Int Toward
     | RemoveLast
-    | Blurred Rules
+    | FocusChip Int
     | FocusInput
     | Noop
 
 
-{-| Moves the field on after one of its messages. The `Cmd` moves the focus to
-the text input after a click in the field or on a chip's remove button, so pass
-it on with `Cmd.map`.
+{-| Moves the field on after one of its messages. The `Cmd` moves the keyboard
+focus: to the text input after a click in the field or on a chip's remove
+button, and between the chips when they are used with the keyboard. Pass it on
+with `Cmd.map`.
 -}
 update : Msg -> State -> ( State, Cmd Msg )
 update msg ((State state) as current) =
     case msg of
-        Changed rules origin raw ->
-            ( changed rules origin raw state, Cmd.none )
+        Typed rules pieces rest ->
+            ( State (absorb rules pieces rest state), Cmd.none )
 
-        Add rules ->
-            ( State (addDraft rules state), Cmd.none )
+        Pasted rules pieces ->
+            ( State (absorb rules pieces "" state), Cmd.none )
+
+        Composed raw ->
+            ( State { state | draft = raw, message = Nothing }, Cmd.none )
+
+        Entered rules pieces ->
+            ( State (absorb rules pieces "" state), Cmd.none )
+
+        Left rules pieces ->
+            let
+                touched =
+                    { state | touched = True }
+            in
+            if rules.keepDraft || List.isEmpty pieces then
+                ( State touched, Cmd.none )
+
+            else
+                ( State (absorb rules pieces "" touched), Cmd.none )
 
         RemoveAt index ->
-            case List.drop index state.tags |> List.head of
-                Just removed ->
-                    ( State
-                        { state
-                            | tags = List.take index state.tags ++ List.drop (index + 1) state.tags
-                            , message = Nothing
-                            , announcement = Removed removed
-                        }
-                    , Internal.focus state.id Noop
+            case removeAt index state of
+                Just after ->
+                    ( State after, Internal.focus state.id Noop )
+
+                Nothing ->
+                    ( current, Cmd.none )
+
+        RemoveFocused index toward ->
+            case removeAt index state of
+                Just after ->
+                    let
+                        left =
+                            List.length after.tags
+
+                        target =
+                            case toward of
+                                Back ->
+                                    if index > 0 then
+                                        Just (index - 1)
+
+                                    else if left > 0 then
+                                        Just 0
+
+                                    else
+                                        Nothing
+
+                                Forward ->
+                                    if index < left then
+                                        Just index
+
+                                    else
+                                        Nothing
+                    in
+                    ( State after
+                    , case target of
+                        Just next ->
+                            Internal.focus (chipId state.id next) Noop
+
+                        Nothing ->
+                            Internal.focus state.id Noop
                     )
 
                 Nothing ->
@@ -271,16 +352,8 @@ update msg ((State state) as current) =
                 [] ->
                     ( current, Cmd.none )
 
-        Blurred rules ->
-            let
-                touched =
-                    { state | touched = True }
-            in
-            if rules.addOnBlur && String.trim touched.draft /= "" then
-                ( State (addDraft rules touched), Cmd.none )
-
-            else
-                ( State touched, Cmd.none )
+        FocusChip index ->
+            ( current, Internal.focus (chipId state.id index) Noop )
 
         FocusInput ->
             ( current, Internal.focus state.id Noop )
@@ -289,117 +362,86 @@ update msg ((State state) as current) =
             ( current, Cmd.none )
 
 
-changed : Rules -> Origin -> String -> Fields -> State
-changed rules origin raw state =
-    if List.any (\c -> String.contains (String.fromChar c) raw) rules.delimiters then
-        let
-            pieces =
-                splitOnDelimiters rules.delimiters raw
-
-            ( complete, remainder ) =
-                case origin of
-                    Pasting ->
-                        ( pieces, "" )
-
-                    Typing ->
-                        ( List.take (List.length pieces - 1) pieces
-                        , List.drop (List.length pieces - 1) pieces |> List.head |> Maybe.withDefault ""
-                        )
-
-            after =
-                List.foldl (\piece fields -> addTag rules piece fields) { state | message = Nothing } complete
-        in
-        case ( origin, after.message ) of
-            ( Typing, Just _ ) ->
-                -- Keep a refused word in the field so it can be corrected.
-                State
-                    { after
-                        | draft =
-                            if remainder == "" then
-                                complete |> List.reverse |> List.head |> Maybe.withDefault "" |> String.trim
-
-                            else
-                                remainder
-                    }
-
-            _ ->
-                State { after | draft = remainder }
-
-    else
-        State { state | draft = raw, message = Nothing }
-
-
-addDraft : Rules -> Fields -> Fields
-addDraft rules state =
-    let
-        trimmed =
-            String.trim state.draft
-    in
-    if trimmed == "" then
-        { state | draft = "" }
-
-    else
-        let
-            after =
-                addTag rules trimmed { state | message = Nothing }
-        in
-        case after.message of
-            Just _ ->
-                after
-
-            Nothing ->
-                { after | draft = "" }
-
-
-{-| Add one tag unless it is empty, a duplicate, over the limit or invalid.
-A refusal sets the message.
--}
-addTag : Rules -> String -> Fields -> Fields
-addTag rules piece state =
-    let
-        tag =
-            String.trim piece
-    in
-    if tag == "" then
-        state
-
-    else if List.any (\existing -> String.toLower existing == String.toLower tag) state.tags then
-        { state
-            | message =
-                Just
-                    (Locale.pick rules.lang
-                        { nb = "«" ++ tag ++ "» er allerede lagt til"
-                        , en = "\"" ++ tag ++ "\" has already been added"
-                        }
-                    )
-        }
-
-    else if reachedLimit rules state.tags then
-        { state
-            | message =
-                Just
-                    (Locale.pick rules.lang
-                        { nb = "Du kan bare legge til " ++ String.fromInt (Maybe.withDefault 0 rules.maxTags) ++ " verdier"
-                        , en = "You can only add " ++ String.fromInt (Maybe.withDefault 0 rules.maxTags) ++ " values"
-                        }
-                    )
-        }
-
-    else
-        case rules.validate tag of
-            Just problem ->
-                { state | message = Just problem }
-
-            Nothing ->
+removeAt : Int -> Fields -> Maybe Fields
+removeAt index state =
+    List.drop index state.tags
+        |> List.head
+        |> Maybe.map
+            (\removed ->
                 { state
-                    | tags = state.tags ++ [ tag ]
-                    , announcement = Added tag
+                    | tags = List.take index state.tags ++ List.drop (index + 1) state.tags
+                    , message = Nothing
+                    , announcement = Removed removed
                 }
+            )
 
 
-reachedLimit : Rules -> List String -> Bool
-reachedLimit rules existing =
-    case rules.maxTags of
+{-| Adds the pieces that are not refused as tags. The refused ones stay in the
+text, followed by `rest` (what is still being typed), so that the user can
+correct them; the last refusal is the message.
+-}
+absorb : Rules -> List Piece -> String -> Fields -> Fields
+absorb rules pieces rest state =
+    let
+        step piece ( fields, added, refused ) =
+            case refusal rules fields piece of
+                Just problem ->
+                    ( { fields | message = Just problem }, added, refused ++ [ piece.text ] )
+
+                Nothing ->
+                    ( { fields | tags = fields.tags ++ [ piece.text ] }, added ++ [ piece.text ], refused )
+
+        ( after, addedTags, refusedTexts ) =
+            List.foldl step ( { state | message = Nothing }, [], [] ) pieces
+    in
+    { after
+        | draft =
+            String.join rules.joiner
+                (refusedTexts
+                    ++ (if rest == "" then
+                            []
+
+                        else
+                            [ rest ]
+                       )
+                )
+        , announcement =
+            if List.isEmpty addedTags then
+                after.announcement
+
+            else
+                Added addedTags
+    }
+
+
+{-| Why a piece cannot become a tag: a duplicate (ignoring case), over the
+limit, or what `validate` said, in this order.
+-}
+refusal : Rules -> Fields -> Piece -> Maybe String
+refusal rules state piece =
+    if List.any (\existing -> String.toLower existing == String.toLower piece.text) state.tags then
+        Just
+            (Locale.pick rules.lang
+                { nb = "«" ++ piece.text ++ "» er allerede lagt til"
+                , en = "\"" ++ piece.text ++ "\" has already been added"
+                }
+            )
+
+    else if reachedLimit rules.maxTags state.tags then
+        Just
+            (Locale.pick rules.lang
+                { nb = "Du kan bare legge til " ++ String.fromInt (Maybe.withDefault 0 rules.maxTags) ++ " verdier"
+                , en = "You can only add " ++ String.fromInt (Maybe.withDefault 0 rules.maxTags) ++ " values"
+                }
+            )
+
+    else
+        piece.problem
+
+
+reachedLimit : Maybe Int -> List String -> Bool
+reachedLimit maxCount existing =
+    case maxCount of
         Just limit ->
             List.length existing >= limit
 
@@ -407,18 +449,9 @@ reachedLimit rules existing =
             False
 
 
-splitOnDelimiters : List Char -> String -> List String
-splitOnDelimiters separators raw =
-    raw
-        |> String.map
-            (\c ->
-                if List.member c separators || c == '\n' || c == '\u{000D}' then
-                    '\n'
-
-                else
-                    c
-            )
-        |> String.split "\n"
+chipId : String -> Int -> String
+chipId id index =
+    id ++ "-tag-" ++ String.fromInt index
 
 
 
@@ -438,7 +471,7 @@ type alias Config =
     , delimiters : List Char
     , maxTags : Maybe Int
     , validate : String -> Maybe String
-    , addOnBlur : Bool
+    , keepDraft : Bool
     , disabled : Bool
     , readOnly : Bool
     , size : Size
@@ -454,7 +487,7 @@ configure attributes =
         , delimiters = [ ',' ]
         , maxTags = Nothing
         , validate = \_ -> Nothing
-        , addOnBlur = True
+        , keepDraft = False
         , disabled = False
         , readOnly = False
         , size = Medium
@@ -470,7 +503,8 @@ updateField change =
 
 {-| The label shown above the field. It is connected to the text input, so
 clicking it focuses the input and screen readers read it as the name of the
-input. Give every field a label, or hide it with `labelHidden`.
+input (and of the list of chips). Give every field a label, or hide it with
+`labelHidden`.
 -}
 label : String -> Attribute msg
 label value =
@@ -514,7 +548,7 @@ errorMaybe maybe =
 
 {-| Marks the field as required: an asterisk after the label and
 `aria-required` on the text input. This does not validate anything; check
-`tags` for an empty list yourself and show an `error`.
+`values` for an empty list yourself and show an `error`.
 -}
 required : Attribute msg
 required =
@@ -537,10 +571,10 @@ placeholder value =
     Attribute (\config -> { config | placeholder = value })
 
 
-{-| At most this many tags. The field then shows a counter such as `3/8`, and
-when the limit is reached the text input becomes read-only. A tag over the limit,
-for example from pasting a long list, is refused with a message ("You can only
-add 8 values" in English). Default: no limit.
+{-| At most this many tags. The field then shows a counter such as `3/8`. Once
+the limit is reached the user can still type, but a new tag is refused with a
+message ("You can only add 8 values" in English) and its text stays in the
+field; so are the tags over the limit in a pasted list. Default: no limit.
 -}
 maxTags : Int -> Attribute msg
 maxTags limit =
@@ -548,9 +582,10 @@ maxTags limit =
 
 
 {-| The characters that end a tag when they are typed or pasted. Default
-`[ ',' ]`; add `';'` to accept semicolons too. Enter always ends a tag. With an
-empty list only Enter (and leaving the field, see `addOnBlur`) adds tags, and a
-comma becomes part of the tag.
+`[ ',' ]`; add `';'` to accept semicolons too. Enter always ends a tag, and a
+pasted tab or line break always splits. With an empty list only Enter (and
+leaving the field) adds tags, and a comma becomes part of the tag. The comma and
+semicolon of Chinese and Japanese input (`，` `、` `；`) count as `,` and `;`.
 
     TagInput.delimiters [ ',', ';' ]
 
@@ -562,9 +597,10 @@ delimiters chars =
 
 {-| A check that runs on each new tag (trimmed, and after the checks for
 duplicates and `maxTags`). Return `Just message` to refuse the tag: the message
-is shown under the field and a typed word stays in the field so that the user
-can correct it. Return `Nothing` to accept the tag. Default: every tag is
-accepted.
+is shown under the field and the text of the tag stays in the field so that the
+user can correct it. Return `Nothing` to accept the tag. Default: every tag is
+accepted. The check runs in the view, so the messages of the field hold its
+verdict and never the function.
 
     TagInput.validate (Validate.run Locale.en (Validate.maxLength 20))
 
@@ -574,15 +610,12 @@ validate check =
     Attribute (\config -> { config | validate = check })
 
 
-{-| Whether leaving the field turns the text still being typed into a tag.
-Default `True`.
-
-    TagInput.addOnBlur False
-
+{-| Leaving the field keeps the text that is still being typed as text instead
+of turning it into a tag. By default leaving the field adds it, as Enter does.
 -}
-addOnBlur : Bool -> Attribute msg
-addOnBlur value =
-    Attribute (\config -> { config | addOnBlur = value })
+keepDraftOnBlur : Attribute msg
+keepDraftOnBlur =
+    Attribute (\config -> { config | keepDraft = True })
 
 
 {-| While `True` the field is dimmed, nothing can be typed, and the chips lose
@@ -594,7 +627,7 @@ disabled value =
 
 
 {-| While `True` the user can focus the field but not add or remove tags: the
-chips lose their remove buttons. Default `False`.
+chips lose their remove buttons, and Backspace removes nothing. Default `False`.
 -}
 readOnly : Bool -> Attribute msg
 readOnly value =
@@ -602,8 +635,9 @@ readOnly value =
 
 
 {-| The size of the field and of its chips: `Small`, `Medium` or `Large`, from
-[Klar.Theme](Klar-Theme). The field is at least 26px, 32px or 40px high, and
-grows when the chips wrap onto more lines. Default `Medium`.
+[Klar.Theme](Klar-Theme). The field is at least 26px, 32px or 40px high at the
+default density (see `Klar.Theme` for the others), and grows when the chips
+wrap onto more lines. Default `Medium`.
 -}
 size : Size -> Attribute msg
 size value =
@@ -611,10 +645,10 @@ size value =
 
 
 {-| The language of the built-in text: the refusal messages ("... has already
-been added", "You can only add 8 values"), what screen readers are told when a
-tag is added or removed ("... added", "... removed") and the name of each remove
-button ("Remove ..."). Default `Locale.default`, which is English. Texts you pass
-in yourself are shown as they are.
+been added", "You can only add 8 values"), what screen readers are told ("...
+added", "... removed", "2 values: red, blue") and the name of each remove button
+("Remove ..."). Default `Locale.default`, which is English. Texts you pass in
+yourself are shown as they are.
 -}
 locale : Locale -> Attribute msg
 locale value =
@@ -642,10 +676,15 @@ view toMsg attributes (State state) =
             configure attributes
 
         rules =
-            { delimiters = config.delimiters
-            , maxTags = config.maxTags
-            , validate = config.validate
-            , addOnBlur = config.addOnBlur
+            { maxTags = config.maxTags
+            , keepDraft = config.keepDraft
+            , joiner =
+                case config.delimiters of
+                    first :: _ ->
+                        String.fromChar first ++ " "
+
+                    [] ->
+                        " "
             , lang = config.locale
             }
 
@@ -654,8 +693,8 @@ view toMsg attributes (State state) =
                 |> Field.setId state.id
                 |> Field.setError
                     (case state.message of
-                        Just refusal ->
-                            Just refusal
+                        Just refusal_ ->
+                            Just refusal_
 
                         Nothing ->
                             config.field.error
@@ -664,22 +703,19 @@ view toMsg attributes (State state) =
         inactive =
             config.disabled || config.readOnly
 
-        atLimit =
-            reachedLimit rules state.tags
+        count =
+            List.length state.tags
 
-        removeAttributes index =
-            if inactive then
-                []
+        summaryId =
+            state.id ++ "-values"
 
-            else
-                [ Tag.onRemove (toMsg (RemoveAt index)) ]
-
-        tagList =
+        chips =
             List.indexedMap
                 (\index tag ->
                     ( "tag-" ++ String.fromInt index
-                    , Tag.view
-                        ([ Tag.size config.size, Tag.locale config.locale ] ++ removeAttributes index)
+                    , viewChip toMsg
+                        { config = config, rules = rules, id = state.id, draft = state.draft, count = count, inactive = inactive }
+                        index
                         tag
                     )
                 )
@@ -725,41 +761,63 @@ view toMsg attributes (State state) =
                             [ Events.onClick (toMsg FocusInput) ]
                        )
                 )
-                (( "tags", Keyed.node "div" [ Internal.cls [ "klar-taginput__tags" ] ] tagList )
-                    :: [ ( "input"
-                         , Html.input
-                            (Field.controlAttributes field
-                                ++ [ Internal.cls [ "klar-taginput__input" ]
-                                   , Attr.type_ "text"
-                                   , Attr.value state.draft
-                                   , Attr.placeholder
-                                        (if List.isEmpty state.tags then
-                                            config.placeholder
+                [ ( "tags"
+                  , Keyed.node "div"
+                        [ Internal.cls [ "klar-taginput__tags" ]
+                        , Attr.attribute "role" "list"
+                        , Internal.attrIf (field.label /= Nothing) (Attr.attribute "aria-labelledby" (Field.labelId field))
+                        ]
+                        chips
+                  )
+                , ( "input"
+                  , Html.input
+                        (TextField.controlAttributes field
+                            { describedBy =
+                                if count > 0 then
+                                    [ summaryId ]
 
-                                         else
-                                            ""
-                                        )
-                                   , Attr.disabled config.disabled
-                                   , Attr.readonly (config.readOnly || atLimit)
-                                   , Attr.attribute "autocomplete" "off"
-                                   , Events.on "input" (inputDecoder toMsg rules)
-                                   , Events.onBlur (toMsg (Blurred rules))
-                                   , Events.preventDefaultOn "keydown" (keyDecoder toMsg rules (state.draft == "") (not (List.isEmpty state.tags)))
-                                   ]
-                            )
-                            []
-                         )
-                       , ( "count"
-                         , case config.maxTags of
-                            Just limit ->
-                                Html.span [ Internal.cls [ "klar-taginput__count", "klar-tabular" ] ]
-                                    [ Html.text (String.fromInt (List.length state.tags) ++ "/" ++ String.fromInt limit) ]
+                                else
+                                    []
+                            , invalid = False
+                            }
+                            ++ [ Internal.cls [ "klar-taginput__input" ]
+                               , Attr.type_ "text"
+                               , Attr.value state.draft
+                               , Attr.placeholder
+                                    (if count == 0 then
+                                        config.placeholder
 
-                            Nothing ->
-                                Html.text ""
-                         )
-                       ]
-                )
+                                     else
+                                        ""
+                                    )
+                               , Attr.disabled config.disabled
+                               , Attr.readonly config.readOnly
+                               , Attr.attribute "autocomplete" "off"
+                               ]
+                            ++ (if inactive then
+                                    []
+
+                                else
+                                    [ Events.on "input" (inputDecoder toMsg config rules)
+                                    , Events.on "blur" (leaving state.id (targetPieces config) |> Decode.map (\found -> toMsg (Left rules found)))
+                                    , Events.preventDefaultOn "keydown" (keyDecoder toMsg config rules count)
+                                    ]
+                               )
+                        )
+                        []
+                  )
+                , ( "count"
+                  , case config.maxTags of
+                        Just limit ->
+                            Html.span [ Internal.cls [ "klar-taginput__count", "klar-tabular" ], Attr.attribute "aria-hidden" "true" ]
+                                [ Html.text (String.fromInt count ++ "/" ++ String.fromInt limit) ]
+
+                        Nothing ->
+                            Html.text ""
+                  )
+                ]
+            , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.id summaryId ]
+                [ Html.text (summary config.locale config.maxTags state.tags) ]
             , Html.span
                 [ Internal.cls [ "klar-sr-only" ]
                 , Attr.attribute "role" "status"
@@ -770,43 +828,85 @@ view toMsg attributes (State state) =
         )
 
 
-{-| The text of the hidden live region.
+{-| One chip. Its remove button is not a Tab stop: the chips are reached with
+the arrow keys from the text input, and the button is what takes the focus.
 -}
-spoken : Locale -> Announcement -> String
-spoken lang announcement =
-    case announcement of
-        Added tag ->
-            tag ++ Locale.pick lang { nb = " lagt til", en = " added" }
+viewChip :
+    (Msg -> msg)
+    -> { config : Config, rules : Rules, id : String, draft : String, count : Int, inactive : Bool }
+    -> Int
+    -> String
+    -> Html msg
+viewChip toMsg chip index tag =
+    let
+        removeLabel =
+            Locale.pick chip.config.locale { nb = "Fjern ", en = "Remove " } ++ tag
+    in
+    Html.span
+        [ Internal.cls [ "klar-tag", "klar-tag--" ++ Internal.sizeSuffix chip.config.size ]
+        , Attr.attribute "role" "listitem"
+        ]
+        [ Html.span [ Internal.cls [ "klar-tag__label" ], Internal.attrIf (String.length tag > 18) (Attr.title tag) ] [ Html.text tag ]
+        , if chip.inactive then
+            Html.text ""
 
-        Removed tag ->
-            tag ++ Locale.pick lang { nb = " fjernet", en = " removed" }
+          else
+            Html.button
+                [ Internal.cls [ "klar-tag__remove" ]
+                , Attr.type_ "button"
+                , Attr.id (chipId chip.id index)
+                , Attr.tabindex -1
+                , Attr.attribute "aria-label" removeLabel
+                , Attr.title removeLabel
+                , Internal.onMouseDownPrevent (toMsg Noop)
+                , Events.stopPropagationOn "click" (clickDecoder toMsg index)
+                , Events.preventDefaultOn "keydown" (chipKeyDecoder toMsg index chip.count)
 
-        Silent ->
-            ""
-
-
-inputDecoder : (Msg -> msg) -> Rules -> Decode.Decoder msg
-inputDecoder toMsg rules =
-    Decode.map2
-        (\origin raw -> toMsg (Changed rules origin raw))
-        (Decode.oneOf
-            [ Decode.field "inputType" Decode.string
-                |> Decode.map
-                    (\inputType ->
-                        if String.startsWith "insertFromPaste" inputType || inputType == "insertFromDrop" then
-                            Pasting
-
-                        else
-                            Typing
+                -- leaving the field from a chip ends the field like leaving the text does
+                , Events.on "blur"
+                    (leaving chip.id (Decode.succeed (cutPieces chip.config chip.draft))
+                        |> Decode.map (\found -> toMsg (Left chip.rules found))
                     )
-            , Decode.succeed Typing
-            ]
-        )
-        (Decode.at [ "target", "value" ] Decode.string)
+                ]
+                [ Icon.sized Icon.ExtraSmall Icon.close ]
+        ]
 
 
-keyDecoder : (Msg -> msg) -> Rules -> Bool -> Bool -> Decode.Decoder ( msg, Bool )
-keyDecoder toMsg rules draftIsEmpty hasTags =
+{-| Succeeds only when the focus goes to something outside the field: moving
+between the text input and the chips is not leaving it.
+-}
+leaving : String -> Decoder a -> Decoder a
+leaving id decoder =
+    Decode.oneOf [ Decode.at [ "relatedTarget", "id" ] Decode.string, Decode.succeed "" ]
+        |> Decode.andThen
+            (\next ->
+                if next == id || String.startsWith (id ++ "-tag-") next then
+                    Decode.fail "the focus stays in the field"
+
+                else
+                    decoder
+            )
+
+
+{-| A click with the mouse (`detail` 1 or more) removes the chip and puts the
+cursor in the text input; one from Enter or Space on the focused button
+(`detail` 0) keeps the focus on the chips.
+-}
+clickDecoder : (Msg -> msg) -> Int -> Decoder ( msg, Bool )
+clickDecoder toMsg index =
+    Decode.oneOf [ Decode.field "detail" Decode.int, Decode.succeed 0 ]
+        |> Decode.map
+            (\clicks ->
+                if clicks > 0 then
+                    ( toMsg (RemoveAt index), True )
+
+                else
+                    ( toMsg (RemoveFocused index Forward), True )
+            )
+
+
+chipKeyDecoder : (Msg -> msg) -> Int -> Int -> Decoder ( msg, Bool )
+chipKeyDecoder toMsg index count =
     Internal.keyEvent
         |> Decode.andThen
             (\event ->
@@ -815,28 +915,248 @@ keyDecoder toMsg rules draftIsEmpty hasTags =
 
                 else
                     case event.key of
-                        "Enter" ->
-                            -- Never submit the surrounding form from here.
-                            Decode.succeed ( toMsg (Add rules), True )
+                        "ArrowLeft" ->
+                            Decode.succeed ( toMsg (FocusChip (Basics.max 0 (index - 1))), True )
 
-                        "Backspace" ->
-                            if draftIsEmpty && hasTags then
-                                -- only a fresh press: holding Backspace to
-                                -- delete the text must not go on to remove
-                                -- every tag
-                                Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ]
-                                    |> Decode.andThen
-                                        (\repeated ->
-                                            if repeated then
-                                                Decode.succeed ( toMsg Noop, True )
-
-                                            else
-                                                Decode.succeed ( toMsg RemoveLast, True )
-                                        )
+                        "ArrowRight" ->
+                            if index + 1 < count then
+                                Decode.succeed ( toMsg (FocusChip (index + 1)), True )
 
                             else
-                                Decode.fail "ordinary backspace"
+                                Decode.succeed ( toMsg FocusInput, True )
+
+                        "Home" ->
+                            Decode.succeed ( toMsg (FocusChip 0), True )
+
+                        "End" ->
+                            Decode.succeed ( toMsg FocusInput, True )
+
+                        "Escape" ->
+                            Decode.succeed ( toMsg FocusInput, True )
+
+                        "Backspace" ->
+                            Decode.succeed ( toMsg (RemoveFocused index Back), True )
+
+                        "Delete" ->
+                            Decode.succeed ( toMsg (RemoveFocused index Forward), True )
 
                         _ ->
                             Decode.fail "unhandled key"
             )
+
+
+{-| What screen readers hear when the text input gets focus: how many tags
+there are, and which.
+-}
+summary : Locale -> Maybe Int -> List String -> String
+summary lang maxCount tags =
+    let
+        count =
+            List.length tags
+
+        amount =
+            case maxCount of
+                Just limit ->
+                    Locale.pick lang
+                        { nb = String.fromInt count ++ " av " ++ String.fromInt limit ++ " verdier"
+                        , en = String.fromInt count ++ " of " ++ String.fromInt limit ++ " values"
+                        }
+
+                Nothing ->
+                    Locale.pick lang
+                        { nb =
+                            String.fromInt count
+                                ++ (if count == 1 then
+                                        " verdi"
+
+                                    else
+                                        " verdier"
+                                   )
+                        , en =
+                            String.fromInt count
+                                ++ (if count == 1 then
+                                        " value"
+
+                                    else
+                                        " values"
+                                   )
+                        }
+    in
+    if count == 0 then
+        ""
+
+    else
+        amount ++ ": " ++ String.join ", " tags
+
+
+{-| The text of the hidden live region.
+-}
+spoken : Locale -> Announcement -> String
+spoken lang announcement =
+    case announcement of
+        Added [ tag ] ->
+            tag ++ Locale.pick lang { nb = " lagt til", en = " added" }
+
+        Added tags ->
+            String.fromInt (List.length tags) ++ Locale.pick lang { nb = " verdier lagt til", en = " values added" }
+
+        Removed tag ->
+            tag ++ Locale.pick lang { nb = " fjernet", en = " removed" }
+
+        Silent ->
+            ""
+
+
+
+-- DECODERS
+
+
+inputDecoder : (Msg -> msg) -> Config -> Rules -> Decoder msg
+inputDecoder toMsg config rules =
+    Decode.map3
+        (\isComposing inputType raw ->
+            if isComposing then
+                -- the text of an input method is not final: never split it
+                toMsg (Composed raw)
+
+            else if not (String.any (isDelimiter config.delimiters) raw) then
+                toMsg (Typed rules [] raw)
+
+            else if String.startsWith "insertFromPaste" inputType || inputType == "insertFromDrop" then
+                toMsg (Pasted rules (cutPieces config raw))
+
+            else
+                let
+                    parts =
+                        splitParts config.delimiters raw
+
+                    complete =
+                        List.take (List.length parts - 1) parts
+
+                    rest =
+                        List.drop (List.length parts - 1) parts |> List.head |> Maybe.withDefault ""
+                in
+                toMsg (Typed rules (List.filterMap (toPiece config) complete) (String.trimLeft rest))
+        )
+        TextField.composing
+        (Decode.oneOf [ Decode.field "inputType" Decode.string, Decode.succeed "" ])
+        (Decode.at [ "target", "value" ] Decode.string)
+
+
+{-| The pieces of the text in the input, at the moment of the event.
+-}
+targetPieces : Config -> Decoder (List Piece)
+targetPieces config =
+    Decode.at [ "target", "value" ] Decode.string
+        |> Decode.map (cutPieces config)
+
+
+keyDecoder : (Msg -> msg) -> Config -> Rules -> Int -> Decoder ( msg, Bool )
+keyDecoder toMsg config rules count =
+    Decode.map2 Tuple.pair TextField.composing Internal.keyEvent
+        |> Decode.andThen
+            (\( isComposing, event ) ->
+                if isComposing then
+                    -- Enter confirms the composed word; the arrows pick one
+                    Decode.fail "composing"
+
+                else if event.ctrl || event.meta || event.alt then
+                    Decode.fail "modifier"
+
+                else
+                    case event.key of
+                        "Enter" ->
+                            -- Never submit the surrounding form from here.
+                            targetPieces config
+                                |> Decode.map (\found -> ( toMsg (Entered rules found), True ))
+
+                        "Backspace" ->
+                            Decode.map2 Tuple.pair
+                                (Decode.at [ "target", "value" ] Decode.string)
+                                (Decode.oneOf [ Decode.field "repeat" Decode.bool, Decode.succeed False ])
+                                |> Decode.andThen
+                                    (\( text, repeated ) ->
+                                        if text /= "" || count == 0 then
+                                            Decode.fail "ordinary backspace"
+
+                                        else if repeated then
+                                            -- only a fresh press: holding Backspace to delete
+                                            -- the text must not go on to remove every tag
+                                            Decode.succeed ( toMsg Noop, True )
+
+                                        else
+                                            Decode.succeed ( toMsg RemoveLast, True )
+                                    )
+
+                        "ArrowLeft" ->
+                            Decode.map2 Tuple.pair
+                                (Decode.at [ "target", "selectionStart" ] Decode.int)
+                                (Decode.at [ "target", "selectionEnd" ] Decode.int)
+                                |> Decode.andThen
+                                    (\( start, end ) ->
+                                        if count > 0 && start == 0 && end == 0 then
+                                            Decode.succeed ( toMsg (FocusChip (count - 1)), True )
+
+                                        else
+                                            Decode.fail "the caret moves"
+                                    )
+
+                        _ ->
+                            Decode.fail "unhandled key"
+            )
+
+
+{-| A text cut into pieces at the delimiters, each one trimmed and checked by
+`validate`; empty pieces are left out.
+-}
+cutPieces : Config -> String -> List Piece
+cutPieces config raw =
+    List.filterMap (toPiece config) (splitParts config.delimiters raw)
+
+
+toPiece : Config -> String -> Maybe Piece
+toPiece config text =
+    case String.trim text of
+        "" ->
+            Nothing
+
+        trimmed ->
+            Just { text = trimmed, problem = config.validate trimmed }
+
+
+splitParts : List Char -> String -> List String
+splitParts separators raw =
+    raw
+        |> String.map
+            (\c ->
+                if isDelimiter separators c then
+                    '\n'
+
+                else
+                    c
+            )
+        |> String.split "\n"
+
+
+{-| A delimiter of the field, the comma and semicolon of Chinese and Japanese
+input counted as theirs, or a line break or tab, which always split.
+-}
+isDelimiter : List Char -> Char -> Bool
+isDelimiter separators c =
+    c == '\n' || c == '\u{000D}' || c == '\t' || List.member c separators || List.member (latinPunctuation c) separators
+
+
+latinPunctuation : Char -> Char
+latinPunctuation c =
+    case c of
+        '，' ->
+            ','
+
+        '、' ->
+            ','
+
+        '；' ->
+            ';'
+
+        _ ->
+            c

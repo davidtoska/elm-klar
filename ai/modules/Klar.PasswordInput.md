@@ -1,6 +1,6 @@
 # Klar.PasswordInput
 
-A password field with a "show password" button and an optional strength meter.
+A password field with a "show password" button, a Caps Lock warning and an optional strength meter.
 
 Import: `import Klar.PasswordInput as PasswordInput` | Group: Inputs
 
@@ -18,15 +18,19 @@ type State  -- opaque: no constructors are exposed
 type Msg  -- opaque: no constructors are exposed
 init : String -> State
 update : Msg -> State -> ( State, Cmd Msg )
+
+-- The password
+value : State -> String
+setValue : String -> State -> State
+clear : State -> State
 isRevealed : State -> Bool
 reveal : State -> State
 hide : State -> State
 
--- Value and events
-value : String -> Attribute msg
-onInput : (String -> msg) -> Attribute msg
+-- Events
 onEnter : msg -> Attribute msg
 onBlur : msg -> Attribute msg
+onFocus : msg -> Attribute msg
 
 -- Label, hint and error
 label : String -> Attribute msg
@@ -59,51 +63,49 @@ locale : Locale.Locale -> Attribute msg
 
 ## Documentation
 
-A password field with a "show password" button and an optional strength
-meter.
+A password field with a "show password" button, a Caps Lock warning and an
+optional strength meter.
 
 Use when: the user types a password and may want to see it, or you want to show its strength.
 Do not use when: the text is not secret (use `Klar.TextInput`).
-Quick path: `init`, `update`, `view`
+Quick path: `init`, `update`, `view`, `value`
 
     import Klar.PasswordInput as PasswordInput
 
     type alias Model =
-        { password : String
-        , passwordField : PasswordInput.State
-        }
+        { password : PasswordInput.State }
 
     init : Model
     init =
-        { password = ""
-        , passwordField = PasswordInput.init "account-password"
-        }
+        { password = PasswordInput.init "account-password" }
 
     -- update
-    PasswordChanged text ->
-        ( { model | password = text }, Cmd.none )
-
     PasswordMsg inner ->
         let
-            ( passwordField, cmd ) =
-                PasswordInput.update inner model.passwordField
+            ( password, cmd ) =
+                PasswordInput.update inner model.password
         in
-        ( { model | passwordField = passwordField }, Cmd.map PasswordMsg cmd )
+        ( { model | password = password }, Cmd.map PasswordMsg cmd )
+
+    SignIn ->
+        -- hide it again, so that it is not left on the screen as plain text
+        ( { model | password = PasswordInput.hide model.password }
+        , signIn (PasswordInput.value model.password)
+        )
 
     -- view
     PasswordInput.view PasswordMsg
-        [ PasswordInput.label "New password"
-        , PasswordInput.value model.password
-        , PasswordInput.onInput PasswordChanged
-        , PasswordInput.newPassword
-        , PasswordInput.strengthMeter
+        [ PasswordInput.label "Password"
+        , PasswordInput.currentPassword
+        , PasswordInput.onEnter SignIn
         ]
-        model.passwordField
+        model.password
 
-The text itself is owned by the application, as in
-[Klar.TextInput](Klar.TextInput.md); the state only remembers whether the password
-is shown. The `String` given to `init` is the DOM id of the input, so there is
-no `id` attribute.
+The state holds the password, whether it is shown and whether Caps Lock seems to
+be on, like every other field of the package with a state: read it with
+`value`, react to a change by comparing `value` before and after `update`. The
+`String` given to `init` is the DOM id of the input, so there is no `id`
+attribute.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and
 `optionalText` are the common field attributes. They come with the field
@@ -117,25 +119,32 @@ also when there is no `label`, `hint` or `error` to draw, so it stays where it i
 is typing.
 
 **Show and hide.** A button at the end of the field switches between dots and
-plain text. Its name is "Show password" or "Hide password", and `aria-pressed`
-says whether the password is shown. A mouse click on it leaves the keyboard
-focus in the field, and a keyboard user stays on the button. The application can
-do the same with `reveal` and `hide`. The field also switches off automatic
+plain text. Its name says what it does ("Show password" or "Hide password"), and
+screen readers are told "Password shown" or "Password hidden". A mouse click on
+it leaves the keyboard focus in the field, and a keyboard user stays on the
+button. The application can do the same with `reveal` and `hide`; hide the
+password when the form is sent, as above. The field also switches off automatic
 capital letters, autocorrect and spell checking.
+
+**Caps Lock.** When a letter comes out in capitals without Shift (or small with
+Shift), the field shows "Caps Lock is on" under the input and screen readers
+hear it. The warning goes when a letter comes out right again, when Caps Lock is
+pressed, and when the field is left.
 
 **Password managers.** Use `currentPassword` on a login form and `newPassword`
 when choosing one, so that password managers do the right thing.
 
 **Strength.** `strengthMeter` shows four bars and a word under the field while
 it has text, and screen readers are told the result ("Password strength:
-Weak"). It is a rough guide (length, mix of characters, obvious patterns and the
-most common passwords), not a security guarantee: the application should still
-enforce its own rules, and can use `strength` for that. It counts the letters of
-every script as letters, and it knows the common passwords of English and
-Norwegian whatever the `locale`.
+Weak"), also when they come back to the field. It is a rough guide (length, mix
+of characters, obvious patterns and the most common passwords), not a security
+guarantee: the application should still enforce its own rules, and can use
+`strength` for that. Long passphrases are strong without digits or symbols. It
+counts the letters of every script as letters, and it knows the common
+passwords of English and Norwegian whatever the `locale`.
 
-The built-in texts (the name of the button and the strength meter) follow
-`locale`.
+The built-in texts (the name of the button, the Caps Lock warning and the
+strength meter) follow `locale`.
 
 ## View
 
@@ -159,12 +168,11 @@ shows or hides the password. The first argument wraps the field's own messages
 in one of yours, and the state comes last.
 
     PasswordInput.view PasswordMsg
-        [ PasswordInput.label "Password"
-        , PasswordInput.currentPassword
-        , PasswordInput.value model.password
-        , PasswordInput.onInput PasswordChanged
+        [ PasswordInput.label "New password"
+        , PasswordInput.newPassword
+        , PasswordInput.strengthMeter
         ]
-        model.passwordField
+        model.password
 
 ## State
 
@@ -174,9 +182,9 @@ in one of yours, and the state comes last.
 type State  -- opaque: no constructors are exposed
 ```
 
-The state of a password field. It only remembers whether the password is
-shown; the text itself lives in your model. Make one with `init`, keep it in your
-model and give it to `view` and `update`.
+The state of a password field: the password, whether it is shown and
+whether Caps Lock seems to be on. Make one with `init`, keep it in your model
+and give it to `view` and `update`.
 
 ### `Msg`
 
@@ -184,8 +192,9 @@ model and give it to `view` and `update`.
 type Msg  -- opaque: no constructors are exposed
 ```
 
-The messages of the show/hide button. `view` wraps them with the function
-you give it; hand them to `update` when they come back.
+The messages of a password field: typing, the show/hide button, the keys
+that tell whether Caps Lock is on, and leaving the field. `view` wraps them with
+the function you give it; hand them to `update` when they come back.
 
 ### `init`
 
@@ -193,8 +202,9 @@ you give it; hand them to `update` when they come back.
 init : String -> State
 ```
 
-A field that hides the password. The `String` is the DOM id of the input; it
-must be unique on the page, because the label, hint and error point at it.
+An empty field that hides the password. The `String` is the DOM id of the
+input; it must be unique on the page, because the label, hint and error point at
+it.
 
 ### `update`
 
@@ -202,9 +212,36 @@ must be unique on the page, because the label, hint and error point at it.
 update : Msg -> State -> ( State, Cmd Msg )
 ```
 
-Moves the field on after one of its messages: the button toggles whether the
-password is shown. Call it from your own `update` and pass the `Cmd` on with
-`Cmd.map`.
+Moves the field on after one of its messages. Call it from your own `update`
+and pass the `Cmd` on with `Cmd.map`.
+
+## The password
+
+### `value`
+
+```elm
+value : State -> String
+```
+
+The password in the field. Compare it before and after `update` to react to
+a change.
+
+### `setValue`
+
+```elm
+setValue : String -> State -> State
+```
+
+Puts a password in the field, for example one the application generated.
+
+### `clear`
+
+```elm
+clear : State -> State
+```
+
+Empties the field and hides the password again, for example after a failed
+sign-in.
 
 ### `isRevealed`
 
@@ -228,30 +265,11 @@ Shows the password as plain text, as if the user had pressed the button.
 hide : State -> State
 ```
 
-Hides the password behind dots again, for example when a form is shown anew.
+Hides the password behind dots again. Call it when the form is sent, so
+that a shown password is not left on the screen (or in the history of the
+browser) as plain text.
 
-## Value and events
-
-### `value`
-
-```elm
-value : String -> Attribute msg
-```
-
-The password, as your model has it. The input always shows exactly this
-string, as dots or as plain text, so update it from `onInput`. Default: empty.
-
-### `onInput`
-
-```elm
-onInput : (String -> msg) -> Attribute msg
-```
-
-Sends the new password each time the user changes the field, by typing or
-pasting. The function gets the whole text. Store it in your model and pass it
-back with `value`.
-
-    PasswordInput.onInput PasswordChanged -- PasswordChanged : String -> Msg
+## Events
 
 ### `onEnter`
 
@@ -260,8 +278,9 @@ onEnter : msg -> Attribute msg
 ```
 
 Sends this message when the user presses Enter in the field (without Shift,
-Ctrl, Alt or Cmd). The key press is cancelled, so it does not submit a
-surrounding `form`; leave `onEnter` out to let Enter submit it.
+Ctrl, Alt or Cmd), for example to sign in. The key press is cancelled, so it
+does not submit a surrounding `form`; leave `onEnter` out to let Enter submit
+it. The Enter that confirms a word in an input method sends nothing.
 
 ### `onBlur`
 
@@ -271,6 +290,14 @@ onBlur : msg -> Attribute msg
 
 Sends this message when the field loses focus. A good moment to validate, so
 that an error does not appear while the user is still typing.
+
+### `onFocus`
+
+```elm
+onFocus : msg -> Attribute msg
+```
+
+Sends this message when the field gets focus.
 
 ## Label, hint and error
 
@@ -381,7 +408,8 @@ strengthMeter : Attribute msg
 
 Shows four bars and a word ("Weak", "Fair", "Good" or "Strong") under the
 field while it has text. Screen readers are told the result as a status
-("Password strength: Weak"). The meter uses `strength`, which is a rough guide.
+("Password strength: Weak"), and hear it again with the field when they come
+back to it. The meter uses `strength`, which is a rough guide.
 
 ### `strength`
 
@@ -391,14 +419,24 @@ strength : String -> Int
 
 A rough strength of a password, from 0 (empty) to 4. It looks at the length,
 the kinds of characters (lowercase letters, uppercase letters, digits and
-everything else) and a few obvious patterns, and it is what `strengthMeter`
-shows.
+everything else), a few obvious patterns and the most common passwords, and it
+is what `strengthMeter` shows. Length counts most, as current advice (NIST SP
+800-63B) has it: a long passphrase is strong without digits or symbols.
 
-  - 1 weak: shorter than 8 characters, only one kind of character, or an obvious
-    pattern (`password123`, `abcdefgh`, `aaaaaaaa`)
-  - 2 fair: at least 8 characters of two kinds
-  - 3 good: at least 10 characters of three kinds
-  - 4 strong: at least 16 characters of three kinds, or 12 of all four
+  - 1 weak: shorter than 8 characters, only one kind of character (and shorter
+    than 15), an obvious pattern (`abcdefgh`, `aaaaaaaa`), or mostly a common
+    password (`password123`)
+  - 2 fair: at least 8 characters of two kinds, or 15 characters of any kind
+  - 3 good: at least 10 characters of three kinds, or 20 of any kind
+  - 4 strong: at least 16 characters of three kinds, 12 of all four, or 24 of
+    any kind
+
+A common password inside a longer one (`password`, `qwerty`, `letmein` ... and
+the usual Norwegian ones) counts for nothing: the password is rated as if the
+word were not there, and one that is mostly that word is weak. The meter has no
+locale, so the English and the Norwegian entries always count. The list is
+short, as is every other pattern the meter knows: it is a guide for the user,
+not a security check.
 
 It reads the password as Unicode text. A letter counts as a letter in any
 script: `é`, `ü`, `ж` and `Ω` are lowercase or uppercase letters like `e` and
@@ -407,12 +445,6 @@ with the lowercase ones. Digits of other scripts are digits. Punctuation, signs
 and emoji are the "everything else" kind, and a combining accent counts for
 nothing on its own. The length is the number of characters, not of UTF-16 units,
 so an emoji is one.
-
-A password that contains one of the most common passwords (`password`, `qwerty`,
-`letmein` ... and the usual Norwegian ones) is weak however long it is. The meter
-has no locale, so the English and the Norwegian entries always count. The list is
-short, as is every other pattern the meter knows: it is a guide for the user, not
-a security check.
 
 ## Appearance and behavior
 
@@ -432,7 +464,8 @@ size : Theme.Size -> Attribute msg
 ```
 
 The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar.Theme.md). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar.Theme.md). Default `Medium`.
 
 ### `disabled`
 
@@ -470,6 +503,8 @@ locale : Locale.Locale -> Attribute msg
 ```
 
 The language of the built-in text: the name of the show/hide button ("Show
-password" and "Hide password") and the strength meter ("Password strength:" and
-the words "Weak", "Fair", "Good" and "Strong"). Default `Locale.default`, which
-is English. Texts you pass in yourself are shown as they are.
+password" and "Hide password") and what screen readers are told when it is
+used, the Caps Lock warning ("Caps Lock is on") and the strength meter
+("Password strength:" and the words "Weak", "Fair", "Good" and "Strong").
+Default `Locale.default`, which is English. Texts you pass in yourself are
+shown as they are.

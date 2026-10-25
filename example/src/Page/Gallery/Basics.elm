@@ -1073,7 +1073,7 @@ viewInputs locale model =
         "The fields are owned by the application (controlled input). The label, the hint and the error message are connected to the field for screen readers."
         [ Doc.example
             { title = "Text fields"
-            , description = Just "The email field is checked by a validator on every keystroke: edit the address to make the error go away."
+            , description = Just "The email field is checked by a validator on every keystroke: edit the address to make the error go away. The comment has a limit of 60 characters: its counter turns amber near the end and red past it, and a longer paste is kept, not cut. The order number is verbatim: no spell checking or capitals."
             , code = Just textInputCode
             }
             (Layout.grid [ Layout.minColumn 260, Layout.gap 4 ]
@@ -1123,6 +1123,7 @@ viewInputs locale model =
                 , TextInput.view
                     [ TextInput.label "Order number"
                     , TextInput.readOnly True
+                    , TextInput.verbatim
                     , TextInput.value "ORD-10001"
                     , TextInput.id "basics-readonly"
                     ]

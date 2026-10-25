@@ -1,7 +1,8 @@
 module Klar.PasswordInput exposing
     ( view, Attribute
-    , State, Msg, init, update, isRevealed, reveal, hide
-    , value, onInput, onEnter, onBlur
+    , State, Msg, init, update
+    , value, setValue, clear, isRevealed, reveal, hide
+    , onEnter, onBlur, onFocus
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , currentPassword, newPassword, autocomplete
     , strengthMeter, strength
@@ -9,51 +10,49 @@ module Klar.PasswordInput exposing
     , locale
     )
 
-{-| A password field with a "show password" button and an optional strength
-meter.
+{-| A password field with a "show password" button, a Caps Lock warning and an
+optional strength meter.
 
 Use when: the user types a password and may want to see it, or you want to show its strength.
 Do not use when: the text is not secret (use `Klar.TextInput`).
-Quick path: `init`, `update`, `view`
+Quick path: `init`, `update`, `view`, `value`
 
     import Klar.PasswordInput as PasswordInput
 
     type alias Model =
-        { password : String
-        , passwordField : PasswordInput.State
-        }
+        { password : PasswordInput.State }
 
     init : Model
     init =
-        { password = ""
-        , passwordField = PasswordInput.init "account-password"
-        }
+        { password = PasswordInput.init "account-password" }
 
     -- update
-    PasswordChanged text ->
-        ( { model | password = text }, Cmd.none )
-
     PasswordMsg inner ->
         let
-            ( passwordField, cmd ) =
-                PasswordInput.update inner model.passwordField
+            ( password, cmd ) =
+                PasswordInput.update inner model.password
         in
-        ( { model | passwordField = passwordField }, Cmd.map PasswordMsg cmd )
+        ( { model | password = password }, Cmd.map PasswordMsg cmd )
+
+    SignIn ->
+        -- hide it again, so that it is not left on the screen as plain text
+        ( { model | password = PasswordInput.hide model.password }
+        , signIn (PasswordInput.value model.password)
+        )
 
     -- view
     PasswordInput.view PasswordMsg
-        [ PasswordInput.label "New password"
-        , PasswordInput.value model.password
-        , PasswordInput.onInput PasswordChanged
-        , PasswordInput.newPassword
-        , PasswordInput.strengthMeter
+        [ PasswordInput.label "Password"
+        , PasswordInput.currentPassword
+        , PasswordInput.onEnter SignIn
         ]
-        model.passwordField
+        model.password
 
-The text itself is owned by the application, as in
-[Klar.TextInput](Klar-TextInput); the state only remembers whether the password
-is shown. The `String` given to `init` is the DOM id of the input, so there is
-no `id` attribute.
+The state holds the password, whether it is shown and whether Caps Lock seems to
+be on, like every other field of the package with a state: read it with
+`value`, react to a change by comparing `value` before and after `update`. The
+`String` given to `init` is the DOM id of the input, so there is no `id`
+attribute.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required` and
 `optionalText` are the common field attributes. They come with the field
@@ -67,25 +66,32 @@ also when there is no `label`, `hint` or `error` to draw, so it stays where it i
 is typing.
 
 **Show and hide.** A button at the end of the field switches between dots and
-plain text. Its name is "Show password" or "Hide password", and `aria-pressed`
-says whether the password is shown. A mouse click on it leaves the keyboard
-focus in the field, and a keyboard user stays on the button. The application can
-do the same with `reveal` and `hide`. The field also switches off automatic
+plain text. Its name says what it does ("Show password" or "Hide password"), and
+screen readers are told "Password shown" or "Password hidden". A mouse click on
+it leaves the keyboard focus in the field, and a keyboard user stays on the
+button. The application can do the same with `reveal` and `hide`; hide the
+password when the form is sent, as above. The field also switches off automatic
 capital letters, autocorrect and spell checking.
+
+**Caps Lock.** When a letter comes out in capitals without Shift (or small with
+Shift), the field shows "Caps Lock is on" under the input and screen readers
+hear it. The warning goes when a letter comes out right again, when Caps Lock is
+pressed, and when the field is left.
 
 **Password managers.** Use `currentPassword` on a login form and `newPassword`
 when choosing one, so that password managers do the right thing.
 
 **Strength.** `strengthMeter` shows four bars and a word under the field while
 it has text, and screen readers are told the result ("Password strength:
-Weak"). It is a rough guide (length, mix of characters, obvious patterns and the
-most common passwords), not a security guarantee: the application should still
-enforce its own rules, and can use `strength` for that. It counts the letters of
-every script as letters, and it knows the common passwords of English and
-Norwegian whatever the `locale`.
+Weak"), also when they come back to the field. It is a rough guide (length, mix
+of characters, obvious patterns and the most common passwords), not a security
+guarantee: the application should still enforce its own rules, and can use
+`strength` for that. Long passphrases are strong without digits or symbols. It
+counts the letters of every script as letters, and it knows the common
+passwords of English and Norwegian whatever the `locale`.
 
-The built-in texts (the name of the button and the strength meter) follow
-`locale`.
+The built-in texts (the name of the button, the Caps Lock warning and the
+strength meter) follow `locale`.
 
 
 # View
@@ -95,12 +101,17 @@ The built-in texts (the name of the button and the strength meter) follow
 
 # State
 
-@docs State, Msg, init, update, isRevealed, reveal, hide
+@docs State, Msg, init, update
 
 
-# Value and events
+# The password
 
-@docs value, onInput, onEnter, onBlur
+@docs value, setValue, clear, isRevealed, reveal, hide
+
+
+# Events
+
+@docs onEnter, onBlur, onFocus
 
 
 # Label, hint and error
@@ -132,9 +143,11 @@ The built-in texts (the name of the button and the strength meter) follow
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode as Decode exposing (Decoder)
 import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Internal as Internal
+import Klar.Internal.TextField as TextField
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme as Theme exposing (Size(..))
 
@@ -143,23 +156,53 @@ import Klar.Theme as Theme exposing (Size(..))
 -- STATE
 
 
-{-| The state of a password field. It only remembers whether the password is
-shown; the text itself lives in your model. Make one with `init`, keep it in your
-model and give it to `view` and `update`.
+{-| The state of a password field: the password, whether it is shown and
+whether Caps Lock seems to be on. Make one with `init`, keep it in your model
+and give it to `view` and `update`.
 -}
 type State
-    = State
-        { id : String
-        , revealed : Bool
-        }
+    = State Fields
 
 
-{-| A field that hides the password. The `String` is the DOM id of the input; it
-must be unique on the page, because the label, hint and error point at it.
+type alias Fields =
+    { id : String
+    , value : String
+    , revealed : Bool
+    , capsLock : Bool
+    , toggled : Bool
+    }
+
+
+{-| An empty field that hides the password. The `String` is the DOM id of the
+input; it must be unique on the page, because the label, hint and error point at
+it.
 -}
 init : String -> State
 init id =
-    State { id = id, revealed = False }
+    State { id = id, value = "", revealed = False, capsLock = False, toggled = False }
+
+
+{-| The password in the field. Compare it before and after `update` to react to
+a change.
+-}
+value : State -> String
+value (State state) =
+    state.value
+
+
+{-| Puts a password in the field, for example one the application generated.
+-}
+setValue : String -> State -> State
+setValue text (State state) =
+    State { state | value = text }
+
+
+{-| Empties the field and hides the password again, for example after a failed
+sign-in.
+-}
+clear : State -> State
+clear (State state) =
+    State { state | value = "", revealed = False, capsLock = False, toggled = False }
 
 
 {-| `True` while the password is shown as plain text.
@@ -176,34 +219,48 @@ reveal (State state) =
     State { state | revealed = True }
 
 
-{-| Hides the password behind dots again, for example when a form is shown anew.
+{-| Hides the password behind dots again. Call it when the form is sent, so
+that a shown password is not left on the screen (or in the history of the
+browser) as plain text.
 -}
 hide : State -> State
 hide (State state) =
     State { state | revealed = False }
 
 
-{-| The messages of the show/hide button. `view` wraps them with the function
-you give it; hand them to `update` when they come back.
+{-| The messages of a password field: typing, the show/hide button, the keys
+that tell whether Caps Lock is on, and leaving the field. `view` wraps them with
+the function you give it; hand them to `update` when they come back.
 -}
 type Msg
-    = Toggle
+    = Typed String
+    | Toggle
+    | CapsSeen Bool
+    | Left
     | Noop
 
 
-{-| Moves the field on after one of its messages: the button toggles whether the
-password is shown. Call it from your own `update` and pass the `Cmd` on with
-`Cmd.map`.
+{-| Moves the field on after one of its messages. Call it from your own `update`
+and pass the `Cmd` on with `Cmd.map`.
 -}
 update : Msg -> State -> ( State, Cmd Msg )
 update msg (State state) =
     case msg of
+        Typed text ->
+            ( State { state | value = text }, Cmd.none )
+
         Toggle ->
             -- Focus stays where it is: a mouse click on the button does not
             -- take it from the input (mousedown is prevented), and a keyboard
             -- user stays on the button, so a second Space toggles again
             -- instead of typing a space into the password.
-            ( State { state | revealed = not state.revealed }, Cmd.none )
+            ( State { state | revealed = not state.revealed, toggled = True }, Cmd.none )
+
+        CapsSeen on ->
+            ( State { state | capsLock = on }, Cmd.none )
+
+        Left ->
+            ( State { state | capsLock = False }, Cmd.none )
 
         Noop ->
             ( State state, Cmd.none )
@@ -222,10 +279,9 @@ type Attribute msg
 
 type alias Config msg =
     { field : Field.Config
-    , value : String
     , placeholder : String
-    , onInput : Maybe (String -> msg)
     , onBlur : Maybe msg
+    , onFocus : Maybe msg
     , onEnter : Maybe msg
     , disabled : Bool
     , readOnly : Bool
@@ -241,10 +297,9 @@ configure : List (Attribute msg) -> Config msg
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
-        , value = ""
         , placeholder = ""
-        , onInput = Nothing
         , onBlur = Nothing
+        , onFocus = Nothing
         , onEnter = Nothing
         , disabled = False
         , readOnly = False
@@ -321,32 +376,12 @@ optionalText text =
     updateField (Field.setOptionalText text)
 
 
-{-| The password, as your model has it. The input always shows exactly this
-string, as dots or as plain text, so update it from `onInput`. Default: empty.
--}
-value : String -> Attribute msg
-value text =
-    Attribute (\config -> { config | value = text })
-
-
 {-| Text shown inside the empty field. It is not a substitute for a `label`, and
 it disappears as soon as the user types. Default: none.
 -}
 placeholder : String -> Attribute msg
 placeholder text =
     Attribute (\config -> { config | placeholder = text })
-
-
-{-| Sends the new password each time the user changes the field, by typing or
-pasting. The function gets the whole text. Store it in your model and pass it
-back with `value`.
-
-    PasswordInput.onInput PasswordChanged -- PasswordChanged : String -> Msg
-
--}
-onInput : (String -> msg) -> Attribute msg
-onInput toMsg =
-    Attribute (\config -> { config | onInput = Just toMsg })
 
 
 {-| Sends this message when the field loses focus. A good moment to validate, so
@@ -357,9 +392,17 @@ onBlur msg =
     Attribute (\config -> { config | onBlur = Just msg })
 
 
+{-| Sends this message when the field gets focus.
+-}
+onFocus : msg -> Attribute msg
+onFocus msg =
+    Attribute (\config -> { config | onFocus = Just msg })
+
+
 {-| Sends this message when the user presses Enter in the field (without Shift,
-Ctrl, Alt or Cmd). The key press is cancelled, so it does not submit a
-surrounding `form`; leave `onEnter` out to let Enter submit it.
+Ctrl, Alt or Cmd), for example to sign in. The key press is cancelled, so it
+does not submit a surrounding `form`; leave `onEnter` out to let Enter submit
+it. The Enter that confirms a word in an input method sends nothing.
 -}
 onEnter : msg -> Attribute msg
 onEnter msg =
@@ -383,7 +426,8 @@ readOnly value_ =
 
 
 {-| The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar-Theme). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar-Theme). Default `Medium`.
 -}
 size : Size -> Attribute msg
 size value_ =
@@ -426,7 +470,8 @@ name value_ =
 
 {-| Shows four bars and a word ("Weak", "Fair", "Good" or "Strong") under the
 field while it has text. Screen readers are told the result as a status
-("Password strength: Weak"). The meter uses `strength`, which is a rough guide.
+("Password strength: Weak"), and hear it again with the field when they come
+back to it. The meter uses `strength`, which is a rough guide.
 -}
 strengthMeter : Attribute msg
 strengthMeter =
@@ -434,9 +479,11 @@ strengthMeter =
 
 
 {-| The language of the built-in text: the name of the show/hide button ("Show
-password" and "Hide password") and the strength meter ("Password strength:" and
-the words "Weak", "Fair", "Good" and "Strong"). Default `Locale.default`, which
-is English. Texts you pass in yourself are shown as they are.
+password" and "Hide password") and what screen readers are told when it is
+used, the Caps Lock warning ("Caps Lock is on") and the strength meter
+("Password strength:" and the words "Weak", "Fair", "Good" and "Strong").
+Default `Locale.default`, which is English. Texts you pass in yourself are
+shown as they are.
 -}
 locale : Locale -> Attribute msg
 locale value_ =
@@ -449,14 +496,24 @@ locale value_ =
 
 {-| A rough strength of a password, from 0 (empty) to 4. It looks at the length,
 the kinds of characters (lowercase letters, uppercase letters, digits and
-everything else) and a few obvious patterns, and it is what `strengthMeter`
-shows.
+everything else), a few obvious patterns and the most common passwords, and it
+is what `strengthMeter` shows. Length counts most, as current advice (NIST SP
+800-63B) has it: a long passphrase is strong without digits or symbols.
 
-  - 1 weak: shorter than 8 characters, only one kind of character, or an obvious
-    pattern (`password123`, `abcdefgh`, `aaaaaaaa`)
-  - 2 fair: at least 8 characters of two kinds
-  - 3 good: at least 10 characters of three kinds
-  - 4 strong: at least 16 characters of three kinds, or 12 of all four
+  - 1 weak: shorter than 8 characters, only one kind of character (and shorter
+    than 15), an obvious pattern (`abcdefgh`, `aaaaaaaa`), or mostly a common
+    password (`password123`)
+  - 2 fair: at least 8 characters of two kinds, or 15 characters of any kind
+  - 3 good: at least 10 characters of three kinds, or 20 of any kind
+  - 4 strong: at least 16 characters of three kinds, 12 of all four, or 24 of
+    any kind
+
+A common password inside a longer one (`password`, `qwerty`, `letmein` ... and
+the usual Norwegian ones) counts for nothing: the password is rated as if the
+word were not there, and one that is mostly that word is weak. The meter has no
+locale, so the English and the Norwegian entries always count. The list is
+short, as is every other pattern the meter knows: it is a guide for the user,
+not a security check.
 
 It reads the password as Unicode text. A letter counts as a letter in any
 script: `é`, `ü`, `ж` and `Ω` are lowercase or uppercase letters like `e` and
@@ -465,12 +522,6 @@ with the lowercase ones. Digits of other scripts are digits. Punctuation, signs
 and emoji are the "everything else" kind, and a combining accent counts for
 nothing on its own. The length is the number of characters, not of UTF-16 units,
 so an emoji is one.
-
-A password that contains one of the most common passwords (`password`, `qwerty`,
-`letmein` ... and the usual Norwegian ones) is weak however long it is. The meter
-has no locale, so the English and the Norwegian entries always count. The list is
-short, as is every other pattern the meter knows: it is a guide for the user, not
-a security check.
 
 -}
 strength : String -> Int
@@ -490,11 +541,27 @@ strength password =
                 |> List.filter (\kind -> List.member kind present)
                 |> List.length
 
-        base =
-            if length == 0 then
-                0
+        common =
+            commonPart password
+    in
+    if length == 0 then
+        0
 
-            else if length < 8 || kinds < 2 then
+    else if hasRunOrRepeat password || toFloat common >= 0.7 * toFloat length then
+        1
+
+    else
+        Basics.max 1 (rate kinds (length - common))
+
+
+{-| The rating of a password of this many characters (the common words taken
+out) and kinds.
+-}
+rate : Int -> Int -> Int
+rate kinds length =
+    let
+        mix =
+            if length < 8 || kinds < 2 then
                 1
 
             else if (length >= 16 && kinds >= 3) || (length >= 12 && kinds >= 4) then
@@ -505,12 +572,21 @@ strength password =
 
             else
                 2
-    in
-    if hasWeakPattern password then
-        Basics.min 1 base
 
-    else
-        base
+        long =
+            if length >= 24 then
+                4
+
+            else if length >= 20 then
+                3
+
+            else if length >= 15 then
+                2
+
+            else
+                1
+    in
+    Basics.max mix long
 
 
 {-| What a character adds to the variety of a password. `Mark` is a combining
@@ -610,21 +686,36 @@ symbols =
     ]
 
 
-hasWeakPattern : String -> Bool
-hasWeakPattern password =
+{-| A run (`abcdefgh`, `87654321`) or one character again and again (`aaaaaaaa`):
+weak however long it is.
+-}
+hasRunOrRepeat : String -> Bool
+hasRunOrRepeat password =
     let
-        lower =
-            String.toLower password
-
         codes =
             List.map Char.toCode (String.toList password)
 
         steps =
             List.map2 (\a b -> b - a) codes (List.drop 1 codes)
     in
-    List.any (\word -> String.contains word lower) commonPasswords
-        || (List.length steps >= 2 && (List.all (\d -> d == 1) steps || List.all (\d -> d == -1) steps))
+    (List.length steps >= 2 && (List.all (\d -> d == 1) steps || List.all (\d -> d == -1) steps))
         || (List.length steps >= 1 && List.all (\d -> d == 0) steps)
+
+
+{-| The length of the longest common password inside this one (ignoring case),
+or 0.
+-}
+commonPart : String -> Int
+commonPart password =
+    let
+        lower =
+            String.toLower password
+    in
+    commonPasswords
+        |> List.filter (\word -> String.contains word lower)
+        |> List.map (\word -> List.length (String.toList word))
+        |> List.maximum
+        |> Maybe.withDefault 0
 
 
 {-| The most common passwords of both languages. The meter has no locale: people
@@ -704,12 +795,11 @@ shows or hides the password. The first argument wraps the field's own messages
 in one of yours, and the state comes last.
 
     PasswordInput.view PasswordMsg
-        [ PasswordInput.label "Password"
-        , PasswordInput.currentPassword
-        , PasswordInput.value model.password
-        , PasswordInput.onInput PasswordChanged
+        [ PasswordInput.label "New password"
+        , PasswordInput.newPassword
+        , PasswordInput.strengthMeter
         ]
-        model.passwordField
+        model.password
 
 -}
 view : (Msg -> msg) -> List (Attribute msg) -> State -> Html msg
@@ -721,17 +811,55 @@ view toMsg attributes (State state) =
         field =
             Field.setId state.id config.field
 
+        inactive =
+            config.disabled || config.readOnly
+
         toggleLabel =
             if state.revealed then
                 Locale.pick config.locale { nb = "Skjul passord", en = "Hide password" }
 
             else
                 Locale.pick config.locale { nb = "Vis passord", en = "Show password" }
+
+        level =
+            strength state.value
+
+        strengthId =
+            state.id ++ "-strength"
+
+        strengthText =
+            if config.strengthMeter && state.value /= "" then
+                strengthCaption config.locale level
+
+            else
+                ""
+
+        capsText =
+            Locale.pick config.locale { nb = "Caps Lock er på", en = "Caps Lock is on" }
+
+        capsOn =
+            state.capsLock && not inactive
+
+        notice =
+            if state.toggled then
+                if state.revealed then
+                    Locale.pick config.locale { nb = "Passordet vises", en = "Password shown" }
+
+                else
+                    Locale.pick config.locale { nb = "Passordet er skjult", en = "Password hidden" }
+
+            else
+                ""
     in
     -- stable: the application may show an error while the user types, and the
     -- input must not move into the wrapper then (it would lose the focus)
     Field.viewStable field
-        (Html.div [ Internal.cls [ "klar-password" ] ]
+        (Html.div
+            [ Internal.cls [ "klar-password" ]
+
+            -- leaving the field (also from the button) forgets Caps Lock
+            , Events.on "focusout" (Decode.succeed (toMsg Left))
+            ]
             [ Html.div
                 [ Internal.cls
                     [ "klar-input"
@@ -754,7 +882,15 @@ view toMsg attributes (State state) =
                     ]
                 ]
                 [ Html.input
-                    (Field.controlAttributes field
+                    (TextField.controlAttributes field
+                        { describedBy =
+                            if strengthText == "" then
+                                []
+
+                            else
+                                [ strengthId ]
+                        , invalid = False
+                        }
                         ++ [ Internal.cls [ "klar-input__control" ]
                            , Attr.type_
                                 (if state.revealed then
@@ -763,7 +899,7 @@ view toMsg attributes (State state) =
                                  else
                                     "password"
                                 )
-                           , Attr.value config.value
+                           , Attr.value state.value
                            , Attr.placeholder config.placeholder
                            , Attr.disabled config.disabled
                            , Attr.readonly config.readOnly
@@ -772,9 +908,10 @@ view toMsg attributes (State state) =
                            , Attr.attribute "spellcheck" "false"
                            , Internal.attrMaybe (Attr.attribute "autocomplete") config.autocomplete
                            , Internal.attrMaybe Attr.name config.name
-                           , Internal.attrMaybe Events.onInput config.onInput
+                           , Events.onInput (\text -> toMsg (Typed text))
                            , Internal.attrMaybe Events.onBlur config.onBlur
-                           , Internal.attrMaybe (\msg -> Internal.onKeys [ ( "Enter", msg ) ]) config.onEnter
+                           , Internal.attrMaybe Events.onFocus config.onFocus
+                           , Events.preventDefaultOn "keydown" (keyDecoder toMsg config.onEnter state.capsLock)
                            ]
                     )
                     []
@@ -782,13 +919,6 @@ view toMsg attributes (State state) =
                     [ Internal.cls [ "klar-password__toggle" ]
                     , Attr.type_ "button"
                     , Attr.attribute "aria-label" toggleLabel
-                    , Attr.attribute "aria-pressed"
-                        (if state.revealed then
-                            "true"
-
-                         else
-                            "false"
-                        )
                     , Attr.title toggleLabel
                     , Attr.disabled config.disabled
                     , Internal.onMouseDownPrevent (toMsg Noop)
@@ -803,8 +933,32 @@ view toMsg attributes (State state) =
                         )
                     ]
                 ]
-            , if config.strengthMeter && config.value /= "" then
-                viewMeter config.locale (strength config.value)
+            , if capsOn then
+                Html.div [ Internal.cls [ "klar-password__caps" ], Attr.attribute "aria-hidden" "true" ]
+                    [ Icon.sized Icon.Small Icon.warning, Html.text capsText ]
+
+              else
+                Html.text ""
+            , if config.strengthMeter && state.value /= "" then
+                viewMeter config.locale level
+
+              else
+                Html.text ""
+
+            -- The live regions are always there, so that their first text is
+            -- read out too; they only change their text.
+            , Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ]
+                [ Html.text
+                    (if capsOn then
+                        capsText
+
+                     else
+                        notice
+                    )
+                ]
+            , if config.strengthMeter then
+                Html.span [ Internal.cls [ "klar-sr-only" ], Attr.id strengthId, Attr.attribute "role" "status" ]
+                    [ Html.text strengthText ]
 
               else
                 Html.text ""
@@ -812,31 +966,104 @@ view toMsg attributes (State state) =
         )
 
 
+{-| Enter for the application's `onEnter`; every other key tells whether Caps
+Lock is on, when it says something new: a letter in capitals without Shift (or
+small with Shift) means it is on, the Caps Lock key itself turns the warning
+around.
+-}
+keyDecoder : (Msg -> msg) -> Maybe msg -> Bool -> Decoder ( msg, Bool )
+keyDecoder toMsg onEnterMsg capsKnown =
+    Decode.map2 Tuple.pair TextField.composing Internal.keyEvent
+        |> Decode.andThen
+            (\( isComposing, event ) ->
+                if isComposing then
+                    Decode.fail "composing"
+
+                else if event.key == "Enter" then
+                    case onEnterMsg of
+                        Just msg ->
+                            if event.ctrl || event.meta || event.alt || event.shift then
+                                Decode.fail "not a plain Enter"
+
+                            else
+                                Decode.succeed ( msg, True )
+
+                        Nothing ->
+                            Decode.fail "no onEnter"
+
+                else if event.key == "CapsLock" then
+                    Decode.succeed ( toMsg (CapsSeen (not capsKnown)), False )
+
+                else
+                    case capsFromLetter event of
+                        Just on ->
+                            if on == capsKnown then
+                                Decode.fail "nothing new"
+
+                            else
+                                Decode.succeed ( toMsg (CapsSeen on), False )
+
+                        Nothing ->
+                            Decode.fail "not a letter"
+            )
+
+
+{-| A letter that has a case says whether Caps Lock is on: a capital without
+Shift or a small letter with Shift. Keys with Ctrl, Alt or Cmd say nothing.
+-}
+capsFromLetter : Internal.KeyEvent -> Maybe Bool
+capsFromLetter event =
+    case String.uncons event.key of
+        Just ( c, "" ) ->
+            if event.ctrl || event.meta || event.alt then
+                Nothing
+
+            else if Char.toLower c /= c then
+                -- a capital
+                Just (not event.shift)
+
+            else if Char.toUpper c /= c then
+                -- a small letter
+                Just event.shift
+
+            else
+                Nothing
+
+        _ ->
+            Nothing
+
+
+strengthCaption : Locale -> Int -> String
+strengthCaption lang level =
+    Locale.pick lang { nb = "Passordstyrke: ", en = "Password strength: " } ++ strengthWord lang level
+
+
+strengthWord : Locale -> Int -> String
+strengthWord lang level =
+    case level of
+        1 ->
+            Locale.pick lang { nb = "Svakt", en = "Weak" }
+
+        2 ->
+            Locale.pick lang { nb = "Middels", en = "Fair" }
+
+        3 ->
+            Locale.pick lang { nb = "Godt", en = "Good" }
+
+        _ ->
+            Locale.pick lang { nb = "Sterkt", en = "Strong" }
+
+
+{-| The bars and the word, for the eye; screen readers get the same text from
+the status that is always there.
+-}
 viewMeter : Locale -> Int -> Html msg
 viewMeter lang level =
-    let
-        word =
-            case level of
-                1 ->
-                    Locale.pick lang { nb = "Svakt", en = "Weak" }
-
-                2 ->
-                    Locale.pick lang { nb = "Middels", en = "Fair" }
-
-                3 ->
-                    Locale.pick lang { nb = "Godt", en = "Good" }
-
-                _ ->
-                    Locale.pick lang { nb = "Sterkt", en = "Strong" }
-
-        caption =
-            Locale.pick lang { nb = "Passordstyrke: ", en = "Password strength: " }
-    in
     Html.div
         [ Internal.cls [ "klar-password__meter", "klar-password__meter--" ++ String.fromInt level ]
-        , Attr.attribute "role" "status"
+        , Attr.attribute "aria-hidden" "true"
         ]
-        [ Html.span [ Internal.cls [ "klar-password__bars" ], Attr.attribute "aria-hidden" "true" ]
+        [ Html.span [ Internal.cls [ "klar-password__bars" ] ]
             (List.map
                 (\bar ->
                     Html.span
@@ -853,5 +1080,5 @@ viewMeter lang level =
                 )
                 [ 1, 2, 3, 4 ]
             )
-        , Html.span [ Internal.cls [ "klar-password__strength" ] ] [ Html.text (caption ++ word) ]
+        , Html.span [ Internal.cls [ "klar-password__strength" ] ] [ Html.text (strengthCaption lang level) ]
         ]

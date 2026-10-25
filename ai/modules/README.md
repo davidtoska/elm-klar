@@ -47,7 +47,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.TextInput](Klar.TextInput.md): A single-line text input with a label, a hint and an error message.
 - [Klar.TextArea](Klar.TextArea.md): A multi-line text field with a label, a hint and an error message.
 - [Klar.NumberInput](Klar.NumberInput.md): A number field that understands how people write numbers.
-- [Klar.PasswordInput](Klar.PasswordInput.md): A password field with a "show password" button and an optional strength meter.
+- [Klar.PasswordInput](Klar.PasswordInput.md): A password field with a "show password" button, a Caps Lock warning and an optional strength meter.
 - [Klar.SearchInput](Klar.SearchInput.md): A search field that waits until the user stops typing.
 - [Klar.TagInput](Klar.TagInput.md): Free-form tags: type a word, press Enter or comma, get a chip.
 - [Klar.FileDrop](Klar.FileDrop.md): Choose files by dropping them on a zone or with a "Choose files" button.

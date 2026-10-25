@@ -59,8 +59,7 @@ overrides (state flags such as `loading`, `failed` and `remote` add up instead).
 **Components with state.** A component that has a state of its own (a select that is
 open, a table that is sorted, a date field with half-typed text) comes with `State`,
 `Msg`, `update` and `view`, and is wired like any child in the Elm Architecture. The
-state holds the value too (`PasswordInput` is the exception: the application keeps the
-text); read it with a function and compare before and after
+state holds the value too; read it with a function and compare before and after
 `update` to react to a change. There are no out-messages. Clicks and other things
 that are not changes of the state are plain messages of your own:
 

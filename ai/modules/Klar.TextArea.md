@@ -4,7 +4,7 @@ A multi-line text field with a label, a hint and an error message.
 
 Import: `import Klar.TextArea as TextArea` | Group: Inputs
 
-Types: `Resize`, `Attribute`
+Types: `Attribute`
 
 ## Signatures
 
@@ -18,6 +18,7 @@ value : String -> Attribute msg
 onInput : (String -> msg) -> Attribute msg
 onBlur : msg -> Attribute msg
 onFocus : msg -> Attribute msg
+onCtrlEnter : msg -> Attribute msg
 
 -- Label, hint and error
 label : String -> Attribute msg
@@ -30,11 +31,10 @@ optionalText : String -> Attribute msg
 id : String -> Attribute msg
 
 -- Height and resizing
-type Resize = ResizeNone | ResizeVertical
 rows : Int -> Attribute msg
 minRows : Int -> Attribute msg
 maxRows : Int -> Attribute msg
-resize : Resize -> Attribute msg
+noResize : Attribute msg
 
 -- Length, placeholder and size
 maxLength : Int -> Attribute msg
@@ -44,6 +44,8 @@ size : Theme.Size -> Attribute msg
 -- State and browser hints
 disabled : Bool -> Attribute msg
 readOnly : Bool -> Attribute msg
+autofocus : Attribute msg
+verbatim : Attribute msg
 autocomplete : String -> Attribute msg
 name : String -> Attribute msg
 
@@ -65,12 +67,14 @@ Do not use when: one line is enough (use `Klar.TextInput`).
         , TextArea.value model.note
         , TextArea.onInput NoteChanged
         , TextArea.maxLength 500
+        , TextArea.onCtrlEnter SaveNote
         ]
 
 The application owns the value, as in [Klar.TextInput](Klar.TextInput.md): the
 text area shows the `value` you give it and reports every change through
 `onInput`. It keeps no state of its own, so there is no `State`, `Msg` or
-`update`. Enter inserts a new line; there is no `onEnter`.
+`update`. Enter inserts a new line; Ctrl+Enter (Cmd+Enter on a Mac) sends the
+message of `onCtrlEnter`, the usual way to send a comment or a note.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required`,
 `optionalText` and `id` are the common field attributes. They come with the
@@ -78,12 +82,13 @@ field wrapper ([Klar.Field](Klar.Field.md)) that most Klar inputs are built on, 
 they mean the same in all of them: the wrapper draws the label, the required
 marker, the hint and the error message around the text area and connects them
 for screen readers (`for`, `aria-describedby`, `aria-invalid`,
-`aria-required`). An error message is announced when it appears.
+`aria-required`). An error message is announced when it appears. Without an
+`id`, one is made from the label (or the placeholder, the name, the hint or the
+error); a text area with none of them gets no id.
 
 **Height.** `rows 4` is a fixed height of four lines, and the user can drag the
-corner unless you pass `resize ResizeNone`. `minRows` and `maxRows` make the
-field grow with its text instead: never smaller than `minRows`, scrolling after
-`maxRows`.
+corner unless you pass `noResize`. `minRows` and `maxRows` make the field grow
+with its text instead: never smaller than `minRows`, scrolling after `maxRows`.
 
     TextArea.view [ TextArea.minRows 3, TextArea.maxRows 10 ]
 
@@ -92,18 +97,22 @@ the CSS property `field-sizing: content`. Browsers without it fall back to a
 hidden copy of the text that sizes the field, so the behavior is the same
 everywhere and needs no JavaScript.
 
-**Counter.** `maxLength` limits the length and shows a counter such as `12/500`
-at the end of the line under the field, level with the hint (hint on the left,
-counter on the right). It turns amber when the limit is near and red when the
-text is longer than the limit, and screen readers are told the count once the
-limit is near.
+**Counter.** `maxLength` shows a counter such as `12/500` at the end of the line
+under the field, level with the hint (hint on the left, counter on the right),
+the same counter as in [Klar.TextInput](Klar.TextInput.md). It turns amber when the
+limit is near and red when the text is longer than the limit. Nothing is ever
+cut: a pasted text that is too long stays, so that the user sees it and can
+shorten it, and the field is marked invalid; check the length when the form is
+sent (`Validate.maxLength`). Screen readers hear "12 of 500 characters" with the
+field, and are told once when the text comes near the limit, reaches it and
+passes it, not on every keystroke.
 
 The text area is always inside the field wrapper, also when there is no `label`,
 `hint` or `error` to draw, so it does not move (and lose the keyboard focus) when
 the application shows an error while the user is typing. The wrapper of a text
 area with nothing to draw adds no space and no width of its own.
 
-The only built-in text is the count read out to screen readers ("12 of 500
+The only built-in text is what the counter tells screen readers ("12 of 500
 characters"); `locale` changes its language.
 
 ## View
@@ -174,6 +183,19 @@ onFocus : msg -> Attribute msg
 ```
 
 Sends this message when the text area gets focus.
+
+### `onCtrlEnter`
+
+```elm
+onCtrlEnter : msg -> Attribute msg
+```
+
+Sends this message when the user presses Ctrl+Enter (Cmd+Enter on a Mac) in
+the text area, the usual key to send a comment or a note. The key press is
+cancelled, so no new line is added; a plain Enter still adds one, and the Enter
+that confirms a word in an input method sends nothing. Default: none.
+
+    TextArea.onCtrlEnter SaveNote
 
 ## Label, hint and error
 
@@ -251,18 +273,10 @@ id : String -> Attribute msg
 
 The DOM id of the text area. It must be unique on the page, because the
 label, hint and error point at it. Without one, an id is made from the label (or
-the placeholder), so two fields with the same label need explicit ids.
+the placeholder, the name, the hint or the error), so two fields with the same
+label need explicit ids; a field with none of them gets no id.
 
 ## Height and resizing
-
-### `Resize`
-
-```elm
-type Resize = ResizeNone | ResizeVertical
-```
-
-Whether the user can drag the corner of the text area to change its height:
-`ResizeVertical` allows it, `ResizeNone` does not. Used with `resize`.
 
 ### `rows`
 
@@ -294,17 +308,15 @@ maxRows : Int -> Attribute msg
 Makes the field grow with its text up to this many lines (at least 1), and
 then scroll. If this is less than the smallest height, the smallest height wins.
 
-### `resize`
+### `noResize`
 
 ```elm
-resize : Resize -> Attribute msg
+noResize : Attribute msg
 ```
 
-Whether the user can drag the corner to change the height. Default:
-`ResizeVertical` for a fixed height, `ResizeNone` for a field that grows
-(`minRows` or `maxRows`).
-
-    TextArea.resize TextArea.ResizeNone
+Takes away the handle in the corner of a field with a fixed height, so that
+the user cannot drag it taller. A field that grows with its text (`minRows`,
+`maxRows`) never has the handle. Default: a fixed height can be dragged.
 
 ## Length, placeholder and size
 
@@ -314,11 +326,14 @@ Whether the user can drag the corner to change the height. Default:
 maxLength : Int -> Attribute msg
 ```
 
-Limits the text to this many characters (the HTML `maxlength`, so the user
-cannot type more) and shows a counter such as `12/500` under the field, at the
-end of the line with the hint. The counter turns amber when the limit is near
-(10 characters or a tenth of the limit are left, whichever is more) and red when
-the text is longer than the limit, which can happen when your `value` is.
+Shows a counter such as `12/500` under the field, at the end of the line
+with the hint. The counter turns amber when the limit is near (10 characters or
+a tenth of the limit left, whichever is more) and red when the text is longer,
+and the field is then marked invalid (`aria-invalid`). Nothing is cut: a longer
+text that is typed or pasted stays, so check the length yourself when the form
+is sent (`Validate.maxLength`). Screen readers hear "12 of 500 characters" with
+the field, and are told once when the text comes near the limit, reaches it and
+passes it.
 
 ### `placeholder`
 
@@ -360,6 +375,26 @@ readOnly : Bool -> Attribute msg
 While `True` the user can focus the field and select its text, but not
 change it. Default `False`.
 
+### `autofocus`
+
+```elm
+autofocus : Attribute msg
+```
+
+Asks the browser to focus the text area when it is shown (the HTML
+`autofocus` attribute), as `TextInput.autofocus` does: browsers honor it for one
+element at most, so to move the focus yourself, use `Klar.focus` with the `id`.
+
+### `verbatim`
+
+```elm
+verbatim : Attribute msg
+```
+
+For codes and data rather than prose (JSON, a list of SKUs): switches off
+spell checking, automatic capital letters and autocorrect, as
+`TextInput.verbatim` does. Default: the browser decides.
+
 ### `autocomplete`
 
 ```elm
@@ -386,6 +421,6 @@ and a native form sends the value under this name. Default: none.
 locale : Locale.Locale -> Attribute msg
 ```
 
-The language of the built-in text, which here is the count read out to
+The language of the built-in text, which here is what the counter tells
 screen readers ("12 of 500 characters" in English). Default `Locale.default`,
 which is English. Texts you pass in yourself are shown as they are.

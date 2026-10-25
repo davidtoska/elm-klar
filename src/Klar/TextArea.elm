@@ -1,10 +1,10 @@
 module Klar.TextArea exposing
     ( view, Attribute
-    , value, onInput, onBlur, onFocus
+    , value, onInput, onBlur, onFocus, onCtrlEnter
     , label, labelHidden, hint, error, errorMaybe, required, optionalText, id
-    , rows, minRows, maxRows, Resize(..), resize
+    , rows, minRows, maxRows, noResize
     , maxLength, placeholder, size
-    , disabled, readOnly, autocomplete, name
+    , disabled, readOnly, autofocus, verbatim, autocomplete, name
     , locale
     )
 
@@ -20,12 +20,14 @@ Do not use when: one line is enough (use `Klar.TextInput`).
         , TextArea.value model.note
         , TextArea.onInput NoteChanged
         , TextArea.maxLength 500
+        , TextArea.onCtrlEnter SaveNote
         ]
 
 The application owns the value, as in [Klar.TextInput](Klar-TextInput): the
 text area shows the `value` you give it and reports every change through
 `onInput`. It keeps no state of its own, so there is no `State`, `Msg` or
-`update`. Enter inserts a new line; there is no `onEnter`.
+`update`. Enter inserts a new line; Ctrl+Enter (Cmd+Enter on a Mac) sends the
+message of `onCtrlEnter`, the usual way to send a comment or a note.
 
 `label`, `labelHidden`, `hint`, `error`, `errorMaybe`, `required`,
 `optionalText` and `id` are the common field attributes. They come with the
@@ -33,12 +35,13 @@ field wrapper ([Klar.Field](Klar-Field)) that most Klar inputs are built on, so
 they mean the same in all of them: the wrapper draws the label, the required
 marker, the hint and the error message around the text area and connects them
 for screen readers (`for`, `aria-describedby`, `aria-invalid`,
-`aria-required`). An error message is announced when it appears.
+`aria-required`). An error message is announced when it appears. Without an
+`id`, one is made from the label (or the placeholder, the name, the hint or the
+error); a text area with none of them gets no id.
 
 **Height.** `rows 4` is a fixed height of four lines, and the user can drag the
-corner unless you pass `resize ResizeNone`. `minRows` and `maxRows` make the
-field grow with its text instead: never smaller than `minRows`, scrolling after
-`maxRows`.
+corner unless you pass `noResize`. `minRows` and `maxRows` make the field grow
+with its text instead: never smaller than `minRows`, scrolling after `maxRows`.
 
     TextArea.view [ TextArea.minRows 3, TextArea.maxRows 10 ]
 
@@ -47,18 +50,22 @@ the CSS property `field-sizing: content`. Browsers without it fall back to a
 hidden copy of the text that sizes the field, so the behavior is the same
 everywhere and needs no JavaScript.
 
-**Counter.** `maxLength` limits the length and shows a counter such as `12/500`
-at the end of the line under the field, level with the hint (hint on the left,
-counter on the right). It turns amber when the limit is near and red when the
-text is longer than the limit, and screen readers are told the count once the
-limit is near.
+**Counter.** `maxLength` shows a counter such as `12/500` at the end of the line
+under the field, level with the hint (hint on the left, counter on the right),
+the same counter as in [Klar.TextInput](Klar-TextInput). It turns amber when the
+limit is near and red when the text is longer than the limit. Nothing is ever
+cut: a pasted text that is too long stays, so that the user sees it and can
+shorten it, and the field is marked invalid; check the length when the form is
+sent (`Validate.maxLength`). Screen readers hear "12 of 500 characters" with the
+field, and are told once when the text comes near the limit, reaches it and
+passes it, not on every keystroke.
 
 The text area is always inside the field wrapper, also when there is no `label`,
 `hint` or `error` to draw, so it does not move (and lose the keyboard focus) when
 the application shows an error while the user is typing. The wrapper of a text
 area with nothing to draw adds no space and no width of its own.
 
-The only built-in text is the count read out to screen readers ("12 of 500
+The only built-in text is what the counter tells screen readers ("12 of 500
 characters"); `locale` changes its language.
 
 
@@ -69,7 +76,7 @@ characters"); `locale` changes its language.
 
 # Value and events
 
-@docs value, onInput, onBlur, onFocus
+@docs value, onInput, onBlur, onFocus, onCtrlEnter
 
 
 # Label, hint and error
@@ -79,7 +86,7 @@ characters"); `locale` changes its language.
 
 # Height and resizing
 
-@docs rows, minRows, maxRows, Resize, resize
+@docs rows, minRows, maxRows, noResize
 
 
 # Length, placeholder and size
@@ -89,7 +96,7 @@ characters"); `locale` changes its language.
 
 # State and browser hints
 
-@docs disabled, readOnly, autocomplete, name
+@docs disabled, readOnly, autofocus, verbatim, autocomplete, name
 
 
 # Language
@@ -101,8 +108,10 @@ characters"); `locale` changes its language.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode as Decode
 import Klar.Field as Field
 import Klar.Internal as Internal
+import Klar.Internal.TextField as TextField
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme as Theme exposing (Size(..))
 
@@ -114,14 +123,6 @@ type Attribute msg
     = Attribute (Config msg -> Config msg)
 
 
-{-| Whether the user can drag the corner of the text area to change its height:
-`ResizeVertical` allows it, `ResizeNone` does not. Used with `resize`.
--}
-type Resize
-    = ResizeNone
-    | ResizeVertical
-
-
 type alias Config msg =
     { field : Field.Config
     , value : String
@@ -129,13 +130,16 @@ type alias Config msg =
     , rows : Int
     , minRows : Maybe Int
     , maxRows : Maybe Int
-    , resize : Maybe Resize
+    , noResize : Bool
     , maxLength : Maybe Int
     , onInput : Maybe (String -> msg)
     , onBlur : Maybe msg
     , onFocus : Maybe msg
+    , onCtrlEnter : Maybe msg
     , disabled : Bool
     , readOnly : Bool
+    , autofocus : Bool
+    , verbatim : Bool
     , size : Size
     , autocomplete : Maybe String
     , name : Maybe String
@@ -152,13 +156,16 @@ configure attributes =
         , rows = 3
         , minRows = Nothing
         , maxRows = Nothing
-        , resize = Nothing
+        , noResize = False
         , maxLength = Nothing
         , onInput = Nothing
         , onBlur = Nothing
         , onFocus = Nothing
+        , onCtrlEnter = Nothing
         , disabled = False
         , readOnly = False
+        , autofocus = False
+        , verbatim = False
         , size = Medium
         , autocomplete = Nothing
         , name = Nothing
@@ -237,7 +244,8 @@ optionalText text =
 
 {-| The DOM id of the text area. It must be unique on the page, because the
 label, hint and error point at it. Without one, an id is made from the label (or
-the placeholder), so two fields with the same label need explicit ids.
+the placeholder, the name, the hint or the error), so two fields with the same
+label need explicit ids; a field with none of them gets no id.
 -}
 id : String -> Attribute msg
 id value_ =
@@ -293,23 +301,23 @@ maxRows n =
     Attribute (\config -> { config | maxRows = Just (max 1 n) })
 
 
-{-| Whether the user can drag the corner to change the height. Default:
-`ResizeVertical` for a fixed height, `ResizeNone` for a field that grows
-(`minRows` or `maxRows`).
-
-    TextArea.resize TextArea.ResizeNone
-
+{-| Takes away the handle in the corner of a field with a fixed height, so that
+the user cannot drag it taller. A field that grows with its text (`minRows`,
+`maxRows`) never has the handle. Default: a fixed height can be dragged.
 -}
-resize : Resize -> Attribute msg
-resize value_ =
-    Attribute (\config -> { config | resize = Just value_ })
+noResize : Attribute msg
+noResize =
+    Attribute (\config -> { config | noResize = True })
 
 
-{-| Limits the text to this many characters (the HTML `maxlength`, so the user
-cannot type more) and shows a counter such as `12/500` under the field, at the
-end of the line with the hint. The counter turns amber when the limit is near
-(10 characters or a tenth of the limit are left, whichever is more) and red when
-the text is longer than the limit, which can happen when your `value` is.
+{-| Shows a counter such as `12/500` under the field, at the end of the line
+with the hint. The counter turns amber when the limit is near (10 characters or
+a tenth of the limit left, whichever is more) and red when the text is longer,
+and the field is then marked invalid (`aria-invalid`). Nothing is cut: a longer
+text that is typed or pasted stays, so check the length yourself when the form
+is sent (`Validate.maxLength`). Screen readers hear "12 of 500 characters" with
+the field, and are told once when the text comes near the limit, reaches it and
+passes it.
 -}
 maxLength : Int -> Attribute msg
 maxLength n =
@@ -343,6 +351,19 @@ onFocus msg =
     Attribute (\config -> { config | onFocus = Just msg })
 
 
+{-| Sends this message when the user presses Ctrl+Enter (Cmd+Enter on a Mac) in
+the text area, the usual key to send a comment or a note. The key press is
+cancelled, so no new line is added; a plain Enter still adds one, and the Enter
+that confirms a word in an input method sends nothing. Default: none.
+
+    TextArea.onCtrlEnter SaveNote
+
+-}
+onCtrlEnter : msg -> Attribute msg
+onCtrlEnter msg =
+    Attribute (\config -> { config | onCtrlEnter = Just msg })
+
+
 {-| While `True` the field is dimmed and cannot be focused or changed. Default
 `False`.
 -}
@@ -357,6 +378,24 @@ change it. Default `False`.
 readOnly : Bool -> Attribute msg
 readOnly value_ =
     Attribute (\config -> { config | readOnly = value_ })
+
+
+{-| Asks the browser to focus the text area when it is shown (the HTML
+`autofocus` attribute), as `TextInput.autofocus` does: browsers honor it for one
+element at most, so to move the focus yourself, use `Klar.focus` with the `id`.
+-}
+autofocus : Attribute msg
+autofocus =
+    Attribute (\config -> { config | autofocus = True })
+
+
+{-| For codes and data rather than prose (JSON, a list of SKUs): switches off
+spell checking, automatic capital letters and autocorrect, as
+`TextInput.verbatim` does. Default: the browser decides.
+-}
+verbatim : Attribute msg
+verbatim =
+    Attribute (\config -> { config | verbatim = True })
 
 
 {-| The padding and text size of the field: `Small`, `Medium` or `Large`, from
@@ -384,7 +423,7 @@ name value_ =
     Attribute (\config -> { config | name = Just value_ })
 
 
-{-| The language of the built-in text, which here is the count read out to
+{-| The language of the built-in text, which here is what the counter tells
 screen readers ("12 of 500 characters" in English). Default `Locale.default`,
 which is English. Texts you pass in yourself are shown as they are.
 -}
@@ -425,17 +464,26 @@ view attributes =
         lowest =
             config.minRows |> Maybe.withDefault config.rows
 
-        resizeMode =
-            case config.resize of
-                Just mode ->
-                    mode
+        resizable =
+            not autoGrow && not config.noResize
+
+        length =
+            String.length config.value
+
+        over =
+            case config.maxLength of
+                Just limit ->
+                    TextField.isOver limit length
 
                 Nothing ->
-                    if autoGrow then
-                        ResizeNone
+                    False
 
-                    else
-                        ResizeVertical
+        counterId =
+            if field.id == "" || config.maxLength == Nothing then
+                ""
+
+            else
+                field.id ++ "-counter"
 
         growVars =
             ( "--klar-rows-min", String.fromInt lowest )
@@ -446,133 +494,103 @@ view attributes =
                         Nothing ->
                             []
                    )
-    in
-    withCounter field
-        config
-        (Html.div [ Internal.cls [ "klar-textarea-wrap" ] ]
-            [ Html.div
-                [ Internal.cls
-                    [ "klar-textarea"
-                    , "klar-textarea--" ++ Internal.sizeSuffix config.size
-                    , case resizeMode of
-                        ResizeNone ->
-                            "klar-textarea--resize-none"
 
-                        ResizeVertical ->
+        control =
+            Html.div [ Internal.cls [ "klar-textarea-wrap" ] ]
+                [ Html.div
+                    [ Internal.cls
+                        [ "klar-textarea"
+                        , "klar-textarea--" ++ Internal.sizeSuffix config.size
+                        , if resizable then
                             "klar-textarea--resize-vertical"
-                    , if autoGrow then
-                        "klar-textarea--autogrow"
 
-                      else
-                        ""
-                    , if field.error /= Nothing then
-                        "klar-textarea--invalid"
+                          else
+                            "klar-textarea--resize-none"
+                        , if autoGrow then
+                            "klar-textarea--autogrow"
 
-                      else
-                        ""
-                    , if config.disabled then
-                        "klar-textarea--disabled"
+                          else
+                            ""
+                        , if field.error /= Nothing || over then
+                            "klar-textarea--invalid"
 
-                      else
-                        ""
-                    , if config.readOnly then
-                        "klar-textarea--readonly"
+                          else
+                            ""
+                        , if config.disabled then
+                            "klar-textarea--disabled"
 
-                      else
-                        ""
+                          else
+                            ""
+                        , if config.readOnly then
+                            "klar-textarea--readonly"
+
+                          else
+                            ""
+                        ]
+                    , Internal.attrIf autoGrow (Internal.styleVars growVars)
+                    , Internal.attrIf autoGrow (Attr.attribute "data-replica" config.value)
                     ]
-                , Internal.attrIf autoGrow (Internal.styleVars growVars)
-                , Internal.attrIf autoGrow (Attr.attribute "data-replica" config.value)
+                    [ Html.textarea
+                        (TextField.controlAttributes field { describedBy = [ counterId ], invalid = over }
+                            ++ [ Internal.cls [ "klar-textarea__control" ]
+                               , Attr.value config.value
+                               , Attr.placeholder config.placeholder
+                               , Attr.rows lowest
+                               , Attr.disabled config.disabled
+                               , Attr.readonly config.readOnly
+                               , Internal.attrIf config.autofocus (Attr.autofocus True)
+                               , Internal.attrIf config.verbatim (Attr.attribute "spellcheck" "false")
+                               , Internal.attrIf config.verbatim (Attr.attribute "autocapitalize" "off")
+                               , Internal.attrIf config.verbatim (Attr.attribute "autocorrect" "off")
+                               , Internal.attrMaybe (Attr.attribute "autocomplete") config.autocomplete
+                               , Internal.attrMaybe Attr.name config.name
+                               , Internal.attrMaybe Events.onInput config.onInput
+                               , Internal.attrMaybe Events.onBlur config.onBlur
+                               , Internal.attrMaybe Events.onFocus config.onFocus
+                               , Internal.attrMaybe (\msg -> Events.preventDefaultOn "keydown" (ctrlEnterDecoder msg)) config.onCtrlEnter
+                               ]
+                        )
+                        []
+                    ]
                 ]
-                [ Html.textarea
-                    (Field.controlAttributes field
-                        ++ [ Internal.cls [ "klar-textarea__control" ]
-                           , Attr.value config.value
-                           , Attr.placeholder config.placeholder
-                           , Attr.rows lowest
-                           , Attr.disabled config.disabled
-                           , Attr.readonly config.readOnly
-                           , Internal.attrMaybe Attr.maxlength config.maxLength
-                           , Internal.attrMaybe (Attr.attribute "autocomplete") config.autocomplete
-                           , Internal.attrMaybe Attr.name config.name
-                           , Internal.attrMaybe Events.onInput config.onInput
-                           , Internal.attrMaybe Events.onBlur config.onBlur
-                           , Internal.attrMaybe Events.onFocus config.onFocus
-                           ]
-                    )
-                    []
-                ]
-            ]
-        )
-
-
-{-| With a limit, the counter sits at the end of the line under the field, level
-with the hint (hint on the left, counter on the right). Either way the text area
-is always inside the wrapper, so it does not move into it (and lose the focus)
-when the application shows an error while the user types.
--}
-withCounter : Field.Config -> Config msg -> Html msg -> Html msg
-withCounter field config control =
+    in
+    -- With a limit, the counter sits at the end of the line under the field,
+    -- level with the hint. Either way the text area is always inside the
+    -- wrapper, so it does not move into it (and lose the focus) when the
+    -- application shows an error while the user types.
     case config.maxLength of
         Just limit ->
-            Field.viewWithAside field (viewCounter config.locale (String.length config.value) limit) control
+            Field.viewWithAside field
+                (TextField.counter { id = counterId, locale = config.locale, length = length, limit = limit })
+                control
 
         Nothing ->
             Field.viewStable field control
 
 
-viewCounter : Locale -> Int -> Int -> Html msg
-viewCounter lang length limit =
-    let
-        remaining =
-            limit - length
+{-| Ctrl+Enter or Cmd+Enter (and not the Enter that ends a composition).
+-}
+ctrlEnterDecoder : msg -> Decode.Decoder ( msg, Bool )
+ctrlEnterDecoder msg =
+    Decode.map2 Tuple.pair TextField.composing Internal.keyEvent
+        |> Decode.andThen
+            (\( isComposing, event ) ->
+                if not isComposing && event.key == "Enter" && (event.ctrl || event.meta) && not event.alt then
+                    Decode.succeed ( msg, True )
 
-        near =
-            remaining <= max 10 (limit // 10)
-
-        unit =
-            Locale.pick lang { nb = "tegn", en = "characters" }
-
-        spoken =
-            Locale.pick lang
-                { nb = String.fromInt length ++ " av " ++ String.fromInt limit ++ " " ++ unit
-                , en = String.fromInt length ++ " of " ++ String.fromInt limit ++ " " ++ unit
-                }
-    in
-    Html.span
-        [ Internal.cls
-            [ "klar-textarea__counter"
-            , if remaining < 0 then
-                "klar-textarea__counter--over"
-
-              else if near then
-                "klar-textarea__counter--near"
-
-              else
-                ""
-            ]
-        , Internal.attrIf near (Attr.attribute "aria-live" "polite")
-        ]
-        [ Html.span [ Attr.attribute "aria-hidden" "true" ] [ Html.text (String.fromInt length ++ "/" ++ String.fromInt limit) ]
-        , Html.span [ Internal.cls [ "klar-sr-only" ] ] [ Html.text spoken ]
-        ]
+                else
+                    Decode.fail "not Ctrl+Enter"
+            )
 
 
 ensureId : Config msg -> Field.Config
 ensureId config =
     if config.field.id == "" then
-        let
-            seed =
-                config.field.label
-                    |> Maybe.withDefault
-                        (if config.placeholder /= "" then
-                            config.placeholder
-
-                         else
-                            "field"
-                        )
-        in
-        Field.setId ("klar-textarea-" ++ Internal.sanitizeId (String.toLower seed)) config.field
+        Field.setId
+            (TextField.generatedId "klar-textarea-"
+                [ config.field.label, Just config.placeholder, config.name, config.field.hint, config.field.error ]
+            )
+            config.field
 
     else
         config.field

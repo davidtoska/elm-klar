@@ -39,8 +39,8 @@ init : Model
 init =
     { tags =
         Dict.fromList
-            [ ( "tags-labels", TagInput.setTags [ "Fragile", "Gift" ] (TagInput.init "tags-labels") )
-            , ( "tags-notes", TagInput.setTags handlingNotes (TagInput.init "tags-notes") )
+            [ ( "tags-labels", TagInput.setValues [ "Fragile", "Gift" ] (TagInput.init "tags-labels") )
+            , ( "tags-notes", TagInput.setValues handlingNotes (TagInput.init "tags-notes") )
             ]
     , files =
         Dict.fromList
@@ -244,7 +244,7 @@ sections lang model =
 tagInputs : Locale -> Model -> Html Msg
 tagInputs lang model =
     Doc.section "Tags"
-        "Free text that becomes small chips. Enter or comma adds a tag, Backspace in the empty field removes the last one, the crosses remove single tags, and pasting \"a, b, c\" gives three tags. Duplicates (ignoring case) and invalid tags are refused with a message."
+        "Free text that becomes small chips. Enter or comma adds a tag, Backspace in the empty field removes the last one, the crosses remove single tags, and pasting \"a, b, c\" gives three tags. Duplicates (ignoring case) and invalid tags are refused with a message, and their text stays in the field to be corrected. The chips are no Tab stops: arrow left at the start of the text moves to them, arrow left and right move between them, Backspace or Delete removes one, and arrow right past the last one or Escape goes back to the text."
         [ Doc.example
             { title = "Labels"
             , description = Just "At most six tags, at least two characters each. Try adding \"fragile\" twice."
@@ -256,7 +256,7 @@ tagInputs lang model =
     ]
     model.labels
 
-TagInput.tags model.labels -- List String"""
+TagInput.values model.labels -- List String"""
             }
             (stack
                 [ TagInput.view (TagsMsg "tags-labels")
@@ -268,7 +268,7 @@ TagInput.tags model.labels -- List String"""
                     , TagInput.locale lang
                     ]
                     (tagsOf "tags-labels" model)
-                , readout ("Tags: " ++ String.join " | " (TagInput.tags (tagsOf "tags-labels" model)))
+                , readout ("Tags: " ++ String.join " | " (TagInput.values (tagsOf "tags-labels" model)))
                 ]
             )
         , Doc.example
@@ -288,18 +288,18 @@ TagInput.tags model.labels -- List String"""
                     , TagInput.disabled True
                     , TagInput.locale lang
                     ]
-                    (TagInput.setTags [ "Fragile", "Gift" ] (TagInput.init "tags-disabled"))
+                    (TagInput.setValues [ "Fragile", "Gift" ] (TagInput.init "tags-disabled"))
                 , TagInput.view (always NoOp)
                     [ TagInput.label "Read-only"
                     , TagInput.readOnly True
                     , TagInput.locale lang
                     ]
-                    (TagInput.setTags [ "Wholesale", "Spring sale" ] (TagInput.init "tags-readonly"))
+                    (TagInput.setValues [ "Wholesale", "Spring sale" ] (TagInput.init "tags-readonly"))
                 , TagInput.view (TagsMsg "tags-error")
                     [ TagInput.label "Delivery tags"
                     , TagInput.required
                     , TagInput.errorMaybe
-                        (if List.isEmpty (TagInput.tags (tagsOf "tags-error" model)) then
+                        (if List.isEmpty (TagInput.values (tagsOf "tags-error" model)) then
                             Just "Add at least one tag"
 
                          else
@@ -316,7 +316,7 @@ TagInput.tags model.labels -- List String"""
             , code = Just """TagInput.view CodesMsg
     [ TagInput.label "Product codes"
     , TagInput.delimiters [ ',', ';' ]
-    , TagInput.addOnBlur False
+    , TagInput.keepDraftOnBlur
     ]
     model.codes"""
             }
@@ -324,7 +324,7 @@ TagInput.tags model.labels -- List String"""
                 [ TagInput.label "Product codes"
                 , TagInput.hint "Comma or semicolon ends a code. Enter adds it too."
                 , TagInput.delimiters [ ',', ';' ]
-                , TagInput.addOnBlur False
+                , TagInput.keepDraftOnBlur
                 , TagInput.locale lang
                 ]
                 (tagsOf "tags-codes" model)

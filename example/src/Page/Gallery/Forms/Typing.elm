@@ -11,8 +11,10 @@ import Klar.Layout as Layout
 import Klar.Locale as Locale exposing (Locale)
 import Klar.NumberInput as NumberInput
 import Klar.PasswordInput as PasswordInput
+import Klar.Remote as Remote
 import Klar.Search as Search
 import Klar.SearchInput as SearchInput
+import Klar.Shortcut as Shortcut
 import Klar.TextArea as TextArea
 import Klar.Theme exposing (Size(..))
 import Page.Gallery.Forms.Common exposing (grid, readout, resultTable, showNumber, stack, yesNo)
@@ -51,9 +53,6 @@ init =
             [ ( "ta-fixed", "Leave the parcel at the back door." )
             , ( "ta-small", "Short note" )
             , ( "ta-long", longNote )
-            , ( "pw-new", "password123" )
-            , ( "pw-repeat", "secret" )
-            , ( "pw-small", "secret" )
             ]
     , numbers =
         Dict.fromList
@@ -68,7 +67,10 @@ init =
             ]
     , passwords =
         Dict.fromList
-            [ ( "pw-repeat", PasswordInput.reveal (PasswordInput.init "pw-repeat") ) ]
+            [ ( "pw-new", PasswordInput.setValue "password123" (PasswordInput.init "pw-new") )
+            , ( "pw-repeat", PasswordInput.reveal (PasswordInput.setValue "secret" (PasswordInput.init "pw-repeat")) )
+            , ( "pw-small", PasswordInput.setValue "secret" (PasswordInput.init "pw-small") )
+            ]
     , searches =
         Dict.fromList
             [ ( "search-loading", SearchInput.setText "Fjord" (SearchInput.init "search-loading") ) ]
@@ -254,7 +256,7 @@ textAreas lang model =
             ]
     in
     Doc.section "Text area"
-        "Multi-line text. The height is either fixed or grows with the content between a minimum and a maximum (CSS field-sizing, with a fallback for older browsers). A field with a limit shows a counter that turns amber near the end and red when the text is too long. Tab moves in and out of the field; Enter inserts a new line."
+        "Multi-line text. The height is either fixed or grows with the content between a minimum and a maximum (CSS field-sizing, with a fallback for older browsers). A field with a limit shows a counter that turns amber near the end and red when the text is too long; nothing is ever cut, so paste a long text into \"Description\" and it stays, marked red. Tab moves in and out of the field; Enter inserts a new line, and Ctrl+Enter (Cmd+Enter) sends the message of onCtrlEnter."
         [ Doc.example
             { title = "Fixed and growing height"
             , description = Just "On the left four lines that can be dragged larger. On the right: starts at two lines, grows to six and scrolls after that."
@@ -300,7 +302,7 @@ TextArea.view
             , code = Just """TextArea.view [ TextArea.label "Reason", TextArea.required, TextArea.error "The reason must be filled in" ]
 TextArea.view [ TextArea.label "Order history", TextArea.readOnly True, TextArea.value history ]
 TextArea.view [ TextArea.label "Locked", TextArea.disabled True ]
-TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.resize TextArea.ResizeNone ]"""
+TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.noResize ]"""
             }
             (grid 300
                 [ TextArea.view
@@ -357,7 +359,7 @@ TextArea.view [ TextArea.label "Fixed", TextArea.rows 3, TextArea.resize TextAre
                 , TextArea.view
                     ([ TextArea.label "Fixed, no resize handle"
                      , TextArea.rows 3
-                     , TextArea.resize TextArea.ResizeNone
+                     , TextArea.noResize
                      ]
                         ++ field "ta-noresize"
                     )
@@ -377,7 +379,7 @@ numbers lang model =
             readout ("Value: " ++ showNumber (NumberInput.value (numberOf key model)))
     in
     Doc.section "Number field"
-        "The number field remembers the text you type and turns it into a number. Comma and point both work as the decimal separator, spaces are ignored. Arrow up and down change the value by one step (Shift or Page Up/Down: ten steps), and the + and − buttons do the same with the mouse. Leaving the field rounds the number to the decimals and formats it. A number outside min and max is never moved into the range behind your back: it stays as typed and the field says \"Must be between ...\"; only stepping stops at the limits. Text that is not a number gives the error \"Must be a number\"."
+        "The number field remembers the text you type and turns it into a number. Comma and point both work as the decimal separator, spaces are ignored. Arrow up and down change the value by one step (Shift or Page Up/Down: ten steps), and the + and − buttons do the same with the mouse. Leaving the field rounds the number to the decimals (1.005 with two decimals is 1.01, as Klar.Format rounds) and formats it, and Escape brings back the number from before the typing. In Norwegian \"10.000\" is ten thousand, and a pasted \"12 kg\" in a field with the unit kg is 12. A number outside min and max is never moved into the range behind your back: it stays as typed and the field says \"Must be between ...\"; only stepping stops at the limits. Text that is not a number gives the error \"Must be a number\"."
         [ Doc.example
             { title = "Total, discount and quantity"
             , description = Just "Try \"1 234,5\", \"1.234,50\" or \"1,234.5\" and press Tab. Try the arrow keys with and without Shift. Type 55 as the discount and press Tab: the field keeps 55 and shows the error, it is not changed to 50 for you."
@@ -450,7 +452,7 @@ NumberInput.isValid model.total -- False when the number is outside min and max"
             , description = Just "An error from the application, disabled, read-only, small, large, without + and −, and with a prefix."
             , code = Just """NumberInput.view OrderValueMsg [ NumberInput.label "Order value", NumberInput.errorMaybe (belowMinimum model.orderValue) ] model.orderValue
 NumberInput.view (always NoOp) [ NumberInput.label "Locked", NumberInput.disabled True ] state
-NumberInput.view PriceMsg [ NumberInput.steppers False, NumberInput.prefixText "USD" ] model.price"""
+NumberInput.view PriceMsg [ NumberInput.noSteppers, NumberInput.prefixText "USD" ] model.price"""
             }
             (grid 240
                 [ NumberInput.view (NumberMsg "num-value")
@@ -498,7 +500,7 @@ NumberInput.view PriceMsg [ NumberInput.steppers False, NumberInput.prefixText "
                 , NumberInput.view (NumberMsg "num-plain")
                     [ NumberInput.label "No steppers"
                     , NumberInput.prefixText "USD"
-                    , NumberInput.steppers False
+                    , NumberInput.noSteppers
                     , NumberInput.grouped
                     , NumberInput.locale lang
                     ]
@@ -557,33 +559,31 @@ NumberInput.parse "abc" -- Nothing"""
 passwords : Locale -> Model -> Html Msg
 passwords lang model =
     Doc.section "Password"
-        "A password field with a \"show password\" button (Tab to the button, Enter or Space toggles it) and a simple strength meter. The meter looks at the length, the mix of characters and obvious patterns; it is a guide, not a security guarantee."
+        "A password field with a \"show password\" button (Tab to the button, Enter or Space toggles it), a Caps Lock warning (type a capital without Shift) and a simple strength meter. The state holds the password: read it with PasswordInput.value. The meter looks at the length first (a long passphrase is strong without digits), the mix of characters and obvious patterns; it is a guide, not a security guarantee."
         [ Doc.example
             { title = "Sign in and new password"
             , description = Just "On the right with a strength meter. Try \"password123\", \"Summer2026\" and \"Summer-2026!\": from weak to strong."
             , code = Just """PasswordInput.view LoginMsg
     [ PasswordInput.label "Password"
     , PasswordInput.currentPassword
-    , PasswordInput.value model.password
-    , PasswordInput.onInput PasswordChanged
+    , PasswordInput.onEnter SignIn
     ]
-    model.passwordState
+    model.password
 
 PasswordInput.view NewPasswordMsg
     [ PasswordInput.label "New password"
     , PasswordInput.newPassword
-    , PasswordInput.value model.newPassword
-    , PasswordInput.onInput NewPasswordChanged
     , PasswordInput.strengthMeter
     ]
-    model.newPasswordState"""
+    model.newPassword
+
+-- read it
+PasswordInput.value model.password -- String"""
             }
             (grid 300
                 [ PasswordInput.view (PasswordMsg "pw-login")
                     [ PasswordInput.label "Password"
                     , PasswordInput.currentPassword
-                    , PasswordInput.value (textOf "pw-login" model)
-                    , PasswordInput.onInput (TextChanged "pw-login")
                     , PasswordInput.hint "The password of your account."
                     , PasswordInput.locale lang
                     ]
@@ -592,8 +592,6 @@ PasswordInput.view NewPasswordMsg
                     [ PasswordInput.label "New password"
                     , PasswordInput.newPassword
                     , PasswordInput.required
-                    , PasswordInput.value (textOf "pw-new" model)
-                    , PasswordInput.onInput (TextChanged "pw-new")
                     , PasswordInput.strengthMeter
                     , PasswordInput.locale lang
                     ]
@@ -605,46 +603,39 @@ PasswordInput.view NewPasswordMsg
             , description = Just "With an error (until the two passwords are the same), disabled and small."
             , code = Just """PasswordInput.view RepeatMsg
     [ PasswordInput.label "Repeat password"
-    , PasswordInput.value model.repeat
-    , PasswordInput.onInput RepeatChanged
     , PasswordInput.errorMaybe
-        (if model.repeat /= model.password then
+        (if PasswordInput.value model.repeat /= PasswordInput.value model.password then
             Just "The passwords do not match"
 
          else
             Nothing
         )
     ]
-    model.repeatState"""
+    model.repeat"""
             }
             (grid 260
                 [ PasswordInput.view (PasswordMsg "pw-repeat")
                     [ PasswordInput.label "Repeat password"
                     , PasswordInput.hint "Compared with \"New password\" above."
                     , PasswordInput.errorMaybe
-                        (if textOf "pw-repeat" model /= textOf "pw-new" model then
+                        (if PasswordInput.value (passwordOf "pw-repeat" model) /= PasswordInput.value (passwordOf "pw-new" model) then
                             Just "The passwords do not match"
 
                          else
                             Nothing
                         )
-                    , PasswordInput.value (textOf "pw-repeat" model)
-                    , PasswordInput.onInput (TextChanged "pw-repeat")
                     , PasswordInput.locale lang
                     ]
                     (passwordOf "pw-repeat" model)
                 , PasswordInput.view (always NoOp)
                     [ PasswordInput.label "Disabled"
                     , PasswordInput.disabled True
-                    , PasswordInput.value "secret"
                     , PasswordInput.locale lang
                     ]
-                    (PasswordInput.init "pw-disabled")
+                    (PasswordInput.setValue "secret" (PasswordInput.init "pw-disabled"))
                 , PasswordInput.view (PasswordMsg "pw-small")
                     [ PasswordInput.label "Small"
                     , PasswordInput.size Small
-                    , PasswordInput.value (textOf "pw-small" model)
-                    , PasswordInput.onInput (TextChanged "pw-small")
                     , PasswordInput.locale lang
                     ]
                     (passwordOf "pw-small" model)
@@ -675,14 +666,14 @@ searches lang model =
             searchOf "search-slow" model
     in
     Doc.section "Search field"
-        "The search field waits until you have stopped typing (300 ms) before the text becomes a search. Enter searches at once, Escape or the cross clears the field and searches. The application compares committed before and after each update to know when to start a search."
+        "The search field waits until you have stopped typing (300 ms) before the text becomes a search. Enter searches at once, Escape or the cross clears the field and searches (and Escape in a field with text is kept from closing a dialog around it). A space at the end starts no new search, and a word that an input method is still composing is not searched for. The application compares committed before and after each update to know when to start a search."
         [ Doc.example
             { title = "Search with a delay"
             , description = Just "Count keystrokes against started searches: type \"logistics\" quickly and only one search starts. The hits come from a search through the customer names of 3,000 orders. The \"/\" in the field is only a hint for a shortcut; the application binds the key itself with Klar.Shortcut."
             , code = Just """SearchInput.view SearchMsg
     [ SearchInput.placeholder "Search orders ..."
-    , SearchInput.shortcutHint "/"
-    , SearchInput.loading model.searching
+    , SearchInput.shortcut (Shortcut.char '/')
+    , SearchInput.remote model.orders
     ]
     model.search
 
@@ -693,8 +684,14 @@ searchChanged =
             (stack
                 [ SearchInput.view SearchMsg
                     [ SearchInput.placeholder "Search orders ..."
-                    , SearchInput.shortcutHint "/"
-                    , SearchInput.loading model.searching
+                    , SearchInput.shortcut (Shortcut.char '/')
+                    , SearchInput.remote
+                        (if model.searching then
+                            Remote.Loading
+
+                         else
+                            Remote.NotAsked
+                        )
                     , SearchInput.locale lang
                     ]
                     model.search
@@ -742,7 +739,7 @@ searchChanged =
                     (searchOf "search-labelled" model)
                 , SearchInput.view (SearchStateMsg "search-loading")
                     [ SearchInput.placeholder "Loading ..."
-                    , SearchInput.loading True
+                    , SearchInput.remote Remote.Loading
                     , SearchInput.locale lang
                     ]
                     (searchOf "search-loading" model)

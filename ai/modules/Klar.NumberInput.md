@@ -23,7 +23,7 @@ update : Msg -> State -> ( State, Cmd Msg )
 value : State -> Maybe Float
 setValue : Maybe Float -> State -> State
 setLimits : List (Attribute msg) -> State -> State
-reset : State -> State
+clear : State -> State
 isValid : State -> Bool
 isTouched : State -> Bool
 
@@ -44,7 +44,7 @@ optionalText : String -> Attribute msg
 min : Float -> Attribute msg
 max : Float -> Attribute msg
 step : Float -> Attribute msg
-steppers : Bool -> Attribute msg
+noSteppers : Attribute msg
 
 -- Display
 decimals : Int -> Attribute msg
@@ -124,14 +124,16 @@ goes.
 **Typing.** The field reads what is typed in the language of the field
 (`locale`), the way `Klar.Format` writes numbers. In English a point is the
 decimal point and a comma groups thousands: `1,234.5` and `1234.5` are both
-1234.5, and `1,234` is 1234. In Norwegian a comma is the decimal comma and a
-space groups thousands: `1 234,5` and `1234,5` are both 1234.5, and `1,234` is
-1.234. Spaces and apostrophes are ignored in both. A comma that cannot be a
-thousands separator (`1,5`, `12,34`, `1,2345`) is read as a decimal comma in
-English too. A number written with both separators is read with the last one as
-the decimal separator, so `1.234,56` and `1,234.56` are both 1234.56, and a
-lone `.` is the decimal point in both languages (`1.234` is one and 234
-thousandths, not 1234). See `parseIn`.
+1234.5, and `1,234` is 1234. In Norwegian a comma is the decimal comma, and a
+space or a point groups thousands, as people write them: `1 234,5`, `1.234,5`
+and `1234,5` are all 1234.5, `10.000` is ten thousand and `1,234` is 1.234.
+Spaces and apostrophes are ignored in both. The other separator than the
+decimal one that cannot group thousands is read as the decimal separator: `1,5`,
+`12,34` and `0,500` in English, `1.5`, `12.25` and `0.500` in Norwegian. A
+number written with both separators is read with the last one as the decimal
+separator, so `1.234,56` and `1,234.56` are both 1234.56. Whatever the field
+reads, it shows when it is left, so a reading the user did not mean is seen at
+once. See `parseIn`.
 
 **What the field shows.** The number is written by `Klar.Format` when the user
 leaves the field, with the separators of the language: a point as the decimal
@@ -164,15 +166,28 @@ put in with `setValue` before any of that, such as one loaded from a server,
 needs `setLimits` once, with the same attributes you give to `view`.
 
 **Keyboard.** Arrow up and down change the number by `step`, and with Shift (or
-with page up and page down) by ten steps. Stepping never leaves `min` and `max`.
-Leaving the field, or pressing Enter, rounds the number to `decimals` and
-formats it; Enter still lets a surrounding form submit. The + and - buttons are
-not in the Tab order.
+with page up and page down) by ten steps. Stepping keeps to the grid of the steps
+from `min` (or 0), as the browser's own number field does: with a step of 5, 3
+goes up to 5. Stepping never leaves `min` and `max`. A pasted number that
+carries the unit of the field (`12 kg`, `USD 12`) is read without it.
+Leaving the field, or pressing Enter, rounds the number to `decimals` (half
+away from zero, on the decimal digits, as `Klar.Format` rounds: `1.005` is
+`1.01`) and formats it; Enter still lets a surrounding form submit. Escape
+throws away the text being typed and brings back the number from before; its
+default is then prevented, so a dialog around the field stays open. The + and -
+buttons are not in the Tab order; held down with the mouse, they step again and
+again (after 400 ms, every 60 ms) until they are let go or a limit is reached.
+
+**Phones.** A field whose `min` is 0 or more asks for the numeric keyboard
+(`inputmode` decimal, or numeric with `decimals 0`). A field that takes
+negative numbers, or has no `min`, gets the full keyboard, because the numeric
+keyboard of an iPhone has no minus key; give a field for amounts that cannot be
+negative `min 0`.
 
 **Accessibility.** The input has the role `spinbutton` with `aria-valuemin`,
-`aria-valuemax` and `aria-valuenow`. With a `prefixText` or `suffixText` it also
-has an `aria-valuetext` that includes the unit, so a screen reader reads
-"12 pcs" and not just "12".
+`aria-valuemax` and `aria-valuenow`, and an `aria-valuetext` that is the text
+of the field with its unit, so a screen reader reads "1 234,5 kg" as the field
+shows it and not "1234.5".
 
 The built-in texts (the errors, the names of the + and - buttons) and the number
 format (the decimal and thousands separators, in what is shown and what is read)
@@ -297,10 +312,10 @@ on the screen.
         |> NumberInput.isValid
     --> False
 
-### `reset`
+### `clear`
 
 ```elm
-reset : State -> State
+clear : State -> State
 ```
 
 Empties the field and forgets that the user has been in it (`isTouched` is
@@ -330,7 +345,7 @@ isTouched : State -> Bool
 ```
 
 `True` once the user has left the field, pressed Enter in it or used one of
-the stepper buttons. Use it to show errors only after the first visit. `reset`
+the stepper buttons. Use it to show errors only after the first visit. `clear`
 makes it `False` again.
 
 ## Reading numbers
@@ -370,14 +385,16 @@ parseIn : Locale.Locale -> String -> Maybe Float
 ```
 
 Reads a number the way the field does while the user types, in the language
-of the field. It reads like `parse`, except that a lone comma is what the
-language says it is. In English a comma groups thousands, so `1,234` is 1234, as
-`Klar.Format` writes it; in Norwegian it is the decimal comma, so `1,234` is
-1.234. A comma that cannot be a thousands separator (`1,5`, `12,34`, `1,2345`,
-`0,500`) is read as a decimal comma in either language, and a number written
-with both separators is read with the last one as the decimal separator
-(`1.234,56` and `1,234.56` are 1234.56 in both). A lone `.` is the decimal
-point in both, and spaces, no-break spaces and apostrophes are ignored.
+of the field. It reads like `parse`, except that a lone separator between groups
+of three digits is what the language says it is. In English a comma groups
+thousands, so `1,234` is 1234, as `Klar.Format` writes it, and a point is the
+decimal point. In Norwegian a comma is the decimal comma, so `1,234` is 1.234,
+and a point groups thousands, as many write it, so `10.000` is 10000. The other
+separator than the decimal one that cannot group thousands (`1,5`, `12,34`,
+`0,500` in English, `1.5`, `12.25`, `0.500` in Norwegian) is the decimal
+separator, and a number written with both separators is read with the last one
+as the decimal separator (`1.234,56` and `1,234.56` are 1234.56 in both).
+Spaces, no-break spaces and apostrophes are ignored.
 
     NumberInput.parseIn Locale.en "1,234.5" --> Just 1234.5
 
@@ -390,6 +407,10 @@ point in both, and spaces, no-break spaces and apostrophes are ignored.
     NumberInput.parseIn Locale.nb "1234,5" --> Just 1234.5
 
     NumberInput.parseIn Locale.nb "1,234" --> Just 1.234
+
+    NumberInput.parseIn Locale.nb "10.000" --> Just 10000
+
+    NumberInput.parseIn Locale.nb "1.5" --> Just 1.5
 
 Whatever `Klar.Format.decimal` writes in a language, `parseIn` reads back with
 the same language.
@@ -505,15 +526,16 @@ a step of zero or less counts as 1.
 
     NumberInput.step 0.5
 
-### `steppers`
+### `noSteppers`
 
 ```elm
-steppers : Bool -> Attribute msg
+noSteppers : Attribute msg
 ```
 
-Shows or hides the + and - buttons at the end of the field. They are shown
-by default, and never while the field is `disabled` or `readOnly`. The buttons
-are not in the Tab order; keyboard users have the arrow keys.
+Hides the + and - buttons at the end of the field, for a field where
+stepping makes no sense, such as a price. They are shown by default, and never
+while the field is `disabled` or `readOnly`. The buttons are not in the Tab
+order; keyboard users have the arrow keys either way.
 
 ## Display
 
@@ -588,7 +610,8 @@ size : Theme.Size -> Attribute msg
 ```
 
 The size of the field: `Small` (26px high), `Medium` (32px) or `Large`
-(40px), from [Klar.Theme](Klar.Theme.md). Default `Medium`.
+(40px) at the default density (see `Klar.Theme` for the others), from
+[Klar.Theme](Klar.Theme.md). Default `Medium`.
 
 ## State and browser hints
 
