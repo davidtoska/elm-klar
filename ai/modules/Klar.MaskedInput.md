@@ -31,6 +31,11 @@ ean13 : Mask
 pattern : String -> Maybe Mask
 setMask : Mask -> State -> State
 
+-- The Nordic business numbers
+swedishOrganisationNumber : Mask
+danishCvrNumber : Mask
+finnishBusinessId : Mask
+
 -- The identifier
 value : State -> Maybe String
 text : State -> String
@@ -114,8 +119,9 @@ error comes and goes.
 
 **Masks.** A `Mask` is a value, made by a function: `iban`,
 `norwegianOrganisationNumber`, `norwegianBankAccount`, `norwegianPostalCode`,
-`postalCode "SE"`, `phone`, `ean13` (the barcode number of a product), or a pattern
-of your own with `pattern "@@-####"`. A mask
+`postalCode "SE"`, `phone`, `ean13` (the barcode number of a product), the business
+numbers of Sweden, Denmark and Finland, or a pattern of your own with
+`pattern "@@-####"`. A mask
 that can fail to be made (an unknown country, a pattern that makes no sense) gives
 `Maybe`, so the application knows at once, not when the user is in the field. Build
 the masks once, in `init`; `setMask` changes the mask of a field that is on the
@@ -388,6 +394,36 @@ country changes. Whether the user has been in the field stays as it was.
             Nothing ->
                 -- no fixed pattern for this country: a plain text field instead
                 ( model, Cmd.none )
+
+## The Nordic business numbers
+
+### `swedishOrganisationNumber`
+
+```elm
+swedishOrganisationNumber : Mask
+```
+
+A Swedish organisation number: ten digits where the last is a check digit (the
+Luhn modulus 10), written `556012-5790`. The value is the ten digits.
+
+### `danishCvrNumber`
+
+```elm
+danishCvrNumber : Mask
+```
+
+A Danish CVR number, the number of a business: eight digits where the last is a
+check digit (modulus 11), `24256790`. The value is the eight digits; the `DK` of a VAT
+number is not part of it.
+
+### `finnishBusinessId`
+
+```elm
+finnishBusinessId : Mask
+```
+
+A Finnish business ID (Y-tunnus): seven digits and a check digit (modulus 11),
+written `0112038-9`. The value is the eight digits.
 
 ## The identifier
 

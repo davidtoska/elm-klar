@@ -1,5 +1,6 @@
 module Klar.MaskedInput.Checksum exposing
-    ( mod10
+    ( luhn
+    , mod10
     , mod11
     , mod97
     )
@@ -7,8 +8,8 @@ module Klar.MaskedInput.Checksum exposing
 {-| The check digits that identifiers carry: they catch a mistyped or transposed
 character, so a wrong number is found before it is sent anywhere.
 
-They work on text that has been read already: digits only for `mod10` and `mod11`,
-digits and capital letters for `mod97`.
+They work on text that has been read already: digits only for `luhn`, `mod10` and
+`mod11`, digits and capital letters for `mod97`.
 
 -}
 
@@ -88,6 +89,43 @@ mod10 digits =
                     |> List.sum
         in
         List.head fromTheRight == Just (modBy 10 (10 - modBy 10 sum))
+
+
+{-| The Luhn check digit (modulus 10 with doubling) of the Swedish organisation
+number and of card numbers. From the right, every second digit before the check
+digit is doubled, and the digits of a doubled number above 9 are added (9 less);
+the whole sum must be a multiple of ten.
+
+    Checksum.luhn "5560125790" --> True
+
+`False` for fewer than two digits, and for text that is not made of digits.
+
+-}
+luhn : String -> Bool
+luhn digits =
+    if String.length digits < 2 || not (String.all Char.isDigit digits) then
+        False
+
+    else
+        digits
+            |> String.toList
+            |> List.map (\c -> Char.toCode c - 48)
+            |> List.reverse
+            |> List.indexedMap
+                (\index n ->
+                    if modBy 2 index == 1 then
+                        if 2 * n > 9 then
+                            2 * n - 9
+
+                        else
+                            2 * n
+
+                    else
+                        n
+                )
+            |> List.sum
+            |> modBy 10
+            |> (==) 0
 
 
 {-| The check of an IBAN (ISO 7064, modulus 97-10). The first four characters (the

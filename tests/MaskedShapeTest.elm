@@ -22,6 +22,7 @@ suite =
         , bankAccountTests
         , ibanChecksumTests
         , gtinTests
+        , nordicTests
         , ibanTableTests
         , readingTests
         , writingTests
@@ -1282,4 +1283,18 @@ gtinTests =
             \_ -> Expect.equal False (Checksum.mod10 "59012341234A7")
         , test "a single digit is not a number with a check digit" <|
             \_ -> Expect.equal False (Checksum.mod10 "0")
+        ]
+
+
+nordicTests : Test
+nordicTests =
+    describe "the Nordic business numbers"
+        [ test "the Luhn digit of a Swedish organisation number" <|
+            \_ -> Expect.equal [ True, False ] [ Checksum.luhn "5560125790", Checksum.luhn "5560125791" ]
+        , test "the Luhn digit finds two neighbours swapped" <|
+            \_ -> Expect.equal False (Checksum.luhn "5561025790")
+        , test "a Danish CVR number" <|
+            \_ -> Expect.equal [ True, False ] [ Checksum.mod11 [ 2, 7, 6, 5, 4, 3, 2 ] "24256790", Checksum.mod11 [ 2, 7, 6, 5, 4, 3, 2 ] "24256791" ]
+        , test "a Finnish business ID" <|
+            \_ -> Expect.equal [ True, False ] [ Checksum.mod11 [ 7, 9, 10, 5, 8, 4, 2 ] "01120389", Checksum.mod11 [ 7, 9, 10, 5, 8, 4, 2 ] "01120388" ]
         ]

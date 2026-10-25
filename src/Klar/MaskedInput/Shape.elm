@@ -67,6 +67,8 @@ type Checksum
     | OrganisationNumber
     | BankAccount
     | Gtin
+    | Luhn
+    | Mod11 (List Int)
 
 
 {-| What was read from the text: the characters that are the value (without separators,
@@ -573,6 +575,20 @@ checkIssue shape value =
 
         Slots _ Gtin ->
             if Checksum.mod10 value then
+                Nothing
+
+            else
+                Just WrongCheckDigit
+
+        Slots _ Luhn ->
+            if Checksum.luhn value then
+                Nothing
+
+            else
+                Just WrongCheckDigit
+
+        Slots _ (Mod11 weights) ->
+            if Checksum.mod11 weights value then
                 Nothing
 
             else

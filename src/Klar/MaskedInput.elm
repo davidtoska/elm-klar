@@ -2,6 +2,7 @@ module Klar.MaskedInput exposing
     ( view, Attribute
     , State, Msg, init, update
     , Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, ean13, pattern, setMask
+    , swedishOrganisationNumber, danishCvrNumber, finnishBusinessId
     , value, text, problem, setValue, clear, touch, isComplete, isValid, isTouched
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
     , placeholder, size, disabled, readOnly, name
@@ -58,8 +59,9 @@ error comes and goes.
 
 **Masks.** A `Mask` is a value, made by a function: `iban`,
 `norwegianOrganisationNumber`, `norwegianBankAccount`, `norwegianPostalCode`,
-`postalCode "SE"`, `phone`, `ean13` (the barcode number of a product), or a pattern
-of your own with `pattern "@@-####"`. A mask
+`postalCode "SE"`, `phone`, `ean13` (the barcode number of a product), the business
+numbers of Sweden, Denmark and Finland, or a pattern of your own with
+`pattern "@@-####"`. A mask
 that can fail to be made (an unknown country, a pattern that makes no sense) gives
 `Maybe`, so the application knows at once, not when the user is in the field. Build
 the masks once, in `init`; `setMask` changes the mask of a field that is on the
@@ -126,6 +128,11 @@ The built-in texts (the errors) follow `locale`.
 # Masks
 
 @docs Mask, iban, norwegianOrganisationNumber, norwegianBankAccount, norwegianPostalCode, postalCode, phone, ean13, pattern, setMask
+
+
+# The Nordic business numbers
+
+@docs swedishOrganisationNumber, danishCvrNumber, finnishBusinessId
 
 
 # The identifier
@@ -260,6 +267,31 @@ value is the thirteen digits.
 ean13 : Mask
 ean13 =
     Mask { shape = Slots (List.repeat 13 Digit) Gtin, autocomplete = "off" }
+
+
+{-| A Swedish organisation number: ten digits where the last is a check digit (the
+Luhn modulus 10), written `556012-5790`. The value is the ten digits.
+-}
+swedishOrganisationNumber : Mask
+swedishOrganisationNumber =
+    Mask { shape = Slots (List.repeat 6 Digit ++ [ Literal '-' ] ++ List.repeat 4 Digit) Luhn, autocomplete = "off" }
+
+
+{-| A Danish CVR number, the number of a business: eight digits where the last is a
+check digit (modulus 11), `24256790`. The value is the eight digits; the `DK` of a VAT
+number is not part of it.
+-}
+danishCvrNumber : Mask
+danishCvrNumber =
+    Mask { shape = Slots (List.repeat 8 Digit) (Mod11 [ 2, 7, 6, 5, 4, 3, 2 ]), autocomplete = "off" }
+
+
+{-| A Finnish business ID (Y-tunnus): seven digits and a check digit (modulus 11),
+written `0112038-9`. The value is the eight digits.
+-}
+finnishBusinessId : Mask
+finnishBusinessId =
+    Mask { shape = Slots (List.repeat 7 Digit ++ [ Literal '-', Digit ]) (Mod11 [ 7, 9, 10, 5, 8, 4, 2 ]), autocomplete = "off" }
 
 
 {-| A mask of your own from a pattern. Three characters are slots, and every other

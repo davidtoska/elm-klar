@@ -137,6 +137,23 @@ sharedRuleTests =
                 after [ focusIn plain, typeIn plain "5901234123458" ] (MaskedInput.init "gtin" MaskedInput.ean13)
                     |> Result.map (MaskedInput.problem plain)
                     |> Expect.equal (Ok (Just "The check digit is wrong"))
+        , test "a Swedish organisation number is written with its hyphen" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "5560125790", leave plain ] (MaskedInput.init "se" MaskedInput.swedishOrganisationNumber)
+                    |> Expect.all [ expectText "556012-5790", expectValue (Just "5560125790") ]
+        , test "a Danish CVR number" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "24256790", leave plain ] (MaskedInput.init "dk" MaskedInput.danishCvrNumber)
+                    |> expectValue (Just "24256790")
+        , test "a Finnish business ID is written with its hyphen" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "01120389", leave plain ] (MaskedInput.init "fi" MaskedInput.finnishBusinessId)
+                    |> Expect.all [ expectText "0112038-9", expectValue (Just "01120389") ]
+        , test "a wrong Finnish check digit is found" <|
+            \_ ->
+                after [ focusIn plain, typeIn plain "0112038-8" ] (MaskedInput.init "fi" MaskedInput.finnishBusinessId)
+                    |> Result.map (MaskedInput.problem plain)
+                    |> Expect.equal (Ok (Just "The check digit is wrong"))
         , test "full-width digits are written as ordinary ones in the groups" <|
             \_ ->
                 after [ focusIn plain, typeIn plain "９７４７６０６７３", leave plain ] orgnr
