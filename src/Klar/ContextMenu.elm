@@ -1,6 +1,6 @@
 module Klar.ContextMenu exposing
     ( view
-    , Attribute, items, ariaLabel, locale
+    , Attribute, ariaLabel, locale
     , area, attrs
     , State, Msg, init, update, isOpen, target, openFor, close
     )
@@ -26,16 +26,14 @@ Quick path: `init`, `area`, `view`, `update`, `close`
 
     -- once, anywhere: the menu. The items come from the order that was clicked.
     ContextMenu.view ContextMsg
-        [ ContextMenu.items
-            (\order ->
-                [ Menu.item "Open" (OpenOrder order) |> Menu.withIcon Icon.externalLink
-                , Menu.item "Edit" (EditOrder order) |> Menu.withIcon Icon.edit
-                , Menu.separator
-                , Menu.item "Delete" (AskDelete order) |> Menu.withIcon Icon.trash |> Menu.danger
-                ]
-            )
-        , ContextMenu.ariaLabel "Order actions"
-        ]
+        [ ContextMenu.ariaLabel "Order actions" ]
+        (\order ->
+            [ Menu.item "Open" (OpenOrder order) |> Menu.withIcon Icon.externalLink
+            , Menu.item "Edit" (EditOrder order) |> Menu.withIcon Icon.edit
+            , Menu.separator
+            , Menu.item "Delete" (AskDelete order) |> Menu.withIcon Icon.trash |> Menu.danger
+            ]
+        )
         model.context
 
     -- update
@@ -85,7 +83,7 @@ the menu cannot take focus back from the dialog (the same holds for
 
 # Attributes
 
-@docs Attribute, items, ariaLabel, locale
+@docs Attribute, ariaLabel, locale
 
 
 # Elements that open the menu
@@ -437,32 +435,20 @@ list to `view`; later attributes win over earlier ones. The `a` is the type of
 what the menu is opened for.
 -}
 type Attribute a msg
-    = Attribute (Config a msg -> Config a msg)
+    = Attribute (Config -> Config)
 
 
-type alias Config a msg =
-    { items : a -> List (Menu.Item msg)
-    , label : Maybe String
+type alias Config =
+    { label : Maybe String
     , locale : Locale
     }
 
 
-configure : List (Attribute a msg) -> Config a msg
+configure : List (Attribute a msg) -> Config
 configure attributes =
     List.foldl (\(Attribute change) config -> change config)
-        { items = \_ -> [], label = Nothing, locale = Locale.default }
+        { label = Nothing, locale = Locale.default }
         attributes
-
-
-{-| The items of the menu, made from what was right-clicked. The default is an
-empty menu.
-
-    ContextMenu.items (\order -> [ Menu.item "Open" (OpenOrder order) ])
-
--}
-items : (a -> List (Menu.Item msg)) -> Attribute a msg
-items itemsFor =
-    Attribute (\config -> { config | items = itemsFor })
 
 
 {-| The name of the menu that a screen reader says when it opens, such as "Order
@@ -485,15 +471,16 @@ locale value =
 -- VIEW
 
 
-{-| The menu: render it once, anywhere (it shows nothing while closed). The menu
-opens at the pointer; where the browser supports CSS anchor positioning it flips
-towards the free side near the edges of the window.
+{-| The menu: render it once, anywhere (it shows nothing while closed). The
+function makes the items from what was right-clicked (the `a`), when the menu
+opens. The menu opens at the pointer; where the browser supports CSS anchor
+positioning it flips towards the free side near the edges of the window.
 
-    ContextMenu.view ContextMsg [ ContextMenu.items orderActions ] model.context
+    ContextMenu.view ContextMsg [ ContextMenu.ariaLabel "Order actions" ] orderActions model.context
 
 -}
-view : (Msg a -> msg) -> List (Attribute a msg) -> State a -> Html msg
-view toMsg attributes (State state) =
+view : (Msg a -> msg) -> List (Attribute a msg) -> (a -> List (Menu.Item msg)) -> State a -> Html msg
+view toMsg attributes itemsFor (State state) =
     case ( Menu.isOpen state.menu, state.target ) of
         ( True, Just what ) ->
             let
@@ -515,7 +502,7 @@ view toMsg attributes (State state) =
                 , Events.preventDefaultOn "keydown" (tabStays (toMsg Noop))
                 ]
                 [ Menu.view (\inner -> toMsg (MenuMsg inner))
-                    [ Menu.items (config.items what)
+                    [ Menu.items (itemsFor what)
 
                     -- The hidden button names the menu for a screen reader.
                     , Menu.label (Maybe.withDefault (Locale.pick config.locale { nb = "Handlinger", en = "Actions" }) config.label)

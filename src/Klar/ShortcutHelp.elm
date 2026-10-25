@@ -235,6 +235,8 @@ title value =
 {-| The keyboard to write the keys for, as in [Klar.Kbd](Klar-Kbd): `Kbd.pc` (the
 default: Ctrl, Alt, Shift) or `Kbd.mac` (⌘, ⌥, ⇧ in the order a Mac writes them).
 Read it once from the user agent with `Kbd.platformFromUserAgent`.
+[Klar.Shortcut](Klar-Shortcut) finds a Mac by itself, a view cannot: without
+this a Mac user reads "Ctrl K" for a shortcut that fires on ⌘ K.
 
     ShortcutHelp.platform (Kbd.platformFromUserAgent flags.userAgent)
 
@@ -310,8 +312,8 @@ view toMsg attributes shortcuts (State state) =
             , inFields = Locale.pick config.locale { nb = "virker også i felt", en = "works in fields" }
             , note =
                 Locale.pick config.locale
-                    { nb = "Hurtigtaster virker ikke mens du skriver i et felt, med mindre noe annet er oppgitt. Mens en dialog er åpen, virker bare de med Ctrl, Alt eller Cmd."
-                    , en = "Shortcuts do not work while you type in a field, unless stated otherwise. While a dialog is open, only the ones with Ctrl, Alt or Cmd work."
+                    { nb = "Hurtigtaster virker ikke mens du skriver i et felt, med mindre det står «virker også i felt». Mens en dialog eller en meny er åpen, virker bare de med Ctrl, Alt eller Cmd og de som virker i felt."
+                    , en = "Shortcuts do not work while you type in a field, unless they say “works in fields”. While a dialog or a menu is open, only the ones with Ctrl, Alt or Cmd and the ones that work in fields do."
                     }
             , count =
                 if words == "" then
@@ -464,66 +466,89 @@ groupsOf shortcuts =
 
 matches : String -> Row -> Bool
 matches words entry =
-    if words == "" then
-        True
+    let
+        text =
+            entry.label ++ " " ++ entry.group
 
-    else
-        Search.matches words
-            (String.join " "
-                (entry.label
-                    :: entry.group
-                    :: List.concatMap (List.concatMap keyNames) (Notation.words entry.keys)
-                )
-            )
+        names =
+            Notation.words entry.keys
+                |> List.concatMap (List.concatMap keyNames)
+                |> List.map Search.normalize
+    in
+    -- Every word of the filter is found in the label or the group, or is the
+    -- whole name of one of the keys: "c" finds "Close", not every Ctrl key.
+    List.all
+        (\word -> Search.matches word text || List.member (Search.normalize word) names)
+        (String.words words)
 
 
-{-| A key cap and the other names a user may look for it by.
+{-| A key cap and the other names a user may look for it by, in English and
+Norwegian Bokmål (the words of the spoken names of [Klar.Kbd](Klar-Kbd)), one
+word each: "page up" is found by "page" and by "up".
 -}
 keyNames : String -> List String
 keyNames word =
     word
         :: (case word of
                 "Ctrl" ->
-                    [ "control", "cmd", "command", "⌘" ]
+                    [ "control", "kontroll", "cmd", "command", "kommando", "⌘" ]
 
                 "Alt" ->
-                    [ "option", "⌥" ]
+                    [ "option", "valg", "⌥" ]
 
                 "Shift" ->
-                    [ "⇧" ]
+                    [ "skift", "⇧" ]
 
                 "Esc" ->
                     [ "escape" ]
 
                 "Enter" ->
-                    [ "return" ]
+                    [ "return", "retur", "↩", "↵" ]
+
+                "Space" ->
+                    [ "mellomrom" ]
+
+                "Tab" ->
+                    [ "tabulator", "⇥" ]
+
+                "Backspace" ->
+                    [ "⌫" ]
 
                 "Delete" ->
-                    [ "del" ]
+                    [ "del", "slett", "⌦" ]
 
                 "PageUp" ->
-                    [ "pgup", "page up" ]
+                    [ "pgup", "page", "up" ]
 
                 "PageDown" ->
-                    [ "pgdn", "page down" ]
+                    [ "pgdn", "page", "down" ]
 
                 "↑" ->
-                    [ "up arrow" ]
+                    [ "up", "arrow", "pil", "opp" ]
 
                 "↓" ->
-                    [ "down arrow" ]
+                    [ "down", "arrow", "pil", "ned" ]
 
                 "←" ->
-                    [ "left arrow" ]
+                    [ "left", "arrow", "pil", "venstre" ]
 
                 "→" ->
-                    [ "right arrow" ]
+                    [ "right", "arrow", "pil", "høyre" ]
 
                 "?" ->
-                    [ "question mark" ]
+                    [ "question", "mark", "spørsmålstegn" ]
+
+                "!" ->
+                    [ "exclamation", "mark", "utropstegn" ]
 
                 "/" ->
-                    [ "slash" ]
+                    [ "slash", "skråstrek" ]
+
+                "+" ->
+                    [ "plus", "pluss" ]
+
+                "-" ->
+                    [ "minus" ]
 
                 _ ->
                     []

@@ -175,13 +175,14 @@ application fills, for example with the result of a search in the backend. The
 palette shows a skeleton while it is `Loading`, a short failure message when it
 is `Failed` (with a "Try again" button if the section has an `onRetry` and the
 problem can be retried), "No results" when it is `Loaded []` (see
-`withEmptyText`), and nothing while it is `NotAsked` and the search box is empty.
-Once the user has typed, `NotAsked` also shows the skeleton (the request is about
-to start), so the palette never says "No results" before the answer is there.
-Items that are `Kept` stay in the list: dimmed and busy while they are refreshed
-(`Remote.refresh`), and with "Old data from 14:05" next to the title of the
-section when the last refresh failed. The items of a remote section are not
-filtered again: the backend already did that.
+`withEmptyText`). A section that is `NotAsked` shows the skeleton while the user
+is typing (the request is about to start), so the palette never says "No
+results" before the answer is there, and is left out once the typing has paused:
+that is how the application says there is nothing to ask for this text. Data
+that is `Kept` stays in the list, empty or not: dimmed and busy while it is
+refreshed (`Remote.refresh`), and with "Old data from 14:05" next to the title
+of the section when the last refresh failed. The items of a remote section are
+not filtered again: the backend already did that.
 
 The search is the wiring at the top of this page, and it needs **no debounce and
 no ticket of your own**. `query` waits for a pause of 300 ms in the typing (an
@@ -191,8 +192,9 @@ whose text is no longer `CommandPalette.query model.palette`: it answers an old
 question. `query` is `""` while the palette is closed, so an answer that arrives
 after the palette closed is dropped too. Set the section to `NotAsked` when you
 `open` the palette, so the results of the last opening do not show under the new
-empty query. For a text that is too short to search for, leave the section
-`NotAsked` (or out).
+empty query. For a text that is too short to search for, or a command that has no
+argument yet ("go to order"), set the section to `NotAsked` and send nothing: the
+section goes away when the typing pauses.
 
 @docs Section, section, remote, onRetry, withEmptyText
 
@@ -293,16 +295,22 @@ openedFrom (State state) =
 
 
 {-| Replaces the query and clears the highlight, for example to open the palette
-with a prefix. It does not open the palette, and `open` clears the query, so call
-it after `open`.
+with a prefix. `query` reports it at once, without the pause, so ask the backend
+for it in the same update (a remote section left `NotAsked` is not shown). It
+does not open the palette and does nothing to a closed one (`open` starts with
+an empty query), so call it after `open`.
 
     CommandPalette.open "" model.palette
         |> Tuple.mapFirst (CommandPalette.setQuery "customer ")
 
 -}
 setQuery : String -> State -> State
-setQuery text (State state) =
-    State { state | query = text, searched = String.trim text, wait = state.wait + 1, active = Nothing }
+setQuery text ((State state) as current) =
+    if state.open then
+        State { state | query = text, searched = String.trim text, wait = state.wait + 1, active = Nothing }
+
+    else
+        current
 
 
 {-| A message from the palette. Wrap it in one of your own messages and pass it to
@@ -865,6 +873,8 @@ emptyText value =
 {-| The keyboard to write the shortcuts of the items for, as in
 [Klar.Kbd](Klar-Kbd): `Kbd.pc` (the default: Ctrl, Alt, Shift) or `Kbd.mac`
 (⌘, ⌥, ⇧). Read it once from the user agent with `Kbd.platformFromUserAgent`.
+[Klar.Shortcut](Klar-Shortcut) finds a Mac by itself, a view cannot: without
+this a Mac user reads "Ctrl K" for a shortcut that fires on ⌘ K.
 
     CommandPalette.platform (Kbd.platformFromUserAgent flags.userAgent)
 
@@ -1026,13 +1036,33 @@ buildBlocks config text settled =
 
                         loadingRows =
                             [ LoadingBody, LoadingBody, LoadingBody ]
+
+                        -- refreshed, or with "Old data" after a failed refresh
+                        withFreshness body =
+                            { key = key
+                            , title = data.title
+                            , busy = Freshness.busy freshness || not settled
+                            , old =
+                                case freshness of
+                                    Freshness.Stale old ->
+                                        Just (Freshness.text config.locale config.settings old.at)
+
+                                    _ ->
+                                        Nothing
+                            , body = body
+                            }
                     in
                     case current of
                         NotAsked ->
-                            if words == "" then
+                            if words == "" || settled then
+                                -- Nothing was asked for this query: the
+                                -- application found it too short, or it is a
+                                -- command still waiting for its argument.
                                 []
 
                             else
+                                -- the typing has not paused yet: the request is
+                                -- about to start
                                 [ block data.title loadingRows ]
 
                         Loading ->
@@ -1042,22 +1072,10 @@ buildBlocks config text settled =
                             [ block data.title [ FailureBody problem (Remote.title config.locale problem) data.onRetry ] ]
 
                         Loaded [] ->
-                            [ block data.title [ EmptyBody (Maybe.withDefault (Maybe.withDefault language.noResults config.emptyText) data.emptyText) ] ]
+                            [ withFreshness [ EmptyBody (Maybe.withDefault (Maybe.withDefault language.noResults config.emptyText) data.emptyText) ] ]
 
                         Loaded items ->
-                            [ { key = key
-                              , title = data.title
-                              , busy = Freshness.busy freshness || not settled
-                              , old =
-                                    case freshness of
-                                        Freshness.Stale old ->
-                                            Just (Freshness.text config.locale config.settings old.at)
-
-                                        _ ->
-                                            Nothing
-                              , body = keyedBody key items
-                              }
-                            ]
+                            [ withFreshness (keyedBody key items) ]
 
                         -- `settle` has turned a `Kept` into `Loaded`
                         Kept _ ->
@@ -1613,8 +1631,8 @@ viewSearch toMsg config language state activeEntry hasList runMsg hasRetry =
                    )
                 -- One keydown handler only (see the panel): Enter runs the
                 -- item, Tab reaches the "Try again" button of a failed section.
-                ++ (case
-                        List.filterMap identity
+                ++ [ searchKeys (toMsg Noop)
+                        (List.filterMap identity
                             [ Maybe.map (\msg -> ( "Enter", msg )) runMsg
                             , if hasRetry then
                                 Just ( "Tab", toMsg FocusRetry )
@@ -1622,13 +1640,8 @@ viewSearch toMsg config language state activeEntry hasList runMsg hasRetry =
                               else
                                 Nothing
                             ]
-                    of
-                        [] ->
-                            []
-
-                        keys ->
-                            [ Internal.onKeys keys ]
-                   )
+                        )
+                   ]
             )
             []
         , if state.query /= "" then
@@ -1645,6 +1658,45 @@ viewSearch toMsg config language state activeEntry hasList runMsg hasRetry =
             -- a hint for the eye; the dialog itself says that Escape closes it
             Html.span [ Internal.cls [ "klar-palette__esc" ], Attr.attribute "aria-hidden" "true" ] [ Internal.kbd "Esc" ]
         ]
+
+
+{-| The keys of the search box: `Enter` and `Tab` without modifiers, with the
+browser's default prevented. A key that belongs to the composition of an input
+method (the `Enter` that confirms Japanese or Chinese text, the `Escape` that
+cancels it) is the input method's: it runs nothing and does not reach the keys
+of the panel either.
+-}
+searchKeys : msg -> List ( String, msg ) -> Html.Attribute msg
+searchKeys noop bindings =
+    Events.custom "keydown"
+        (Decode.map2 Tuple.pair composing Internal.keyEvent
+            |> Decode.andThen
+                (\( isComposing, event ) ->
+                    if isComposing then
+                        Decode.succeed { message = noop, stopPropagation = True, preventDefault = False }
+
+                    else if event.ctrl || event.meta || event.alt || event.shift then
+                        Decode.fail "a key of the panel"
+
+                    else
+                        case List.filter (\( name, _ ) -> name == event.key) bindings of
+                            ( _, msg ) :: _ ->
+                                Decode.succeed { message = msg, stopPropagation = False, preventDefault = True }
+
+                            [] ->
+                                Decode.fail "a key of the panel"
+                )
+        )
+
+
+{-| The press belongs to the composition of an input method: browsers say so
+with `isComposing`, Safari with the `keyCode` 229.
+-}
+composing : Decoder Bool
+composing =
+    Decode.map2 (||)
+        (Decode.oneOf [ Decode.field "isComposing" Decode.bool, Decode.succeed False ])
+        (Decode.oneOf [ Decode.field "keyCode" Decode.int |> Decode.map ((==) 229), Decode.succeed False ])
 
 
 viewBlock : (Msg -> msg) -> Config msg -> { a | id : String } -> { b | retry : String } -> String -> Maybe (Placed msg) -> PlacedBlock msg -> Html msg

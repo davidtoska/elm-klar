@@ -3231,13 +3231,13 @@
       ],
       "mainFunctions": [
         "view",
-        "items",
         "ariaLabel",
         "locale",
         "area",
         "attrs",
         "init",
-        "update"
+        "update",
+        "isOpen"
       ],
       "related": [
         "Klar.Menu",
@@ -3291,9 +3291,9 @@
       "related": [
         "Klar.Kbd",
         "Klar.Overlay",
+        "Klar.Shortcut",
         "Klar.Remote",
-        "Klar.Search",
-        "Klar.Shortcut"
+        "Klar.Search"
       ],
       "keywords": [
         "command palette",
@@ -3344,9 +3344,9 @@
       ],
       "related": [
         "Klar.Kbd",
+        "Klar.Shortcut",
         "Klar.Modal",
-        "Klar.Overlay",
-        "Klar.Shortcut"
+        "Klar.Overlay"
       ],
       "keywords": [
         "shortcut help",

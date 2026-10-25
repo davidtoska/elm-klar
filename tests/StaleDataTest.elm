@@ -23,6 +23,7 @@ import Klar.Timeline as Timeline
 import Klar.Tree as Tree
 import Support.Orders as Orders
 import Test exposing (Test, describe, test)
+import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector
 import Time
@@ -308,21 +309,41 @@ palette =
         open =
             CommandPalette.init "palette" |> CommandPalette.open "opener" |> Tuple.first |> CommandPalette.setQuery "ada"
 
-        view hits =
-            CommandPalette.view PaletteMsg [ CommandPalette.sections [ CommandPalette.remote "Customers" hits ] ] open
+        drawn state hits =
+            CommandPalette.view PaletteMsg [ CommandPalette.sections [ CommandPalette.remote "Customers" hits ] ] state
                 |> (\overlay -> Overlay.host { attributes = [], page = [], overlays = [ overlay ] })
                 |> Query.fromHtml
+
+        view hits =
+            drawn open hits
+
+        -- "ada" typed into the box, before the pause in the typing: the
+        -- application has not been asked yet
+        typing =
+            case
+                drawn (CommandPalette.init "palette" |> CommandPalette.open "opener" |> Tuple.first) NotAsked
+                    |> Query.find [ Selector.id "palette-input" ]
+                    |> Event.simulate (Event.input "ada")
+                    |> Event.toResult
+            of
+                Ok (PaletteMsg inner) ->
+                    CommandPalette.update inner (CommandPalette.init "palette" |> CommandPalette.open "opener" |> Tuple.first) |> Tuple.first
+
+                _ ->
+                    open
     in
     describe "the command palette"
         [ test "does not say No results before the answer is there" <|
             \_ ->
                 Expect.all
-                    [ \_ -> view NotAsked |> Query.hasNot [ text "No results" ]
+                    [ \_ -> drawn typing NotAsked |> Query.hasNot [ text "No results" ]
                     , \_ -> view Loading |> Query.hasNot [ text "No results" ]
                     ]
                     ()
-        , test "NotAsked after typing shows a loading row" <|
-            \_ -> view NotAsked |> Query.has [ Selector.class "klar-skeleton" ]
+        , test "NotAsked while the typing has not paused shows a loading row" <|
+            \_ -> drawn typing NotAsked |> Query.has [ Selector.class "klar-skeleton" ]
+        , test "NotAsked once the query has settled shows no loading row: nothing is coming" <|
+            \_ -> view NotAsked |> Query.hasNot [ Selector.class "klar-skeleton" ]
         , test "an empty answer does say it" <|
             \_ -> view (Loaded []) |> Query.has [ text "No results" ]
         , test "old hits stay, marked" <|

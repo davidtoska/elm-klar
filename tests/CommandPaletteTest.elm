@@ -148,6 +148,12 @@ suite =
                 \_ ->
                     CommandPalette.query (opened " ada ")
                         |> Expect.equal "ada"
+            , test "setQuery does nothing to a closed palette, whose query stays empty" <|
+                \_ ->
+                    CommandPalette.init "palette"
+                        |> CommandPalette.setQuery "ada"
+                        |> CommandPalette.query
+                        |> Expect.equal ""
             , test "closing empties the query, so a late answer is dropped" <|
                 \_ ->
                     CommandPalette.close (opened "ada")
@@ -198,6 +204,44 @@ suite =
                         ]
                         (opened "zzz")
                         |> Query.has [ Selector.text "Nothing here" ]
+            , test "a section still NotAsked once the typing has paused is left out: nothing was asked for this text" <|
+                \_ ->
+                    -- "go to order" is a command without its argument yet: the application asks nothing
+                    view "go to order" NotAsked
+                        |> Expect.all
+                            [ Query.hasNot [ Selector.class "klar-skeleton" ]
+                            , Query.hasNot [ Selector.text "Orders" ]
+                            , Query.find [ role "status" ] >> Query.hasNot [ Selector.text "Searching" ]
+                            , Query.find [ role "status" ] >> Query.has [ Selector.text "1 result" ]
+                            ]
+            , test "while the user is still typing, a NotAsked section shows the skeleton: the request is about to start" <|
+                \_ ->
+                    case typedState "ada" (opened "") of
+                        Just state ->
+                            draw [ CommandPalette.sections [ CommandPalette.remote "Orders" NotAsked ] ] state
+                                |> Expect.all
+                                    [ Query.has [ Selector.class "klar-skeleton" ]
+                                    , Query.find [ role "status" ] >> Query.has [ Selector.text "Searching" ]
+                                    ]
+
+                        Nothing ->
+                            Expect.fail "the search box did not answer"
+            , test "an empty answer that is being refreshed is drawn busy" <|
+                \_ ->
+                    view "zzz" (Remote.refresh (Loaded []))
+                        |> Query.find [ Selector.attribute (Html.Attributes.attribute "aria-labelledby" "palette-group-s1") ]
+                        |> Expect.all
+                            [ Query.has [ Selector.class "klar-refreshing" ]
+                            , Query.has [ Selector.attribute (Html.Attributes.attribute "aria-busy" "true") ]
+                            , Query.has [ Selector.text "No results" ]
+                            ]
+            , test "an empty answer whose refresh failed says Old data" <|
+                \_ ->
+                    view "zzz" (Remote.refreshWith (Loaded []) (Err (Remote.problem Remote.network)) (Time.millisToPosix 0))
+                        |> Expect.all
+                            [ Query.find [ Selector.id "palette-group-s1" ] >> Query.has [ Selector.text "Old data" ]
+                            , Query.find [ role "status" ] >> Query.has [ Selector.text "Old data" ]
+                            ]
             , test "withEmptyText wins over the palette's emptyText" <|
                 \_ ->
                     draw
@@ -348,6 +392,10 @@ suite =
                     view "" NotAsked
                         |> Query.find [ Selector.class "klar-palette__panel" ]
                         |> Query.has [ Selector.class "klar-modal__guard" ]
+            , test "the Enter that confirms the text of an input method runs nothing" <|
+                \_ -> composingKeyRunsNothing [ ( "isComposing", Encode.bool True ) ]
+            , test "nor does the Enter that Safari sends with the key code 229" <|
+                \_ -> composingKeyRunsNothing [ ( "keyCode", Encode.int 229 ) ]
             , test "the footer is for the eye only" <|
                 \_ ->
                     view "" NotAsked
@@ -381,6 +429,66 @@ typed text state =
                     _ ->
                         Err "not a message of the palette"
             )
+
+
+{-| The state after the user typed this text into the search box, before the
+pause in the typing.
+-}
+typedState : String -> CommandPalette.State -> Maybe CommandPalette.State
+typedState text state =
+    case
+        draw [] state
+            |> Query.find [ Selector.id "palette-input" ]
+            |> Event.simulate (Event.input text)
+            |> Event.toResult
+    of
+        Ok (Palette inner) ->
+            Just (Tuple.first (CommandPalette.update inner state))
+
+        _ ->
+            Nothing
+
+
+{-| An `Enter` in the search box that belongs to the composition of an input
+method: either the palette does not take it at all, or it keeps it from the
+panel (which would run the item) and stays open.
+-}
+composingKeyRunsNothing : List ( String, Encode.Value ) -> Expect.Expectation
+composingKeyRunsNothing fields =
+    let
+        state =
+            opened "new"
+
+        searchBox =
+            draw [ CommandPalette.sections [ CommandPalette.section "Actions" [ newOrder ] ] ] state
+                |> Query.find [ Selector.id "palette-input" ]
+
+        enter =
+            Event.custom "keydown"
+                (Encode.object
+                    ([ ( "key", Encode.string "Enter" )
+                     , ( "ctrlKey", Encode.bool False )
+                     , ( "metaKey", Encode.bool False )
+                     , ( "shiftKey", Encode.bool False )
+                     , ( "altKey", Encode.bool False )
+                     ]
+                        ++ fields
+                    )
+                )
+    in
+    case Event.simulate enter searchBox |> Event.toResult of
+        Err _ ->
+            Expect.pass
+
+        Ok (Palette inner) ->
+            Expect.all
+                [ \_ -> CommandPalette.isOpen (Tuple.first (CommandPalette.update inner state)) |> Expect.equal True
+                , \_ -> Event.simulate enter searchBox |> Event.expectStopPropagation
+                ]
+                ()
+
+        Ok _ ->
+            Expect.fail "the highlighted item ran"
 
 
 keyDown : String -> ( String, Encode.Value )

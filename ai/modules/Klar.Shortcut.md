@@ -142,18 +142,26 @@ command palette) prevents its default action, and a shortcut ignores a key press
 whose default action was prevented. The `Enter` or `Escape` that ends the
 composition of an input method (Japanese, Chinese, Korean) is never a shortcut
 either. Holding a key down does not repeat a shortcut, unless it is marked
-`repeats` (one that moves through rows, say).
+`repeats` (one that moves through rows, say), and the repeats of a held key that
+fired a shortcut do not reach the browser either (holding Ctrl+S never saves the
+page).
 
-**Keyboards**: a symbol typed with AltGr (on a German keyboard `[` is AltGr and
+**Keyboards**: a symbol typed with AltGr, such as `[` from AltGr and the eight
+key of a German keyboard, counts as the plain symbol and not as Ctrl+Alt; in a
+field it is text that never fires a shortcut. With Ctrl, Alt or Cmd held, a
+letter or a digit is also found by the place of its key, so `mod (char 'k')`
+fires on a Russian or Greek layout, and `alt (char 'a')` fires for Option and A
+on a Mac (where the key types "å"). Option with a symbol types another
+character on a Mac, so `alt` with a symbol (`alt (char '/')`) fires only on a
+PC. On a Mac `mod` is Cmd; Ctrl counts as `mod` too, except in a text field,
+where Ctrl+A, Ctrl+E and Ctrl+K keep their editing meaning.
 
-1.  counts as the plain symbol, not as Ctrl+Alt, and in a field it is text that
-    never fires a shortcut. With Ctrl, Alt or Cmd held, a letter or digit is also
-    found by the key's place on the keyboard, so `mod (char 'k')` fires on a Russian
-    or Greek layout, and `alt (char 'a')` with Option and A on a Mac (where the key
-    types "å"). On a Mac `mod` is Cmd; Ctrl counts as `mod` too, except in a text
-    field, where Ctrl+A, Ctrl+E and Ctrl+K keep their editing meaning. To show the
-    keys, give the same `Keys` to [Klar.Kbd](Klar.Kbd.md), which writes them for a PC
-    or a Mac.
+**Showing the keys**: give the same `Keys` to [Klar.Kbd](Klar.Kbd.md), which writes
+them for a PC or a Mac. This module finds out from each key press whether the
+keyboard is a Mac's, but a view cannot: read the platform once with
+`Kbd.platformFromUserAgent` and pass it to everything that shows keys
+(`Kbd.platform`, `CommandPalette.platform`, `ShortcutHelp.platform`), or a Mac
+user sees "Ctrl K" for a shortcut that fires on ⌘ K.
 
 ## Defining shortcuts
 
@@ -419,7 +427,9 @@ applies to every key of the sequence.
 alt : Keys -> Keys
 ```
 
-Alt (Option on a Mac) held with the keys: `alt up`.
+Alt (Option on a Mac) held with the keys: `alt up`. With a letter or a digit
+it fires on every keyboard; with a symbol (`alt (char '/')`) only on a PC, as
+Option with a symbol types another character on a Mac.
 
 ### `shift`
 
@@ -449,8 +459,9 @@ type State  -- opaque: no constructors are exposed
 ```
 
 What the shortcuts hold on to between key presses: the keys of a sequence
-that is waiting for its next key, and when the last of them was pressed. Make one
-with `init` and keep it in your model.
+that is waiting for its next key, when the last of them was pressed, and the
+last key that fired a shortcut (whose repeats a held key sends). Make one with
+`init` and keep it in your model.
 
 ### `Msg`
 
@@ -491,9 +502,9 @@ listen : (Msg -> msg) -> List (Shortcut msg) -> State -> Html.Attribute msg
 An attribute for the focusable root element of the application (give it
 `tabindex -1`). It hears the key presses of everything inside the element and
 prevents the browser's own action for the ones that trigger a shortcut, so
-Ctrl+K does not reach the browser. A key that only starts a sequence is not
-prevented, and a key that an element inside has already handled (its default
-action is prevented) is left alone.
+Ctrl+K does not reach the browser, also not while the keys are held down. A key
+that only starts a sequence is not prevented, and a key that an element inside
+has already handled (its default action is prevented) is left alone.
 
     Html.div
         [ Shortcut.listen ShortcutMsg shortcuts model.shortcuts

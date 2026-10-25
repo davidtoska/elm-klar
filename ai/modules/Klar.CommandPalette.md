@@ -297,8 +297,10 @@ setQuery : String -> State -> State
 ```
 
 Replaces the query and clears the highlight, for example to open the palette
-with a prefix. It does not open the palette, and `open` clears the query, so call
-it after `open`.
+with a prefix. `query` reports it at once, without the pause, so ask the backend
+for it in the same update (a remote section left `NotAsked` is not shown). It
+does not open the palette and does nothing to a closed one (`open` starts with
+an empty query), so call it after `open`.
 
     CommandPalette.open "" model.palette
         |> Tuple.mapFirst (CommandPalette.setQuery "customer ")
@@ -453,13 +455,14 @@ application fills, for example with the result of a search in the backend. The
 palette shows a skeleton while it is `Loading`, a short failure message when it
 is `Failed` (with a "Try again" button if the section has an `onRetry` and the
 problem can be retried), "No results" when it is `Loaded []` (see
-`withEmptyText`), and nothing while it is `NotAsked` and the search box is empty.
-Once the user has typed, `NotAsked` also shows the skeleton (the request is about
-to start), so the palette never says "No results" before the answer is there.
-Items that are `Kept` stay in the list: dimmed and busy while they are refreshed
-(`Remote.refresh`), and with "Old data from 14:05" next to the title of the
-section when the last refresh failed. The items of a remote section are not
-filtered again: the backend already did that.
+`withEmptyText`). A section that is `NotAsked` shows the skeleton while the user
+is typing (the request is about to start), so the palette never says "No
+results" before the answer is there, and is left out once the typing has paused:
+that is how the application says there is nothing to ask for this text. Data
+that is `Kept` stays in the list, empty or not: dimmed and busy while it is
+refreshed (`Remote.refresh`), and with "Old data from 14:05" next to the title
+of the section when the last refresh failed. The items of a remote section are
+not filtered again: the backend already did that.
 
 The search is the wiring at the top of this page, and it needs **no debounce and
 no ticket of your own**. `query` waits for a pause of 300 ms in the typing (an
@@ -469,8 +472,9 @@ whose text is no longer `CommandPalette.query model.palette`: it answers an old
 question. `query` is `""` while the palette is closed, so an answer that arrives
 after the palette closed is dropped too. Set the section to `NotAsked` when you
 `open` the palette, so the results of the last opening do not show under the new
-empty query. For a text that is too short to search for, leave the section
-`NotAsked` (or out).
+empty query. For a text that is too short to search for, or a command that has no
+argument yet ("go to order"), set the section to `NotAsked` and send nothing: the
+section goes away when the typing pauses.
 
 ### `Section`
 
@@ -592,6 +596,8 @@ platform : Kbd.Platform -> Attribute msg
 The keyboard to write the shortcuts of the items for, as in
 [Klar.Kbd](Klar.Kbd.md): `Kbd.pc` (the default: Ctrl, Alt, Shift) or `Kbd.mac`
 (⌘, ⌥, ⇧). Read it once from the user agent with `Kbd.platformFromUserAgent`.
+[Klar.Shortcut](Klar.Shortcut.md) finds a Mac by itself, a view cannot: without
+this a Mac user reads "Ctrl K" for a shortcut that fires on ⌘ K.
 
     CommandPalette.platform (Kbd.platformFromUserAgent flags.userAgent)
 
