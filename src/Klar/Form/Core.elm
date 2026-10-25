@@ -1994,21 +1994,17 @@ setOption (Field field) choice_ (State data) =
 
 
 {-| The DOM id of the element that takes the focus for a field: its control, the
-add button of a group of rows, or the first button of a rule builder. For
-`Modal.openWith` and `Drawer.openWith`, which take the DOM ids to focus when they
-open; to move the focus in an update, `focus` does it for you.
+from date of a period, the add button of a group of rows, or the button of a
+rule builder that adds a condition to its root. For `Modal.openWith` and
+`Drawer.openWith`, which take the DOM ids to focus when they open; to move the
+focus in an update, `focus` does it for you.
 
     Drawer.openWith { opener = "edit-customer", focus = [ Fm.domId fields.name ] } model.drawer
 
 -}
 domId : Field c -> String
 domId (Field field) =
-    case field.toRaw field.empty of
-        RRule _ ->
-            RuleBuilder.focusId [] (RuleBuilder.init field.key) 0
-
-        _ ->
-            field.key
+    entryFor field.key (field.toRaw field.empty)
 
 
 {-| The handles of the rows a group has now, in order. Draw one card of fields
@@ -2108,8 +2104,15 @@ toValues locale ((Form form) as declared) (State data) =
             Ok values ->
                 Ok values
 
-            Err _ ->
-                Err []
+            Err found ->
+                -- only fields that are not shown fail, on their empty value: a mistake of the
+                -- declaration (see `shownWhen`, `Check.failingWhenHidden`), named here so it can
+                -- be found, though no field on the screen shows it
+                let
+                    stepOf key =
+                        findDef key defs |> Maybe.andThen (\def -> stepAt declared def.step)
+                in
+                Err (List.map (\f -> { field = f.target, label = f.label, message = f.message, step = stepOf f.field }) found)
 
     else
         Err (List.map (asProblem declared) standing_)
@@ -2197,7 +2200,7 @@ rows, the stepper and the lines of the summary, which is why it needs the form.
             ( state, cmd ) =
                 Fm.update form inner model.form
         in
-        ( { model | form = form }, Cmd.map FormMsg cmd )
+        ( { model | form = state }, Cmd.map FormMsg cmd )
 
 -}
 update : Form step fields values -> Msg -> State step -> ( State step, Cmd Msg )
@@ -2523,17 +2526,30 @@ rowFirstKey (RowsPlan plan) prefix groupKey =
     plan.defsAt prefix |> List.head |> Maybe.map entryOf |> Maybe.withDefault groupKey
 
 
-{-| The DOM id the focus goes to when it goes to this field: its own, or for a
-rule builder (a group that is no control) the button that adds a condition.
+{-| The DOM id the focus goes to when it goes to this field: see `entryFor`.
 -}
 entryOf : Def -> String
 entryOf def =
-    case def.initial of
+    entryFor def.key def.initial
+
+
+{-| The DOM id the focus goes to for a field of this kind with this key: the
+control itself; for a period the from date (`DateRangePicker` gives its two
+inputs `<id>-from` and `<id>-to`, and no element has the id itself); for a rule
+builder (a group that is no control) the button that adds a condition to its
+root.
+-}
+entryFor : String -> Raw -> String
+entryFor key raw =
+    case raw of
         RRule _ ->
-            RuleBuilder.focusId [] (RuleBuilder.init def.key) 0
+            RuleBuilder.focusId [] (RuleBuilder.init key) 0
+
+        RPeriod _ ->
+            key ++ "-from"
 
         _ ->
-            def.key
+            key
 
 
 findDef : String -> List Def -> Maybe Def
@@ -2588,17 +2604,17 @@ diagnose locale ((Form form) as declared) data defs =
         byKey =
             Dict.fromList (List.map (\def -> ( def.key, def )) defs)
 
-        rulesNow =
-            conditionsIn declared data
+        now =
+            settled declared data defs
 
         hidden =
-            hiddenAmong rulesNow data (form.defsAt form.prefix)
+            now.hidden
 
         visible def =
             not (Set.member def.key hidden)
 
         reading =
-            withoutHidden hidden defs data
+            now.reading
 
         fromFound f =
             case Dict.get f.field byKey of
@@ -2608,16 +2624,19 @@ diagnose locale ((Form form) as declared) data defs =
                 Nothing ->
                     { field = f.field, target = f.target, label = f.label, message = f.message, step = 0, origin = FromRule }
 
+        -- a field that is not shown has no problems, also none from its own rules on its empty value
         client =
             case form.readAt form.prefix locale reading of
                 Ok _ ->
                     []
 
                 Err found ->
-                    List.map fromFound found
+                    found
+                        |> List.filter (\f -> not (Set.member f.field hidden))
+                        |> List.map fromFound
 
         wanted =
-            requiredAmong rulesNow data
+            now.wanted
 
         conditional =
             defs
@@ -2699,15 +2718,60 @@ inRows pick data defs =
         defs
 
 
-{-| The keys of the fields that are not shown now: those whose `shownWhen` does
-not hold, and every field in the rows of a group that is not shown.
+{-| What every reader of the form sees now: the keys of the fields that are not
+shown, the data with those fields read as empty (`reading`, for the values, the
+rules and `checkFields`), and the keys of the fields a `requiredWhen` requires.
+A field that is not shown is empty also for the conditions of other fields: the
+conditions are judged on the data with the hidden fields emptied, again until
+the answer stays the same (at most once more per condition, so that conditions
+that contradict each other in a loop still come to an end).
 -}
-hiddenAmong : List Condition -> Data -> List Def -> Set String
-hiddenAmong rulesNow data defs =
+settled : Form step fields values -> Data -> List Def -> { hidden : Set String, reading : Data, wanted : Set String }
+settled ((Form form) as declared) data defs =
+    let
+        rulesNow =
+            conditionsIn declared data
+
+        top =
+            form.defsAt form.prefix
+
+        settle budget hidden =
+            let
+                next =
+                    hiddenAmong rulesNow (withoutHidden hidden defs data) data top
+            in
+            if next == hidden || budget <= 0 then
+                next
+
+            else
+                settle (budget - 1) next
+
+        hiddenNow =
+            if List.any (\c -> c.kind == ShownWhen) rulesNow then
+                settle (List.length rulesNow) (hiddenAmong rulesNow data data top)
+
+            else
+                Set.empty
+
+        reading =
+            withoutHidden hiddenNow defs data
+    in
+    { hidden = hiddenNow
+    , reading = reading
+    , wanted = requiredAmong rulesNow reading
+    }
+
+
+{-| The keys of the fields that are not shown when the conditions are judged on
+`judged`: those whose `shownWhen` does not hold, and every field in the rows (of
+`data`) of a group that is not shown.
+-}
+hiddenAmong : List Condition -> Data -> Data -> List Def -> Set String
+hiddenAmong rulesNow judged data defs =
     let
         off =
             rulesNow
-                |> List.filter (\c -> c.kind == ShownWhen && not (c.holds data))
+                |> List.filter (\c -> c.kind == ShownWhen && not (c.holds judged))
                 |> List.map .key
                 |> Set.fromList
     in
@@ -2788,8 +2852,47 @@ withoutHidden hidden defs data =
 {-| The data with the hidden fields read as empty, for `toValues`.
 -}
 readable : Form step fields values -> Data -> List Def -> Data
-readable ((Form form) as declared) data defs =
-    withoutHidden (hiddenAmong (conditionsIn declared data) data (form.defsAt form.prefix)) defs data
+readable declared data defs =
+    (settled declared data defs).reading
+
+
+{-| For `Check.failingWhenHidden`: the labels of the fields with a `shownWhen`
+whose empty value breaks their own rules (a `required`, an `atLeast`, a `rule`
+that wants a ticked box), so that they would block `toValues` while they are
+hidden. Every such field is hidden at once, on a new form.
+-}
+failingWhenHidden : Form step fields values -> List String
+failingWhenHidden ((Form form) as declared) =
+    let
+        (State data) =
+            init declared
+
+        conditional =
+            conditionsIn declared data
+                |> List.filter (\c -> c.kind == ShownWhen)
+                |> List.map .key
+                |> Set.fromList
+
+        hidden =
+            hideUnder conditional False data (form.defsAt form.prefix)
+    in
+    case form.readAt form.prefix Locale.default (withoutHidden hidden (expandedDefs declared data) data) of
+        Ok _ ->
+            []
+
+        Err found ->
+            found
+                |> List.filter (\f -> Set.member f.field hidden)
+                |> List.map .label
+                |> List.foldl
+                    (\label all ->
+                        if List.member label all then
+                            all
+
+                        else
+                            all ++ [ label ]
+                    )
+                    []
 
 
 isBlankIn : Data -> Def -> Bool
@@ -3349,7 +3452,7 @@ enter ((Form form) as declared) index data =
             expandedDefs declared data
 
         hidden =
-            hiddenAmong (conditionsIn declared data) data (form.defsAt form.prefix)
+            (settled declared data defs).hidden
 
         onStep =
             List.filter (\def -> def.step == index && not (Set.member def.key hidden)) defs
@@ -3404,14 +3507,14 @@ bind locale toMsg ((Form form) as declared) (State data) =
         defs =
             expandedDefs declared data
 
-        rulesNow =
-            conditionsIn declared data
+        now =
+            settled declared data defs
 
         hidden =
-            hiddenAmong rulesNow data (form.defsAt form.prefix)
+            now.hidden
 
         wanted =
-            requiredAmong rulesNow data
+            now.wanted
 
         drawn =
             defs
