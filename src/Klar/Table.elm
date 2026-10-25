@@ -519,6 +519,7 @@ import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup,
 import Klar.Table.Index as Index exposing (Index)
 import Klar.Table.Sort as Sorting
 import Klar.Table.Texts as Texts exposing (Texts)
+import Klar.Table.Types as Types
 import Klar.Tag as Tag
 import Klar.TextInput as TextInput
 import Klar.Theme as Theme exposing (Density(..), Tone)
@@ -625,7 +626,7 @@ focused. Make one with `init`, keep it in your model, change it with `update`
 (or the setters in this module) and pass it to `view`.
 -}
 type State id
-    = State Core.Model
+    = State Types.Model
 
 
 {-| A table with nothing sorted, filtered or selected, on page 1 with 25 rows
@@ -996,7 +997,7 @@ type Msg
     | FiltersCleared
     | AllCleared
     | Debounced Int
-    | PopupOpened Core.Popup (List String)
+    | PopupOpened Types.Popup (List String)
     | PopupClosed
     | PopupLeft
     | RowMenu String String (List String) Menu.Msg
@@ -1035,7 +1036,7 @@ update arg1 arg2 =
 them to `columns`.
 -}
 type Column row msg
-    = Column (Core.ColumnConfig row msg)
+    = Column (Types.ColumnConfig row msg)
 
 
 {-| A setting of one column. Make them with the functions below and pass a list
@@ -1043,7 +1044,7 @@ as the last argument of `text`, `int` and the other column helpers; later
 attributes win over earlier ones.
 -}
 type ColumnAttribute row msg
-    = ColumnAttribute (Core.ColumnConfig row msg -> Core.ColumnConfig row msg)
+    = ColumnAttribute (Types.ColumnConfig row msg -> Types.ColumnConfig row msg)
 
 
 {-| A text column: `Table.text (Table.columnId "customer") "Customer" .customer []` takes the
@@ -1488,7 +1489,7 @@ them with the functions below and pass a list to `view`; later attributes win
 over earlier ones.
 -}
 type Attribute id row msg
-    = Attribute (Core.Config row msg -> Core.Config row msg)
+    = Attribute (Types.Config row msg -> Types.Config row msg)
 
 
 {-| The columns of the table, left to right. Make them with `text`, `int`,
@@ -1556,7 +1557,7 @@ type Rows row
         , index : Index
 
         -- the exact totals of the money columns with a footer, over every row
-        , moneyTotals : Dict String (List Core.MoneyTotal)
+        , moneyTotals : Dict String (List Types.MoneyTotal)
         }
 
 
@@ -2028,113 +2029,113 @@ view arg1 arg2 arg3 =
     Core.view (fromCoreMsg >> arg1) (List.map unwrapAttribute arg2) (unwrapState arg3)
 
 
-unwrapState : State id -> Core.State id
+unwrapState : State id -> Types.State id
 unwrapState (State value) =
-    Core.State value
+    Types.State value
 
 
-fromCoreState : Core.State id -> State id
-fromCoreState (Core.State value) =
+fromCoreState : Types.State id -> State id
+fromCoreState (Types.State value) =
     State value
 
 
-unwrapColumnId : ColumnId -> Core.ColumnId
+unwrapColumnId : ColumnId -> Types.ColumnId
 unwrapColumnId (ColumnId value) =
-    Core.ColumnId value
+    Types.ColumnId value
 
 
-fromCoreColumnId : Core.ColumnId -> ColumnId
-fromCoreColumnId (Core.ColumnId value) =
+fromCoreColumnId : Types.ColumnId -> ColumnId
+fromCoreColumnId (Types.ColumnId value) =
     ColumnId value
 
 
-unwrapAttribute : Attribute id row msg -> Core.Attribute id row msg
+unwrapAttribute : Attribute id row msg -> Types.Attribute id row msg
 unwrapAttribute (Attribute value) =
-    Core.Attribute value
+    Types.Attribute value
 
 
-fromCoreAttribute : Core.Attribute id row msg -> Attribute id row msg
-fromCoreAttribute (Core.Attribute value) =
+fromCoreAttribute : Types.Attribute id row msg -> Attribute id row msg
+fromCoreAttribute (Types.Attribute value) =
     Attribute value
 
 
-unwrapRows : Rows row -> Core.Rows row
+unwrapRows : Rows row -> Types.Rows row
 unwrapRows (Rows value) =
-    Core.Rows value
+    Types.Rows value
 
 
-fromCoreRows : Core.Rows row -> Rows row
-fromCoreRows (Core.Rows value) =
+fromCoreRows : Types.Rows row -> Rows row
+fromCoreRows (Types.Rows value) =
     Rows value
 
 
-unwrapColumn : Column row msg -> Core.Column row msg
+unwrapColumn : Column row msg -> Types.Column row msg
 unwrapColumn (Column value) =
-    Core.Column value
+    Types.Column value
 
 
-fromCoreColumn : Core.Column row msg -> Column row msg
-fromCoreColumn (Core.Column value) =
+fromCoreColumn : Types.Column row msg -> Column row msg
+fromCoreColumn (Types.Column value) =
     Column value
 
 
-unwrapColumnAttribute : ColumnAttribute row msg -> Core.ColumnAttribute row msg
+unwrapColumnAttribute : ColumnAttribute row msg -> Types.ColumnAttribute row msg
 unwrapColumnAttribute (ColumnAttribute value) =
-    Core.ColumnAttribute value
+    Types.ColumnAttribute value
 
 
-fromCoreColumnAttribute : Core.ColumnAttribute row msg -> ColumnAttribute row msg
-fromCoreColumnAttribute (Core.ColumnAttribute value) =
+fromCoreColumnAttribute : Types.ColumnAttribute row msg -> ColumnAttribute row msg
+fromCoreColumnAttribute (Types.ColumnAttribute value) =
     ColumnAttribute value
 
 
-toCoreDirection : Direction -> Core.Direction
+toCoreDirection : Direction -> Types.Direction
 toCoreDirection direction =
     case direction of
         Ascending ->
-            Core.Ascending
+            Types.Ascending
 
         Descending ->
-            Core.Descending
+            Types.Descending
 
 
-fromCoreDirection : Core.Direction -> Direction
+fromCoreDirection : Types.Direction -> Direction
 fromCoreDirection direction =
     case direction of
-        Core.Ascending ->
+        Types.Ascending ->
             Ascending
 
-        Core.Descending ->
+        Types.Descending ->
             Descending
 
 
-toCoreFilter : Filter -> Core.Filter
+toCoreFilter : Filter -> Types.Filter
 toCoreFilter filter =
     case filter of
         Contains value ->
-            Core.Contains value
+            Types.Contains value
 
         OneOf values ->
-            Core.OneOf values
+            Types.OneOf values
 
         Between low high ->
-            Core.Between low high
+            Types.Between low high
 
 
-fromCoreFilter : Core.Filter -> Filter
+fromCoreFilter : Types.Filter -> Filter
 fromCoreFilter filter =
     case filter of
-        Core.Contains value ->
+        Types.Contains value ->
             Contains value
 
-        Core.OneOf values ->
+        Types.OneOf values ->
             OneOf values
 
-        Core.Between low high ->
+        Types.Between low high ->
             Between low high
 
 
-toCoreQuery : Query -> Core.Query
+toCoreQuery : Query -> Types.Query
 toCoreQuery q =
     { search = q.search
     , sort = List.map (\( id, direction ) -> ( unwrapColumnId id, toCoreDirection direction )) q.sort
@@ -2144,7 +2145,7 @@ toCoreQuery q =
     }
 
 
-fromCoreQuery : Core.Query -> Query
+fromCoreQuery : Types.Query -> Query
 fromCoreQuery q =
     { search = q.search
     , sort = List.map (\( id, direction ) -> ( fromCoreColumnId id, fromCoreDirection direction )) q.sort
@@ -2154,235 +2155,235 @@ fromCoreQuery q =
     }
 
 
-fromCoreSelection : Core.Selection id -> Selection id
+fromCoreSelection : Types.Selection id -> Selection id
 fromCoreSelection selected =
     case selected of
-        Core.Selected ids ->
+        Types.Selected ids ->
             Selected ids
 
-        Core.AllMatching except ->
+        Types.AllMatching except ->
             AllMatching except
 
 
-unwrapMsg : Msg -> Core.Msg
+unwrapMsg : Msg -> Types.Msg
 unwrapMsg msg =
     case msg of
         NoOp ->
-            Core.NoOp
+            Types.NoOp
 
         SortClicked arg1 arg2 ->
-            Core.SortClicked arg1 arg2
+            Types.SortClicked arg1 arg2
 
         PageChanged arg1 ->
-            Core.PageChanged arg1
+            Types.PageChanged arg1
 
         PageSizeChanged arg1 ->
-            Core.PageSizeChanged arg1
+            Types.PageSizeChanged arg1
 
         SearchChanged arg1 arg2 ->
-            Core.SearchChanged arg1 arg2
+            Types.SearchChanged arg1 arg2
 
         FilterTextChanged arg1 arg2 arg3 ->
-            Core.FilterTextChanged arg1 arg2 arg3
+            Types.FilterTextChanged arg1 arg2 arg3
 
         FilterRangeChanged arg1 arg2 arg3 arg4 ->
-            Core.FilterRangeChanged arg1 arg2 arg3 arg4
+            Types.FilterRangeChanged arg1 arg2 arg3 arg4
 
         FilterChoiceToggled arg1 arg2 arg3 ->
-            Core.FilterChoiceToggled arg1 arg2 arg3
+            Types.FilterChoiceToggled arg1 arg2 arg3
 
         FilterChoicesSet arg1 arg2 ->
-            Core.FilterChoicesSet arg1 arg2
+            Types.FilterChoicesSet arg1 arg2
 
         OptionQueryChanged arg1 ->
-            Core.OptionQueryChanged arg1
+            Types.OptionQueryChanged arg1
 
         FilterCleared arg1 ->
-            Core.FilterCleared arg1
+            Types.FilterCleared arg1
 
         FiltersCleared ->
-            Core.FiltersCleared
+            Types.FiltersCleared
 
         AllCleared ->
-            Core.AllCleared
+            Types.AllCleared
 
         Debounced arg1 ->
-            Core.Debounced arg1
+            Types.Debounced arg1
 
         PopupOpened arg1 arg2 ->
-            Core.PopupOpened arg1 arg2
+            Types.PopupOpened arg1 arg2
 
         PopupClosed ->
-            Core.PopupClosed
+            Types.PopupClosed
 
         PopupLeft ->
-            Core.PopupLeft
+            Types.PopupLeft
 
         RowMenu arg1 arg2 arg3 arg4 ->
-            Core.RowMenu arg1 arg2 arg3 arg4
+            Types.RowMenu arg1 arg2 arg3 arg4
 
         RowMenuOpened arg1 arg2 arg3 ->
-            Core.RowMenuOpened arg1 arg2 arg3
+            Types.RowMenuOpened arg1 arg2 arg3
 
         RowSelected arg1 arg2 ->
-            Core.RowSelected arg1 arg2
+            Types.RowSelected arg1 arg2
 
         RowsSelected arg1 arg2 ->
-            Core.RowsSelected arg1 arg2
+            Types.RowsSelected arg1 arg2
 
         RangeSelected arg1 arg2 arg3 ->
-            Core.RangeSelected arg1 arg2 arg3
+            Types.RangeSelected arg1 arg2 arg3
 
         MatchingSelected arg1 ->
-            Core.MatchingSelected arg1
+            Types.MatchingSelected arg1
 
         AllMatchingPicked ->
-            Core.AllMatchingPicked
+            Types.AllMatchingPicked
 
         SelectionCleared arg1 ->
-            Core.SelectionCleared arg1
+            Types.SelectionCleared arg1
 
         ExpandToggled arg1 ->
-            Core.ExpandToggled arg1
+            Types.ExpandToggled arg1
 
         DensityChanged arg1 ->
-            Core.DensityChanged arg1
+            Types.DensityChanged arg1
 
         ColumnToggled arg1 arg2 ->
-            Core.ColumnToggled arg1 arg2
+            Types.ColumnToggled arg1 arg2
 
         ColumnsReset ->
-            Core.ColumnsReset
+            Types.ColumnsReset
 
         RowFocused arg1 ->
-            Core.RowFocused arg1
+            Types.RowFocused arg1
 
         FocusRow arg1 arg2 ->
-            Core.FocusRow arg1 arg2
+            Types.FocusRow arg1 arg2
 
         FocusVirtualRow arg1 arg2 arg3 ->
-            Core.FocusVirtualRow arg1 arg2 arg3
+            Types.FocusVirtualRow arg1 arg2 arg3
 
         Scrolled arg1 ->
-            Core.Scrolled arg1
+            Types.Scrolled arg1
 
         RetryClicked ->
-            Core.RetryClicked
+            Types.RetryClicked
 
         FirstPageClicked ->
-            Core.FirstPageClicked
+            Types.FirstPageClicked
 
         ExportClicked arg1 arg2 ->
-            Core.ExportClicked arg1 arg2
+            Types.ExportClicked arg1 arg2
 
 
-fromCoreMsg : Core.Msg -> Msg
+fromCoreMsg : Types.Msg -> Msg
 fromCoreMsg msg =
     case msg of
-        Core.NoOp ->
+        Types.NoOp ->
             NoOp
 
-        Core.SortClicked arg1 arg2 ->
+        Types.SortClicked arg1 arg2 ->
             SortClicked arg1 arg2
 
-        Core.PageChanged arg1 ->
+        Types.PageChanged arg1 ->
             PageChanged arg1
 
-        Core.PageSizeChanged arg1 ->
+        Types.PageSizeChanged arg1 ->
             PageSizeChanged arg1
 
-        Core.SearchChanged arg1 arg2 ->
+        Types.SearchChanged arg1 arg2 ->
             SearchChanged arg1 arg2
 
-        Core.FilterTextChanged arg1 arg2 arg3 ->
+        Types.FilterTextChanged arg1 arg2 arg3 ->
             FilterTextChanged arg1 arg2 arg3
 
-        Core.FilterRangeChanged arg1 arg2 arg3 arg4 ->
+        Types.FilterRangeChanged arg1 arg2 arg3 arg4 ->
             FilterRangeChanged arg1 arg2 arg3 arg4
 
-        Core.FilterChoiceToggled arg1 arg2 arg3 ->
+        Types.FilterChoiceToggled arg1 arg2 arg3 ->
             FilterChoiceToggled arg1 arg2 arg3
 
-        Core.FilterChoicesSet arg1 arg2 ->
+        Types.FilterChoicesSet arg1 arg2 ->
             FilterChoicesSet arg1 arg2
 
-        Core.OptionQueryChanged arg1 ->
+        Types.OptionQueryChanged arg1 ->
             OptionQueryChanged arg1
 
-        Core.FilterCleared arg1 ->
+        Types.FilterCleared arg1 ->
             FilterCleared arg1
 
-        Core.FiltersCleared ->
+        Types.FiltersCleared ->
             FiltersCleared
 
-        Core.AllCleared ->
+        Types.AllCleared ->
             AllCleared
 
-        Core.Debounced arg1 ->
+        Types.Debounced arg1 ->
             Debounced arg1
 
-        Core.PopupOpened arg1 arg2 ->
+        Types.PopupOpened arg1 arg2 ->
             PopupOpened arg1 arg2
 
-        Core.PopupClosed ->
+        Types.PopupClosed ->
             PopupClosed
 
-        Core.PopupLeft ->
+        Types.PopupLeft ->
             PopupLeft
 
-        Core.RowMenu arg1 arg2 arg3 arg4 ->
+        Types.RowMenu arg1 arg2 arg3 arg4 ->
             RowMenu arg1 arg2 arg3 arg4
 
-        Core.RowMenuOpened arg1 arg2 arg3 ->
+        Types.RowMenuOpened arg1 arg2 arg3 ->
             RowMenuOpened arg1 arg2 arg3
 
-        Core.RowSelected arg1 arg2 ->
+        Types.RowSelected arg1 arg2 ->
             RowSelected arg1 arg2
 
-        Core.RowsSelected arg1 arg2 ->
+        Types.RowsSelected arg1 arg2 ->
             RowsSelected arg1 arg2
 
-        Core.RangeSelected arg1 arg2 arg3 ->
+        Types.RangeSelected arg1 arg2 arg3 ->
             RangeSelected arg1 arg2 arg3
 
-        Core.MatchingSelected arg1 ->
+        Types.MatchingSelected arg1 ->
             MatchingSelected arg1
 
-        Core.AllMatchingPicked ->
+        Types.AllMatchingPicked ->
             AllMatchingPicked
 
-        Core.SelectionCleared arg1 ->
+        Types.SelectionCleared arg1 ->
             SelectionCleared arg1
 
-        Core.ExpandToggled arg1 ->
+        Types.ExpandToggled arg1 ->
             ExpandToggled arg1
 
-        Core.DensityChanged arg1 ->
+        Types.DensityChanged arg1 ->
             DensityChanged arg1
 
-        Core.ColumnToggled arg1 arg2 ->
+        Types.ColumnToggled arg1 arg2 ->
             ColumnToggled arg1 arg2
 
-        Core.ColumnsReset ->
+        Types.ColumnsReset ->
             ColumnsReset
 
-        Core.RowFocused arg1 ->
+        Types.RowFocused arg1 ->
             RowFocused arg1
 
-        Core.FocusRow arg1 arg2 ->
+        Types.FocusRow arg1 arg2 ->
             FocusRow arg1 arg2
 
-        Core.FocusVirtualRow arg1 arg2 arg3 ->
+        Types.FocusVirtualRow arg1 arg2 arg3 ->
             FocusVirtualRow arg1 arg2 arg3
 
-        Core.Scrolled arg1 ->
+        Types.Scrolled arg1 ->
             Scrolled arg1
 
-        Core.RetryClicked ->
+        Types.RetryClicked ->
             RetryClicked
 
-        Core.FirstPageClicked ->
+        Types.FirstPageClicked ->
             FirstPageClicked
 
-        Core.ExportClicked arg1 arg2 ->
+        Types.ExportClicked arg1 arg2 ->
             ExportClicked arg1 arg2

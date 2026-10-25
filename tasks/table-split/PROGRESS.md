@@ -11,7 +11,7 @@
 - f999e2f: Harness and plan committed.
 - dcb2f9a: Identity extraction is green: format and full check passed (11,359 tests), docs
   byte-identical, all 22 table roots identical on the eight routes with tables.
-- Public boundary is green: 11,359 tests, byte-identical docs, 22 identical table
+- 0b62c30: Public boundary is green: 11,359 tests, byte-identical docs, 22 identical table
   roots. Original union constructor/payload shapes are retained, including Msg.
 - Next: extract Types, Numeric, Filter, Selection and DomIds in dependency order.
 
@@ -30,3 +30,5 @@
   roots from Chrome's final dump. Recaptured the original compiled source with
   this harness before comparing the identity extraction. Stable baseline is now
   dom-before-settled/; earlier exploratory captures are not the oracle.
+
+- Types: format, full check, byte-identical docs and 22 identical table roots passed.
