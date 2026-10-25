@@ -49,6 +49,7 @@ suite =
         , dateTimePopups
         , invalidAndNames
         , rangeTyping
+        , presetKeyboard
         ]
 
 
@@ -819,4 +820,64 @@ rangeTyping =
                     |> typeInto "period-to" "2026-10-22"
                     |> (\state -> ( DateRangePicker.value state, DateRangePicker.isValid state ))
                     |> Expect.equal ( Just ( date 2026 10 20, date 2026 10 22 ), True )
+        ]
+
+
+presetKeyboard : Test
+presetKeyboard =
+    let
+        attributes =
+            [ DateRangePicker.today (date 2026 11 4) ]
+
+        opened =
+            DateRangePicker.open attributes (DateRangePicker.init "period") |> Tuple.first
+
+        tabIndexOf label state =
+            DateRangePicker.view identity attributes state
+                |> Query.fromHtml
+                |> Query.find [ Selector.class "klar-daterange__preset", Selector.containing [ Selector.text label ] ]
+
+        arrowDown targetId =
+            Event.custom "keydown"
+                (Encode.object
+                    [ ( "key", Encode.string "ArrowDown" )
+                    , ( "target", Encode.object [ ( "id", Encode.string targetId ) ] )
+                    ]
+                )
+    in
+    describe "the quick choices have one tab stop"
+        [ test "the first is in the tab order and the others are not" <|
+            \_ ->
+                allOf
+                    [ tabIndexOf "Today" opened |> Query.has [ Selector.attribute (Attr.tabindex 0) ]
+                    , tabIndexOf "Last 7 days" opened |> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                    ]
+        , test "after a choice, the pressed one is the tab stop" <|
+            \_ ->
+                let
+                    chosen =
+                        opened
+                            |> DateRangePicker.setValue (Just ( date 2026 11 1, date 2026 11 30 ))
+                            |> DateRangePicker.open attributes
+                            |> Tuple.first
+                in
+                allOf
+                    [ tabIndexOf "This month" chosen |> Query.has [ Selector.attribute (Attr.tabindex 0) ]
+                    , tabIndexOf "Today" chosen |> Query.has [ Selector.attribute (Attr.tabindex -1) ]
+                    ]
+        , test "ArrowDown on a quick choice is taken, and its default prevented" <|
+            \_ ->
+                DateRangePicker.view identity attributes opened
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-daterange__presets" ]
+                    |> Event.simulate (arrowDown "period-popup-preset-0")
+                    |> Event.expectPreventDefault
+        , test "a key from outside the quick choices is left alone" <|
+            \_ ->
+                DateRangePicker.view identity attributes opened
+                    |> Query.fromHtml
+                    |> Query.find [ Selector.class "klar-daterange__presets" ]
+                    |> Event.simulate (arrowDown "somewhere-else")
+                    |> Event.toResult
+                    |> Expect.err
         ]

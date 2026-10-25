@@ -84,8 +84,10 @@ may never have left the fields.
 Keyboard: `ArrowDown` or `Alt+ArrowDown` in either text field opens the
 calendar. So does `Enter`, unless the user has just typed something that was not
 taken yet: then `Enter` takes the text. The keys inside the calendar are those of
-[Klar.Calendar](Klar-Calendar). `Escape` closes the popup (inside the month and
-year choosers it goes back one step first), and `Tab` out of the popup closes it.
+[Klar.Calendar](Klar-Calendar). Only one quick choice is in the tab order (the
+pressed one, or else the first); the arrow keys, `Home` and `End` move between
+them. `Escape` closes the popup (inside the month and year choosers it goes back
+one step first), and `Tab` out of the popup closes it.
 
 The two inputs sit in a `role="group"` named by the label; the name of each input
 adds "from date" or "to date". The line below the calendar ("Choose the start
@@ -146,6 +148,7 @@ text comes from `locale`; the default is English.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode as Decode
 import Klar.Button as Button
 import Klar.Calendar as Calendar
 import Klar.Calendar.Parse as Parse exposing (Bounds, Problem(..), Reading, Rules)
@@ -484,6 +487,7 @@ type Msg
     | Escaped
     | CalendarMsg Calendar.Msg
     | PickedPreset Date Date
+    | MovedToPreset String
     | Cleared
     | Noop
 
@@ -567,6 +571,9 @@ update msg (State s) =
 
         PickedPreset start finish ->
             apply start finish s
+
+        MovedToPreset id ->
+            ( State s, Internal.focus id Noop )
 
         Cleared ->
             ( State
@@ -1565,6 +1572,85 @@ viewPopup toMsg config words s =
         options =
             presetList config
 
+        resolvedAll =
+            List.map (resolvePreset config) options
+
+        isPressed resolved =
+            case resolved of
+                Ok period ->
+                    Just period == current && not (Calendar.isChoosing s.calendar)
+
+                Err _ ->
+                    False
+
+        -- The quick choices that can be used, by index.
+        enabled =
+            resolvedAll
+                |> List.indexedMap Tuple.pair
+                |> List.filterMap
+                    (\( index, resolved ) ->
+                        case resolved of
+                            Ok _ ->
+                                Just index
+
+                            Err _ ->
+                                Nothing
+                    )
+
+        -- The one quick choice in the tab order: the pressed one, else the first
+        -- that can be used. The arrow keys move between them (`presetKeys`).
+        tabStop =
+            case List.filter (\( _, resolved ) -> isPressed resolved) (List.indexedMap Tuple.pair resolvedAll) of
+                ( index, _ ) :: _ ->
+                    Just index
+
+                [] ->
+                    List.head enabled
+
+        presetId index =
+            s.id ++ "-popup-preset-" ++ String.fromInt index
+
+        presetKeys =
+            Events.custom "keydown"
+                (Decode.map2 Tuple.pair (Decode.field "key" Decode.string) (Decode.at [ "target", "id" ] Decode.string)
+                    |> Decode.andThen
+                        (\( key, targetId ) ->
+                            case List.head (List.filter (\index -> presetId index == targetId) enabled) of
+                                Nothing ->
+                                    Decode.fail "not on a quick choice"
+
+                                Just index ->
+                                    let
+                                        before =
+                                            List.filter (\other -> other < index) enabled
+
+                                        after =
+                                            List.filter (\other -> other > index) enabled
+
+                                        go target =
+                                            Decode.succeed
+                                                { message = toMsg (MovedToPreset (presetId (Maybe.withDefault index target)))
+                                                , stopPropagation = True
+                                                , preventDefault = True
+                                                }
+                                    in
+                                    if key == "ArrowDown" || key == "ArrowRight" then
+                                        go (List.head after)
+
+                                    else if key == "ArrowUp" || key == "ArrowLeft" then
+                                        go (List.head (List.reverse before))
+
+                                    else if key == "Home" then
+                                        go (List.head enabled)
+
+                                    else if key == "End" then
+                                        go (List.head (List.reverse enabled))
+
+                                    else
+                                        Decode.fail "not a key of the quick choices"
+                        )
+                )
+
         viewPreset index ((Preset fields) as option) =
             let
                 resolved =
@@ -1576,10 +1662,19 @@ viewPopup toMsg config words s =
             Button.view
                 ([ Button.small
                  , Button.ghost
-                 , Button.id (s.id ++ "-popup-preset-" ++ String.fromInt index)
+                 , Button.id (presetId index)
                  , Button.disabled (period == Nothing)
-                 , Button.pressed (period /= Nothing && period == current && not (Calendar.isChoosing s.calendar))
-                 , Button.htmlAttrs [ Internal.cls [ "klar-daterange__preset" ] ]
+                 , Button.pressed (isPressed resolved)
+                 , Button.htmlAttrs
+                    [ Internal.cls [ "klar-daterange__preset" ]
+                    , Attr.tabindex
+                        (if tabStop == Just index then
+                            0
+
+                         else
+                            -1
+                        )
+                    ]
                  ]
                     ++ (case resolved of
                             Ok ( start, finish ) ->
@@ -1628,6 +1723,7 @@ viewPopup toMsg config words s =
                     [ Internal.cls [ "klar-daterange__presets" ]
                     , Attr.attribute "role" "group"
                     , Attr.attribute "aria-label" words.presets
+                    , presetKeys
                     ]
                     (List.indexedMap viewPreset options)
             , Html.div [ Internal.cls [ "klar-daterange__main" ] ]

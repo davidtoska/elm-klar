@@ -148,8 +148,10 @@ may never have left the fields.
 Keyboard: `ArrowDown` or `Alt+ArrowDown` in either text field opens the
 calendar. So does `Enter`, unless the user has just typed something that was not
 taken yet: then `Enter` takes the text. The keys inside the calendar are those of
-[Klar.Calendar](Klar.Calendar.md). `Escape` closes the popup (inside the month and
-year choosers it goes back one step first), and `Tab` out of the popup closes it.
+[Klar.Calendar](Klar.Calendar.md). Only one quick choice is in the tab order (the
+pressed one, or else the first); the arrow keys, `Home` and `End` move between
+them. `Escape` closes the popup (inside the month and year choosers it goes back
+one step first), and `Tab` out of the popup closes it.
 
 The two inputs sit in a `role="group"` named by the label; the name of each input
 adds "from date" or "to date". The line below the calendar ("Choose the start
