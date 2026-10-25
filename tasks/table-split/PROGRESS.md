@@ -40,3 +40,6 @@
 - Next: Filter validation, then Selection and DomIds.
 
 - Filter: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 6ae8b7e: Filter complete.
+
+- Selection: format, full check, byte-identical docs and 22 identical table roots passed.

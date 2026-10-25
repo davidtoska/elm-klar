@@ -517,6 +517,7 @@ import Klar.Table.Core as Core
 import Klar.Table.Csv as Csv
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
 import Klar.Table.Index as Index exposing (Index)
+import Klar.Table.Selection as Selection
 import Klar.Table.Sort as Sorting
 import Klar.Table.Texts as Texts exposing (Texts)
 import Klar.Table.Types as Types
@@ -805,7 +806,7 @@ server mode check this one for `AllMatching`.
 -}
 selection : Ids id -> State id -> Selection id
 selection arg1 arg2 =
-    fromCoreSelection (Core.selection arg1 (unwrapState arg2))
+    fromCoreSelection (Selection.selection arg1 (unwrapState arg2))
 
 
 {-| The ids (see `rowId`) of the selected rows. After "Select all N matching" in
@@ -813,7 +814,7 @@ server mode this is empty: check `selection` for `AllMatching`.
 -}
 selectedIds : Ids id -> State id -> List id
 selectedIds arg1 arg2 =
-    Core.selectedIds arg1 (unwrapState arg2)
+    Selection.selectedIds arg1 (unwrapState arg2)
 
 
 {-| How many rows are selected. Pass the number of rows that match the current
@@ -823,7 +824,7 @@ mode any number will do.
 -}
 selectedCount : Int -> State id -> Int
 selectedCount arg1 arg2 =
-    Core.selectedCount arg1 (unwrapState arg2)
+    Selection.selectedCount arg1 (unwrapState arg2)
 
 
 {-| Is the row with this id selected? After "Select all N matching" every id
@@ -831,7 +832,7 @@ counts as selected except the exceptions.
 -}
 isSelected : Ids id -> id -> State id -> Bool
 isSelected arg1 arg2 arg3 =
-    Core.isSelected arg1 arg2 (unwrapState arg3)
+    Selection.isSelected arg1 arg2 (unwrapState arg3)
 
 
 {-| Selects the rows with these ids, as their checkboxes do, and keeps the rest of
@@ -842,7 +843,7 @@ the selection. After "Select all N matching" it takes them out of the exceptions
 -}
 select : Ids id -> List id -> State id -> State id
 select arg1 arg2 arg3 =
-    fromCoreState (Core.select arg1 arg2 (unwrapState arg3))
+    fromCoreState (Selection.select arg1 arg2 (unwrapState arg3))
 
 
 {-| Deselects the rows with these ids and keeps the rest of the selection, for
@@ -851,7 +852,7 @@ matching" it adds them to the exceptions.
 -}
 deselect : Ids id -> List id -> State id -> State id
 deselect arg1 arg2 arg3 =
-    fromCoreState (Core.deselect arg1 arg2 (unwrapState arg3))
+    fromCoreState (Selection.deselect arg1 arg2 (unwrapState arg3))
 
 
 {-| Makes the selection exactly these rows, as a whole: to restore a selection, or
@@ -860,7 +861,7 @@ selection. To deselect everything use `clearSelection`.
 -}
 setSelectedIds : Ids id -> List id -> State id -> State id
 setSelectedIds arg1 arg2 arg3 =
-    fromCoreState (Core.setSelectedIds arg1 arg2 (unwrapState arg3))
+    fromCoreState (Selection.setSelectedIds arg1 arg2 (unwrapState arg3))
 
 
 {-| Deselects everything, including an "all matching" selection. Call it when a
@@ -868,7 +869,7 @@ bulk action has done its work.
 -}
 clearSelection : State id -> State id
 clearSelection arg1 =
-    fromCoreState (Core.clearSelection (unwrapState arg1))
+    fromCoreState (Selection.clearSelection (unwrapState arg1))
 
 
 {-| Drops an "all matching" selection (see `Selection`) and keeps the rows that were
@@ -878,7 +879,7 @@ the table.
 -}
 dropAllMatching : State id -> State id
 dropAllMatching arg1 =
-    fromCoreState (Core.dropAllMatching (unwrapState arg1))
+    fromCoreState (Selection.dropAllMatching (unwrapState arg1))
 
 
 {-| Moves keyboard focus to the table (its scroll area; Tab goes on to the
