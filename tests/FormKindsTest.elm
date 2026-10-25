@@ -346,8 +346,9 @@ choices =
                         ]
         , test "choosing a radio button sets the choice" <|
             \_ ->
+                -- the inputs of a radio group carry the place of their option (choice-inputs): Company is the first
                 Form.set f.kind Nothing filled
-                    |> fire (\v -> Form.radio v f.kind kinds []) [ Selector.attribute (Attr.value "company") ] (Event.custom "change" Encode.null)
+                    |> fire (\v -> Form.radio v f.kind kinds []) [ Selector.attribute (Attr.value "0") ] (Event.custom "change" Encode.null)
                     |> Form.get f.kind
                     |> Expect.equal (Just Company)
         , test "a checkbox shows the problem of its rule once it was changed" <|

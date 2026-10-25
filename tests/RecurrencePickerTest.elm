@@ -1562,7 +1562,7 @@ fixTests =
                     |> Result.map
                         (\state ->
                             query [] state
-                                |> Query.find [ Selector.tag "input", Selector.attribute (Attr.name (id ++ "-missing")), Selector.attribute (Attr.value "last") ]
+                                |> Query.find [ Selector.tag "input", Selector.attribute (Attr.name (id ++ "-missing")), Selector.attribute (Attr.value "0") ]
                                 |> Query.has [ Selector.attribute (Attr.checked True) ]
                         )
                     |> Result.withDefault (Expect.fail "the form did not take the steps")
