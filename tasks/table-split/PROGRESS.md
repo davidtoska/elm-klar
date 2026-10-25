@@ -32,3 +32,7 @@
   dom-before-settled/; earlier exploratory captures are not the oracle.
 
 - Types: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit 34a21d8: Types complete.
+- Next: Numeric validation, then Filter, Selection and DomIds.
+
+- Numeric: format, full check, byte-identical docs and 22 identical table roots passed.

@@ -37,6 +37,7 @@ import Klar.Spinner as Spinner
 import Klar.Table.Csv as Csv
 import Klar.Table.Identity exposing (idsOf, isJust, keysBetween, keysOf, lookup, toggled)
 import Klar.Table.Index as Index exposing (Index)
+import Klar.Table.Numeric exposing (formatNumber, majorAmount, moneyTotals, plainDecimal)
 import Klar.Table.Sort as Sorting
 import Klar.Table.Texts as Texts exposing (Texts)
 import Klar.Table.Types exposing (Align(..), Attribute(..), Column(..), ColumnAttribute(..), ColumnConfig, ColumnId(..), Config, Ctx, Data, DataStatus(..), Direction(..), Draft(..), Filter(..), FilterKind(..), Footer(..), Model, MoneyTotal, Msg(..), Picked(..), Popup(..), Query, RowInfo, Rows(..), Selection(..), SortBy(..), Source(..), State(..))
@@ -1550,44 +1551,6 @@ rangeDecimals ctx col =
 
         _ ->
             col.decimals
-
-
-{-| An amount in whole units of its currency (12.5 for 12,50 kroner), for sorting
-and the range filter.
--}
-majorAmount : Money -> Float
-majorAmount amount =
-    toFloat (Money.toMinor amount) / toFloat (10 ^ Money.decimals (Money.currencyOf amount))
-
-
-{-| The amounts of a money column added up exactly, one total for each currency in
-the order of the currency codes (so that sorting or filtering the rows never moves
-them), with the number of amounts in each.
--}
-moneyTotals : (row -> Money) -> List row -> List MoneyTotal
-moneyTotals toMoney someRows =
-    let
-        add row groups =
-            let
-                amount =
-                    toMoney row
-
-                code =
-                    Money.currencyCode (Money.currencyOf amount)
-            in
-            case Dict.get code groups of
-                Just group ->
-                    Dict.insert code
-                        { total = group.total |> Maybe.andThen (\running -> Result.toMaybe (Money.add running amount))
-                        , count = group.count + 1
-                        }
-                        groups
-
-                Nothing ->
-                    Dict.insert code { total = Just amount, count = 1 } groups
-    in
-    List.foldl add Dict.empty someRows
-        |> Dict.values
 
 
 {-| A calendar date ([Klar.Date](Klar-Date)), sorted by date and shown as
@@ -3291,20 +3254,6 @@ exportValue loc col row =
             col.value loc row
 
 
-{-| A number with the locale's decimal separator and no thousands separator,
-which spreadsheets read as a number.
--}
-plainDecimal : Locale -> Int -> Float -> String
-plainDecimal loc decimals n =
-    Format.decimal loc decimals n
-        |> String.replace (Locale.thousandSeparator loc) ""
-        |> String.replace "−" "-"
-
-
-
--- VIEW
-
-
 selectWidth : Int
 selectWidth =
     40
@@ -3869,15 +3818,6 @@ describeDraft ctx col draft =
                         ( Nothing, Nothing ) ->
                             ""
                    )
-
-
-formatNumber : Locale -> Int -> Float -> String
-formatNumber loc decimals n =
-    if decimals <= 0 && toFloat (round n) == n then
-        Format.int loc (round n)
-
-    else
-        Format.decimal loc (max 1 decimals) n
 
 
 densityCompact : Icon.Icon
