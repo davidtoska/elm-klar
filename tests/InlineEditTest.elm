@@ -356,7 +356,7 @@ correctionTests =
                             InlineEdit.view Edit [] state
                                 |> Query.fromHtml
                                 |> Query.find [ Selector.class "klar-inline-edit__error" ]
-                                |> Query.has [ Selector.text "Could not save. The form has errors: This name is taken." ]
+                                |> Query.has [ Selector.text "Could not save. The request was rejected: This name is taken." ]
                         )
                     |> Result.withDefault (Expect.fail "the text did not open the editor")
         , test "typing takes the problem away" <|

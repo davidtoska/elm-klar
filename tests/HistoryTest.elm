@@ -1025,14 +1025,14 @@ controlsTests =
                     controls [] labelled
                         |> Expect.all
                             [ H.none [ Selector.attribute (Attr.attribute "aria-keyshortcuts" "Control+Z") ]
-                            , H.inside undoButton [ Selector.attribute (Attr.title "Undo: Changed note") ]
+                            , H.inside undoButton [ Selector.attribute (Attr.attribute "data-tip" "Undo: Changed note") ]
                             ]
             , test "showShortcuts adds them to the tooltips and to aria-keyshortcuts" <|
                 \_ ->
                     controls [ History.showShortcuts ] (History.undo labelled)
                         |> Expect.all
-                            [ H.inside undoButton [ Selector.attribute (Attr.title "Undo: Changed quantity (Ctrl+Z)"), H.attr "aria-keyshortcuts" "Control+Z" ]
-                            , H.inside redoButton [ Selector.attribute (Attr.title "Redo: Changed note (Ctrl+Shift+Z, Ctrl+Y)"), H.attr "aria-keyshortcuts" "Control+Shift+Z Control+Y" ]
+                            [ H.inside undoButton [ Selector.attribute (Attr.attribute "data-tip" "Undo: Changed quantity (Ctrl+Z)"), H.attr "aria-keyshortcuts" "Control+Z" ]
+                            , H.inside redoButton [ Selector.attribute (Attr.attribute "data-tip" "Redo: Changed note (Ctrl+Shift+Z, Ctrl+Y)"), H.attr "aria-keyshortcuts" "Control+Shift+Z Control+Y" ]
                             ]
             ]
         ]

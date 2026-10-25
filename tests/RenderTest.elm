@@ -699,8 +699,8 @@ textInputTests =
             \_ ->
                 TextInput.view [ TextInput.label "Customer name" ]
                     |> Expect.all
-                        [ inside input [ Selector.id "klar-input-customer__name" ]
-                        , inside [ Selector.tag "label" ] [ Selector.attribute (Attr.for "klar-input-customer__name") ]
+                        [ inside input [ Selector.id "klar-input-customer-name" ]
+                        , inside [ Selector.tag "label" ] [ Selector.attribute (Attr.for "klar-input-customer-name") ]
                         , expectWellWired
                         ]
         , test "without a label the id is made from the placeholder" <|

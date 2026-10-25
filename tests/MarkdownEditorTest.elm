@@ -599,7 +599,7 @@ renderTests =
                             \_ ->
                                 render [] (start "")
                                     |> Query.find [ Selector.tag "button", Selector.attribute (Attr.attribute "aria-label" name) ]
-                                    |> Query.has [ Selector.attribute (Attr.title (name ++ shortcutOf name)) ]
+                                    |> Query.has [ Selector.attribute (Attr.attribute "data-tip" (name ++ shortcutOf name)) ]
                         )
                     |> (\checks -> Expect.all checks ())
         , test "a tab for writing and one for previewing" <|
