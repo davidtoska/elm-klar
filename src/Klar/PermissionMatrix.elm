@@ -477,29 +477,23 @@ type alias Facts =
     }
 
 
+{-| The facts of a cell, with `case` rather than `==`: it runs for every cell on every
+render.
+-}
 factsOf : Cell -> Facts
 factsOf (Cell data) =
-    let
-        inheritedAccess =
-            Maybe.map .access data.inherited
-    in
-    { access = Maybe.withDefault AccessDenied (firstJust data.own inheritedAccess)
-    , own = data.own
-    , inheriting = data.own == Nothing && data.inherited /= Nothing
-    , overriding = data.own /= Nothing && data.inherited /= Nothing
-    , source = Maybe.andThen .from data.inherited
-    , inheritedAccess = inheritedAccess
-    }
+    case ( data.own, data.inherited ) of
+        ( Just own, Just inheritance ) ->
+            { access = own, own = data.own, inheriting = False, overriding = True, source = inheritance.from, inheritedAccess = Just inheritance.access }
 
+        ( Just own, Nothing ) ->
+            { access = own, own = data.own, inheriting = False, overriding = False, source = Nothing, inheritedAccess = Nothing }
 
-firstJust : Maybe a -> Maybe a -> Maybe a
-firstJust first second =
-    case first of
-        Just _ ->
-            first
+        ( Nothing, Just inheritance ) ->
+            { access = inheritance.access, own = Nothing, inheriting = True, overriding = False, source = inheritance.from, inheritedAccess = Just inheritance.access }
 
-        Nothing ->
-            second
+        ( Nothing, Nothing ) ->
+            { access = AccessDenied, own = Nothing, inheriting = False, overriding = False, source = Nothing, inheritedAccess = Nothing }
 
 
 cellAccess : Cell -> Access
@@ -509,7 +503,17 @@ cellAccess theCell =
 
 cellGranted : Cell -> Bool
 cellGranted theCell =
-    isGranted (cellAccess theCell)
+    accessGranted (cellAccess theCell)
+
+
+accessGranted : Access -> Bool
+accessGranted access =
+    case access of
+        AccessGranted ->
+            True
+
+        AccessDenied ->
+            False
 
 
 {-| Two cells are the same when the role has the same access of its own in both. What is
@@ -1132,6 +1136,9 @@ type alias Env role permission msg =
     , roleByKey : Dict String Int
     , permissionByKey : Dict String Int
     , cells : Array (Array Cell)
+
+    -- the facts of every cell, worked out once per render (the cells, the header checkboxes and the groups use them)
+    , facts : Array (Array Facts)
     , savedCells : Maybe (Array (Array Cell))
     , layout : Grid.Layout
     , rows : Array RowKey
@@ -1309,6 +1316,7 @@ prepare toMsg config state freshness (Matrix data) =
     , roleByKey = roles |> List.map (\r -> ( r.key, r.index )) |> Dict.fromList
     , permissionByKey = permissions |> List.map (\p -> ( p.key, p.index )) |> Dict.fromList
     , cells = cells
+    , facts = Array.map (Array.map factsOf) cells
     , savedCells = Maybe.map cellsOf config.saved
     , layout = layout
     , rows = Array.fromList rowKeys
@@ -1334,6 +1342,16 @@ prepare toMsg config state freshness (Matrix data) =
 cellAt : Env role permission msg -> Int -> Int -> Maybe Cell
 cellAt env permissionIndex roleIndex =
     env.cells |> Array.get permissionIndex |> Maybe.andThen (Array.get roleIndex)
+
+
+factsAt : Env role permission msg -> Int -> Int -> Maybe Facts
+factsAt env permissionIndex roleIndex =
+    env.facts |> Array.get permissionIndex |> Maybe.andThen (Array.get roleIndex)
+
+
+grantedAt : Env role permission msg -> Int -> Int -> Maybe Bool
+grantedAt env permissionIndex roleIndex =
+    factsAt env permissionIndex roleIndex |> Maybe.map (\facts -> accessGranted facts.access)
 
 
 savedAt : Env role permission msg -> Int -> Int -> Maybe Cell
@@ -1391,8 +1409,7 @@ of the roles.
 columnCells : Env role permission msg -> Int -> List Bool
 columnCells env roleIndex =
     env.layout.matches
-        |> List.filterMap (\p -> cellAt env p roleIndex)
-        |> List.map cellGranted
+        |> List.filterMap (\p -> grantedAt env p roleIndex)
 
 
 rowCells : Env role permission msg -> Int -> List Bool
@@ -1400,8 +1417,7 @@ rowCells env permissionIndex =
     env.roles
         |> Array.toList
         |> List.filter (\r -> r.locked == Nothing)
-        |> List.filterMap (\r -> cellAt env permissionIndex r.index)
-        |> List.map cellGranted
+        |> List.filterMap (\r -> grantedAt env permissionIndex r.index)
 
 
 {-| One cell that a click, a key or a header checkbox asks to change, by its place in the
@@ -2090,8 +2106,8 @@ viewGroupRow env rowNumber name members =
             let
                 yes =
                     members
-                        |> List.filterMap (\p -> cellAt env p r.index)
-                        |> List.filter cellGranted
+                        |> List.filterMap (\p -> grantedAt env p r.index)
+                        |> List.filter identity
                         |> List.length
             in
             Html.td
@@ -2194,7 +2210,7 @@ viewCell : Env role permission msg -> Int -> PermissionInfo permission -> RoleIn
 viewCell env rowNumber info r =
     let
         facts =
-            factsOf (cellAt env info.index r.index |> Maybe.withDefault (direct denied))
+            factsAt env info.index r.index |> Maybe.withDefault (factsOf (direct denied))
 
         column =
             r.index + 1
@@ -2206,15 +2222,18 @@ viewCell env rowNumber info r =
             else
                 0
 
+        ( stopRow, stopColumn ) =
+            env.stop
+
         flags =
-            bit (facts.access == AccessGranted) flagGranted
+            bit (accessGranted facts.access) flagGranted
                 + bit facts.inheriting flagInheriting
                 + bit facts.overriding flagOverriding
-                + bit (facts.inheritedAccess == Just AccessGranted) flagInheritedGranted
+                + bit (Maybe.withDefault False (Maybe.map accessGranted facts.inheritedAccess)) flagInheritedGranted
                 + bit (r.locked /= Nothing) flagLocked
-                + bit (isChanged env info.index r.index) flagChanged
+                + bit (env.savedCells /= Nothing && isChanged env info.index r.index) flagChanged
                 + bit env.editable flagEditable
-                + bit (env.stop == ( rowNumber, column )) flagStop
+                + bit (stopRow == rowNumber && stopColumn == column) flagStop
     in
     Lazy.lazy8 drawCell
         env.t
