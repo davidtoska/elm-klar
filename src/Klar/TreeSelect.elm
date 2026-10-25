@@ -984,7 +984,22 @@ step msg data =
             -- the popup has its nodes from the first moment, also when it was
             -- opened with `open` (so that `loadRequests` can name what waits)
             if data.open then
-                ( refreshWith env.nodes data, Cmd.none )
+                let
+                    refreshed =
+                        refreshWith env.nodes data
+                in
+                -- the value was revealed just now: bring it into view, as when the
+                -- user opens the field
+                case ( not data.revealed && refreshed.revealed, highlightIndex env.canRetry refreshed ) of
+                    ( True, Just i ) ->
+                        let
+                            ( list, scroll ) =
+                                VirtualList.center (geometry env.visibleRows refreshed) i refreshed.list
+                        in
+                        ( { refreshed | list = list }, Cmd.map ListMsg scroll )
+
+                    _ ->
+                        ( refreshed, Cmd.none )
 
             else
                 ( data, Cmd.none )
