@@ -424,8 +424,10 @@ retry (`onRetry`) when the last refresh failed, also when it has no rows.
 
 Every state is drawn inside one element that stays (`listId` gives it an id), and
 the rows inside the same elements whether the data is fresh, refreshing or old, so
-a refresh that starts or ends never takes the focus from a row. "Loading" is said
-by a polite status that is always in the page, empty in the other states.
+a refresh that starts or ends never takes the focus from a row. One polite live
+region is always in the page, first in that element: it says "Loading" while
+there is no data, "Old data from 14:05" and the reason when the last refresh
+failed, and nothing in the other states.
 
 ### `listId`
 
