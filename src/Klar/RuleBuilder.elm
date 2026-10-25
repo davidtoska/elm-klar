@@ -1339,29 +1339,11 @@ viewCombinator ctx group =
             , SegmentedControl.labelHidden
             , SegmentedControl.size Small
             , SegmentedControl.options
-                [ SegmentedControl.option "all" t.all
-                , SegmentedControl.option "any" t.any
+                [ SegmentedControl.option All t.all
+                , SegmentedControl.option Any t.any
                 ]
-            , SegmentedControl.selected
-                (case group.combinator of
-                    All ->
-                        "all"
-
-                    Any ->
-                        "any"
-                )
-            , SegmentedControl.onChange
-                (\value ->
-                    ctx.toMsg
-                        (CombinatorPicked group.id
-                            (if value == "any" then
-                                Any
-
-                             else
-                                All
-                            )
-                        )
-                )
+            , SegmentedControl.selected group.combinator
+            , SegmentedControl.onChange (CombinatorPicked group.id >> ctx.toMsg)
             ]
         ]
 

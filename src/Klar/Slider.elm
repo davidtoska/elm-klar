@@ -437,9 +437,14 @@ disabled value_ =
 read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches the
 thumb (each thumb of a range slider), so a screen reader reads the value
 ("Discount, slider, 15 %, read only"); neither the mouse nor the keyboard moves
-it, and nothing is sent. The thumb is then an element with `role="slider"` and
-`aria-readonly` instead of a native range input, with the same `id`. `disabled`
-wins over it. The default is `False`.
+it. With a handler (`onInput` or `onCommit`, `onRangeInput` or `onRangeCommit`)
+the thumb stays the same native range input with `aria-readonly`, so it keeps the
+focus when `readOnly` turns on or off: a key, click or touch that would move it is
+cancelled, and the handler gets the value the slider already has. Without a
+handler the thumb is drawn as an element with `role="slider"` and
+`aria-readonly`, with the same `id`. `disabled` wins over it. The default is
+`False`. A slider without a handler and without `readOnly` still moves when it is
+dragged, and then shows something the model does not say.
 -}
 readOnly : Bool -> Attribute msg
 readOnly value_ =
@@ -493,8 +498,30 @@ view attributes =
         pct =
             String.fromFloat (fraction low high current)
 
-        thumb =
+        -- Read only with a handler: the same range input, whose moves are
+        -- cancelled (and reported as the value it already has), so it keeps the
+        -- focus when readOnly turns on or off. Without a handler there is no
+        -- message to cancel a move with: a drawn thumb that nothing moves.
+        readOnlyMsg =
             if isReadOnly config then
+                case ( config.onInput, config.onCommit ) of
+                    ( Just toMsg, _ ) ->
+                        Just (toMsg current)
+
+                    ( Nothing, Just toMsg ) ->
+                        Just (toMsg current)
+
+                    ( Nothing, Nothing ) ->
+                        Nothing
+
+            else
+                Nothing
+
+        drawnThumb =
+            isReadOnly config && isNothing readOnlyMsg
+
+        thumb =
+            if drawnThumb then
                 -- A drawn track and thumb that nothing can move: the thumb is the
                 -- slider (role=slider, aria-readonly) and keeps the focus.
                 [ Html.div [ Internal.cls [ "klar-range__track" ] ]
@@ -520,9 +547,16 @@ view attributes =
                            , Attr.value (String.fromFloat current)
                            , Attr.disabled config.disabled
                            , Attr.attribute "aria-valuetext" spoken
-                           , Internal.attrMaybe (\toMsg -> onFloat "input" toMsg) config.onInput
-                           , Internal.attrMaybe (\toMsg -> onFloat "change" toMsg) config.onCommit
                            ]
+                        ++ (case readOnlyMsg of
+                                Just msg ->
+                                    cancelMoves msg
+
+                                Nothing ->
+                                    [ Internal.attrMaybe (\toMsg -> onFloat "input" toMsg) config.onInput
+                                    , Internal.attrMaybe (\toMsg -> onFloat "change" toMsg) config.onCommit
+                                    ]
+                           )
                     )
                     []
                 ]
@@ -533,7 +567,7 @@ view attributes =
                 ++ [ Html.div
                         [ Internal.cls (sliderClasses config False)
                         , Internal.styleVars
-                            (if isReadOnly config then
+                            (if drawnThumb then
                                 -- the drawn fill of a read-only slider is the one of a range
                                 [ ( "--klar-pct", pct ), ( "--klar-lo", "0" ), ( "--klar-hi", pct ) ]
 
@@ -711,10 +745,36 @@ viewRange attributes =
         withUpper v =
             ( lower, Basics.max v (lower + gap) |> Basics.min high )
 
+        -- Read only with a handler: the same two range inputs, whose moves are
+        -- cancelled (and reported as the values they already have), so they keep
+        -- the focus when readOnly turns on or off. Without a handler: drawn thumbs.
+        readOnlyMsg =
+            if isReadOnly config then
+                case ( config.onRangeInput, config.onRangeCommit ) of
+                    ( Just toMsg, _ ) ->
+                        Just (toMsg lower upper)
+
+                    ( Nothing, Just toMsg ) ->
+                        Just (toMsg lower upper)
+
+                    ( Nothing, Nothing ) ->
+                        Nothing
+
+            else
+                Nothing
+
+        drawnThumbs =
+            isReadOnly config && isNothing readOnlyMsg
+
         rangeHandlers toPair =
-            [ Internal.attrMaybe (\toMsg -> onFloat "input" (\v -> pairTo toMsg (toPair v))) config.onRangeInput
-            , Internal.attrMaybe (\toMsg -> onFloat "change" (\v -> pairTo toMsg (toPair v))) config.onRangeCommit
-            ]
+            case readOnlyMsg of
+                Just msg ->
+                    cancelMoves msg
+
+                Nothing ->
+                    [ Internal.attrMaybe (\toMsg -> onFloat "input" (\v -> pairTo toMsg (toPair v))) config.onRangeInput
+                    , Internal.attrMaybe (\toMsg -> onFloat "change" (\v -> pairTo toMsg (toPair v))) config.onRangeCommit
+                    ]
 
         -- "Order quantity, from": the thumbs are named after the label, so a
         -- list of the form controls tells them apart from other sliders.
@@ -776,7 +836,7 @@ viewRange attributes =
                         [ Html.div [ Internal.cls [ "klar-slider__body" ] ]
                             (Html.div [ Internal.cls [ "klar-range__track" ] ]
                                 [ Html.div [ Internal.cls [ "klar-range__fill" ] ] [] ]
-                                :: (if isReadOnly config then
+                                :: (if drawnThumbs then
                                         -- Drawn thumbs that nothing can move: each is a
                                         -- slider (role=slider, aria-readonly) and keeps
                                         -- the focus.
@@ -851,6 +911,39 @@ viewRange attributes =
 isReadOnly : Config msg -> Bool
 isReadOnly config =
     config.readOnly && not config.disabled
+
+
+isNothing : Maybe a -> Bool
+isNothing maybe =
+    case maybe of
+        Just _ ->
+            False
+
+        Nothing ->
+            True
+
+
+{-| What a read-only range input gets: `aria-readonly`, and the keys, clicks and
+touches that would move its thumb are cancelled. Cancelling an event needs a
+message, so each one sends `msg`, the value the slider already has.
+-}
+cancelMoves : msg -> List (Html.Attribute msg)
+cancelMoves msg =
+    [ Attr.attribute "aria-readonly" "true"
+    , Events.preventDefaultOn "keydown"
+        (Decode.field "key" Decode.string
+            |> Decode.andThen
+                (\key ->
+                    if List.member key [ "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End" ] then
+                        Decode.succeed ( msg, True )
+
+                    else
+                        Decode.fail "a key that does not move the thumb"
+                )
+        )
+    , Events.preventDefaultOn "mousedown" (Decode.succeed ( msg, True ))
+    , Events.preventDefaultOn "touchstart" (Decode.succeed ( msg, True ))
+    ]
 
 
 {-| The thumb of a read-only slider: an element with `role="slider"` that Tab
@@ -1071,8 +1164,13 @@ onGrid config number =
 
         steps =
             toFloat (round ((number - low) / stepSize))
+
+        -- 0.1 * 3 is 0.30000000000000004: round to the decimals of the grid, so
+        -- that the value and aria-valuenow say 0.3.
+        factor =
+            10 ^ toFloat (placesOf config)
     in
-    low + clampTo 0 lastStep steps * stepSize
+    toFloat (round ((low + clampTo 0 lastStep steps * stepSize) * factor)) / factor
 
 
 {-| As many decimals as the step has, or as `min` has when that has more (a

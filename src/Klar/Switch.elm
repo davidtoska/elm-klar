@@ -192,10 +192,13 @@ disabled value =
 {-| Shows the setting without letting the user change it, for a user who may not
 change it. Unlike `disabled` it is not dimmed, and Tab still reaches it, so a
 screen reader can read it ("Email notifications, switch, on, read only"); a click
-or Space changes nothing and nothing is sent to `onCheck`. The switch is then an
-element with `role="switch"`, `aria-checked` and `aria-readonly` instead of a
-native checkbox, with the same `id`. `disabled` wins over it. The default is
-`False`.
+or Space changes nothing. With `onCheck` the switch stays the same native input
+with `aria-readonly`, so it keeps the focus when `readOnly` turns on or off (a
+setting the server locks after a save): the click is cancelled and `onCheck` gets
+the value the switch already has, as while `loading`. Without `onCheck` the track
+is drawn as a button with `role="switch"`, `aria-checked` and `aria-readonly`,
+with the same `id`; give a switch whose `readOnly` changes while it may have the
+focus an `onCheck`. `disabled` wins over it. The default is `False`.
 -}
 readOnly : Bool -> Attribute msg
 readOnly value =
@@ -220,6 +223,20 @@ loading value =
 with `checked`.
 
     Switch.onCheck NotifyChecked
+
+While the switch is `loading` or `readOnly` a click or Space is cancelled and
+this gets the value the switch already has. An update that saves on every change
+compares first, so that it does not send the same save twice:
+
+    NotifyChecked value ->
+        if value == model.notify then
+            ( model, Cmd.none )
+
+        else
+            ( { model | notify = value, saving = True }, saveNotify value )
+
+A switch without `onCheck` still flips when it is clicked, and then shows
+something the model does not say: give it `onCheck` or `readOnly`.
 
 -}
 onCheck : (Bool -> msg) -> Attribute msg
@@ -325,6 +342,21 @@ view attributes =
         isLoading =
             config.loading && not config.disabled && not isReadOnly
 
+        -- Read only with onCheck: the same native input as always, whose click is
+        -- cancelled like while loading, so it keeps the focus when readOnly turns
+        -- on or off. Without onCheck there is no message to cancel a click with:
+        -- the track is drawn as a button with role=switch, on which a click or
+        -- Space does nothing (and Space does not scroll the page).
+        drawnTrack =
+            isReadOnly
+                && (case config.onCheck of
+                        Just _ ->
+                            False
+
+                        Nothing ->
+                            True
+                   )
+
         -- The name is the label alone (not the hint, the error or the "Saving
         -- ..." that sit inside the label element too).
         ariaAttributes =
@@ -378,9 +410,10 @@ view attributes =
                 ""
             ]
         ]
-        [ if isReadOnly then
-            Html.span
+        [ if drawnTrack then
+            Html.button
                 ([ Internal.cls [ "klar-switch__track" ]
+                 , Attr.type_ "button"
                  , Attr.attribute "role" "switch"
                  , Attr.attribute "aria-checked"
                     (if config.checked then
@@ -405,13 +438,14 @@ view attributes =
                  , Attr.disabled config.disabled
                  , Internal.attrIf isLoading (Attr.attribute "aria-disabled" "true")
                  , Internal.attrIf isLoading (Attr.attribute "aria-busy" "true")
+                 , Internal.attrIf isReadOnly (Attr.attribute "aria-readonly" "true")
 
-                 -- While the change is being saved the input keeps the focus but
-                 -- cannot flip, also for Space on the keyboard: a hidden checkbox
-                 -- that could still flip would disagree with the switch the user
-                 -- sees. The click is cancelled and reported as the value the
-                 -- switch already has.
-                 , case ( isLoading, config.onCheck ) of
+                 -- While the change is being saved, or while the switch is read
+                 -- only, the input keeps the focus but cannot flip, also for Space
+                 -- on the keyboard: a hidden checkbox that could still flip would
+                 -- disagree with the switch the user sees. The click is cancelled
+                 -- and reported as the value the switch already has.
+                 , case ( isLoading || isReadOnly, config.onCheck ) of
                     ( True, Just toMsg ) ->
                         Events.preventDefaultOn "click" (Decode.succeed ( toMsg config.checked, True ))
 
@@ -424,7 +458,7 @@ view attributes =
                     ++ ariaAttributes
                 )
                 []
-        , if isReadOnly then
+        , if drawnTrack then
             Html.text ""
 
           else

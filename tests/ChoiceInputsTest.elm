@@ -131,32 +131,77 @@ checkboxTests =
                         [ Query.find [ Selector.tag "input" ] >> Query.has [ aria "aria-required" "true" ]
                         , Query.find [ Selector.class "klar-field__required" ] >> Query.has [ aria "aria-hidden" "true", Selector.text "*" ]
                         ]
-        , test "read only: no native input, a focusable role=checkbox with aria-checked and aria-readonly, named by its label" <|
+        , test "read only with onCheck: the same native input as when editable, with aria-readonly, so the focus stays when readOnly changes" <|
             \_ ->
-                Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.checked True, Checkbox.readOnly True, Checkbox.onCheck Checked ]
+                let
+                    sameInput readOnly =
+                        Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.checked True, Checkbox.readOnly readOnly, Checkbox.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> Expect.all
+                                [ count [ Selector.tag "input" ] 1
+                                , count [ Selector.tag "button" ] 0
+                                , Query.find [ Selector.tag "input" ] >> Query.has [ Selector.id "news", Selector.checked True, Selector.disabled False ]
+                                ]
+                in
+                Expect.all
+                    [ \_ -> sameInput True
+                    , \_ -> sameInput False
+                    , \_ ->
+                        Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.checked True, Checkbox.readOnly True, Checkbox.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> Expect.all
+                                [ byId "news" >> Query.has [ aria "aria-readonly" "true" ]
+                                , Query.has [ Selector.class "klar-check--readonly" ]
+                                , Query.hasNot [ Selector.class "klar-check--disabled" ]
+                                ]
+                    , \_ ->
+                        Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.checked True, Checkbox.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> byId "news"
+                            |> Query.hasNot [ aria "aria-readonly" "true" ]
+                    ]
+                    True
+        , test "read only with onCheck: a click (also from the label or Space) is cancelled and sends the value the box already has" <|
+            \_ ->
+                Expect.all
+                    [ \_ ->
+                        Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.checked True, Checkbox.readOnly True, Checkbox.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> byId "news"
+                            |> Event.simulate Event.click
+                            |> Expect.all [ Event.expectPreventDefault, Event.expect (Checked True) ]
+                    , \_ ->
+                        Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.readOnly True, Checkbox.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> byId "news"
+                            |> Event.simulate Event.click
+                            |> Event.expect (Checked False)
+                    , \_ ->
+                        Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> byId "news"
+                            |> Event.simulate (Event.check True)
+                            |> Event.expect (Checked True)
+                    ]
+                    ()
+        , test "read only without onCheck: a button with role=checkbox, aria-checked and aria-readonly, named by its label" <|
+            \_ ->
+                Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.checked True, Checkbox.readOnly True ]
                     |> Query.fromHtml
                     |> Expect.all
                         [ count [ Selector.tag "input" ] 0
-                        , Query.find [ Selector.id "news" ]
+                        , Query.find [ Selector.tag "button" ]
                             >> Query.has
-                                [ aria "role" "checkbox"
+                                [ Selector.id "news"
+                                , Selector.attribute (Attr.type_ "button")
+                                , aria "role" "checkbox"
                                 , aria "aria-checked" "true"
                                 , aria "aria-readonly" "true"
                                 , Selector.attribute (Attr.tabindex 0)
                                 , aria "aria-labelledby" "news-label"
                                 ]
                         , Query.find [ Selector.id "news-label" ] >> Query.has [ Selector.text "Newsletter" ]
-                        , Query.has [ Selector.class "klar-check--readonly" ]
-                        , Query.hasNot [ Selector.class "klar-check--disabled" ]
                         ]
-        , test "a read-only box sends nothing when clicked" <|
-            \_ ->
-                Checkbox.view [ Checkbox.id "news", Checkbox.label "Newsletter", Checkbox.readOnly True, Checkbox.onCheck Checked ]
-                    |> Query.fromHtml
-                    |> byId "news"
-                    |> Event.simulate Event.click
-                    |> Event.toResult
-                    |> Expect.err
         , test "a read-only indeterminate box is mixed, and an unchecked one false" <|
             \_ ->
                 Expect.all
@@ -358,6 +403,11 @@ radioTests =
                 delivery [ Radio.disabled True ]
                     |> byId "delivery"
                     |> Query.has [ Selector.tag "fieldset", Selector.attribute (Attr.tabindex -1) ]
+        , test "a read-only group with nothing chosen is reached with Tab: the fieldset is in the tab order" <|
+            \_ ->
+                delivery [ Radio.readOnly True ]
+                    |> byId "delivery"
+                    |> Query.has [ Selector.tag "fieldset", Selector.attribute (Attr.tabindex 0), aria "aria-readonly" "true" ]
         ]
 
 
@@ -477,21 +527,41 @@ switchTests =
                     |> Query.fromHtml
                     |> Query.find [ Selector.tag "input" ]
                     |> Query.hasNot [ Selector.id "klar-switch-active" ]
-        , test "read only: a focusable role=switch with aria-checked and aria-readonly, and no native input" <|
+        , test "read only with onCheck: the same native input with aria-readonly, whose click is cancelled and sends the value it has" <|
             \_ ->
-                Switch.view [ Switch.id "active", Switch.label "Active", Switch.checked True, Switch.readOnly True, Switch.onCheck Checked ]
+                Expect.all
+                    [ \_ ->
+                        Switch.view [ Switch.id "active", Switch.label "Active", Switch.checked True, Switch.readOnly True, Switch.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> Expect.all
+                                [ count [ Selector.tag "button" ] 0
+                                , Query.find [ Selector.tag "input" ]
+                                    >> Query.has [ Selector.id "active", aria "role" "switch", aria "aria-readonly" "true", Selector.checked True, Selector.disabled False ]
+                                , byId "active" >> Event.simulate Event.click >> Expect.all [ Event.expectPreventDefault, Event.expect (Checked True) ]
+                                ]
+                    , \_ ->
+                        Switch.view [ Switch.id "active", Switch.label "Active", Switch.checked True, Switch.onCheck Checked ]
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.tag "input" ]
+                            |> Query.has [ Selector.id "active", aria "role" "switch" ]
+                    ]
+                    ()
+        , test "read only without onCheck: a button with role=switch, aria-checked and aria-readonly" <|
+            \_ ->
+                Switch.view [ Switch.id "active", Switch.label "Active", Switch.checked True, Switch.readOnly True ]
                     |> Query.fromHtml
                     |> Expect.all
                         [ count [ Selector.tag "input" ] 0
-                        , byId "active"
+                        , Query.find [ Selector.tag "button" ]
                             >> Query.has
-                                [ aria "role" "switch"
+                                [ Selector.id "active"
+                                , Selector.attribute (Attr.type_ "button")
+                                , aria "role" "switch"
                                 , aria "aria-checked" "true"
                                 , aria "aria-readonly" "true"
                                 , Selector.attribute (Attr.tabindex 0)
                                 , aria "aria-labelledby" "active-label"
                                 ]
-                        , byId "active" >> Event.simulate Event.click >> Event.toResult >> Expect.err
                         ]
         , test "the status region is always there, and says Saving only while saving" <|
             \_ ->
@@ -593,9 +663,47 @@ sliderTests =
                     |> byId "q-upper"
                     |> Event.simulate (valueEvent "change" "70")
                     |> Event.expect (RangeCommitted 20 70)
-        , test "read only: no range input, a focusable role=slider with the value, aria-readonly and the label" <|
+        , test "read only with a handler: the same range input with aria-readonly; keys, clicks and touches that move it are cancelled" <|
             \_ ->
-                Slider.view [ Slider.id "s", Slider.label "Discount", Slider.max 50, Slider.value 15, Slider.unit "%", Slider.readOnly True, Slider.onInput Moved ]
+                let
+                    input =
+                        Slider.view [ Slider.id "s", Slider.label "Discount", Slider.max 50, Slider.value 15, Slider.readOnly True, Slider.onInput Moved, Slider.onCommit Committed ]
+                            |> Query.fromHtml
+                            |> Query.find [ Selector.tag "input" ]
+
+                    key name =
+                        Event.custom "keydown" (Encode.object [ ( "key", Encode.string name ) ])
+                in
+                Expect.all
+                    [ Query.has [ Selector.id "s", aria "aria-readonly" "true", Selector.disabled False ]
+                    , Event.simulate (key "ArrowRight") >> Expect.all [ Event.expectPreventDefault, Event.expect (Moved 15) ]
+                    , Event.simulate (key "End") >> Event.expectPreventDefault
+                    , Event.simulate (key "Tab") >> Event.toResult >> Expect.err
+                    , Event.simulate Event.mouseDown >> Expect.all [ Event.expectPreventDefault, Event.expect (Moved 15) ]
+                    , Event.simulate (Event.custom "touchstart" (Encode.object [])) >> Event.expectPreventDefault
+                    , Event.simulate (valueEvent "input" "30") >> Event.toResult >> Expect.err
+                    , Event.simulate (valueEvent "change" "30") >> Event.toResult >> Expect.err
+                    ]
+                    input
+        , test "a read-only range with a handler keeps both range inputs and cancels with the values it has" <|
+            \_ ->
+                Slider.viewRange [ Slider.id "q", Slider.label "Quantity", Slider.range 20 60, Slider.readOnly True, Slider.onRangeCommit RangeCommitted ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ count [ Selector.tag "input" ] 2
+                        , byId "q-upper"
+                            >> Event.simulate (Event.custom "keydown" (Encode.object [ ( "key", Encode.string "ArrowLeft" ) ]))
+                            >> Expect.all [ Event.expectPreventDefault, Event.expect (RangeCommitted 20 60) ]
+                        ]
+        , test "the value on a grid of tenths has no floating point noise" <|
+            \_ ->
+                Slider.view [ Slider.id "s", Slider.max 1, Slider.step 0.1, Slider.value 0.3, Slider.onInput Moved ]
+                    |> Query.fromHtml
+                    |> byId "s"
+                    |> Query.has [ Selector.attribute (Attr.value "0.3") ]
+        , test "read only without a handler: no range input, a focusable role=slider with the value, aria-readonly and the label" <|
+            \_ ->
+                Slider.view [ Slider.id "s", Slider.label "Discount", Slider.max 50, Slider.value 15, Slider.unit "%", Slider.readOnly True ]
                     |> Query.fromHtml
                     |> Expect.all
                         [ count [ Selector.tag "input" ] 0
@@ -688,5 +796,6 @@ stylesheetTests =
             , ".klar-range__track"
             , ".klar-segmented__input:checked + .klar-segmented__content"
             , ".klar-checkgroup--invalid"
+            , ".klar-slider--invalid .klar-slider__body"
             ]
         )
