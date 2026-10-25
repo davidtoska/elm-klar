@@ -1,7 +1,8 @@
 module Klar.SavedViews exposing
     ( view
     , State, init, Msg, update
-    , SavedView, savedView, withNote, asDefault, asShared, withQuery
+    , SavedView, savedView, withNote, asDefault, asShared, withQuery, withKey
+    , Change(..), changes
     , encode, decoder
     , views, active, defaultView, revision, isOpen, setViews, setActive, apply, startSave
     , Attribute, currentRule, currentQuery, remote, onRetry, label, locale, size, alignEnd
@@ -143,7 +144,12 @@ text follows `locale`, which is English by default.
 
 # Defining views
 
-@docs SavedView, savedView, withNote, asDefault, asShared, withQuery
+@docs SavedView, savedView, withNote, asDefault, asShared, withQuery, withKey
+
+
+## A backend that keeps each view
+
+@docs Change, changes
 
 
 ## Keeping the views
@@ -202,7 +208,9 @@ import Klar.Theme exposing (Size(..), Tone(..))
 case. The `note` is a short description shown under the name. `isDefault` marks
 the view that "Reset" returns to; at most one view is the default. `isShared`
 is set by the application, and the list shows a badge for it. `query` is the search,
-sort, filters and page size of the table, when the view holds them.
+sort, filters and page size of the table, when the view holds them. `key` is the id your
+backend gave the view (`withKey`), `Nothing` until it is stored; a rename keeps it, so
+`changes` can tell a rename from a new view.
 
 Make views with `savedView`, or build the record yourself, for example from
 stored data.
@@ -215,11 +223,13 @@ type alias SavedView =
     , isDefault : Bool
     , isShared : Bool
     , query : Maybe Table.Query
+    , key : Maybe String
     }
 
 
-{-| One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags and
-the table query (`Table.encodeQuery`) when it has one. It carries a version, `"v": 1`.
+{-| One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags, the
+table query (`Table.encodeQuery`) when it has one, and the key when it has one. It carries
+a version, `"v": 1`.
 -}
 encode : SavedView -> Encode.Value
 encode saved =
@@ -231,6 +241,7 @@ encode saved =
         , ( "default", Encode.bool saved.isDefault )
         , ( "shared", Encode.bool saved.isShared )
         , ( "query", Maybe.map Table.encodeQuery saved.query |> Maybe.withDefault Encode.null )
+        , ( "key", Maybe.map Encode.string saved.key |> Maybe.withDefault Encode.null )
         ]
 
 
@@ -253,7 +264,7 @@ decoder =
                     Decode.fail ("This view was written by a newer version (v" ++ String.fromInt version ++ ")")
 
                 else
-                    Decode.map6 SavedView
+                    Decode.map7 SavedView
                         (Decode.field "name" Decode.string
                             |> Decode.andThen
                                 (\name ->
@@ -279,6 +290,7 @@ decoder =
                                             Decode.field "query" (Decode.nullable Table.queryDecoder)
                                 )
                         )
+                        (Decode.oneOf [ Decode.field "key" (Decode.nullable Decode.string), Decode.succeed Nothing ])
             )
 
 
@@ -289,7 +301,7 @@ decoder =
 -}
 savedView : String -> Rule -> SavedView
 savedView name rule =
-    { name = name, rule = rule, note = Nothing, isDefault = False, isShared = False, query = Nothing }
+    { name = name, rule = rule, note = Nothing, isDefault = False, isShared = False, query = Nothing, key = Nothing }
 
 
 {-| Adds a short description, shown under the name in the list.
@@ -331,6 +343,87 @@ withQuery q saved =
 firstPage : Table.Query -> Table.Query
 firstPage q =
     { q | page = 1 }
+
+
+{-| Gives the view the id your backend keeps it under. Give it to every stored view
+(in the list for `setViews`), and `changes` says what to send per view.
+
+    SavedViews.savedView stored.name rule |> SavedViews.withKey stored.id
+
+-}
+withKey : String -> SavedView -> SavedView
+withKey key saved =
+    { saved | key = Just key }
+
+
+{-| What to send to a backend that keeps each view by its key:
+
+  - `Created view`: a view the user saved. It has no key yet: store it, and give the
+    list back to `setViews` with the key the backend gave it (`withKey`).
+  - `Updated view`: a view with a key whose name, note, rule, query or default changed
+    (a rename keeps the key, so it is an update, not a new view).
+  - `Deleted key`: the key of a view that the user deleted.
+
+-}
+type Change
+    = Created SavedView
+    | Updated SavedView
+    | Deleted String
+
+
+{-| The changes from one list of views to the next, for a backend that keeps each view
+by its key: compare `views` before and after `update` (with
+[Klar.ServerList](Klar-ServerList): the views before, and the `save` of the step).
+Views without a key are new ones: a view without a key that is not in the list before
+is `Created`. Unchanged views give nothing.
+
+    SavedViews.changes (SavedViews.views model.views) (SavedViews.views views)
+        |> List.map storeChange
+
+-}
+changes : List SavedView -> List SavedView -> List Change
+changes before after =
+    let
+        keyed list =
+            List.filterMap (\saved -> Maybe.map (\key -> ( key, saved )) saved.key) list
+
+        earlier key =
+            keyed before |> List.filter (\( k, _ ) -> k == key) |> List.head |> Maybe.map Tuple.second
+
+        later =
+            keyed after |> List.map Tuple.first
+
+        createdOrUpdated =
+            List.filterMap
+                (\saved ->
+                    case saved.key of
+                        Just key ->
+                            case earlier key of
+                                Just old ->
+                                    if old == saved then
+                                        Nothing
+
+                                    else
+                                        Just (Updated saved)
+
+                                Nothing ->
+                                    Just (Created saved)
+
+                        Nothing ->
+                            if List.member saved before then
+                                Nothing
+
+                            else
+                                Just (Created saved)
+                )
+                after
+
+        deleted =
+            keyed before
+                |> List.filter (\( key, _ ) -> not (List.member key later))
+                |> List.map (\( key, _ ) -> Deleted key)
+    in
+    createdOrUpdated ++ deleted
 
 
 
@@ -664,7 +757,7 @@ update msg (State s) =
                             in
                             ( State
                                 { s
-                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False, isShared = False, query = query } ]
+                                    | views = s.views ++ [ { name = name, rule = rule, note = note, isDefault = False, isShared = False, query = query, key = Nothing } ]
                                     , active = Just name
                                     , open = False
                                     , mode = Browsing

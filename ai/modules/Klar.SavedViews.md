@@ -4,7 +4,7 @@ Named, saved filters ("views"): a dropdown button that lists the saved views and
 
 Import: `import Klar.SavedViews as SavedViews` | Group: Rules and filters
 
-Types: `Msg`, `State`, `Attribute`, `SavedView`
+Types: `Msg`, `State`, `Change`, `Attribute`, `SavedView`
 
 ## Signatures
 
@@ -26,12 +26,18 @@ type alias SavedView =
     , isDefault : Bool
     , isShared : Bool
     , query : Maybe Table.Query
+    , key : Maybe String
     }
 savedView : String -> Rule.Rule -> SavedView
 withNote : String -> SavedView -> SavedView
 asDefault : SavedView -> SavedView
 asShared : SavedView -> SavedView
 withQuery : Table.Query -> SavedView -> SavedView
+withKey : String -> SavedView -> SavedView
+
+-- A backend that keeps each view
+type Change = Created SavedView | Updated SavedView | Deleted String
+changes : List SavedView -> List SavedView -> List Change
 
 -- Keeping the views
 encode : SavedView -> Json.Encode.Value
@@ -256,6 +262,7 @@ type alias SavedView =
     , isDefault : Bool
     , isShared : Bool
     , query : Maybe Table.Query
+    , key : Maybe String
     }
 ```
 
@@ -263,7 +270,9 @@ A named rule. The `name` identifies the view and must be unique, ignoring
 case. The `note` is a short description shown under the name. `isDefault` marks
 the view that "Reset" returns to; at most one view is the default. `isShared`
 is set by the application, and the list shows a badge for it. `query` is the search,
-sort, filters and page size of the table, when the view holds them.
+sort, filters and page size of the table, when the view holds them. `key` is the id your
+backend gave the view (`withKey`), `Nothing` until it is stored; a rename keeps it, so
+`changes` can tell a rename from a new view.
 
 Make views with `savedView`, or build the record yourself, for example from
 stored data.
@@ -317,6 +326,48 @@ Gives the view a table query: search text, sort, column filters and page size
 (the page is not kept). Use it for views you make yourself; the ones the user saves
 get it from `currentQuery`.
 
+### `withKey`
+
+```elm
+withKey : String -> SavedView -> SavedView
+```
+
+Gives the view the id your backend keeps it under. Give it to every stored view
+(in the list for `setViews`), and `changes` says what to send per view.
+
+    SavedViews.savedView stored.name rule |> SavedViews.withKey stored.id
+
+### A backend that keeps each view
+
+### `Change`
+
+```elm
+type Change = Created SavedView | Updated SavedView | Deleted String
+```
+
+What to send to a backend that keeps each view by its key:
+
+  - `Created view`: a view the user saved. It has no key yet: store it, and give the
+    list back to `setViews` with the key the backend gave it (`withKey`).
+  - `Updated view`: a view with a key whose name, note, rule, query or default changed
+    (a rename keeps the key, so it is an update, not a new view).
+  - `Deleted key`: the key of a view that the user deleted.
+
+### `changes`
+
+```elm
+changes : List SavedView -> List SavedView -> List Change
+```
+
+The changes from one list of views to the next, for a backend that keeps each view
+by its key: compare `views` before and after `update` (with
+[Klar.ServerList](Klar.ServerList.md): the views before, and the `save` of the step).
+Views without a key are new ones: a view without a key that is not in the list before
+is `Created`. Unchanged views give nothing.
+
+    SavedViews.changes (SavedViews.views model.views) (SavedViews.views views)
+        |> List.map storeChange
+
 ### Keeping the views
 
 The library keeps nothing. `encode` and `decoder` write and read one view as JSON, so
@@ -337,8 +388,9 @@ address, a cookie that it sets through a port of its own.
 encode : SavedView -> Json.Encode.Value
 ```
 
-One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags and
-the table query (`Table.encodeQuery`) when it has one. It carries a version, `"v": 1`.
+One view as JSON: the name, the rule (`Rule.encode`), the note, the two flags, the
+table query (`Table.encodeQuery`) when it has one, and the key when it has one. It carries
+a version, `"v": 1`.
 
 ### `decoder`
 

@@ -236,7 +236,10 @@ the `request` to send now (`Nothing` when nothing changed that the server must a
 the saved `views` to store (`Nothing` while the list is as it was).
 
 An application has one place that turns a `Step` into a command. Send the request even
-when the step came from `init`: it is the first page.
+when the step came from `init`: it is the first page. A backend that keeps the list as
+one setting stores `save` as it is; one that keeps each view by its key sends
+`SavedViews.changes (ServerList.savedViews model.orders) views` (the views before, and
+the ones to save).
 
 ### `init`
 

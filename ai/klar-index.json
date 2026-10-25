@@ -4591,10 +4591,10 @@
         "withQuery"
       ],
       "related": [
+        "Klar.ServerList",
         "Klar.FilterBar",
         "Klar.Rule",
         "Klar.RuleBuilder",
-        "Klar.ServerList",
         "Klar.Table",
         "Klar.TextInput",
         "Klar.Theme"

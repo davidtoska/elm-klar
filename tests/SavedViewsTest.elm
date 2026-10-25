@@ -256,10 +256,56 @@ remoteTests =
         ]
 
 
+changeTests : Test
+changeTests =
+    let
+        open =
+            SavedViews.savedView "Open" Rule.emptyGroup |> SavedViews.withKey "k1"
+
+        late =
+            SavedViews.savedView "Late" Rule.emptyGroup |> SavedViews.withKey "k2"
+
+        fresh =
+            SavedViews.savedView "New" Rule.emptyGroup
+    in
+    describe "changes for a backend that keeps each view"
+        [ test "a view the user saved is created" <|
+            \_ -> Expect.equal (SavedViews.changes [ open ] [ open, fresh ]) [ SavedViews.Created fresh ]
+        , test "a renamed view keeps its key and is updated" <|
+            \_ ->
+                Expect.equal (SavedViews.changes [ open, late ] [ open, { late | name = "Later" } ])
+                    [ SavedViews.Updated { late | name = "Later" } ]
+        , test "a deleted view is deleted by its key" <|
+            \_ -> Expect.equal (SavedViews.changes [ open, late ] [ late ]) [ SavedViews.Deleted "k1" ]
+        , test "the same list gives nothing" <|
+            \_ -> Expect.equal (SavedViews.changes [ open, late, fresh ] [ open, late, fresh ]) []
+        , test "a new default updates both views" <|
+            \_ ->
+                Expect.equal
+                    (SavedViews.changes [ SavedViews.asDefault open, late ] [ open, SavedViews.asDefault late ])
+                    [ SavedViews.Updated open, SavedViews.Updated (SavedViews.asDefault late) ]
+        , test "the key is kept in the JSON" <|
+            \_ ->
+                Encode.encode 0 (SavedViews.encode open)
+                    |> Decode.decodeString SavedViews.decoder
+                    |> Result.map .key
+                    |> Expect.equal (Ok (Just "k1"))
+        , test "a rename through the list keeps the key" <|
+            \_ ->
+                Ok (SavedViews.setViews [ open, late ] (SavedViews.init "views"))
+                    |> on Event.click [ Selector.id "views-trigger" ]
+                    |> on Event.click (button "Rename: Late")
+                    |> on (Event.input "Later") [ Selector.id "views-rename" ]
+                    |> on Event.click [ Selector.tag "button", Selector.class "klar-button--primary" ]
+                    |> expectOk (\renamed -> Expect.equal (List.map .key (SavedViews.views renamed)) [ Just "k1", Just "k2" ])
+        ]
+
+
 behaviourTests : Test
 behaviourTests =
     describe "what the user does"
         [ remoteTests
+        , changeTests
         , test "apply and setActive find a name ignoring case and spaces" <|
             \_ ->
                 Expect.equal
