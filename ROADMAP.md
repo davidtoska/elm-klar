@@ -123,6 +123,15 @@ example. The notification centre is an inline inbox that can also be placed in a
 drawer; a global bell remains an application concern. `CardList` has its own small
 field API; sharing columns with the table family remains future work.
 
+Also built ahead: `Kanban` (explicit keyboard/pointer moves, WIP limits and
+version-checked proposals), `CommentThread` (safe Markdown replies, moderation
+placeholders and revision-bound posting), `UploadQueue` (local staging and
+transport-neutral transfer statuses), `CodeBlock` (bounded JSON/Elm lexical
+highlighting and exact source download), and `QuantityInput` (typed units and
+raw input). These are exercised on the Workflow toolkit gallery page. Kanban
+swimlanes/dragging, automatic mentions and upload image previews remain future work;
+the existing implementations do not pretend to provide them.
+
 ## Technical rules
 
 - Official `elm/*` packages from the Elm team. The package depends on `core`, `html`,
@@ -185,9 +194,9 @@ actual). M each or less. Built already: `Klar.Compare`, `TreeSelect`, `Cascader`
 
 | Component | Size |
 |---|---|
-| Read-only code block with highlighting | M |
+| Read-only code block with highlighting | Built: `CodeBlock`, JSON/Elm lexical highlighting; further languages on demand |
 | Query language for `FilterBar`: `status = open and total > 100` becomes a typed `Rule` | L |
-| Comment thread and mentions (`@` at the end of the text) | M |
+| Comment thread and mentions (`@` at the end of the text) | `CommentThread` built; typed mention suggestions remain |
 | Audit log and activity feed with diffs | M |
 | Conflict resolver (your version against theirs after a 409) | M |
 | Work queue: a list with `j` / `k`, a detail pane, approve / reject, comments | L |
@@ -245,7 +254,7 @@ Built already, and listed in "Built ahead of the plan" above: `MaskedInput`, `Mo
 
 | Component | Size |
 |---|---|
-| Unit and percent input | M |
+| Unit and percent input | Built: `QuantityInput`, typed units without implicit conversion |
 | A draft for a wizard form | M |
 | ColorPicker (also used by the theme lab) | M |
 | `Field` groups with conditional visibility | M |
@@ -260,7 +269,7 @@ On demand: OTP / PIN input, Rate, Watermark.
 
 | Component | Size |
 |---|---|
-| Upload: select or drop, mime and size validation, queue, image preview, progress given by the application | L |
+| Upload: select or drop, mime and size validation, queue, image preview, progress given by the application | `UploadQueue` built; image preview remains |
 | Import wizard: CSV, column mapping, row-by-row validation, error report | L |
 | Media upload for audio and video (duration read through a hidden media element) | M |
 | `Video` and `Audio`: native controls kept, plus our own seek bar with chapters and markers, speed, loop and A to B repeat, subtitle tracks, transcript that follows the playback, playlist | L |
@@ -277,7 +286,7 @@ arcs and edges only.
 
 | Component | Size |
 |---|---|
-| Kanban (columns, swimlanes, WIP limits), built on Sortable | L |
+| Kanban (columns, swimlanes, WIP limits) | `Kanban` built with explicit keyboard/pointer moves and WIP limits; dragging/swimlanes remain |
 | Calendar week and day views with events, drag to move and resize | L |
 | Chart additions: curves, area, stacked, treemap, heatmap (gauge, meter and sparkline exist) | L |
 

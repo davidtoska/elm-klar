@@ -63,7 +63,8 @@
             "Klar.SegmentedControl",
             "Klar.MaskedInput",
             "Klar.Money",
-            "Klar.MoneyInput"
+            "Klar.MoneyInput",
+            "Klar.QuantityInput"
         ],
         "Choosing": [
             "Klar.Select",
@@ -122,7 +123,8 @@
         ],
         "Arranging": [
             "Klar.Sortable",
-            "Klar.Splitter"
+            "Klar.Splitter",
+            "Klar.Kanban"
         ],
         "Pages and flow": [
             "Klar.StatusPage",
@@ -136,7 +138,9 @@
             "Klar.Diff",
             "Klar.Compare",
             "Klar.AuditLog",
-            "Klar.ConflictResolver"
+            "Klar.ConflictResolver",
+            "Klar.CodeBlock",
+            "Klar.CommentThread"
         ],
         "Access and approval": [
             "Klar.PermissionMatrix",
@@ -180,6 +184,9 @@
             "Klar.Icon.Nature",
             "Klar.Icon.People",
             "Klar.Icon.Science"
+        ],
+        "Files and media": [
+            "Klar.UploadQueue"
         ]
     },
     "elm-version": "0.19.0 <= v < 0.20.0",

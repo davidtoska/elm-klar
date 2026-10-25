@@ -9,6 +9,8 @@ import Klar.Internal.Css.Access as Access
 import Klar.Internal.Css.Actions as Actions
 import Klar.Internal.Css.Arranging as Arranging
 import Klar.Internal.Css.Base as Base
+import Klar.Internal.Css.CodeQuantity as CodeQuantity
+import Klar.Internal.Css.Comments as Comments
 import Klar.Internal.Css.Core as Core
 import Klar.Internal.Css.DateTime as DateTime
 import Klar.Internal.Css.Density as Density
@@ -16,6 +18,7 @@ import Klar.Internal.Css.Display as Display
 import Klar.Internal.Css.Flow as Flow
 import Klar.Internal.Css.Forms as Forms
 import Klar.Internal.Css.Icons as Icons
+import Klar.Internal.Css.Kanban as Kanban
 import Klar.Internal.Css.Markdown as Markdown
 import Klar.Internal.Css.Navigation as Navigation
 import Klar.Internal.Css.Overlay as Overlay
@@ -28,6 +31,7 @@ import Klar.Internal.Css.Stale as Stale
 import Klar.Internal.Css.Structured as Structured
 import Klar.Internal.Css.Table as Table
 import Klar.Internal.Css.Tokens as Tokens
+import Klar.Internal.Css.Uploads as Uploads
 import Klar.Internal.Css.Workbench as Workbench
 
 
@@ -59,5 +63,9 @@ css =
         , Access.css
         , Recurrence.css
         , Workbench.css
+        , Comments.css
+        , Kanban.css
+        , Uploads.css
+        , CodeQuantity.css
         , Density.css
         ]

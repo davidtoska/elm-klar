@@ -62,6 +62,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.MaskedInput](Klar.MaskedInput.md): A field for an identifier that has a fixed shape and, often, a check digit: an IBAN, an organisation number, a bank account, a postal code, a phone number, or a code of your own such as `AB-1234`.
 - [Klar.Money](Klar.Money.md): An exact amount of money: a whole number of minor units (øre, cents, yen) together with its currency.
 - [Klar.MoneyInput](Klar.MoneyInput.md): A field for an amount of money in one currency.
+- [Klar.QuantityInput](Klar.QuantityInput.md): A quantity with an application's own unit type, keeping exactly the number text entered until the application explicitly changes it.
 ## Choosing
 
 - [Klar.Select](Klar.Select.md): A single select with a search box, for lists from a handful to many thousands of options.
@@ -121,6 +122,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 
 - [Klar.Sortable](Klar.Sortable.md): A list the user can put in a new order: by dragging an item by its handle, or with the keyboard.
 - [Klar.Splitter](Klar.Splitter.md): Two or more panes side by side (or one above the other) that the user can make larger and smaller by moving the separators between them, with the mouse, a finger or the keyboard.
+- [Klar.Kanban](Klar.Kanban.md): A dense board of ordered work columns, with explicit card moves, work-in-progress limits and keyboard operation that does not depend on dragging.
 ## Pages and flow
 
 - [Klar.StatusPage](Klar.StatusPage.md): A page that stands for a whole result: "Order created", "No access", "Page not found", "Something went wrong on our side", "Down for maintenance".
@@ -135,6 +137,8 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Compare](Klar.Compare.md): Records side by side, with the differences marked: two or more products, two versions of an order, "your version" against "theirs".
 - [Klar.AuditLog](Klar.AuditLog.md): An immutable activity history with actors, exact times and expandable diffs.
 - [Klar.ConflictResolver](Klar.ConflictResolver.md): A three-way field merge that makes concurrent edits explicit and requires a decision for every conflicting value before the result can be applied.
+- [Klar.CodeBlock](Klar.CodeBlock.md): Read-only source code with lexical highlighting, line numbers and an honest preview limit; source is always escaped text and is never executed.
+- [Klar.CommentThread](Klar.CommentThread.md): A reply thread with safe Markdown, exact timestamps and a draft that survives failed posting, refreshes and late acknowledgements.
 ## Access and approval
 
 - [Klar.PermissionMatrix](Klar.PermissionMatrix.md): A grid of roles and permissions that says what each role may do, and lets an administrator change it: the classic screen of an application with users.
@@ -178,3 +182,6 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.Icon.Nature](Klar.Icon.Nature.md): Nature, weather and animals: 16 icons.
 - [Klar.Icon.People](Klar.Icon.People.md): People and expressions: 16 icons.
 - [Klar.Icon.Science](Klar.Icon.Science.md): Science, health and everyday objects: 16 icons.
+## Files and media
+
+- [Klar.UploadQueue](Klar.UploadQueue.md): A local file-transfer workbench: validated file staging, an explicit add action, and an application-controlled queue with exact byte progress.

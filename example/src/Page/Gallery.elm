@@ -28,6 +28,7 @@ import Page.Gallery.Foundations as Foundations
 import Page.Gallery.Index as Index
 import Page.Gallery.Markdown as Markdown
 import Page.Gallery.Navigation as Navigation
+import Page.Gallery.NextComponents as NextComponents
 import Page.Gallery.Overlays as Overlays
 import Page.Gallery.Picking as Picking
 import Page.Gallery.Recurring as Recurring
@@ -70,6 +71,7 @@ type alias Model =
     , staleData : Maybe StaleData.Model
     , serverLists : Maybe ServerLists.Model
     , workbench : Maybe Workbench.Model
+    , nextComponents : Maybe NextComponents.Model
     }
 
 
@@ -99,6 +101,7 @@ init =
     , staleData = Nothing
     , serverLists = Nothing
     , workbench = Nothing
+    , nextComponents = Nothing
     }
 
 
@@ -131,6 +134,7 @@ type Msg
     | StaleDataMsg StaleData.Msg
     | ServerListsMsg ServerLists.Msg
     | WorkbenchMsg Workbench.Msg
+    | NextComponentsMsg NextComponents.Msg
 
 
 {-| Creates the page for a section if it has not been visited yet. Call it when
@@ -210,6 +214,9 @@ ensure section model =
 
         Workbench ->
             create model.workbench Workbench.init (\page -> { model | workbench = page }) WorkbenchMsg model
+
+        NextComponents ->
+            create model.nextComponents NextComponents.init (\page -> { model | nextComponents = page }) NextComponentsMsg model
 
 
 create : Maybe page -> ( page, Cmd pageMsg ) -> (Maybe page -> Model) -> (pageMsg -> Msg) -> Model -> ( Model, Cmd Msg )
@@ -296,6 +303,9 @@ update msg model =
 
         WorkbenchMsg inner ->
             step model.workbench (Workbench.update inner) (\page -> { model | workbench = page }) WorkbenchMsg model
+
+        NextComponentsMsg inner ->
+            step model.nextComponents (NextComponents.update inner) (\page -> { model | nextComponents = page }) NextComponentsMsg model
 
 
 {-| Runs a page's update on its model, if the page exists.
@@ -398,6 +408,9 @@ view settings locale maybeSection model =
                 Workbench ->
                     show WorkbenchMsg (Workbench.view settings locale) model.workbench
 
+                NextComponents ->
+                    show NextComponentsMsg (NextComponents.view settings locale) model.nextComponents
+
 
 show : (pageMsg -> Msg) -> (page -> Html pageMsg) -> Maybe page -> Html Msg
 show toMsg viewPage maybePage =
@@ -494,6 +507,9 @@ subscriptions maybeSection model =
 
                 Workbench ->
                     sub WorkbenchMsg Workbench.subscriptions model.workbench
+
+                NextComponents ->
+                    sub NextComponentsMsg NextComponents.subscriptions model.nextComponents
 
 
 sub : (pageMsg -> Msg) -> (page -> Sub pageMsg) -> Maybe page -> Sub Msg

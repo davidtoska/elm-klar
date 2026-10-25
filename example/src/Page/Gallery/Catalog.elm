@@ -42,11 +42,12 @@ type Section
     | StaleData
     | ServerLists
     | Workbench
+    | NextComponents
 
 
 all : List Section
 all =
-    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench ]
+    [ Examples, Foundations, Basics, Selects, Tables, Forms, FormModel, DateTime, Overlays, Navigation, DataDisplay, Rules, Arranging, Actions, Flow, Markdown, Review, Structured, Picking, Access, Recurring, StaleData, ServerLists, Workbench, NextComponents ]
 
 
 slug : Section -> String
@@ -123,6 +124,9 @@ slug section =
 
         Workbench ->
             "workbench"
+
+        NextComponents ->
+            "workflow-toolkit"
 
 
 fromSlug : String -> Maybe Section
@@ -205,6 +209,9 @@ title section =
         Workbench ->
             "Data workbench"
 
+        NextComponents ->
+            "Workflow toolkit"
+
 
 icon : Section -> Icon
 icon section =
@@ -281,6 +288,9 @@ icon section =
         Workbench ->
             Icon.clipboardCheck
 
+        NextComponents ->
+            Icon.layers
+
 
 description : Section -> String
 description section =
@@ -356,6 +366,9 @@ description section =
 
         Workbench ->
             "Cards, keyboard work queues, three-way conflict resolution, audit diffs and persistent notifications."
+
+        NextComponents ->
+            "Kanban work stages, threaded discussion, explicit file uploads, safe source code and typed quantities."
 
 
 {-| The components shown on each page.
@@ -434,6 +447,9 @@ components section =
 
         Workbench ->
             [ "CardList", "WorkQueue", "ConflictResolver", "AuditLog", "NotificationCenter" ]
+
+        NextComponents ->
+            [ "Kanban", "CommentThread", "UploadQueue", "CodeBlock", "QuantityInput" ]
 
 
 componentCount : Int

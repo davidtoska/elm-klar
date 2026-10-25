@@ -140,21 +140,22 @@ every module has an example.
 | **Actions** | `Button`, `Menu`, `ButtonGroup`, `ToggleGroup`, `SplitButton`, `Link`, `Kbd` |
 | **Status and feedback** | `Badge`, `Tag`, `Alert`, `Spinner`, `Skeleton`, `Progress`, `EmptyState`, `ErrorState` |
 | **Forms** | `Form` (the form model), `Form.Spec` (declaring a form), `Form.Layout` (the frame), `Form.Check` (tests), `Field`, `Validate` |
-| **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
+| **Inputs** | `TextInput`, `TextArea`, `NumberInput`, `QuantityInput`, `PasswordInput`, `SearchInput`, `TagInput`, `FileDrop`, `InlineEdit`, `Checkbox`, `CheckboxGroup`, `Radio`, `Switch`, `Slider`, `SegmentedControl`, `MaskedInput`, `Money`, `MoneyInput` |
 | **Choosing** | `Select`, `Select.Option`, `Ids` (your id type as text, once), `MultiSelect`, `Autocomplete`, `VirtualList`, `TreeSelect`, `Cascader`, `Transfer`, `Picking` |
 | **Date and time** | `Date`, `DatePicker`, `DateRangePicker`, `TimePicker`, `DateTimePicker`, `Calendar`, `Recurrence`, `RecurrencePicker` |
 | **Tables and lists** | `Table`, `Pagination`, `ListItem`, `Tree`, `CardList`, `WorkQueue` |
 | **Overlays** | `Overlay`, `Modal`, `ConfirmDialog`, `Drawer`, `Toast`, `Popover`, `Tooltip`, `ContextMenu`, `CommandPalette`, `ShortcutHelp` |
 | **Navigation** | `AppShell`, `SideNav`, `PageHeader`, `Breadcrumbs`, `Tabs`, `Stepper` |
 | **Structure** | `Accordion`, `Toolbar`, `DescriptionList` |
-| **Arranging** | `Sortable`, `Splitter` |
+| **Arranging** | `Sortable`, `Splitter`, `Kanban` (validated moves and work-in-progress limits) |
 | **Pages and flow** | `StatusPage`, `BulkBar`, `LeaveGuard`, `History` |
-| **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare`, `AuditLog`, `ConflictResolver` |
+| **Text and change** | `Markdown`, `MarkdownEditor`, `Diff`, `Compare`, `AuditLog`, `ConflictResolver`, `CodeBlock`, `CommentThread` |
 | **Access and approval** | `PermissionMatrix`, `ApprovalFlow` |
 | **Data display** | `Stat`, `Chart` (line, bar, donut, gauge, meter, sparkline), `Timeline`, `Avatar`, `JsonViewer` |
 | **Rules and filters** | `Rule`, `RuleBuilder`, `FilterBar`, `SavedViews`, `ServerList` (a server-side list with all three) |
 | **Data and utilities** | `Remote`, `RemoteView`, `Search`, `Format`, `Shortcut` |
 | **Persistent notifications** | `NotificationCenter` (unread filtering, explicit read and dismiss, loaded-item bulk actions) |
+| **Files and media** | `UploadQueue` (validated file staging and transport-neutral byte progress) |
 
 All of them are under `Klar.`, for example `Klar.Table`. The API reference is on
 [package.elm-lang.org](https://package.elm-lang.org/packages/davidtoska/elm-klar/latest/).
@@ -187,6 +188,12 @@ field edits, inspect audit diffs and manage notifications. The complete standalo
 program is [`ReviewDesk.elm`](example/src/Examples/ReviewDesk.elm), opened at
 `examples/review-desk.html` on the showcase server. Its controls exercise loading,
 failure, empty, refreshing and stale data for all five panels.
+
+The **Workflow toolkit** gallery page adds `Kanban`, `CommentThread`, `UploadQueue`,
+`CodeBlock` and `QuantityInput`. Move cards subject to WIP limits, post replies while
+keeping a newer draft, inspect exact byte progress, download unmodified source and
+enter a number with your own typed units. All five use the existing dependencies;
+the application still owns persistence, permissions and transport.
 
 ```bash
 npm install     # once; installs elm-test and elm-format, nothing else

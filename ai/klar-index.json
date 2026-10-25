@@ -1820,6 +1820,52 @@
       "reference": "ai/modules/Klar.MoneyInput.md"
     },
     {
+      "name": "Klar.QuantityInput",
+      "import": "import Klar.QuantityInput as Quantity",
+      "group": "Inputs",
+      "purpose": "A quantity with an application's own unit type, keeping exactly the number text entered until the application explicitly changes it.",
+      "whenToUse": "a number must be entered together with a unit such as kg, m or percent.",
+      "whenNot": "the unit is fixed, use `Klar.NumberInput.suffixText`, or for currency use `Klar.MoneyInput`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "unit",
+        "init",
+        "setUnit",
+        "update",
+        "view",
+        "value"
+      ],
+      "mainFunctions": [
+        "view",
+        "unit",
+        "init",
+        "update",
+        "raw",
+        "selected",
+        "setValue",
+        "setUnit"
+      ],
+      "related": [],
+      "keywords": [
+        "quantity input",
+        "quantityinput",
+        "inputs",
+        "quantity",
+        "application",
+        "keeping",
+        "exactly",
+        "number"
+      ],
+      "reference": "ai/modules/Klar.QuantityInput.md"
+    },
+    {
       "name": "Klar.Select",
       "import": "import Klar.Select as Select",
       "group": "Choosing",
@@ -3896,6 +3942,51 @@
       "reference": "ai/modules/Klar.Splitter.md"
     },
     {
+      "name": "Klar.Kanban",
+      "import": "import Klar.Kanban as Kanban",
+      "group": "Arranging",
+      "purpose": "A dense board of ordered work columns, with explicit card moves, work-in-progress limits and keyboard operation that does not depend on dragging.",
+      "whenToUse": "work moves between stages and the order inside a stage matters.",
+      "whenNot": "one list only needs reordering; use `Klar.Sortable`, or `Klar.WorkQueue` for reviewing one record beside its details.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "column",
+        "init",
+        "update",
+        "move",
+        "applyMove",
+        "view"
+      ],
+      "mainFunctions": [
+        "view",
+        "column",
+        "cards",
+        "limit",
+        "withLimit",
+        "init",
+        "update",
+        "focusCard"
+      ],
+      "related": [],
+      "keywords": [
+        "kanban",
+        "arranging",
+        "dense",
+        "board",
+        "ordered",
+        "columns",
+        "explicit"
+      ],
+      "reference": "ai/modules/Klar.Kanban.md"
+    },
+    {
       "name": "Klar.StatusPage",
       "import": "import Klar.StatusPage as StatusPage",
       "group": "Pages and flow",
@@ -4301,6 +4392,82 @@
         "edits"
       ],
       "reference": "ai/modules/Klar.ConflictResolver.md"
+    },
+    {
+      "name": "Klar.CodeBlock",
+      "import": "import Klar.CodeBlock as CodeBlock",
+      "group": "Text and change",
+      "purpose": "Read-only source code with lexical highlighting, line numbers and an honest preview limit; source is always escaped text and is never executed.",
+      "whenToUse": "a person must inspect a payload, query, configuration or generated code.",
+      "whenNot": "the text must be edited, use `Klar.TextArea` or `Klar.MarkdownEditor`.",
+      "state": [],
+      "msg": [],
+      "ids": [],
+      "stateful": false,
+      "quickPath": [],
+      "mainFunctions": [
+        "view",
+        "plain",
+        "json",
+        "elm"
+      ],
+      "related": [],
+      "keywords": [
+        "code block",
+        "codeblock",
+        "text and change",
+        "source",
+        "lexical",
+        "highlighting",
+        "numbers",
+        "honest"
+      ],
+      "reference": "ai/modules/Klar.CodeBlock.md"
+    },
+    {
+      "name": "Klar.CommentThread",
+      "import": "import Klar.CommentThread as Thread",
+      "group": "Text and change",
+      "purpose": "A reply thread with safe Markdown, exact timestamps and a draft that survives failed posting, refreshes and late acknowledgements.",
+      "whenToUse": "people discuss a case, order or document and need replies in context.",
+      "whenNot": "the content records immutable system changes; use `Klar.AuditLog`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "comment",
+        "init",
+        "update",
+        "view",
+        "acknowledge"
+      ],
+      "mainFunctions": [
+        "view",
+        "comment",
+        "replyTo",
+        "edited",
+        "removed",
+        "resolved",
+        "init",
+        "update"
+      ],
+      "related": [],
+      "keywords": [
+        "comment thread",
+        "commentthread",
+        "text and change",
+        "reply",
+        "thread",
+        "markdown",
+        "exact",
+        "timestamps"
+      ],
+      "reference": "ai/modules/Klar.CommentThread.md"
     },
     {
       "name": "Klar.PermissionMatrix",
@@ -5554,6 +5721,51 @@
         "icons"
       ],
       "reference": "ai/modules/Klar.Icon.Science.md"
+    },
+    {
+      "name": "Klar.UploadQueue",
+      "import": "import Klar.UploadQueue as UploadQueue",
+      "group": "Files and media",
+      "purpose": "A local file-transfer workbench: validated file staging, an explicit add action, and an application-controlled queue with exact byte progress.",
+      "whenToUse": "users upload several files and need to inspect validation, progress, failures and cancellation per file.",
+      "whenNot": "choosing attachments is the whole task; use `Klar.FileDrop`.",
+      "state": [
+        "State"
+      ],
+      "msg": [
+        "Msg"
+      ],
+      "ids": [],
+      "stateful": true,
+      "quickPath": [
+        "init",
+        "update",
+        "view",
+        "upload",
+        "withStatus"
+      ],
+      "mainFunctions": [
+        "view",
+        "init",
+        "update",
+        "files",
+        "rawFiles",
+        "rejected",
+        "canAdd",
+        "clear"
+      ],
+      "related": [],
+      "keywords": [
+        "upload queue",
+        "uploadqueue",
+        "files and media",
+        "local",
+        "transfer",
+        "workbench",
+        "validated",
+        "staging"
+      ],
+      "reference": "ai/modules/Klar.UploadQueue.md"
     }
   ]
 }
