@@ -331,7 +331,9 @@ disabled value =
 report is being made. Unlike `disabled` it is not dimmed, and Tab still reaches
 the chosen segment, so a screen reader can read it; the group has
 `aria-readonly`, and the other segments cannot be chosen with the mouse or the
-arrow keys. Nothing is sent to `onChange`. The default is `False`.
+arrow keys: they are disabled, so screen readers call them unavailable, but they
+are not dimmed. When no segment can take the focus, Tab reaches the group itself.
+Nothing is sent to `onChange`. The default is `False`.
 -}
 readOnly : Bool -> Attribute value msg
 readOnly value =
@@ -393,9 +395,11 @@ view attributes =
 
                             Nothing ->
                                 -- No segment can take the focus, so the group
-                                -- does, when the error summary moves it here.
+                                -- does, when the error summary moves it here. A
+                                -- read-only group with nothing chosen is still
+                                -- reached with Tab: the group is then in the tab order.
                                 Attr.id field.id
-                       , Internal.attrIf (mainIndex == Nothing) (Attr.tabindex -1)
+                       , Internal.attrIf (mainIndex == Nothing) (Attr.tabindex (groupTabIndex config isReadOnly))
                        , Internal.cls
                             [ "klar-segmented"
                             , "klar-segmented--" ++ Internal.sizeSuffix config.size
@@ -586,3 +590,16 @@ ensureId config =
 
     else
         config.field
+
+
+{-| The tabindex of the group when no option can take the focus: 0 for a read-only
+group (Tab reaches it and a screen reader reads its name), else -1 (only the
+error summary moves the focus there).
+-}
+groupTabIndex : Config value msg -> Bool -> Int
+groupTabIndex config isReadOnly =
+    if isReadOnly && not config.disabled then
+        0
+
+    else
+        -1

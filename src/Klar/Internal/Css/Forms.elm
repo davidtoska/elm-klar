@@ -469,6 +469,8 @@ css =
 .klar-switch__track {
   position: relative;
   flex: none;
+  padding: 0;
+  border: 0;
   width: var(--_w);
   height: var(--_h);
   border-radius: var(--klar-radius-full);
@@ -539,9 +541,12 @@ css =
   width: 100%;
 }
 
-/* Read only: the track itself is the switch (role=switch, aria-checked), so it
-   can be reached and read but nothing can change it. */
-.klar-switch--readonly { cursor: default; }
+/* Read only: the native input with aria-readonly whose click is cancelled, or
+   (without onCheck) the track itself as a button with role=switch and
+   aria-checked, so it can be reached and read but nothing can change it. */
+.klar-switch--readonly,
+.klar-switch--readonly .klar-switch__input,
+.klar-switch--readonly .klar-switch__track { cursor: default; }
 .klar-switch--readonly:hover .klar-switch__track { background: var(--klar-gray-300); }
 .klar-switch--readonly.klar-switch--on:hover .klar-switch__track { background: var(--klar-primary); }
 .klar-switch__track:focus-visible { outline: none; box-shadow: var(--klar-focus-ring); }
@@ -809,8 +814,9 @@ css =
 .klar-range__input:disabled::-webkit-slider-thumb { cursor: not-allowed; }
 .klar-range__input:disabled::-moz-range-thumb { cursor: not-allowed; }
 
-/* Read only: a drawn thumb (role=slider, aria-readonly) that Tab reaches and a
-   screen reader reads, but nothing moves. */
+/* Read only: the native range input with aria-readonly whose moves are
+   cancelled, or (without a handler) a drawn thumb (role=slider, aria-readonly)
+   that Tab reaches and a screen reader reads, but nothing moves. */
 .klar-slider__thumb {
   position: absolute;
   top: 0;
@@ -826,7 +832,10 @@ css =
 }
 
 .klar-slider__thumb:focus-visible { outline: none; box-shadow: var(--klar-focus-ring); }
-.klar-slider--readonly .klar-slider__thumb { cursor: default; }
+.klar-slider--readonly .klar-slider__thumb,
+.klar-slider--readonly .klar-slider__input { cursor: default; }
+.klar-slider--readonly .klar-slider__input::-webkit-slider-thumb { cursor: default; }
+.klar-slider--readonly .klar-slider__input::-moz-range-thumb { cursor: default; }
 
 .klar-slider__body:has(.klar-slider__thumb:focus-visible) .klar-slider__bubble { opacity: 1; }
 
@@ -842,6 +851,12 @@ css =
   }
 
   .klar-slider--disabled { --_color: GrayText; }
+
+  /* The red of an invalid slider is gone too: a ring around the track. */
+  .klar-slider--invalid .klar-slider__body {
+    outline: 2px solid CanvasText;
+    outline-offset: 4px;
+  }
 
   .klar-slider__input,
   .klar-range__track,

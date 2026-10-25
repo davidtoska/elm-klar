@@ -80,6 +80,7 @@ stands on its own `onCheck` or `readOnly`.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Json.Decode as Decode
 import Json.Encode as Encode
 import Klar.Internal as Internal
 import Klar.Theme as Theme exposing (Size(..))
@@ -206,10 +207,14 @@ disabled value =
 {-| Shows the value without letting the user change it, for a record the user may
 read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches it,
 so a screen reader can read it ("Newsletter, checkbox, checked, read only"); a
-click or Space changes nothing and nothing is sent to `onCheck`. The box is then
-an element with `role="checkbox"`, `aria-checked` and `aria-readonly` instead of
-a native checkbox, with the same `id`. `disabled` wins over it. The default is
-`False`.
+click or Space changes nothing. With `onCheck` the box stays the same native
+checkbox with `aria-readonly`, so it keeps the focus when `readOnly` turns on or
+off (a box that locks itself once checked): the click is cancelled and `onCheck`
+gets the value the box already has, which an update that stores the value leaves
+as it is. Without `onCheck` the box is drawn as a button with `role="checkbox"`,
+`aria-checked` and `aria-readonly`, with the same `id`; give a box whose
+`readOnly` changes while it may have the focus an `onCheck`. `disabled` wins over
+it. The default is `False`.
 -}
 readOnly : Bool -> Attribute msg
 readOnly value =
@@ -217,7 +222,8 @@ readOnly value =
 
 
 {-| The message sent when the user toggles the box. It gets the new value,
-`True` for checked; store it and give it back with `checked`.
+`True` for checked; store it and give it back with `checked`. On a `readOnly`
+box a click is cancelled and this gets the value the box already has.
 
     Checkbox.onCheck NewsletterChanged
 
@@ -323,18 +329,30 @@ view attributes =
                 , Maybe.map (\_ -> errorId) shownError
                 ]
 
-        -- Read only: the box itself is the checkbox (a native one cannot be made
-        -- read-only), so nothing can change it and it keeps the focus.
         isReadOnly =
             config.readOnly && not config.disabled
 
+        -- Read only with onCheck: the same native input, whose click is cancelled
+        -- (and reported as the value it already has), so it keeps the focus when
+        -- readOnly turns on or off. Without onCheck there is no message to cancel
+        -- a click with: the box is drawn as a button with role=checkbox, on which
+        -- a click or Space does nothing (and Space does not scroll the page).
+        drawnBox =
+            isReadOnly
+                && (case config.onCheck of
+                        Just _ ->
+                            False
+
+                        Nothing ->
+                            True
+                   )
+
         -- The hint and the error message sit inside the label element. When there
         -- are some, the label text has an id and names the input on its own
-        -- (aria-labelledby), so they are described but not part of the name. A
-        -- read-only box is not a form control the label element can name, so it
-        -- always names itself that way.
+        -- (aria-labelledby), so they are described but not part of the name. The
+        -- drawn box always names itself that way.
         nameFromLabelText =
-            config.label /= Nothing && (isReadOnly || not (List.isEmpty described))
+            config.label /= Nothing && (drawnBox || not (List.isEmpty described))
 
         ariaAttributes =
             [ if nameFromLabelText then
@@ -384,9 +402,10 @@ view attributes =
                 "klar-check--bare"
             ]
         ]
-        [ if isReadOnly then
-            Html.span
+        [ if drawnBox then
+            Html.button
                 ([ Internal.cls [ "klar-check__box" ]
+                 , Attr.type_ "button"
                  , Attr.attribute "role" "checkbox"
                  , Attr.attribute "aria-checked"
                     (if config.indeterminate then
@@ -413,12 +432,22 @@ view attributes =
                  , Attr.disabled config.disabled
                  , Internal.attrMaybe Attr.tabindex config.tabIndex
                  , Attr.property "indeterminate" (Encode.bool config.indeterminate)
-                 , Internal.attrMaybe Events.onCheck (config.onCheck |> Maybe.map (indeterminateAware config.indeterminate))
+                 , Internal.attrIf isReadOnly (Attr.attribute "aria-readonly" "true")
+                 , case config.onCheck of
+                    Just toMsg ->
+                        if isReadOnly then
+                            Events.preventDefaultOn "click" (Decode.succeed ( toMsg config.checked, True ))
+
+                        else
+                            Events.onCheck (indeterminateAware config.indeterminate toMsg)
+
+                    Nothing ->
+                        Internal.noAttr
                  ]
                     ++ ariaAttributes
                 )
                 []
-        , if isReadOnly then
+        , if drawnBox then
             Html.text ""
 
           else

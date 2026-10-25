@@ -1051,6 +1051,7 @@ css =
 .klar-check__box {
   position: relative;
   flex: none;
+  padding: 0;
   width: var(--_box);
   height: var(--_box);
   background: var(--klar-surface);
@@ -1102,10 +1103,14 @@ css =
 .klar-check__hint { font-size: var(--klar-text-sm); color: var(--klar-text-muted); line-height: 1.35; }
 .klar-check__error { font-size: var(--klar-text-sm); color: var(--klar-danger); line-height: 1.35; }
 
-/* Read only: the box itself is the checkbox (role=checkbox, aria-checked), so
-   it can be reached and read but nothing can change it. */
-.klar-check--readonly { cursor: default; }
-.klar-check--readonly:hover .klar-check__box[aria-checked="false"] { border-color: var(--klar-gray-400); }
+/* Read only: the native input with aria-readonly whose click is cancelled, or
+   (without onCheck) the box itself as a button with role=checkbox and
+   aria-checked, so it can be reached and read but nothing can change it. */
+.klar-check--readonly,
+.klar-check--readonly .klar-check__input,
+.klar-check--readonly .klar-check__box { cursor: default; }
+.klar-check--readonly:hover .klar-check__box[aria-checked="false"],
+.klar-check--readonly:not(.klar-check--indeterminate):hover .klar-check__input:not(:checked) + .klar-check__box { border-color: var(--klar-gray-400); }
 
 .klar-check__box[aria-checked="true"] {
   background: var(--klar-primary);

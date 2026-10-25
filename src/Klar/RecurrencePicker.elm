@@ -1235,91 +1235,6 @@ everyWords lang frequency number =
                 }
 
 
-frequencyKey : Frequency -> String
-frequencyKey frequency =
-    case frequency of
-        Once ->
-            "once"
-
-        Daily ->
-            "daily"
-
-        Weekly ->
-            "weekly"
-
-        Monthly ->
-            "monthly"
-
-        Yearly ->
-            "yearly"
-
-
-frequencyOfKey : String -> Maybe Frequency
-frequencyOfKey key =
-    List.filter (\frequency -> frequencyKey frequency == key) [ Once, Daily, Weekly, Monthly, Yearly ]
-        |> List.head
-
-
-byKey : By -> String
-byKey by =
-    case by of
-        ByDay ->
-            "day"
-
-        ByNth ->
-            "nth"
-
-        ByLast ->
-            "last"
-
-        ByLastDay ->
-            "last-day"
-
-        Own _ ->
-            "own"
-
-
-byOfKey : Inner -> String -> Maybe By
-byOfKey s key =
-    List.filter (\by -> byKey by == key) (choices s)
-        |> List.head
-
-
-endKey : EndKind -> String
-endKey end =
-    case end of
-        EndNever ->
-            "never"
-
-        EndAfter ->
-            "after"
-
-        EndOn ->
-            "on"
-
-
-endOfKey : String -> Maybe EndKind
-endOfKey key =
-    List.filter (\end -> endKey end == key) [ EndNever, EndAfter, EndOn ]
-        |> List.head
-
-
-missingKey : Spec.Missing -> String
-missingKey missing =
-    case missing of
-        Spec.UseLastDay ->
-            "last"
-
-        Spec.Skip ->
-            "skip"
-
-
-missingOfKey : String -> Maybe Spec.Missing
-missingOfKey key =
-    List.filter (\missing -> missingKey missing == key) [ Spec.UseLastDay, Spec.Skip ]
-        |> List.head
-
-
 {-| The words of one choice of the day of a monthly or yearly rule.
 -}
 anchorLabel : Locale -> Frequency -> Anchor -> String
@@ -1636,27 +1551,17 @@ viewFrequency toMsg config text s =
         , SegmentedControl.label text.frequency
         , SegmentedControl.labelHidden
         , SegmentedControl.options
-            [ SegmentedControl.option (frequencyKey Once) text.once
-            , SegmentedControl.option (frequencyKey Daily) text.daily
-            , SegmentedControl.option (frequencyKey Weekly) text.weekly
-            , SegmentedControl.option (frequencyKey Monthly) text.monthly
-            , SegmentedControl.option (frequencyKey Yearly) text.yearly
+            [ SegmentedControl.option Once text.once
+            , SegmentedControl.option Daily text.daily
+            , SegmentedControl.option Weekly text.weekly
+            , SegmentedControl.option Monthly text.monthly
+            , SegmentedControl.option Yearly text.yearly
             ]
-        , SegmentedControl.selected (frequencyKey s.frequency)
-        , SegmentedControl.onChange (\key -> toMsg (messageOf FrequencyChosen (frequencyOfKey key)))
+        , SegmentedControl.selected s.frequency
+        , SegmentedControl.onChange (FrequencyChosen >> toMsg)
         , SegmentedControl.size config.size
         , SegmentedControl.disabled config.disabled
         ]
-
-
-messageOf : (a -> Msg) -> Maybe a -> Msg
-messageOf wrap maybe =
-    case maybe of
-        Just found ->
-            wrap found
-
-        Nothing ->
-            Ignored
 
 
 viewInterval : (Msg -> msg) -> Config -> Strings -> Inner -> Html msg
@@ -1729,9 +1634,9 @@ viewBy toMsg config text s =
             [ Radio.id (s.id ++ "-by")
             , Radio.label text.repeatOn
             , Radio.options
-                (List.map (\by -> Radio.option (byKey by) (anchorLabel config.locale s.frequency (anchorFor s.start by))) (choices s))
-            , Radio.selected (Just (byKey (shownBy s)))
-            , Radio.onChange (\key -> toMsg (messageOf ByChosen (byOfKey s key)))
+                (List.map (\by -> Radio.option by (anchorLabel config.locale s.frequency (anchorFor s.start by))) (choices s))
+            , Radio.selected (Just (shownBy s))
+            , Radio.onChange (ByChosen >> toMsg)
             , Radio.size config.size
             , Radio.disabled config.disabled
             ]
@@ -1760,11 +1665,11 @@ viewMissing toMsg config question s =
             [ Radio.id (s.id ++ "-missing")
             , Radio.label question.legend
             , Radio.options
-                [ Radio.option (missingKey Spec.UseLastDay) question.useLast
-                , Radio.option (missingKey Spec.Skip) question.skip
+                [ Radio.option Spec.UseLastDay question.useLast
+                , Radio.option Spec.Skip question.skip
                 ]
-            , Radio.selected (Just (missingKey s.missing))
-            , Radio.onChange (\key -> toMsg (messageOf MissingChosen (missingOfKey key)))
+            , Radio.selected (Just s.missing)
+            , Radio.onChange (MissingChosen >> toMsg)
             , Radio.horizontal
             , Radio.size config.size
             , Radio.disabled config.disabled
@@ -1781,12 +1686,12 @@ viewEnd toMsg config text s =
             [ Radio.id (s.id ++ "-end")
             , Radio.label text.ends
             , Radio.options
-                [ Radio.option (endKey EndNever) text.never
-                , Radio.option (endKey EndAfter) text.afterCount
-                , Radio.option (endKey EndOn) text.onDate
+                [ Radio.option EndNever text.never
+                , Radio.option EndAfter text.afterCount
+                , Radio.option EndOn text.onDate
                 ]
-            , Radio.selected (Just (endKey s.end))
-            , Radio.onChange (\key -> toMsg (messageOf EndChosen (endOfKey key)))
+            , Radio.selected (Just s.end)
+            , Radio.onChange (EndChosen >> toMsg)
             , Radio.horizontal
             , Radio.size config.size
             , Radio.disabled config.disabled
