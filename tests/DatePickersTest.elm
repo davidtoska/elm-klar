@@ -50,6 +50,7 @@ suite =
         , invalidAndNames
         , rangeTyping
         , presetKeyboard
+        , rangeName
         ]
 
 
@@ -881,3 +882,18 @@ presetKeyboard =
                     |> Event.toResult
                     |> Expect.err
         ]
+
+
+rangeName : Test
+rangeName =
+    test "name gives the period's inputs <name>-from and <name>-to" <|
+        \_ ->
+            let
+                html =
+                    DateRangePicker.view identity [ DateRangePicker.name "period" ] (DateRangePicker.init "report")
+                        |> Query.fromHtml
+            in
+            allOf
+                [ html |> Query.find [ Selector.id "report-from" ] |> Query.has [ Selector.attribute (Attr.name "period-from") ]
+                , html |> Query.find [ Selector.id "report-to" ] |> Query.has [ Selector.attribute (Attr.name "period-to") ]
+                ]

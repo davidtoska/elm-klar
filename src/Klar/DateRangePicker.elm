@@ -7,7 +7,7 @@ module Klar.DateRangePicker exposing
     , Attribute, today, min, max, maxRangeDays, disabledWhen
     , markers, weekNumbers, alignEnd
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , placeholder, size, locale, disabled, readOnly, clearable
+    , placeholder, size, locale, disabled, readOnly, clearable, name
     )
 
 {-| A period field: a from date and a to date in one control, with one calendar
@@ -141,7 +141,7 @@ text comes from `locale`; the default is English.
 
 # Look and behavior
 
-@docs placeholder, size, locale, disabled, readOnly, clearable
+@docs placeholder, size, locale, disabled, readOnly, clearable, name
 
 -}
 
@@ -789,6 +789,16 @@ apply start finish s =
     )
 
 
+sideSuffix : Side -> String
+sideSuffix side =
+    case side of
+        FromSide ->
+            "-from"
+
+        ToSide ->
+            "-to"
+
+
 fromId : String -> String
 fromId id =
     id ++ "-from"
@@ -830,6 +840,7 @@ type Preset
 type alias Config =
     { field : Field.Config
     , placeholder : Maybe String
+    , name : Maybe String
     , disabled : Bool
     , readOnly : Bool
     , clearable : Bool
@@ -852,6 +863,7 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
         , placeholder = Nothing
+        , name = Nothing
         , disabled = False
         , readOnly = False
         , clearable = False
@@ -949,6 +961,15 @@ locale, `yyyy-mm-dd` in English.
 placeholder : String -> Attribute msg
 placeholder given =
     Attribute (\config -> { config | placeholder = Just given })
+
+
+{-| The `name` of the two inputs for a plain HTML `form`: `<name>-from` and
+`<name>-to`. The values sent are the texts in the inputs, formatted for the
+locale. Default: none.
+-}
+name : String -> Attribute msg
+name given =
+    Attribute (\config -> { config | name = Just given })
 
 
 {-| Disables the field and its calendar button: the two inputs cannot be focused
@@ -1107,8 +1128,8 @@ nothing is left or what is left is longer than `maxRangeDays`.
 
 -}
 preset : String -> Date -> Date -> Preset
-preset name start finish =
-    Preset { label = name, from = Util.earlier start finish, to = Util.later start finish }
+preset labelText start finish =
+    Preset { label = labelText, from = Util.earlier start finish, to = Util.later start finish }
 
 
 {-| No list of quick choices: only the calendar is shown.
@@ -1472,6 +1493,7 @@ view toMsg attributes (State s) =
                        , Attr.type_ "text"
                        , Attr.value shown
                        , Attr.placeholder placeholderText
+                       , Internal.attrMaybe (\given -> Attr.name (given ++ sideSuffix side)) config.name
                        , Attr.disabled config.disabled
                        , Attr.readonly config.readOnly
                        , Attr.attribute "autocomplete" "off"

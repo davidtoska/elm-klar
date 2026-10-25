@@ -70,6 +70,7 @@ locale : Locale.Locale -> Attribute msg
 disabled : Bool -> Attribute msg
 readOnly : Bool -> Attribute msg
 clearable : Attribute msg
+name : String -> Attribute msg
 ```
 
 ## Documentation
@@ -680,3 +681,13 @@ clearable : Attribute msg
 Shows a small × button in the field while one of the inputs has text; it
 empties both inputs and puts the focus back in the first. The button is not in
 the tab order, and its accessible name is "Clear field". Default: no button.
+
+### `name`
+
+```elm
+name : String -> Attribute msg
+```
+
+The `name` of the two inputs for a plain HTML `form`: `<name>-from` and
+`<name>-to`. The values sent are the texts in the inputs, formatted for the
+locale. Default: none.
