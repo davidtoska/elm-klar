@@ -1093,7 +1093,7 @@ view toMsg attributes ((State state) as current) =
     in
     -- Always wrapped: an error that appears while the list is open must not
     -- rebuild the field and take the focus out of the search box.
-    Field.viewStable field
+    Field.view field
         (Html.div
             [ Internal.cls
                 [ "klar-anchor"
