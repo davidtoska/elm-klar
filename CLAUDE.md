@@ -79,7 +79,9 @@ file, not a heredoc; Elm reports compile errors one module at a time.
    name ids that exist.
 5. **Every component that shows remote data has every state**: loading, failed (with retry),
    empty, data, refreshing and old (`Remote.Kept`, settled with `Klar.Internal.Freshness`).
-   Never add an attribute for "stale" or "refreshing": it comes from the `Remote`.
+   Never add an attribute for "stale" or "refreshing": it comes from the `Remote`. The data
+   is drawn inside `Freshness.wrap` whatever its freshness (the same elements fresh, refreshing
+   and old, so focus survives a refresh), and the root is `Freshness.region` in every state.
 6. **Text** comes from `Klar.Locale` (`Locale.pick` on an `{ en, nb }` record), never
    hard-wired; every component with built-in text has a `locale` attribute. Never `case` on a
    locale.

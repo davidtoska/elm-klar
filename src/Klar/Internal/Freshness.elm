@@ -163,11 +163,20 @@ wrap place config attributes freshness content =
 {-| The root of a component that shows remote data, the same element in every state
 (loading, failed, data): it carries the component's id and `tabindex` -1, so that
 `Klar.focus id` after a Try again, whose button goes away with the failure, lands on
-the component and not on `body`. The component's own classes and attributes go in the
-list; `wrap` goes inside it, around the data.
+the component and not on `body`. Its first child is a polite live region that is
+always there, with the text the component gives for the state (`"Loading events"`
+while loading, `""` once the data is there), so the change is announced; a live region
+that comes in together with its text often is not. The component's own classes and
+attributes go in the list; `wrap` goes inside it, around the data.
 
     Freshness.region config.id
         [ Internal.cls [ "klar-timeline" ] ]
+        (if Freshness.waiting remote then
+            t.loadingEvents
+
+         else
+            ""
+        )
         (case Freshness.settle remote of
             ( Remote.Loaded events, freshness ) ->
                 [ Freshness.wrap Freshness.InPage noticeConfig [] freshness (viewEvents events) ]
@@ -180,9 +189,12 @@ list; `wrap` goes inside it, around the data.
         )
 
 -}
-region : String -> List (Html.Attribute msg) -> List (Html msg) -> Html msg
-region id attributes children =
-    Html.div (Attr.id id :: Attr.tabindex -1 :: Internal.cls [ "klar-region" ] :: attributes) children
+region : String -> List (Html.Attribute msg) -> String -> List (Html msg) -> Html msg
+region id attributes spoken children =
+    Html.div (Attr.id id :: Attr.tabindex -1 :: Internal.cls [ "klar-region" ] :: attributes)
+        (Html.span [ Internal.cls [ "klar-sr-only" ], Attr.attribute "role" "status" ] [ Html.text spoken ]
+            :: children
+        )
 
 
 {-| The marker in the page on its own, for a component that draws the box around its

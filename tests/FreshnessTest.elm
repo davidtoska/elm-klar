@@ -131,9 +131,26 @@ suite =
         , describe "region"
             [ test "is the root with the id, which focus can reach from a retry" <|
                 \_ ->
-                    Freshness.region "orders" [ Attr.class "klar-list" ] [ Html.text "Loading" ]
+                    Freshness.region "orders" [ Attr.class "klar-list" ] "" [ Html.text "Order 1" ]
                         |> Query.fromHtml
                         |> Query.has [ Selector.id "orders", Selector.attribute (Attr.tabindex -1), Selector.class "klar-region", Selector.class "klar-list" ]
+            , test "has a live region first, whose text is the component's for the state" <|
+                \_ ->
+                    Expect.all
+                        [ \_ ->
+                            Freshness.region "orders" [] "Loading orders" [ Html.text "skeleton" ]
+                                |> Query.fromHtml
+                                |> Query.children []
+                                |> Query.first
+                                |> Query.has [ status, Selector.class "klar-sr-only", Selector.exactText "Loading orders" ]
+                        , \_ ->
+                            Freshness.region "orders" [] "" [ Html.text "Order 1" ]
+                                |> Query.fromHtml
+                                |> Query.children []
+                                |> Query.first
+                                |> Query.has [ status, Selector.exactText "" ]
+                        ]
+                        ()
             ]
         , describe "the retry button"
             [ test "in the page it is in the Tab order" <|
