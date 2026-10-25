@@ -6977,12 +6977,17 @@ viewRow ctx index row key expanded =
                         , Attr.type_ "button"
                         , Attr.tabindex -1
                         , Attr.disabled disabled
-                        , Attr.attribute "aria-expanded"
-                            (if expanded then
-                                "true"
 
-                             else
-                                "false"
+                        -- as on the row: a disabled row cannot open its details, so
+                        -- its button does not say they are closed (only that they are open)
+                        , Internal.attrIf (expanded || not disabled)
+                            (Attr.attribute "aria-expanded"
+                                (if expanded then
+                                    "true"
+
+                                 else
+                                    "false"
+                                )
                             )
                         , Internal.attrIf expanded (Attr.attribute "aria-controls" (detailDomId model.id index))
                         , Attr.attribute "aria-label"
@@ -7025,26 +7030,41 @@ viewRow ctx index row key expanded =
 
                                 Nothing ->
                                     Menu.init menuId
+
+                        tabIndexAttrs =
+                            case tabStop of
+                                Just n ->
+                                    [ Attr.tabindex n ]
+
+                                Nothing ->
+                                    []
                     in
                     [ Html.td [ Internal.cls [ "klar-table__td", "klar-table__td--menu", "klar-table__td--control" ], gridPart ctx "gridcell" ]
                         [ if List.isEmpty menuItems then
                             Html.text ""
 
+                          else if disabled then
+                            -- The trigger of a menu tells only when it is clicked whether it
+                            -- is unavailable. A disabled row gets the same button without the
+                            -- menu: disabled, it sends nothing and has nothing to open.
+                            Html.div [ Internal.cls [ "klar-anchor", "klar-menu" ] ]
+                                [ Button.iconOnly
+                                    (Button.ghost
+                                        :: Button.small
+                                        :: Button.disabled True
+                                        :: Button.id (Menu.triggerId menuState)
+                                        :: Button.htmlAttrs (Attr.attribute "aria-haspopup" "menu" :: tabIndexAttrs)
+                                        :: []
+                                    )
+                                    Icon.moreVertical
+                                    (t.rowActions name)
+                                ]
+
                           else
                             Menu.view (\menuMsg -> ctx.toMsg (RowMenu key menuId fallback menuMsg))
                                 [ Menu.kebab (t.rowActions name)
                                 , Menu.alignEnd
-                                , Menu.trigger
-                                    (Button.small
-                                        :: Button.disabled disabled
-                                        :: (case tabStop of
-                                                Just n ->
-                                                    [ Button.htmlAttrs [ Attr.tabindex n ] ]
-
-                                                Nothing ->
-                                                    []
-                                           )
-                                    )
+                                , Menu.trigger [ Button.small, Button.htmlAttrs tabIndexAttrs ]
                                 , Menu.items menuItems
                                 ]
                                 menuState
