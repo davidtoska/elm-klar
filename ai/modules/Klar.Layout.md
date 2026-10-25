@@ -402,11 +402,13 @@ columns next to two narrow tiles. It is at least 1 and never more than the colum
 the grid, so `columnSpan 4` in a grid of `columns 3` takes the whole row. A responsive
 grid (`minColumn`) changes its number of columns with the width, so there every
 element takes one column. Give it to the layout that is the child of the grid, around
-a card if the cell is a card:
+a card if the cell is a card, or to a grid inside the grid (a block of tiles over two
+columns; its own `columns` are for what is inside it):
 
     Layout.grid [ Layout.columns 3 ]
         [ Layout.stack [ Layout.columnSpan 2 ] [ salesChartCard ]
         , ordersStatCard
+        , Layout.grid [ Layout.columnSpan 2, Layout.columns 2 ] [ revenueTile, marginTile ]
         ]
 
 ## Names
