@@ -49,7 +49,7 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
 
     personOf : UserId -> Avatar.Entry
     personOf id =
-        { name = User.name id, image = User.pictureUrl id }
+        Avatar.entry (User.name id)
 
 Use it on the page of an invoice, a credit note, a purchase request or a change
 that needs sign-off. It shows the process; it does not run it: your server
@@ -149,6 +149,7 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Klar.Avatar as Avatar
+import Klar.Avatar.Entry as AvatarEntry
 import Klar.Badge as Badge
 import Klar.Button as Button
 import Klar.Date as Date
@@ -1251,11 +1252,11 @@ viewPerson env (Approver who decision) =
         [ Avatar.view
             (Avatar.extraSmall
                 :: Avatar.decorative
-                :: List.filterMap identity [ Maybe.map Avatar.image entry.image ]
+                :: List.filterMap identity [ Maybe.map Avatar.image (AvatarEntry.image entry) ]
             )
-            entry.name
-        , Html.span [ Internal.cls [ "klar-approval__name" ], Attr.title entry.name ]
-            [ Html.text entry.name
+            (AvatarEntry.name entry)
+        , Html.span [ Internal.cls [ "klar-approval__name" ], Attr.title (AvatarEntry.name entry) ]
+            [ Html.text (AvatarEntry.name entry)
             , Internal.viewIf isViewer (Html.span [ Internal.cls [ "klar-approval__you" ] ] [ Html.text (" (" ++ t.you ++ ")") ])
             ]
         , Html.span [ Internal.cls [ "klar-approval__decision" ] ]

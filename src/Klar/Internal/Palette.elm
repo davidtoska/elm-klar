@@ -1,9 +1,12 @@
 module Klar.Internal.Palette exposing
     ( Color
     , Spec
+    , avatarPairs
+    , chartColors
     , contrast
     , css
     , declarations
+    , hueDistance
     , scale
     , specs
     )
@@ -19,6 +22,11 @@ point at the scales, so a new scale restyles every component.
 
 The lightness tables are chosen so that the pairs of the library keep WCAG AA in
 every theme; `tests/ThemeTest.elm` checks it for all of them.
+
+The avatar colors and the categorical chart colors are computed here too, per
+theme and mode (`avatarPairs`, `chartColors`), so that they keep away from the
+accent of the theme and keep their contrast; `tests/PaletteTest.elm` checks them.
+The light mode of the first theme is the stylesheet's own (`Klar.Internal.Css.Display`).
 
 -}
 
@@ -384,19 +392,217 @@ declarations spec dark =
                    , ( "--klar-focus-ring", ring accent500 0.4 )
                    , ( "--klar-focus-ring-danger", "0 0 0 3px hsla(5, 62%, 60%, 0.4)" )
                    , ( "--klar-chart-hover", "rgba(255, 255, 255, 0.06)" )
-                   , ( "--klar-avatar-3-bg", "hsl(187 35% 22%)" )
-                   , ( "--klar-avatar-3-fg", "hsl(187 45% 80%)" )
-                   , ( "--klar-avatar-4-bg", "hsl(232 35% 25%)" )
-                   , ( "--klar-avatar-4-fg", "hsl(232 60% 85%)" )
-                   , ( "--klar-avatar-5-bg", "hsl(45 30% 22%)" )
-                   , ( "--klar-avatar-5-fg", "hsl(45 50% 80%)" )
-                   , ( "--klar-avatar-7-bg", "hsl(350 30% 24%)" )
-                   , ( "--klar-avatar-7-fg", "hsl(350 55% 85%)" )
                    , ( "color-scheme", "dark" )
                    ]
+                ++ categorical spec dark
 
         else
-            colors ++ [ ( "--klar-focus-ring", ring accent500 0.25 ) ]
+            colors ++ [ ( "--klar-focus-ring", ring accent500 0.25 ) ] ++ categorical spec dark
+
+
+{-| The avatar and chart tokens of a theme in one mode.
+-}
+categorical : Spec -> Bool -> List ( String, String )
+categorical spec dark =
+    List.concat
+        (List.indexedMap
+            (\i ( ground, ink ) ->
+                [ ( "--klar-avatar-" ++ String.fromInt i ++ "-bg", hsl ground )
+                , ( "--klar-avatar-" ++ String.fromInt i ++ "-fg", hsl ink )
+                ]
+            )
+            (avatarPairs spec dark)
+        )
+        ++ List.map (\( name, c ) -> ( "--klar-" ++ name, hsl c )) (chartColors spec dark)
+
+
+
+-- AVATARS
+
+
+{-| The eight avatar colors of a theme in one mode, as (background, ink), in the
+order of `--klar-avatar-0` to `--klar-avatar-7`. Slot 0 is the accent (a calm blue
+when the accent has hardly any color, as in Graphite), slot 1 the neutral gray,
+and slots 2 to 7 are fixed hues (green, cyan, indigo, sand, amber, rose). A hue
+that is closer than 40 degrees to the accent is replaced by one of a reserve
+(violet, plum, olive, sky, terracotta, pink) that is far enough from the accent
+and from the hues already taken, so that no two people share a look with the
+accent. The ink is moved away from the background until the pair has 4.6 : 1.
+-}
+avatarPairs : Spec -> Bool -> List ( Color, Color )
+avatarPairs spec dark =
+    let
+        first =
+            avatarAccent spec
+
+        chosen =
+            List.foldl
+                (\candidate taken ->
+                    if hueDistance candidate.h first.h >= 40 then
+                        taken ++ [ candidate ]
+
+                    else
+                        taken
+                            ++ (avatarReserve
+                                    |> List.filter
+                                        (\r ->
+                                            hueDistance r.h first.h
+                                                >= 40
+                                                && List.all (\t -> hueDistance r.h t.h >= 25) taken
+                                                && not (List.member r taken)
+                                        )
+                                    |> List.take 1
+                               )
+                )
+                []
+                avatarHues
+
+        neutral =
+            { h = spec.neutralHue, s = min 18 spec.neutralSat }
+    in
+    List.map (avatarPair spec.strong dark) (first :: neutral :: chosen)
+
+
+type alias Hue =
+    { h : Float, s : Float }
+
+
+avatarAccent : Spec -> Hue
+avatarAccent spec =
+    if spec.accentSat < 0.5 then
+        { h = 212, s = 45 }
+
+    else
+        { h = spec.accentHue, s = 55 }
+
+
+avatarHues : List Hue
+avatarHues =
+    [ { h = 150, s = 40 }
+    , { h = 187, s = 45 }
+    , { h = 232, s = 45 }
+    , { h = 45, s = 35 }
+    , { h = 32, s = 80 }
+    , { h = 352, s = 45 }
+    ]
+
+
+avatarReserve : List Hue
+avatarReserve =
+    [ { h = 275, s = 40 }
+    , { h = 310, s = 35 }
+    , { h = 95, s = 35 }
+    , { h = 200, s = 50 }
+    , { h = 15, s = 50 }
+    , { h = 330, s = 45 }
+    ]
+
+
+avatarPair : Bool -> Bool -> Hue -> ( Color, Color )
+avatarPair strong dark hue =
+    let
+        ( groundL, inkL ) =
+            case ( strong, dark ) of
+                ( False, False ) ->
+                    ( 91, 32 )
+
+                ( False, True ) ->
+                    ( 24, 82 )
+
+                ( True, False ) ->
+                    ( 93, 22 )
+
+                ( True, True ) ->
+                    ( 14, 88 )
+
+        ground =
+            { h = hue.h
+            , s =
+                if dark then
+                    hue.s * 0.7
+
+                else
+                    hue.s
+            , l = groundL
+            }
+
+        step =
+            if dark then
+                1
+
+            else
+                -1
+
+        fit ink =
+            if contrast ink ground >= 4.6 || ink.l <= 1 || ink.l >= 99 then
+                ink
+
+            else
+                fit { ink | l = ink.l + step }
+    in
+    ( ground, fit { h = hue.h, s = min 70 (hue.s * 1.2), l = inkL } )
+
+
+{-| How far apart two hues are on the color wheel, from 0 to 180 degrees.
+-}
+hueDistance : Float -> Float -> Float
+hueDistance a b =
+    let
+        d =
+            abs (a - b) - 360 * toFloat (floor (abs (a - b) / 360))
+    in
+    min d (360 - d)
+
+
+
+-- CHARTS
+
+
+{-| The categorical chart colors a theme sets, by token name without the
+`--klar-` (`chart-1` ...); the others stay as the stylesheet has them. The
+stylesheet draws slots 1, 3 and 7 from the accent scale, which is gray when the
+accent has hardly any color (Graphite, Slate): those themes get a calm blue for
+them instead, so that five series are not five grays. Slot 2 is green, which is
+too close to an accent within 40 degrees of it (Teal): those themes get a violet
+for it instead.
+-}
+chartColors : Spec -> Bool -> List ( String, Color )
+chartColors spec dark =
+    let
+        accentSlots =
+            if spec.accentSat < 0.5 then
+                let
+                    blue step =
+                        scale { spec | accentHue = 212, accentSat = 1 } dark
+                            |> List.filter (\( name, _ ) -> name == "blue-" ++ step)
+                            |> List.map Tuple.second
+                in
+                List.map2 (\slot c -> ( slot, c ))
+                    [ "chart-1", "chart-3", "chart-7" ]
+                    (List.concatMap blue [ "600", "400", "300" ])
+
+            else
+                []
+
+        greenSlot =
+            if hueDistance spec.accentHue 150 < 40 then
+                [ ( "chart-2"
+                  , { h = 275
+                    , s = 50
+                    , l =
+                        if dark then
+                            68
+
+                        else
+                            52
+                    }
+                  )
+                ]
+
+            else
+                []
+    in
+    accentSlots ++ greenSlot
 
 
 {-| One `:root` rule from declarations, or nothing when there are none.

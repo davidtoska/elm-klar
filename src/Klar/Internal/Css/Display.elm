@@ -110,7 +110,7 @@ css =
 .klar-avatar--c5 { --_bg: var(--klar-avatar-5-bg); --_fg: var(--klar-avatar-5-fg); }
 .klar-avatar--c6 { --_bg: var(--klar-avatar-6-bg); --_fg: var(--klar-avatar-6-fg); }
 .klar-avatar--c7 { --_bg: var(--klar-avatar-7-bg); --_fg: var(--klar-avatar-7-fg); }
-.klar-avatar--neutral { --_bg: var(--klar-gray-100); --_fg: var(--klar-gray-500); }
+.klar-avatar--neutral { --_bg: var(--klar-gray-100); --_fg: var(--klar-gray-600); }
 
 .klar-avatar__initials,
 .klar-avatar__glyph {
@@ -293,10 +293,20 @@ css =
   to { transform: rotate(360deg); }
 }
 
+/* Reduced motion, the same for every loading indicator of Klar (see the spinner):
+   a running bar takes 3.2s a round, what turns takes 1.6s, stripes stand still. */
 @media (prefers-reduced-motion: reduce) {
   .klar-progress--striped .klar-progress__bar { animation: none; }
   .klar-progress--indeterminate .klar-progress__bar { animation-duration: 3.2s; }
   .klar-progress--indeterminate .klar-progress__segment { --_wave: 3.2s; }
+  .klar-progress--indeterminate.klar-progress-ring .klar-progress-ring__arc { animation-duration: 1.6s; }
+}
+
+/* High contrast paints the track as the page: an outline keeps the length of the
+   bar readable (the bar, the steps and the arc keep their colors, below). */
+@media (forced-colors: active) {
+  .klar-progress__track { outline: 1px solid CanvasText; }
+  .klar-progress__segment:not(.klar-progress__segment--filled) { outline: 1px solid CanvasText; outline-offset: -1px; }
 }
 
 /* Ring: a conic-gradient arc masked into a ring, text in the middle. */

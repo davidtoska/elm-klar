@@ -108,7 +108,7 @@ Do not use when: only a history of what happened is shown, use `Klar.Timeline`, 
 
     personOf : UserId -> Avatar.Entry
     personOf id =
-        { name = User.name id, image = User.pictureUrl id }
+        Avatar.entry (User.name id)
 
 Use it on the page of an invoice, a credit note, a purchase request or a change
 that needs sign-off. It shows the process; it does not run it: your server

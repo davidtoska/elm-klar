@@ -296,7 +296,7 @@ containers =
             \_ ->
                 Alert.stale [] Retry [ "orders", "figures" ]
                     |> Query.fromHtml
-                    |> Query.has [ text "orders, figures", text "Try again" ]
+                    |> Query.has [ text "orders and figures", text "Try again" ]
         , test "the page notice is empty when nothing is old" <|
             \_ -> Alert.stale [] Retry [] |> Query.fromHtml |> Query.hasNot [ Selector.class "klar-alert" ]
         ]

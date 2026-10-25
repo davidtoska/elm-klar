@@ -1,38 +1,42 @@
 module Klar.Skeleton exposing
-    ( line, lines, paragraph
+    ( line, lines
     , block, circle
     )
 
 {-| Shimmering placeholders that stand in for content while it loads.
 
 Use when: you can sketch what the content will look like (a title, a few lines, a picture) while it loads.
-Do not use when: you cannot predict the shape of the content (use `Klar.Spinner`).
+Do not use when: you cannot predict the shape of the content (use `Klar.Spinner`), or the region shows a `Remote` (use `Klar.RemoteView`, which draws a skeleton, says "Loading" to screen readers and keeps old data on the screen).
 
     import Klar.Layout as Layout
     import Klar.Skeleton as Skeleton
+    import Klar.Spinner as Spinner
 
     Layout.stack [ Layout.gap 2 ]
-        [ Skeleton.line 40
-        , Skeleton.paragraph 3
+        [ Spinner.view [ Spinner.label "Loading the order", Spinner.loading model.loading ]
+        , Skeleton.line 40
+        , Skeleton.lines 3
         , Skeleton.block 120
         ]
 
 Use a skeleton when you can sketch what the content will look like: a title and
 a few lines of text, a picture, an avatar. When you cannot, show a
-[Klar.Spinner](Klar-Spinner) instead. [Klar.Table](Klar-Table) and the other
-components that load remote data draw their own skeletons.
+[Klar.Spinner](Klar-Spinner) instead. [Klar.Table](Klar-Table),
+[Klar.RemoteView](Klar-RemoteView) and the other components that load remote
+data draw their own skeletons.
 
 Widths are percentages of the parent (`line 60` is 60% wide) and heights and
 diameters are pixels, so a skeleton fills the space it is put in. Skeletons are
 hidden from screen readers (`aria-hidden`), so the area that shows them should
-say that content is on its way, for example with `aria-busy="true"` or a
-spinner that has a label. The shimmer stands still for users who prefer reduced
-motion.
+say that content is on its way: a labelled spinner that stays in the page (as
+above), or `aria-busy="true"` on the area. The shimmer stands still for users
+who prefer reduced motion, and in Windows high contrast every placeholder keeps
+an outline.
 
 
 # Text
 
-@docs line, lines, paragraph
+@docs line, lines
 
 
 # Shapes
@@ -62,29 +66,50 @@ line percent =
         []
 
 
-{-| This many lines of text, one below the other, with the last one shorter
-(60% wide) when there is more than one. There is always at least one line.
+{-| A paragraph of this many lines of text, one below the other. Their widths
+vary a little, in the same pattern every time (100%, 94%, 97%, 91% ...), so the
+block reads as text, and the last one is shorter (60% wide) when there is more
+than one. There is always at least one line.
+
+    Skeleton.lines 3
+
 -}
 lines : Int -> Html msg
 lines count =
+    let
+        n =
+            max 1 count
+    in
     Html.div [ Internal.cls [ "klar-skeleton-lines" ], Attr.attribute "aria-hidden" "true" ]
-        (List.range 1 (max 1 count)
+        (List.range 1 n
             |> List.map
                 (\i ->
-                    if i == count && count > 1 then
+                    if i == n && n > 1 then
                         line 60
 
                     else
-                        line 100
+                        line (widthOf i)
                 )
         )
 
 
-{-| The same as `lines`: a paragraph of this many placeholder lines.
+{-| The width of line `i` of a paragraph: a fixed pattern, so the same paragraph
+looks the same in every render.
 -}
-paragraph : Int -> Html msg
-paragraph =
-    lines
+widthOf : Int -> Int
+widthOf i =
+    case modBy 4 (i - 1) of
+        0 ->
+            100
+
+        1 ->
+            94
+
+        2 ->
+            97
+
+        _ ->
+            91
 
 
 {-| A rectangle as wide as its parent and `height` pixels high, for a picture,

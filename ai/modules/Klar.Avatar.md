@@ -15,7 +15,7 @@ group : List Attribute -> List Entry -> Html msg
 
 -- Look
 type Attribute  -- opaque: no constructors are exposed
-type Status = Online | Away | Busy | Offline
+type Status  -- opaque: no constructors are exposed
 size : Theme.Size -> Attribute
 extraSmall : Attribute
 extraLarge : Attribute
@@ -23,10 +23,15 @@ square : Attribute
 image : String -> Attribute
 icon : Icon.Icon -> Attribute
 status : Status -> Attribute
+online : Status
+away : Status
+busy : Status
+offline : Status
 
 -- Groups
-type alias Entry = { name : String, image : Maybe String }
+type alias Entry = Avatar.Entry.Entry
 entry : String -> Entry
+withImage : String -> Entry -> Entry
 maxShown : Int -> Attribute
 
 -- Accessibility and text
@@ -51,13 +56,14 @@ Do not use when: a short text label or status is shown, use `Klar.Badge`.
 
     Avatar.view [] "Ada Lovelace"
 
-    Avatar.view [ Avatar.size Large, Avatar.status Avatar.Online ] "Grace Hopper"
+    Avatar.view [ Avatar.size Large, Avatar.status Avatar.online ] "Grace Hopper"
 
     Avatar.view [ Avatar.image "/images/grace.jpg" ] "Grace Hopper"
 
     Avatar.view [ Avatar.icon Icon.server, Avatar.square ] "Order service"
 
-    Avatar.group [ Avatar.maxShown 4 ] (List.map (\person -> Avatar.entry person.name) people)
+    Avatar.group [ Avatar.maxShown 4 ]
+        (List.map (\person -> Avatar.entry person.name |> Avatar.withImage person.picture) people)
 
 Without an image the avatar shows the initials of the name on a muted
 background. The color is derived from the name, so the same name has the same
@@ -69,10 +75,10 @@ status if there is one ("Grace Hopper, online"). When the name is written out
 right next to the avatar, add `decorative` so that it is not read twice.
 
 `group` shows several avatars side by side, overlapping, and folds the ones that
-do not fit into a "+N" bubble. It takes a list of entries, made with `entry` or
-written as records with a name and an optional picture. In a group the `image`
-and `status` attributes have no effect: every entry brings its own picture, and
-an entry has no status (that is for single avatars).
+do not fit into a "+N" bubble. It takes a list of entries, made with `entry` and
+given a picture with `withImage`. In a group the `image` and `status`
+attributes have no effect: every entry brings its own picture, and an entry has
+no status (that is for single avatars).
 
 ## Views
 
@@ -83,11 +89,12 @@ view : List Attribute -> String -> Html msg
 ```
 
 One avatar for the given name: its initials, or the picture or icon you give
-it. The name is also the tooltip and the accessible name. An avatar with a blank
-name and no status has nothing to say, so it is hidden from assistive technology
-like a `decorative` one.
+it. The name is also the tooltip (except on a `decorative` avatar, whose name is
+written next to it) and the accessible name. An avatar with a blank name and no
+status has nothing to say, so it is hidden from assistive technology like a
+`decorative` one.
 
-    Avatar.view [ Avatar.status Avatar.Away ] "Ada Lovelace"
+    Avatar.view [ Avatar.status Avatar.away ] "Ada Lovelace"
 
 ### `group`
 
@@ -97,14 +104,15 @@ group : List Attribute -> List Entry -> Html msg
 
 Overlapping avatars for a list of entries, with a "+N" bubble for those that
 do not fit (see `maxShown`). The tooltip and the accessible name of the bubble
-list the names that are hidden, up to 12 of them. The group as a whole has an
+list the names that are hidden, up to 12 of them; the keyboard reaches the bubble
+(one Tab stop), and its tooltip shows on focus too. The group as a whole has an
 accessible name that tells how many avatars it holds, such as "3 avatars". An
 empty list shows nothing.
 
     Avatar.group [ Avatar.maxShown 3 ]
         [ Avatar.entry "Ada Lovelace"
         , Avatar.entry "Grace Hopper"
-        , { name = "Alan Turing", image = Just "/images/alan.jpg" }
+        , Avatar.entry "Alan Turing" |> Avatar.withImage "/images/alan.jpg"
         , Avatar.entry "Edsger Dijkstra"
         ]
 
@@ -122,12 +130,13 @@ to `view` or `group`; later attributes win over earlier ones.
 ### `Status`
 
 ```elm
-type Status = Online | Away | Busy | Offline
+type Status  -- opaque: no constructors are exposed
 ```
 
 Whether a person or a system is available, shown as a small colored dot in
-the corner of the avatar: `Online` (green), `Away` (amber), `Busy` (red) or
-`Offline` (gray). Pass it to `status`.
+the corner of the avatar and added to its accessible name: `online` (green),
+`away` (amber), `busy` (red) or `offline` (gray). Pass one to `status`. The type
+is opaque, so that statuses can be added in a later version.
 
 ### `size`
 
@@ -191,19 +200,49 @@ status : Status -> Attribute
 A small dot in the corner that shows the status. The status is also added to
 the accessible name ("Grace Hopper, online"). It has no effect in a `group`.
 
+### `online`
+
+```elm
+online : Status
+```
+
+Available: a green dot, "online" for screen readers.
+
+### `away`
+
+```elm
+away : Status
+```
+
+Away for a while: an amber dot, "away" for screen readers.
+
+### `busy`
+
+```elm
+busy : Status
+```
+
+Present but not to be disturbed: a red dot, "busy" for screen readers.
+
+### `offline`
+
+```elm
+offline : Status
+```
+
+Not available: a gray dot, "offline" for screen readers.
+
 ## Groups
 
 ### `Entry`
 
 ```elm
-type alias Entry = { name : String, image : Maybe String }
+type alias Entry = Avatar.Entry.Entry
 ```
 
-One entry of an avatar group: a name and the URL of a picture, if there is
-one. Make an entry with `entry`, or write the record yourself to give it a
-picture.
-
-    { name = "Grace Hopper", image = Just "/images/grace.jpg" }
+One entry of an avatar group: a name and, if you give one with `withImage`,
+a picture. The type is opaque, so that an entry can learn more in a later
+version without breaking your code. Make one with `entry`.
 
 ### `entry`
 
@@ -214,6 +253,17 @@ entry : String -> Entry
 An entry for `group` with this name and no picture.
 
     Avatar.entry "Ada Lovelace"
+
+### `withImage`
+
+```elm
+withImage : String -> Entry -> Entry
+```
+
+The URL of the picture of an entry, which covers its initials (they stay
+behind it, so something readable remains if the picture cannot be loaded).
+
+    Avatar.entry "Grace Hopper" |> Avatar.withImage "/images/grace.jpg"
 
 ### `maxShown`
 
@@ -255,10 +305,15 @@ initials : String -> String
 ```
 
 The initials an avatar shows for a name: the first letter of the first and of
-the last word, in capital letters. A single word gives one letter, and a name
-without letters gives "?".
+the last word, in capital letters. Words in brackets ("(Finance)"), the suffixes
+Jr, Sr, II, III and IV, and symbols and emoji do not count. A single word gives
+one letter, and a name without letters gives "?".
 
     Avatar.initials "Ada Lovelace" --> "AL"
+
+    Avatar.initials "Ada Lovelace (Finance)" --> "AL"
+
+    Avatar.initials "Martin Luther King Jr." --> "MK"
 
     Avatar.initials "Warehouse" --> "W"
 

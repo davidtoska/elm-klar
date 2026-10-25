@@ -28,6 +28,7 @@ compact : Attribute msg
 
 -- Accessibility and text
 polite : Attribute msg
+id : String -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 ```
 
@@ -53,13 +54,19 @@ Do not use when: the message should disappear by itself (as `Klar.Toast`).
 
 The tone sets the color and the icon; `Info` is the default. An alert stays
 where you put it until you stop showing it. `onDismiss` adds a close button, but
-it only sends your message: hide the alert in your `update` function. For a
+it only sends your message: hide the alert in your `update` function, and move
+the focus (the close button had it, and it is gone; see `onDismiss`). For a
 message that goes away by itself use [Klar.Toast](Klar.Toast.md).
 
 Errors and warnings use `role="alert"` so screen readers announce them at once,
 even in the middle of a sentence; the other tones use `role="status"`. For a
 message that appears while the user is typing (an "unsaved changes" notice), add
-`Alert.polite`: it waits for a pause.
+`Alert.polite`: it waits for a pause. An alert is announced when it appears, but
+a polite one (`role="status"`) that arrives together with its text is missed by
+some screen readers: a polite region is heard reliably only when its text changes
+while it is on the page. So confirm the result of an action ("The order was
+shipped") with a [Klar.Toast](Klar.Toast.md), whose region stays on the page, and
+keep the alert for what must stay in view.
 
 ## Views
 
@@ -107,9 +114,12 @@ shows nothing.
             ]
         )
 
-The notice is a warning that screen readers announce politely. The attributes
-that make sense here are `locale`, `banner`, `compact` and `onDismiss`; the tone,
-the title, the icon and the actions are set by the notice.
+The notice is a warning that screen readers announce politely, and the names
+are joined as a list in the locale ("orders and figures"). The attributes that
+make sense here are `locale`, `banner`, `compact`, `id` and `onDismiss`; the
+tone, the title, the icon and the actions are set by the notice. When the
+refresh works, the notice goes away with its "Try again" button, which may have
+the keyboard focus: move it to the data that came back (`Klar.focus`).
 
 ## Content
 
@@ -167,6 +177,15 @@ onDismiss : msg -> Attribute msg
 
 Shows a close button that sends this message. The alert does not hide
 itself: stop showing it when the message arrives in your `update` function.
+The button had the keyboard focus, and it goes away with the alert, so move the
+focus to the next sensible place in the same branch (`Klar.focus`), or it falls
+to the page:
+
+    AlertDismissed ->
+        ( { model | showAlert = False }, Klar.focus "order-form" NoOp )
+
+The button is a 24px target named "Close", or "Close: " and the `title` when
+the alert has one, so that several alerts on a page can be told apart.
 
 ## Look
 
@@ -200,11 +219,24 @@ Announce it politely (`role="status"`) even for a warning or an error, so
 a screen reader finishes what it is reading first. Use it for notices that show
 up by themselves while the user works, never for the result of an action.
 
+### `id`
+
+```elm
+id : String -> Attribute msg
+```
+
+The DOM id of the alert. The alert can then take the focus (`Klar.focus`),
+for example the summary of the errors after a failed submit, and a field can
+point at it with `aria-describedby`. There is no id by default.
+
+    Alert.view [ Alert.tone Danger, Alert.id "save-error" ] "The order could not be saved."
+
 ### `locale`
 
 ```elm
 locale : Locale.Locale -> Attribute msg
 ```
 
-The language of the built-in text, which is the accessible name of the close
-button ("Close" in English). The default is `Locale.default`, which is English.
+The language of the built-in text: the accessible name of the close button
+("Close", or "Close: " and the title in English) and the texts of `stale`. The
+default is `Locale.default`, which is English.

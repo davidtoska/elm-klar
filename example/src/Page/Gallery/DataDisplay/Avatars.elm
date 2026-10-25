@@ -29,7 +29,7 @@ view locale =
             , description = Just "The status dot has a text version for screen readers. An avatar without a name shows a question mark. When the name is written next to the avatar, add decorative so that it is not read twice."
             , code = Just """Avatar.view [] "Ada Lovelace"
 
-Avatar.view [ Avatar.size Large, Avatar.status Avatar.Online ] "Grace Hopper"
+Avatar.view [ Avatar.size Large, Avatar.status Avatar.online ] "Grace Hopper"
 
 Avatar.view [ Avatar.image url ] "Alan Turing"
 
@@ -44,10 +44,10 @@ Layout.row [] [ Avatar.view [ Avatar.decorative ] name, Text.strong name ]"""
                 , labelled "30" (Avatar.view [] "Alan Turing")
                 , labelled "40" (Avatar.view [ Avatar.size Large ] "Margaret Hamilton")
                 , labelled "64" (Avatar.view [ Avatar.extraLarge ] "Zoë Ångström")
-                , labelled "Online" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.Online, Avatar.locale locale ] "Edsger Dijkstra")
-                , labelled "Away" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.Away, Avatar.locale locale ] "Barbara Liskov")
-                , labelled "Busy" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.Busy, Avatar.locale locale ] "Donald Knuth")
-                , labelled "Offline" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.Offline, Avatar.locale locale ] "Katherine Johnson")
+                , labelled "Online" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.online, Avatar.locale locale ] "Edsger Dijkstra")
+                , labelled "Away" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.away, Avatar.locale locale ] "Barbara Liskov")
+                , labelled "Busy" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.busy, Avatar.locale locale ] "Donald Knuth")
+                , labelled "Offline" (Avatar.view [ Avatar.size Large, Avatar.status Avatar.offline, Avatar.locale locale ] "Katherine Johnson")
                 , labelled "Picture" (Avatar.view [ Avatar.size Large, Avatar.image portrait ] "Dennis Ritchie")
                 , labelled "Broken picture" (Avatar.view [ Avatar.size Large, Avatar.image "data:image/png;base64,AAAA" ] "Radia Perlman")
                 , labelled "Icon" (Avatar.view [ Avatar.size Large, Avatar.square, Avatar.icon Icon.building ] "Rotterdam Hub")
@@ -68,7 +68,7 @@ Layout.row [] [ Avatar.view [ Avatar.decorative ] name, Text.strong name ]"""
 
 Avatar.group [ Avatar.maxShown 3 ]
     [ Avatar.entry "Ada Lovelace"
-    , { name = "Alan Turing", image = Just url }
+    , Avatar.entry "Alan Turing" |> Avatar.withImage url
     , Avatar.entry "Grace Hopper"
     , Avatar.entry "Edsger Dijkstra"
     ]"""
@@ -79,9 +79,9 @@ Avatar.group [ Avatar.maxShown 3 ]
                 , Avatar.group [ Avatar.maxShown 3, Avatar.size Large, Avatar.locale locale ] (List.take 5 entries)
                 , Avatar.group [ Avatar.locale locale ] (List.take 2 entries)
                 , Avatar.group [ Avatar.maxShown 3, Avatar.size Large, Avatar.locale locale ]
-                    [ { name = "Dennis Ritchie", image = Just portrait }
+                    [ Avatar.entry "Dennis Ritchie" |> Avatar.withImage portrait
                     , Avatar.entry "Radia Perlman"
-                    , { name = "Linus Torvalds", image = Just portrait }
+                    , Avatar.entry "Linus Torvalds" |> Avatar.withImage portrait
                     , Avatar.entry "Frances Allen"
                     ]
                 ]

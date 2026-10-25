@@ -689,7 +689,8 @@
       "stateful": false,
       "quickPath": [],
       "mainFunctions": [
-        "view"
+        "view",
+        "nextFocus"
       ],
       "related": [
         "Klar.Badge"
@@ -742,7 +743,7 @@
       "group": "Status and feedback",
       "purpose": "Loading indicators: a small spinner for inline use and a centered panel for a region that is still loading.",
       "whenToUse": "you do not know what the content will look like or how long the wait will be.",
-      "whenNot": "you can sketch the content (use `Klar.Skeleton`) or want a bar that shows how far a task has come (use `Klar.Progress`).",
+      "whenNot": "you can sketch the content (use `Klar.Skeleton`), want a bar that shows how far a task has come (use `Klar.Progress`), or the region shows a `Remote` (use `Klar.RemoteView`, which draws loading, failure and old data for you).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -753,7 +754,9 @@
         "panel"
       ],
       "related": [
+        "Klar.EmptyState",
         "Klar.Button",
+        "Klar.ErrorState",
         "Klar.Skeleton"
       ],
       "keywords": [
@@ -772,7 +775,7 @@
       "group": "Status and feedback",
       "purpose": "Shimmering placeholders that stand in for content while it loads.",
       "whenToUse": "you can sketch what the content will look like (a title, a few lines, a picture) while it loads.",
-      "whenNot": "you cannot predict the shape of the content (use `Klar.Spinner`).",
+      "whenNot": "you cannot predict the shape of the content (use `Klar.Spinner`), or the region shows a `Remote` (use `Klar.RemoteView`, which draws a skeleton, says \"Loading\" to screen readers and keeps old data on the screen).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -781,11 +784,11 @@
       "mainFunctions": [
         "line",
         "lines",
-        "paragraph",
         "block",
         "circle"
       ],
       "related": [
+        "Klar.RemoteView",
         "Klar.Spinner",
         "Klar.Table"
       ],
@@ -870,7 +873,7 @@
       "group": "Status and feedback",
       "purpose": "What to show when a request failed: a clear title, the reason, and a button to try again when trying again can help.",
       "whenToUse": "a request failed and the user should see why, with a button to try again.",
-      "whenNot": "a list is simply empty (use `Klar.EmptyState`).",
+      "whenNot": "a list is simply empty (use `Klar.EmptyState`), or the failed request is the body of a card, a dialog or a page (use `Klar.RemoteView`, which draws this for you).",
       "state": [],
       "msg": [],
       "ids": [],
@@ -880,9 +883,8 @@
         "view"
       ],
       "related": [
-        "Klar.ListItem",
-        "Klar.Remote",
         "Klar.RemoteView",
+        "Klar.ListItem",
         "Klar.Table",
         "Klar.Tree"
       ],
@@ -4392,8 +4394,12 @@
       "mainFunctions": [
         "view",
         "group",
+        "online",
+        "away",
+        "busy",
+        "offline",
         "entry",
-        "initials"
+        "withImage"
       ],
       "related": [],
       "keywords": [

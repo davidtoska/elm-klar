@@ -23,8 +23,6 @@ import Browser
 import Html exposing (Html)
 import Klar
 import Klar.Button as Button
-import Klar.Card as Card
-import Klar.ErrorState as ErrorState
 import Klar.Form as Form
 import Klar.Form.Layout as FormLayout
 import Klar.Form.Spec as Spec
@@ -34,8 +32,8 @@ import Klar.Locale as Locale
 import Klar.Overlay as Overlay exposing (Overlay)
 import Klar.PageHeader as PageHeader
 import Klar.Remote as Remote exposing (Remote(..))
+import Klar.RemoteView as RemoteView
 import Klar.Select as Select
-import Klar.Skeleton as Skeleton
 import Klar.Toast as Toast
 import Klar.Validate as Validate
 import Process
@@ -290,7 +288,8 @@ update msg model =
             ( { model | state = Form.revert form model.state }, Cmd.none )
 
         Reload ->
-            ( { model | customer = Loading, status = FormLayout.Idle }, loadCustomer )
+            -- "Try again" goes away when the request starts: the body takes the focus.
+            ( { model | customer = Loading, status = FormLayout.Idle }, Cmd.batch [ loadCustomer, Klar.focus "customer" NoOp ] )
 
         NoOp ->
             ( model, Cmd.none )
@@ -326,18 +325,12 @@ overlays model =
 
 viewPage : Model -> Html Msg
 viewPage model =
+    -- RemoteView draws the skeleton, the failure with "Try again" and old data
+    -- that is being refreshed; the page title stays outside it.
     Layout.stack []
-        [ PageHeader.view [ PageHeader.title "Edit customer" ]
-        , case model.customer of
-            Loaded _ ->
-                viewForm model
-
-            Failed problem ->
-                ErrorState.view [ ErrorState.onRetry Reload ] problem
-
-            _ ->
-                Card.view [] [ Skeleton.lines 5 ]
-        ]
+        (PageHeader.view [ PageHeader.title "Edit customer" ]
+            :: RemoteView.view [ RemoteView.id "customer", RemoteView.onRetry Reload ] model.customer (\_ -> [ viewForm model ])
+        )
 
 
 viewForm : Model -> Html Msg

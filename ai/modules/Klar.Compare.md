@@ -298,7 +298,7 @@ Changes the empty state, which shows when there are no records: it has a title
 ("Nothing to compare") and a description, and these attributes are applied after
 them, so yours win. Use it to say how to add records and to give the button for it.
 
-    Compare.emptyState [ EmptyState.action addProductButton ]
+    Compare.emptyState [ EmptyState.actions [ addProductButton ] ]
 
 ### `locale`
 

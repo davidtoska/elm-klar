@@ -93,7 +93,7 @@ view locale model =
                     [ EmptyState.icon Icon.search
                     , EmptyState.title "No components found"
                     , EmptyState.description "Try another word, or clear the search."
-                    , EmptyState.action (Button.view [ Button.onClick (QueryChanged "") ] "Clear search")
+                    , EmptyState.actions [ Button.view [ Button.onClick (QueryChanged "") ] "Clear search" ]
                     ]
 
               else

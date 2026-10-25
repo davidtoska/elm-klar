@@ -23,6 +23,8 @@ icon : Icon.Icon -> Attribute msg
 -- Removing
 onRemove : msg -> Attribute msg
 removeId : String -> Attribute msg
+removeLabel : String -> Attribute msg
+nextFocus : { removed : a, tags : List a, toId : a -> String, otherwise : String } -> String
 locale : Locale.Locale -> Attribute msg
 ```
 
@@ -45,12 +47,14 @@ Unlike [Klar.Badge](Klar.Badge.md) (state, read-only) a tag represents something
 the user chose and can take away. The tag does not remove itself: `onRemove`
 sends your message, and you take the value out of your model.
 
-The remove button is a real button whose accessible name is "Remove" followed
-by the label ("Remove Warehouse A"). A tag that is removed with the keyboard
-takes the focus with it, and the focus is lost. Give the button an id with
-`removeId` and move the focus to the next tag when your message arrives (see
-`removeId`). A label that does not fit its container is cut with an ellipsis;
-labels longer than 18 characters carry the whole text as a tooltip.
+The remove button is a real button with a 24px target whose accessible name is
+"Remove" followed by the label ("Remove Warehouse A"); `removeLabel` names it
+yourself ("Remove filter Amount > 100"). A tag that is removed with the keyboard
+takes the focus with it, and the focus is lost. Give every button an id with
+`removeId`, and when your message arrives focus the tag that took its place:
+`nextFocus` picks it (see the example there). A label that does not fit its
+container is cut with an ellipsis; a label longer than 12 characters carries the
+whole text as a tooltip.
 
 ## View
 
@@ -129,8 +133,9 @@ onRemove : msg -> Attribute msg
 ```
 
 Shows a small × button after the label that sends this message when it is
-pressed. The tag does not remove itself: take the value out of your model when
-the message arrives.
+pressed: a click, `Enter` or `Space`, or `Delete` or `Backspace` while the button
+has the focus. The tag does not remove itself: take the value out of your model
+when the message arrives.
 
 ### `removeId`
 
@@ -140,22 +145,60 @@ removeId : String -> Attribute msg
 
 The DOM id of the remove button, for moving the focus to it from your
 application (`Klar.focus`), for example to the next tag after one was
-removed, so that keyboard users do not lose their place.
+removed, so that keyboard users do not lose their place (see `nextFocus`).
 
-    viewTag name =
+### `removeLabel`
+
+```elm
+removeLabel : String -> Attribute msg
+```
+
+The accessible name and the tooltip of the remove button, instead of
+"Remove" followed by the label. Use it when the label alone does not say what
+goes away, such as a filter chip whose label is a value:
+
+    Tag.view
+        [ Tag.onRemove (FilterRemoved "amount")
+        , Tag.removeLabel "Remove filter Amount > 100"
+        ]
+        "Amount > 100"
+
+### `nextFocus`
+
+```elm
+nextFocus : { removed : a, tags : List a, toId : a -> String, otherwise : String } -> String
+```
+
+The id to focus after a tag was removed with its button, so that keyboard
+users keep their place: the remove button of the tag after it, else of the tag
+before it, else `otherwise` (the control that adds tags, or a heading). Give it
+the tags as they were before the removal, and the same id function as
+`removeId`.
+
+    viewTag : Warehouse -> Html Msg
+    viewTag warehouse =
         Tag.view
-            [ Tag.onRemove (TagRemoved name), Tag.removeId ("remove-" ++ name) ]
-            name
+            [ Tag.onRemove (WarehouseRemoved warehouse)
+            , Tag.removeId (removeIdOf warehouse)
+            ]
+            warehouse.name
 
-    -- in update: take the tag out, then focus the button of the tag after it
-    TagRemoved name ->
-        ( { model | tags = List.filter (\tag -> tag /= name) model.tags }
-        , case tagAfter name model.tags of
-            Just next ->
-                Klar.focus ("remove-" ++ next) NoOp
+    removeIdOf : Warehouse -> String
+    removeIdOf warehouse =
+        "remove-" ++ warehouse.code
 
-            Nothing ->
-                Cmd.none
+    -- in update
+    WarehouseRemoved warehouse ->
+        ( { model | warehouses = List.filter (\w -> w /= warehouse) model.warehouses }
+        , Klar.focus
+            (Tag.nextFocus
+                { removed = warehouse
+                , tags = model.warehouses
+                , toId = removeIdOf
+                , otherwise = "add-warehouse"
+                }
+            )
+            NoOp
         )
 
 ### `locale`

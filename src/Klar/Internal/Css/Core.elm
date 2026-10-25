@@ -488,17 +488,45 @@ css =
   vertical-align: -0.15em;
 }
 
+/* A labelled spinner or a panel that is not loading: its live region stays in the
+   page, empty and out of sight, so the next wait is announced. */
+.klar-spinner-idle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .klar-spinner--sm { width: 12px; height: 12px; border-width: 1.5px; }
 .klar-spinner--lg { width: 22px; height: 22px; border-width: 2.5px; color: var(--klar-primary); }
 
+/* The same padding as the empty and error states (.klar-state), so a region that
+   goes from loading to empty or failed keeps its place. */
 .klar-spinner-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--klar-space-3);
-  padding: var(--klar-space-10) var(--klar-space-4);
+  padding: var(--klar-space-12) var(--klar-space-6);
   color: var(--klar-text-secondary);
+}
+
+.klar-spinner-panel--compact,
+:where([data-klar-density="compact"]) .klar-spinner-panel:where(:not(.klar-spinner-panel--compact, .klar-spinner-panel--comfortable)) { padding: var(--klar-space-6) var(--klar-space-4); gap: var(--klar-space-2); }
+
+/* A wait shorter than the delay shows no spinner at all, so a fast answer does not
+   flash: the panel fades in after 400ms. Its live text is there from the start. */
+.klar-spinner-panel--delayed > * { animation: klar-spinner-appear 150ms ease-out 400ms both; }
+
+@keyframes klar-spinner-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .klar-spinner-panel__text { font-size: var(--klar-text-md); }
@@ -524,11 +552,18 @@ css =
   width: 100%;
 }
 
-/* The spinner keeps turning, slower (it says "working"); the shimmering
-   placeholders hold still. */
+/* Reduced motion, the same for every loading indicator of Klar: what turns (the
+   spinner, the indeterminate ring) keeps turning at 1.6s a round, because it says
+   "working"; a bar that runs takes 3.2s; stripes and the shimmer stand still. */
 @media (prefers-reduced-motion: reduce) {
   .klar-skeleton { animation: none; }
   .klar-spinner { animation-duration: 1.6s; }
+}
+
+/* High contrast drops the gradient and paints the background as the page: an
+   outline keeps the shape of every placeholder. */
+@media (forced-colors: active) {
+  .klar-skeleton { outline: 1px solid GrayText; outline-offset: -1px; }
 }
 
 /* ---- Badge ----------------------------------------------------------- */
@@ -570,7 +605,8 @@ css =
 
 .klar-badge--primary, .klar-badge--info { --_fg: var(--klar-blue-700); --_bg: var(--klar-blue-50); --_border: var(--klar-blue-200); --_solid: var(--klar-blue-600); }
 .klar-badge--success { --_fg: var(--klar-green-700); --_bg: var(--klar-green-50); --_border: var(--klar-green-100); --_solid: var(--klar-green-600); }
-.klar-badge--warning { --_fg: var(--klar-amber-700); --_bg: var(--klar-amber-50); --_border: var(--klar-amber-100); --_solid: var(--klar-amber-600); }
+/* White on amber-600 is 3.85 : 1, so a solid warning is filled with amber-700 (5.9 : 1). */
+.klar-badge--warning { --_fg: var(--klar-amber-700); --_bg: var(--klar-amber-50); --_border: var(--klar-amber-100); --_solid: var(--klar-amber-700); }
 .klar-badge--danger { --_fg: var(--klar-red-700); --_bg: var(--klar-red-50); --_border: var(--klar-red-100); --_solid: var(--klar-red-600); }
 
 .klar-badge--solid { background: var(--_solid); border-color: var(--_solid); color: var(--klar-on-solid); }
@@ -586,21 +622,22 @@ css =
 
 .klar-badge .klar-icon { --klar-icon-size: 12px; }
 
+/* The count takes its colors from the tone and style classes (solid by default). */
 .klar-badge--count {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   justify-content: center;
   border-radius: var(--klar-radius-full);
-  background: var(--klar-primary);
-  border-color: var(--klar-primary);
-  color: var(--klar-on-primary);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
+.klar-badge--count.klar-badge--sm { min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+.klar-badge--count.klar-badge--lg { min-width: 22px; height: 22px; padding: 0 6px; font-size: var(--klar-text-sm); }
+
 .klar-status {
-  --_c: var(--klar-gray-500);
+  --_c: var(--klar-gray-600);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -616,10 +653,18 @@ css =
   flex: none;
 }
 
-.klar-status--primary, .klar-status--info { --_c: var(--klar-blue-500); }
-.klar-status--success { --_c: var(--klar-green-500); }
-.klar-status--warning { --_c: var(--klar-amber-500); }
-.klar-status--danger { --_c: var(--klar-red-500); }
+/* The -600 steps keep 3 : 1 against the page (amber-500 is 2.8 : 1), so a column of
+   statuses can be scanned by color. */
+.klar-status--primary, .klar-status--info { --_c: var(--klar-blue-600); }
+.klar-status--success { --_c: var(--klar-green-600); }
+.klar-status--warning { --_c: var(--klar-amber-600); }
+.klar-status--danger { --_c: var(--klar-red-600); }
+
+/* High contrast paints backgrounds with Canvas: the dots keep their own color. */
+@media (forced-colors: active) {
+  .klar-badge__dot,
+  .klar-status__dot { forced-color-adjust: none; }
+}
 
 /* ---- Dot: the color that marks an option or a tag ----------------------
    A status color (a tone, follows the theme) or a color of the data (--klar-dot, set from
@@ -751,14 +796,16 @@ css =
 .klar-alert__message { color: var(--klar-text); }
 .klar-alert__actions { display: flex; gap: var(--klar-space-2); margin-top: var(--klar-space-2); }
 
+/* A 24px target (WCAG 2.5.8) that reaches into the padding of the alert. */
 .klar-alert__close {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin: -2px -6px 0 0;
+  width: 24px;
+  height: 24px;
+  margin-block: -3px;
+  margin-inline-end: -7px;
   padding: 0;
   border: 0;
   border-radius: var(--klar-radius);
@@ -802,10 +849,11 @@ css =
 
 /* Titles and details come from the backend: a long word or an address breaks
    instead of pushing the state wider than its container. */
-.klar-state__title { font-size: var(--klar-text-lg); font-weight: var(--klar-weight-bold); color: var(--klar-text); overflow-wrap: anywhere; }
+.klar-state__title { margin: 0; font-size: var(--klar-text-lg); font-weight: var(--klar-weight-bold); color: var(--klar-text); overflow-wrap: anywhere; }
 .klar-state__description { max-width: 46ch; color: var(--klar-text-secondary); overflow-wrap: anywhere; }
-.klar-state__code { font-family: var(--klar-font-mono); font-size: var(--klar-text-xs); color: var(--klar-text-muted); overflow-wrap: anywhere; }
-.klar-state__action { margin-top: var(--klar-space-3); display: flex; gap: var(--klar-space-2); }
+/* One click selects the whole code ("503 / req-8f2"), to paste into a support request. */
+.klar-state__code { font-family: var(--klar-font-mono); font-size: var(--klar-text-xs); color: var(--klar-text-muted); overflow-wrap: anywhere; -webkit-user-select: all; user-select: all; }
+.klar-state__actions { margin-top: var(--klar-space-3); display: flex; flex-wrap: wrap; justify-content: center; gap: var(--klar-space-2); }
 
 /* ---- Field ----------------------------------------------------------- */
 

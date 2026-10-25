@@ -486,8 +486,8 @@ emptyTitleTests =
             \_ ->
                 EmptyState.view [ EmptyState.title "No orders yet" ]
                     |> howMany (title ++ [ Selector.exactText "No orders yet" ]) 1
-        , test "EmptyState with no title has none" <|
-            \_ -> EmptyState.view [] |> howMany title 0
+        , test "EmptyState with no title says that there is nothing to show" <|
+            \_ -> EmptyState.view [] |> howMany (title ++ [ Selector.exactText "Nothing to show" ]) 1
         , test "EmptyState with an empty title has none" <|
             \_ -> EmptyState.view [ EmptyState.title "" ] |> howMany title 0
         , test "EmptyState with a title of spaces has none" <|
@@ -495,12 +495,13 @@ emptyTitleTests =
         , test "the icon, the description and the action are still there without a title" <|
             \_ ->
                 EmptyState.view
-                    [ EmptyState.description "Try again later."
-                    , EmptyState.action (Html.button [] [ Html.text "Reload" ])
+                    [ EmptyState.title ""
+                    , EmptyState.description "Try again later."
+                    , EmptyState.actions [ Html.button [] [ Html.text "Reload" ] ]
                     ]
                     |> Expect.all
                         [ howMany [ Selector.class "klar-state__description" ] 1
-                        , howMany [ Selector.class "klar-state__action" ] 1
+                        , howMany [ Selector.class "klar-state__actions" ] 1
                         , howMany [ Selector.class "klar-state__icon" ] 1
                         ]
         , test "a later title replaces an empty one" <|
@@ -839,7 +840,7 @@ avatarEntryTests : Test
 avatarEntryTests =
     let
         grace =
-            { name = "Grace Hopper", image = Just "/images/grace.jpg" }
+            Avatar.entry "Grace Hopper" |> Avatar.withImage "/images/grace.jpg"
     in
     describe "Avatar.group: pictures and status"
         [ test "an entry with a picture shows it" <|
@@ -864,14 +865,14 @@ avatarEntryTests =
                     |> howMany [ Selector.class "klar-avatar__image" ] 0
         , test "the status attribute is for single avatars: no entry gets a dot or a status in its name" <|
             \_ ->
-                Avatar.group [ Avatar.status Avatar.Online ] [ Avatar.entry "Ada Lovelace" ]
+                Avatar.group [ Avatar.status Avatar.online ] [ Avatar.entry "Ada Lovelace" ]
                     |> Expect.all
                         [ howMany [ Selector.class "klar-avatar__status" ] 0
                         , howMany [ ariaLabel "Ada Lovelace" ] 1
                         ]
         , test "a single avatar shows its status" <|
             \_ ->
-                Avatar.view [ Avatar.status Avatar.Online ] "Ada Lovelace"
+                Avatar.view [ Avatar.status Avatar.online ] "Ada Lovelace"
                     |> Expect.all
                         [ howMany [ ariaLabel "Ada Lovelace, online" ] 1
                         , howMany [ Selector.class "klar-avatar__status--online" ] 1

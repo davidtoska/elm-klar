@@ -1,7 +1,8 @@
 module Klar.Avatar exposing
     ( view, group
-    , Attribute, size, extraSmall, extraLarge, square, image, icon, status, Status(..)
-    , Entry, entry, maxShown
+    , Attribute, size, extraSmall, extraLarge, square, image, icon, status
+    , Status, online, away, busy, offline
+    , Entry, entry, withImage, maxShown
     , decorative, locale
     , initials
     )
@@ -18,13 +19,14 @@ Do not use when: a short text label or status is shown, use `Klar.Badge`.
 
     Avatar.view [] "Ada Lovelace"
 
-    Avatar.view [ Avatar.size Large, Avatar.status Avatar.Online ] "Grace Hopper"
+    Avatar.view [ Avatar.size Large, Avatar.status Avatar.online ] "Grace Hopper"
 
     Avatar.view [ Avatar.image "/images/grace.jpg" ] "Grace Hopper"
 
     Avatar.view [ Avatar.icon Icon.server, Avatar.square ] "Order service"
 
-    Avatar.group [ Avatar.maxShown 4 ] (List.map (\person -> Avatar.entry person.name) people)
+    Avatar.group [ Avatar.maxShown 4 ]
+        (List.map (\person -> Avatar.entry person.name |> Avatar.withImage person.picture) people)
 
 Without an image the avatar shows the initials of the name on a muted
 background. The color is derived from the name, so the same name has the same
@@ -36,10 +38,10 @@ status if there is one ("Grace Hopper, online"). When the name is written out
 right next to the avatar, add `decorative` so that it is not read twice.
 
 `group` shows several avatars side by side, overlapping, and folds the ones that
-do not fit into a "+N" bubble. It takes a list of entries, made with `entry` or
-written as records with a name and an optional picture. In a group the `image`
-and `status` attributes have no effect: every entry brings its own picture, and
-an entry has no status (that is for single avatars).
+do not fit into a "+N" bubble. It takes a list of entries, made with `entry` and
+given a picture with `withImage`. In a group the `image` and `status`
+attributes have no effect: every entry brings its own picture, and an entry has
+no status (that is for single avatars).
 
 
 # Views
@@ -49,12 +51,13 @@ an entry has no status (that is for single avatars).
 
 # Look
 
-@docs Attribute, size, extraSmall, extraLarge, square, image, icon, status, Status
+@docs Attribute, size, extraSmall, extraLarge, square, image, icon, status
+@docs Status, online, away, busy, offline
 
 
 # Groups
 
-@docs Entry, entry, maxShown
+@docs Entry, entry, withImage, maxShown
 
 
 # Accessibility and text
@@ -70,11 +73,13 @@ an entry has no status (that is for single avatars).
 
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Klar.Avatar.Entry as E
 import Klar.Format as Format
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Theme exposing (Size(..))
+import Klar.Tooltip as Tooltip
 
 
 {-| A setting of an avatar. Make them with the functions below and pass a list
@@ -85,14 +90,43 @@ type Attribute
 
 
 {-| Whether a person or a system is available, shown as a small colored dot in
-the corner of the avatar: `Online` (green), `Away` (amber), `Busy` (red) or
-`Offline` (gray). Pass it to `status`.
+the corner of the avatar and added to its accessible name: `online` (green),
+`away` (amber), `busy` (red) or `offline` (gray). Pass one to `status`. The type
+is opaque, so that statuses can be added in a later version.
 -}
 type Status
     = Online
     | Away
     | Busy
     | Offline
+
+
+{-| Available: a green dot, "online" for screen readers.
+-}
+online : Status
+online =
+    Online
+
+
+{-| Away for a while: an amber dot, "away" for screen readers.
+-}
+away : Status
+away =
+    Away
+
+
+{-| Present but not to be disturbed: a red dot, "busy" for screen readers.
+-}
+busy : Status
+busy =
+    Busy
+
+
+{-| Not available: a gray dot, "offline" for screen readers.
+-}
+offline : Status
+offline =
+    Offline
 
 
 type alias Config =
@@ -226,11 +260,12 @@ locale value =
 
 
 {-| One avatar for the given name: its initials, or the picture or icon you give
-it. The name is also the tooltip and the accessible name. An avatar with a blank
-name and no status has nothing to say, so it is hidden from assistive technology
-like a `decorative` one.
+it. The name is also the tooltip (except on a `decorative` avatar, whose name is
+written next to it) and the accessible name. An avatar with a blank name and no
+status has nothing to say, so it is hidden from assistive technology like a
+`decorative` one.
 
-    Avatar.view [ Avatar.status Avatar.Away ] "Ada Lovelace"
+    Avatar.view [ Avatar.status Avatar.away ] "Ada Lovelace"
 
 -}
 view : List Attribute -> String -> Html msg
@@ -242,17 +277,12 @@ view attributes name =
     render config { name = name, image = config.image }
 
 
-{-| One entry of an avatar group: a name and the URL of a picture, if there is
-one. Make an entry with `entry`, or write the record yourself to give it a
-picture.
-
-    { name = "Grace Hopper", image = Just "/images/grace.jpg" }
-
+{-| One entry of an avatar group: a name and, if you give one with `withImage`,
+a picture. The type is opaque, so that an entry can learn more in a later
+version without breaking your code. Make one with `entry`.
 -}
 type alias Entry =
-    { name : String
-    , image : Maybe String
-    }
+    E.Entry
 
 
 {-| An entry for `group` with this name and no picture.
@@ -261,20 +291,32 @@ type alias Entry =
 
 -}
 entry : String -> Entry
-entry name =
-    { name = name, image = Nothing }
+entry =
+    E.entry
+
+
+{-| The URL of the picture of an entry, which covers its initials (they stay
+behind it, so something readable remains if the picture cannot be loaded).
+
+    Avatar.entry "Grace Hopper" |> Avatar.withImage "/images/grace.jpg"
+
+-}
+withImage : String -> Entry -> Entry
+withImage =
+    E.withImage
 
 
 {-| Overlapping avatars for a list of entries, with a "+N" bubble for those that
 do not fit (see `maxShown`). The tooltip and the accessible name of the bubble
-list the names that are hidden, up to 12 of them. The group as a whole has an
+list the names that are hidden, up to 12 of them; the keyboard reaches the bubble
+(one Tab stop), and its tooltip shows on focus too. The group as a whole has an
 accessible name that tells how many avatars it holds, such as "3 avatars". An
 empty list shows nothing.
 
     Avatar.group [ Avatar.maxShown 3 ]
         [ Avatar.entry "Ada Lovelace"
         , Avatar.entry "Grace Hopper"
-        , { name = "Alan Turing", image = Just "/images/alan.jpg" }
+        , Avatar.entry "Alan Turing" |> Avatar.withImage "/images/alan.jpg"
         , Avatar.entry "Edsger Dijkstra"
         ]
 
@@ -306,7 +348,7 @@ groupOf attributes entries =
         hiddenNames =
             hidden
                 |> List.take 12
-                |> List.map .name
+                |> List.map E.name
                 |> String.join ", "
                 |> (\names ->
                         if hiddenCount > 12 then
@@ -322,22 +364,23 @@ groupOf attributes entries =
 
             else
                 Html.span
-                    ([ Internal.cls [ "klar-avatar", "klar-avatar--" ++ config.scale, "klar-avatar--more" ]
-                     , Attr.title hiddenNames
-                     ]
-                        ++ (if config.decorative then
-                                [ Attr.attribute "aria-hidden" "true" ]
+                    (Internal.cls [ "klar-avatar", "klar-avatar--" ++ config.scale, "klar-avatar--more" ]
+                        :: (if config.decorative then
+                                [ Attr.title hiddenNames, Attr.attribute "aria-hidden" "true" ]
 
                             else
-                                [ Attr.attribute "role" "img"
-                                , Attr.attribute "aria-label"
-                                    (Format.int config.locale hiddenCount
-                                        ++ " "
-                                        ++ Locale.pick config.locale { nb = "til", en = "more" }
-                                        ++ ": "
-                                        ++ hiddenNames
-                                    )
-                                ]
+                                -- The keyboard reaches the bubble, and its tip lists the
+                                -- names that are folded into it (a title shows on hover only).
+                                Tooltip.attrsWith [ Tooltip.focusable ] hiddenNames
+                                    ++ [ Attr.attribute "role" "img"
+                                       , Attr.attribute "aria-label"
+                                            (Format.int config.locale hiddenCount
+                                                ++ " "
+                                                ++ Locale.pick config.locale { nb = "til", en = "more" }
+                                                ++ ": "
+                                                ++ hiddenNames
+                                            )
+                                       ]
                            )
                     )
                     [ Html.span [ Internal.cls [ "klar-avatar__initials" ], Attr.attribute "aria-hidden" "true" ]
@@ -367,10 +410,10 @@ groupOf attributes entries =
                     [ Attr.attribute "role" "group", Attr.attribute "aria-label" groupName ]
                )
         )
-        (List.map (\m -> render { config | status = Nothing } m) shown ++ [ overflow ])
+        (List.map (\e -> render { config | status = Nothing } { name = E.name e, image = E.image e }) shown ++ [ overflow ])
 
 
-render : Config -> Entry -> Html msg
+render : Config -> { name : String, image : Maybe String } -> Html msg
 render config person =
     let
         label =
@@ -405,7 +448,7 @@ render config person =
               else
                 ""
             ]
-         , Attr.title person.name
+         , Internal.attrIf (not config.decorative) (Attr.title person.name)
          ]
             ++ (if config.decorative || label == "" then
                     -- nothing to say about an avatar without a name or a status
@@ -447,10 +490,15 @@ render config person =
 
 
 {-| The initials an avatar shows for a name: the first letter of the first and of
-the last word, in capital letters. A single word gives one letter, and a name
-without letters gives "?".
+the last word, in capital letters. Words in brackets ("(Finance)"), the suffixes
+Jr, Sr, II, III and IV, and symbols and emoji do not count. A single word gives
+one letter, and a name without letters gives "?".
 
     Avatar.initials "Ada Lovelace" --> "AL"
+
+    Avatar.initials "Ada Lovelace (Finance)" --> "AL"
+
+    Avatar.initials "Martin Luther King Jr." --> "MK"
 
     Avatar.initials "Warehouse" --> "W"
 
@@ -460,21 +508,26 @@ without letters gives "?".
 initials : String -> String
 initials name =
     let
-        letter word =
-            word
-                |> String.toList
-                |> List.filter isLetter
-                |> List.head
-                |> Maybe.map String.fromChar
-                |> Maybe.withDefault ""
+        letters =
+            String.words name
+                |> withoutBrackets
+                |> List.filter (not << isSuffix)
+                |> List.map firstLetter
+                |> List.filter (\l -> l /= "")
 
-        words =
-            name
-                |> String.words
-                |> List.map letter
+        fallback =
+            -- a name that is only a suffix or only in brackets still has letters
+            String.words name
+                |> List.map firstLetter
                 |> List.filter (\l -> l /= "")
     in
-    case words of
+    case
+        if List.isEmpty letters then
+            fallback
+
+        else
+            letters
+    of
         [] ->
             "?"
 
@@ -485,9 +538,77 @@ initials name =
             String.toUpper (first ++ (List.reverse rest |> List.head |> Maybe.withDefault ""))
 
 
+firstLetter : String -> String
+firstLetter word =
+    word
+        |> String.toList
+        |> List.filter isLetter
+        |> List.head
+        |> Maybe.map String.fromChar
+        |> Maybe.withDefault ""
+
+
+{-| The words outside brackets: "Ada Lovelace (Finance team)" is "Ada Lovelace".
+-}
+withoutBrackets : List String -> List String
+withoutBrackets words =
+    let
+        step word ( depth, kept ) =
+            let
+                opens =
+                    String.length (String.filter (\c -> c == '(' || c == '[') word)
+
+                closes =
+                    String.length (String.filter (\c -> c == ')' || c == ']') word)
+
+                inside =
+                    depth > 0 || opens > 0
+            in
+            ( max 0 (depth + opens - closes)
+            , if inside then
+                kept
+
+              else
+                word :: kept
+            )
+    in
+    List.foldl step ( 0, [] ) words
+        |> Tuple.second
+        |> List.reverse
+
+
+isSuffix : String -> Bool
+isSuffix word =
+    List.member (String.toLower (String.filter Char.isAlpha word)) [ "jr", "sr", "ii", "iii", "iv" ]
+        && not (String.isEmpty (String.filter Char.isAlpha word))
+
+
+{-| A letter or a digit of any script: the code points above ASCII count, except
+punctuation, symbols, arrows, dingbats and emoji.
+-}
 isLetter : Char -> Bool
 isLetter c =
-    Char.toCode c > 127 || Char.isAlphaNum c
+    let
+        code =
+            Char.toCode c
+    in
+    if code < 128 then
+        Char.isAlphaNum c
+
+    else
+        not
+            ((code >= 0xA0 && code <= 0xBF)
+                || code
+                == 0xD7
+                || code
+                == 0xF7
+                || (code >= 0x2000 && code <= 0x2BFF)
+                || (code >= 0x3000 && code <= 0x303F)
+                || (code >= 0xFE00 && code <= 0xFE0F)
+                || (code >= 0xFF00 && code <= 0xFF0F)
+                || code
+                >= 0x0001F000
+            )
 
 
 {-| A stable number from 0 to 7 for a name.

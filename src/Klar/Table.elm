@@ -3226,7 +3226,7 @@ attributes are those of
 [Klar.EmptyState](Klar-EmptyState), applied after the built-in ones, so yours
 win.
 
-    Table.emptyState [ EmptyState.title "No orders yet", EmptyState.action addButton ]
+    Table.emptyState [ EmptyState.title "No orders yet", EmptyState.actions [ addButton ] ]
 
 -}
 emptyState : List (EmptyState.Attribute msg) -> Attribute id row msg
@@ -6115,7 +6115,7 @@ viewEmpty ctx =
             , EmptyState.icon Icon.fileText
             , EmptyState.title t.emptyPage
             , EmptyState.description t.emptyPageDescription
-            , EmptyState.action (Button.view [ Button.onClick (ctx.toMsg FirstPageClicked) ] t.firstPage)
+            , EmptyState.actions [ Button.view [ Button.onClick (ctx.toMsg FirstPageClicked) ] t.firstPage ]
             ]
 
     else if filtered then
@@ -6124,7 +6124,7 @@ viewEmpty ctx =
             , EmptyState.icon Icon.search
             , EmptyState.title t.noMatches
             , EmptyState.description t.noMatchesDescription
-            , EmptyState.action (resetFiltersButton ctx [] t.clearSearchAndFilters AllCleared)
+            , EmptyState.actions [ resetFiltersButton ctx [] t.clearSearchAndFilters AllCleared ]
             ]
 
     else
