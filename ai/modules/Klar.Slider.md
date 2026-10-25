@@ -46,6 +46,7 @@ id : String -> Attribute msg
 
 -- Behavior and language
 disabled : Bool -> Attribute msg
+readOnly : Bool -> Attribute msg
 locale : Locale.Locale -> Attribute msg
 ```
 
@@ -443,6 +444,20 @@ disabled : Bool -> Attribute msg
 
 Dims the slider and makes it unchangeable and unfocusable. The default is
 `False`.
+
+### `readOnly`
+
+```elm
+readOnly : Bool -> Attribute msg
+```
+
+Shows the value without letting the user change it, for a record the user may
+read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches the
+thumb (each thumb of a range slider), so a screen reader reads the value
+("Discount, slider, 15 %, read only"); neither the mouse nor the keyboard moves
+it, and nothing is sent. The thumb is then an element with `role="slider"` and
+`aria-readonly` instead of a native range input, with the same `id`. `disabled`
+wins over it. The default is `False`.
 
 ### `locale`
 

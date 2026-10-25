@@ -761,6 +761,26 @@ css =
 .klar-range__input:disabled::-webkit-slider-thumb { cursor: not-allowed; }
 .klar-range__input:disabled::-moz-range-thumb { cursor: not-allowed; }
 
+/* Read only: a drawn thumb (role=slider, aria-readonly) that Tab reaches and a
+   screen reader reads, but nothing moves. */
+.klar-slider__thumb {
+  position: absolute;
+  top: 0;
+  left: calc((100% - var(--_thumb)) * var(--klar-at, 0));
+  z-index: 1;
+  box-sizing: border-box;
+  width: var(--_thumb);
+  height: var(--_thumb);
+  border: 2px solid var(--_color);
+  border-radius: 50%;
+  background: var(--klar-surface);
+  box-shadow: var(--klar-shadow-sm);
+}
+
+.klar-slider__thumb:focus-visible { outline: none; box-shadow: var(--klar-focus-ring); }
+
+.klar-slider__body:has(.klar-slider__thumb:focus-visible) .klar-slider__bubble { opacity: 1; }
+
 /* Windows high contrast: the track is a background (a gradient for one thumb) and
    the focus ring a shadow, which the system would take away. */
 @media (forced-colors: active) {
@@ -776,8 +796,11 @@ css =
 
   .klar-slider__input,
   .klar-range__track,
+  .klar-slider__thumb,
   .klar-slider__tick { forced-color-adjust: none; }
 
+  .klar-slider__thumb { box-shadow: none; }
+  .klar-slider__thumb:focus-visible { box-shadow: var(--klar-focus-ring); }
   .klar-slider__input::-webkit-slider-thumb { box-shadow: none; }
   .klar-slider__input::-moz-range-thumb { box-shadow: none; }
   .klar-slider__input:focus-visible::-webkit-slider-thumb { box-shadow: var(--klar-focus-ring); }

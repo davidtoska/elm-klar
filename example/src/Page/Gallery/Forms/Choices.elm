@@ -467,7 +467,8 @@ CheckboxGroup.view
 CheckboxGroup.view [ CheckboxGroup.label "Documents", CheckboxGroup.readOnly model.locked, ... ]
 Checkbox.view [ Checkbox.label "Newsletter", Checkbox.readOnly model.locked, ... ]
 Switch.view [ Switch.label "Active", Switch.readOnly model.locked, ... ]
-SegmentedControl.view [ SegmentedControl.label "Period", SegmentedControl.readOnly model.locked, ... ]"""
+SegmentedControl.view [ SegmentedControl.label "Period", SegmentedControl.readOnly model.locked, ... ]
+Slider.view [ Slider.label "Discount", Slider.readOnly model.locked, ... ]"""
             }
             (stack
                 [ Switch.view
@@ -517,6 +518,16 @@ SegmentedControl.view [ SegmentedControl.label "Period", SegmentedControl.readOn
                             , Switch.checked (flagOf "sw-readonly" model)
                             , Switch.onCheck (FlagChanged "sw-readonly")
                             , Switch.locale lang
+                            ]
+                        , Slider.view
+                            [ Slider.label "Discount"
+                            , Slider.id "slider-readonly"
+                            , Slider.readOnly model.readOnly
+                            , Slider.max 50
+                            , Slider.step 5
+                            , Slider.value (levelOf "slider-discount" model)
+                            , Slider.onInput (LevelChanged "slider-discount")
+                            , Slider.unit "%"
                             ]
                         , SegmentedControl.view
                             [ SegmentedControl.label "Period"

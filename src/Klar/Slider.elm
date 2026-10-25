@@ -3,7 +3,7 @@ module Klar.Slider exposing
     , min, max, step, value, onInput, onCommit, range, onRangeInput, onRangeCommit, minGap
     , unit, valueFormat, hideValue, bubble, ticks, marks
     , label, labelHidden, hint, error, errorMaybe, required, optionalText, id
-    , disabled, locale
+    , disabled, readOnly, locale
     )
 
 {-| A slider for a number in a range, and a range slider with two thumbs.
@@ -96,7 +96,7 @@ typed rather than dragged, use [Klar.NumberInput](Klar-NumberInput).
 
 # Behavior and language
 
-@docs disabled, locale
+@docs disabled, readOnly, locale
 
 -}
 
@@ -134,6 +134,7 @@ type alias Config msg =
     , onRangeInput : Maybe (Float -> Float -> msg)
     , onRangeCommit : Maybe (Float -> Float -> msg)
     , disabled : Bool
+    , readOnly : Bool
     , bubble : Bool
     , showValue : Bool
     , unit : String
@@ -160,6 +161,7 @@ configure attributes =
         , onRangeInput = Nothing
         , onRangeCommit = Nothing
         , disabled = False
+        , readOnly = False
         , bubble = False
         , showValue = True
         , unit = ""
@@ -431,6 +433,19 @@ disabled value_ =
     Attribute (\config -> { config | disabled = value_ })
 
 
+{-| Shows the value without letting the user change it, for a record the user may
+read but not edit. Unlike `disabled` it is not dimmed, and Tab still reaches the
+thumb (each thumb of a range slider), so a screen reader reads the value
+("Discount, slider, 15 %, read only"); neither the mouse nor the keyboard moves
+it, and nothing is sent. The thumb is then an element with `role="slider"` and
+`aria-readonly` instead of a native range input, with the same `id`. `disabled`
+wins over it. The default is `False`.
+-}
+readOnly : Bool -> Attribute msg
+readOnly value_ =
+    Attribute (\config -> { config | readOnly = value_ })
+
+
 {-| The language of the built-in text: the "from" and "to" that name the thumbs
 of a range slider for screen readers, and the decimal and thousands separators
 of the written value. The default is `Locale.default`, which is English.
@@ -474,31 +489,61 @@ view attributes =
 
         spoken =
             formatValue config current
+
+        pct =
+            String.fromFloat (fraction low high current)
+
+        thumb =
+            if isReadOnly config then
+                -- A drawn track and thumb that nothing can move: the thumb is the
+                -- slider (role=slider, aria-readonly) and keeps the focus.
+                [ Html.div [ Internal.cls [ "klar-range__track" ] ]
+                    [ Html.div [ Internal.cls [ "klar-range__fill" ] ] [] ]
+                , viewStaticThumb config
+                    field
+                    { id = field.id
+                    , name = Internal.attrIf (field.label /= Nothing) (Attr.attribute "aria-labelledby" (Field.labelId field))
+                    , at = fraction low high current
+                    , now = current
+                    , text = spoken
+                    }
+                ]
+
+            else
+                [ Html.input
+                    (sliderAttributes field
+                        ++ [ Internal.cls [ "klar-slider__input" ]
+                           , Attr.type_ "range"
+                           , Attr.min (String.fromFloat low)
+                           , Attr.max (String.fromFloat high)
+                           , Attr.step (String.fromFloat (safeStep config.step))
+                           , Attr.value (String.fromFloat current)
+                           , Attr.disabled config.disabled
+                           , Attr.attribute "aria-valuetext" spoken
+                           , Internal.attrMaybe (\toMsg -> onFloat "input" toMsg) config.onInput
+                           , Internal.attrMaybe (\toMsg -> onFloat "change" toMsg) config.onCommit
+                           ]
+                    )
+                    []
+                ]
     in
     Field.viewGroup field
         (Html.div [ Internal.cls (fieldClasses config) ]
             (viewHead config field (Just field.id) spoken
                 ++ [ Html.div
                         [ Internal.cls (sliderClasses config False)
-                        , Internal.styleVars [ ( "--klar-pct", String.fromFloat (fraction low high current) ) ]
+                        , Internal.styleVars
+                            (if isReadOnly config then
+                                -- the drawn fill of a read-only slider is the one of a range
+                                [ ( "--klar-pct", pct ), ( "--klar-lo", "0" ), ( "--klar-hi", pct ) ]
+
+                             else
+                                [ ( "--klar-pct", pct ) ]
+                            )
                         ]
                         [ Html.div [ Internal.cls [ "klar-slider__body" ] ]
-                            (Html.input
-                                (sliderAttributes field
-                                    ++ [ Internal.cls [ "klar-slider__input" ]
-                                       , Attr.type_ "range"
-                                       , Attr.min (String.fromFloat low)
-                                       , Attr.max (String.fromFloat high)
-                                       , Attr.step (String.fromFloat (safeStep config.step))
-                                       , Attr.value (String.fromFloat current)
-                                       , Attr.disabled config.disabled
-                                       , Attr.attribute "aria-valuetext" spoken
-                                       , Internal.attrMaybe (\toMsg -> onFloat "input" toMsg) config.onInput
-                                       , Internal.attrMaybe (\toMsg -> onFloat "change" toMsg) config.onCommit
-                                       ]
-                                )
-                                []
-                                :: viewBubble config False spoken
+                            (thumb
+                                ++ viewBubble config False spoken
                                 ++ viewScale config low high
                             )
                         ]
@@ -729,47 +774,71 @@ viewRange attributes =
                             ]
                         ]
                         [ Html.div [ Internal.cls [ "klar-slider__body" ] ]
-                            ([ Html.div [ Internal.cls [ "klar-range__track" ] ]
+                            (Html.div [ Internal.cls [ "klar-range__track" ] ]
                                 [ Html.div [ Internal.cls [ "klar-range__fill" ] ] [] ]
-                             , Html.input
-                                (thumbAttributes
-                                    ++ [ Attr.id field.id
-                                       , Internal.cls
-                                            [ "klar-slider__input"
-                                            , "klar-range__input"
-                                            , if lowerInFront then
-                                                "klar-range__input--front"
+                                :: (if isReadOnly config then
+                                        -- Drawn thumbs that nothing can move: each is a
+                                        -- slider (role=slider, aria-readonly) and keeps
+                                        -- the focus.
+                                        [ viewStaticThumb config
+                                            field
+                                            { id = field.id
+                                            , name = Attr.attribute "aria-label" (thumbName lowerLabel)
+                                            , at = fraction low high lowerShown
+                                            , now = lowerShown
+                                            , text = lowerText
+                                            }
+                                        , viewStaticThumb config
+                                            field
+                                            { id = field.id ++ "-upper"
+                                            , name = Attr.attribute "aria-label" (thumbName upperLabel)
+                                            , at = fraction low high upperShown
+                                            , now = upperShown
+                                            , text = upperText
+                                            }
+                                        ]
 
-                                              else
-                                                ""
-                                            ]
-                                       , Attr.attribute "aria-label" (thumbName lowerLabel)
-                                       , Attr.value (String.fromFloat lower)
-                                       , Attr.attribute "aria-valuetext" lowerText
-                                       ]
-                                    ++ rangeHandlers withLower
-                                )
-                                []
-                             , Html.input
-                                (thumbAttributes
-                                    ++ [ Attr.id (field.id ++ "-upper")
-                                       , Internal.cls
-                                            [ "klar-slider__input"
-                                            , "klar-range__input"
-                                            , if lowerInFront then
-                                                ""
+                                    else
+                                        [ Html.input
+                                            (thumbAttributes
+                                                ++ [ Attr.id field.id
+                                                   , Internal.cls
+                                                        [ "klar-slider__input"
+                                                        , "klar-range__input"
+                                                        , if lowerInFront then
+                                                            "klar-range__input--front"
 
-                                              else
-                                                "klar-range__input--front"
-                                            ]
-                                       , Attr.attribute "aria-label" (thumbName upperLabel)
-                                       , Attr.value (String.fromFloat upper)
-                                       , Attr.attribute "aria-valuetext" upperText
-                                       ]
-                                    ++ rangeHandlers withUpper
-                                )
-                                []
-                             ]
+                                                          else
+                                                            ""
+                                                        ]
+                                                   , Attr.attribute "aria-label" (thumbName lowerLabel)
+                                                   , Attr.value (String.fromFloat lower)
+                                                   , Attr.attribute "aria-valuetext" lowerText
+                                                   ]
+                                                ++ rangeHandlers withLower
+                                            )
+                                            []
+                                        , Html.input
+                                            (thumbAttributes
+                                                ++ [ Attr.id (field.id ++ "-upper")
+                                                   , Internal.cls
+                                                        [ "klar-slider__input"
+                                                        , "klar-range__input"
+                                                        , if lowerInFront then
+                                                            ""
+
+                                                          else
+                                                            "klar-range__input--front"
+                                                        ]
+                                                   , Attr.attribute "aria-label" (thumbName upperLabel)
+                                                   , Attr.value (String.fromFloat upper)
+                                                   , Attr.attribute "aria-valuetext" upperText
+                                                   ]
+                                                ++ rangeHandlers withUpper
+                                            )
+                                            []
+                                        ]
+                                   )
                                 ++ viewBubble config True both
                                 ++ viewScale config low high
                             )
@@ -777,6 +846,43 @@ viewRange attributes =
                    ]
             )
         )
+
+
+isReadOnly : Config msg -> Bool
+isReadOnly config =
+    config.readOnly && not config.disabled
+
+
+{-| The thumb of a read-only slider: an element with `role="slider"` that Tab
+reaches and a screen reader reads, at `at` (0 to 1) of the track. Nothing moves it.
+-}
+viewStaticThumb :
+    Config msg
+    -> Field.Config
+    -> { id : String, name : Html.Attribute msg, at : Float, now : Float, text : String }
+    -> Html msg
+viewStaticThumb config field thumb =
+    let
+        ( low, high ) =
+            bounds config
+    in
+    Html.span
+        ([ Attr.id thumb.id
+         , Internal.cls [ "klar-slider__thumb" ]
+         , Internal.styleVars [ ( "--klar-at", String.fromFloat thumb.at ) ]
+         , Attr.attribute "role" "slider"
+         , Attr.tabindex 0
+         , Attr.attribute "aria-valuemin" (String.fromFloat low)
+         , Attr.attribute "aria-valuemax" (String.fromFloat high)
+         , Attr.attribute "aria-valuenow" (String.fromFloat thumb.now)
+         , Attr.attribute "aria-valuetext" thumb.text
+         , Attr.attribute "aria-readonly" "true"
+         , thumb.name
+         , invalidAttribute field
+         ]
+            ++ Field.describedByAttributes field
+        )
+        []
 
 
 {-| What the input of a single slider takes from its field: the `id`, the
@@ -816,6 +922,11 @@ sliderClasses config isRange =
         ""
     , if config.disabled then
         "klar-slider--disabled"
+
+      else
+        ""
+    , if isReadOnly config then
+        "klar-slider--readonly"
 
       else
         ""

@@ -567,6 +567,33 @@ sliderTests =
                     |> byId "q-upper"
                     |> Event.simulate (valueEvent "change" "70")
                     |> Event.expect (RangeCommitted 20 70)
+        , test "read only: no range input, a focusable role=slider with the value, aria-readonly and the label" <|
+            \_ ->
+                Slider.view [ Slider.id "s", Slider.label "Discount", Slider.max 50, Slider.value 15, Slider.unit "%", Slider.readOnly True, Slider.onInput Moved ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ count [ Selector.tag "input" ] 0
+                        , byId "s"
+                            >> Query.has
+                                [ aria "role" "slider"
+                                , aria "aria-valuenow" "15"
+                                , aria "aria-valuemin" "0"
+                                , aria "aria-valuemax" "50"
+                                , aria "aria-readonly" "true"
+                                , aria "aria-labelledby" "s-label"
+                                , Selector.attribute (Attr.tabindex 0)
+                                ]
+                        , Query.find [ Selector.class "klar-slider" ] >> Query.has [ Selector.class "klar-slider--readonly" ]
+                        ]
+        , test "a read-only range has two read-only thumbs, named after the label" <|
+            \_ ->
+                Slider.viewRange [ Slider.id "q", Slider.label "Quantity", Slider.range 20 60, Slider.readOnly True ]
+                    |> Query.fromHtml
+                    |> Expect.all
+                        [ count [ Selector.tag "input" ] 0
+                        , byId "q" >> Query.has [ aria "role" "slider", aria "aria-valuenow" "20", aria "aria-label" "Quantity, from" ]
+                        , byId "q-upper" >> Query.has [ aria "role" "slider", aria "aria-valuenow" "60", aria "aria-label" "Quantity, to" ]
+                        ]
         , test "the thumbs of a range are named after the label" <|
             \_ ->
                 Slider.viewRange [ Slider.id "q", Slider.label "Quantity" ]
