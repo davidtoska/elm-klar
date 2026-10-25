@@ -1,11 +1,14 @@
 module Support.PickingDrive exposing
-    ( caretKey
+    ( altKey
+    , caretKey
     , count
     , fire
     , has
     , hasNot
     , key
     , keyWith
+    , metaKey
+    , scroll
     )
 
 {-| Helpers to drive the picking components from tests with real events: a key
@@ -38,6 +41,43 @@ keyWith modifiers name =
             , ( "shiftKey", Encode.bool modifiers.shift )
             ]
         )
+
+
+{-| A key pressed with Cmd (the Meta key), as on a Mac.
+-}
+metaKey : { shift : Bool } -> String -> ( String, Encode.Value )
+metaKey modifiers name =
+    Event.custom "keydown"
+        (Encode.object
+            [ ( "key", Encode.string name )
+            , ( "ctrlKey", Encode.bool False )
+            , ( "metaKey", Encode.bool True )
+            , ( "altKey", Encode.bool False )
+            , ( "shiftKey", Encode.bool modifiers.shift )
+            ]
+        )
+
+
+{-| A key pressed with Alt (Option on a Mac).
+-}
+altKey : String -> ( String, Encode.Value )
+altKey name =
+    Event.custom "keydown"
+        (Encode.object
+            [ ( "key", Encode.string name )
+            , ( "ctrlKey", Encode.bool False )
+            , ( "metaKey", Encode.bool False )
+            , ( "altKey", Encode.bool True )
+            , ( "shiftKey", Encode.bool False )
+            ]
+        )
+
+
+{-| The list scrolled to this offset (the event the virtual lists listen to).
+-}
+scroll : Float -> ( String, Encode.Value )
+scroll top =
+    Event.custom "scroll" (Encode.object [ ( "target", Encode.object [ ( "scrollTop", Encode.float top ) ] ) ])
 
 
 {-| A key pressed in a text box with this text and caret (start and end of the

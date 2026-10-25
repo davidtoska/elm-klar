@@ -11,6 +11,7 @@ import Expect
 import Fuzz
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
+import Klar.Internal.Freshness as Freshness
 import Klar.Picking as Picking
 import Klar.Picking.Cover as Cover exposing (Check(..))
 import Klar.Picking.Index as Index exposing (Kids(..), Row(..))
@@ -18,6 +19,7 @@ import Klar.Remote as Remote
 import Set exposing (Set)
 import Support.PickingTrees as Trees
 import Test exposing (Test, describe, fuzz, fuzz2, test)
+import Time
 
 
 type RegionId
@@ -37,6 +39,7 @@ suite =
     describe "Picking: ids, nodes, index, filter, rows, cover"
         [ idTests
         , nodeTests
+        , flatTests
         , indexTests
         , filterTests
         , rowTests
@@ -106,6 +109,116 @@ nodeTests =
 
 
 -- INDEX
+
+
+type alias FlatRow =
+    { id : String, parent : Maybe String, name : String }
+
+
+flat : List FlatRow -> List (Picking.Node String)
+flat =
+    Picking.fromFlat Ids.string { id = .id, parent = .parent, label = .name, decorate = \_ node -> node }
+
+
+{-| The tree as text: "a(b,c(d))".
+-}
+shape : List (Picking.Node String) -> String
+shape nodes =
+    nodes
+        |> List.map
+            (\node ->
+                case Picking.children node of
+                    Remote.Loaded [] ->
+                        Picking.key node
+
+                    Remote.Loaded kids ->
+                        Picking.key node ++ "(" ++ shape kids ++ ")"
+
+                    _ ->
+                        Picking.key node ++ "?"
+            )
+        |> String.join ","
+
+
+allKeys : List (Picking.Node String) -> List String
+allKeys nodes =
+    List.concatMap
+        (\node ->
+            Picking.key node
+                :: (case Picking.children node of
+                        Remote.Loaded kids ->
+                            allKeys kids
+
+                        _ ->
+                            []
+                   )
+        )
+        nodes
+
+
+flatTests : Test
+flatTests =
+    describe "fromFlat"
+        [ test "builds the hierarchy from rows that name their parent, siblings in the order of the rows" <|
+            \_ ->
+                flat
+                    [ { id = "oslo", parent = Just "norway", name = "Oslo" }
+                    , { id = "europe", parent = Nothing, name = "Europe" }
+                    , { id = "norway", parent = Just "europe", name = "Norway" }
+                    , { id = "asia", parent = Nothing, name = "Asia" }
+                    , { id = "bergen", parent = Just "norway", name = "Bergen" }
+                    ]
+                    |> shape
+                    |> Expect.equal "europe(norway(oslo,bergen)),asia"
+        , test "a row whose parent is not among the rows is put at the top level" <|
+            \_ ->
+                flat [ { id = "a", parent = Just "gone", name = "A" }, { id = "b", parent = Nothing, name = "B" } ]
+                    |> shape
+                    |> Expect.equal "a,b"
+        , test "rows in a loop of parents are put at the top, with the loop cut" <|
+            \_ ->
+                Expect.equal ( "a(b(c))", "s" )
+                    ( shape (flat [ { id = "a", parent = Just "b", name = "A" }, { id = "b", parent = Just "a", name = "B" }, { id = "c", parent = Just "b", name = "C" } ])
+                    , shape (flat [ { id = "s", parent = Just "s", name = "S" } ])
+                    )
+        , test "decorate gives each node what more it needs, and the labels are kept" <|
+            \_ ->
+                let
+                    nodes =
+                        Picking.fromFlat Ids.string
+                            { id = .id, parent = .parent, label = .name, decorate = \row node -> Picking.withDescription (String.toUpper row.id) node }
+                            [ { id = "a", parent = Nothing, name = "A" } ]
+                in
+                Expect.equal [ ( "A", Just "A" ) ] (List.map (\n -> ( Picking.label n, Picking.description n )) nodes)
+        , fuzz (Fuzz.list (Fuzz.maybe (Fuzz.intRange 0 30))) "every row is in the tree exactly once, whatever the parents" <|
+            \parents ->
+                let
+                    rows =
+                        List.indexedMap (\i parent -> { id = String.fromInt i, parent = Maybe.map String.fromInt parent, name = "" }) parents
+                in
+                allKeys (flat rows)
+                    |> List.sort
+                    |> Expect.equal (List.sort (List.map .id rows))
+        , test "twenty thousand rows in three levels" <|
+            \_ ->
+                let
+                    rows =
+                        List.range 0 19999
+                            |> List.map
+                                (\i ->
+                                    { id = String.fromInt i
+                                    , parent =
+                                        if i < 20 then
+                                            Nothing
+
+                                        else
+                                            Just (String.fromInt (i // 20 - 1))
+                                    , name = ""
+                                    }
+                                )
+                in
+                Expect.equal 20000 (Index.size (Index.build (flat rows)))
+        ]
 
 
 indexTests : Test
@@ -328,6 +441,9 @@ rowKeys shown =
 
                     FailedRow r ->
                         "failed:" ++ r.parent
+
+                    StaleRow r ->
+                        "stale:" ++ r.parent
             )
 
 
@@ -356,6 +472,49 @@ rowTests =
                     ( rowKeys (Index.rows (openOf [ "z" ]) (Index.build [ Picking.lazy Ids.string "z" "Z" Remote.Loading ]))
                     , rowKeys (Index.rows (openOf [ "z" ]) failing)
                     )
+        , test "children that are Kept are on screen: refreshing ones as they are, old ones under a stale row" <|
+            \_ ->
+                let
+                    kids =
+                        Remote.Loaded [ Picking.leaf Ids.string "y" "Y" ]
+
+                    refreshing =
+                        Index.build [ Picking.lazy Ids.string "z" "Z" (Remote.refresh kids) ]
+
+                    old =
+                        Index.build [ Picking.lazy Ids.string "z" "Z" (Remote.refreshWith kids (Err (Remote.problem Remote.server)) (Time.millisToPosix 0)) ]
+
+                    busy tree =
+                        Index.get "z" tree |> Maybe.map (.freshness >> Freshness.busy)
+                in
+                Expect.all
+                    [ \_ -> Expect.equal [ "z", "y" ] (rowKeys (Index.rows (openOf [ "z" ]) refreshing))
+                    , \_ -> Expect.equal [ "z", "stale:z", "y" ] (rowKeys (Index.rows (openOf [ "z" ]) old))
+                    , \_ -> Expect.equal ( Just True, Just False ) ( busy refreshing, busy old )
+                    , \_ -> Expect.equal (Just 1) (Index.failureIndex "z" (Index.rows (openOf [ "z" ]) old))
+                    ]
+                    ()
+        , test "the open lazy nodes that are not asked for are waiting, in the order of the rows; loading ones are not" <|
+            \_ ->
+                let
+                    tree =
+                        Index.build
+                            [ Picking.lazy Ids.string "a" "A" Remote.NotAsked
+                            , Picking.lazy Ids.string "b" "B" Remote.Loading
+                            , Picking.lazy Ids.string "c" "C" Remote.NotAsked
+                            , Picking.lazy Ids.string "d" "D" Remote.NotAsked
+                            ]
+                in
+                Expect.equal [ "a", "c" ] (Index.rows (openOf [ "c", "a", "b" ]) tree).waiting
+        , test "labels and paths are found below children that are Kept" <|
+            \_ ->
+                let
+                    nodes =
+                        [ Picking.lazy Ids.string "z" "Z" (Remote.refresh (Remote.Loaded [ Picking.leaf Ids.string "y" "Y" ])) ]
+                in
+                Expect.equal
+                    ( Dict.fromList [ ( "y", "Y" ) ], Just [ "Z", "Y" ] )
+                    ( Index.findLabels (Set.fromList [ "y" ]) nodes, Index.followPath [ "z", "y" ] nodes )
         , test "position and size among the siblings" <|
             \_ ->
                 let

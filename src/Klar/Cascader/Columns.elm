@@ -24,6 +24,7 @@ Not for application code.
 -}
 
 import Array exposing (Array)
+import Klar.Internal.Freshness as Freshness
 import Klar.Picking as Picking
 import Klar.Picking.Index as Index exposing (Index, Kids(..))
 import Klar.Remote as Remote
@@ -38,6 +39,7 @@ type Cell
     = ItemCell String Int Int
     | PendingCell String
     | FailedCell String Remote.Problem
+    | StaleCell String Index.Stale
 
 
 {-| The nodes of one level: the children of `parent` (the top level for
@@ -69,7 +71,7 @@ trailColumns index depth trail =
                 Just entry ->
                     case childrenOf entry.kids of
                         Just cells ->
-                            { depth = depth, parent = Just key, cells = cellsFor key cells entry.kids }
+                            { depth = depth, parent = Just key, cells = cellsFor key cells entry }
                                 :: trailColumns index (depth + 1) rest
 
                         Nothing ->
@@ -92,11 +94,19 @@ childrenOf kids =
             Just []
 
 
-cellsFor : String -> List String -> Kids -> Array Cell
-cellsFor parent keys kids =
-    case kids of
+{-| The cells of a column: its nodes (under the marker for old data when the last
+refresh of them failed), or what stands in for them.
+-}
+cellsFor : String -> List String -> Index.Entry id -> Array Cell
+cellsFor parent keys entry =
+    case entry.kids of
         Kids _ ->
-            itemCells keys
+            case entry.freshness of
+                Freshness.Stale stale ->
+                    Array.append (Array.fromList [ StaleCell parent stale ]) (itemCells keys)
+
+                _ ->
+                    itemCells keys
 
         LoadFailed problem ->
             Array.fromList [ FailedCell parent problem ]

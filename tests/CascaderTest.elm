@@ -23,11 +23,13 @@ import Test exposing (Test, describe, fuzz, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
+import Time
 
 
 type Msg
     = CS (Cascader.Msg String)
     | RetriedNode String
+    | Retried
 
 
 ids : Ids String
@@ -124,6 +126,60 @@ suite =
         , localeAndSizeTests
         , logicTests
         , reviewTests
+        , freshnessTests
+        ]
+
+
+
+-- FRESHNESS
+
+
+freshnessTests : Test
+freshnessTests =
+    let
+        withTop top state =
+            Cascader.view CS [ Cascader.label "Place", Cascader.remote top, Cascader.onRetry Retried ] state
+
+        stale =
+            Remote.refreshWith (Loaded Trees.cities) (Err (Remote.problem Remote.server)) (Time.millisToPosix 0)
+
+        opened top =
+            feed (Drive.fire [ Selector.id "place" ] (Drive.key "Enter") (withTop top field)) field
+    in
+    describe "a top level that is Kept"
+        [ test "is dimmed and busy while it is refreshed, with the columns still there" <|
+            \_ ->
+                let
+                    top =
+                        Remote.refresh (Loaded Trees.cities)
+                in
+                Expect.equal True
+                    (Drive.has [ Selector.class "klar-refreshing", attr "aria-busy" "true", Selector.containing [ Selector.id "place-tree" ] ] (withTop top (opened top)))
+        , test "says Old data with a retry when the last refresh failed, and the columns stay" <|
+            \_ ->
+                let
+                    h =
+                        withTop stale (opened stale)
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-stale", Selector.containing [ Selector.text "Old data" ] ] h)
+                    , \_ -> Expect.equal (Just Retried) (Drive.fire [ Selector.class "klar-stale", Selector.tag "button" ] Event.click h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "place-tree" ] h)
+                    ]
+                    ()
+        , test "the search box offers a listbox while it searches and a tree otherwise" <|
+            \_ ->
+                let
+                    open =
+                        openField
+
+                    searching =
+                        open |> typeText "osl"
+                in
+                Expect.equal [ True, True ]
+                    [ Drive.has [ Selector.id "place-search", attr "aria-haspopup" "tree" ] (html [] open)
+                    , Drive.has [ Selector.id "place-search", attr "aria-haspopup" "listbox" ] (html [] searching)
+                    ]
         ]
 
 
@@ -294,8 +350,29 @@ columnTests =
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ itemId 2 1, attr "aria-level" "3", attr "aria-selected" "true" ] h)
-                    , \_ -> Expect.equal True (Drive.has [ itemId 0 0, attr "aria-selected" "true", attr "aria-expanded" "true" ] h)
+
+                    -- only the chosen node is selected; the branches above it are open
+                    , \_ -> Expect.equal True (Drive.has [ itemId 0 0, attr "aria-selected" "false", attr "aria-expanded" "true" ] h)
+                    , \_ -> Expect.equal 1 (Drive.count [ attr "aria-selected" "true" ] h)
                     , \_ -> Expect.equal (Just "place-c2-1") (activeId state)
+                    ]
+                    ()
+        , test "each column after the first is the group of the open branch before it, so the hierarchy is heard" <|
+            \_ ->
+                let
+                    state =
+                        Cascader.setValue ids [ "europe", "norway", "bergen" ] field
+                            |> (\s -> feed (Drive.fire [ Selector.id "place" ] (Drive.key "Enter") (html [] s)) s)
+
+                    h =
+                        html [] state
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ itemId 0 0, attr "aria-owns" "place-group-1" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ itemId 1 0, attr "aria-owns" "place-group-2" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "place-group-1", attr "role" "group", Selector.containing [ itemId 1 0 ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "place-group-2", attr "role" "group", Selector.containing [ itemId 2 1 ] ] h)
+                    , \_ -> Expect.equal 2 (Drive.count [ Selector.attribute (Attr.attribute "role" "group") ] h)
                     ]
                     ()
         , test "a top level that is loading, failed or empty draws that" <|
@@ -798,6 +875,87 @@ lazyTests =
                         atJapan failed |> sendTo failed "ArrowRight"
                 in
                 Expect.equal False (Drive.has [ Selector.tag "button", Selector.containing [ Selector.text "Try again" ] ] (withAreas failed state))
+        , test "each branch is named once: the scroll of a column before the application marked it does not name it again" <|
+            \_ ->
+                let
+                    after =
+                        atJapan NotAsked |> sendTo NotAsked "ArrowRight"
+
+                    scrolled =
+                        feed (Drive.fire [ Selector.id "place-col-0" ] (Drive.scroll 10) (withAreas NotAsked after)) after
+                in
+                Expect.equal [ [ "japan" ], [] ] [ Cascader.loadRequests after, Cascader.loadRequests scrolled ]
+        , test "after Try again the cursor stays on the branch whose children load again, and the trail stays open" <|
+            \_ ->
+                let
+                    failed =
+                        Failed (Remote.problem Remote.network)
+
+                    onFailure =
+                        atJapan failed |> sendTo failed "ArrowRight" |> sendTo failed "ArrowRight"
+
+                    retried =
+                        withAreas Loading onFailure
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.id "place-search", attr "aria-activedescendant" "place-c2-0" ] (withAreas failed onFailure))
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "place-search", attr "aria-activedescendant" "place-c1-0" ] retried)
+                    , \_ -> Expect.equal True (Drive.has [ itemId 1 0, attr "aria-expanded" "true" ] retried)
+                    ]
+                    ()
+        , test "children that are refreshed stay in their column, and their branch is busy" <|
+            \_ ->
+                let
+                    areas =
+                        Remote.refresh (Loaded [ Picking.leaf ids "tokyo" "Tokyo" ])
+
+                    h =
+                        withAreas areas (atJapan areas |> sendTo areas "ArrowRight")
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ itemId 2 0, Selector.containing [ Selector.text "Tokyo" ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ itemId 1 0, attr "aria-busy" "true" ] h)
+                    ]
+                    ()
+        , test "children that are old after a failed refresh stay, under a row that says so and retries with Enter" <|
+            \_ ->
+                let
+                    areas =
+                        Remote.refreshWith (Loaded [ Picking.leaf ids "tokyo" "Tokyo" ]) (Err (Remote.problem Remote.server)) (Time.millisToPosix 0)
+
+                    state =
+                        atJapan areas |> sendTo areas "ArrowRight" |> sendTo areas "ArrowRight"
+
+                    h =
+                        withAreas areas state
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ itemId 2 0, Selector.class "klar-cascader__item--stale", Selector.containing [ Selector.text "Old data" ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ itemId 2 1, Selector.containing [ Selector.text "Tokyo" ] ] h)
+                    , \_ -> Expect.equal (Just (RetriedNode "japan")) (Drive.fire [ Selector.id "place-search" ] (Drive.key "Enter") h)
+                    ]
+                    ()
+        , test "a popup opened from the code opens on the value, after the user left other columns open" <|
+            \_ ->
+                let
+                    wandered =
+                        Cascader.setValue ids [ "asia" ] (atJapan NotAsked |> sendTo NotAsked "ArrowRight" |> sendTo NotAsked "Escape")
+
+                    ( reopened, _ ) =
+                        Cascader.open wandered
+
+                    focused =
+                        feed (Drive.fire [ Selector.id "place-search" ] Event.focus (withAreas NotAsked reopened)) reopened
+
+                    h =
+                        withAreas NotAsked focused
+                in
+                Expect.all
+                    [ \_ -> Expect.equal [] (Cascader.loadRequests focused)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "place-search", attr "aria-activedescendant" "place-c0-0" ] h)
+                    , \_ -> Expect.equal False (Drive.has [ itemId 1 0 ] h)
+                    ]
+                    ()
         ]
 
 
@@ -842,6 +1000,9 @@ logicTests =
 
                             Columns.FailedCell p _ ->
                                 "failed:" ++ p
+
+                            Columns.StaleCell p _ ->
+                                "stale:" ++ p
                     )
     in
     describe "the logic of the columns"

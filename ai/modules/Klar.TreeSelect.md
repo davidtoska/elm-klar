@@ -12,7 +12,7 @@ Types: `Msg`, `Mode`, `State`, `Single`, `Multiple`, `Attribute`
 -- State
 type State mode id  -- opaque: no constructors are exposed
 type Msg id  -- opaque: no constructors are exposed
-init : Mode mode -> String -> State mode id
+init : String -> Mode mode -> State mode id
 update : Msg id -> State mode id -> ( State mode id, Cmd (Msg id) )
 view : (Msg id -> msg) -> List (Attribute id msg) -> State mode id -> Html msg
 
@@ -25,7 +25,7 @@ multiple : Mode Multiple
 
 -- Value
 value : State Single id -> Maybe id
-setValue : Ids.Ids id -> id -> State Single id -> State Single id
+setValue : Ids.Ids id -> Maybe id -> State Single id -> State Single id
 setNode : Picking.Node id -> State Single id -> State Single id
 values : State Multiple id -> List id
 setValues : Ids.Ids id -> List id -> State Multiple id -> State Multiple id
@@ -67,6 +67,7 @@ size : Theme.Size -> Attribute id msg
 visibleRows : Int -> Attribute id msg
 maxVisibleChips : Int -> Attribute id msg
 locale : Locale.Locale -> Attribute id msg
+settings : Settings.Settings -> Attribute id msg
 ```
 
 ## Documentation
@@ -94,7 +95,7 @@ See also [Klar.Select](Klar.Select.md), [Klar.MultiSelect](Klar.MultiSelect.md),
         { site : TreeSelect.State TreeSelect.Single SiteId }
 
     init =
-        { site = TreeSelect.init TreeSelect.single "site" }
+        { site = TreeSelect.init "site" TreeSelect.single }
 
     -- update
     SiteMsg inner ->
@@ -146,16 +147,20 @@ a tree of many thousands of nodes stays fast.
 
 Nodes can come from the backend: the top level as a `Remote` (`remote`), and the
 children of a node with `Picking.lazy`. When the user opens a lazy node that is
-`NotAsked`, `loadRequests` names it (call it after every update), so that you can
-mark it `Loading` and fetch it; a failed branch shows the problem and a "Try again" button
-(`onRetryChildren`) and does not block the rest of the tree. Nothing else is
-loaded behind your back.
+`NotAsked`, `loadRequests` names it once (call it after every update), so that you
+can mark it `Loading` and fetch it; a failed branch shows the problem and a "Try
+again" button (`onRetryChildren`) and does not block the rest of the tree. Data
+that is `Kept` stays on screen: a node whose children are refreshed is busy, and
+children that are old after a failed refresh sit under a row that says "Old data
+from 14:05" with "Try again" (the top level says it above the tree; give `settings`
+for the time zone). Nothing else is loaded behind your back.
 
 Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
 character open the popup (the character starts the search). The keyboard focus
 stays in the search box while the popup is open, and the arrow keys move a
-highlight (`aria-activedescendant`): ArrowDown and ArrowUp, Home and End, PageUp
-and PageDown. ArrowRight opens a closed node and then moves into it, ArrowLeft
+highlight (`aria-activedescendant`): ArrowDown and ArrowUp, PageUp and PageDown,
+and Home and End (in a text Home and End move the caret, and Ctrl or Cmd with them
+move the highlight). ArrowRight opens a closed node and then moves into it, ArrowLeft
 closes an open node and then moves to its parent; in a text they move the caret
 instead, until it is at the end (right) or the start (left). Enter chooses the
 highlighted node (in a multiple field it checks or unchecks it and the popup stays
@@ -206,15 +211,15 @@ you get back to `update`.
 ### `init`
 
 ```elm
-init : Mode mode -> String -> State mode id
+init : String -> Mode mode -> State mode id
 ```
 
-A closed field with nothing chosen. The first argument is `single` or
-`multiple`; the `String` is the DOM id of the field and must be unique on the
-page: the label points to it, and the ids of the popup are derived from it
-(`site-search`, `site-tree`, `site-popup`).
+A closed field with nothing chosen. The `String` is the DOM id of the field
+and must be unique on the page: the label points to it, and the ids of the popup
+are derived from it (`site-search`, `site-tree`, `site-popup`). The second
+argument is `single` or `multiple`.
 
-    TreeSelect.init TreeSelect.single "site"
+    TreeSelect.init "site" TreeSelect.single
 
 ### `update`
 
@@ -314,14 +319,15 @@ loading.
 ### `setValue`
 
 ```elm
-setValue : Ids.Ids id -> id -> State Single id -> State Single id
+setValue : Ids.Ids id -> Maybe id -> State Single id -> State Single id
 ```
 
 Chooses a node of a single field from your code, for example to show a saved
-record. The label is looked up in the nodes when they are shown; use `setNode`
+record; `Nothing` empties the field, so `setValue ids (value state)` changes
+nothing. The label is looked up in the nodes when they are shown; use `setNode`
 when the node may not be among them (it is inside a branch that is not loaded).
 
-    TreeSelect.setValue siteIds hall3 model.site
+    TreeSelect.setValue siteIds (Just hall3) model.site
 
 ### `setNode`
 
@@ -435,12 +441,13 @@ if the popup was open. Map the command like the one from `update`.
 loadRequests : State mode id -> List id
 ```
 
-The lazy nodes whose children somebody is waiting for: the open nodes of the
-open popup whose children are `NotAsked`. Usually zero or one; `*` on the keyboard
-can open several. Call it after every `update` of the field. Set the children of
-the nodes it names to `Loading` in your data and fetch them; the next time you
-build the nodes they hold the answer. Asking again is harmless, because a node you
-have marked `Loading` is not named any more.
+The lazy nodes that the last `update` opened while their children are
+`NotAsked`: the user opened them, `*` opened several, or the popup opened on a
+value inside them. Usually zero or one. Call it after every `update` of the field,
+set the children of the nodes it names to `Loading` in your data and fetch them;
+the next time you build the nodes they hold the answer. Each node is named once
+(scrolling, hovering or another message does not name it again), so the wiring
+below never fetches twice and needs no guard of its own.
 
     SiteMsg inner ->
         let
@@ -454,10 +461,10 @@ have marked `Loading` is not named any more.
         , Cmd.batch (Cmd.map SiteMsg cmd :: List.map fetchZones requested)
         )
 
-The answer is worked out from the nodes of the last message the field got, so if
-you set a node back to `NotAsked` yourself (to load it again), you also fetch it
-yourself: the field asks again only after its next message. After a failure the
-user retries with the button that `onRetryChildren` adds.
+A node that you leave `NotAsked` is named again the next time the popup opens. If
+you set an open node back to `NotAsked` yourself (to load it again), fetch it
+yourself too. After a failure the user retries with the button that
+`onRetryChildren` adds.
 
 ## Attributes
 
@@ -493,7 +500,10 @@ remote : Remote.Remote (List (Picking.Node id)) -> Attribute id msg
 The top level of the tree from the backend, as a `Remote` (see
 [Klar.Remote](Klar.Remote.md)). The popup shows loading rows while the data is
 `Loading` or `NotAsked`, a compact error with a retry button on `Failed` (see
-`onRetry`), the empty state on `Loaded []`, and the tree on `Loaded`.
+`onRetry`), the empty state on `Loaded []`, and the tree on `Loaded`. A tree that is
+`Kept` stays on screen and can be used: dimmed and busy while it is refreshed, and
+with "Old data from 14:05" and a retry (`onRetry`) above it when the last refresh
+failed (the time is written in the zone of `settings`).
 
     TreeSelect.remote model.sites
 
@@ -691,3 +701,15 @@ counts, the loading and error states and the labels for screen readers. The
 default is `Locale.default`, which is English. See [Klar.Locale](Klar.Locale.md).
 
     TreeSelect.locale Locale.nb
+
+### `settings`
+
+```elm
+settings : Settings.Settings -> Attribute id msg
+```
+
+The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05", for the top level (`remote`) and for lazy nodes. Without
+it the time is written in UTC and ends in "UTC".
+
+    TreeSelect.settings model.settings

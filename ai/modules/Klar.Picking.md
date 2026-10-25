@@ -1,6 +1,6 @@
 # Klar.Picking
 
-The vocabulary that Klar.TreeSelect, Klar.Cascader and Klar.Transfer share.
+The nodes of a hierarchy that Klar.TreeSelect and Klar.Cascader choose from, with ids of your own type (a `RegionId`, a `ProductId`, plain text ...) that a Klar.Ids writes as keys.
 
 Import: `import Klar.Picking as Picking` | Group: Choosing
 
@@ -14,6 +14,11 @@ type Node id  -- opaque: no constructors are exposed
 leaf : Ids.Ids id -> id -> String -> Node id
 branch : Ids.Ids id -> id -> String -> List (Node id) -> Node id
 lazy : Ids.Ids id -> id -> String -> Remote.Remote (List (Node id)) -> Node id
+fromFlat :
+    Ids.Ids id
+    -> { id : row -> id, parent : row -> Maybe id, label : row -> String, decorate : row -> Node id -> Node id }
+    -> List row
+    -> List (Node id)
 withDescription : String -> Node id -> Node id
 withIcon : Icon.Icon -> Node id -> Node id
 withKeywords : List String -> Node id -> Node id
@@ -32,15 +37,16 @@ children : Node id -> Remote.Remote (List (Node id))
 
 ## Documentation
 
-The vocabulary that [Klar.TreeSelect](Klar.TreeSelect.md),
-[Klar.Cascader](Klar.Cascader.md) and [Klar.Transfer](Klar.Transfer.md) share: how your
-own id type (a `RegionId`, a `ProductId`, plain text ...) is written as a key,
-and the nodes of a hierarchy to choose from. The components give your ids back
-as they are, so you never write the way back from a key to an id.
+The nodes of a hierarchy that [Klar.TreeSelect](Klar.TreeSelect.md) and
+[Klar.Cascader](Klar.Cascader.md) choose from, with ids of your own type (a
+`RegionId`, a `ProductId`, plain text ...) that a [Klar.Ids](Klar.Ids.md) writes as
+keys. The components give your ids back as they are, so you never write the way
+back from a key to an id.
 
-Use when: you build the nodes for `Klar.TreeSelect`, `Klar.Cascader` or `Klar.Transfer`, or need one way to write your ids as keys.
-Do not use when: you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes).
+Use when: you build the nodes for `Klar.TreeSelect` or `Klar.Cascader`, from nested data or from flat rows that name their parent (`fromFlat`).
+Do not use when: you show a hierarchy on the page itself with open and closed branches (as `Klar.Tree`, which has its own nodes), or the items have no hierarchy (as the options of `Klar.Select`, `Klar.MultiSelect` and `Klar.Transfer`).
 
+    import Klar.Ids as Ids exposing (Ids)
     import Klar.Picking as Picking
     import Klar.Remote as Remote exposing (Remote(..))
 
@@ -59,6 +65,12 @@ Do not use when: you show a hierarchy on the page itself with open and closed br
             , Picking.lazy regionIds bergen "Bergen" (Remote.map (List.map zoneNode) bergenZones)
             ]
         ]
+
+    -- the nodes go to the field
+    TreeSelect.view RegionMsg [ TreeSelect.label "Region", TreeSelect.nodes (regions model.bergenZones) ] model.region
+
+A backend that sends the hierarchy as flat rows with a parent id needs no code of
+your own: `Picking.fromFlat` builds the nodes.
 
 Nodes are plain data that you build from your own data on every render; the
 components only remember what the user did (which nodes are open, which are
@@ -137,7 +149,39 @@ looks like something that can be opened, until its children arrive empty.
 The component tells you which node was opened first (`TreeSelect.loadRequests`,
 `Cascader.loadRequests`); you set its children to `Loading`, fetch them, and put
 the answer in the node the next time you build the tree. Children that are `Kept`
-(refreshed, or old after a failed refresh) are shown as if they were `Loaded`.
+stay on screen and can be chosen: while they are refreshed the branch is marked
+busy, and when the last refresh failed a row under the branch says "Old data from
+14:05" with a "Try again" button (`onRetryChildren`).
+
+### `fromFlat`
+
+```elm
+fromFlat :
+    Ids.Ids id
+    -> { id : row -> id, parent : row -> Maybe id, label : row -> String, decorate : row -> Node id -> Node id }
+    -> List row
+    -> List (Node id)
+```
+
+The nodes of a hierarchy that comes as flat rows, each naming its parent: the
+way most backends send one (`{ id, parentId, name }`). Give the ids, how to read
+the id, the parent (`Nothing` at the top) and the label of a row, and `decorate`
+for what more a node gets (`\_ node -> node` for nothing).
+
+    Picking.fromFlat warehouseIds
+        { id = .id
+        , parent = .parentId
+        , label = .name
+        , decorate = \row node -> Picking.withDescription row.code node
+        }
+        rows
+
+Siblings keep the order of the rows; a row with children is a `branch` and one
+without a `leaf`. Nothing is dropped quietly: a row whose parent is not among the
+rows is put at the top level, and so is a row in a loop of parents (a row that is
+its own parent or ancestor), with the loop cut where it closes. Rows with the same
+id are the same node to the components (the first one wins, see above). The rows
+are grouped once, so a hierarchy of many thousands of rows is quick.
 
 ### `withDescription`
 
@@ -243,4 +287,4 @@ children : Node id -> Remote.Remote (List (Node id))
 ```
 
 The children of the node as a `Remote`: `Loaded []` for a leaf, the list for
-a branch, and whatever state the backend request is in for a lazy node.
+a branch, and for a lazy node the `Remote` as you gave it (`Kept` included).

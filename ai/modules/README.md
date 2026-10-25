@@ -68,7 +68,7 @@ One file per exposed module, generated from the doc comments by `npm run gen:ai-
 - [Klar.MultiSelect](Klar.MultiSelect.md): Choose several values from a searchable list.
 - [Klar.Autocomplete](Klar.Autocomplete.md): A text field with suggestions.
 - [Klar.VirtualList](Klar.VirtualList.md): A list of thousands of rows that draws only the rows in view, and is a list box for the keyboard.
-- [Klar.Picking](Klar.Picking.md): The vocabulary that Klar.TreeSelect, Klar.Cascader and Klar.Transfer share.
+- [Klar.Picking](Klar.Picking.md): The nodes of a hierarchy that Klar.TreeSelect and Klar.Cascader choose from, with ids of your own type (a `RegionId`, a `ProductId`, plain text ...) that a Klar.Ids writes as keys.
 - [Klar.TreeSelect](Klar.TreeSelect.md): A field that opens a popup with a tree and lets the user choose one node, or several with check boxes.
 - [Klar.Cascader](Klar.Cascader.md): A field for choosing a path through levels: Region, Country, City; Category, Subcategory, Product.
 - [Klar.Transfer](Klar.Transfer.md): Two lists side by side, "Available" and "Chosen", and a way to move items from one to the other.

@@ -6,6 +6,7 @@ module Klar.Picking.Index exposing
     , Kids(..)
     , Row(..)
     , Rows
+    , Stale
     , View
     , ancestors
     , build
@@ -40,10 +41,12 @@ Not for application code.
 
 import Array exposing (Array)
 import Dict exposing (Dict)
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Picking as Picking exposing (Node)
 import Klar.Remote as Remote
 import Klar.Search as Search
 import Set exposing (Set)
+import Time
 
 
 
@@ -63,7 +66,8 @@ type Kids
 {-| One node of the hierarchy, looked up by its key. `position` is its place in
 the document order (parents before children, siblings in the given order),
 `blocked` says that a node somewhere below it is disabled, and `haystack` is the
-normalized text that the filter looks in.
+normalized text that the filter looks in. `freshness` says whether children on
+screen that are `Remote.Kept` are being refreshed, or are old.
 -}
 type alias Entry id =
     { key : String
@@ -72,6 +76,7 @@ type alias Entry id =
     , parent : Maybe String
     , depth : Int
     , kids : Kids
+    , freshness : Freshness
     , disabled : Bool
     , blocked : Bool
     , haystack : String
@@ -162,8 +167,11 @@ addOne parent depth node acc =
             started =
                 { acc | next = acc.next + 1, order = key :: acc.order, entries = Dict.insert key (placeholder key node) acc.entries }
 
+            ( given, freshness ) =
+                Freshness.settle (Picking.children node)
+
             ( kids, below, finished ) =
-                case Picking.children node of
+                case given of
                     Remote.Loaded [] ->
                         ( NoKids, False, started )
 
@@ -188,7 +196,7 @@ addOne parent depth node acc =
                         ( LoadFailed problem, False, started )
 
                     Remote.Kept _ ->
-                        -- `Picking.lazy` settles it into `Loaded`
+                        -- settled into `Loaded` above
                         ( Unloaded, False, started )
 
             disabled =
@@ -201,6 +209,7 @@ addOne parent depth node acc =
                 , parent = parent
                 , depth = depth
                 , kids = kids
+                , freshness = freshness
                 , disabled = disabled
                 , blocked = below
                 , haystack = haystackOf node
@@ -218,6 +227,7 @@ placeholder key node =
     , parent = Nothing
     , depth = 0
     , kids = NoKids
+    , freshness = Freshness.Fresh
     , disabled = Picking.isDisabled node
     , blocked = False
     , haystack = ""
@@ -271,11 +281,11 @@ findLabelsIn wanted nodes found =
                             found
 
                     below =
-                        case Picking.children node of
-                            Remote.Loaded kids ->
+                        case Remote.toMaybe (Picking.children node) of
+                            Just kids ->
                                 findLabelsIn wanted kids here
 
-                            _ ->
+                            Nothing ->
                                 here
                 in
                 findLabelsIn wanted rest below
@@ -299,11 +309,11 @@ followPath keys nodes =
                             Just [ Picking.label node ]
 
                         _ ->
-                            case Picking.children node of
-                                Remote.Loaded kids ->
+                            case Remote.toMaybe (Picking.children node) of
+                                Just kids ->
                                     followPath rest kids |> Maybe.map (\labels -> Picking.label node :: labels)
 
-                                _ ->
+                                Nothing ->
                                     Nothing
 
                 Nothing ->
@@ -473,16 +483,33 @@ type alias Item id =
     }
 
 
+{-| A row on screen: a node, the loading or failed children of an open lazy node,
+or (`StaleRow`, right under an open node and above its children) the marker for
+children that are old because their last refresh failed.
+-}
 type Row id
     = NodeRow (Item id)
     | LoadingRow { parent : String, depth : Int }
     | FailedRow { parent : String, depth : Int, problem : Remote.Problem }
+    | StaleRow { parent : String, depth : Int, stale : Stale }
 
 
+{-| Why children on screen are old: the problem of the last refresh, when the
+children were loaded, and whether a new refresh is on its way.
+-}
+type alias Stale =
+    { problem : Remote.Problem, at : Maybe Time.Posix, refreshing : Bool }
+
+
+{-| The rows on screen. `failures` has the row of the failure or the old-data
+marker under a node, by the node's key; `waiting` the keys of the open nodes whose
+children are `NotAsked` (in the order of the rows).
+-}
 type alias Rows id =
     { rows : Array (Row id)
     , positions : Dict String Int
     , failures : Dict String Int
+    , waiting : List String
     , shown : Int
     , matchCount : Int
     , total : Int
@@ -557,10 +584,30 @@ rows view index =
                             FailedRow r ->
                                 Dict.insert r.parent i dict
 
+                            StaleRow r ->
+                                Dict.insert r.parent i dict
+
                             _ ->
                                 dict
                     )
                     Dict.empty
+
+        waiting =
+            ordered
+                |> List.filterMap
+                    (\row ->
+                        case row of
+                            LoadingRow r ->
+                                case get r.parent index |> Maybe.map .kids of
+                                    Just Unloaded ->
+                                        Just r.parent
+
+                                    _ ->
+                                        Nothing
+
+                            _ ->
+                                Nothing
+                    )
 
         matchCount =
             case view.filter of
@@ -573,6 +620,7 @@ rows view index =
     { rows = Array.fromList ordered
     , positions = positions
     , failures = failures
+    , waiting = waiting
     , shown = Dict.size positions
     , matchCount = matchCount
     , total = size index
@@ -631,7 +679,12 @@ emitOne view index count position key acc =
             if open then
                 case entry.kids of
                     Kids keys ->
-                        emit view index (shownKids view key keys) withRow
+                        case entry.freshness of
+                            Freshness.Stale stale ->
+                                emit view index (shownKids view key keys) (StaleRow { parent = key, depth = entry.depth + 1, stale = stale } :: withRow)
+
+                            _ ->
+                                emit view index (shownKids view key keys) withRow
 
                     Unloaded ->
                         LoadingRow { parent = key, depth = entry.depth + 1 } :: withRow
@@ -732,6 +785,9 @@ parentRow from r =
             rowIndex parent r
 
         Just (FailedRow { parent }) ->
+            rowIndex parent r
+
+        Just (StaleRow { parent }) ->
             rowIndex parent r
 
         Nothing ->

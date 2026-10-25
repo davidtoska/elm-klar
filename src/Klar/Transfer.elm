@@ -3,7 +3,7 @@ module Klar.Transfer exposing
     , values, setValues, clear
     , Attribute, options, remote, onRetry, titles, Order, sourceOrder, movedOrder, order
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , valueText, disabled, readOnly, visibleRows, locale
+    , valueText, disabled, readOnly, visibleRows, locale, settings
     )
 
 {-| Two lists side by side, "Available" and "Chosen", and a way to move items
@@ -11,7 +11,7 @@ from one to the other.
 
 Use when: the user assigns many things to one thing, such as products to a promotion, users to a group or columns to an export.
 Do not use when: the user picks a few values from a list (as `Klar.MultiSelect`) or values in a hierarchy (as `Klar.TreeSelect`).
-Quick path: `init`, `update`, `view`, `options`, `values`
+Quick path: `init`, `update`, `view`, `options` (or `remote`), `values`, `setValues`
 
 See also [Klar.MultiSelect](Klar-MultiSelect) and [Klar.TreeSelect](Klar-TreeSelect).
 
@@ -81,16 +81,19 @@ and the buttons sit between them (the field fills the width of its container, so
 put it in one that has a width). Right-to-left languages are not supported: the
 keys for moving between the lists assume left-to-right text.
 
-Keyboard: Tab goes from the filter box to the list, to the buttons and on. In a
-filter box Enter or ArrowDown moves on to the list (and never submits a form). In a
-list ArrowDown and ArrowUp, Home and End, and PageUp and PageDown move the
-highlight, and Shift with the arrows marks a range from where the last mark was
-made (going back shrinks it). Space marks or unmarks the
-highlighted item and Ctrl+A marks all that are shown. Enter moves the marked items
-to the other list (the highlighted item when none is marked), Ctrl+ArrowRight in
-"Available" and Ctrl+ArrowLeft in "Chosen" do the same, and with Shift they move
-all that are shown. Typing letters jumps to the next item that starts with them
-(an item that is disabled is skipped, as it is by the arrow keys).
+Keyboard: in each list Tab goes from the header check box to the filter box, to the
+list, and on to the buttons and the other list. In a filter box Enter or ArrowDown
+moves on to the list (and never submits a form). In a list ArrowDown and ArrowUp,
+Home and End, and PageUp and PageDown move the highlight, and Shift with the arrows
+marks a range from where the last mark was made (going back shrinks it). Space
+marks or unmarks the highlighted item and Ctrl+A (Cmd+A on a Mac) marks all that are
+shown. Enter moves the marked items to the other list (the highlighted item when
+none is marked), Ctrl+ArrowRight in "Available" and Ctrl+ArrowLeft in "Chosen" (Cmd
+on a Mac) do the same, and with Shift they move all that are shown. Typing letters
+jumps to the next item that starts with them (an item that is disabled is skipped,
+as it is by the arrow keys). In a `readOnly` field the keys that move the highlight
+still work. `Klar.focus` with the id of `init` focuses the filter box of
+"Available".
 
 Accessibility: the field is a `group` with the label; each list is a `listbox` with
 `aria-multiselectable`, with the highlighted row named by `aria-activedescendant`,
@@ -128,7 +131,7 @@ control.
 
 # Behavior and looks
 
-@docs valueText, disabled, readOnly, visibleRows, locale
+@docs valueText, disabled, readOnly, visibleRows, locale, settings
 
 -}
 
@@ -144,7 +147,7 @@ import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
-import Klar.Internal.Freshness as Freshness
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Picking as Picking
 import Klar.Picking.Texts as Texts exposing (Texts)
@@ -152,6 +155,7 @@ import Klar.Picking.View as View
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Search as Search
 import Klar.Select exposing (Option)
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Transfer.Lists as Lists exposing (Chosen, PaneRow, Source)
 import Klar.VirtualList as VirtualList
 import Process
@@ -242,9 +246,11 @@ other side =
 
 
 {-| A transfer with nothing chosen. The `String` is the DOM id of the field and
-must be unique on the page: the label points to it, and the ids of the lists, the
-filter boxes and the rows are derived from it (`products-available`,
-`products-chosen`, `products-available-filter` ...).
+must be unique on the page. It is the id of the filter box of "Available", the
+first control that is there in every state, so `Klar.focus "promotion-products"`
+and the links of an error summary land in the field. The ids of the lists, the
+other filter box and the rows are derived from it (`products-available`,
+`products-chosen`, `products-chosen-filter` ...).
 
     Transfer.init "promotion-products"
 
@@ -285,7 +291,12 @@ listId domId side =
 
 filterId : String -> Side -> String
 filterId domId side =
-    listId domId side ++ "-filter"
+    case side of
+        Available ->
+            domId
+
+        ChosenSide ->
+            listId domId side ++ "-filter"
 
 
 rowDomId : String -> Side -> Int -> String
@@ -503,6 +514,8 @@ type Msg id
     | Typed Side (Env id) String
     | ClearTyped Int
     | FocusList Side
+    | FocusFilter Side
+    | Rearrange Lists.Placement (Env id)
     | Warm (Env id)
     | ListMsg Side VirtualList.Msg
     | NoOp
@@ -678,6 +691,12 @@ advance msg data0 =
         FocusList side ->
             ( data0, Internal.focus (listId data0.id side) NoOp )
 
+        FocusFilter side ->
+            ( data0, Internal.focus (filterId data0.id side) NoOp )
+
+        Rearrange placement env ->
+            rearrange placement env (ensure env data0)
+
         Warm env ->
             -- the first look at the field (the pointer or the focus comes in)
             -- works the lists out once, so that no later draw has to
@@ -692,6 +711,67 @@ advance msg data0 =
 
         NoOp ->
             ( data0, Cmd.none )
+
+
+{-| Moves the marked items of "Chosen" (the highlighted one when none is marked)
+up, down, to the top or to the bottom, in the order of moving only. The highlight
+stays on its item, and the new place is announced.
+-}
+rearrange : Lists.Placement -> Env id -> Data id -> ( Data id, Cmd (Msg id) )
+rearrange placement env data =
+    let
+        keys =
+            case shownMarked ChosenSide data of
+                [] ->
+                    cursorIndex ChosenSide data
+                        |> Maybe.andThen (\i -> Array.get i (rowsOf ChosenSide data))
+                        |> Maybe.map (\row -> [ row.key ])
+                        |> Maybe.withDefault []
+
+                marked ->
+                    marked
+
+        keySet =
+            Set.fromList keys
+    in
+    if env.order /= Lists.MovedOrder || List.isEmpty keys then
+        ( data, Cmd.none )
+
+    else
+        let
+            moved =
+                rebuild env { data | chosen = Lists.reorder placement keySet data.chosen }
+
+            positions =
+                positionsOf ChosenSide moved
+
+            firstMoved =
+                moved.chosen
+                    |> List.filter (\c -> Set.member c.key keySet)
+                    |> List.head
+                    |> Maybe.andThen (\c -> Dict.get c.key positions)
+
+            announced =
+                case firstMoved of
+                    Just i ->
+                        { moved
+                            | announcement =
+                                Just
+                                    { text = (Texts.texts env.locale).movedToPlace (i + 1) (Array.length (rowsOf ChosenSide moved))
+                                    , tick = moved.ticks + 1
+                                    }
+                            , ticks = moved.ticks + 1
+                        }
+
+                    Nothing ->
+                        moved
+        in
+        case cursorIndex ChosenSide announced of
+            Just i ->
+                cursorTo env ChosenSide i announced
+
+            Nothing ->
+                ( announced, Cmd.none )
 
 
 rowIsEnabled : PaneRow id -> Bool
@@ -873,14 +953,9 @@ seek direction from rows =
                 seek direction (from + direction) rows
 
 
-rowHeight : Int
-rowHeight =
-    32
-
-
 geometry : Int -> Int -> VirtualList.Geometry
 geometry rowsVisible count =
-    { rowHeight = rowHeight, height = rowsVisible * rowHeight, count = count, inset = 0 }
+    { rowHeight = View.rowHeight, height = rowsVisible * View.rowHeight, count = count, inset = 0 }
 
 
 cursorTo : Env id -> Side -> Int -> Data id -> ( Data id, Cmd (Msg id) )
@@ -1130,6 +1205,8 @@ type Attribute id msg
 type alias Config id msg =
     { field : Field.Config
     , items : Remote (List (Option id))
+    , freshness : Freshness
+    , settings : Settings
     , ids : Maybe (Ids id)
     , titles : Maybe (Both String)
     , order : Lists.Order
@@ -1147,6 +1224,8 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
         , items = Loaded []
+        , freshness = Freshness.Fresh
+        , settings = Settings.default
         , ids = Nothing
         , titles = Nothing
         , order = Lists.SourceOrder
@@ -1172,26 +1251,35 @@ updateField change =
     Transfer.options productIds [ Select.option sku1 "Coffee 1 kg", Select.option sku2 "Tea 500 g" ]
 
 An option that is `disabledOption` can be seen but not moved. When two options have
-the same key the first one is used.
+the same key the first one is used. The lists draw the icon, the label and the
+description of an option; its group, tone and color (which `Klar.Select` draws) are
+not shown, so both lists are flat.
 
 -}
 options : Ids id -> List (Option id) -> Attribute id msg
 options ids list =
-    Attribute (\config -> { config | items = Loaded list, ids = Just ids })
+    Attribute (\config -> { config | items = Loaded list, freshness = Freshness.Fresh, ids = Just ids })
 
 
 {-| The items from the backend, as a `Remote` (see [Klar.Remote](Klar-Remote)).
 "Available" shows loading rows while the data is `Loading` or `NotAsked`, a compact
 error with a retry button on `Failed` (see `onRetry`), and the items on `Loaded`.
-"Chosen" keeps showing what is chosen, with "Loading ..." for the labels it does
-not know yet.
+Items that are `Kept` stay on screen and can be moved: "Available" is dimmed and
+busy while they are refreshed, and says "Old data from 14:05" with a retry
+(`onRetry`) above its list when the last refresh failed (the time is written in
+the zone of `settings`). "Chosen" keeps showing what is chosen, with
+"Loading ..." for the labels it does not know yet.
 
     Transfer.remote productIds model.products
 
 -}
 remote : Ids id -> Remote (List (Option id)) -> Attribute id msg
 remote ids data =
-    Attribute (\config -> { config | items = Tuple.first (Freshness.settle data), ids = Just ids })
+    let
+        ( current, freshness ) =
+            Freshness.settle data
+    in
+    Attribute (\config -> { config | items = current, freshness = freshness, ids = Just ids })
 
 
 {-| The message to send when the user presses the "Try again" button of the error
@@ -1239,7 +1327,11 @@ sourceOrder =
 
 {-| The chosen ids are kept in the order in which the user moved them, the newest
 last: that order is the value, and `setValues` keeps the order it is given. Use it
-when the order means something, such as the columns of an export.
+when the order means something, such as the columns of an export. The user can
+also rearrange "Chosen": the buttons in its header move the marked items (the
+highlighted one when none is marked) up, down, to the top or to the bottom, and
+Alt+ArrowUp and Alt+ArrowDown in the list do the same; the new place is announced
+("Moved to place 2 of 7").
 -}
 movedOrder : Order
 movedOrder =
@@ -1330,8 +1422,10 @@ disabled value_ =
     Attribute (\config -> { config | disabled = value_ })
 
 
-{-| While `True` the field shows its lists but does not let the user change them,
-and the lists can still be scrolled and read. Unlike `disabled` it is not dimmed.
+{-| While `True` the field shows its lists but does not let the user change them:
+the lists can still be scrolled and read, also with the keyboard (the arrow keys,
+Home, End, the Page keys and the letters move the highlight; nothing is marked or
+moved), and they say `aria-readonly`. Unlike `disabled` it is not dimmed.
 The two are independent; with both set the field is disabled. The default is
 `False`.
 -}
@@ -1346,6 +1440,18 @@ below 4 or above 30 are brought into that range.
 visibleRows : Int -> Attribute id msg
 visibleRows n =
     Attribute (\config -> { config | visibleRows = clamp 4 30 n })
+
+
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05" (see `remote`). Without it the time is written in UTC and
+ends in "UTC".
+
+    Transfer.settings model.settings
+
+-}
+settings : Settings -> Attribute id msg
+settings given =
+    Attribute (\config -> { config | settings = given })
 
 
 {-| The language of the built-in text: the titles, the filter boxes, the counts,
@@ -1484,7 +1590,7 @@ view toMsg attributes (State data) =
             [ viewLegend field
             , Html.div
                 [ Internal.cls [ "klar-transfer__box" ]
-                , Internal.styleVars [ ( "--klar-transfer-rows", String.fromInt config.visibleRows ) ]
+                , Internal.styleVars [ ( "--klar-transfer-rows", String.fromInt config.visibleRows ), ( "--klar-transfer-row", String.fromInt View.rowHeight ++ "px" ) ]
                 ]
                 [ Html.div [ Internal.cls [ "klar-transfer__panes" ] ]
                     [ viewPane toMsg config t env current interactive Available
@@ -1550,28 +1656,6 @@ viewLegend field =
 
 
 -- PANES
-
-
-{-| The rows that a list draws, by the same arithmetic as `VirtualList`, so that
-`aria-activedescendant` only names a row that exists.
--}
-renderedRange : Int -> Int -> VirtualList.State -> ( Int, Int )
-renderedRange count rowsVisible list =
-    let
-        viewport =
-            min (rowsVisible * rowHeight) (count * rowHeight)
-
-        -- the list keeps its scroll position inside its rows, so does this
-        top =
-            clamp 0 (toFloat (max 0 (count * rowHeight - viewport))) (VirtualList.scrollTop list)
-
-        first =
-            floor (top / toFloat rowHeight)
-
-        visible =
-            ceiling (toFloat viewport / toFloat rowHeight) + 1
-    in
-    ( max 0 (first - 6), min count (first + visible + 6) )
 
 
 type alias RowConfig id msg =
@@ -1647,7 +1731,7 @@ viewPane toMsg config t env data interactive side =
                 Just i ->
                     let
                         ( from, to ) =
-                            renderedRange shownCount config.visibleRows (pick side data.lists)
+                            View.renderedRange { visibleRows = config.visibleRows, count = shownCount } (pick side data.lists)
                     in
                     if i >= from && i < to then
                         Just (rowDomId data.id side i)
@@ -1666,25 +1750,44 @@ viewPane toMsg config t env data interactive side =
                 ChosenSide ->
                     "ArrowLeft"
 
+        -- the keys that only move the highlight work in a read-only field too
+        navigation =
+            [ ( "ArrowDown", toMsg (Key side env Down) )
+            , ( "ArrowUp", toMsg (Key side env Up) )
+            , ( "PageDown", toMsg (Key side env PageDown) )
+            , ( "PageUp", toMsg (Key side env PageUp) )
+            , ( "Home", toMsg (Key side env First) )
+            , ( "End", toMsg (Key side env Last) )
+            ]
+
+        -- Mod is Ctrl, and Cmd on a Mac
+        changes =
+            [ ( "Shift+ArrowDown", toMsg (Key side env ExtendDown) )
+            , ( "Shift+ArrowUp", toMsg (Key side env ExtendUp) )
+            , ( " ", toMsg (Key side env ToggleMark) )
+            , ( "Mod+a", toMsg (Key side env MarkEverything) )
+            , ( "Mod+A", toMsg (Key side env MarkEverything) )
+            , ( "Enter", toMsg (Key side env Enter) )
+            , ( "Mod+" ++ toward, toMsg (Key side env Transfer) )
+            , ( "Mod+Shift+" ++ toward, toMsg (Key side env TransferAll) )
+            ]
+
+        -- in the order of moving, Alt with the arrows moves items inside "Chosen"
+        rearranging =
+            if side == ChosenSide && config.order == Lists.MovedOrder then
+                [ ( "Alt+ArrowUp", toMsg (Rearrange Lists.Up env) )
+                , ( "Alt+ArrowDown", toMsg (Rearrange Lists.Down env) )
+                ]
+
+            else
+                []
+
         keys =
             if interactive then
-                View.onTriggerKeys
-                    [ ( "ArrowDown", toMsg (Key side env Down) )
-                    , ( "ArrowUp", toMsg (Key side env Up) )
-                    , ( "Shift+ArrowDown", toMsg (Key side env ExtendDown) )
-                    , ( "Shift+ArrowUp", toMsg (Key side env ExtendUp) )
-                    , ( "PageDown", toMsg (Key side env PageDown) )
-                    , ( "PageUp", toMsg (Key side env PageUp) )
-                    , ( "Home", toMsg (Key side env First) )
-                    , ( "End", toMsg (Key side env Last) )
-                    , ( " ", toMsg (Key side env ToggleMark) )
-                    , ( "Ctrl+a", toMsg (Key side env MarkEverything) )
-                    , ( "Ctrl+A", toMsg (Key side env MarkEverything) )
-                    , ( "Enter", toMsg (Key side env Enter) )
-                    , ( "Ctrl+" ++ toward, toMsg (Key side env Transfer) )
-                    , ( "Ctrl+Shift+" ++ toward, toMsg (Key side env TransferAll) )
-                    ]
-                    (Just (\char -> toMsg (Typed side env char)))
+                View.onTriggerKeys (navigation ++ changes ++ rearranging) (Just (\char -> toMsg (Typed side env char)))
+
+            else if not config.disabled then
+                View.onTriggerKeys navigation (Just (\char -> toMsg (Typed side env char)))
 
             else
                 Internal.noAttr
@@ -1695,7 +1798,10 @@ viewPane toMsg config t env data interactive side =
                     View.viewFailure
                         { locale = config.locale
                         , onRetry = config.onRetry
-                        , refocus = toMsg NoOp
+
+                        -- the button goes away when the items load again: focus
+                        -- goes to the filter box, which stays
+                        , refocus = toMsg (FocusFilter Available)
                         , leave = toMsg NoOp
                         , noop = toMsg NoOp
                         }
@@ -1709,18 +1815,37 @@ viewPane toMsg config t env data interactive side =
 
                 _ ->
                     -- the list is always there, also with no rows, so that keyboard
-                    -- focus in it survives moving the last item to the other list
-                    Html.div []
-                        [ VirtualList.view (ListMsg side >> toMsg)
-                            [ VirtualList.rowHeight rowHeight
-                            , VirtualList.height (config.visibleRows * rowHeight)
+                    -- focus in it survives moving the last item to the other list;
+                    -- and the same elements while the items are fresh, refreshed or
+                    -- old, so that focus survives a refresh too
+                    Html.div
+                        (case side of
+                            Available ->
+                                [ Internal.cls [ Freshness.className config.freshness ], Freshness.busyAttr config.freshness ]
+
+                            ChosenSide ->
+                                []
+                        )
+                        [ case side of
+                            Available ->
+                                Freshness.notice
+                                    { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                                    config.freshness
+
+                            ChosenSide ->
+                                Html.text ""
+                        , VirtualList.view (ListMsg side >> toMsg)
+                            [ VirtualList.rowHeight View.rowHeight
+                            , VirtualList.overscan View.overscan
+                            , VirtualList.height (config.visibleRows * View.rowHeight)
                             , VirtualList.htmlAttrs
                                 [ Internal.cls [ "klar-select__list", "klar-transfer__list" ]
                                 , Attr.attribute "role" "listbox"
                                 , Attr.attribute "aria-multiselectable" "true"
                                 , Attr.attribute "aria-label" title
                                 , Attr.tabindex 0
-                                , Internal.attrIf (not interactive) (Attr.attribute "aria-disabled" "true")
+                                , Internal.attrIf config.disabled (Attr.attribute "aria-disabled" "true")
+                                , Internal.attrIf (config.readOnly && not config.disabled) (Attr.attribute "aria-readonly" "true")
                                 , Internal.attrMaybe (Attr.attribute "aria-activedescendant") cursorId
                                 , keys
                                 ]
@@ -1761,6 +1886,11 @@ viewPane toMsg config t env data interactive side =
                 ]
             , Html.span [ Internal.cls [ "klar-transfer__title" ] ] [ Html.text title ]
             , Html.span [ Internal.cls [ "klar-transfer__count", "klar-tabular" ] ] [ Html.text count ]
+            , if side == ChosenSide && config.order == Lists.MovedOrder then
+                viewRearrange toMsg t env interactive (shownCount > 0)
+
+              else
+                Html.text ""
             ]
         , Html.div [ Internal.cls [ "klar-select__search", "klar-transfer__filter" ] ]
             [ Html.span [ Internal.cls [ "klar-select__search-icon" ] ] [ Icon.view Icon.search ]
@@ -1797,6 +1927,31 @@ viewPane toMsg config t env data interactive side =
                 Html.text ""
             ]
         , Html.div [ Internal.cls [ "klar-transfer__body" ] ] [ body ]
+        ]
+
+
+{-| The buttons that move the marked items (or the highlighted one) inside
+"Chosen", in the order of moving.
+-}
+viewRearrange : (Msg id -> msg) -> Texts -> Env id -> Bool -> Bool -> Html msg
+viewRearrange toMsg t env interactive available =
+    let
+        button icon labelText placement =
+            Button.iconOnly
+                [ Button.small
+                , Button.ghost
+                , Button.ariaDisabled (not (interactive && available))
+                , Button.onClick (toMsg (Rearrange placement env))
+                , Button.htmlAttrs [ Internal.onMouseDownPrevent (toMsg NoOp) ]
+                ]
+                icon
+                labelText
+    in
+    Html.span [ Internal.cls [ "klar-transfer__rearrange" ] ]
+        [ button Icon.chevronsUp t.moveToTop Lists.ToTop
+        , button Icon.chevronUp t.moveUp Lists.Up
+        , button Icon.chevronDown t.moveDown Lists.Down
+        , button Icon.chevronsDown t.moveToBottom Lists.ToBottom
         ]
 
 

@@ -50,6 +50,11 @@ type alias Texts =
     , movedTo : Int -> String -> String
     , lockedItem : String
     , filtered : Int -> String -> String
+    , moveUp : String
+    , moveDown : String
+    , moveToTop : String
+    , moveToBottom : String
+    , movedToPlace : Int -> Int -> String
     }
 
 
@@ -115,6 +120,11 @@ texts locale =
                         ++ "»"
             , lockedItem = "Låst"
             , filtered = \n title -> num n ++ " vist i «" ++ title ++ "»"
+            , moveUp = "Flytt opp"
+            , moveDown = "Flytt ned"
+            , moveToTop = "Flytt øverst"
+            , moveToBottom = "Flytt nederst"
+            , movedToPlace = \place count -> "Flyttet til plass " ++ num place ++ " av " ++ num count
             }
         , en =
             { placeholder = "Select ..."
@@ -179,5 +189,10 @@ texts locale =
                         ++ "”"
             , lockedItem = "Locked"
             , filtered = \n title -> num n ++ " shown in “" ++ title ++ "”"
+            , moveUp = "Move up"
+            , moveDown = "Move down"
+            , moveToTop = "Move to the top"
+            , moveToBottom = "Move to the bottom"
+            , movedToPlace = \place count -> "Moved to place " ++ num place ++ " of " ++ num count
             }
         }

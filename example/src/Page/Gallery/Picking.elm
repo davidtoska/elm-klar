@@ -22,6 +22,7 @@ import Klar.TreeSelect as TreeSelect
 import Process
 import Showcase.Doc as Doc
 import Task
+import Time
 
 
 
@@ -189,31 +190,38 @@ regionNodes fetched list =
         list
 
 
-{-| Five thousand nodes: fifty categories of a hundred products each.
+{-| Five thousand products in fifty categories, as a backend sends them: flat rows
+that name their parent.
 -}
-catalogue : List (Node String)
-catalogue =
+catalogueRows : List { id : String, parent : Maybe String, name : String }
+catalogueRows =
     List.range 1 50
-        |> List.map
+        |> List.concatMap
             (\c ->
                 let
                     category =
                         "Category " ++ String.padLeft 2 '0' (String.fromInt c)
                 in
-                Picking.branch Ids.string
-                    category
-                    category
-                    (List.range 1 100
-                        |> List.map
-                            (\p ->
-                                let
-                                    name =
-                                        "Product " ++ String.fromInt c ++ "-" ++ String.padLeft 3 '0' (String.fromInt p)
-                                in
-                                Picking.leaf Ids.string name name
-                            )
-                    )
+                { id = category, parent = Nothing, name = category }
+                    :: (List.range 1 100
+                            |> List.map
+                                (\p ->
+                                    let
+                                        name =
+                                            "Product " ++ String.fromInt c ++ "-" ++ String.padLeft 3 '0' (String.fromInt p)
+                                    in
+                                    { id = name, parent = Just category, name = name }
+                                )
+                       )
             )
+
+
+{-| The nodes, built once from the rows (a constant, so the field compares them in
+no time).
+-}
+catalogue : List (Node String)
+catalogue =
+    Picking.fromFlat Ids.string { id = .id, parent = .parent, label = .name, decorate = \_ node -> node } catalogueRows
 
 
 products : List (Select.Option ProductNo)
@@ -268,15 +276,17 @@ type Msg
     | RetryZones LocationId
     | RetryDown
     | DownRetried
+    | RefreshZones
+    | ZonesRefreshFailed
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { site = TreeSelect.init TreeSelect.single "location-single"
+    ( { site = TreeSelect.init "location-single" TreeSelect.single
       , sites =
-            TreeSelect.init TreeSelect.multiple "location-multiple"
+            TreeSelect.init "location-multiple" TreeSelect.multiple
                 |> TreeSelect.setValues locationIds [ LocationId "nordics" ]
-      , catalogue = TreeSelect.init TreeSelect.multiple "catalogue"
+      , catalogue = TreeSelect.init "catalogue" TreeSelect.multiple
       , place =
             Cascader.init "location-path"
                 |> Cascader.setValue locationIds [ LocationId "nordics", LocationId "oslo", LocationId "oslo/receiving", LocationId "oslo/receiving/A-01" ]
@@ -285,7 +295,7 @@ init =
             Transfer.init "promotion-products"
                 |> Transfer.setValues productIds [ ProductNo 3, ProductNo 17, ProductNo 1999, ProductNo 9999 ]
       , columns = Transfer.init "export-columns"
-      , downState = TreeSelect.init TreeSelect.single "location-down"
+      , downState = TreeSelect.init "location-down" TreeSelect.single
       , regions = Loading
       , fetched = Dict.empty
       , attempts = Dict.empty
@@ -367,7 +377,38 @@ update msg model =
             ( { model | regions = Loaded regions }, Cmd.none )
 
         ZonesArrived siteId result ->
-            ( { model | fetched = Dict.insert siteId (Remote.fromResult result) model.fetched }, Cmd.none )
+            let
+                -- a failed refresh keeps the zones that are there, as old data
+                answer before =
+                    case result of
+                        Ok zones ->
+                            Loaded zones
+
+                        Err problem ->
+                            Remote.refreshWith before (Err problem) (Time.millisToPosix 0)
+            in
+            ( { model | fetched = Dict.update siteId (Maybe.withDefault NotAsked >> answer >> Just) model.fetched }, Cmd.none )
+
+        RefreshZones ->
+            ( { model | fetched = Dict.map (\_ zones -> refreshIfThere zones) model.fetched }
+            , Process.sleep 900 |> Task.perform (\_ -> ZonesRefreshFailed)
+            )
+
+        ZonesRefreshFailed ->
+            ( { model
+                | fetched =
+                    Dict.map
+                        (\_ zones ->
+                            if Remote.isRefreshing zones then
+                                Remote.refreshWith zones (Err (Remote.problem Remote.network)) (Time.millisToPosix 0)
+
+                            else
+                                zones
+                        )
+                        model.fetched
+              }
+            , Cmd.none
+            )
 
         RetryZones (LocationId siteId) ->
             fetch siteId model Cmd.none
@@ -379,26 +420,34 @@ update msg model =
             ( { model | down = False }, Cmd.none )
 
 
-{-| The sites whose zones the user just asked for: mark them as loading and fetch
-them.
+{-| The sites whose zones the user just opened: mark them as loading and fetch
+them. A field names each site once, so there is no check of our own.
 -}
 requestZones : List LocationId -> Model -> Cmd Msg -> ( Model, Cmd Msg )
 requestZones requested model cmd =
     List.foldl
         (\(LocationId siteId) ( current, cmds ) ->
-            if Dict.member siteId current.fetched then
-                ( current, cmds )
-
-            else
-                let
-                    ( next, fetching ) =
-                        fetch siteId current Cmd.none
-                in
-                ( next, fetching :: cmds )
+            let
+                ( next, fetching ) =
+                    fetch siteId current Cmd.none
+            in
+            ( next, fetching :: cmds )
         )
         ( model, [ cmd ] )
         requested
         |> (\( next, cmds ) -> ( next, Cmd.batch cmds ))
+
+
+{-| Zones that are there are refreshed and stay on screen meanwhile.
+-}
+refreshIfThere : Remote (List Zone) -> Remote (List Zone)
+refreshIfThere zones =
+    case Remote.toMaybe zones of
+        Just _ ->
+            Remote.refresh zones
+
+        Nothing ->
+            zones
 
 
 {-| Asks the pretend backend for the zones of a site. Hamburg fails the first two
@@ -421,7 +470,7 @@ fetch siteId model cmd =
                 Ok (zonesOf siteId)
     in
     ( { model
-        | fetched = Dict.insert siteId Loading model.fetched
+        | fetched = Dict.update siteId (Maybe.withDefault NotAsked >> Remote.refresh >> Just) model.fetched
         , attempts = Dict.insert siteId (attempt + 1) model.attempts
       }
     , Cmd.batch
@@ -446,10 +495,10 @@ view locale model =
         , description = "Pick from a tree, drill down through columns, or move items between two lists. The ids are the application's own type, and everything that comes from the backend shows that it is loading, failed or empty."
         }
         [ Doc.section "TreeSelect"
-            "A field that opens a tree. Type to filter: the matches keep their ancestors, which open, and clearing the text brings back what was open. The sites of Bergen and Rotterdam are fetched when they are opened, Hamburg fails the first two times (use “Try again”), and Frankfurt is closed (disabled)."
+            "A field that opens a tree. Type to filter: the matches keep their ancestors, which open, and clearing the text brings back what was open. The sites of Bergen and Rotterdam are fetched when they are opened, Hamburg fails the first two times (use “Try again”), and Frankfurt is closed (disabled). “Refresh the zones” refreshes the zones that are loaded and fails: they stay, marked busy, then under a row that says “Old data” with “Try again”."
             [ Doc.example
                 { title = "One location"
-                , description = Just "Arrow keys move, Right and Left open and close, Enter chooses. The popup opens on the value, with the nodes above it open. A disabled node cannot be chosen, but the nodes inside it can."
+                , description = Just "Arrow keys move, Right and Left open and close, Enter chooses. Home and End go to the first and last row while the search box is empty, and move the caret in a text (Ctrl or Cmd with them always move the rows). The popup opens on the value, with the nodes above it open. A disabled node cannot be chosen, but the nodes inside it can."
                 , code =
                     Just """TreeSelect.view SiteMsg
     [ TreeSelect.label "Location"
@@ -478,6 +527,7 @@ TreeSelect.value model.site -- Maybe LocationId"""
                         , TreeSelect.locale locale
                         ]
                         model.site
+                    , Button.view [ Button.small, Button.secondary, Button.onClick RefreshZones ] "Refresh the zones (the refresh fails)"
                     , Text.caption
                         ("Value: "
                             ++ (case TreeSelect.value model.site of
@@ -525,8 +575,14 @@ TreeSelect.leaves nodes model.sites -- every enabled bin loaded below it"""
                 )
             , Doc.example
                 { title = "Five thousand nodes"
-                , description = Just "Only the rows on screen are drawn, and the filter does not freeze: try “product 37”. Check a category and one id is the value."
-                , code = Just "TreeSelect.view CatalogueMsg [ TreeSelect.label \"Products\", TreeSelect.nodes catalogue ] model.catalogue"
+                , description = Just "Only the rows on screen are drawn, and the filter does not freeze: try “product 37”. Check a category and one id is the value. The nodes are built from flat rows that name their parent, as a backend sends them."
+                , code =
+                    Just """catalogue =
+    Picking.fromFlat Ids.string
+        { id = .id, parent = .parent, label = .name, decorate = \\_ node -> node }
+        rows
+
+TreeSelect.view CatalogueMsg [ TreeSelect.label "Products", TreeSelect.nodes catalogue ] model.catalogue"""
                 }
                 (Layout.stack [ Layout.gap 3 ]
                     [ TreeSelect.view CatalogueMsg
@@ -629,7 +685,7 @@ Cascader.value model.place -- Just [ nordics, oslo, receiving, bin ]"""
             "Two lists and the buttons between them, for assigning many things to one thing."
             [ Doc.example
                 { title = "Products in a promotion"
-                , description = Just "Two thousand products. Mark with a click or Space, move with the buttons, a double click, Enter or Ctrl+Right and Ctrl+Left. The filter boxes and the check boxes in the headers work on what is shown. Every 250th product is disabled; product 9999 is chosen but no longer in the list, so it is shown as an unknown value that can be taken out. The chosen products keep the order of the list."
+                , description = Just "Two thousand products. Mark with a click or Space, move with the buttons, a double click, Enter or Ctrl+Right and Ctrl+Left (Cmd on a Mac). The filter boxes and the check boxes in the headers work on what is shown. Every 250th product is disabled; product 9999 is chosen but no longer in the list, so it is shown as an unknown value that can be taken out. The chosen products keep the order of the list."
                 , code =
                     Just """Transfer.view ProductsMsg
     [ Transfer.label "Products in the promotion"
@@ -664,7 +720,7 @@ Transfer.values model.products -- List ProductNo"""
                 )
             , Doc.example
                 { title = "In the order they were moved"
-                , description = Just "For lists where the order means something, such as the columns of an export, the chosen ids keep the order of moving."
+                , description = Just "For lists where the order means something, such as the columns of an export, the chosen ids keep the order of moving. The buttons in the header of “Exported” move the marked columns (or the highlighted one) up, down, to the top or to the bottom, and so do Alt+Up and Alt+Down in the list."
                 , code = Just "Transfer.order Transfer.movedOrder"
                 }
                 (Transfer.view OrderedMsg

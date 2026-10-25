@@ -5,7 +5,7 @@ module Klar.TreeSelect exposing
     , query, isOpen, open, close, loadRequests
     , Attribute, nodes, remote, onRetry, onRetryChildren
     , label, labelHidden, hint, error, errorMaybe, required, optionalText
-    , placeholder, searchPlaceholder, clearable, valueText, disabled, readOnly, size, visibleRows, maxVisibleChips, locale
+    , placeholder, searchPlaceholder, clearable, valueText, disabled, readOnly, size, visibleRows, maxVisibleChips, locale, settings
     )
 
 {-| A field that opens a popup with a tree and lets the user choose one node, or
@@ -31,7 +31,7 @@ See also [Klar.Select](Klar-Select), [Klar.MultiSelect](Klar-MultiSelect),
         { site : TreeSelect.State TreeSelect.Single SiteId }
 
     init =
-        { site = TreeSelect.init TreeSelect.single "site" }
+        { site = TreeSelect.init "site" TreeSelect.single }
 
     -- update
     SiteMsg inner ->
@@ -83,16 +83,20 @@ a tree of many thousands of nodes stays fast.
 
 Nodes can come from the backend: the top level as a `Remote` (`remote`), and the
 children of a node with `Picking.lazy`. When the user opens a lazy node that is
-`NotAsked`, `loadRequests` names it (call it after every update), so that you can
-mark it `Loading` and fetch it; a failed branch shows the problem and a "Try again" button
-(`onRetryChildren`) and does not block the rest of the tree. Nothing else is
-loaded behind your back.
+`NotAsked`, `loadRequests` names it once (call it after every update), so that you
+can mark it `Loading` and fetch it; a failed branch shows the problem and a "Try
+again" button (`onRetryChildren`) and does not block the rest of the tree. Data
+that is `Kept` stays on screen: a node whose children are refreshed is busy, and
+children that are old after a failed refresh sit under a row that says "Old data
+from 14:05" with "Try again" (the top level says it above the tree; give `settings`
+for the time zone). Nothing else is loaded behind your back.
 
 Keyboard: on the closed field Enter, Space, ArrowDown, ArrowUp or a printable
 character open the popup (the character starts the search). The keyboard focus
 stays in the search box while the popup is open, and the arrow keys move a
-highlight (`aria-activedescendant`): ArrowDown and ArrowUp, Home and End, PageUp
-and PageDown. ArrowRight opens a closed node and then moves into it, ArrowLeft
+highlight (`aria-activedescendant`): ArrowDown and ArrowUp, PageUp and PageDown,
+and Home and End (in a text Home and End move the caret, and Ctrl or Cmd with them
+move the highlight). ArrowRight opens a closed node and then moves into it, ArrowLeft
 closes an open node and then moves to its parent; in a text they move the caret
 instead, until it is at the end (right) or the start (left). Enter chooses the
 highlighted node (in a multiple field it checks or unchecks it and the popup stays
@@ -155,7 +159,7 @@ control.
 
 # Behavior and looks
 
-@docs placeholder, searchPlaceholder, clearable, valueText, disabled, readOnly, size, visibleRows, maxVisibleChips, locale
+@docs placeholder, searchPlaceholder, clearable, valueText, disabled, readOnly, size, visibleRows, maxVisibleChips, locale, settings
 
 -}
 
@@ -171,7 +175,7 @@ import Klar.Field as Field
 import Klar.Icon as Icon
 import Klar.Ids as Ids exposing (Ids)
 import Klar.Internal as Internal
-import Klar.Internal.Freshness as Freshness
+import Klar.Internal.Freshness as Freshness exposing (Freshness)
 import Klar.Locale as Locale exposing (Locale)
 import Klar.Picking as Picking exposing (Node)
 import Klar.Picking.Cover as Cover exposing (Check(..))
@@ -180,6 +184,7 @@ import Klar.Picking.Texts as Texts exposing (Texts)
 import Klar.Picking.View as View
 import Klar.Remote as Remote exposing (Remote(..))
 import Klar.Search as Search
+import Klar.Settings as Settings exposing (Settings)
 import Klar.Spinner as Spinner
 import Klar.Tag as Tag
 import Klar.Theme as Theme exposing (Size(..), Tone(..))
@@ -255,6 +260,7 @@ type alias Data id =
     , next : Int
     , list : VirtualList.State
     , cache : Maybe (Cache id)
+    , requested : List id
     }
 
 
@@ -289,16 +295,16 @@ type alias Cache id =
     }
 
 
-{-| A closed field with nothing chosen. The first argument is `single` or
-`multiple`; the `String` is the DOM id of the field and must be unique on the
-page: the label points to it, and the ids of the popup are derived from it
-(`site-search`, `site-tree`, `site-popup`).
+{-| A closed field with nothing chosen. The `String` is the DOM id of the field
+and must be unique on the page: the label points to it, and the ids of the popup
+are derived from it (`site-search`, `site-tree`, `site-popup`). The second
+argument is `single` or `multiple`.
 
-    TreeSelect.init TreeSelect.single "site"
+    TreeSelect.init "site" TreeSelect.single
 
 -}
-init : Mode mode -> String -> State mode id
-init (Mode isMultiple) domId =
+init : String -> Mode mode -> State mode id
+init domId (Mode isMultiple) =
     State
         { id = domId
         , multiple = isMultiple
@@ -313,6 +319,7 @@ init (Mode isMultiple) domId =
         , next = 0
         , list = VirtualList.init (treeId domId)
         , cache = Nothing
+        , requested = []
         }
 
 
@@ -363,15 +370,25 @@ chosenIds (State data) =
 
 
 {-| Chooses a node of a single field from your code, for example to show a saved
-record. The label is looked up in the nodes when they are shown; use `setNode`
+record; `Nothing` empties the field, so `setValue ids (value state)` changes
+nothing. The label is looked up in the nodes when they are shown; use `setNode`
 when the node may not be among them (it is inside a branch that is not loaded).
 
-    TreeSelect.setValue siteIds hall3 model.site
+    TreeSelect.setValue siteIds (Just hall3) model.site
 
 -}
-setValue : Ids id -> id -> State Single id -> State Single id
-setValue ids id (State data) =
-    State (refreshCached (replaceChosen [ { id = id, key = Ids.toKey ids id, label = Nothing } ] data))
+setValue : Ids id -> Maybe id -> State Single id -> State Single id
+setValue ids maybeId (State data) =
+    let
+        picks =
+            case maybeId of
+                Just id ->
+                    [ { id = id, key = Ids.toKey ids id, label = Nothing } ]
+
+                Nothing ->
+                    []
+    in
+    State (refreshCached (replaceChosen picks data))
 
 
 {-| Chooses a node of a single field and remembers its label, so the field shows
@@ -517,9 +534,32 @@ example from a button of your own. Map the command like the one from `update`.
 -}
 open : State mode id -> ( State mode id, Cmd (Msg id) )
 open (State data) =
-    ( State { data | open = True, query = "", highlighted = Nothing, flips = Set.empty, list = VirtualList.reset data.list }
+    ( State
+        { data
+            | open = True
+            , query = ""
+            , highlighted = Nothing
+            , flips = Set.empty
+            , list = VirtualList.reset data.list
+
+            -- a single field shows its value again, as when the user opens it
+            , revealed = False
+            , requested = []
+
+            -- what was waiting before the popup opened is asked for again
+            , cache = Maybe.map forgetWaiting data.cache
+        }
     , Internal.focus (searchId data.id) NoOp
     )
+
+
+forgetWaiting : Cache id -> Cache id
+forgetWaiting cache =
+    let
+        rows =
+            cache.rows
+    in
+    { cache | rows = { rows | waiting = [] } }
 
 
 {-| Closes the popup, forgets the search text, and gives focus back to the field
@@ -536,12 +576,13 @@ close (State data) =
     )
 
 
-{-| The lazy nodes whose children somebody is waiting for: the open nodes of the
-open popup whose children are `NotAsked`. Usually zero or one; `*` on the keyboard
-can open several. Call it after every `update` of the field. Set the children of
-the nodes it names to `Loading` in your data and fetch them; the next time you
-build the nodes they hold the answer. Asking again is harmless, because a node you
-have marked `Loading` is not named any more.
+{-| The lazy nodes that the last `update` opened while their children are
+`NotAsked`: the user opened them, `*` opened several, or the popup opened on a
+value inside them. Usually zero or one. Call it after every `update` of the field,
+set the children of the nodes it names to `Loading` in your data and fetch them;
+the next time you build the nodes they hold the answer. Each node is named once
+(scrolling, hovering or another message does not name it again), so the wiring
+below never fetches twice and needs no guard of its own.
 
     SiteMsg inner ->
         let
@@ -555,39 +596,51 @@ have marked `Loading` is not named any more.
         , Cmd.batch (Cmd.map SiteMsg cmd :: List.map fetchZones requested)
         )
 
-The answer is worked out from the nodes of the last message the field got, so if
-you set a node back to `NotAsked` yourself (to load it again), you also fetch it
-yourself: the field asks again only after its next message. After a failure the
-user retries with the button that `onRetryChildren` adds.
+A node that you leave `NotAsked` is named again the next time the popup opens. If
+you set an open node back to `NotAsked` yourself (to load it again), fetch it
+yourself too. After a failure the user retries with the button that
+`onRetryChildren` adds.
 
 -}
 loadRequests : State mode id -> List id
 loadRequests (State data) =
+    if data.open then
+        data.requested
+
+    else
+        []
+
+
+{-| The keys of the open nodes of the open popup whose children are `NotAsked`.
+-}
+waitingKeys : Data id -> List String
+waitingKeys data =
     case ( data.open, data.cache ) of
         ( True, Just cache ) ->
-            cache.rows.rows
-                |> Array.toList
-                |> List.filterMap
-                    (\entryRow ->
-                        case entryRow of
-                            LoadingRow r ->
-                                case Index.get r.parent cache.index of
-                                    Just entry ->
-                                        case entry.kids of
-                                            Unloaded ->
-                                                Just (Picking.id entry.node)
-
-                                            _ ->
-                                                Nothing
-
-                                    Nothing ->
-                                        Nothing
-
-                            _ ->
-                                Nothing
-                    )
+            cache.rows.waiting
 
         _ ->
+            []
+
+
+{-| The nodes that wait for their children after a message and did not before it.
+-}
+newlyWaiting : Data id -> Data id -> List id
+newlyWaiting before after =
+    case ( waitingKeys after, after.cache ) of
+        ( [], _ ) ->
+            []
+
+        ( keys, Just cache ) ->
+            let
+                old =
+                    waitingKeys before
+            in
+            keys
+                |> List.filter (\key -> not (List.member key old))
+                |> List.filterMap (\key -> Index.get key cache.index |> Maybe.map (.node >> Picking.id))
+
+        ( _, Nothing ) ->
             []
 
 
@@ -797,6 +850,7 @@ type Msg id
     | RemoveLast
     | Clear
     | FocusSearch
+    | SearchFocused (Env id)
     | ListMsg VirtualList.Msg
     | NoOp
 
@@ -835,7 +889,7 @@ update msg (State data) =
         ( next, cmd ) =
             step msg data
     in
-    ( State next, cmd )
+    ( State { next | requested = newlyWaiting data next }, cmd )
 
 
 step : Msg id -> Data id -> ( Data id, Cmd (Msg id) )
@@ -926,6 +980,30 @@ step msg data =
         FocusSearch ->
             ( data, Internal.focus (searchId data.id) NoOp )
 
+        SearchFocused env ->
+            -- the popup has its nodes from the first moment, also when it was
+            -- opened with `open` (so that `loadRequests` can name what waits)
+            if data.open then
+                let
+                    refreshed =
+                        refreshWith env.nodes data
+                in
+                -- the value was revealed just now: bring it into view, as when the
+                -- user opens the field
+                case ( not data.revealed && refreshed.revealed, highlightIndex env.canRetry refreshed ) of
+                    ( True, Just i ) ->
+                        let
+                            ( list, scroll ) =
+                                VirtualList.center (geometry env.visibleRows refreshed) i refreshed.list
+                        in
+                        ( { refreshed | list = list }, Cmd.map ListMsg scroll )
+
+                    _ ->
+                        ( refreshed, Cmd.none )
+
+            else
+                ( data, Cmd.none )
+
         ListMsg inner ->
             let
                 ( list, cmd ) =
@@ -1006,16 +1084,11 @@ rowsOf data =
 
 geometry : Int -> Data id -> VirtualList.Geometry
 geometry rowsVisible data =
-    { rowHeight = rowHeight
-    , height = rowsVisible * rowHeight
+    { rowHeight = View.rowHeight
+    , height = rowsVisible * View.rowHeight
     , count = rowsOf data |> Maybe.map (.rows >> Array.length) |> Maybe.withDefault 0
     , inset = 0
     }
-
-
-rowHeight : Int
-rowHeight =
-    32
 
 
 navigable : Bool -> Row id -> Bool
@@ -1026,6 +1099,9 @@ navigable canRetry row =
 
         FailedRow r ->
             canRetry && Remote.isRetryable r.problem
+
+        StaleRow r ->
+            canRetry && Remote.isRetryable r.stale.problem
 
         LoadingRow _ ->
             False
@@ -1050,12 +1126,17 @@ posOfRow row =
         FailedRow r ->
             Just (AtRetry r.parent)
 
+        StaleRow r ->
+            Just (AtRetry r.parent)
+
         LoadingRow _ ->
             Nothing
 
 
 {-| The row that is highlighted: the one the user moved to, or while there is none
-the first match (when filtering) or the first row.
+the first match (when filtering) or the first row. A "Try again" row that went
+away (the children are loading again) hands the highlight to its node, so the
+user keeps their place.
 -}
 highlightIndex : Bool -> Data id -> Maybe Int
 highlightIndex canRetry data =
@@ -1064,7 +1145,21 @@ highlightIndex canRetry data =
             Nothing
 
         Just cache ->
-            case data.highlighted |> Maybe.andThen (\pos -> indexOfPos pos cache.rows) of
+            let
+                resolve pos =
+                    case indexOfPos pos cache.rows of
+                        Just i ->
+                            Just i
+
+                        Nothing ->
+                            case pos of
+                                AtRetry parent ->
+                                    Index.rowIndex parent cache.rows
+
+                                AtNode _ ->
+                                    Nothing
+            in
+            case data.highlighted |> Maybe.andThen resolve of
                 Just i ->
                     Just i
 
@@ -1381,6 +1476,8 @@ type Attribute id msg
 type alias Config id msg =
     { field : Field.Config
     , nodes : Remote (List (Node id))
+    , freshness : Freshness
+    , settings : Settings
     , placeholder : Maybe String
     , searchPlaceholder : Maybe String
     , clearable : Bool
@@ -1393,6 +1490,9 @@ type alias Config id msg =
     , locale : Locale
     , onRetry : Maybe msg
     , onRetryChildren : Maybe (id -> msg)
+
+    -- set by `view`: the cache is for these nodes (one comparison per draw)
+    , sameNodes : Bool
     }
 
 
@@ -1401,6 +1501,8 @@ configure attributes =
     List.foldl (\(Attribute change) config -> change config)
         { field = Field.empty
         , nodes = Loaded []
+        , freshness = Freshness.Fresh
+        , settings = Settings.default
         , placeholder = Nothing
         , searchPlaceholder = Nothing
         , clearable = False
@@ -1413,6 +1515,7 @@ configure attributes =
         , locale = Locale.default
         , onRetry = Nothing
         , onRetryChildren = Nothing
+        , sameNodes = False
         }
         attributes
 
@@ -1431,20 +1534,27 @@ later one wins.
 -}
 nodes : List (Node id) -> Attribute id msg
 nodes list =
-    Attribute (\config -> { config | nodes = Loaded list })
+    Attribute (\config -> { config | nodes = Loaded list, freshness = Freshness.Fresh })
 
 
 {-| The top level of the tree from the backend, as a `Remote` (see
 [Klar.Remote](Klar-Remote)). The popup shows loading rows while the data is
 `Loading` or `NotAsked`, a compact error with a retry button on `Failed` (see
-`onRetry`), the empty state on `Loaded []`, and the tree on `Loaded`.
+`onRetry`), the empty state on `Loaded []`, and the tree on `Loaded`. A tree that is
+`Kept` stays on screen and can be used: dimmed and busy while it is refreshed, and
+with "Old data from 14:05" and a retry (`onRetry`) above it when the last refresh
+failed (the time is written in the zone of `settings`).
 
     TreeSelect.remote model.sites
 
 -}
 remote : Remote (List (Node id)) -> Attribute id msg
 remote data =
-    Attribute (\config -> { config | nodes = Tuple.first (Freshness.settle data) })
+    let
+        ( current, freshness ) =
+            Freshness.settle data
+    in
+    Attribute (\config -> { config | nodes = current, freshness = freshness })
 
 
 {-| The message to send when the user presses the "Try again" button of the error
@@ -1608,6 +1718,18 @@ maxVisibleChips n =
     Attribute (\config -> { config | maxVisibleChips = clamp 0 20 n })
 
 
+{-| The settings of the application (`Klar.Settings`): the time zone of the time in
+"Old data from 14:05", for the top level (`remote`) and for lazy nodes. Without
+it the time is written in UTC and ends in "UTC".
+
+    TreeSelect.settings model.settings
+
+-}
+settings : Settings -> Attribute id msg
+settings given =
+    Attribute (\config -> { config | settings = given })
+
+
 {-| The language of the built-in text: the placeholders, the search box, the
 counts, the loading and error states and the labels for screen readers. The
 default is `Locale.default`, which is English. See [Klar.Locale](Klar-Locale).
@@ -1641,8 +1763,20 @@ available to screen readers.
 view : (Msg id -> msg) -> List (Attribute id msg) -> State mode id -> Html msg
 view toMsg attributes (State data) =
     let
-        config =
+        configured =
             configure attributes
+
+        -- the one comparison of the nodes in a draw: is the cache for them?
+        config =
+            { configured
+                | sameNodes =
+                    case data.cache of
+                        Just cache ->
+                            cache.nodes == Remote.withDefault [] configured.nodes
+
+                        Nothing ->
+                            False
+            }
 
         field =
             Field.setId data.id config.field
@@ -1666,7 +1800,7 @@ view toMsg attributes (State data) =
         -- one built now (the first draw after the nodes changed)
         current =
             if data.open && interactive then
-                refreshFor topNodes data
+                refreshKnown config.sameNodes topNodes data
 
             else
                 data
@@ -1707,7 +1841,19 @@ refreshFor : List (Node id) -> Data id -> Data id
 refreshFor nodes_ data =
     case data.cache of
         Just cache ->
-            if cache.nodes == nodes_ && cache.derivedFor == data.cover && cache.filterOf == data.query then
+            refreshKnown (cache.nodes == nodes_) nodes_ data
+
+        Nothing ->
+            refreshWith nodes_ data
+
+
+{-| As `refreshFor`, when it is known whether the cache is for these nodes.
+-}
+refreshKnown : Bool -> List (Node id) -> Data id -> Data id
+refreshKnown sameNodes nodes_ data =
+    case data.cache of
+        Just cache ->
+            if sameNodes && cache.derivedFor == data.cover && cache.filterOf == data.query then
                 data
 
             else
@@ -1816,7 +1962,7 @@ resolveChosen config data limit =
         fresh =
             case data.cache of
                 Just cache ->
-                    if cache.nodes == nodes_ then
+                    if config.sameNodes then
                         wanted
                             |> Set.toList
                             |> List.filterMap (\key -> Index.get key cache.index |> Maybe.map (\entry -> ( key, entry.label )))
@@ -1838,7 +1984,7 @@ pathOf : Config id msg -> Data id -> String -> Maybe String
 pathOf config data key =
     case data.cache of
         Just cache ->
-            if cache.nodes == Remote.withDefault [] config.nodes then
+            if config.sameNodes then
                 case Index.labelPath key cache.index of
                     [] ->
                         Nothing
@@ -2207,28 +2353,6 @@ viewMultipleControl toMsg config t data controlClasses triggerAttributes openMsg
 -- POPUP
 
 
-{-| The rows that are rendered by the virtual list: the same arithmetic as
-`VirtualList`, so that `aria-activedescendant` only names a row that exists.
--}
-renderedRange : Int -> Int -> VirtualList.State -> ( Int, Int )
-renderedRange count rowsVisible list =
-    let
-        viewport =
-            min (rowsVisible * rowHeight) (count * rowHeight)
-
-        -- the list keeps its scroll position inside its rows, so does this
-        top =
-            clamp 0 (toFloat (max 0 (count * rowHeight - viewport))) (VirtualList.scrollTop list)
-
-        first =
-            floor (top / toFloat rowHeight)
-
-        visible =
-            ceiling (toFloat viewport / toFloat rowHeight) + 1
-    in
-    ( max 0 (first - 6), min count (first + visible + 6) )
-
-
 viewPopup : (Msg id -> msg) -> Config id msg -> Texts -> Env id -> Data id -> Html msg
 viewPopup toMsg config t env data =
     let
@@ -2272,7 +2396,7 @@ viewPopup toMsg config t env data =
         inRange i =
             let
                 ( from, to ) =
-                    renderedRange rowCount config.visibleRows data.list
+                    View.renderedRange { visibleRows = config.visibleRows, count = rowCount } data.list
             in
             i >= from && i < to
 
@@ -2287,16 +2411,10 @@ viewPopup toMsg config t env data =
         retryRowMsg =
             case ( highlightedRow, content ) of
                 ( Just ( _, FailedRow r ), Just cache ) ->
-                    case ( config.onRetryChildren, Index.get r.parent cache.index ) of
-                        ( Just toRetry, Just entry ) ->
-                            if Remote.isRetryable r.problem then
-                                Just (toRetry (Picking.id entry.node))
+                    retryChildren config cache r.parent r.problem
 
-                            else
-                                Nothing
-
-                        _ ->
-                            Nothing
+                ( Just ( _, StaleRow r ), Just cache ) ->
+                    retryChildren config cache r.parent r.stale.problem
 
                 _ ->
                     Nothing
@@ -2312,8 +2430,10 @@ viewPopup toMsg config t env data =
                         , View.plain "ArrowUp" (toMsg (Key env Up))
                         , View.plain "PageDown" (toMsg (Key env PageDown))
                         , View.plain "PageUp" (toMsg (Key env PageUp))
-                        , View.plain "Home" (toMsg (Key env First))
-                        , View.plain "End" (toMsg (Key env Last))
+                        , View.whenEmpty "Home" (toMsg (Key env First))
+                        , View.plain "Mod+Home" (toMsg (Key env First))
+                        , View.whenEmpty "End" (toMsg (Key env Last))
+                        , View.plain "Mod+End" (toMsg (Key env Last))
                         , View.atEnd "ArrowRight" (toMsg (Key env Right))
                         , View.atStart "ArrowLeft" (toMsg (Key env Left))
                         , View.whenEmpty " " (toMsg (Key env Space))
@@ -2362,8 +2482,16 @@ viewPopup toMsg config t env data =
                                     View.viewEmpty Icon.search t.noMatches (Just (t.noMatchesFor (String.trim data.query)))
 
                             else
-                                Html.div []
-                                    [ viewTree toMsg config t env data cache highlighted inRange
+                                -- the same elements while the tree is fresh, refreshed
+                                -- or old, so that nothing moves under the user
+                                Html.div
+                                    [ Internal.cls [ Freshness.className config.freshness ]
+                                    , Freshness.busyAttr config.freshness
+                                    ]
+                                    [ Freshness.notice
+                                        { locale = config.locale, settings = config.settings, onRetry = config.onRetry, inline = False }
+                                        config.freshness
+                                    , viewTree toMsg config t env data cache highlighted inRange
                                     , viewFooter toMsg config t data cache
                                     ]
 
@@ -2417,6 +2545,7 @@ viewPopup toMsg config t env data =
                         Nothing ->
                             Nothing
                 , onInput = QueryChanged env >> toMsg
+                , onFocus = toMsg (SearchFocused env)
                 , keys = keys
                 , loading = Remote.isLoading topLevel
                 , loadingLabel = t.loading
@@ -2499,8 +2628,9 @@ viewTree toMsg config t env data cache highlighted _ =
             }
 
         listAttributes =
-            [ VirtualList.rowHeight rowHeight
-            , VirtualList.height (config.visibleRows * rowHeight)
+            [ VirtualList.rowHeight View.rowHeight
+            , VirtualList.overscan View.overscan
+            , VirtualList.height (config.visibleRows * View.rowHeight)
             , VirtualList.htmlAttrs
                 [ Internal.cls [ "klar-select__list", "klar-tree-select__tree" ]
                 , Attr.attribute "role" "tree"
@@ -2553,21 +2683,102 @@ viewRow rc index row =
         FailedRow r ->
             viewFailedRow rc index r
 
+        StaleRow r ->
+            viewStaleRow rc index r
+
+
+{-| The message that loads the children of a node again, when the application
+gave `onRetryChildren` and the problem is worth retrying.
+-}
+retryChildren : Config id msg -> Cache id -> String -> Remote.Problem -> Maybe msg
+retryChildren config cache parent problem =
+    case ( config.onRetryChildren, Index.get parent cache.index ) of
+        ( Just toRetry, Just entry ) ->
+            if Remote.isRetryable problem then
+                Just (toRetry (Picking.id entry.node))
+
+            else
+                Nothing
+
+        _ ->
+            Nothing
+
+
+{-| "Old data from 14:05" under a node whose children stay on screen after a
+refresh of them failed, with "Try again" (Enter while it is highlighted).
+-}
+viewStaleRow : RowConfig id msg -> Int -> { parent : String, depth : Int, stale : Index.Stale } -> Html msg
+viewStaleRow rc index r =
+    let
+        retryMsg =
+            retryChildren rc.config rc.cache r.parent r.stale.problem
+
+        isHighlighted =
+            rc.highlighted == Just index
+
+        why =
+            String.trim (Remote.title rc.config.locale r.stale.problem)
+    in
+    Html.div
+        ([ Internal.cls
+            [ "klar-select__option"
+            , "klar-tree-select__row"
+            , "klar-tree-select__row--status"
+            , "klar-tree-select__row--stale"
+            , if isHighlighted then
+                "klar-select__option--highlighted"
+
+              else
+                ""
+            ]
+         , Attr.id (rowDomId rc.data.id index)
+         , Attr.attribute "role" "treeitem"
+         , Attr.attribute "aria-level" (String.fromInt (r.depth + 1))
+         , Attr.title why
+         , Internal.styleVars [ ( "--klar-depth", String.fromInt r.depth ) ]
+         , Internal.onMouseDownPrevent (rc.toMsg NoOp)
+         , Internal.attrIf r.stale.refreshing (Attr.attribute "aria-busy" "true")
+         ]
+            ++ (case retryMsg of
+                    Just _ ->
+                        [ Events.on "mousemove"
+                            (if isHighlighted then
+                                Decode.fail "already highlighted"
+
+                             else
+                                Decode.succeed (rc.toMsg (Hover rc.env (AtRetry r.parent)))
+                            )
+                        ]
+
+                    Nothing ->
+                        [ Attr.attribute "aria-disabled" "true" ]
+               )
+        )
+        [ Html.span [ Internal.cls [ "klar-tree-select__spacer" ] ] []
+        , Html.span [ Internal.cls [ "klar-tree-select__stale-icon" ], Attr.attribute "aria-hidden" "true" ] [ Icon.view Icon.clock ]
+        , Html.span [ Internal.cls [ "klar-tree-select__status-text" ] ]
+            [ Html.text (Freshness.text rc.config.locale rc.config.settings r.stale.at) ]
+        , case retryMsg of
+            Just msg ->
+                Button.view
+                    [ Button.small
+                    , Button.ghost
+                    , Button.loading r.stale.refreshing
+                    , Button.onClick msg
+                    , Button.htmlAttrs [ Attr.tabindex -1, Internal.onMouseDownPrevent (rc.toMsg NoOp) ]
+                    ]
+                    rc.t.tryAgain
+
+            Nothing ->
+                Html.text ""
+        ]
+
 
 viewFailedRow : RowConfig id msg -> Int -> { parent : String, depth : Int, problem : Remote.Problem } -> Html msg
 viewFailedRow rc index r =
     let
         retryMsg =
-            case ( rc.config.onRetryChildren, Index.get r.parent rc.cache.index ) of
-                ( Just toRetry, Just entry ) ->
-                    if Remote.isRetryable r.problem then
-                        Just (toRetry (Picking.id entry.node))
-
-                    else
-                        Nothing
-
-                _ ->
-                    Nothing
+            retryChildren rc.config rc.cache r.parent r.problem
 
         isHighlighted =
             rc.highlighted == Just index
@@ -2730,6 +2941,9 @@ viewNodeRow rc index item =
                     "false"
                 )
         , Internal.attrIf entry.disabled (Attr.attribute "aria-disabled" "true")
+
+        -- children on screen that are being refreshed
+        , Freshness.busyAttr entry.freshness
         , Attr.title tooltip
         , Internal.styleVars [ ( "--klar-depth", String.fromInt entry.depth ) ]
         , Internal.onMouseDownPrevent (rc.toMsg NoOp)
@@ -2777,4 +2991,6 @@ viewNodeRow rc index item =
                 Html.span [ Internal.cls [ "klar-select__option-description" ] ] (Search.highlight descriptionQuery description)
             )
             (Picking.description node)
+        , Internal.viewIf (Freshness.busy entry.freshness)
+            (Html.span [ Internal.cls [ "klar-tree-select__busy" ] ] [ Spinner.view [ Spinner.label rc.t.loadingChildren ] ])
         ]

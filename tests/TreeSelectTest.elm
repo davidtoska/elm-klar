@@ -21,6 +21,7 @@ import Test exposing (Test, describe, fuzz, test)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
 import Test.Html.Selector as Selector exposing (Selector)
+import Time
 
 
 type Msg
@@ -70,12 +71,12 @@ typeText text state =
 
 singleField : State Single
 singleField =
-    TreeSelect.init TreeSelect.single "site"
+    TreeSelect.init "site" TreeSelect.single
 
 
 multipleField : State Multiple
 multipleField =
-    TreeSelect.init TreeSelect.multiple "site"
+    TreeSelect.init "site" TreeSelect.multiple
 
 
 attr : String -> String -> Selector
@@ -120,6 +121,87 @@ suite =
         , localeTests
         , largeTests
         , reviewTests
+        , freshnessTests
+        ]
+
+
+
+-- FRESHNESS
+
+
+freshnessTests : Test
+freshnessTests =
+    let
+        open =
+            openByKey singleField
+
+        withTop top state =
+            TreeSelect.view TS [ TreeSelect.label "Site", TreeSelect.remote top, TreeSelect.onRetry Retried ] state
+
+        stale =
+            Remote.refreshWith (Loaded Trees.cities) (Err (Remote.problem Remote.server)) (Time.millisToPosix 0)
+    in
+    describe "a top level that is Kept"
+        [ test "is dimmed and busy while it is refreshed, with the tree still there" <|
+            \_ ->
+                let
+                    h =
+                        withTop (Remote.refresh (Loaded Trees.cities)) open
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-refreshing", attr "aria-busy" "true", Selector.containing [ Selector.id "site-tree" ] ] h)
+                    , \_ -> Expect.equal 3 (Drive.count rows h)
+                    ]
+                    ()
+        , test "says Old data with a retry when the last refresh failed" <|
+            \_ ->
+                let
+                    h =
+                        withTop stale open
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (Drive.has [ Selector.class "klar-stale", Selector.containing [ Selector.text "Old data" ] ] h)
+                    , \_ -> Expect.equal (Just Retried) (Drive.fire [ Selector.class "klar-stale", Selector.tag "button" ] Event.click h)
+                    , \_ -> Expect.equal 3 (Drive.count rows h)
+                    ]
+                    ()
+        , test "draws the same tree in every state, so focus and the highlight survive a refresh" <|
+            \_ ->
+                Expect.equal [ True, True, True ]
+                    (List.map
+                        (\top -> Drive.has [ Selector.id "site-tree", attr "role" "tree" ] (withTop top open))
+                        [ Loaded Trees.cities, Remote.refresh (Loaded Trees.cities), stale ]
+                    )
+        , test "settings write the time of old data in the zone of the application" <|
+            \_ ->
+                let
+                    loadedAt =
+                        Remote.refreshWith NotAsked (Ok Trees.cities) (Time.millisToPosix 0)
+
+                    old =
+                        Remote.refreshWith loadedAt (Err (Remote.problem Remote.server)) (Time.millisToPosix 60000)
+                in
+                Expect.equal True (Drive.has [ Selector.text "Old data from 00:00 UTC" ] (withTop old open))
+        , test "open from the code shows the value of a single field again" <|
+            \_ ->
+                let
+                    seen =
+                        TreeSelect.setValue ids (Just "oslo") singleField |> openByKey |> press "Escape" |> openByKey |> press "Escape"
+
+                    ( reopened, _ ) =
+                        TreeSelect.open seen
+                in
+                Expect.equal True (Drive.has [ rowId 2, attr "aria-selected" "true" ] (html [] reopened))
+        , test "setValue with Nothing empties the field, and with the value it has changes nothing" <|
+            \_ ->
+                let
+                    state =
+                        TreeSelect.setValue ids (Just "oslo") singleField
+                in
+                Expect.equal ( Nothing, Just "oslo" )
+                    ( TreeSelect.value (TreeSelect.setValue ids Nothing state)
+                    , TreeSelect.value (TreeSelect.setValue ids (TreeSelect.value state) state)
+                    )
         ]
 
 
@@ -163,7 +245,7 @@ closedTests =
             \_ ->
                 let
                     state =
-                        TreeSelect.setValue ids "oslo" singleField
+                        TreeSelect.setValue ids (Just "oslo") singleField
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ Selector.id "site", Selector.disabled True ] (html [ TreeSelect.disabled True ] state))
@@ -262,10 +344,10 @@ openTests =
             \_ ->
                 let
                     state =
-                        TreeSelect.setValue ids "oslo" singleField |> openByKey |> press "Escape"
+                        TreeSelect.setValue ids (Just "oslo") singleField |> openByKey |> press "Escape"
 
                     reopened =
-                        feed (Drive.fire [ Selector.id "site" ] (Drive.key "Enter") (html [] (TreeSelect.setValue ids "oslo" singleField))) (TreeSelect.setValue ids "oslo" singleField)
+                        feed (Drive.fire [ Selector.id "site" ] (Drive.key "Enter") (html [] (TreeSelect.setValue ids (Just "oslo") singleField))) (TreeSelect.setValue ids (Just "oslo") singleField)
                 in
                 Expect.all
                     [ \_ -> Expect.equal True (Drive.has [ Selector.id "site", Selector.containing [ Selector.text "Oslo" ] ] (html [] state))
@@ -401,17 +483,30 @@ keyTests =
                     , at 0 0 "ArrowLeft" /= Nothing
                     , Drive.fire [ Selector.id "site-search" ] (Drive.key "ArrowRight") (html [] open) /= Nothing
                     ]
-        , test "ArrowDown, Home and End always move the highlight, also in a text" <|
+        , test "ArrowDown always moves the highlight; in a text Home and End move the caret, and Ctrl or Cmd with them move the highlight" <|
             \_ ->
                 let
                     withText =
                         open |> typeText "o"
+
+                    handled event =
+                        Drive.fire [ Selector.id "site-search" ] event (html [] withText) /= Nothing
                 in
-                Expect.equal [ True, True, True ]
-                    [ Drive.fire [ Selector.id "site-search" ] (Drive.caretKey "o" 0 0 "ArrowDown") (html [] withText) /= Nothing
-                    , Drive.fire [ Selector.id "site-search" ] (Drive.caretKey "o" 0 0 "Home") (html [] withText) /= Nothing
-                    , Drive.fire [ Selector.id "site-search" ] (Drive.caretKey "o" 0 0 "End") (html [] withText) /= Nothing
+                Expect.equal [ True, False, False, True, True, True ]
+                    [ handled (Drive.caretKey "o" 0 0 "ArrowDown")
+                    , handled (Drive.caretKey "o" 0 0 "Home")
+                    , handled (Drive.caretKey "o" 1 1 "End")
+                    , handled (Drive.keyWith { ctrl = True, shift = False } "Home")
+                    , handled (Drive.keyWith { ctrl = True, shift = False } "End")
+                    , handled (Drive.metaKey { shift = False } "Home")
                     ]
+        , test "Home and End move the highlight while the search box is empty" <|
+            \_ ->
+                let
+                    atEnd =
+                        open |> press "End"
+                in
+                Expect.equal ( Just "site-row-2", Just "site-row-0" ) ( activeRow atEnd, activeRow (atEnd |> press "Home") )
         , test "* opens all closed nodes on the level while the search box is empty" <|
             \_ ->
                 let
@@ -538,7 +633,7 @@ filterTests =
             \_ ->
                 let
                     state =
-                        TreeSelect.setValue ids "oslo" singleField |> openByKey |> press "Backspace"
+                        TreeSelect.setValue ids (Just "oslo") singleField |> openByKey |> press "Backspace"
                 in
                 Expect.equal (Just "oslo") (TreeSelect.value state)
         ]
@@ -609,6 +704,81 @@ lazyTests =
                         feedWith NotAsked loaded "End"
                 in
                 Expect.equal [ "japan" ] (TreeSelect.loadRequests reset)
+        , test "each node is named once: a scroll or a key that comes before the application marked it does not name it again" <|
+            \_ ->
+                let
+                    after =
+                        goToJapan NotAsked |> (\s -> feedWith NotAsked s "ArrowRight")
+
+                    scrolled =
+                        feed (Drive.fire [ Selector.id "site-tree" ] (Drive.scroll 10) (withZones NotAsked after)) after
+
+                    keyed =
+                        feedWith NotAsked after "End"
+                in
+                Expect.equal [ [ "japan" ], [], [] ]
+                    [ TreeSelect.loadRequests after, TreeSelect.loadRequests scrolled, TreeSelect.loadRequests keyed ]
+        , test "a popup opened from the code with open names what waits as soon as its search box has the focus" <|
+            \_ ->
+                let
+                    closed =
+                        goToJapan NotAsked |> (\s -> feedWith NotAsked s "ArrowRight") |> (\s -> feedWith NotAsked s "Escape")
+
+                    ( reopened, _ ) =
+                        TreeSelect.open closed
+
+                    focused =
+                        feed (Drive.fire [ Selector.id "site-search" ] Event.focus (withZones NotAsked reopened)) reopened
+                in
+                Expect.equal ( [], [ "japan" ] ) ( TreeSelect.loadRequests reopened, TreeSelect.loadRequests focused )
+        , test "after Try again the highlight stays on the node whose children load again" <|
+            \_ ->
+                let
+                    failed =
+                        Failed (Remote.problem Remote.network)
+
+                    onFailure =
+                        goToJapan failed |> (\s -> feedWith failed s "ArrowRight") |> (\s -> feedWith failed s "ArrowDown")
+
+                    pointsAt n tree =
+                        Drive.has [ Selector.id "site-search", attr "aria-activedescendant" ("site-row-" ++ String.fromInt n) ] tree
+                in
+                Expect.equal [ True, True ] [ pointsAt 2 (withZones failed onFailure), pointsAt 1 (withZones Loading onFailure) ]
+        , test "children that are refreshed stay on screen, and their node is busy" <|
+            \_ ->
+                let
+                    zones =
+                        Remote.refresh (Loaded [ Picking.leaf ids "tokyo" "Tokyo" ])
+
+                    h =
+                        withZones zones (goToJapan zones |> (\s -> feedWith zones s "ArrowRight"))
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (rowLabelled "Tokyo" h)
+                    , \_ -> Expect.equal True (Drive.has [ rowId 1, attr "aria-busy" "true" ] h)
+                    , \_ -> Expect.equal True (Drive.has [ rowId 1, Selector.class "klar-tree-select__busy" ] h)
+                    ]
+                    ()
+        , test "children that are old after a failed refresh stay, under a row that says so and retries with Enter" <|
+            \_ ->
+                let
+                    zones =
+                        Remote.refreshWith (Loaded [ Picking.leaf ids "tokyo" "Tokyo" ]) (Err (Remote.problem Remote.server)) (Time.millisToPosix 0)
+
+                    state =
+                        goToJapan zones |> (\s -> feedWith zones s "ArrowRight") |> (\s -> feedWith zones s "ArrowDown")
+
+                    h =
+                        withZones zones state
+                in
+                Expect.all
+                    [ \_ -> Expect.equal True (rowLabelled "Tokyo" h)
+                    , \_ -> Expect.equal True (Drive.has [ rowId 2, Selector.class "klar-tree-select__row--stale", Selector.containing [ Selector.text "Old data" ] ] h)
+                    , \_ -> Expect.equal True (Drive.has [ Selector.id "site-search", attr "aria-activedescendant" "site-row-2" ] h)
+                    , \_ -> Expect.equal (Just (RetriedNode "japan")) (Drive.fire [ Selector.id "site-search" ] (Drive.key "Enter") h)
+                    , \_ -> Expect.equal [] (TreeSelect.loadRequests state)
+                    ]
+                    ()
         , test "a node that is loading shows a loading row and nothing else is blocked" <|
             \_ ->
                 let
@@ -698,12 +868,12 @@ valueTests =
     describe "the value of a single field"
         [ test "a value that is in the nodes shows its label" <|
             \_ ->
-                Expect.equal True (Drive.has [ Selector.text "Bergen" ] (html [] (TreeSelect.setValue ids "bergen" singleField)))
+                Expect.equal True (Drive.has [ Selector.text "Bergen" ] (html [] (TreeSelect.setValue ids (Just "bergen") singleField)))
         , test "a value that is in no node says Unknown value, and is still the value" <|
             \_ ->
                 let
                     state =
-                        TreeSelect.setValue ids "mars" singleField
+                        TreeSelect.setValue ids (Just "mars") singleField
                 in
                 Expect.all
                     [ \_ -> Expect.equal (Just "mars") (TreeSelect.value state)
@@ -714,7 +884,7 @@ valueTests =
             \_ ->
                 let
                     state =
-                        TreeSelect.setValue ids "mars" singleField
+                        TreeSelect.setValue ids (Just "mars") singleField
                 in
                 Expect.equal [ True, True ]
                     [ Drive.has [ Selector.text "Loading ..." ] (html [ TreeSelect.remote Loading ] state)
@@ -723,7 +893,7 @@ valueTests =
         , test "valueText writes a value that is in no node" <|
             \_ ->
                 Expect.equal True
-                    (Drive.has [ Selector.text "Site mars" ] (html [ TreeSelect.valueText (\id -> "Site " ++ id) ] (TreeSelect.setValue ids "mars" singleField)))
+                    (Drive.has [ Selector.text "Site mars" ] (html [ TreeSelect.valueText (\id -> "Site " ++ id) ] (TreeSelect.setValue ids (Just "mars") singleField)))
         , test "setNode gives the label of a node that is not in the tree" <|
             \_ ->
                 Expect.equal True
@@ -732,7 +902,7 @@ valueTests =
             \_ ->
                 let
                     state =
-                        TreeSelect.setValue ids "oslo" singleField
+                        TreeSelect.setValue ids (Just "oslo") singleField
                 in
                 Expect.all
                     [ \_ -> Expect.equal Nothing (TreeSelect.value (TreeSelect.clear state))
@@ -747,7 +917,7 @@ valueTests =
             \_ ->
                 let
                     state =
-                        TreeSelect.setValue ids "oslo" singleField
+                        TreeSelect.setValue ids (Just "oslo") singleField
                 in
                 feed (Drive.fire [ Selector.id "site" ] (Drive.key "Backspace") (html [ TreeSelect.clearable ] state)) state
                     |> TreeSelect.value
@@ -765,7 +935,7 @@ valueTests =
                     )
         , test "a state of the application's own id type compares with ==" <|
             \_ ->
-                Expect.equal (TreeSelect.setValue ids "oslo" singleField) (TreeSelect.setValue ids "oslo" singleField)
+                Expect.equal (TreeSelect.setValue ids (Just "oslo") singleField) (TreeSelect.setValue ids (Just "oslo") singleField)
         ]
 
 
@@ -1119,10 +1289,10 @@ reviewTests =
             \_ ->
                 let
                     waiting =
-                        TreeSelect.view TS [ TreeSelect.label "Site", TreeSelect.remote Loading ] (TreeSelect.setValue ids "oslo" singleField)
+                        TreeSelect.view TS [ TreeSelect.label "Site", TreeSelect.remote Loading ] (TreeSelect.setValue ids (Just "oslo") singleField)
 
                     opened =
-                        feed (Drive.fire [ Selector.id "site" ] (Drive.key "Enter") waiting) (TreeSelect.setValue ids "oslo" singleField)
+                        feed (Drive.fire [ Selector.id "site" ] (Drive.key "Enter") waiting) (TreeSelect.setValue ids (Just "oslo") singleField)
 
                     arrived =
                         html [] opened

@@ -9,8 +9,11 @@ module Klar.Picking.View exposing
     , onSearchKeys
     , onTriggerKeys
     , onWindowKeys
+    , overscan
     , plain
+    , renderedRange
     , retryFor
+    , rowHeight
     , viewChevron
     , viewClearButton
     , viewEmpty
@@ -44,10 +47,52 @@ import Klar.EmptyState as EmptyState
 import Klar.ErrorState as ErrorState
 import Klar.Icon as Icon exposing (Icon)
 import Klar.Internal as Internal
+import Klar.Internal.Window as Window
 import Klar.Locale exposing (Locale)
 import Klar.Remote as Remote
 import Klar.Skeleton as Skeleton
 import Klar.Spinner as Spinner
+import Klar.VirtualList as VirtualList
+
+
+
+-- ROWS
+
+
+{-| The height in pixels of a row in the lists of the picking components. The
+stylesheet gives `.klar-select__option` rows inside a virtual list the same
+height at every density, so the arithmetic and the drawing agree.
+-}
+rowHeight : Int
+rowHeight =
+    32
+
+
+{-| How many rows the lists draw above and below the ones in view. The lists are
+given it (`VirtualList.overscan`), and `renderedRange` uses it, so the two agree.
+-}
+overscan : Int
+overscan =
+    6
+
+
+{-| The rows that a list of `visibleRows` rows of `rowHeight` draws at its scroll
+position, from the first up to (not including) the second: the arithmetic of
+`VirtualList.view` (`Klar.Internal.Window`), so that `aria-activedescendant` only
+ever names a row that is in the page.
+-}
+renderedRange : { visibleRows : Int, count : Int } -> VirtualList.State -> ( Int, Int )
+renderedRange list state =
+    let
+        drawn =
+            Window.window { overscan = overscan, chunk = 1 }
+                { rowHeight = rowHeight
+                , viewport = min (list.visibleRows * rowHeight) (list.count * rowHeight)
+                , count = list.count
+                }
+                (VirtualList.scrollTop state)
+    in
+    ( drawn.first, drawn.end )
 
 
 {-| Whether a `Maybe` has a value, without comparing values.
@@ -180,7 +225,14 @@ keyName event =
 
           else
             ""
-        , if event.alt then
+        , rest event
+        ]
+
+
+rest : Internal.KeyEvent -> String
+rest event =
+    String.concat
+        [ if event.alt then
             "Alt+"
 
           else
@@ -194,18 +246,31 @@ keyName event =
         ]
 
 
-findBinding : String -> Caret -> List (Binding msg) -> Maybe msg
-findBinding name c bindings =
+{-| The names a key answers to: the exact one (`Ctrl+a`, `Meta+a`), and with
+exactly one of Ctrl and Meta also `Mod+a`, so that a binding written with `Mod+` is
+Ctrl on Windows and Linux and Cmd on a Mac.
+-}
+keyNames : Internal.KeyEvent -> List String
+keyNames event =
+    if event.ctrl /= event.meta then
+        [ keyName event, "Mod+" ++ rest event ]
+
+    else
+        [ keyName event ]
+
+
+findBinding : List String -> Caret -> List (Binding msg) -> Maybe msg
+findBinding names c bindings =
     case bindings of
         [] ->
             Nothing
 
-        (Binding condition key msg) :: rest ->
-            if key == name && holds condition c then
+        (Binding condition key msg) :: others ->
+            if List.member key names && holds condition c then
                 Just msg
 
             else
-                findBinding name c rest
+                findBinding names c others
 
 
 {-| The keys of the search box. `handled` keys prevent the browser's own action
@@ -219,19 +284,19 @@ onSearchKeys bindings =
             |> Decode.andThen
                 (\( event, c ) ->
                     let
-                        name =
-                            keyName event
+                        names =
+                            keyNames event
                     in
                     if c.composing then
                         Decode.fail "a key of an input method composition"
 
                     else
-                        case findBinding name c bindings.handled of
+                        case findBinding names c bindings.handled of
                             Just msg ->
                                 Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
 
                             Nothing ->
-                                case findBinding name c bindings.passive of
+                                case findBinding names c bindings.passive of
                                     Just msg ->
                                         Decode.succeed { message = msg, preventDefault = False, stopPropagation = False }
 
@@ -261,14 +326,14 @@ onTriggerKeys bindings typed =
             |> Decode.andThen
                 (\( event, repeated ) ->
                     let
-                        name =
+                        names =
                             if repeated && event.key == "Backspace" then
-                                "Repeat+" ++ keyName event
+                                List.map (\name -> "Repeat+" ++ name) (keyNames event)
 
                             else
-                                keyName event
+                                keyNames event
                     in
-                    case lookup name bindings of
+                    case lookup names bindings of
                         Just msg ->
                             Decode.succeed { message = msg, preventDefault = True, stopPropagation = True }
 
@@ -287,18 +352,18 @@ onTriggerKeys bindings typed =
         )
 
 
-lookup : String -> List ( String, a ) -> Maybe a
-lookup key bindings =
+lookup : List String -> List ( String, a ) -> Maybe a
+lookup names bindings =
     case bindings of
         [] ->
             Nothing
 
-        ( name, value ) :: rest ->
-            if name == key then
+        ( name, value ) :: others ->
+            if List.member name names then
                 Just value
 
             else
-                lookup key rest
+                lookup names others
 
 
 {-| A navigation key in the first moment after a list opened, before the search
@@ -460,6 +525,7 @@ viewSearch :
     , label : String
     , activeDescendant : Maybe String
     , onInput : String -> msg
+    , onFocus : msg
     , keys : Html.Attribute msg
     , loading : Bool
     , loadingLabel : String
@@ -472,6 +538,7 @@ viewSearch config =
         [ Html.span [ Internal.cls [ "klar-select__search-icon" ] ] [ Icon.view Icon.search ]
         , Html.input
             [ Internal.cls [ "klar-select__search-input" ]
+            , Events.onFocus config.onFocus
             , Attr.id config.id
             , Attr.type_ "text"
             , Attr.value config.query
