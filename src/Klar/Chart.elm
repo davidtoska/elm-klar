@@ -144,6 +144,7 @@ import Array exposing (Array)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
+import Klar.Chart.Bar as Bar
 import Klar.Chart.Config as Config
 import Klar.Chart.Core as Core
 import Klar.Chart.Data as Data
@@ -646,7 +647,7 @@ draws no bar.
 -}
 bar : List (Attribute msg) -> List Series -> Html msg
 bar arg1 arg2 =
-    Core.bar (List.map unwrapAttribute arg1) (List.map unwrapSeries arg2)
+    Bar.bar (List.map unwrapAttribute arg1) (List.map unwrapSeries arg2)
 
 
 {-| Parts of a whole. It is best with up to six slices: when there are more than

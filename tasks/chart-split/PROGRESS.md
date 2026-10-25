@@ -83,3 +83,7 @@
 - Next: Line.
 
 - Line: format, full check, byte-identical docs and identical chart/sparkline roots passed.
+- Commit 713dbb7: Line complete.
+- Next: Bar.
+
+- Bar: format, full check, byte-identical docs and identical chart/sparkline roots passed.
