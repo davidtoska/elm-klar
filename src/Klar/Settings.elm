@@ -246,7 +246,7 @@ now (Settings data) =
 `withNow` was called. Give it to the components that mark today or count from it
 (`DatePicker.today`, `FilterBar.today`, `RuleBuilder.today`), once it is known:
 
-    dueAttributes : Model -> List DatePicker.Attribute
+    dueAttributes : Model -> List (DatePicker.Attribute msg)
     dueAttributes model =
         case Settings.today model.settings of
             Just day ->
