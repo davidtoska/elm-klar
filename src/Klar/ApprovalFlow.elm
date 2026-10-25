@@ -1,6 +1,6 @@
 module Klar.ApprovalFlow exposing
     ( view, viewRemote
-    , Flow, flow, Step, step, withDue, Quorum, all, any
+    , Flow, flow, Step, step, withDue, Quorum, all, any, atLeast
     , Approver, approver, Decision, pending, approved, rejected
     , Status, status, isInProgress, isApproved, isRejected
     , StepStatus, stepStatuses, stepIsWaiting, stepIsInProgress, stepIsApproved, stepIsRejected, stepIsSkipped
@@ -96,8 +96,9 @@ flow stands follow from the decisions and the rules, in one place, so a screen
 cannot contradict its own data. The steps are taken in order:
 
   - A step is met when its `Quorum` is satisfied: with `all` every approver
-    approved, with `any` at least one did. It fails when it can no longer be met:
-    with `all` as soon as one approver rejected, with `any` when all of them did.
+    approved, with `any` at least one did, with `atLeast 2` two did. It fails when it
+    can no longer be met: with `all` as soon as one approver rejected, with `any` when
+    all of them did, with `atLeast 2` when so many rejected that two cannot approve.
     A rejection in an `all` step wins over approvals; an approval in an `any` step
     wins over rejections.
   - Going from the first step, the steps that are met are approved. The first step
@@ -169,7 +170,7 @@ buttons) is English unless you set `locale`. Names and comments come from you.
 
 # The flow
 
-@docs Flow, flow, Step, step, withDue, Quorum, all, any
+@docs Flow, flow, Step, step, withDue, Quorum, all, any, atLeast
 
 
 # Approvers and decisions
@@ -241,13 +242,14 @@ type alias StepData approver =
     }
 
 
-{-| How many of the approvers of a step have to approve: `all` of them, or `any`
-one of them. Opaque, so that a rule such as "at least two" can be added later
+{-| How many of the approvers of a step have to approve: `all` of them, `any` one of
+them, or `atLeast` a number of them. Opaque, so that other rules can be added later
 without breaking anyone.
 -}
 type Quorum
     = Everyone
     | AnyOne
+    | AtLeast Int
 
 
 {-| One person who has to decide on a step, with the decision so far. Make it with
@@ -343,6 +345,34 @@ only rejected when every approver has rejected.
 any : Quorum
 any =
     AnyOne
+
+
+{-| This many approvals approve the step ("2 of 3 must approve"). The step is rejected
+as soon as so many have rejected that the number can no longer be reached. The number
+is taken between 1 and the number of approvers of the step: `atLeast 1` is `any`, and
+a number of at least all the approvers is `all`.
+
+    ApprovalFlow.step "Board" (ApprovalFlow.atLeast 2) (ApprovalFlow.approver ada ApprovalFlow.pending) [ ApprovalFlow.approver grace ApprovalFlow.pending, ApprovalFlow.approver alan ApprovalFlow.pending ]
+
+-}
+atLeast : Int -> Quorum
+atLeast count =
+    AtLeast count
+
+
+{-| How many approvals a step needs, from its rule and its number of approvers.
+-}
+needed : Quorum -> Int -> Int
+needed quorum total =
+    case quorum of
+        Everyone ->
+            total
+
+        AnyOne ->
+            1
+
+        AtLeast count ->
+            clamp 1 (max 1 total) count
 
 
 {-| A person and what they have decided. `who` is your own type, the same one you
@@ -550,6 +580,21 @@ outcome data =
                 Met
 
             else if no == total then
+                Failed
+
+            else
+                Open
+
+        AtLeast _ ->
+            let
+                enough =
+                    needed data.quorum total
+            in
+            if yes >= enough then
+                Met
+
+            else if total - no < enough then
+                -- too many rejected: the number can no longer be reached
                 Failed
 
             else
@@ -863,6 +908,7 @@ type alias Texts =
     , notNeeded : String
     , notAskedYet : String
     , countRejected : Int -> Int -> String
+    , atLeast : Int -> Int -> String
     }
 
 
@@ -900,6 +946,7 @@ texts loc =
     , notNeeded = pick "Ikke nødvendig" "Not needed"
     , notAskedYet = pick "Ikke spurt ennå" "Not asked yet"
     , countRejected = \no total -> pick (number no ++ " av " ++ number total ++ " avvist") (number no ++ " of " ++ number total ++ " rejected")
+    , atLeast = \n total -> pick (number n ++ " av " ++ number total ++ " må godkjenne") (number n ++ " of " ++ number total ++ " must approve")
     }
 
 
@@ -1099,6 +1146,16 @@ viewSteps person config t freshness theFlow steps =
                             Everyone ->
                                 ", " ++ t.countApproved yes total
 
+                            AtLeast _ ->
+                                ", "
+                                    ++ t.countApproved yes total
+                                    ++ (if no > 0 then
+                                            ", " ++ t.countRejected no total
+
+                                        else
+                                            ""
+                                       )
+
                             AnyOne ->
                                 if no > 0 then
                                     ", " ++ t.countRejected no total
@@ -1259,10 +1316,21 @@ viewStep env index (Step data) state =
 
                         AnyOne ->
                             t.anyOne total
+
+                        AtLeast _ ->
+                            t.atLeast (needed data.quorum total) total
                     )
 
+        counts =
+            case data.quorum of
+                AnyOne ->
+                    False
+
+                _ ->
+                    True
+
         progress =
-            if total > 1 && data.quorum == Everyone && (state == StepInProgress || state == StepApproved) then
+            if total > 1 && counts && (state == StepInProgress || state == StepApproved) then
                 Just (t.countApproved yes total)
 
             else

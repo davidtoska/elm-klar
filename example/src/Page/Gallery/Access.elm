@@ -412,6 +412,20 @@ rejectedRequest =
         ]
 
 
+{-| Two of three must approve: one approved and one rejected, so the third decides.
+-}
+boardRequest : ApprovalFlow.Flow User
+boardRequest =
+    ApprovalFlow.flow
+        [ ApprovalFlow.step "Board"
+            (ApprovalFlow.atLeast 2)
+            (ApprovalFlow.approver Ada (ApprovalFlow.approved { at = Just (daysBefore 2 Sample.now), comment = Nothing }))
+            [ ApprovalFlow.approver Grace (ApprovalFlow.rejected { at = Just (daysBefore 1 Sample.now), comment = Just "Not this quarter." })
+            , ApprovalFlow.approver Alan ApprovalFlow.pending
+            ]
+        ]
+
+
 approvedRequest : ApprovalFlow.Flow User
 approvedRequest =
     ApprovalFlow.flow
@@ -867,13 +881,14 @@ approvalSection settings locale model =
             )
         , Doc.example
             { title = "Every status"
-            , description = Just "A finance step that is overdue, a rejection after which the director is not reached, a flow in which an any step was approved by the second person, and a flow without steps. Each status is an icon and words, never only a color."
+            , description = Just "A finance step that is overdue, a rejection after which the director is not reached, a flow in which an any step was approved by the second person, a board where two of three must approve (atLeast 2), and a flow without steps. Each status is an icon and words, never only a color."
             , code = Just statusCode
             }
             (Layout.grid [ Layout.minColumn 340, Layout.gap 4 ]
                 [ labelled "Overdue" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, overdue" :: staticAttributes settings locale) lateRequest)
                 , labelled "Rejected" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, rejected" :: staticAttributes settings locale) rejectedRequest)
                 , labelled "Approved" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Purchase request, approved" :: staticAttributes settings locale) approvedRequest)
+                , labelled "Two of three" (ApprovalFlow.view personOf (ApprovalFlow.ariaLabel "Investment, two of three" :: staticAttributes settings locale) boardRequest)
                 , labelled "No approval required" (ApprovalFlow.view personOf (ApprovalFlow.locale locale :: []) (ApprovalFlow.flow []))
                 ]
             )

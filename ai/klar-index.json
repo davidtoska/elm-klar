@@ -4185,7 +4185,7 @@
         "withDue",
         "all",
         "any",
-        "approver"
+        "atLeast"
       ],
       "related": [
         "Klar.Stepper",

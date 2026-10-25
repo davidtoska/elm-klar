@@ -26,6 +26,7 @@ step : String -> Quorum -> Approver approver -> List (Approver approver) -> Step
 withDue : Time.Posix -> Step approver -> Step approver
 all : Quorum
 any : Quorum
+atLeast : Int -> Quorum
 
 -- Approvers and decisions
 type Approver approver  -- opaque: no constructors are exposed
@@ -157,8 +158,9 @@ flow stands follow from the decisions and the rules, in one place, so a screen
 cannot contradict its own data. The steps are taken in order:
 
   - A step is met when its `Quorum` is satisfied: with `all` every approver
-    approved, with `any` at least one did. It fails when it can no longer be met:
-    with `all` as soon as one approver rejected, with `any` when all of them did.
+    approved, with `any` at least one did, with `atLeast 2` two did. It fails when it
+    can no longer be met: with `all` as soon as one approver rejected, with `any` when
+    all of them did, with `atLeast 2` when so many rejected that two cannot approve.
     A rejection in an `all` step wins over approvals; an approval in an `any` step
     wins over rejections.
   - Going from the first step, the steps that are met are approved. The first step
@@ -284,8 +286,8 @@ decisions. Make it with `step`.
 type Quorum  -- opaque: no constructors are exposed
 ```
 
-How many of the approvers of a step have to approve: `all` of them, or `any`
-one of them. Opaque, so that a rule such as "at least two" can be added later
+How many of the approvers of a step have to approve: `all` of them, `any` one of
+them, or `atLeast` a number of them. Opaque, so that other rules can be added later
 without breaking anyone.
 
 ### `flow`
@@ -350,6 +352,19 @@ any : Quorum
 
 One approver is enough: the first approval approves the step. The step is
 only rejected when every approver has rejected.
+
+### `atLeast`
+
+```elm
+atLeast : Int -> Quorum
+```
+
+This many approvals approve the step ("2 of 3 must approve"). The step is rejected
+as soon as so many have rejected that the number can no longer be reached. The number
+is taken between 1 and the number of approvers of the step: `atLeast 1` is `any`, and
+a number of at least all the approvers is `all`.
+
+    ApprovalFlow.step "Board" (ApprovalFlow.atLeast 2) (ApprovalFlow.approver ada ApprovalFlow.pending) [ ApprovalFlow.approver grace ApprovalFlow.pending, ApprovalFlow.approver alan ApprovalFlow.pending ]
 
 ## Approvers and decisions
 

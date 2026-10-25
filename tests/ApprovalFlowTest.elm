@@ -143,6 +143,49 @@ auditTests =
                     , \_ -> viewIt [] creditNote |> H.none [ Selector.tag "ol", Selector.attribute (Attr.tabindex 0) ]
                     ]
                     ()
+        , test "atLeast 2 of 3: two approvals approve the step, two rejections reject it, one of each keeps it open" <|
+            \_ ->
+                let
+                    board decisions =
+                        case List.indexedMap (\place d -> ApprovalFlow.approver place (decision d)) decisions of
+                            first :: rest ->
+                                ApprovalFlow.flow [ ApprovalFlow.step "Board" (ApprovalFlow.atLeast 2) first rest ]
+
+                            [] ->
+                                ApprovalFlow.flow []
+
+                    statusOf decisions =
+                        ApprovalFlow.status (board decisions)
+                in
+                Expect.all
+                    [ \_ -> ApprovalFlow.isApproved (statusOf [ Y, Y, P ]) |> Expect.equal True
+                    , \_ -> ApprovalFlow.isRejected (statusOf [ N, N, P ]) |> Expect.equal True
+                    , \_ -> ApprovalFlow.isInProgress (statusOf [ Y, N, P ]) |> Expect.equal True
+                    , \_ -> ApprovalFlow.isApproved (statusOf [ Y, N, Y ]) |> Expect.equal True
+                    , \_ -> ApprovalFlow.pendingApprovers (board [ Y, N, P ]) |> Expect.equal [ 2 ]
+                    , \_ -> viewIt [] (board [ Y, P, P ]) |> H.has [ Selector.text "2 of 3 must approve" ]
+                    , \_ -> viewIt [] (board [ Y, N, P ]) |> H.has [ H.attr "role" "status", Selector.text "In progress: step 1 of 1 (Board), 1 of 3 approved, 1 of 3 rejected" ]
+                    , \_ -> viewIt [ ApprovalFlow.locale Locale.nb ] (board [ Y, P, P ]) |> H.has [ Selector.text "2 av 3 må godkjenne" ]
+                    ]
+                    ()
+        , test "atLeast is taken between 1 and the number of approvers: 1 is any, and more than all is all" <|
+            \_ ->
+                let
+                    withRule quorum decisions =
+                        case List.indexedMap (\place d -> ApprovalFlow.approver place (decision d)) decisions of
+                            first :: rest ->
+                                ApprovalFlow.status (ApprovalFlow.flow [ ApprovalFlow.step "Board" quorum first rest ])
+
+                            [] ->
+                                ApprovalFlow.status (ApprovalFlow.flow [])
+                in
+                Expect.all
+                    [ \_ -> withRule (ApprovalFlow.atLeast 1) [ N, Y ] |> Expect.equal (withRule ApprovalFlow.any [ N, Y ])
+                    , \_ -> withRule (ApprovalFlow.atLeast 0) [ N, P ] |> Expect.equal (withRule ApprovalFlow.any [ N, P ])
+                    , \_ -> withRule (ApprovalFlow.atLeast 5) [ Y, N ] |> Expect.equal (withRule ApprovalFlow.all [ Y, N ])
+                    , \_ -> withRule (ApprovalFlow.atLeast 5) [ Y, Y ] |> Expect.equal (withRule ApprovalFlow.all [ Y, Y ])
+                    ]
+                    ()
         , test "the new words in Norwegian" <|
             \_ ->
                 Expect.all
