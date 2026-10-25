@@ -36,3 +36,7 @@
 - Next: Numeric validation, then Filter, Selection and DomIds.
 
 - Numeric: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit a785bd8: Numeric complete.
+- Next: Filter validation, then Selection and DomIds.
+
+- Filter: format, full check, byte-identical docs and 22 identical table roots passed.
