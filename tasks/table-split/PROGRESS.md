@@ -121,3 +121,7 @@ Execution notes for resuming a long run:
 - Next: Keyboard.
 
 - Keyboard: format, full check, byte-identical docs and 22 identical table roots passed.
+- Commit f34e06f: Keyboard complete.
+- Next: Export.
+
+- Export: format, full check, byte-identical docs and 22 identical table roots passed.
